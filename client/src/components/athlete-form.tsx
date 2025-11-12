@@ -22,6 +22,7 @@ export function AthleteForm({ onSubmit, isPending }: AthleteFormProps) {
   const form = useForm<InsertAthlete>({
     resolver: zodResolver(insertAthleteSchema),
     defaultValues: {
+      athleteIdNumber: 1,
       name: "",
       bib: "",
       team: "",
@@ -37,6 +38,27 @@ export function AthleteForm({ onSubmit, isPending }: AthleteFormProps) {
       <CardContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="athleteIdNumber"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Athlete ID Number</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      min="1"
+                      placeholder="e.g., 1001"
+                      {...field}
+                      onChange={(e) => field.onChange(parseInt(e.target.value))}
+                      data-testid="input-athlete-id-number"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
                 control={form.control}

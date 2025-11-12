@@ -38,6 +38,7 @@ export type Gender = z.infer<typeof genderEnum>;
 // Athletes
 export const athletes = pgTable("athletes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  athleteIdNumber: integer("athlete_id_number").notNull().unique(), // ID Number for athlete
   name: text("name").notNull(),
   bib: text("bib").notNull(),
   team: text("team"),
@@ -46,6 +47,8 @@ export const athletes = pgTable("athletes", {
 
 export const insertAthleteSchema = createInsertSchema(athletes).omit({
   id: true,
+}).extend({
+  athleteIdNumber: z.number().int().positive(),
 });
 
 export type InsertAthlete = z.infer<typeof insertAthleteSchema>;
@@ -54,6 +57,7 @@ export type Athlete = typeof athletes.$inferSelect;
 // Events
 export const events = pgTable("events", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  eventNumber: integer("event_number").notNull().unique(), // Event number to match timing software
   name: text("name").notNull(),
   eventType: text("event_type").notNull(),
   gender: text("gender").notNull(),
@@ -70,6 +74,7 @@ export const insertEventSchema = createInsertSchema(events).omit({
   eventType: eventTypeEnum,
   gender: genderEnum,
   status: eventStatusEnum,
+  eventNumber: z.number().int().positive(),
 });
 
 export type InsertEvent = z.infer<typeof insertEventSchema>;
@@ -126,6 +131,16 @@ export const meets = pgTable("meets", {
   location: text("location"),
   date: timestamp("date").notNull(),
   logoUrl: text("logo_url"),
+  trackLength: integer("track_length").default(400), // Track length in meters (200m, 400m, etc.)
+});
+
+// Split Times for distance running events
+export const splitTimes = pgTable("split_times", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  trackResultId: varchar("track_result_id").notNull(),
+  lapNumber: integer("lap_number").notNull(),
+  splitTime: real("split_time").notNull(), // Time at this split in seconds
+  cumulativeTime: real("cumulative_time").notNull(), // Total time up to this split
 });
 
 export const insertMeetSchema = createInsertSchema(meets).omit({
@@ -135,11 +150,20 @@ export const insertMeetSchema = createInsertSchema(meets).omit({
 export type InsertMeet = z.infer<typeof insertMeetSchema>;
 export type Meet = typeof meets.$inferSelect;
 
-// Helper type for combined results
+// Split Times
+export const insertSplitTimeSchema = createInsertSchema(splitTimes).omit({
+  id: true,
+});
+
+export type InsertSplitTime = z.infer<typeof insertSplitTimeSchema>;
+export type SplitTime = typeof splitTimes.$inferSelect;
+
+// Helper type for combined results with splits
 export type AthleteResult = {
   athlete: Athlete;
   trackResult?: TrackResult;
   fieldResult?: FieldResult;
+  splitTimes?: SplitTime[];
 };
 
 // Event with results

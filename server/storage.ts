@@ -11,8 +11,17 @@ import {
   type InsertMeet,
   type EventWithResults,
   type AthleteResult,
+  type SplitTime,
+  type InsertSplitTime,
+  events,
+  athletes,
+  trackResults,
+  fieldResults,
+  meets,
+  splitTimes,
 } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { db } from "./db";
+import { eq, desc } from "drizzle-orm";
 
 export interface IStorage {
   // Events
@@ -42,45 +51,36 @@ export interface IStorage {
   getMeet(id: string): Promise<Meet | undefined>;
   createMeet(meet: InsertMeet): Promise<Meet>;
 
+  // Split Times
+  getSplitTimesByTrackResult(trackResultId: string): Promise<SplitTime[]>;
+  createSplitTime(splitTime: InsertSplitTime): Promise<SplitTime>;
+
   // Combined
   getEventWithResults(eventId: string): Promise<EventWithResults | undefined>;
 }
 
-export class MemStorage implements IStorage {
-  private events: Map<string, Event>;
-  private athletes: Map<string, Athlete>;
-  private trackResults: Map<string, TrackResult>;
-  private fieldResults: Map<string, FieldResult>;
-  private meets: Map<string, Meet>;
-
-  constructor() {
-    this.events = new Map();
-    this.athletes = new Map();
-    this.trackResults = new Map();
-    this.fieldResults = new Map();
-    this.meets = new Map();
-  }
-
+export class DatabaseStorage implements IStorage {
   // Events
   async getEvents(): Promise<Event[]> {
-    return Array.from(this.events.values());
+    return db.select().from(events);
   }
 
   async getEvent(id: string): Promise<Event | undefined> {
-    return this.events.get(id);
+    const [event] = await db.select().from(events).where(eq(events.id, id));
+    return event || undefined;
   }
 
   async getCurrentEvent(): Promise<EventWithResults | undefined> {
-    const events = Array.from(this.events.values());
+    const allEvents = await db.select().from(events);
     
     // Priority: in_progress > scheduled > completed
-    let currentEvent = events.find((e) => e.status === "in_progress");
+    let currentEvent = allEvents.find((e) => e.status === "in_progress");
     if (!currentEvent) {
-      currentEvent = events.find((e) => e.status === "scheduled");
+      currentEvent = allEvents.find((e) => e.status === "scheduled");
     }
     if (!currentEvent) {
-      const completedEvents = events.filter((e) => e.status === "completed");
-      currentEvent = completedEvents[completedEvents.length - 1]; // Most recent completed
+      const completedEvents = allEvents.filter((e) => e.status === "completed");
+      currentEvent = completedEvents[completedEvents.length - 1];
     }
 
     if (!currentEvent) {
@@ -91,153 +91,149 @@ export class MemStorage implements IStorage {
   }
 
   async createEvent(insertEvent: InsertEvent): Promise<Event> {
-    const id = randomUUID();
-    const event: Event = { 
-      ...insertEvent, 
-      id,
-      startTime: insertEvent.startTime || null,
-      windReading: insertEvent.windReading || null,
-    };
-    this.events.set(id, event);
+    const [event] = await db
+      .insert(events)
+      .values(insertEvent)
+      .returning();
     return event;
   }
 
   async updateEventStatus(id: string, status: string): Promise<Event | undefined> {
-    const event = this.events.get(id);
-    if (!event) {
-      return undefined;
-    }
-    const updated = { ...event, status };
-    this.events.set(id, updated);
-    return updated;
+    const [updated] = await db
+      .update(events)
+      .set({ status })
+      .where(eq(events.id, id))
+      .returning();
+    return updated || undefined;
   }
 
   // Athletes
   async getAthletes(): Promise<Athlete[]> {
-    return Array.from(this.athletes.values());
+    return db.select().from(athletes);
   }
 
   async getAthlete(id: string): Promise<Athlete | undefined> {
-    return this.athletes.get(id);
+    const [athlete] = await db.select().from(athletes).where(eq(athletes.id, id));
+    return athlete || undefined;
   }
 
   async createAthlete(insertAthlete: InsertAthlete): Promise<Athlete> {
-    const id = randomUUID();
-    const athlete: Athlete = { 
-      ...insertAthlete, 
-      id,
-      team: insertAthlete.team || null,
-      country: insertAthlete.country || null,
-    };
-    this.athletes.set(id, athlete);
+    const [athlete] = await db
+      .insert(athletes)
+      .values(insertAthlete)
+      .returning();
     return athlete;
   }
 
   // Track Results
   async getTrackResults(): Promise<TrackResult[]> {
-    return Array.from(this.trackResults.values());
+    return db.select().from(trackResults);
   }
 
   async getTrackResultsByEvent(eventId: string): Promise<TrackResult[]> {
-    return Array.from(this.trackResults.values()).filter(
-      (result) => result.eventId === eventId
-    );
+    return db
+      .select()
+      .from(trackResults)
+      .where(eq(trackResults.eventId, eventId));
   }
 
   async createTrackResult(insertResult: InsertTrackResult): Promise<TrackResult> {
-    const id = randomUUID();
-    const result: TrackResult = { 
-      ...insertResult, 
-      id,
-      lane: insertResult.lane || null,
-      time: insertResult.time || null,
-      position: insertResult.position || null,
-      reaction: insertResult.reaction || null,
-      isDisqualified: insertResult.isDisqualified || false,
-      notes: insertResult.notes || null,
-    };
-    this.trackResults.set(id, result);
+    const [result] = await db
+      .insert(trackResults)
+      .values(insertResult)
+      .returning();
     return result;
   }
 
   // Field Results
   async getFieldResults(): Promise<FieldResult[]> {
-    return Array.from(this.fieldResults.values());
+    return db.select().from(fieldResults);
   }
 
   async getFieldResultsByEvent(eventId: string): Promise<FieldResult[]> {
-    return Array.from(this.fieldResults.values()).filter(
-      (result) => result.eventId === eventId
-    );
+    return db
+      .select()
+      .from(fieldResults)
+      .where(eq(fieldResults.eventId, eventId));
   }
 
   async createFieldResult(insertResult: InsertFieldResult): Promise<FieldResult> {
-    const id = randomUUID();
-    const result: FieldResult = { 
-      ...insertResult, 
-      id,
-      attempt1: insertResult.attempt1 || null,
-      attempt2: insertResult.attempt2 || null,
-      attempt3: insertResult.attempt3 || null,
-      attempt4: insertResult.attempt4 || null,
-      attempt5: insertResult.attempt5 || null,
-      attempt6: insertResult.attempt6 || null,
-      bestMark: insertResult.bestMark || null,
-      position: insertResult.position || null,
-      isDisqualified: insertResult.isDisqualified || false,
-      notes: insertResult.notes || null,
-    };
-    this.fieldResults.set(id, result);
+    const [result] = await db
+      .insert(fieldResults)
+      .values(insertResult)
+      .returning();
     return result;
   }
 
   // Meets
   async getMeets(): Promise<Meet[]> {
-    return Array.from(this.meets.values());
+    return db.select().from(meets);
   }
 
   async getMeet(id: string): Promise<Meet | undefined> {
-    return this.meets.get(id);
+    const [meet] = await db.select().from(meets).where(eq(meets.id, id));
+    return meet || undefined;
   }
 
   async createMeet(insertMeet: InsertMeet): Promise<Meet> {
-    const id = randomUUID();
-    const meet: Meet = { 
-      ...insertMeet, 
-      id,
-      location: insertMeet.location || null,
-      logoUrl: insertMeet.logoUrl || null,
-    };
-    this.meets.set(id, meet);
+    const [meet] = await db
+      .insert(meets)
+      .values(insertMeet)
+      .returning();
     return meet;
+  }
+
+  // Split Times
+  async getSplitTimesByTrackResult(trackResultId: string): Promise<SplitTime[]> {
+    return db
+      .select()
+      .from(splitTimes)
+      .where(eq(splitTimes.trackResultId, trackResultId))
+      .orderBy(splitTimes.lapNumber);
+  }
+
+  async createSplitTime(insertSplitTime: InsertSplitTime): Promise<SplitTime> {
+    const [splitTime] = await db
+      .insert(splitTimes)
+      .values(insertSplitTime)
+      .returning();
+    return splitTime;
   }
 
   // Combined
   async getEventWithResults(eventId: string): Promise<EventWithResults | undefined> {
-    const event = this.events.get(eventId);
+    const [event] = await db.select().from(events).where(eq(events.id, eventId));
     if (!event) {
       return undefined;
     }
 
-    const trackResults = await this.getTrackResultsByEvent(eventId);
-    const fieldResults = await this.getFieldResultsByEvent(eventId);
+    const trackResultsData = await this.getTrackResultsByEvent(eventId);
+    const fieldResultsData = await this.getFieldResultsByEvent(eventId);
 
     const results: AthleteResult[] = [];
 
-    // Combine track results
-    for (const trackResult of trackResults) {
-      const athlete = this.athletes.get(trackResult.athleteId);
+    // Combine track results with splits
+    for (const trackResult of trackResultsData) {
+      const [athlete] = await db
+        .select()
+        .from(athletes)
+        .where(eq(athletes.id, trackResult.athleteId));
       if (athlete) {
+        const splits = await this.getSplitTimesByTrackResult(trackResult.id);
         results.push({
           athlete,
           trackResult,
+          splitTimes: splits,
         });
       }
     }
 
     // Combine field results
-    for (const fieldResult of fieldResults) {
-      const athlete = this.athletes.get(fieldResult.athleteId);
+    for (const fieldResult of fieldResultsData) {
+      const [athlete] = await db
+        .select()
+        .from(athletes)
+        .where(eq(athletes.id, fieldResult.athleteId));
       if (athlete) {
         results.push({
           athlete,
@@ -253,4 +249,4 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();

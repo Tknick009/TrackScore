@@ -53,6 +53,7 @@ export function EventForm({ onSubmit, isPending }: EventFormProps) {
     resolver: zodResolver(insertEventSchema),
     defaultValues: {
       name: "",
+      eventNumber: 1,
       eventType: "100m",
       gender: "men",
       heat: 1,
@@ -69,23 +70,46 @@ export function EventForm({ onSubmit, isPending }: EventFormProps) {
       <CardContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Event Name</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="e.g., Men's 100m Final"
-                      {...field}
-                      data-testid="input-event-name"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="eventNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Event Number</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min="1"
+                        placeholder="e.g., 101"
+                        {...field}
+                        onChange={(e) => field.onChange(parseInt(e.target.value))}
+                        data-testid="input-event-number"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Event Name</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="e.g., Men's 100m Final"
+                        {...field}
+                        data-testid="input-event-name"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
