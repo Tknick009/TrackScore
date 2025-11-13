@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { EventWithResults, DisplayBoardState, WSMessage, Event } from "@shared/schema";
+import { EventWithEntries, DisplayBoardState, WSMessage, Event } from "@shared/schema";
 import { DisplayBoard } from "@/components/display-board";
 
 export default function Display() {
@@ -58,7 +58,7 @@ export default function Display() {
   }, []);
 
   // Use WebSocket data if available, otherwise use fallback
-  const displayEvent = boardState.currentEvent || (fallbackEvent as EventWithResults);
+  const displayEvent = boardState.currentEvent || (fallbackEvent as EventWithEntries);
 
   return (
     <div className="bg-background" data-testid="display-board">
