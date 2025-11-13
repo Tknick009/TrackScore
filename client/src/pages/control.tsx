@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { PlayCircle, CheckCircle2, Monitor, Upload, Database } from "lucide-react";
+import { PlayCircle, CheckCircle2, Monitor, Upload, Database, Trophy, Users, Target } from "lucide-react";
 import { Link } from "wouter";
 
 type ImportStatistics = {
@@ -334,13 +334,16 @@ export default function Control() {
         <div className="lg:col-span-2 space-y-6">
           <Tabs defaultValue="events" className="w-full">
             <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="events" data-testid="tab-events">
+              <TabsTrigger value="events" data-testid="tab-events" className="gap-2">
+                <Trophy className="w-4 h-4" />
                 Events
               </TabsTrigger>
-              <TabsTrigger value="athletes" data-testid="tab-athletes">
+              <TabsTrigger value="athletes" data-testid="tab-athletes" className="gap-2">
+                <Users className="w-4 h-4" />
                 Athletes
               </TabsTrigger>
-              <TabsTrigger value="results" data-testid="tab-results">
+              <TabsTrigger value="results" data-testid="tab-results" className="gap-2">
+                <Target className="w-4 h-4" />
                 Results
               </TabsTrigger>
             </TabsList>

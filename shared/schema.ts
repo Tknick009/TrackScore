@@ -216,7 +216,9 @@ export const entries = pgTable("entries", {
   
   // Notes
   notes: text("notes"),
-});
+}, (table) => ({
+  eventAthleteUnique: unique("entries_event_athlete_unique").on(table.eventId, table.athleteId),
+}));
 
 export const insertEntrySchema = createInsertSchema(entries).omit({ id: true }).extend({
   resultType: resultTypeEnum,

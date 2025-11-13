@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
 import { format, formatDistanceToNow } from "date-fns";
-import { Calendar, MapPin, Settings, Monitor, ArrowLeft, Hash, Upload, RefreshCw } from "lucide-react";
-import type { Meet, Event } from "@shared/schema";
+import { Calendar, MapPin, Settings, Monitor, ArrowLeft, Hash, Upload, RefreshCw, Users, Trophy, PlayCircle, CheckCircle2, Clock, TrendingUp, Activity } from "lucide-react";
+import type { Meet, Event, Athlete } from "@shared/schema";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { Separator } from "@/components/ui/separator";
 
 function MeetDetailSkeleton() {
   return (
@@ -64,6 +65,7 @@ function UploadDialog({ meetId }: UploadDialogProps) {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/meets", meetId, "events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/athletes"] });
       
       const stats = data.statistics;
       toast({
@@ -115,10 +117,19 @@ function UploadDialog({ meetId }: UploadDialogProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button data-testid="button-upload-database">
-          <Upload className="w-4 h-4 mr-2" />
-          Upload Database
-        </Button>
+        <Card className="hover-elevate h-full cursor-pointer">
+          <CardContent className="p-6">
+            <div className="flex flex-col items-center text-center gap-3">
+              <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Upload className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <div className="font-semibold mb-1">Upload Database</div>
+                <div className="text-sm text-muted-foreground">Import .mdb file</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </DialogTrigger>
       <DialogContent data-testid="dialog-upload-database">
         <DialogHeader>
@@ -391,6 +402,32 @@ export default function MeetDetail() {
     enabled: !!meetId,
   });
 
+  const { data: athletes = [] } = useQuery<Athlete[]>({
+    queryKey: ["/api/athletes"],
+  });
+
+  const stats = useMemo(() => {
+    if (!events) return { total: 0, inProgress: 0, completed: 0, scheduled: 0 };
+    
+    return {
+      total: events.length,
+      inProgress: events.filter(e => e.status === "in_progress").length,
+      completed: events.filter(e => e.status === "completed").length,
+      scheduled: events.filter(e => e.status === "scheduled").length,
+    };
+  }, [events]);
+
+  const upcomingEvents = useMemo(() => {
+    return events
+      .filter(e => e.status === "scheduled" && e.eventDate)
+      .sort((a, b) => new Date(a.eventDate!).getTime() - new Date(b.eventDate!).getTime())
+      .slice(0, 5);
+  }, [events]);
+
+  const liveEvents = useMemo(() => {
+    return events.filter(e => e.status === "in_progress");
+  }, [events]);
+
   if (meetLoading) {
     return <MeetDetailSkeleton />;
   }
@@ -413,69 +450,236 @@ export default function MeetDetail() {
 
   return (
     <div className="min-h-screen w-full bg-background">
-      <div className="max-w-6xl mx-auto p-6 space-y-8">
-        <div className="flex items-center justify-between">
+      <div className="max-w-7xl mx-auto p-6 space-y-8">
+        {/* Header */}
+        <div className="flex items-center justify-between gap-4">
           <Link href="/">
             <Button variant="ghost" size="sm" data-testid="button-back-to-meets">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Meets
             </Button>
           </Link>
-          {meetId && <UploadDialog meetId={meetId} />}
         </div>
 
+        {/* Meet Title Section */}
         <div>
           <h1 className="text-4xl font-bold text-foreground mb-2" data-testid="heading-meet-name">
             {meet.name}
           </h1>
-          <div className="flex items-center gap-4 text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-4 text-muted-foreground">
             <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4" />
               <span data-testid="text-meet-date">
-                {format(new Date(meet.startDate), "MMMM d, yyyy")}
+                {format(new Date(meet.startDate), "EEEE, MMMM d, yyyy")}
               </span>
             </div>
             {meet.location && (
-              <div className="flex items-center gap-2">
-                <MapPin className="w-4 h-4" />
-                <span data-testid="text-meet-location">{meet.location}</span>
-              </div>
+              <>
+                <Separator orientation="vertical" className="h-4" />
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4" />
+                  <span data-testid="text-meet-location">{meet.location}</span>
+                </div>
+              </>
             )}
+            <Separator orientation="vertical" className="h-4" />
+            <div className="flex items-center gap-2">
+              <Hash className="w-4 h-4" />
+              <span className="font-mono" data-testid="text-meet-code">{meet.meetCode}</span>
+            </div>
           </div>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Meet Information</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <div className="text-sm text-muted-foreground mb-1">Meet Code</div>
-              <div className="flex items-center gap-2">
-                <Hash className="w-4 h-4" />
-                <span className="font-mono text-lg" data-testid="text-meet-code">
-                  {meet.meetCode}
-                </span>
+        {/* Overview Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Trophy className="w-6 h-6 text-primary" />
+                </div>
+                <div>
+                  <div className="text-2xl font-bold" data-testid="stat-total-events">{stats.total}</div>
+                  <div className="text-sm text-muted-foreground">Total Events</div>
+                </div>
               </div>
-              <p className="text-sm text-muted-foreground mt-1">
-                Display boards can use this code to connect to this meet
-              </p>
-            </div>
+            </CardContent>
+          </Card>
 
-            {meet.trackLength && (
-              <div>
-                <div className="text-sm text-muted-foreground mb-1">Track Length</div>
-                <span data-testid="text-track-length">{meet.trackLength}m</span>
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Users className="w-6 h-6 text-primary" />
+                </div>
+                <div>
+                  <div className="text-2xl font-bold" data-testid="stat-total-athletes">{athletes.length}</div>
+                  <div className="text-sm text-muted-foreground">Athletes</div>
+                </div>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                  <PlayCircle className="w-6 h-6 text-amber-500" />
+                </div>
+                <div>
+                  <div className="text-2xl font-bold" data-testid="stat-in-progress">{stats.inProgress}</div>
+                  <div className="text-sm text-muted-foreground">In Progress</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-lg bg-green-500/10 flex items-center justify-center">
+                  <CheckCircle2 className="w-6 h-6 text-green-500" />
+                </div>
+                <div>
+                  <div className="text-2xl font-bold" data-testid="stat-completed">{stats.completed}</div>
+                  <div className="text-sm text-muted-foreground">Completed</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Quick Actions */}
+        <div>
+          <h2 className="text-2xl font-semibold mb-4">Quick Actions</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Link href="/control" className="block">
+              <Card className="hover-elevate h-full">
+                <CardContent className="p-6">
+                  <div className="flex flex-col items-center text-center gap-3">
+                    <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <Settings className="w-6 h-6 text-primary" />
+                    </div>
+                    <div>
+                      <div className="font-semibold mb-1">Control Dashboard</div>
+                      <div className="text-sm text-muted-foreground">Manage events and results</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+
+            <Link href="/display" className="block">
+              <Card className="hover-elevate h-full">
+                <CardContent className="p-6">
+                  <div className="flex flex-col items-center text-center gap-3">
+                    <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <Monitor className="w-6 h-6 text-primary" />
+                    </div>
+                    <div>
+                      <div className="font-semibold mb-1">Display Board</div>
+                      <div className="text-sm text-muted-foreground">View live scoreboard</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+
+            {meetId && (
+              <UploadDialog meetId={meetId} />
             )}
-          </CardContent>
-        </Card>
 
-        {meetId && <AutoRefreshSettings meet={meet} meetId={meetId} />}
+            <Card className="hover-elevate h-full">
+              <CardContent className="p-6">
+                <div className="flex flex-col items-center text-center gap-3">
+                  <div className="w-12 h-12 rounded-lg bg-muted/50 flex items-center justify-center">
+                    <RefreshCw className="w-6 h-6 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <div className="font-semibold mb-1 text-muted-foreground">Coming Soon</div>
+                    <div className="text-sm text-muted-foreground">Additional features</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
 
+        {/* Live Events Status */}
+        {liveEvents.length > 0 && (
+          <Card className="border-primary/20">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Activity className="w-5 h-5 text-primary animate-pulse" />
+                Live Events
+              </CardTitle>
+              <CardDescription>Events currently in progress</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {liveEvents.map((event) => (
+                  <div key={event.id} className="flex items-center justify-between p-4 bg-muted rounded-lg" data-testid={`live-event-${event.id}`}>
+                    <div className="flex items-center gap-4">
+                      <Badge className="bg-primary" data-testid={`badge-event-number-${event.id}`}>
+                        #{event.eventNumber}
+                      </Badge>
+                      <div>
+                        <div className="font-semibold" data-testid={`text-event-name-${event.id}`}>{event.name}</div>
+                        <div className="text-sm text-muted-foreground">{event.eventType}</div>
+                      </div>
+                    </div>
+                    <Badge variant="outline" className="border-primary text-primary">
+                      <PlayCircle className="w-3 h-3 mr-1" />
+                      Live
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Upcoming Events Timeline */}
+        {upcomingEvents.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="w-5 h-5" />
+                Upcoming Events
+              </CardTitle>
+              <CardDescription>Next scheduled events</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {upcomingEvents.map((event, index) => (
+                  <div key={event.id} className="flex items-center gap-4 p-4 bg-muted rounded-lg" data-testid={`upcoming-event-${event.id}`}>
+                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-background border-2 border-primary text-sm font-bold">
+                      {index + 1}
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-semibold" data-testid={`text-upcoming-event-name-${event.id}`}>{event.name}</div>
+                      <div className="text-sm text-muted-foreground">{event.eventType}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-medium">
+                        {event.eventTime || "TBD"}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {event.eventDate && format(new Date(event.eventDate), "MMM d")}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* All Events Table */}
         <Card>
           <CardHeader>
-            <CardTitle>Events</CardTitle>
+            <CardTitle>All Events</CardTitle>
+            <CardDescription>Complete list of meet events</CardDescription>
           </CardHeader>
           <CardContent>
             {eventsLoading ? (
@@ -485,11 +689,23 @@ export default function MeetDetail() {
                 <Skeleton className="h-12 w-full" />
               </div>
             ) : events.length === 0 ? (
-              <div className="text-center py-8" data-testid="empty-state-events">
-                <p className="text-muted-foreground">No events found for this meet.</p>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Upload a database file to import events and participants.
+              <div className="text-center py-12" data-testid="empty-state-events">
+                <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+                  <Trophy className="w-8 h-8 text-muted-foreground" />
+                </div>
+                <h3 className="font-semibold mb-2">No events yet</h3>
+                <p className="text-muted-foreground mb-4 max-w-sm mx-auto">
+                  Upload a database file to import events and participants, or create events manually in the Control Dashboard.
                 </p>
+                <div className="flex gap-3 justify-center">
+                  {meetId && <UploadDialog meetId={meetId} />}
+                  <Link href="/control">
+                    <Button variant="outline" data-testid="button-go-to-control-empty">
+                      <Settings className="w-4 h-4 mr-2" />
+                      Go to Control
+                    </Button>
+                  </Link>
+                </div>
               </div>
             ) : (
               <EventsTable events={events} />
@@ -497,50 +713,8 @@ export default function MeetDetail() {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card className="hover-elevate">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-3">
-                <Settings className="w-6 h-6 text-primary" />
-                Control Dashboard
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-muted-foreground">
-                Manage events, record results, and broadcast live to display boards
-              </p>
-              <Link href="/control">
-                <Button className="w-full" size="lg" data-testid="button-go-to-control">
-                  Open Control Dashboard
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-
-          <Card className="hover-elevate">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-3">
-                <Monitor className="w-6 h-6 text-primary" />
-                Display Board
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-muted-foreground">
-                Full-screen scoreboard for video boards showing live event results
-              </p>
-              <Link href="/display">
-                <Button
-                  className="w-full"
-                  size="lg"
-                  variant="outline"
-                  data-testid="button-go-to-display"
-                >
-                  Open Display Board
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-        </div>
+        {/* Auto-Refresh Settings */}
+        {meetId && <AutoRefreshSettings meet={meet} meetId={meetId} />}
       </div>
     </div>
   );
