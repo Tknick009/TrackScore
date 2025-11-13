@@ -1,6 +1,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
+import multer from "multer";
+import { unlink } from "fs/promises";
 import { storage } from "./storage";
 import {
   insertEventSchema,
@@ -12,6 +14,7 @@ import {
   type DisplayBoardState,
   type WSMessage,
 } from "@shared/schema";
+import { importCompleteMDB } from "./import-mdb-complete";
 
 // Track connected WebSocket clients
 const displayClients = new Set<WebSocket>();
@@ -214,6 +217,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(meet);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Configure multer for file uploads
+  const upload = multer({
+    dest: "uploads/",
+    limits: {
+      fileSize: 50 * 1024 * 1024, // 50MB limit
+    },
+  });
+
+  // MDB File Import
+  app.post("/api/import/mdb", upload.single("mdbFile"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const file = req.file;
+      const filePath = file.path;
+
+      // Validate file extension
+      const originalName = file.originalname.toLowerCase();
+      if (!originalName.endsWith(".mdb")) {
+        // Clean up uploaded file
+        await unlink(filePath).catch(console.error);
+        return res.status(400).json({ 
+          error: "Invalid file type. Only .mdb files are allowed" 
+        });
+      }
+
+      console.log(`📁 Processing MDB import: ${file.originalname}`);
+
+      // Run the import
+      const stats = await importCompleteMDB(filePath);
+
+      // Delete the temporary file after successful import
+      await unlink(filePath).catch((err) => {
+        console.warn(`⚠️  Failed to delete temporary file: ${filePath}`, err);
+      });
+
+      // Broadcast current event after successful import
+      await broadcastCurrentEvent();
+
+      console.log(`✅ Import complete: ${JSON.stringify(stats)}`);
+
+      // Return statistics
+      res.json({
+        success: true,
+        message: "Import completed successfully",
+        statistics: stats,
+      });
+    } catch (error: any) {
+      console.error("❌ Import failed:", error);
+
+      // Clean up the file if it exists
+      if (req.file) {
+        await unlink(req.file.path).catch(console.error);
+      }
+
+      res.status(500).json({ 
+        error: "Import failed", 
+        details: error.message 
+      });
     }
   });
 

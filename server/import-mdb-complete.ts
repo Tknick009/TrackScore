@@ -3,7 +3,16 @@ import MDBReader from "mdb-reader";
 import { db } from "./db";
 import { meets, teams, divisions, athletes, events, entries, entrySplits } from "@shared/schema";
 
-async function importCompleteMDB(filePath: string) {
+export interface ImportStatistics {
+  meets: number;
+  teams: number;
+  divisions: number;
+  athletes: number;
+  events: number;
+  entries: number;
+}
+
+export async function importCompleteMDB(filePath: string): Promise<ImportStatistics> {
   console.log(`\n=== IMPORTING MDB FILE: ${filePath} ===\n`);
   
   const buffer = readFileSync(filePath);
@@ -15,6 +24,16 @@ async function importCompleteMDB(filePath: string) {
   const divisionIdMap = new Map<number, string>();
   const athleteIdMap = new Map<number, string>();
   const eventIdMap = new Map<number, string>();
+  
+  // Statistics tracking
+  const stats: ImportStatistics = {
+    meets: 0,
+    teams: 0,
+    divisions: 0,
+    athletes: 0,
+    events: 0,
+    entries: 0,
+  };
   
   // ===========================
   // 1. IMPORT MEET
@@ -35,6 +54,7 @@ async function importCompleteMDB(filePath: string) {
       }).returning();
       
       meetIdMap.set(1, meet.id); // Assume single meet with ID 1
+      stats.meets++;
       console.log(`   ✅ Imported meet: ${meet.name}`);
     }
   } catch (error) {
@@ -44,7 +64,7 @@ async function importCompleteMDB(filePath: string) {
   const defaultMeetId = meetIdMap.get(1);
   if (!defaultMeetId) {
     console.error("   ❌ No meet ID available - cannot continue");
-    return;
+    throw new Error("No meet ID available - cannot continue");
   }
   
   // ===========================
@@ -70,6 +90,7 @@ async function importCompleteMDB(filePath: string) {
       insertedTeams.forEach((team) => {
         teamIdMap.set(team.teamNumber, team.id);
       });
+      stats.teams = insertedTeams.length;
       console.log(`   ✅ Imported ${insertedTeams.length} teams`);
     }
   } catch (error) {
@@ -100,6 +121,7 @@ async function importCompleteMDB(filePath: string) {
       insertedDivisions.forEach((division) => {
         divisionIdMap.set(division.divisionNumber, division.id);
       });
+      stats.divisions = insertedDivisions.length;
       console.log(`   ✅ Imported ${insertedDivisions.length} divisions`);
     }
   } catch (error) {
@@ -138,6 +160,7 @@ async function importCompleteMDB(filePath: string) {
         console.log(`   📝 Imported ${imported}/${athleteData.length} athletes...`);
       }
     }
+    stats.athletes = imported;
     console.log(`   ✅ Imported ${imported} athletes`);
   } catch (error) {
     console.error("   ❌ Error importing athletes:", error);
@@ -195,6 +218,7 @@ async function importCompleteMDB(filePath: string) {
       insertedEvents.forEach((event) => {
         eventIdMap.set(event.eventNumber, event.id);
       });
+      stats.events = insertedEvents.length;
       console.log(`   ✅ Imported ${insertedEvents.length} events`);
       console.log(`   📊 Track events: ${eventBatch.filter(e => !e.eventType.includes('jump') && !e.eventType.includes('throw')).length}`);
       console.log(`   📊 Field events: ${eventBatch.filter(e => e.eventType.includes('jump') || e.eventType.includes('throw')).length}`);
@@ -310,6 +334,7 @@ async function importCompleteMDB(filePath: string) {
         console.log(`   📝 Imported ${imported}/${entryData.length} entries...`);
       }
     }
+    stats.entries = imported;
     console.log(`   ✅ Imported ${imported} entries`);
     if (skippedMissingAthlete > 0 || skippedMissingEvent > 0) {
       console.log(`   ⚠️  Skipped ${skippedMissingAthlete} entries (missing athlete), ${skippedMissingEvent} entries (missing event)`);
@@ -320,23 +345,26 @@ async function importCompleteMDB(filePath: string) {
   
   console.log("\n✅ IMPORT COMPLETE!\n");
   console.log("Summary:");
-  console.log(`  - Meets: ${meetIdMap.size}`);
-  console.log(`  - Teams: ${teamIdMap.size}`);
-  console.log(`  - Divisions: ${divisionIdMap.size}`);
-  console.log(`  - Athletes: ${athleteIdMap.size}`);
-  console.log(`  - Events: ${eventIdMap.size}`);
+  console.log(`  - Meets: ${stats.meets}`);
+  console.log(`  - Teams: ${stats.teams}`);
+  console.log(`  - Divisions: ${stats.divisions}`);
+  console.log(`  - Athletes: ${stats.athletes}`);
+  console.log(`  - Events: ${stats.events}`);
+  console.log(`  - Entries: ${stats.entries}`);
+  
+  return stats;
 }
 
-// Run import
-const filePath = process.argv[2] || "attached_assets/BisonOutdoorClassic2024_1762991952128.mdb";
-importCompleteMDB(filePath)
-  .then(() => {
-    console.log("\n🎉 Import script finished successfully!");
-    process.exit(0);
-  })
-  .catch((err) => {
-    console.error("\n❌ Import failed:", err);
-    process.exit(1);
-  });
-
-export { importCompleteMDB };
+// Run import when executed directly (CLI mode)
+if (require.main === module) {
+  const filePath = process.argv[2] || "attached_assets/BisonOutdoorClassic2024_1762991952128.mdb";
+  importCompleteMDB(filePath)
+    .then(() => {
+      console.log("\n🎉 Import script finished successfully!");
+      process.exit(0);
+    })
+    .catch((err) => {
+      console.error("\n❌ Import failed:", err);
+      process.exit(1);
+    });
+}
