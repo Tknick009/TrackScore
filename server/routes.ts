@@ -5,9 +5,10 @@ import { storage } from "./storage";
 import {
   insertEventSchema,
   insertAthleteSchema,
-  insertTrackResultSchema,
-  insertFieldResultSchema,
+  insertEntrySchema,
   insertMeetSchema,
+  insertTeamSchema,
+  insertDivisionSchema,
   type DisplayBoardState,
   type WSMessage,
 } from "@shared/schema";
@@ -92,12 +93,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/events/:id/results", async (req, res) => {
-    const eventWithResults = await storage.getEventWithResults(req.params.id);
-    if (!eventWithResults) {
+  app.get("/api/events/:id/entries", async (req, res) => {
+    const eventWithEntries = await storage.getEventWithEntries(req.params.id);
+    if (!eventWithEntries) {
       return res.status(404).json({ error: "Event not found" });
     }
-    res.json(eventWithResults);
+    res.json(eventWithEntries);
   });
 
   // Athletes
@@ -124,45 +125,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Track Results
-  app.get("/api/results/track", async (req, res) => {
-    const results = await storage.getTrackResults();
-    res.json(results);
+  // Entries (unified results for track and field)
+  app.get("/api/entries", async (req, res) => {
+    const entries = await storage.getEntries();
+    res.json(entries);
   });
 
-  app.get("/api/results/track/event/:eventId", async (req, res) => {
-    const results = await storage.getTrackResultsByEvent(req.params.eventId);
-    res.json(results);
+  app.get("/api/entries/event/:eventId", async (req, res) => {
+    const entries = await storage.getEntriesByEvent(req.params.eventId);
+    res.json(entries);
   });
 
-  app.post("/api/results/track", async (req, res) => {
+  app.post("/api/entries", async (req, res) => {
     try {
-      const data = insertTrackResultSchema.parse(req.body);
-      const result = await storage.createTrackResult(data);
+      const data = insertEntrySchema.parse(req.body);
+      const entry = await storage.createEntry(data);
       await broadcastCurrentEvent();
-      res.json(result);
+      res.json(entry);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
   });
 
-  // Field Results
-  app.get("/api/results/field", async (req, res) => {
-    const results = await storage.getFieldResults();
-    res.json(results);
-  });
-
-  app.get("/api/results/field/event/:eventId", async (req, res) => {
-    const results = await storage.getFieldResultsByEvent(req.params.eventId);
-    res.json(results);
-  });
-
-  app.post("/api/results/field", async (req, res) => {
+  app.patch("/api/entries/:id", async (req, res) => {
     try {
-      const data = insertFieldResultSchema.parse(req.body);
-      const result = await storage.createFieldResult(data);
+      const entry = await storage.updateEntry(req.params.id, req.body);
+      if (!entry) {
+        return res.status(404).json({ error: "Entry not found" });
+      }
       await broadcastCurrentEvent();
-      res.json(result);
+      res.json(entry);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Teams
+  app.get("/api/teams", async (req, res) => {
+    const teams = await storage.getTeams();
+    res.json(teams);
+  });
+
+  app.post("/api/teams", async (req, res) => {
+    try {
+      const data = insertTeamSchema.parse(req.body);
+      const team = await storage.createTeam(data);
+      res.json(team);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Divisions
+  app.get("/api/divisions", async (req, res) => {
+    const divisions = await storage.getDivisions();
+    res.json(divisions);
+  });
+
+  app.post("/api/divisions", async (req, res) => {
+    try {
+      const data = insertDivisionSchema.parse(req.body);
+      const division = await storage.createDivision(data);
+      res.json(division);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }

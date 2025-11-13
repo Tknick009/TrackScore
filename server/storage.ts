@@ -3,31 +3,32 @@ import {
   type InsertEvent,
   type Athlete,
   type InsertAthlete,
-  type TrackResult,
-  type InsertTrackResult,
-  type FieldResult,
-  type InsertFieldResult,
+  type Entry,
+  type InsertEntry,
   type Meet,
   type InsertMeet,
-  type EventWithResults,
-  type AthleteResult,
-  type SplitTime,
-  type InsertSplitTime,
+  type Team,
+  type InsertTeam,
+  type Division,
+  type InsertDivision,
+  type EntryWithDetails,
+  type EventWithEntries,
   events,
   athletes,
-  trackResults,
-  fieldResults,
+  entries,
   meets,
-  splitTimes,
+  teams,
+  divisions,
+  entrySplits,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 export interface IStorage {
   // Events
   getEvents(): Promise<Event[]>;
   getEvent(id: string): Promise<Event | undefined>;
-  getCurrentEvent(): Promise<EventWithResults | undefined>;
+  getCurrentEvent(): Promise<EventWithEntries | undefined>;
   createEvent(event: InsertEvent): Promise<Event>;
   updateEventStatus(id: string, status: string): Promise<Event | undefined>;
 
@@ -36,27 +37,30 @@ export interface IStorage {
   getAthlete(id: string): Promise<Athlete | undefined>;
   createAthlete(athlete: InsertAthlete): Promise<Athlete>;
 
-  // Track Results
-  getTrackResults(): Promise<TrackResult[]>;
-  getTrackResultsByEvent(eventId: string): Promise<TrackResult[]>;
-  createTrackResult(result: InsertTrackResult): Promise<TrackResult>;
-
-  // Field Results
-  getFieldResults(): Promise<FieldResult[]>;
-  getFieldResultsByEvent(eventId: string): Promise<FieldResult[]>;
-  createFieldResult(result: InsertFieldResult): Promise<FieldResult>;
+  // Entries (unified results for track and field)
+  getEntries(): Promise<Entry[]>;
+  getEntriesByEvent(eventId: string): Promise<Entry[]>;
+  getEntriesWithDetails(eventId: string): Promise<EntryWithDetails[]>;
+  createEntry(entry: InsertEntry): Promise<Entry>;
+  updateEntry(id: string, updates: Partial<InsertEntry>): Promise<Entry | undefined>;
 
   // Meets
   getMeets(): Promise<Meet[]>;
   getMeet(id: string): Promise<Meet | undefined>;
   createMeet(meet: InsertMeet): Promise<Meet>;
 
-  // Split Times
-  getSplitTimesByTrackResult(trackResultId: string): Promise<SplitTime[]>;
-  createSplitTime(splitTime: InsertSplitTime): Promise<SplitTime>;
+  // Teams
+  getTeams(): Promise<Team[]>;
+  getTeam(id: string): Promise<Team | undefined>;
+  createTeam(team: InsertTeam): Promise<Team>;
+
+  // Divisions
+  getDivisions(): Promise<Division[]>;
+  getDivision(id: string): Promise<Division | undefined>;
+  createDivision(division: InsertDivision): Promise<Division>;
 
   // Combined
-  getEventWithResults(eventId: string): Promise<EventWithResults | undefined>;
+  getEventWithEntries(eventId: string): Promise<EventWithEntries | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -70,7 +74,7 @@ export class DatabaseStorage implements IStorage {
     return event || undefined;
   }
 
-  async getCurrentEvent(): Promise<EventWithResults | undefined> {
+  async getCurrentEvent(): Promise<EventWithEntries | undefined> {
     const allEvents = await db.select().from(events);
     
     // Priority: in_progress > scheduled > completed
@@ -87,7 +91,7 @@ export class DatabaseStorage implements IStorage {
       return undefined;
     }
 
-    return this.getEventWithResults(currentEvent.id);
+    return this.getEventWithEntries(currentEvent.id);
   }
 
   async createEvent(insertEvent: InsertEvent): Promise<Event> {
@@ -125,44 +129,48 @@ export class DatabaseStorage implements IStorage {
     return athlete;
   }
 
-  // Track Results
-  async getTrackResults(): Promise<TrackResult[]> {
-    return db.select().from(trackResults);
+  // Entries (unified results)
+  async getEntries(): Promise<Entry[]> {
+    return db.select().from(entries);
   }
 
-  async getTrackResultsByEvent(eventId: string): Promise<TrackResult[]> {
+  async getEntriesByEvent(eventId: string): Promise<Entry[]> {
     return db
       .select()
-      .from(trackResults)
-      .where(eq(trackResults.eventId, eventId));
+      .from(entries)
+      .where(eq(entries.eventId, eventId));
   }
 
-  async createTrackResult(insertResult: InsertTrackResult): Promise<TrackResult> {
-    const [result] = await db
-      .insert(trackResults)
-      .values(insertResult)
+  async getEntriesWithDetails(eventId: string): Promise<EntryWithDetails[]> {
+    // Fetch entries with joined athlete, team, event, and splits
+    const eventEntries = await db.query.entries.findMany({
+      where: eq(entries.eventId, eventId),
+      with: {
+        athlete: true,
+        team: true,
+        event: true,
+        splits: true,
+      },
+    });
+    
+    return eventEntries as EntryWithDetails[];
+  }
+
+  async createEntry(insertEntry: InsertEntry): Promise<Entry> {
+    const [entry] = await db
+      .insert(entries)
+      .values(insertEntry)
       .returning();
-    return result;
+    return entry;
   }
 
-  // Field Results
-  async getFieldResults(): Promise<FieldResult[]> {
-    return db.select().from(fieldResults);
-  }
-
-  async getFieldResultsByEvent(eventId: string): Promise<FieldResult[]> {
-    return db
-      .select()
-      .from(fieldResults)
-      .where(eq(fieldResults.eventId, eventId));
-  }
-
-  async createFieldResult(insertResult: InsertFieldResult): Promise<FieldResult> {
-    const [result] = await db
-      .insert(fieldResults)
-      .values(insertResult)
+  async updateEntry(id: string, updates: Partial<InsertEntry>): Promise<Entry | undefined> {
+    const [updated] = await db
+      .update(entries)
+      .set(updates)
+      .where(eq(entries.id, id))
       .returning();
-    return result;
+    return updated || undefined;
   }
 
   // Meets
@@ -183,68 +191,54 @@ export class DatabaseStorage implements IStorage {
     return meet;
   }
 
-  // Split Times
-  async getSplitTimesByTrackResult(trackResultId: string): Promise<SplitTime[]> {
-    return db
-      .select()
-      .from(splitTimes)
-      .where(eq(splitTimes.trackResultId, trackResultId))
-      .orderBy(splitTimes.lapNumber);
+  // Teams
+  async getTeams(): Promise<Team[]> {
+    return db.select().from(teams);
   }
 
-  async createSplitTime(insertSplitTime: InsertSplitTime): Promise<SplitTime> {
-    const [splitTime] = await db
-      .insert(splitTimes)
-      .values(insertSplitTime)
+  async getTeam(id: string): Promise<Team | undefined> {
+    const [team] = await db.select().from(teams).where(eq(teams.id, id));
+    return team || undefined;
+  }
+
+  async createTeam(insertTeam: InsertTeam): Promise<Team> {
+    const [team] = await db
+      .insert(teams)
+      .values(insertTeam)
       .returning();
-    return splitTime;
+    return team;
+  }
+
+  // Divisions
+  async getDivisions(): Promise<Division[]> {
+    return db.select().from(divisions);
+  }
+
+  async getDivision(id: string): Promise<Division | undefined> {
+    const [division] = await db.select().from(divisions).where(eq(divisions.id, id));
+    return division || undefined;
+  }
+
+  async createDivision(insertDivision: InsertDivision): Promise<Division> {
+    const [division] = await db
+      .insert(divisions)
+      .values(insertDivision)
+      .returning();
+    return division;
   }
 
   // Combined
-  async getEventWithResults(eventId: string): Promise<EventWithResults | undefined> {
+  async getEventWithEntries(eventId: string): Promise<EventWithEntries | undefined> {
     const [event] = await db.select().from(events).where(eq(events.id, eventId));
     if (!event) {
       return undefined;
     }
 
-    const trackResultsData = await this.getTrackResultsByEvent(eventId);
-    const fieldResultsData = await this.getFieldResultsByEvent(eventId);
-
-    const results: AthleteResult[] = [];
-
-    // Combine track results with splits
-    for (const trackResult of trackResultsData) {
-      const [athlete] = await db
-        .select()
-        .from(athletes)
-        .where(eq(athletes.id, trackResult.athleteId));
-      if (athlete) {
-        const splits = await this.getSplitTimesByTrackResult(trackResult.id);
-        results.push({
-          athlete,
-          trackResult,
-          splitTimes: splits,
-        });
-      }
-    }
-
-    // Combine field results
-    for (const fieldResult of fieldResultsData) {
-      const [athlete] = await db
-        .select()
-        .from(athletes)
-        .where(eq(athletes.id, fieldResult.athleteId));
-      if (athlete) {
-        results.push({
-          athlete,
-          fieldResult,
-        });
-      }
-    }
+    const entriesWithDetails = await this.getEntriesWithDetails(eventId);
 
     return {
       ...event,
-      results,
+      entries: entriesWithDetails,
     };
   }
 }
