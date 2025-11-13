@@ -1,6 +1,7 @@
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertTrackResultSchema, type InsertTrackResult, type Athlete } from "@shared/schema";
+import { insertEntrySchema, type InsertEntry, type Athlete } from "@shared/schema";
 import {
   Form,
   FormControl,
@@ -24,7 +25,7 @@ import { Switch } from "@/components/ui/switch";
 interface TrackResultFormProps {
   eventId: string;
   athletes: Athlete[];
-  onSubmit: (data: InsertTrackResult) => void;
+  onSubmit: (data: InsertEntry) => void;
   isPending?: boolean;
 }
 
@@ -34,19 +35,35 @@ export function TrackResultForm({
   onSubmit,
   isPending,
 }: TrackResultFormProps) {
-  const form = useForm<InsertTrackResult>({
-    resolver: zodResolver(insertTrackResultSchema),
+  const [selectedRound, setSelectedRound] = useState<"preliminary" | "quarterfinal" | "semifinal" | "final">("final");
+
+  const form = useForm<InsertEntry>({
+    resolver: zodResolver(insertEntrySchema),
     defaultValues: {
       eventId,
       athleteId: "",
-      lane: 1,
-      time: 0,
-      position: 1,
-      reaction: 0,
+      teamId: undefined,
+      divisionId: undefined,
+      resultType: "time",
+      finalLane: 1,
+      finalMark: undefined,
+      finalPlace: undefined,
       isDisqualified: false,
+      isScratched: false,
       notes: "",
     },
   });
+
+  const roundLabels = {
+    preliminary: "Preliminary",
+    quarterfinal: "Quarterfinal",
+    semifinal: "Semifinal",
+    final: "Final",
+  };
+
+  const laneFieldName = `${selectedRound}Lane` as keyof InsertEntry;
+  const markFieldName = `${selectedRound}Mark` as keyof InsertEntry;
+  const placeFieldName = `${selectedRound}Place` as keyof InsertEntry;
 
   return (
     <Card>
@@ -62,7 +79,17 @@ export function TrackResultForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Athlete</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <Select 
+                    onValueChange={(value) => {
+                      field.onChange(value);
+                      const athlete = athletes.find(a => a.id === value);
+                      if (athlete) {
+                        form.setValue("teamId", athlete.teamId || undefined);
+                        form.setValue("divisionId", athlete.divisionId || undefined);
+                      }
+                    }} 
+                    value={field.value}
+                  >
                     <FormControl>
                       <SelectTrigger data-testid="select-athlete">
                         <SelectValue placeholder="Select athlete" />
@@ -71,9 +98,51 @@ export function TrackResultForm({
                     <SelectContent>
                       {athletes.map((athlete) => (
                         <SelectItem key={athlete.id} value={athlete.id}>
-                          {athlete.name} ({athlete.bib})
+                          {athlete.firstName} {athlete.lastName} ({athlete.bibNumber})
                         </SelectItem>
                       ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormItem>
+              <FormLabel>Round</FormLabel>
+              <Select 
+                value={selectedRound} 
+                onValueChange={(value) => setSelectedRound(value as typeof selectedRound)}
+              >
+                <SelectTrigger data-testid="select-round">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="preliminary">Preliminary</SelectItem>
+                  <SelectItem value="quarterfinal">Quarterfinal</SelectItem>
+                  <SelectItem value="semifinal">Semifinal</SelectItem>
+                  <SelectItem value="final">Final</SelectItem>
+                </SelectContent>
+              </Select>
+            </FormItem>
+
+            <FormField
+              control={form.control}
+              name="resultType"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Result Type</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger data-testid="select-result-type">
+                        <SelectValue placeholder="Select result type" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="time">Time</SelectItem>
+                      <SelectItem value="distance">Distance</SelectItem>
+                      <SelectItem value="height">Height</SelectItem>
+                      <SelectItem value="points">Points</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -84,7 +153,7 @@ export function TrackResultForm({
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
-                name="lane"
+                name={laneFieldName}
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Lane</FormLabel>
@@ -93,8 +162,12 @@ export function TrackResultForm({
                         type="number"
                         min="1"
                         max="10"
-                        {...field}
-                        onChange={(e) => field.onChange(parseInt(e.target.value))}
+                        name={field.name}
+                        ref={field.ref}
+                        onBlur={field.onBlur}
+                        disabled={field.disabled}
+                        value={typeof field.value === 'number' ? field.value : ""}
+                        onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
                         data-testid="input-lane"
                       />
                     </FormControl>
@@ -105,61 +178,21 @@ export function TrackResultForm({
 
               <FormField
                 control={form.control}
-                name="position"
+                name={placeFieldName}
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Position</FormLabel>
+                    <FormLabel>Place</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
                         min="1"
-                        {...field}
-                        onChange={(e) => field.onChange(parseInt(e.target.value))}
-                        data-testid="input-position"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="time"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Time (seconds)</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        placeholder="e.g., 9.98"
-                        {...field}
-                        onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                        data-testid="input-time"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="reaction"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Reaction (seconds)</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="0.001"
-                        placeholder="e.g., 0.156"
-                        {...field}
-                        onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                        data-testid="input-reaction"
+                        name={field.name}
+                        ref={field.ref}
+                        onBlur={field.onBlur}
+                        disabled={field.disabled}
+                        value={typeof field.value === 'number' ? field.value : ""}
+                        onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                        data-testid="input-place"
                       />
                     </FormControl>
                     <FormMessage />
@@ -170,22 +203,70 @@ export function TrackResultForm({
 
             <FormField
               control={form.control}
-              name="isDisqualified"
+              name={markFieldName}
               render={({ field }) => (
-                <FormItem className="flex items-center justify-between rounded-md border p-4">
-                  <div>
-                    <FormLabel>Disqualified</FormLabel>
-                  </div>
+                <FormItem>
+                  <FormLabel>
+                    {form.watch("resultType") === "time" ? "Time (seconds)" : "Mark"}
+                  </FormLabel>
                   <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                      data-testid="switch-disqualified"
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="e.g., 9.98"
+                      name={field.name}
+                      ref={field.ref}
+                      onBlur={field.onBlur}
+                      disabled={field.disabled}
+                      value={typeof field.value === 'number' ? field.value : ""}
+                      onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
+                      data-testid="input-mark"
                     />
                   </FormControl>
+                  <FormMessage />
                 </FormItem>
               )}
             />
+
+            <div className="flex gap-4">
+              <FormField
+                control={form.control}
+                name="isDisqualified"
+                render={({ field }) => (
+                  <FormItem className="flex flex-1 items-center justify-between rounded-md border p-4">
+                    <div>
+                      <FormLabel>Disqualified</FormLabel>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value ?? false}
+                        onCheckedChange={field.onChange}
+                        data-testid="switch-disqualified"
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="isScratched"
+                render={({ field }) => (
+                  <FormItem className="flex flex-1 items-center justify-between rounded-md border p-4">
+                    <div>
+                      <FormLabel>Scratched</FormLabel>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value ?? false}
+                        onCheckedChange={field.onChange}
+                        data-testid="switch-scratched"
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <FormField
               control={form.control}
@@ -197,6 +278,7 @@ export function TrackResultForm({
                     <Input
                       placeholder="Additional notes"
                       {...field}
+                      value={field.value ?? ""}
                       data-testid="input-notes"
                     />
                   </FormControl>

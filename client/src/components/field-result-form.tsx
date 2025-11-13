@@ -1,6 +1,7 @@
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertFieldResultSchema, type InsertFieldResult, type Athlete } from "@shared/schema";
+import { insertEntrySchema, type InsertEntry, type Athlete } from "@shared/schema";
 import {
   Form,
   FormControl,
@@ -24,7 +25,7 @@ import { Switch } from "@/components/ui/switch";
 interface FieldResultFormProps {
   eventId: string;
   athletes: Athlete[];
-  onSubmit: (data: InsertFieldResult) => void;
+  onSubmit: (data: InsertEntry) => void;
   isPending?: boolean;
 }
 
@@ -34,25 +35,26 @@ export function FieldResultForm({
   onSubmit,
   isPending,
 }: FieldResultFormProps) {
-  const form = useForm<InsertFieldResult>({
-    resolver: zodResolver(insertFieldResultSchema),
+  const [selectedRound, setSelectedRound] = useState<"preliminary" | "quarterfinal" | "semifinal" | "final">("final");
+
+  const form = useForm<InsertEntry>({
+    resolver: zodResolver(insertEntrySchema),
     defaultValues: {
       eventId,
       athleteId: "",
-      attempt1: undefined,
-      attempt2: undefined,
-      attempt3: undefined,
-      attempt4: undefined,
-      attempt5: undefined,
-      attempt6: undefined,
-      bestMark: 0,
-      position: 1,
+      teamId: undefined,
+      divisionId: undefined,
+      resultType: "distance",
+      finalMark: undefined,
+      finalPlace: undefined,
       isDisqualified: false,
+      isScratched: false,
       notes: "",
     },
   });
 
-  const attempts = [1, 2, 3, 4, 5, 6];
+  const markFieldName = `${selectedRound}Mark` as keyof InsertEntry;
+  const placeFieldName = `${selectedRound}Place` as keyof InsertEntry;
 
   return (
     <Card>
@@ -68,7 +70,17 @@ export function FieldResultForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Athlete</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <Select 
+                    onValueChange={(value) => {
+                      field.onChange(value);
+                      const athlete = athletes.find(a => a.id === value);
+                      if (athlete) {
+                        form.setValue("teamId", athlete.teamId || undefined);
+                        form.setValue("divisionId", athlete.divisionId || undefined);
+                      }
+                    }} 
+                    value={field.value}
+                  >
                     <FormControl>
                       <SelectTrigger data-testid="select-athlete">
                         <SelectValue placeholder="Select athlete" />
@@ -77,7 +89,7 @@ export function FieldResultForm({
                     <SelectContent>
                       {athletes.map((athlete) => (
                         <SelectItem key={athlete.id} value={athlete.id}>
-                          {athlete.name} ({athlete.bib})
+                          {athlete.firstName} {athlete.lastName} ({athlete.bibNumber})
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -87,52 +99,70 @@ export function FieldResultForm({
               )}
             />
 
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {attempts.map((num) => (
-                <FormField
-                  key={num}
-                  control={form.control}
-                  name={`attempt${num}` as keyof InsertFieldResult}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Attempt {num}</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          placeholder="e.g., 7.85"
-                          {...field}
-                          onChange={(e) =>
-                            field.onChange(
-                              e.target.value ? parseFloat(e.target.value) : undefined
-                            )
-                          }
-                          value={field.value ?? ""}
-                          data-testid={`input-attempt-${num}`}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              ))}
-            </div>
+            <FormItem>
+              <FormLabel>Round</FormLabel>
+              <Select 
+                value={selectedRound} 
+                onValueChange={(value) => setSelectedRound(value as typeof selectedRound)}
+              >
+                <SelectTrigger data-testid="select-round">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="preliminary">Preliminary</SelectItem>
+                  <SelectItem value="quarterfinal">Quarterfinal</SelectItem>
+                  <SelectItem value="semifinal">Semifinal</SelectItem>
+                  <SelectItem value="final">Final</SelectItem>
+                </SelectContent>
+              </Select>
+            </FormItem>
+
+            <FormField
+              control={form.control}
+              name="resultType"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Result Type</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger data-testid="select-result-type">
+                        <SelectValue placeholder="Select result type" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="distance">Distance</SelectItem>
+                      <SelectItem value="height">Height</SelectItem>
+                      <SelectItem value="time">Time</SelectItem>
+                      <SelectItem value="points">Points</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
-                name="bestMark"
+                name={markFieldName}
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Best Mark</FormLabel>
+                    <FormLabel>
+                      {form.watch("resultType") === "distance" ? "Distance (meters)" : 
+                       form.watch("resultType") === "height" ? "Height (meters)" : "Mark"}
+                    </FormLabel>
                     <FormControl>
                       <Input
                         type="number"
                         step="0.01"
                         placeholder="e.g., 7.85"
-                        {...field}
-                        onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                        data-testid="input-best-mark"
+                        name={field.name}
+                        ref={field.ref}
+                        onBlur={field.onBlur}
+                        disabled={field.disabled}
+                        value={typeof field.value === 'number' ? field.value : ""}
+                        onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
+                        data-testid="input-mark"
                       />
                     </FormControl>
                     <FormMessage />
@@ -142,17 +172,21 @@ export function FieldResultForm({
 
               <FormField
                 control={form.control}
-                name="position"
+                name={placeFieldName}
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Position</FormLabel>
+                    <FormLabel>Place</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
                         min="1"
-                        {...field}
-                        onChange={(e) => field.onChange(parseInt(e.target.value))}
-                        data-testid="input-position"
+                        name={field.name}
+                        ref={field.ref}
+                        onBlur={field.onBlur}
+                        disabled={field.disabled}
+                        value={typeof field.value === 'number' ? field.value : ""}
+                        onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                        data-testid="input-place"
                       />
                     </FormControl>
                     <FormMessage />
@@ -161,24 +195,45 @@ export function FieldResultForm({
               />
             </div>
 
-            <FormField
-              control={form.control}
-              name="isDisqualified"
-              render={({ field }) => (
-                <FormItem className="flex items-center justify-between rounded-md border p-4">
-                  <div>
-                    <FormLabel>Disqualified</FormLabel>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                      data-testid="switch-disqualified"
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
+            <div className="flex gap-4">
+              <FormField
+                control={form.control}
+                name="isDisqualified"
+                render={({ field }) => (
+                  <FormItem className="flex flex-1 items-center justify-between rounded-md border p-4">
+                    <div>
+                      <FormLabel>Disqualified</FormLabel>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value ?? false}
+                        onCheckedChange={field.onChange}
+                        data-testid="switch-disqualified"
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="isScratched"
+                render={({ field }) => (
+                  <FormItem className="flex flex-1 items-center justify-between rounded-md border p-4">
+                    <div>
+                      <FormLabel>Scratched</FormLabel>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value ?? false}
+                        onCheckedChange={field.onChange}
+                        data-testid="switch-scratched"
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <FormField
               control={form.control}
@@ -190,6 +245,7 @@ export function FieldResultForm({
                     <Input
                       placeholder="Additional notes"
                       {...field}
+                      value={field.value ?? ""}
                       data-testid="input-notes"
                     />
                   </FormControl>

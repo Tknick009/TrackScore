@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Event, Athlete, InsertEvent, InsertAthlete, InsertTrackResult, InsertFieldResult } from "@shared/schema";
+import { Event, Athlete, InsertEvent, InsertAthlete, InsertEntry } from "@shared/schema";
 import { EventForm } from "@/components/event-form";
 import { AthleteForm } from "@/components/athlete-form";
 import { TrackResultForm } from "@/components/track-result-form";
@@ -93,35 +93,15 @@ export default function Control() {
     },
   });
 
-  // Create track result mutation
-  const createTrackResultMutation = useMutation({
-    mutationFn: (data: InsertTrackResult) =>
-      apiRequest("POST", "/api/results/track", data),
+  // Create entry mutation (unified for both track and field events)
+  const createEntryMutation = useMutation({
+    mutationFn: (data: InsertEntry) =>
+      apiRequest("POST", "/api/entries", data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/results/track"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/entries"] });
       toast({
         title: "Result recorded",
-        description: "The track result has been recorded",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error recording result",
-        description: error.message || "Failed to record result",
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Create field result mutation
-  const createFieldResultMutation = useMutation({
-    mutationFn: (data: InsertFieldResult) =>
-      apiRequest("POST", "/api/results/field", data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/results/field"] });
-      toast({
-        title: "Result recorded",
-        description: "The field result has been recorded",
+        description: "The entry result has been recorded",
       });
     },
     onError: (error: any) => {
@@ -261,15 +241,15 @@ export default function Control() {
                 <TrackResultForm
                   eventId={selectedEvent.id}
                   athletes={athletes}
-                  onSubmit={(data) => createTrackResultMutation.mutate(data)}
-                  isPending={createTrackResultMutation.isPending}
+                  onSubmit={(data) => createEntryMutation.mutate(data)}
+                  isPending={createEntryMutation.isPending}
                 />
               ) : (
                 <FieldResultForm
                   eventId={selectedEvent.id}
                   athletes={athletes}
-                  onSubmit={(data) => createFieldResultMutation.mutate(data)}
-                  isPending={createFieldResultMutation.isPending}
+                  onSubmit={(data) => createEntryMutation.mutate(data)}
+                  isPending={createEntryMutation.isPending}
                 />
               )}
             </TabsContent>
@@ -289,9 +269,9 @@ export default function Control() {
                     {selectedEvent.name}
                   </h3>
                   <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
-                    <span>Heat {selectedEvent.heat}</span>
+                    <span>Event #{selectedEvent.eventNumber}</span>
                     <span>•</span>
-                    <span>{selectedEvent.round}</span>
+                    <span className="capitalize">{selectedEvent.status.replace('_', ' ')}</span>
                   </div>
                 </div>
 
