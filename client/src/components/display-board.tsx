@@ -20,22 +20,25 @@ function getTeamColor(teamName?: string): string {
   return `hsl(${hue}, 75%, 55%)`;
 }
 
+function getUnitSuffix(resultType: string | null | undefined): string {
+  switch (resultType) {
+    case 'time': return 's';
+    case 'distance': return 'm';
+    case 'height': return 'm';
+    case 'points': return ' pts';
+    default: return '';
+  }
+}
+
 function formatResult(entry: EntryWithDetails): string {
   const value = entry.finalMark;
   
   if (value === null || value === undefined) return '-';
   
-  switch (entry.resultType) {
-    case 'time':
-      return value.toFixed(3);
-    case 'distance':
-    case 'height':
-      return `${value.toFixed(2)}m`;
-    case 'points':
-      return Math.round(value).toString();
-    default:
-      return value.toFixed(2);
-  }
+  const descriptor = getEventDescriptor(entry.event?.eventType || '');
+  const suffix = getUnitSuffix(entry.resultType);
+  
+  return `${value.toFixed(descriptor.precision)}${suffix}`;
 }
 
 function determineDisplayMode(event: EventWithEntries): 'track' | 'field' {
@@ -266,6 +269,15 @@ function TrackResultsDisplay({ event, mode }: { event: EventWithEntries; mode: s
   );
 }
 
+function generateAttemptHeaders(entries: EntryWithDetails[]): string[] {
+  const maxAttempts = Math.max(
+    ...entries.map(e => e.splits?.length || 0),
+    3
+  );
+  
+  return Array.from({ length: maxAttempts }, (_, i) => `#${i + 1}`);
+}
+
 function FieldResultsDisplay({ event, mode }: { event: EventWithEntries; mode: string }) {
   const sortedResults = [...event.entries].sort((a, b) => {
     const aPos = a.finalPlace ?? 999;
@@ -281,6 +293,7 @@ function FieldResultsDisplay({ event, mode }: { event: EventWithEntries; mode: s
   };
 
   const descriptor = getEventDescriptor(event.eventType);
+  const headers = generateAttemptHeaders(sortedResults);
 
   return (
     <div className="space-y-8">
@@ -362,26 +375,27 @@ function FieldResultsDisplay({ event, mode }: { event: EventWithEntries; mode: s
                 </div>
               </div>
 
-              {/* Right: 6 attempt cards with headers */}
+              {/* Right: attempt cards with headers */}
               <div>
                 {/* Attempt headers */}
-                <div className="grid grid-cols-6 gap-2 mb-2">
-                  {[1, 2, 3, 4, 5, 6].map((num) => (
-                    <div key={num} className="text-center text-[24px] text-[hsl(var(--display-muted))]">
-                      #{num}
+                <div className={`grid gap-2 mb-2`} style={{ gridTemplateColumns: `repeat(${headers.length}, minmax(0, 1fr))` }}>
+                  {headers.map((header) => (
+                    <div key={header} className="text-center text-[24px] text-[hsl(var(--display-muted))]">
+                      {header}
                     </div>
                   ))}
                 </div>
 
                 {/* Attempts grid */}
-                <div className="grid grid-cols-6 gap-2">
-                  {result.splits?.slice(0, 6).map((split, index) => {
+                <div className={`grid gap-2`} style={{ gridTemplateColumns: `repeat(${headers.length}, minmax(0, 1fr))` }}>
+                  {headers.map((_, index) => {
+                    const split = result.splits?.[index];
                     const attemptValue = split?.distance;
-                    const isFoul = attemptValue === null;
+                    const isFoul = attemptValue === null && split !== undefined;
                     const isBest = attemptValue !== null && attemptValue !== undefined && bestMark !== null && bestMark !== undefined && Math.abs(attemptValue - bestMark) < 0.001;
                     
                     const formattedValue = attemptValue !== null && attemptValue !== undefined
-                      ? `${attemptValue.toFixed(descriptor.precision)}${descriptor.resultUnit === 'meters' ? 'm' : ''}`
+                      ? `${attemptValue.toFixed(descriptor.precision)}${getUnitSuffix(result.resultType)}`
                       : null;
 
                     return (
