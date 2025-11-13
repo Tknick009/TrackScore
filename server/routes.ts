@@ -269,10 +269,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Run the import
       const stats = await importCompleteMDB(filePath, meetId);
 
-      // Delete the temporary file
-      await unlink(filePath).catch((err) => {
-        console.warn(`⚠️  Failed to delete temporary file: ${filePath}`, err);
+      // Update meet with mdbPath and lastImportAt
+      await storage.updateMeet(meetId, { 
+        mdbPath: filePath,
+        lastImportAt: new Date()
       });
+
+      // Note: File is kept for auto-refresh functionality
+      // (not deleted as it may be needed for periodic re-imports)
 
       // Broadcast current event after successful import
       await broadcastCurrentEvent();

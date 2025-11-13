@@ -55,6 +55,7 @@ export interface IStorage {
   getMeets(): Promise<Meet[]>;
   getMeet(id: string): Promise<Meet | undefined>;
   createMeet(meet: InsertMeet): Promise<Meet>;
+  updateMeet(id: string, data: Partial<InsertMeet>): Promise<Meet | null>;
 
   // Teams
   getTeams(): Promise<Team[]>;
@@ -208,6 +209,15 @@ export class DatabaseStorage implements IStorage {
       .values(insertMeet)
       .returning();
     return meet;
+  }
+
+  async updateMeet(id: string, data: Partial<InsertMeet>): Promise<Meet | null> {
+    const [meet] = await db
+      .update(meets)
+      .set({ ...data })
+      .where(eq(meets.id, id))
+      .returning();
+    return meet || null;
   }
 
   // Teams
