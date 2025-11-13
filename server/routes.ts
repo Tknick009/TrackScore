@@ -14,6 +14,8 @@ import {
   insertDivisionSchema,
   insertDisplayThemeSchema,
   insertBoardConfigSchema,
+  insertDisplayLayoutSchema,
+  insertLayoutCellSchema,
   type DisplayBoardState,
   type WSMessage,
 } from "@shared/schema";
@@ -531,6 +533,128 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting board config:", error);
       res.status(500).json({ error: "Failed to delete board config" });
+    }
+  });
+
+  // ===== DISPLAY LAYOUTS =====
+
+  // Get all layouts for a meet
+  app.get("/api/display-layouts/meet/:meetId", async (req, res) => {
+    try {
+      const layouts = await storage.getDisplayLayoutsByMeet(req.params.meetId);
+      res.json(layouts);
+    } catch (error) {
+      console.error("Error fetching display layouts:", error);
+      res.status(500).json({ error: "Failed to fetch display layouts" });
+    }
+  });
+
+  // Get a specific layout by ID
+  app.get("/api/display-layouts/:id", async (req, res) => {
+    try {
+      const layout = await storage.getDisplayLayoutById(req.params.id);
+      if (!layout) {
+        return res.status(404).json({ error: "Layout not found" });
+      }
+      res.json(layout);
+    } catch (error) {
+      console.error("Error fetching display layout:", error);
+      res.status(500).json({ error: "Failed to fetch display layout" });
+    }
+  });
+
+  // Create a new display layout
+  app.post("/api/display-layouts", async (req, res) => {
+    try {
+      const parsed = insertDisplayLayoutSchema.parse(req.body);
+      const layout = await storage.createDisplayLayout(parsed);
+      res.json(layout);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid layout data", details: error.errors });
+      }
+      console.error("Error creating display layout:", error);
+      res.status(500).json({ error: "Failed to create display layout" });
+    }
+  });
+
+  // Update a display layout
+  app.patch("/api/display-layouts/:id", async (req, res) => {
+    try {
+      const parsed = insertDisplayLayoutSchema.partial().parse(req.body);
+      const layout = await storage.updateDisplayLayout(req.params.id, parsed);
+      res.json(layout);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid layout data", details: error.errors });
+      }
+      console.error("Error updating display layout:", error);
+      res.status(500).json({ error: "Failed to update display layout" });
+    }
+  });
+
+  // Delete a display layout
+  app.delete("/api/display-layouts/:id", async (req, res) => {
+    try {
+      await storage.deleteDisplayLayout(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting display layout:", error);
+      res.status(500).json({ error: "Failed to delete display layout" });
+    }
+  });
+
+  // ===== LAYOUT CELLS =====
+
+  // Get all cells for a layout
+  app.get("/api/layout-cells/layout/:layoutId", async (req, res) => {
+    try {
+      const cells = await storage.getLayoutCellsByLayout(req.params.layoutId);
+      res.json(cells);
+    } catch (error) {
+      console.error("Error fetching layout cells:", error);
+      res.status(500).json({ error: "Failed to fetch layout cells" });
+    }
+  });
+
+  // Create a new layout cell
+  app.post("/api/layout-cells", async (req, res) => {
+    try {
+      const parsed = insertLayoutCellSchema.parse(req.body);
+      const cell = await storage.createLayoutCell(parsed);
+      res.json(cell);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid cell data", details: error.errors });
+      }
+      console.error("Error creating layout cell:", error);
+      res.status(500).json({ error: "Failed to create layout cell" });
+    }
+  });
+
+  // Update a layout cell
+  app.patch("/api/layout-cells/:id", async (req, res) => {
+    try {
+      const parsed = insertLayoutCellSchema.partial().parse(req.body);
+      const cell = await storage.updateLayoutCell(req.params.id, parsed);
+      res.json(cell);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid cell data", details: error.errors });
+      }
+      console.error("Error updating layout cell:", error);
+      res.status(500).json({ error: "Failed to update layout cell" });
+    }
+  });
+
+  // Delete a layout cell
+  app.delete("/api/layout-cells/:id", async (req, res) => {
+    try {
+      await storage.deleteLayoutCell(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting layout cell:", error);
+      res.status(500).json({ error: "Failed to delete layout cell" });
     }
   });
 

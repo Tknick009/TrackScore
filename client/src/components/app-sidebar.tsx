@@ -1,4 +1,4 @@
-import { Timer, Trophy, Target, Activity, Monitor } from "lucide-react";
+import { Timer, Trophy, Target, Activity, Monitor, Layout } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -88,6 +88,14 @@ export function AppSidebar() {
                   <Link href="/control/displays/customize" data-testid="link-displays-customize">
                     <Monitor />
                     <span>Customize</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location.startsWith("/control/layouts/designer")}>
+                  <Link href="/control/layouts/designer" data-testid="link-layouts-designer">
+                    <Layout />
+                    <span>Layout Designer</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

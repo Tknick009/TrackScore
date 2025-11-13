@@ -21,6 +21,10 @@ import {
   type InsertDisplayTheme,
   type BoardConfig,
   type InsertBoardConfig,
+  type DisplayLayout,
+  type InsertDisplayLayout,
+  type LayoutCell,
+  type InsertLayoutCell,
   events,
   athletes,
   entries,
@@ -32,6 +36,8 @@ import {
   displayAssignments,
   displayThemes,
   boardConfigs,
+  displayLayouts,
+  layoutCells,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql, and, not } from "drizzle-orm";
@@ -97,6 +103,19 @@ export interface IStorage {
   getBoardConfig(boardId: string, meetId: string): Promise<BoardConfig | null>;
   updateBoardConfig(id: string, config: Partial<InsertBoardConfig>): Promise<BoardConfig | null>;
   deleteBoardConfig(id: string): Promise<void>;
+
+  // Display Layouts
+  createDisplayLayout(layout: InsertDisplayLayout): Promise<DisplayLayout>;
+  getDisplayLayoutsByMeet(meetId: string): Promise<DisplayLayout[]>;
+  getDisplayLayoutById(id: string): Promise<DisplayLayout | null>;
+  updateDisplayLayout(id: string, layout: Partial<InsertDisplayLayout>): Promise<DisplayLayout>;
+  deleteDisplayLayout(id: string): Promise<void>;
+
+  // Layout Cells
+  createLayoutCell(cell: InsertLayoutCell): Promise<LayoutCell>;
+  getLayoutCellsByLayout(layoutId: string): Promise<LayoutCell[]>;
+  updateLayoutCell(id: string, cell: Partial<InsertLayoutCell>): Promise<LayoutCell>;
+  deleteLayoutCell(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -505,6 +524,82 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(boardConfigs)
       .where(eq(boardConfigs.id, id));
+  }
+
+  // Display Layouts
+  async createDisplayLayout(layout: InsertDisplayLayout): Promise<DisplayLayout> {
+    const [newLayout] = await db
+      .insert(displayLayouts)
+      .values({
+        ...layout,
+        updatedAt: new Date(),
+      } as any)
+      .returning();
+    return newLayout;
+  }
+
+  async getDisplayLayoutsByMeet(meetId: string): Promise<DisplayLayout[]> {
+    return db
+      .select()
+      .from(displayLayouts)
+      .where(eq(displayLayouts.meetId, meetId));
+  }
+
+  async getDisplayLayoutById(id: string): Promise<DisplayLayout | null> {
+    const [layout] = await db
+      .select()
+      .from(displayLayouts)
+      .where(eq(displayLayouts.id, id));
+    return layout || null;
+  }
+
+  async updateDisplayLayout(id: string, layout: Partial<InsertDisplayLayout>): Promise<DisplayLayout> {
+    const [updated] = await db
+      .update(displayLayouts)
+      .set({
+        ...layout,
+        updatedAt: new Date(),
+      } as any)
+      .where(eq(displayLayouts.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteDisplayLayout(id: string): Promise<void> {
+    await db
+      .delete(displayLayouts)
+      .where(eq(displayLayouts.id, id));
+  }
+
+  // Layout Cells
+  async createLayoutCell(cell: InsertLayoutCell): Promise<LayoutCell> {
+    const [newCell] = await db
+      .insert(layoutCells)
+      .values(cell as any)
+      .returning();
+    return newCell;
+  }
+
+  async getLayoutCellsByLayout(layoutId: string): Promise<LayoutCell[]> {
+    return db
+      .select()
+      .from(layoutCells)
+      .where(eq(layoutCells.layoutId, layoutId));
+  }
+
+  async updateLayoutCell(id: string, cell: Partial<InsertLayoutCell>): Promise<LayoutCell> {
+    const [updated] = await db
+      .update(layoutCells)
+      .set(cell as any)
+      .where(eq(layoutCells.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteLayoutCell(id: string): Promise<void> {
+    await db
+      .delete(layoutCells)
+      .where(eq(layoutCells.id, id));
   }
 }
 

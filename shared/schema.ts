@@ -377,6 +377,48 @@ export const insertBoardConfigSchema = createInsertSchema(boardConfigs).omit({ i
 export type InsertBoardConfig = z.infer<typeof insertBoardConfigSchema>;
 export type BoardConfig = typeof boardConfigs.$inferSelect;
 
+// Display Layouts (multi-event grid configurations)
+export const displayLayouts = pgTable("display_layouts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  meetId: varchar("meet_id").notNull().references(() => meets.id, { onDelete: "cascade" }),
+  name: text("name").notNull(), // "Main Stadium", "Field Events", etc.
+  description: text("description"),
+  rows: integer("rows").notNull().default(2),
+  cols: integer("cols").notNull().default(2),
+  isTemplate: boolean("is_template").default(false), // Can be reused across meets
+  templateId: varchar("template_id"), // Reference to template if cloned
+  version: integer("version").default(1),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  meetIdIdx: index("display_layouts_meet_id_idx").on(table.meetId),
+}));
+
+export const insertDisplayLayoutSchema = createInsertSchema(displayLayouts).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertDisplayLayout = z.infer<typeof insertDisplayLayoutSchema>;
+export type DisplayLayout = typeof displayLayouts.$inferSelect;
+
+// Layout Cells (individual grid cells with board assignments)
+export const layoutCells = pgTable("layout_cells", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  layoutId: varchar("layout_id").notNull().references(() => displayLayouts.id, { onDelete: "cascade" }),
+  row: integer("row").notNull(), // 0-indexed row position
+  col: integer("col").notNull(), // 0-indexed col position
+  rowSpan: integer("row_span").notNull().default(1),
+  colSpan: integer("col_span").notNull().default(1),
+  eventId: varchar("event_id"), // References events.id (nullable for empty cells)
+  eventType: text("event_type"), // Fallback if event deleted: "track", "field", etc.
+  boardType: text("board_type").notNull().default("live_time"), // "live_time", "single_result", "standings", "field_event"
+  settings: jsonb("settings"), // Board-specific customization (colors, fonts, etc.)
+}, (table) => ({
+  layoutIdIdx: index("layout_cells_layout_id_idx").on(table.layoutId),
+  layoutPositionUnique: unique("layout_cells_layout_position_unique").on(table.layoutId, table.row, table.col),
+}));
+
+export const insertLayoutCellSchema = createInsertSchema(layoutCells).omit({ id: true });
+export type InsertLayoutCell = z.infer<typeof insertLayoutCellSchema>;
+export type LayoutCell = typeof layoutCells.$inferSelect;
+
 // ====================
 // HELPER TYPES
 // ====================
@@ -475,6 +517,7 @@ export const meetsRelations = relations(meets, ({ many }) => ({
   displayAssignments: many(displayAssignments),
   displayThemes: many(displayThemes),
   boardConfigs: many(boardConfigs),
+  displayLayouts: many(displayLayouts),
 }));
 
 export const teamsRelations = relations(teams, ({ one, many }) => ({
@@ -532,5 +575,20 @@ export const boardConfigsRelations = relations(boardConfigs, ({ one }) => ({
   theme: one(displayThemes, {
     fields: [boardConfigs.themeId],
     references: [displayThemes.id],
+  }),
+}));
+
+export const displayLayoutsRelations = relations(displayLayouts, ({ one, many }) => ({
+  meet: one(meets, {
+    fields: [displayLayouts.meetId],
+    references: [meets.id],
+  }),
+  cells: many(layoutCells),
+}));
+
+export const layoutCellsRelations = relations(layoutCells, ({ one }) => ({
+  layout: one(displayLayouts, {
+    fields: [layoutCells.layoutId],
+    references: [displayLayouts.id],
   }),
 }));
