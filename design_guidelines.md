@@ -1,136 +1,195 @@
-# Track and Field Scoreboard Application - Design Guidelines
+# Track and Field Stadium Display System - Design Guidelines
 
 ## Design Approach
 
-**System Selection:** Material Design foundation for control dashboard, custom high-visibility design for display boards
-**Rationale:** Utility-focused application requiring efficient data entry and maximum spectator readability
+**Reference-Based Approach:** Professional sports broadcast scoreboards (NBA, NFL, Olympics, ESPN)
+**Rationale:** High-visibility public display requiring instant readability from 50+ meters, broadcast-quality visual hierarchy, and minimal cognitive load for spectators
+
+**Key Design Principles:**
+- Maximum contrast and readability at distance
+- Information density balanced with breathing room
+- Professional sports broadcast aesthetic
+- Instant comprehension of critical data (positions, times, athletes)
 
 ## Core Design Elements
 
 ### Typography
 
-**Control Dashboard:**
-- Primary: Inter or Roboto (Google Fonts)
-- Headings: 600-700 weight, 24-32px
-- Body: 400 weight, 14-16px
-- Form labels: 500 weight, 13px
-- Data values: 500-600 weight for emphasis
+**Font Families:**
+- Primary: Barlow Semi Condensed Extra Bold (Google Fonts) - extreme weight for maximum impact
+- Numbers/Times: Bebas Neue or Roboto Mono Bold - monospace for alignment, massive scale
+- Supporting Text: Barlow Semi Condensed Medium/SemiBold - secondary information
 
-**Display Boards:**
-- Primary: Roboto Condensed or Barlow Semi Condensed (high legibility)
-- Event Names: 700 weight, 48-64px
-- Athlete Names: 600 weight, 36-48px
-- Times/Results: 700 weight, 56-72px (monospace variant)
-- Lane/Position Numbers: 800 weight, 32-40px
+**Type Scale:**
+- Event Names: 700-900 weight, 64-96px
+- Athlete Names: 700 weight, 48-72px
+- Times/Results: 900 weight, 96-200px (monospace, tabular figures)
+- Lane/Position Numbers: 900 weight, 80-120px
+- Status Labels: 700 weight, 36-48px (all caps)
+- Supplementary Info: 600 weight, 28-40px (country codes, wind readings)
+
+**Critical:** All text must render with pixel-perfect clarity. Use whole numbers for font sizes, avoid decimals.
 
 ### Layout System
 
-**Spacing Units:** Tailwind units of 2, 4, 6, 8, 12, 16
-- Tight spacing (p-2, gap-2): Within form groups
-- Standard spacing (p-4, p-6): Card padding, button groups
-- Generous spacing (p-8, p-12): Section separation, display board margins
+**Spacing Units:** Tailwind units of 4, 8, 12, 16, 24, 32
+- Tight spacing (p-4, gap-4): Within data rows, between label and value
+- Standard spacing (p-8, p-12): Section padding, row separation
+- Generous spacing (p-16, p-24): Major section breaks, board margins
+- Extra spacing (p-32): Top/bottom margins for full-screen boards
 
 **Grid Structure:**
-- Control Dashboard: Sidebar (280px) + Main content area (fluid)
-- Display Boards: Full viewport with consistent 16-unit margins
+- Full viewport utilization (100vw × 100vh)
+- Consistent 32-unit padding on all edges for breathing room
+- Flexible row heights based on content (avoid fixed vh constraints)
+- Multi-column layouts for results grids (2-3 columns for field events, single column for running)
 
 ### Component Library
 
-**Control Dashboard Components:**
+#### Header System
+**Primary Event Header:**
+- Full-width bar spanning viewport
+- Event name (left-aligned, 64-96px)
+- Round/Heat indicator (right-aligned, 48-64px)
+- Meet logo (absolute positioned, top-right, 120×80px max)
+- Height: 120-160px with generous internal padding
 
-Navigation:
-- Fixed left sidebar with event categories (Running, Jumping, Throwing)
-- Top bar with meet name, current time, connection status indicator
-- Breadcrumb navigation for event > heat > athlete hierarchy
+**Status Bar:**
+- Positioned below event header
+- Live status indicator ("LIVE" / "OFFICIAL RESULTS" / "IN PROGRESS")
+- Timer/clock display for running events
+- Wind reading for applicable events
+- Height: 80-100px
 
-Forms & Data Entry:
-- Grouped input fields with clear labels
-- Large touch-friendly buttons (min-height: 44px)
-- Split-button dropdowns for event selection
-- Time entry with dedicated number pad interface
-- Quick-action buttons for common tasks (Start Heat, Record Result, Clear)
+#### Results Display Components
 
-Data Tables:
-- Sortable columns for athlete lists
-- Inline editing for corrections
-- Color-coded status indicators (Pending, Active, Complete)
-- Sticky headers for long lists
+**Live Results Board (Running Events):**
+- Lane-based rows (8 lanes standard)
+- Each row structure (left to right):
+  - Lane number (120px width, 80-120px font)
+  - Team color bar (16px vertical stripe)
+  - Athlete name (flexible width, 48-72px font)
+  - Country code (80px, 36px font, uppercase)
+  - Time/Result (280px, 96-200px font, right-aligned)
+  - Position indicator (80px, 64px font) - shown post-finish
 
-Real-time Indicators:
-- Live connection status badge (Connected/Disconnected)
-- Pulsing indicator for active events
-- Toast notifications for result updates
-- Display preview panel showing current board state
+**Row Heights:** 120-160px per athlete with 8-12px gap between rows
+**Visual Treatment:** Alternate row subtle background distinction, current leader emphasized with stronger background intensity
 
-**Display Board Components:**
+**Field Events Board:**
+- Tabular layout with attempt history
+- Columns: Position, Athlete, Country, Best Mark, Attempt 1-6
+- Each athlete row: 100-140px height
+- Current athlete highlighted with full-width background treatment
+- Best attempts emphasized with visual indicator (star/badge)
 
-Event Header:
-- Event name and type (e.g., "Men's 100m - Heat 2")
-- Current round/heat indicator
-- Meet logo placement (top-right corner)
+**Single Athlete Spotlight:**
+- Full-screen focus during critical moments
+- Massive athlete name (96-120px)
+- Giant result display (160-240px, centered)
+- Personal/Season Best comparison
+- Country flag (large format, 120×80px)
+- Record indicator if applicable
 
-Results Grid:
-- Lane-based layout for track events (8 lanes standard)
-- Tabular format for field events (attempts visible)
-- Clear position indicators (1st, 2nd, 3rd with visual emphasis)
-- Athlete country flags (small, 24x16px)
+**Compiled Standings/Leaderboard:**
+- Podium visualization for top 3 (larger sizing, distinct treatment)
+- Ranked list for positions 4-8
+- Team scoring section (separate area, 2-3 columns)
+- Position numbers with pronounced visual weight
 
-Status Indicators:
-- "ON DECK" / "IN PROGRESS" / "OFFICIAL" labels
-- Wind reading display for sprint/jump events
-- Record indicators (Meet Record, Personal Best) as colored badges
+#### Branding Elements
 
-Display Modes:
-- Live Results: Current event in progress
-- Final Results: Podium/top 8 finishers
-- Schedule Board: Upcoming events timeline
-- Leaderboards: Overall team/individual standings
+**Meet Logo Placement:**
+- Top-right corner, 120×80px maximum
+- Consistent position across all board types
+- 32-unit margin from edges
+
+**Sponsor Logos:**
+- Bottom ticker bar (80px height)
+- Rotating display if multiple sponsors
+- Subtle, non-distracting integration
+- 24-unit padding from bottom edge
+
+**Team Colors:**
+- 12-16px vertical bar on left edge of athlete rows
+- Full-width subtle background tint for active athlete (10-15% opacity)
+- Never compromise text readability
 
 ### Visual Hierarchy
 
-**Control Dashboard:**
-- Primary actions: Filled buttons with elevation
-- Secondary actions: Outlined buttons
-- Danger actions (Clear, Delete): Red outlined buttons
-- Form focus: 2px accent color border
+**Information Priority System:**
+1. **Critical:** Times/Results, Position Numbers (largest, highest contrast)
+2. **Primary:** Athlete Names, Event Name (large, prominent)
+3. **Secondary:** Lane Numbers, Country Codes, Status Labels (medium, clear)
+4. **Tertiary:** Supplementary data (wind, timestamps, rounds)
 
-**Display Boards:**
-- Contrast ratio: Minimum 7:1 for all text
-- Positioning: 1st place 20% larger than others
-- Active athlete: Highlighted background treatment
-- Section dividers: 4px solid lines between event groups
+**Contrast Requirements:**
+- All text: Minimum 10:1 contrast ratio
+- Active/leading athlete: Additional 20-30% background intensity
+- Position indicators (1st/2nd/3rd): Maximum visual emphasis
+
+### Board Type Specifications
+
+**Live Results Board:**
+- Real-time updates during event progression
+- 6-8 visible athlete rows simultaneously
+- Scrolling behavior if >8 competitors (slow, 3-second pause between cycles)
+
+**Field Events Board:**
+- Attempt-by-attempt tracking (horizontal scroll for 6 attempts)
+- Current athlete highlighted with animated indicator
+- Best mark prominently featured in dedicated column
+
+**Final Results/Podium:**
+- Top 3 displayed with enhanced visual treatment (20% larger sizing)
+- Positions 4-8 in standard grid
+- Race recap data (winning time, margin of victory)
+
+**Schedule/Up Next:**
+- Upcoming events timeline
+- Event name, scheduled time, current status
+- 4-6 events visible, vertical list format
+- Next event emphasized
 
 ### Responsive Behavior
 
-**Control Dashboard:**
-- Desktop (1280px+): Full sidebar + multi-column forms
-- Tablet (768-1279px): Collapsible sidebar + single column
-- Mobile (< 768px): Bottom navigation + stacked layout
+**Aspect Ratio Optimization:**
+- Primary: 16:9 (1920×1080, 3840×2160)
+- Secondary: 21:9 ultrawide support
+- Minimum resolution: 1280×720
 
-**Display Boards:**
-- Optimized for 16:9 and 4:3 aspect ratios
-- Minimum font scaling: 32px at 720p resolution
-- Dynamic grid columns based on number of competitors
-- Horizontal scrolling for field event attempts table
+**Dynamic Scaling:**
+- Font sizes scale proportionally with viewport
+- Maintain minimum 60px for smallest text at 720p
+- Maximum 240px for largest elements at 4K
+- Grid columns adjust based on available width (3-col at >2400px, 2-col standard, 1-col at <1200px)
 
 ### Animations
 
-Use sparingly:
-- Result entry: 200ms fade-in for new times
-- Display updates: 300ms slide transition when switching boards
-- Connection status: Gentle pulse (2s cycle) for "Broadcasting" indicator
-- No scroll animations or decorative effects
+**Permitted Animations:**
+- Result reveal: 400ms slide-in from right for new times
+- Leader change: 600ms highlight pulse on position indicator
+- Board transitions: 500ms crossfade between different board types
+- Live status: Subtle 2-second pulse cycle
+
+**Forbidden:**
+- Scroll-triggered animations
+- Decorative motion graphics
+- Distracting background effects
 
 ### Accessibility
 
-- High contrast mode toggle for display boards
-- Keyboard navigation for all control dashboard forms
-- Screen reader labels for all status indicators
-- Focus visible on all interactive elements (3px outline)
+- High contrast mode (automatically enabled for stadium displays)
+- Text rendering: antialiased, optimized for large screens
+- No reliance on color alone for information (use icons, position indicators, text labels)
+- Consistent positioning of elements across board types for quick scanning
 
 ## Images
 
-No hero images or decorative photography. Use functional graphics only:
-- Meet logo: SVG format, max 120x80px (top-right of display boards)
-- Country flags: 24x16px PNGs via CDN (flagcdn.com)
-- Event icons: Material Icons or Heroicons (32px for sidebar navigation)
+**Required Images:**
+- **Meet Logo:** SVG or high-res PNG (240×160px @2x), top-right corner placement
+- **Sponsor Logos:** SVG preferred, 120×60px maximum, bottom ticker integration
+- **Country Flags:** 48×32px PNGs via flagcdn.com for athlete identification
+- **Team Logos:** Optional, 60×60px, displayed next to athlete names for relay events
+
+**No Hero Images:** This is a functional data display system, not a marketing page.
