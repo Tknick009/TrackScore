@@ -1,0 +1,9071 @@
+{
+  "file": "uploads/8df8ab1108ac242e04c7ee9bcdc28bf1",
+  "analyzedAt": "2025-11-13T02:35:02.596Z",
+  "totalTables": 42,
+  "tables": {
+    "Agegroup": {
+      "rowCount": 0,
+      "columns": [
+        {
+          "name": "Low_age",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "High_age",
+          "types": [],
+          "samples": []
+        }
+      ],
+      "sampleRow": null,
+      "pointerFields": []
+    },
+    "Athlete": {
+      "rowCount": 8719,
+      "columns": [
+        {
+          "name": "Ath_no",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            54836,
+            54837,
+            54838
+          ]
+        },
+        {
+          "name": "Last_name",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "Kutner",
+            "Bacette",
+            "Williams"
+          ]
+        },
+        {
+          "name": "First_name",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "Lucia",
+            "Carl",
+            "David"
+          ]
+        },
+        {
+          "name": "Initial",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            " "
+          ]
+        },
+        {
+          "name": "Ath_Sex",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "F",
+            "M"
+          ]
+        },
+        {
+          "name": "Birth_date",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Team_no",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            1041
+          ]
+        },
+        {
+          "name": "Schl_yr",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "SO",
+            "JR",
+            "FR"
+          ]
+        },
+        {
+          "name": "Ath_age",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "Reg_no",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "LUC-KUT2279AFE",
+            "CAR-BAC1208425",
+            "DAV-WIL8EFA498"
+          ]
+        },
+        {
+          "name": "Ath_stat",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Div_no",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Comp_no",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            10,
+            19,
+            39
+          ]
+        },
+        {
+          "name": "Pref_name",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Home_addr1",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Home_addr2",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Home_city",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Home_prov",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Home_state",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Home_zip",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Home_cntry",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Home_daytele",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Home_evetele",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Home_faxtele",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Home_email",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Citizen_of",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Picture_bmp",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Shirt_size",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fee1_no",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "Fee1_due",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fee1_pd",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fee2_no",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "Fee2_due",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fee2_pd",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fee3_no",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "Fee3_due",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fee3_pd",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fee4_no",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "Fee4_due",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fee4_pd",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fee5_no",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "Fee5_due",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fee5_pd",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fee6_no",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "Fee6_due",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fee6_pd",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fee7_no",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "Fee7_due",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fee7_pd",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fee8_no",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "Fee8_due",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fee8_pd",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fee9_no",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "Fee9_due",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fee9_pd",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fee10_no",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "Fee10_due",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fee10_pd",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Logical_1",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Logical_2",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Logical_3",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Logical_4",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Club_name",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "DA_RegNo",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Home_celltele",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Home_emergcontact",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Home_emergtele",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Chip_id",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "AthGUID_strg",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "8B8E3159-E233-4599-EE75-C3131E80FDFD",
+            "ACA9E71C-E037-4ECE-AAD1-AD97C9B2CB40",
+            "AA0C434C-6E88-452B-168A-390A0DE4CA7C"
+          ]
+        },
+        {
+          "name": "DIS_CLASS",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Disab_SDMSID",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        }
+      ],
+      "sampleRow": {
+        "Ath_no": 54836,
+        "Last_name": "Kutner",
+        "First_name": "Lucia",
+        "Initial": " ",
+        "Ath_Sex": "F",
+        "Birth_date": null,
+        "Team_no": 1041,
+        "Schl_yr": "SO",
+        "Ath_age": 0,
+        "Reg_no": "LUC-KUT2279AFE",
+        "Ath_stat": null,
+        "Div_no": null,
+        "Comp_no": 10,
+        "Pref_name": null,
+        "Home_addr1": null,
+        "Home_addr2": null,
+        "Home_city": null,
+        "Home_prov": null,
+        "Home_state": null,
+        "Home_zip": null,
+        "Home_cntry": null,
+        "Home_daytele": null,
+        "Home_evetele": null,
+        "Home_faxtele": null,
+        "Home_email": null,
+        "Citizen_of": null,
+        "Picture_bmp": null,
+        "Shirt_size": null,
+        "Fee1_no": 0,
+        "Fee1_due": null,
+        "Fee1_pd": null,
+        "Fee2_no": 0,
+        "Fee2_due": null,
+        "Fee2_pd": null,
+        "Fee3_no": 0,
+        "Fee3_due": null,
+        "Fee3_pd": null,
+        "Fee4_no": 0,
+        "Fee4_due": null,
+        "Fee4_pd": null,
+        "Fee5_no": 0,
+        "Fee5_due": null,
+        "Fee5_pd": null,
+        "Fee6_no": 0,
+        "Fee6_due": null,
+        "Fee6_pd": null,
+        "Fee7_no": 0,
+        "Fee7_due": null,
+        "Fee7_pd": null,
+        "Fee8_no": 0,
+        "Fee8_due": null,
+        "Fee8_pd": null,
+        "Fee9_no": 0,
+        "Fee9_due": null,
+        "Fee9_pd": null,
+        "Fee10_no": 0,
+        "Fee10_due": null,
+        "Fee10_pd": null,
+        "Logical_1": false,
+        "Logical_2": false,
+        "Logical_3": false,
+        "Logical_4": false,
+        "Club_name": null,
+        "DA_RegNo": null,
+        "Home_celltele": null,
+        "Home_emergcontact": null,
+        "Home_emergtele": null,
+        "Chip_id": null,
+        "AthGUID_strg": "8B8E3159-E233-4599-EE75-C3131E80FDFD",
+        "DIS_CLASS": null,
+        "Disab_SDMSID": null
+      },
+      "pointerFields": [
+        "Ath_no",
+        "Team_no",
+        "Reg_no",
+        "Div_no",
+        "Comp_no",
+        "Fee1_no",
+        "Fee2_no",
+        "Fee3_no",
+        "Fee4_no",
+        "Fee5_no",
+        "Fee6_no",
+        "Fee7_no",
+        "Fee8_no",
+        "Fee9_no",
+        "Fee10_no",
+        "Chip_id"
+      ]
+    },
+    "CCrank": {
+      "rowCount": 0,
+      "columns": [
+        {
+          "name": "Event_ptr",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Ath_no",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Ath_sex",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Ath_stat",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Team_no",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Chute_rank",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Chute_no",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Div_no",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Ev_score",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "JDEv_score",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "score_stat",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "multi_age",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Fin_hand",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Fin_stat",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Fin_Time",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Fin_course",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Fin_place",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Fin_jdplace",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Fin_award",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Fin_exh",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Fin_points",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Fin_agegrade",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Fin_percent",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Team_ltr",
+          "types": [],
+          "samples": []
+        }
+      ],
+      "sampleRow": null,
+      "pointerFields": [
+        "Event_ptr",
+        "Ath_no",
+        "Team_no",
+        "Chute_no",
+        "Div_no"
+      ]
+    },
+    "CCtime": {
+      "rowCount": 0,
+      "columns": [
+        {
+          "name": "Event_ptr",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Ath_no",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Chute_rank",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Chute_no",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Fin_hand",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Fin_stat",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Fin_Time",
+          "types": [],
+          "samples": []
+        }
+      ],
+      "sampleRow": null,
+      "pointerFields": [
+        "Event_ptr",
+        "Ath_no",
+        "Chute_no"
+      ]
+    },
+    "Conversions": {
+      "rowCount": 0,
+      "columns": [
+        {
+          "name": "Event_ptr",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Conv_ltr",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Conv_name",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "sign_1",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "factor_1",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "sign_2",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "factor_2",
+          "types": [],
+          "samples": []
+        }
+      ],
+      "sampleRow": null,
+      "pointerFields": [
+        "Event_ptr"
+      ]
+    },
+    "CustomAlleys": {
+      "rowCount": 0,
+      "columns": [
+        {
+          "name": "event_ptr",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "order_no",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "alley_name",
+          "types": [],
+          "samples": []
+        }
+      ],
+      "sampleRow": null,
+      "pointerFields": [
+        "event_ptr",
+        "order_no"
+      ]
+    },
+    "CustomLanes": {
+      "rowCount": 0,
+      "columns": [
+        {
+          "name": "event_ptr",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "tot_lanes",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "order_01",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "order_02",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "order_03",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "order_04",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "order_05",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "order_06",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "order_07",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "order_08",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "order_09",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "order_10",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "order_11",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "order_12",
+          "types": [],
+          "samples": []
+        }
+      ],
+      "sampleRow": null,
+      "pointerFields": [
+        "event_ptr"
+      ]
+    },
+    "Divisions": {
+      "rowCount": 10,
+      "columns": [
+        {
+          "name": "Div_no",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "name": "Div_name",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "Varsity",
+            "Junior Varsity",
+            " "
+          ]
+        },
+        {
+          "name": "low_age",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "high_age",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "low_yeardate",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "high_yeardate",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "beg_date",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "end_date",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "max_entries",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Div_abbr",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "V",
+            "JV",
+            " "
+          ]
+        }
+      ],
+      "sampleRow": {
+        "Div_no": 1,
+        "Div_name": "Varsity",
+        "low_age": null,
+        "high_age": null,
+        "low_yeardate": null,
+        "high_yeardate": null,
+        "beg_date": null,
+        "end_date": null,
+        "max_entries": null,
+        "Div_abbr": "V"
+      },
+      "pointerFields": [
+        "Div_no"
+      ]
+    },
+    "Dualteams": {
+      "rowCount": 0,
+      "columns": [
+        {
+          "name": "team_gender",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "ateam_no",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "bteam_no",
+          "types": [],
+          "samples": []
+        }
+      ],
+      "sampleRow": null,
+      "pointerFields": [
+        "ateam_no",
+        "bteam_no"
+      ]
+    },
+    "Entry": {
+      "rowCount": 3355,
+      "columns": [
+        {
+          "name": "Event_ptr",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            27,
+            20,
+            24
+          ]
+        },
+        {
+          "name": "Ath_no",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            54836,
+            54837,
+            54838
+          ]
+        },
+        {
+          "name": "ActSeed_course",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "M"
+          ]
+        },
+        {
+          "name": "ActualSeed_time",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            671.2100219726562,
+            11.279999732971191,
+            23.170000076293945
+          ]
+        },
+        {
+          "name": "ConvSeed_course",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "M"
+          ]
+        },
+        {
+          "name": "ConvSeed_time",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            671.2100219726562,
+            11.279999732971191,
+            23.170000076293945
+          ]
+        },
+        {
+          "name": "Hand_time",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Team_age",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Conv_ltr",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            " "
+          ]
+        },
+        {
+          "name": "Seed_place",
+          "types": [
+            "number",
+            "null"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "Scr_stat",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Spec_stat",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Dec_stat",
+          "types": [
+            "string",
+            "null"
+          ],
+          "samples": [
+            "D"
+          ]
+        },
+        {
+          "name": "Alt_stat",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Bonus_event",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Div_no",
+          "types": [
+            "null",
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "Ev_score",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "JDEv_score",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "dq_type",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Pre_heat",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Pre_lane",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "unPre_heat",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "unPre_lane",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Pre_hand",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Pre_stat",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Pre_Time",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Pre_course",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Pre_heatplace",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Pre_jdheatplace",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Pre_place",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Pre_jdplace",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Pre_exh",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Pre_wind",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Pre_points",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Pre_agegrade",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Pre_percent",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_heat",
+          "types": [
+            "number",
+            "null"
+          ],
+          "samples": [
+            2,
+            13,
+            1
+          ]
+        },
+        {
+          "name": "Fin_lane",
+          "types": [
+            "number",
+            "null"
+          ],
+          "samples": [
+            9,
+            2,
+            1
+          ]
+        },
+        {
+          "name": "unFin_heat",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "unFin_lane",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_hand",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Fin_group",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_stat",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_Time",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_course",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_heatplace",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_jdheatplace",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_place",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_jdplace",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_ptsplace",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_award",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_exh",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_wind",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_points",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_agegrade",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_percent",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Sem_heat",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Sem_lane",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "unSem_heat",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "unSem_lane",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Sem_hand",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Sem_stat",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Sem_Time",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Sem_course",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Sem_heatplace",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "sem_jdheatplace",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Sem_place",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Sem_jdplace",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Sem_exh",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Sem_wind",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Sem_points",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Sem_agegrade",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Sem_percent",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Qtr_heat",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Qtr_lane",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "unQtr_heat",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "unQtr_lane",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Qtr_hand",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Qtr_stat",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Qtr_Time",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Qtr_course",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Qtr_heatplace",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Qtr_jdheatplace",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Qtr_place",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Qtr_jdplace",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Qtr_exh",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Qtr_wind",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Qtr_points",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Qtr_agegrade",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Qtr_percent",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "entry_note",
+          "types": [
+            "string",
+            "null"
+          ],
+          "samples": [
+            "Bison Outdoor Classic (4/14/2023)",
+            "28th Annual Monmouth University Track & Field Season Opener",
+            "Northeast-10 Indoor Track & Field Championships (2/16/2023)"
+          ]
+        },
+        {
+          "name": "Team_ltr",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Pre_note",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Qtr_note",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Sem_note",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_note",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Video_time",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Pre_video",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Fin_video",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Sem_video",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Qtr_video",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "fin_dqofficial",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "pre_dqofficial",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "sem_dqofficial",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "qtr_dqofficial",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "ent_op_datetime",
+          "types": [
+            "Date"
+          ],
+          "samples": [
+            "2024-04-10T11:10:37.000Z",
+            "2024-04-11T14:30:11.000Z"
+          ]
+        },
+        {
+          "name": "scr_op_datetime",
+          "types": [
+            "Date"
+          ],
+          "samples": [
+            "2024-04-10T11:10:37.000Z",
+            "2024-04-11T14:30:11.000Z"
+          ]
+        }
+      ],
+      "sampleRow": {
+        "Event_ptr": 27,
+        "Ath_no": 54836,
+        "ActSeed_course": "M",
+        "ActualSeed_time": 671.2100219726562,
+        "ConvSeed_course": "M",
+        "ConvSeed_time": 671.2100219726562,
+        "Hand_time": false,
+        "Team_age": null,
+        "Conv_ltr": " ",
+        "Seed_place": 0,
+        "Scr_stat": false,
+        "Spec_stat": null,
+        "Dec_stat": "D",
+        "Alt_stat": false,
+        "Bonus_event": false,
+        "Div_no": null,
+        "Ev_score": null,
+        "JDEv_score": null,
+        "dq_type": null,
+        "Pre_heat": null,
+        "Pre_lane": null,
+        "unPre_heat": null,
+        "unPre_lane": null,
+        "Pre_hand": false,
+        "Pre_stat": null,
+        "Pre_Time": null,
+        "Pre_course": null,
+        "Pre_heatplace": null,
+        "Pre_jdheatplace": null,
+        "Pre_place": null,
+        "Pre_jdplace": null,
+        "Pre_exh": null,
+        "Pre_wind": null,
+        "Pre_points": null,
+        "Pre_agegrade": null,
+        "Pre_percent": null,
+        "Fin_heat": 2,
+        "Fin_lane": 9,
+        "unFin_heat": null,
+        "unFin_lane": null,
+        "Fin_hand": false,
+        "Fin_group": null,
+        "Fin_stat": null,
+        "Fin_Time": null,
+        "Fin_course": null,
+        "Fin_heatplace": null,
+        "Fin_jdheatplace": null,
+        "Fin_place": null,
+        "Fin_jdplace": null,
+        "Fin_ptsplace": null,
+        "Fin_award": null,
+        "Fin_exh": null,
+        "Fin_wind": null,
+        "Fin_points": null,
+        "Fin_agegrade": null,
+        "Fin_percent": null,
+        "Sem_heat": null,
+        "Sem_lane": null,
+        "unSem_heat": null,
+        "unSem_lane": null,
+        "Sem_hand": false,
+        "Sem_stat": null,
+        "Sem_Time": null,
+        "Sem_course": null,
+        "Sem_heatplace": null,
+        "sem_jdheatplace": null,
+        "Sem_place": null,
+        "Sem_jdplace": null,
+        "Sem_exh": null,
+        "Sem_wind": null,
+        "Sem_points": null,
+        "Sem_agegrade": null,
+        "Sem_percent": null,
+        "Qtr_heat": null,
+        "Qtr_lane": null,
+        "unQtr_heat": null,
+        "unQtr_lane": null,
+        "Qtr_hand": false,
+        "Qtr_stat": null,
+        "Qtr_Time": null,
+        "Qtr_course": null,
+        "Qtr_heatplace": null,
+        "Qtr_jdheatplace": null,
+        "Qtr_place": null,
+        "Qtr_jdplace": null,
+        "Qtr_exh": null,
+        "Qtr_wind": null,
+        "Qtr_points": null,
+        "Qtr_agegrade": null,
+        "Qtr_percent": null,
+        "entry_note": "Bison Outdoor Classic (4/14/2023)",
+        "Team_ltr": null,
+        "Pre_note": null,
+        "Qtr_note": null,
+        "Sem_note": null,
+        "Fin_note": null,
+        "Video_time": false,
+        "Pre_video": false,
+        "Fin_video": false,
+        "Sem_video": false,
+        "Qtr_video": false,
+        "fin_dqofficial": null,
+        "pre_dqofficial": null,
+        "sem_dqofficial": null,
+        "qtr_dqofficial": null,
+        "ent_op_datetime": "2024-04-10T11:10:37.000Z",
+        "scr_op_datetime": "2024-04-10T11:10:37.000Z"
+      },
+      "pointerFields": [
+        "Event_ptr",
+        "Ath_no",
+        "Div_no",
+        "entry_note",
+        "Pre_note",
+        "Qtr_note",
+        "Sem_note",
+        "Fin_note"
+      ]
+    },
+    "Entrymulti": {
+      "rowCount": 294,
+      "columns": [
+        {
+          "name": "Event_ptr",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            75
+          ]
+        },
+        {
+          "name": "Mult_ptr",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            1
+          ]
+        },
+        {
+          "name": "Ath_no",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            56166,
+            56017,
+            60239
+          ]
+        },
+        {
+          "name": "ActSeed_course",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "ActualSeed_time",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "ConvSeed_course",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "ConvSeed_time",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Hand_time",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Seed_place",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "dq_type",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_heat",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            2,
+            1
+          ]
+        },
+        {
+          "name": "Fin_lane",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            4,
+            5,
+            3
+          ]
+        },
+        {
+          "name": "unFin_heat",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "unFin_lane",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_hand",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Fin_group",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_stat",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_time",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_course",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_heatplace",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_jdheatplace",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_place",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_jdplace",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_ptsplace",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_award",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_exh",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_wind",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_points",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_agegrade",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_percent",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_note",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Video_time",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Fin_video",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "fin_dqofficial",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Div_no",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        }
+      ],
+      "sampleRow": {
+        "Event_ptr": 75,
+        "Mult_ptr": 1,
+        "Ath_no": 56166,
+        "ActSeed_course": null,
+        "ActualSeed_time": null,
+        "ConvSeed_course": null,
+        "ConvSeed_time": null,
+        "Hand_time": false,
+        "Seed_place": null,
+        "dq_type": null,
+        "Fin_heat": 2,
+        "Fin_lane": 4,
+        "unFin_heat": null,
+        "unFin_lane": null,
+        "Fin_hand": false,
+        "Fin_group": null,
+        "Fin_stat": null,
+        "Fin_time": null,
+        "Fin_course": null,
+        "Fin_heatplace": null,
+        "Fin_jdheatplace": null,
+        "Fin_place": null,
+        "Fin_jdplace": null,
+        "Fin_ptsplace": null,
+        "Fin_award": null,
+        "Fin_exh": null,
+        "Fin_wind": null,
+        "Fin_points": null,
+        "Fin_agegrade": null,
+        "Fin_percent": null,
+        "Fin_note": null,
+        "Video_time": false,
+        "Fin_video": false,
+        "fin_dqofficial": null,
+        "Div_no": null
+      },
+      "pointerFields": [
+        "Event_ptr",
+        "Mult_ptr",
+        "Ath_no",
+        "Fin_note",
+        "Div_no"
+      ]
+    },
+    "Event": {
+      "rowCount": 56,
+      "columns": [
+        {
+          "name": "Event_no",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            9,
+            5,
+            6
+          ]
+        },
+        {
+          "name": "Event_ltr",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            " "
+          ]
+        },
+        {
+          "name": "Event_ptr",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            3,
+            5,
+            6
+          ]
+        },
+        {
+          "name": "Ind_rel",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "I",
+            "R"
+          ]
+        },
+        {
+          "name": "Event_sex",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "W",
+            "M"
+          ]
+        },
+        {
+          "name": "Event_gender",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "F",
+            "M"
+          ]
+        },
+        {
+          "name": "Event_dist",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            1500,
+            3000,
+            5000
+          ]
+        },
+        {
+          "name": "Event_stroke",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "B",
+            "H",
+            "W"
+          ]
+        },
+        {
+          "name": "Low_age",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "High_Age",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            109
+          ]
+        },
+        {
+          "name": "Multi_age",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Event_stat",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "1"
+          ]
+        },
+        {
+          "name": "Unseeded_stat",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Adv_How",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "1"
+          ]
+        },
+        {
+          "name": "Serp_Type",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "1"
+          ]
+        },
+        {
+          "name": "Trk_Field",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "T"
+          ]
+        },
+        {
+          "name": "Seed_Meas",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "M"
+          ]
+        },
+        {
+          "name": "Res_Meas",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "M"
+          ]
+        },
+        {
+          "name": "Event_rounds",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            1
+          ]
+        },
+        {
+          "name": "Num_prelanes",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            22,
+            19,
+            20
+          ]
+        },
+        {
+          "name": "Num_finlanes",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            8
+          ]
+        },
+        {
+          "name": "Finals_setup",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "A"
+          ]
+        },
+        {
+          "name": "Heats_infinal",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            1
+          ]
+        },
+        {
+          "name": "Heats_insemi",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "Heats_inqtr",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "Std_lanes",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "3",
+            "6",
+            "1"
+          ]
+        },
+        {
+          "name": "Auto_seed",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            true
+          ]
+        },
+        {
+          "name": "Preheat_order",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "B",
+            "A"
+          ]
+        },
+        {
+          "name": "Finheat_order",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "A"
+          ]
+        },
+        {
+          "name": "Score_event",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Div_no",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "Relay_size",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0,
+            4
+          ]
+        },
+        {
+          "name": "Comm_1",
+          "types": [
+            "string",
+            "null"
+          ],
+          "samples": [
+            "Heats 5, 6, 7 Invite Heats to be run at 8:10",
+            "Heat 3 Invite Heat to be run at 8:45",
+            " "
+          ]
+        },
+        {
+          "name": "Comm_2",
+          "types": [
+            "string",
+            "null"
+          ],
+          "samples": [
+            " "
+          ]
+        },
+        {
+          "name": "Comm_3",
+          "types": [
+            "string",
+            "null"
+          ],
+          "samples": [
+            " "
+          ]
+        },
+        {
+          "name": "Comm_4",
+          "types": [
+            "string",
+            "null"
+          ],
+          "samples": [
+            " "
+          ]
+        },
+        {
+          "name": "Entry_fee",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "0.0000"
+          ]
+        },
+        {
+          "name": "Is_locked",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Locked_by",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            " "
+          ]
+        },
+        {
+          "name": "Event_Type",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            " "
+          ]
+        },
+        {
+          "name": "Locked_list",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "0"
+          ]
+        },
+        {
+          "name": "Rnd1_alleys",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Rnd2_alleys",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Rnd3_alleys",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Rnd4_alleys",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Pre_time",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Qtr_time",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Sem_time",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_time",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "event_note",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "Invite      ",
+            "            ",
+            "Unseeded    "
+          ]
+        },
+        {
+          "name": "Top_no1",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Next_Best1",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Heatsin_Rnd1",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Top_no2",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Next_Best2",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Heatsin_Rnd2",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Top_no3",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Next_Best3",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Heatsin_Rnd3",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "add_sponsor",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Fin_AwardsPrinted",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Pre_AwardsPrinted",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Sem_AwardsPrinted",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Qtr_AwardsPrinted",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "CCracestart_date",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "CCracestart_time",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Num_semlanes",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "Num_qtrlanes",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "Event_Type2",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        }
+      ],
+      "sampleRow": {
+        "Event_no": 9,
+        "Event_ltr": " ",
+        "Event_ptr": 3,
+        "Ind_rel": "I",
+        "Event_sex": "W",
+        "Event_gender": "F",
+        "Event_dist": 1500,
+        "Event_stroke": "B",
+        "Low_age": 0,
+        "High_Age": 109,
+        "Multi_age": false,
+        "Event_stat": "1",
+        "Unseeded_stat": null,
+        "Adv_How": "1",
+        "Serp_Type": "1",
+        "Trk_Field": "T",
+        "Seed_Meas": "M",
+        "Res_Meas": "M",
+        "Event_rounds": 1,
+        "Num_prelanes": 22,
+        "Num_finlanes": 8,
+        "Finals_setup": "A",
+        "Heats_infinal": 1,
+        "Heats_insemi": 0,
+        "Heats_inqtr": 0,
+        "Std_lanes": "3",
+        "Auto_seed": true,
+        "Preheat_order": "B",
+        "Finheat_order": "A",
+        "Score_event": false,
+        "Div_no": 0,
+        "Relay_size": 0,
+        "Comm_1": "Heats 5, 6, 7 Invite Heats to be run at 8:10",
+        "Comm_2": " ",
+        "Comm_3": " ",
+        "Comm_4": " ",
+        "Entry_fee": "0.0000",
+        "Is_locked": false,
+        "Locked_by": " ",
+        "Event_Type": " ",
+        "Locked_list": "0",
+        "Rnd1_alleys": null,
+        "Rnd2_alleys": null,
+        "Rnd3_alleys": null,
+        "Rnd4_alleys": null,
+        "Pre_time": null,
+        "Qtr_time": null,
+        "Sem_time": null,
+        "Fin_time": null,
+        "event_note": "Invite      ",
+        "Top_no1": null,
+        "Next_Best1": null,
+        "Heatsin_Rnd1": null,
+        "Top_no2": null,
+        "Next_Best2": null,
+        "Heatsin_Rnd2": null,
+        "Top_no3": null,
+        "Next_Best3": null,
+        "Heatsin_Rnd3": null,
+        "add_sponsor": false,
+        "Fin_AwardsPrinted": false,
+        "Pre_AwardsPrinted": false,
+        "Sem_AwardsPrinted": false,
+        "Qtr_AwardsPrinted": false,
+        "CCracestart_date": null,
+        "CCracestart_time": null,
+        "Num_semlanes": 0,
+        "Num_qtrlanes": 0,
+        "Event_Type2": 0
+      },
+      "pointerFields": [
+        "Event_no",
+        "Event_ptr",
+        "Div_no",
+        "event_note",
+        "Top_no1",
+        "Top_no2",
+        "Top_no3"
+      ]
+    },
+    "Eventmulti": {
+      "rowCount": 24,
+      "columns": [
+        {
+          "name": "MultiEvent_no",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "name": "Event_ptr",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            75
+          ]
+        },
+        {
+          "name": "Mult_ptr",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "name": "Multi_table",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "1"
+          ]
+        },
+        {
+          "name": "Event_dist",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            100,
+            0,
+            400
+          ]
+        },
+        {
+          "name": "Event_stroke",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "A",
+            "M",
+            "R"
+          ]
+        },
+        {
+          "name": "Event_stat",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "1"
+          ]
+        },
+        {
+          "name": "Serp_Type",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "1",
+            "3"
+          ]
+        },
+        {
+          "name": "Trk_Field",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "T",
+            "F"
+          ]
+        },
+        {
+          "name": "Res_Meas",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "M"
+          ]
+        },
+        {
+          "name": "Num_finlanes",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            8,
+            16,
+            17
+          ]
+        },
+        {
+          "name": "Std_lanes",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "1"
+          ]
+        },
+        {
+          "name": "Finheat_order",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "A",
+            "B"
+          ]
+        },
+        {
+          "name": "Comm_1",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Comm_2",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Is_locked",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Locked_by",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Locked_list",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "event_note",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            " "
+          ]
+        },
+        {
+          "name": "Auto_seed",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            true
+          ]
+        },
+        {
+          "name": "add_sponsor",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Seed_Meas",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_AwardsPrinted",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        }
+      ],
+      "sampleRow": {
+        "MultiEvent_no": 1,
+        "Event_ptr": 75,
+        "Mult_ptr": 1,
+        "Multi_table": "1",
+        "Event_dist": 100,
+        "Event_stroke": "A",
+        "Event_stat": "1",
+        "Serp_Type": "1",
+        "Trk_Field": "T",
+        "Res_Meas": "M",
+        "Num_finlanes": 8,
+        "Std_lanes": "1",
+        "Finheat_order": "A",
+        "Comm_1": null,
+        "Comm_2": null,
+        "Is_locked": false,
+        "Locked_by": null,
+        "Locked_list": null,
+        "event_note": " ",
+        "Auto_seed": true,
+        "add_sponsor": false,
+        "Seed_Meas": null,
+        "Fin_AwardsPrinted": false
+      },
+      "pointerFields": [
+        "MultiEvent_no",
+        "Event_ptr",
+        "Mult_ptr",
+        "event_note"
+      ]
+    },
+    "Meet": {
+      "rowCount": 1,
+      "columns": [
+        {
+          "name": "win_tfmm",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Meet_location",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "Bucknell University"
+          ]
+        },
+        {
+          "name": "Meet_start",
+          "types": [
+            "Date"
+          ],
+          "samples": [
+            "2024-04-12T00:00:00.000Z"
+          ]
+        },
+        {
+          "name": "Meet_end",
+          "types": [
+            "Date"
+          ],
+          "samples": [
+            "2024-04-14T00:00:00.000Z"
+          ]
+        },
+        {
+          "name": "Meet_kind",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            1
+          ]
+        },
+        {
+          "name": "Meet_class",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            2
+          ]
+        },
+        {
+          "name": "Meet_meettype",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            1
+          ]
+        },
+        {
+          "name": "meet_meetstyle",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            1
+          ]
+        },
+        {
+          "name": "usedivision_birthdateranges",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "fieldevent_relays",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "runningevent_relays",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "random_select",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Enter_ages",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Enter_birthdate",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Calc_date",
+          "types": [
+            "Date"
+          ],
+          "samples": [
+            "2024-04-12T00:00:00.000Z"
+          ]
+        },
+        {
+          "name": "Enter_schoolyr",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "enter_middleinitial",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "show_initial",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "enter_athstat",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "showathlete_status",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "enter_regno",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            true
+          ]
+        },
+        {
+          "name": "enter_citizenof",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Use_hometown",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Show_countrycode",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Lastname_first",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            true
+          ]
+        },
+        {
+          "name": "firstname_asinitial",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "showbirthyear_insteadofage",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Punct_names",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            true
+          ]
+        },
+        {
+          "name": "Punct_teams",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            true
+          ]
+        },
+        {
+          "name": "ucase_names",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "ucase_teams",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "open_senior_none",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "N"
+          ]
+        },
+        {
+          "name": "Punct_recholders",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "ucase_recholders",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "language_choice",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "ENGLISH"
+          ]
+        },
+        {
+          "name": "military_time",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "enterkey_astab",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "A_Relaysonly",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "allowsameevent_duprelaynames",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "anyone_onrelay",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "suppress_Arelay",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "score_Arelayonly",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            true
+          ]
+        },
+        {
+          "name": "foreign_infinal",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            true
+          ]
+        },
+        {
+          "name": "foreign_getteampoints",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            true
+          ]
+        },
+        {
+          "name": "exh_infinal",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            true
+          ]
+        },
+        {
+          "name": "seed_exhlast",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "exhibition_getfinalsrank",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "foreign_treatasexhibition",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "dual_evenodd",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "strict_evenodd",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "team_evenlanes",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "team_oddlanes",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "Scores_afterevt",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "useeventsex_teamscore",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "thrucurrentevt_teamscore",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "diffpts_malefemale",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "diffpts_eachdivision",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "scoreonly_ifexceedqualtime",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "score_fastestheatonly",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "addqtrrelaypts_toindscore",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "compno_uniqueness",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "use_compnumbers",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            true
+          ]
+        },
+        {
+          "name": "autoinc_compno",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            true
+          ]
+        },
+        {
+          "name": "entryqual_faster",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            true
+          ]
+        },
+        {
+          "name": "indentryfee_surcharge",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "0.0000"
+          ]
+        },
+        {
+          "name": "swimmer_surcharge",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "0.0000"
+          ]
+        },
+        {
+          "name": "indmaxscorers_perteam",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "relmaxscorers_perteam",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "indtopmany_awards",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "reltopmany_awards",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "entrymax_total",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "trkmax_perath",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "fldmax_perath",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "entrylimits_warn",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            true
+          ]
+        },
+        {
+          "name": "check_times",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            true
+          ]
+        },
+        {
+          "name": "report_excludemeetname",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "report_excludemeetname2",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "report_excludelocation",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "under120_asseconds",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "showAlternate_EventNumbers",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "under_eventname",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "suppress_smallx",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "showFieldEvent_Conversions",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            true
+          ]
+        },
+        {
+          "name": "record_windreadings",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            true
+          ]
+        },
+        {
+          "name": "converthand_toFAT",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "use_declarationmethod",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "noteswith_eachentry",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "showfinishplace_withentry",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "roundresults_uptotenths",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "rounddown_toevencentimeter",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "rank_agegraded",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "stdevt_oneyragegrade",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "multievt_fiveyragegrade",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            true
+          ]
+        },
+        {
+          "name": "show_AgeGrade",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "ccnonteam_displace",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "ccdynamic_scoring",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "xccminimum_onteam",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            5
+          ]
+        },
+        {
+          "name": "xccmaxscorers_perteam",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            5
+          ]
+        },
+        {
+          "name": "xccnumberdisplacers_perteam",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            2
+          ]
+        },
+        {
+          "name": "xccpenalty_points",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            100
+          ]
+        },
+        {
+          "name": "xrrnumber_teamscorers",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            3
+          ]
+        },
+        {
+          "name": "fldrelnumber_teamscorers",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            3
+          ]
+        },
+        {
+          "name": "runrelnumber_teamscorers",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            3
+          ]
+        },
+        {
+          "name": "Meet_idformat",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            1
+          ]
+        },
+        {
+          "name": "Meet_course",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            1
+          ]
+        },
+        {
+          "name": "meet_numlanes",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            8
+          ]
+        },
+        {
+          "name": "prelimheats_circle",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            3
+          ]
+        },
+        {
+          "name": "timedfinal_circleseed",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "timedfinal_randrule",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "A"
+          ]
+        },
+        {
+          "name": "round1_randrule",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "A"
+          ]
+        },
+        {
+          "name": "round234_randrule",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "A"
+          ]
+        },
+        {
+          "name": "round1_closegaps",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "ncaa_rule105a",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "apnews_team",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "S"
+          ]
+        },
+        {
+          "name": "suppress_age",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "suppress_jd",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            true
+          ]
+        },
+        {
+          "name": "linkteams_todivisions",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "team_surcharge",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "0.0000"
+          ]
+        },
+        {
+          "name": "meet_arena",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "O"
+          ]
+        },
+        {
+          "name": "show_hometownandteam",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "incl_meetdate",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "Use_AltTeamAbbr",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "FieldRelayUnderSize_CanScore",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "suppress_UNATeamName",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "DA_meethandle",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "DA_unpubmeethandle",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "DA_meetsport",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            " "
+          ]
+        },
+        {
+          "name": "Read_Only",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "dualteam_lane1",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "dualteam_lane2",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "dualteam_lane3",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "dualteam_lane4",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "dualteam_lane5",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "dualteam_lane6",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "dualteam_lane7",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "dualteam_lane8",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "dualteam_lane9",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "dualteam_lane10",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "strict_evenoddfastestheatonly",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "dualseeding_altunusedlane",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Display_ActualEntryTime",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "indmaxadvance_perteam",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "relmaxadvance_perteam",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "Facility_Surcharge",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "0.0000"
+          ]
+        },
+        {
+          "name": "Suppress_X",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Suppress_TimeStdAbbr",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Dual_InLaneRacesOnly",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "xccPenaltyPts_LastPlusOne",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "xrrTopMany_ExcludeFromAgeResults",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "useX_forFoul",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Show_ChipID",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Enter_birthcentury",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "DisplayNTfor_TimesUnder5Sec",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "SortTeamCombos_ByTeamName",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "RelaysShow_TotalDistance",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Meet_addr1",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            " "
+          ]
+        },
+        {
+          "name": "Meet_addr2",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            " "
+          ]
+        },
+        {
+          "name": "Meet_city",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            " "
+          ]
+        },
+        {
+          "name": "Meet_state",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            " "
+          ]
+        },
+        {
+          "name": "Meet_zip",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            " "
+          ]
+        },
+        {
+          "name": "Meet_country",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "USA"
+          ]
+        },
+        {
+          "name": "CCRRroundUpTo_NearestSecond",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Meet_Host",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Meet_Director",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Meet_Referee",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Meet_Timer",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Meet_Starter",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Meet_name1",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "Bison Outdoor Classic"
+          ]
+        },
+        {
+          "name": "Meet_name2",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            " "
+          ]
+        },
+        {
+          "name": "special_parapoints",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            -1
+          ]
+        },
+        {
+          "name": "Competition_Code",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "RankDisabled_ByPoints",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "ccShowDNFWhenLess",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        }
+      ],
+      "sampleRow": {
+        "win_tfmm": false,
+        "Meet_location": "Bucknell University",
+        "Meet_start": "2024-04-12T00:00:00.000Z",
+        "Meet_end": "2024-04-14T00:00:00.000Z",
+        "Meet_kind": 1,
+        "Meet_class": 2,
+        "Meet_meettype": 1,
+        "meet_meetstyle": 1,
+        "usedivision_birthdateranges": false,
+        "fieldevent_relays": false,
+        "runningevent_relays": false,
+        "random_select": false,
+        "Enter_ages": false,
+        "Enter_birthdate": false,
+        "Calc_date": "2024-04-12T00:00:00.000Z",
+        "Enter_schoolyr": false,
+        "enter_middleinitial": false,
+        "show_initial": false,
+        "enter_athstat": false,
+        "showathlete_status": false,
+        "enter_regno": true,
+        "enter_citizenof": false,
+        "Use_hometown": false,
+        "Show_countrycode": false,
+        "Lastname_first": true,
+        "firstname_asinitial": false,
+        "showbirthyear_insteadofage": false,
+        "Punct_names": true,
+        "Punct_teams": true,
+        "ucase_names": false,
+        "ucase_teams": false,
+        "open_senior_none": "N",
+        "Punct_recholders": false,
+        "ucase_recholders": false,
+        "language_choice": "ENGLISH",
+        "military_time": false,
+        "enterkey_astab": false,
+        "A_Relaysonly": false,
+        "allowsameevent_duprelaynames": false,
+        "anyone_onrelay": false,
+        "suppress_Arelay": false,
+        "score_Arelayonly": true,
+        "foreign_infinal": true,
+        "foreign_getteampoints": true,
+        "exh_infinal": true,
+        "seed_exhlast": false,
+        "exhibition_getfinalsrank": false,
+        "foreign_treatasexhibition": false,
+        "dual_evenodd": false,
+        "strict_evenodd": false,
+        "team_evenlanes": 0,
+        "team_oddlanes": 0,
+        "Scores_afterevt": false,
+        "useeventsex_teamscore": false,
+        "thrucurrentevt_teamscore": false,
+        "diffpts_malefemale": false,
+        "diffpts_eachdivision": false,
+        "scoreonly_ifexceedqualtime": false,
+        "score_fastestheatonly": false,
+        "addqtrrelaypts_toindscore": false,
+        "compno_uniqueness": 0,
+        "use_compnumbers": true,
+        "autoinc_compno": true,
+        "entryqual_faster": true,
+        "indentryfee_surcharge": "0.0000",
+        "swimmer_surcharge": "0.0000",
+        "indmaxscorers_perteam": 0,
+        "relmaxscorers_perteam": 0,
+        "indtopmany_awards": 0,
+        "reltopmany_awards": 0,
+        "entrymax_total": 0,
+        "trkmax_perath": 0,
+        "fldmax_perath": 0,
+        "entrylimits_warn": true,
+        "check_times": true,
+        "report_excludemeetname": false,
+        "report_excludemeetname2": false,
+        "report_excludelocation": false,
+        "under120_asseconds": false,
+        "showAlternate_EventNumbers": false,
+        "under_eventname": false,
+        "suppress_smallx": false,
+        "showFieldEvent_Conversions": true,
+        "record_windreadings": true,
+        "converthand_toFAT": false,
+        "use_declarationmethod": false,
+        "noteswith_eachentry": false,
+        "showfinishplace_withentry": false,
+        "roundresults_uptotenths": false,
+        "rounddown_toevencentimeter": false,
+        "rank_agegraded": false,
+        "stdevt_oneyragegrade": false,
+        "multievt_fiveyragegrade": true,
+        "show_AgeGrade": false,
+        "ccnonteam_displace": false,
+        "ccdynamic_scoring": false,
+        "xccminimum_onteam": 5,
+        "xccmaxscorers_perteam": 5,
+        "xccnumberdisplacers_perteam": 2,
+        "xccpenalty_points": 100,
+        "xrrnumber_teamscorers": 3,
+        "fldrelnumber_teamscorers": 3,
+        "runrelnumber_teamscorers": 3,
+        "Meet_idformat": 1,
+        "Meet_course": 1,
+        "meet_numlanes": 8,
+        "prelimheats_circle": 3,
+        "timedfinal_circleseed": false,
+        "timedfinal_randrule": "A",
+        "round1_randrule": "A",
+        "round234_randrule": "A",
+        "round1_closegaps": false,
+        "ncaa_rule105a": false,
+        "apnews_team": "S",
+        "suppress_age": false,
+        "suppress_jd": true,
+        "linkteams_todivisions": false,
+        "team_surcharge": "0.0000",
+        "meet_arena": "O",
+        "show_hometownandteam": false,
+        "incl_meetdate": 0,
+        "Use_AltTeamAbbr": false,
+        "FieldRelayUnderSize_CanScore": false,
+        "suppress_UNATeamName": false,
+        "DA_meethandle": 0,
+        "DA_unpubmeethandle": 0,
+        "DA_meetsport": " ",
+        "Read_Only": false,
+        "dualteam_lane1": null,
+        "dualteam_lane2": null,
+        "dualteam_lane3": null,
+        "dualteam_lane4": null,
+        "dualteam_lane5": null,
+        "dualteam_lane6": null,
+        "dualteam_lane7": null,
+        "dualteam_lane8": null,
+        "dualteam_lane9": null,
+        "dualteam_lane10": null,
+        "strict_evenoddfastestheatonly": false,
+        "dualseeding_altunusedlane": false,
+        "Display_ActualEntryTime": false,
+        "indmaxadvance_perteam": 0,
+        "relmaxadvance_perteam": 0,
+        "Facility_Surcharge": "0.0000",
+        "Suppress_X": false,
+        "Suppress_TimeStdAbbr": false,
+        "Dual_InLaneRacesOnly": false,
+        "xccPenaltyPts_LastPlusOne": false,
+        "xrrTopMany_ExcludeFromAgeResults": 0,
+        "useX_forFoul": false,
+        "Show_ChipID": false,
+        "Enter_birthcentury": false,
+        "DisplayNTfor_TimesUnder5Sec": false,
+        "SortTeamCombos_ByTeamName": false,
+        "RelaysShow_TotalDistance": false,
+        "Meet_addr1": " ",
+        "Meet_addr2": " ",
+        "Meet_city": " ",
+        "Meet_state": " ",
+        "Meet_zip": " ",
+        "Meet_country": "USA",
+        "CCRRroundUpTo_NearestSecond": false,
+        "Meet_Host": null,
+        "Meet_Director": null,
+        "Meet_Referee": null,
+        "Meet_Timer": null,
+        "Meet_Starter": null,
+        "Meet_name1": "Bison Outdoor Classic",
+        "Meet_name2": " ",
+        "special_parapoints": -1,
+        "Competition_Code": null,
+        "RankDisabled_ByPoints": false,
+        "ccShowDNFWhenLess": false
+      },
+      "pointerFields": [
+        "open_senior_none"
+      ]
+    },
+    "MemorizedReports": {
+      "rowCount": 0,
+      "columns": [
+        {
+          "name": "Mem_Name",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Mem_Type",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Mem_Ptr",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Num_Columns",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Sort_Order",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Date_Time",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "ID_Type",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Top_HowMany",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Num_RelayNames",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Show_StartTimes",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_Records",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_TimeStds",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_QualTimes",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_EvtComments",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Line_ForResults",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_NoEntries",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_PriorResults",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_Rnd1Alt",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_EmptyLanes",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Show_SeedTimes",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Sep_ABFinal",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "OneEvent_PerPage",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "EntryDec_Format",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "OneHeat_PerPage",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Dbl_Space",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Show_Ranks",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "MultiAge_Split",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_QualifiedAlts",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "ScrAltExhSpec_Filters",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_Scratches",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Ignore_Psych",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Sess_Row",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Evt_Gender",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Evt_LowAge",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Evt_HighAge",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Team_Abbr",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Evt_Round",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Evt_IndivOrRelay",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Report_Type",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Sort_OrderAthAge",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_AthNoEntries",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_AthNoEntries4Col",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "AddApost_ClassYear",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_CompNo",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_CompNo4Col",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "AddrSort_ByTeam",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "AddrSort_ByZip",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_ScrInEntryCount",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_AltInEntryCount",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_BirthDate",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_TeamAddr",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_Coaches",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "AthUseAbbr_ForTeam",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Div_Abbr",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Report_Format",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_HeatLane",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Add_LineSpace",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_RegID",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Show_CheckIn",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "NumAth_PerPage",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Splits_Choice",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Results_ByHeat",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Page_Break",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_SpecPts",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_TimeTrials",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_NoShows",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_TeamPts",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Low_Lane",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "High_Lane",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Score_Female",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Score_Male",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Score_Combined",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Score_CombinedBoth",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "BAG_CATS",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Flat_HTML",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "DotMatrix_LabelChoice",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Laser_LabelChoice",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_TeamScore",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_FemaleTeamScore",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_MaleTeamScore",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "CombineDivisions_ForTeamPoints",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_DQCodes",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_ReactionTimes",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_Backups",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "UseLaser_Label",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Region_Abbr",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "OneColumn_Only",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "InclIf_NoCompNo",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Evt_StartTimes",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_EntryFee",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Use_AltEvtNum",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_EntryStat",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_AdvFormula",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_SigLine",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Sort_ByTeam",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Landscape_Vertical",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_LogosinFooter",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_Splits",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Incl_IndivRelCnt",
+          "types": [],
+          "samples": []
+        }
+      ],
+      "sampleRow": null,
+      "pointerFields": []
+    },
+    "Multiage": {
+      "rowCount": 0,
+      "columns": [
+        {
+          "name": "event_ptr",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "low_age",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "high_age",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Heats_infinal",
+          "types": [],
+          "samples": []
+        }
+      ],
+      "sampleRow": null,
+      "pointerFields": [
+        "event_ptr"
+      ]
+    },
+    "RecordTags": {
+      "rowCount": 2,
+      "columns": [
+        {
+          "name": "tag_ptr",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            3,
+            4
+          ]
+        },
+        {
+          "name": "tag_order",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            3,
+            4
+          ]
+        },
+        {
+          "name": "tag_name",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "Bucknell",
+            "Facility"
+          ]
+        },
+        {
+          "name": "tag_flag",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "B",
+            "F"
+          ]
+        },
+        {
+          "name": "team_no",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            909,
+            0
+          ]
+        },
+        {
+          "name": "allow_exh",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false,
+            true
+          ]
+        },
+        {
+          "name": "allow_foreigner",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false,
+            true
+          ]
+        },
+        {
+          "name": "wind_notrequired",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        }
+      ],
+      "sampleRow": {
+        "tag_ptr": 3,
+        "tag_order": 3,
+        "tag_name": "Bucknell",
+        "tag_flag": "B",
+        "team_no": 909,
+        "allow_exh": false,
+        "allow_foreigner": false,
+        "wind_notrequired": false
+      },
+      "pointerFields": [
+        "tag_ptr",
+        "team_no",
+        "wind_notrequired"
+      ]
+    },
+    "Regions": {
+      "rowCount": 4,
+      "columns": [
+        {
+          "name": "Reg_no",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "name": "Reg_abbr",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "NE",
+            "SE",
+            "NW"
+          ]
+        },
+        {
+          "name": "Reg_name",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "Northeast",
+            "Southeast",
+            "Northwest"
+          ]
+        },
+        {
+          "name": "fem_size",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "male_size",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "combined_size",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        }
+      ],
+      "sampleRow": {
+        "Reg_no": 1,
+        "Reg_abbr": "NE",
+        "Reg_name": "Northeast",
+        "fem_size": null,
+        "male_size": null,
+        "combined_size": null
+      },
+      "pointerFields": [
+        "Reg_no"
+      ]
+    },
+    "Relay": {
+      "rowCount": 128,
+      "columns": [
+        {
+          "name": "Event_ptr",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            11,
+            12
+          ]
+        },
+        {
+          "name": "Team_no",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            1068,
+            1101,
+            1073
+          ]
+        },
+        {
+          "name": "Team_ltr",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "A",
+            "B"
+          ]
+        },
+        {
+          "name": "Relay_no",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            1220,
+            1221,
+            1222
+          ]
+        },
+        {
+          "name": "Rel_age",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "Rel_sex",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "F",
+            "M"
+          ]
+        },
+        {
+          "name": "ActSeed_course",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "M"
+          ]
+        },
+        {
+          "name": "ActualSeed_time",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            47.529998779296875,
+            47.61000061035156,
+            49
+          ]
+        },
+        {
+          "name": "ConvSeed_course",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "M"
+          ]
+        },
+        {
+          "name": "ConvSeed_time",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            47.529998779296875,
+            47.61000061035156,
+            49
+          ]
+        },
+        {
+          "name": "Hand_time",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Conv_ltr",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            " "
+          ]
+        },
+        {
+          "name": "Seed_place",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Scr_stat",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Spec_stat",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Dec_stat",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Alt_stat",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Bonus_event",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Div_no",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Ev_score",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "JDEv_score",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "dq_type",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "entry_note",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Pre_heat",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Pre_lane",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "unPre_heat",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "unPre_lane",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Pre_hand",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Pre_stat",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Pre_Time",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Pre_course",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Pre_heatplace",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Pre_jdheatplace",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Pre_place",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Pre_jdplace",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Pre_exh",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Pre_wind",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Pre_points",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_heat",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            2,
+            4,
+            3
+          ]
+        },
+        {
+          "name": "Fin_lane",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            7,
+            1,
+            5
+          ]
+        },
+        {
+          "name": "unFin_heat",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "unFin_lane",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_hand",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Fin_group",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_stat",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_Time",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_course",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_heatplace",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_jdheatplace",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_place",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_jdplace",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_ptsplace",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_award",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_exh",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_wind",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_points",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Sem_heat",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Sem_lane",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "unSem_heat",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "unSem_lane",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Sem_hand",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Sem_stat",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Sem_Time",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Sem_course",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Sem_heatplace",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Sem_jdheatplace",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Sem_place",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Sem_jdplace",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Sem_exh",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Sem_wind",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Sem_points",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Qtr_heat",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Qtr_lane",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "unQtr_heat",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "unQtr_lane",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Qtr_hand",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Qtr_stat",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Qtr_Time",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Qtr_course",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Qtr_heatplace",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Qtr_jdheatplace",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Qtr_place",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Qtr_jdplace",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Qtr_exh",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Qtr_wind",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Qtr_points",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Relay_Compno",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Pre_note",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Qtr_note",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Sem_note",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Fin_note",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Video_time",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Pre_video",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Fin_video",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Sem_video",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Qtr_video",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "fin_dqofficial",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "pre_dqofficial",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "sem_dqofficial",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "qtr_dqofficial",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "ent_op_datetime",
+          "types": [
+            "Date"
+          ],
+          "samples": [
+            "2024-04-10T14:51:19.000Z",
+            "2024-04-10T14:51:37.000Z",
+            "2024-04-10T14:51:55.000Z"
+          ]
+        },
+        {
+          "name": "scr_op_datetime",
+          "types": [
+            "Date"
+          ],
+          "samples": [
+            "2024-04-10T14:51:19.000Z",
+            "2024-04-10T14:51:37.000Z",
+            "2024-04-10T14:51:55.000Z"
+          ]
+        }
+      ],
+      "sampleRow": {
+        "Event_ptr": 11,
+        "Team_no": 1068,
+        "Team_ltr": "A",
+        "Relay_no": 1220,
+        "Rel_age": 0,
+        "Rel_sex": "F",
+        "ActSeed_course": "M",
+        "ActualSeed_time": 47.529998779296875,
+        "ConvSeed_course": "M",
+        "ConvSeed_time": 47.529998779296875,
+        "Hand_time": false,
+        "Conv_ltr": " ",
+        "Seed_place": null,
+        "Scr_stat": false,
+        "Spec_stat": null,
+        "Dec_stat": null,
+        "Alt_stat": false,
+        "Bonus_event": false,
+        "Div_no": null,
+        "Ev_score": null,
+        "JDEv_score": null,
+        "dq_type": null,
+        "entry_note": null,
+        "Pre_heat": null,
+        "Pre_lane": null,
+        "unPre_heat": null,
+        "unPre_lane": null,
+        "Pre_hand": false,
+        "Pre_stat": null,
+        "Pre_Time": null,
+        "Pre_course": null,
+        "Pre_heatplace": null,
+        "Pre_jdheatplace": null,
+        "Pre_place": null,
+        "Pre_jdplace": null,
+        "Pre_exh": null,
+        "Pre_wind": null,
+        "Pre_points": null,
+        "Fin_heat": 2,
+        "Fin_lane": 7,
+        "unFin_heat": null,
+        "unFin_lane": null,
+        "Fin_hand": false,
+        "Fin_group": null,
+        "Fin_stat": null,
+        "Fin_Time": null,
+        "Fin_course": null,
+        "Fin_heatplace": null,
+        "Fin_jdheatplace": null,
+        "Fin_place": null,
+        "Fin_jdplace": null,
+        "Fin_ptsplace": null,
+        "Fin_award": null,
+        "Fin_exh": null,
+        "Fin_wind": null,
+        "Fin_points": null,
+        "Sem_heat": null,
+        "Sem_lane": null,
+        "unSem_heat": null,
+        "unSem_lane": null,
+        "Sem_hand": false,
+        "Sem_stat": null,
+        "Sem_Time": null,
+        "Sem_course": null,
+        "Sem_heatplace": null,
+        "Sem_jdheatplace": null,
+        "Sem_place": null,
+        "Sem_jdplace": null,
+        "Sem_exh": null,
+        "Sem_wind": null,
+        "Sem_points": null,
+        "Qtr_heat": null,
+        "Qtr_lane": null,
+        "unQtr_heat": null,
+        "unQtr_lane": null,
+        "Qtr_hand": false,
+        "Qtr_stat": null,
+        "Qtr_Time": null,
+        "Qtr_course": null,
+        "Qtr_heatplace": null,
+        "Qtr_jdheatplace": null,
+        "Qtr_place": null,
+        "Qtr_jdplace": null,
+        "Qtr_exh": null,
+        "Qtr_wind": null,
+        "Qtr_points": null,
+        "Relay_Compno": null,
+        "Pre_note": null,
+        "Qtr_note": null,
+        "Sem_note": null,
+        "Fin_note": null,
+        "Video_time": false,
+        "Pre_video": false,
+        "Fin_video": false,
+        "Sem_video": false,
+        "Qtr_video": false,
+        "fin_dqofficial": null,
+        "pre_dqofficial": null,
+        "sem_dqofficial": null,
+        "qtr_dqofficial": null,
+        "ent_op_datetime": "2024-04-10T14:51:19.000Z",
+        "scr_op_datetime": "2024-04-10T14:51:19.000Z"
+      },
+      "pointerFields": [
+        "Event_ptr",
+        "Team_no",
+        "Relay_no",
+        "Div_no",
+        "entry_note",
+        "Pre_note",
+        "Qtr_note",
+        "Sem_note",
+        "Fin_note"
+      ]
+    },
+    "RelayNames": {
+      "rowCount": 115,
+      "columns": [
+        {
+          "name": "Event_ptr",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            12,
+            51
+          ]
+        },
+        {
+          "name": "Team_no",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            1055
+          ]
+        },
+        {
+          "name": "Team_ltr",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "A",
+            "B"
+          ]
+        },
+        {
+          "name": "Ath_no",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            56094,
+            56013,
+            56049
+          ]
+        },
+        {
+          "name": "Pos_no",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "name": "Event_round",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "F"
+          ]
+        },
+        {
+          "name": "Relay_no",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            1183,
+            1184,
+            1185
+          ]
+        }
+      ],
+      "sampleRow": {
+        "Event_ptr": 12,
+        "Team_no": 1055,
+        "Team_ltr": "A",
+        "Ath_no": 56094,
+        "Pos_no": 1,
+        "Event_round": "F",
+        "Relay_no": 1183
+      },
+      "pointerFields": [
+        "Event_ptr",
+        "Team_no",
+        "Ath_no",
+        "Pos_no",
+        "Relay_no"
+      ]
+    },
+    "Scoring": {
+      "rowCount": 60,
+      "columns": [
+        {
+          "name": "score_divno",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "score_sex",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "F",
+            "M"
+          ]
+        },
+        {
+          "name": "score_place",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "name": "ind_score",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            10,
+            8,
+            6
+          ]
+        },
+        {
+          "name": "rel_score",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            10,
+            8,
+            6
+          ]
+        },
+        {
+          "name": "combevt_score",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            10,
+            8,
+            6
+          ]
+        }
+      ],
+      "sampleRow": {
+        "score_divno": 0,
+        "score_sex": "F",
+        "score_place": 1,
+        "ind_score": 10,
+        "rel_score": 10,
+        "combevt_score": 10
+      },
+      "pointerFields": []
+    },
+    "SeriesHoriz": {
+      "rowCount": 0,
+      "columns": [
+        {
+          "name": "Event_ptr",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Mult_ptr",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Ath_no",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Rnd_ltr",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Res_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Res_stat",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Res_wind",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Attempt_no",
+          "types": [],
+          "samples": []
+        }
+      ],
+      "sampleRow": null,
+      "pointerFields": [
+        "Event_ptr",
+        "Mult_ptr",
+        "Ath_no",
+        "Attempt_no"
+      ]
+    },
+    "SeriesVertColumns": {
+      "rowCount": 0,
+      "columns": [
+        {
+          "name": "Event_ptr",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Mult_ptr",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "flight_no",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Rnd_ltr",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h1_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h2_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h3_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h4_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h5_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h6_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h7_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h8_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h9_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h10_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h11_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h12_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h13_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h14_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h15_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h16_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h17_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h18_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h19_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h20_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h21_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h22_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h23_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h24_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h25_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h26_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h27_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h28_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h29_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h30_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h31_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h32_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h33_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h34_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h35_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h36_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h37_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h38_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h39_dist",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "h40_dist",
+          "types": [],
+          "samples": []
+        }
+      ],
+      "sampleRow": null,
+      "pointerFields": [
+        "Event_ptr",
+        "Mult_ptr",
+        "flight_no"
+      ]
+    },
+    "SeriesVertical": {
+      "rowCount": 0,
+      "columns": [
+        {
+          "name": "Event_ptr",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Mult_ptr",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Ath_no",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Rnd_ltr",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Res_xx",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Res_col",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "res_dist",
+          "types": [],
+          "samples": []
+        }
+      ],
+      "sampleRow": null,
+      "pointerFields": [
+        "Event_ptr",
+        "Mult_ptr",
+        "Ath_no"
+      ]
+    },
+    "Sessitem": {
+      "rowCount": 77,
+      "columns": [
+        {
+          "name": "Sess_order",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "name": "Sess_ptr",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            6,
+            5
+          ]
+        },
+        {
+          "name": "Event_ptr",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            75,
+            78
+          ]
+        },
+        {
+          "name": "Multi_ptr",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "name": "Sess_rnd",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "F"
+          ]
+        },
+        {
+          "name": "Rept_type",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "H"
+          ]
+        },
+        {
+          "name": "Start_time",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "02:05",
+            "08:30",
+            "09:30"
+          ]
+        },
+        {
+          "name": "am_pm",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "PM",
+            "AM"
+          ]
+        },
+        {
+          "name": "Timed_finalheats",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "Delay_seconds",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Alt_With",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "AltEvent_no",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "AltEvent_ltr",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Note_desc",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        }
+      ],
+      "sampleRow": {
+        "Sess_order": 5,
+        "Sess_ptr": 6,
+        "Event_ptr": 75,
+        "Multi_ptr": 5,
+        "Sess_rnd": "F",
+        "Rept_type": "H",
+        "Start_time": "02:05",
+        "am_pm": "PM",
+        "Timed_finalheats": 0,
+        "Delay_seconds": null,
+        "Alt_With": false,
+        "AltEvent_no": null,
+        "AltEvent_ltr": null,
+        "Note_desc": null
+      },
+      "pointerFields": [
+        "Sess_ptr",
+        "Event_ptr",
+        "Multi_ptr",
+        "AltEvent_no"
+      ]
+    },
+    "StdAlleys": {
+      "rowCount": 12,
+      "columns": [
+        {
+          "name": "tot_lanes",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "name": "order_01",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "name": "order_02",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0,
+            2,
+            3
+          ]
+        },
+        {
+          "name": "order_03",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0,
+            1,
+            2
+          ]
+        },
+        {
+          "name": "order_04",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0,
+            4,
+            5
+          ]
+        },
+        {
+          "name": "order_05",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0,
+            1,
+            2
+          ]
+        },
+        {
+          "name": "order_06",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0,
+            6,
+            7
+          ]
+        },
+        {
+          "name": "order_07",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0,
+            1,
+            2
+          ]
+        },
+        {
+          "name": "order_08",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0,
+            8,
+            9
+          ]
+        },
+        {
+          "name": "order_09",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0,
+            1
+          ]
+        },
+        {
+          "name": "order_10",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0,
+            10
+          ]
+        },
+        {
+          "name": "order_11",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "order_12",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        }
+      ],
+      "sampleRow": {
+        "tot_lanes": 1,
+        "order_01": 1,
+        "order_02": 0,
+        "order_03": 0,
+        "order_04": 0,
+        "order_05": 0,
+        "order_06": 0,
+        "order_07": 0,
+        "order_08": 0,
+        "order_09": 0,
+        "order_10": 0,
+        "order_11": null,
+        "order_12": null
+      },
+      "pointerFields": []
+    },
+    "StdLanes": {
+      "rowCount": 12,
+      "columns": [
+        {
+          "name": "tot_lanes",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "name": "order_01",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "name": "order_02",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0,
+            2,
+            3
+          ]
+        },
+        {
+          "name": "order_03",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0,
+            1,
+            2
+          ]
+        },
+        {
+          "name": "order_04",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0,
+            4,
+            5
+          ]
+        },
+        {
+          "name": "order_05",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0,
+            1,
+            2
+          ]
+        },
+        {
+          "name": "order_06",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0,
+            6,
+            7
+          ]
+        },
+        {
+          "name": "order_07",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0,
+            1,
+            2
+          ]
+        },
+        {
+          "name": "order_08",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0,
+            8,
+            9
+          ]
+        },
+        {
+          "name": "order_09",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0,
+            1
+          ]
+        },
+        {
+          "name": "order_10",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0,
+            10
+          ]
+        },
+        {
+          "name": "order_11",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "order_12",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        }
+      ],
+      "sampleRow": {
+        "tot_lanes": 1,
+        "order_01": 1,
+        "order_02": 0,
+        "order_03": 0,
+        "order_04": 0,
+        "order_05": 0,
+        "order_06": 0,
+        "order_07": 0,
+        "order_08": 0,
+        "order_09": 0,
+        "order_10": 0,
+        "order_11": null,
+        "order_12": null
+      },
+      "pointerFields": []
+    },
+    "TagNames": {
+      "rowCount": 0,
+      "columns": [
+        {
+          "name": "tag_ptr",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "tag_name",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "for_scoring",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "for_entryqual",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "for_timestd",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "tag_desc",
+          "types": [],
+          "samples": []
+        }
+      ],
+      "sampleRow": null,
+      "pointerFields": [
+        "tag_ptr"
+      ]
+    },
+    "Team": {
+      "rowCount": 139,
+      "columns": [
+        {
+          "name": "Team_no",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            1041,
+            1043,
+            1044
+          ]
+        },
+        {
+          "name": "Team_name",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "Adelphi",
+            "Allegheny",
+            "Alvernia"
+          ]
+        },
+        {
+          "name": "Team_short",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "Adelphi",
+            "Allegheny",
+            "Alvernia"
+          ]
+        },
+        {
+          "name": "Team_abbr",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "ADEL ",
+            "ALLE ",
+            "ALVE "
+          ]
+        },
+        {
+          "name": "Team_stat",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Team_div",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Team_region",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Team_head",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Team_asst",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Team_addr1",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Team_addr2",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Team_city",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Team_prov",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Team_state",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Team_zip",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Team_cntry",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Team_daytele",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Team_evetele",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Team_faxtele",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Team_email",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Team_c3",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Team_c4",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Team_c5",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Team_c6",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Team_c7",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Team_c8",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Team_c9",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Team_c10",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Team_altabbr",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Team_NoPoints",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Team_Selected",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "TeamGUID_strg",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "A711A268-FDDF-44F4-2778-C0A8B417E4C3",
+            "823B4F25-4810-43DF-4E95-4415DDC83554",
+            "8C52D25F-5413-4D39-3340-ADED2666B56C"
+          ]
+        },
+        {
+          "name": "Team_Code",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Team_Gender",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "team_lsc",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        }
+      ],
+      "sampleRow": {
+        "Team_no": 1041,
+        "Team_name": "Adelphi",
+        "Team_short": "Adelphi",
+        "Team_abbr": "ADEL ",
+        "Team_stat": null,
+        "Team_div": null,
+        "Team_region": null,
+        "Team_head": null,
+        "Team_asst": null,
+        "Team_addr1": null,
+        "Team_addr2": null,
+        "Team_city": null,
+        "Team_prov": null,
+        "Team_state": null,
+        "Team_zip": null,
+        "Team_cntry": null,
+        "Team_daytele": null,
+        "Team_evetele": null,
+        "Team_faxtele": null,
+        "Team_email": null,
+        "Team_c3": null,
+        "Team_c4": null,
+        "Team_c5": null,
+        "Team_c6": null,
+        "Team_c7": null,
+        "Team_c8": null,
+        "Team_c9": null,
+        "Team_c10": null,
+        "Team_altabbr": null,
+        "Team_NoPoints": false,
+        "Team_Selected": false,
+        "TeamGUID_strg": "A711A268-FDDF-44F4-2778-C0A8B417E4C3",
+        "Team_Code": null,
+        "Team_Gender": null,
+        "team_lsc": null
+      },
+      "pointerFields": [
+        "Team_no"
+      ]
+    },
+    "TimeStd": {
+      "rowCount": 0,
+      "columns": [
+        {
+          "name": "tag_ptr",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "tag_gender",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "event_ptr",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "low_age",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "high_Age",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "tag_time",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "tag_course",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Div_abbr",
+          "types": [],
+          "samples": []
+        }
+      ],
+      "sampleRow": null,
+      "pointerFields": [
+        "tag_ptr",
+        "event_ptr"
+      ]
+    },
+    "Waterfall": {
+      "rowCount": 160,
+      "columns": [
+        {
+          "name": "Pos_no",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "name": "Rank_no",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            1,
+            2,
+            3
+          ]
+        }
+      ],
+      "sampleRow": {
+        "Pos_no": 1,
+        "Rank_no": 1
+      },
+      "pointerFields": [
+        "Pos_no",
+        "Rank_no"
+      ]
+    },
+    "Windreading": {
+      "rowCount": 0,
+      "columns": [
+        {
+          "name": "event_ptr",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Mult_ptr",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Heat_no",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Rnd_ltr",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "wind_reading",
+          "types": [],
+          "samples": []
+        }
+      ],
+      "sampleRow": null,
+      "pointerFields": [
+        "event_ptr",
+        "Mult_ptr",
+        "Heat_no"
+      ]
+    },
+    "TeamCoaches": {
+      "rowCount": 0,
+      "columns": [
+        {
+          "name": "Coach_no",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Team_no",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Coach_LastName",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Coach_FirstName",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Coach_Title",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Primary_MaleHeadCoach",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Primary_FemaleHeadCoach",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "MaleCoach_Only",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "FemaleCoach_Only",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Coach_Phone",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Coach_Cell",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Coach_EMail",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Coach_Cert1",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Coach_Cert2",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Coach_Cert3",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Coach_Cert4",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Coach_ExpDate1",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Coach_ExpDate2",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Coach_ExpDate3",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Coach_ExpDate4",
+          "types": [],
+          "samples": []
+        }
+      ],
+      "sampleRow": null,
+      "pointerFields": [
+        "Coach_no",
+        "Team_no"
+      ]
+    },
+    "CCNames": {
+      "rowCount": 0,
+      "columns": [
+        {
+          "name": "Event_ptr",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Team_no",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Team_ltr",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Ath_no",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Pos_no",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Event_round",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Relay_no",
+          "types": [],
+          "samples": []
+        }
+      ],
+      "sampleRow": null,
+      "pointerFields": [
+        "Event_ptr",
+        "Team_no",
+        "Ath_no",
+        "Pos_no",
+        "Relay_no"
+      ]
+    },
+    "ChipID": {
+      "rowCount": 0,
+      "columns": [
+        {
+          "name": "Ath_no",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Comp_no",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Chip_id1",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Chip_id2",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "is_used",
+          "types": [],
+          "samples": []
+        }
+      ],
+      "sampleRow": null,
+      "pointerFields": [
+        "Ath_no",
+        "Comp_no"
+      ]
+    },
+    "Split": {
+      "rowCount": 0,
+      "columns": [
+        {
+          "name": "Event_ptr",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Mult_ptr",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Rnd_ltr",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Ath_no",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Relay_no",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Split_no",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Split_Time",
+          "types": [],
+          "samples": []
+        }
+      ],
+      "sampleRow": null,
+      "pointerFields": [
+        "Event_ptr",
+        "Mult_ptr",
+        "Ath_no",
+        "Relay_no",
+        "Split_no"
+      ]
+    },
+    "SplitCC": {
+      "rowCount": 0,
+      "columns": [
+        {
+          "name": "Event_ptr",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Mult_ptr",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Rnd_ltr",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Ath_no",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Relay_no",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Split_no",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Split_Time",
+          "types": [],
+          "samples": []
+        }
+      ],
+      "sampleRow": null,
+      "pointerFields": [
+        "Event_ptr",
+        "Mult_ptr",
+        "Ath_no",
+        "Relay_no",
+        "Split_no"
+      ]
+    },
+    "RecordsbyEvent": {
+      "rowCount": 100,
+      "columns": [
+        {
+          "name": "tag_ptr",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            3
+          ]
+        },
+        {
+          "name": "event_ptr",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            3,
+            6,
+            7
+          ]
+        },
+        {
+          "name": "low_age",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "high_Age",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            109
+          ]
+        },
+        {
+          "name": "Record_month",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "Record_day",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "Record_year",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            2018,
+            1980,
+            2021
+          ]
+        },
+        {
+          "name": "Record_Holder",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "Chrissy Bendzinski",
+            "Rick Sayre",
+            "Ashlyn Ramos"
+          ]
+        },
+        {
+          "name": "Record_Holderteam",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            " "
+          ]
+        },
+        {
+          "name": "Relay_Names",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            " "
+          ]
+        },
+        {
+          "name": "Record_Time",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            256.5400085449219,
+            522.5399780273438,
+            977.6599731445312
+          ]
+        },
+        {
+          "name": "Record_course",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "M"
+          ]
+        },
+        {
+          "name": "Record_handtime",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "tag_gender",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "F",
+            "M"
+          ]
+        },
+        {
+          "name": "hide_me",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Mult_ptr",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "Div_abbr",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "  "
+          ]
+        }
+      ],
+      "sampleRow": {
+        "tag_ptr": 3,
+        "event_ptr": 3,
+        "low_age": 0,
+        "high_Age": 109,
+        "Record_month": 0,
+        "Record_day": 0,
+        "Record_year": 2018,
+        "Record_Holder": "Chrissy Bendzinski",
+        "Record_Holderteam": " ",
+        "Relay_Names": " ",
+        "Record_Time": 256.5400085449219,
+        "Record_course": "M",
+        "Record_handtime": false,
+        "tag_gender": "F",
+        "hide_me": false,
+        "Mult_ptr": 0,
+        "Div_abbr": "  "
+      },
+      "pointerFields": [
+        "tag_ptr",
+        "event_ptr",
+        "Mult_ptr"
+      ]
+    },
+    "CCTeamScores": {
+      "rowCount": 0,
+      "columns": [
+        {
+          "name": "Event_ptr",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "team_no",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "team_place",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "team_score",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Fin_hand",
+          "types": [],
+          "samples": []
+        }
+      ],
+      "sampleRow": null,
+      "pointerFields": [
+        "Event_ptr",
+        "team_no"
+      ]
+    },
+    "MEETMOBILEOPTIONS": {
+      "rowCount": 1,
+      "columns": [
+        {
+          "name": "MeetMobileMeetID",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "AgencyID",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "0"
+          ]
+        },
+        {
+          "name": "EV5_uploaded",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Heatpsych_uploaded",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "Heatsheet_amount",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "Teamscoring_choice",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            2
+          ]
+        },
+        {
+          "name": "Contract_agreed",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "DoNotShow_timeline",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "HeatPsych_choice",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "Contract_PersonName",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Contract_PersonBirth",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "LastName",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "FirstName",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Phone",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "EMail",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "TeamName",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Addr",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "SecAddr",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "City",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "State",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Zip",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Cntry",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "TimeZone",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "PayTo",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Classification",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "WebSite",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Token",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "OMEWebSite",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "License",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "NoShowActiveComSetup",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "NotInterestedIn_MeetMobile",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "HeatSheetsAre_Free",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        },
+        {
+          "name": "DoNotShow_MobileEntryMarks",
+          "types": [
+            "boolean"
+          ],
+          "samples": [
+            false
+          ]
+        }
+      ],
+      "sampleRow": {
+        "MeetMobileMeetID": 0,
+        "AgencyID": "0",
+        "EV5_uploaded": false,
+        "Heatpsych_uploaded": false,
+        "Heatsheet_amount": 0,
+        "Teamscoring_choice": 2,
+        "Contract_agreed": false,
+        "DoNotShow_timeline": false,
+        "HeatPsych_choice": 0,
+        "Contract_PersonName": null,
+        "Contract_PersonBirth": null,
+        "LastName": null,
+        "FirstName": null,
+        "Phone": null,
+        "EMail": null,
+        "TeamName": null,
+        "Addr": null,
+        "SecAddr": null,
+        "City": null,
+        "State": null,
+        "Zip": null,
+        "Cntry": null,
+        "TimeZone": null,
+        "PayTo": null,
+        "Classification": null,
+        "WebSite": null,
+        "Token": null,
+        "OMEWebSite": null,
+        "License": null,
+        "NoShowActiveComSetup": false,
+        "NotInterestedIn_MeetMobile": false,
+        "HeatSheetsAre_Free": false,
+        "DoNotShow_MobileEntryMarks": false
+      },
+      "pointerFields": []
+    },
+    "Officials": {
+      "rowCount": 0,
+      "columns": [
+        {
+          "name": "Official_no",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Last_name",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "First_name",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Initial",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Pref_name",
+          "types": [],
+          "samples": []
+        },
+        {
+          "name": "Home_email",
+          "types": [],
+          "samples": []
+        }
+      ],
+      "sampleRow": null,
+      "pointerFields": [
+        "Official_no"
+      ]
+    },
+    "Session": {
+      "rowCount": 6,
+      "columns": [
+        {
+          "name": "Sess_no",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            5,
+            4,
+            3
+          ]
+        },
+        {
+          "name": "Sess_ltr",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            " "
+          ]
+        },
+        {
+          "name": "Sess_ptr",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "name": "Sess_day",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            3,
+            2,
+            1
+          ]
+        },
+        {
+          "name": "Sess_starttime",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            37800,
+            48600,
+            43200
+          ]
+        },
+        {
+          "name": "Sess_entrymax",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "Sess_name",
+          "types": [
+            "string"
+          ],
+          "samples": [
+            "Sunday Field",
+            "Saturday Track",
+            "Saturday Field"
+          ]
+        },
+        {
+          "name": "Sess_interval",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "Sess_course",
+          "types": [
+            "null"
+          ],
+          "samples": []
+        },
+        {
+          "name": "sess_entrymaxind",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        },
+        {
+          "name": "sess_entrymaxrel",
+          "types": [
+            "number"
+          ],
+          "samples": [
+            0
+          ]
+        }
+      ],
+      "sampleRow": {
+        "Sess_no": 5,
+        "Sess_ltr": " ",
+        "Sess_ptr": 1,
+        "Sess_day": 3,
+        "Sess_starttime": 37800,
+        "Sess_entrymax": 0,
+        "Sess_name": "Sunday Field",
+        "Sess_interval": null,
+        "Sess_course": null,
+        "sess_entrymaxind": 0,
+        "sess_entrymaxrel": 0
+      },
+      "pointerFields": [
+        "Sess_no",
+        "Sess_ptr"
+      ]
+    }
+  }
+}
