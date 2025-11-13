@@ -4,7 +4,6 @@ import { db } from "./db";
 import { meets, teams, divisions, athletes, events, entries, entrySplits } from "@shared/schema";
 
 export interface ImportStatistics {
-  meets: number;
   teams: number;
   divisions: number;
   athletes: number;
@@ -12,14 +11,14 @@ export interface ImportStatistics {
   entries: number;
 }
 
-export async function importCompleteMDB(filePath: string): Promise<ImportStatistics> {
+export async function importCompleteMDB(filePath: string, meetId: string): Promise<ImportStatistics> {
   console.log(`\n=== IMPORTING MDB FILE: ${filePath} ===\n`);
+  console.log(`📍 Target Meet ID: ${meetId}\n`);
   
   const buffer = readFileSync(filePath);
   const reader = new MDBReader(buffer);
   
   // ID mapping dictionaries (Access number → PostgreSQL UUID)
-  const meetIdMap = new Map<number, string>();
   const teamIdMap = new Map<number, string>();
   const divisionIdMap = new Map<number, string>();
   const athleteIdMap = new Map<number, string>();
@@ -27,7 +26,6 @@ export async function importCompleteMDB(filePath: string): Promise<ImportStatist
   
   // Statistics tracking
   const stats: ImportStatistics = {
-    meets: 0,
     teams: 0,
     divisions: 0,
     athletes: 0,
@@ -36,39 +34,7 @@ export async function importCompleteMDB(filePath: string): Promise<ImportStatist
   };
   
   // ===========================
-  // 1. IMPORT MEET
-  // ===========================
-  console.log("📅 Importing Meet...");
-  try {
-    const meetTable = reader.getTable("Meet");
-    const meetData = meetTable.getData();
-    
-    if (meetData.length > 0) {
-      const row = meetData[0];
-      const [meet] = await db.insert(meets).values({
-        name: row.Meet_name1 || row.Meet_name2 || "Track & Field Meet",
-        location: row.Meet_location || null,
-        startDate: row.Meet_start || new Date(),
-        endDate: row.Meet_end || null,
-        trackLength: 400, // Default to 400m
-      }).returning();
-      
-      meetIdMap.set(1, meet.id); // Assume single meet with ID 1
-      stats.meets++;
-      console.log(`   ✅ Imported meet: ${meet.name}`);
-    }
-  } catch (error) {
-    console.error("   ❌ Error importing meet:", error);
-  }
-  
-  const defaultMeetId = meetIdMap.get(1);
-  if (!defaultMeetId) {
-    console.error("   ❌ No meet ID available - cannot continue");
-    throw new Error("No meet ID available - cannot continue");
-  }
-  
-  // ===========================
-  // 2. IMPORT TEAMS
+  // 1. IMPORT TEAMS
   // ===========================
   console.log("\n🏫 Importing Teams...");
   try {
@@ -78,6 +44,7 @@ export async function importCompleteMDB(filePath: string): Promise<ImportStatist
     
     for (const row of teamData) {
       teamBatch.push({
+        meetId,
         teamNumber: row.Team_no,
         name: row.Team_name || "Unknown Team",
         shortName: row.Team_short || null,
@@ -98,7 +65,7 @@ export async function importCompleteMDB(filePath: string): Promise<ImportStatist
   }
   
   // ===========================
-  // 3. IMPORT DIVISIONS
+  // 2. IMPORT DIVISIONS
   // ===========================
   console.log("\n📊 Importing Divisions...");
   try {
@@ -108,6 +75,7 @@ export async function importCompleteMDB(filePath: string): Promise<ImportStatist
     
     for (const row of divisionData) {
       divisionBatch.push({
+        meetId,
         divisionNumber: row.Div_no,
         name: row.Div_name || "Unknown Division",
         abbreviation: row.Div_abbr?.trim() || null,
@@ -129,7 +97,7 @@ export async function importCompleteMDB(filePath: string): Promise<ImportStatist
   }
   
   // ===========================
-  // 4. IMPORT ATHLETES
+  // 3. IMPORT ATHLETES
   // ===========================
   console.log("\n🏃 Importing Athletes...");
   try {
@@ -141,6 +109,7 @@ export async function importCompleteMDB(filePath: string): Promise<ImportStatist
     for (let i = 0; i < athleteData.length; i += batchSize) {
       const batch = athleteData.slice(i, i + batchSize);
       const athleteBatch = batch.map((row) => ({
+        meetId,
         athleteNumber: row.Ath_no,
         firstName: row.First_name || "",
         lastName: row.Last_name || "",
@@ -167,7 +136,7 @@ export async function importCompleteMDB(filePath: string): Promise<ImportStatist
   }
   
   // ===========================
-  // 5. IMPORT EVENTS
+  // 4. IMPORT EVENTS
   // ===========================
   console.log("\n🏁 Importing Events...");
   try {
@@ -201,7 +170,7 @@ export async function importCompleteMDB(filePath: string): Promise<ImportStatist
       }
       
       eventBatch.push({
-        meetId: defaultMeetId,
+        meetId,
         eventNumber: eventNum,
         name: `Event ${eventNum}`,
         eventType,
@@ -228,7 +197,7 @@ export async function importCompleteMDB(filePath: string): Promise<ImportStatist
   }
   
   // ===========================
-  // 6. IMPORT ENTRIES (THE BIG ONE!)
+  // 5. IMPORT ENTRIES (THE BIG ONE!)
   // ===========================
   console.log("\n🎯 Importing Entries (athlete-event registrations & results)...");
   
@@ -345,7 +314,6 @@ export async function importCompleteMDB(filePath: string): Promise<ImportStatist
   
   console.log("\n✅ IMPORT COMPLETE!\n");
   console.log("Summary:");
-  console.log(`  - Meets: ${stats.meets}`);
   console.log(`  - Teams: ${stats.teams}`);
   console.log(`  - Divisions: ${stats.divisions}`);
   console.log(`  - Athletes: ${stats.athletes}`);
@@ -359,7 +327,15 @@ export async function importCompleteMDB(filePath: string): Promise<ImportStatist
 // In ES modules, use import.meta.url to detect direct execution
 if (import.meta.url === `file://${process.argv[1]}`) {
   const filePath = process.argv[2] || "attached_assets/BisonOutdoorClassic2024_1762991952128.mdb";
-  importCompleteMDB(filePath)
+  const meetId = process.argv[3];
+  
+  if (!meetId) {
+    console.error("❌ Usage: tsx server/import-mdb-complete.ts <filePath> <meetId>");
+    console.error("Example: tsx server/import-mdb-complete.ts data.mdb abc123-def456-...");
+    process.exit(1);
+  }
+  
+  importCompleteMDB(filePath, meetId)
     .then(() => {
       console.log("\n🎉 Import script finished successfully!");
       process.exit(0);

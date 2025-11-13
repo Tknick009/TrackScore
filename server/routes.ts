@@ -220,6 +220,85 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Display Management
+  app.post("/api/displays/register", async (req, res) => {
+    try {
+      const { meetCode, computerName } = req.body;
+      
+      if (!meetCode || !computerName) {
+        return res.status(400).json({ error: "meetCode and computerName are required" });
+      }
+
+      const result = await storage.registerDisplay(meetCode, computerName);
+      
+      if (!result) {
+        return res.status(404).json({ error: "Meet not found with the provided code" });
+      }
+
+      res.json({
+        displayId: result.display.id,
+        authToken: result.display.authToken,
+        meetId: result.meet.id,
+        meetName: result.meet.name,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/displays/:id/assign", async (req, res) => {
+    try {
+      const { targetType, targetId, layout } = req.body;
+      
+      if (!targetType) {
+        return res.status(400).json({ error: "targetType is required" });
+      }
+
+      const assignment = await storage.assignDisplay(req.params.id, {
+        targetType,
+        targetId,
+        layout,
+      });
+
+      if (!assignment) {
+        return res.status(404).json({ error: "Display not found" });
+      }
+
+      res.json(assignment);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/displays/meet/:meetId", async (req, res) => {
+    try {
+      const displays = await storage.getDisplaysByMeet(req.params.meetId);
+      
+      const displaysWithAssignments = await Promise.all(
+        displays.map(async (display) => {
+          const assignment = await storage.getDisplayAssignment(display.id);
+          return {
+            ...display,
+            assignment,
+          };
+        })
+      );
+
+      res.json(displaysWithAssignments);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/displays/:id/heartbeat", async (req, res) => {
+    try {
+      await storage.updateDisplayHeartbeat(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Configure multer for file uploads
   const upload = multer({
     dest: "uploads/",
@@ -250,8 +329,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`📁 Processing MDB import: ${file.originalname}`);
 
-      // Run the import
-      const stats = await importCompleteMDB(filePath);
+      // Get or create meet for this import
+      const { meetId, meetName } = req.body;
+      let targetMeetId: string;
+
+      if (meetId) {
+        // Verify meet exists
+        const existingMeet = await storage.getMeet(meetId);
+        if (!existingMeet) {
+          await unlink(filePath).catch(console.error);
+          return res.status(404).json({ error: "Meet not found" });
+        }
+        targetMeetId = meetId;
+        console.log(`📍 Importing to existing meet: ${existingMeet.name} (${targetMeetId})`);
+      } else {
+        // Create new meet
+        const newMeet = await storage.createMeet({
+          name: meetName || file.originalname.replace('.mdb', ''),
+          startDate: new Date(),
+          location: null,
+        });
+        targetMeetId = newMeet.id;
+        console.log(`📍 Created new meet: ${newMeet.name} (${targetMeetId})`);
+      }
+
+      // Run the import with meetId
+      const stats = await importCompleteMDB(filePath, targetMeetId);
 
       // Delete the temporary file after successful import
       await unlink(filePath).catch((err) => {
@@ -267,6 +370,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({
         success: true,
         message: "Import completed successfully",
+        meetId: targetMeetId,
         statistics: stats,
       });
     } catch (error: any) {

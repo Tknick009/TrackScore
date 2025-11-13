@@ -13,6 +13,10 @@ import {
   type InsertDivision,
   type EntryWithDetails,
   type EventWithEntries,
+  type DisplayComputer,
+  type InsertDisplayComputer,
+  type DisplayAssignment,
+  type InsertDisplayAssignment,
   events,
   athletes,
   entries,
@@ -20,9 +24,11 @@ import {
   teams,
   divisions,
   entrySplits,
+  displayComputers,
+  displayAssignments,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 export interface IStorage {
   // Events
@@ -61,6 +67,14 @@ export interface IStorage {
 
   // Combined
   getEventWithEntries(eventId: string): Promise<EventWithEntries | undefined>;
+
+  // Display Management
+  registerDisplay(meetCode: string, computerName: string): Promise<{ display: DisplayComputer, meet: Meet } | null>;
+  assignDisplay(displayId: string, assignment: { targetType: string, targetId?: string, layout?: string }): Promise<DisplayAssignment | null>;
+  getDisplaysByMeet(meetId: string): Promise<DisplayComputer[]>;
+  getDisplayAssignment(displayId: string): Promise<DisplayAssignment | null>;
+  updateDisplayHeartbeat(displayId: string): Promise<void>;
+  verifyDisplayToken(displayId: string, authToken: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -240,6 +254,98 @@ export class DatabaseStorage implements IStorage {
       ...event,
       entries: entriesWithDetails,
     };
+  }
+
+  // Display Management
+  async registerDisplay(meetCode: string, computerName: string): Promise<{ display: DisplayComputer, meet: Meet } | null> {
+    const [meet] = await db.select().from(meets).where(eq(meets.meetCode, meetCode));
+    if (!meet) {
+      return null;
+    }
+
+    const [display] = await db
+      .insert(displayComputers)
+      .values({
+        meetId: meet.id,
+        computerName,
+        lastSeenAt: new Date(),
+        isOnline: true,
+      })
+      .returning();
+
+    return { display, meet };
+  }
+
+  async assignDisplay(displayId: string, assignment: { targetType: string, targetId?: string, layout?: string }): Promise<DisplayAssignment | null> {
+    const [display] = await db.select().from(displayComputers).where(eq(displayComputers.id, displayId));
+    if (!display) {
+      return null;
+    }
+
+    const existingAssignments = await db
+      .select()
+      .from(displayAssignments)
+      .where(eq(displayAssignments.displayId, displayId));
+
+    if (existingAssignments.length > 0) {
+      const [updated] = await db
+        .update(displayAssignments)
+        .set({
+          targetType: assignment.targetType,
+          targetId: assignment.targetId || null,
+          layout: assignment.layout || null,
+        })
+        .where(eq(displayAssignments.displayId, displayId))
+        .returning();
+      return updated;
+    } else {
+      const [newAssignment] = await db
+        .insert(displayAssignments)
+        .values({
+          meetId: display.meetId,
+          displayId,
+          targetType: assignment.targetType,
+          targetId: assignment.targetId || null,
+          layout: assignment.layout || null,
+        })
+        .returning();
+      return newAssignment;
+    }
+  }
+
+  async getDisplaysByMeet(meetId: string): Promise<DisplayComputer[]> {
+    return db.select().from(displayComputers).where(eq(displayComputers.meetId, meetId));
+  }
+
+  async getDisplayAssignment(displayId: string): Promise<DisplayAssignment | null> {
+    const [assignment] = await db
+      .select()
+      .from(displayAssignments)
+      .where(eq(displayAssignments.displayId, displayId));
+    return assignment || null;
+  }
+
+  async updateDisplayHeartbeat(displayId: string): Promise<void> {
+    await db
+      .update(displayComputers)
+      .set({
+        lastSeenAt: new Date(),
+        isOnline: true,
+      })
+      .where(eq(displayComputers.id, displayId));
+  }
+
+  async verifyDisplayToken(displayId: string, authToken: string): Promise<boolean> {
+    const [display] = await db
+      .select()
+      .from(displayComputers)
+      .where(eq(displayComputers.id, displayId));
+    
+    if (!display) {
+      return false;
+    }
+
+    return display.authToken === authToken;
   }
 }
 
