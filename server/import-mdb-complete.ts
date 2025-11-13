@@ -356,7 +356,8 @@ export async function importCompleteMDB(filePath: string): Promise<ImportStatist
 }
 
 // Run import when executed directly (CLI mode)
-if (require.main === module) {
+// In ES modules, use import.meta.url to detect direct execution
+if (import.meta.url === `file://${process.argv[1]}`) {
   const filePath = process.argv[2] || "attached_assets/BisonOutdoorClassic2024_1762991952128.mdb";
   importCompleteMDB(filePath)
     .then(() => {

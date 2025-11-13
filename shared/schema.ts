@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, real, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, real, timestamp, boolean, index, unique } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -42,6 +42,10 @@ export type ResultType = z.infer<typeof resultTypeEnum>;
 export const roundTypeEnum = z.enum(["preliminary", "quarterfinal", "semifinal", "final"]);
 export type RoundType = z.infer<typeof roundTypeEnum>;
 
+// Display Target Type
+export const displayTargetTypeEnum = z.enum(["track_event", "field_event", "standings", "schedule"]);
+export type DisplayTargetType = z.infer<typeof displayTargetTypeEnum>;
+
 // ====================
 // CORE TABLES
 // ====================
@@ -55,7 +59,14 @@ export const meets = pgTable("meets", {
   endDate: timestamp("end_date"),
   trackLength: integer("track_length").default(400), // Track length in meters
   logoUrl: text("logo_url"),
-});
+  meetCode: varchar("meet_code", { length: 6 }).notNull().unique().default(sql`upper(substring(md5(random()::text) from 1 for 6))`), // 6-character code for displays to join
+  mdbPath: text("mdb_path"), // Path to .mdb file for auto-refresh
+  autoRefresh: boolean("auto_refresh").default(false), // Whether to poll .mdb file
+  refreshInterval: integer("refresh_interval").default(30), // Seconds between polls
+  lastImportAt: timestamp("last_import_at"), // When last import completed
+}, (table) => ({
+  meetCodeIdx: index("meet_code_idx").on(table.meetCode),
+}));
 
 export const insertMeetSchema = createInsertSchema(meets).omit({ id: true });
 export type InsertMeet = z.infer<typeof insertMeetSchema>;
@@ -64,11 +75,15 @@ export type Meet = typeof meets.$inferSelect;
 // Teams
 export const teams = pgTable("teams", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  teamNumber: integer("team_number").notNull().unique(), // From .mdb Team_no
+  meetId: varchar("meet_id").notNull().references(() => meets.id, { onDelete: "cascade" }),
+  teamNumber: integer("team_number").notNull(), // From .mdb Team_no
   name: text("name").notNull(),
   shortName: text("short_name"),
   abbreviation: text("abbreviation"),
-});
+}, (table) => ({
+  meetIdIdx: index("teams_meet_id_idx").on(table.meetId),
+  meetTeamUnique: unique("teams_meet_team_unique").on(table.meetId, table.teamNumber),
+}));
 
 export const insertTeamSchema = createInsertSchema(teams).omit({ id: true });
 export type InsertTeam = z.infer<typeof insertTeamSchema>;
@@ -77,12 +92,16 @@ export type Team = typeof teams.$inferSelect;
 // Divisions (age groups)
 export const divisions = pgTable("divisions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  divisionNumber: integer("division_number").notNull().unique(),
+  meetId: varchar("meet_id").notNull().references(() => meets.id, { onDelete: "cascade" }),
+  divisionNumber: integer("division_number").notNull(),
   name: text("name").notNull(),
   abbreviation: text("abbreviation"),
   lowAge: integer("low_age"),
   highAge: integer("high_age"),
-});
+}, (table) => ({
+  meetIdIdx: index("divisions_meet_id_idx").on(table.meetId),
+  meetDivisionUnique: unique("divisions_meet_division_unique").on(table.meetId, table.divisionNumber),
+}));
 
 export const insertDivisionSchema = createInsertSchema(divisions).omit({ id: true });
 export type InsertDivision = z.infer<typeof insertDivisionSchema>;
@@ -91,14 +110,18 @@ export type Division = typeof divisions.$inferSelect;
 // Athletes
 export const athletes = pgTable("athletes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  athleteNumber: integer("athlete_number").notNull().unique(), // From .mdb Ath_no
+  meetId: varchar("meet_id").notNull().references(() => meets.id, { onDelete: "cascade" }),
+  athleteNumber: integer("athlete_number").notNull(), // From .mdb Ath_no
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
   teamId: varchar("team_id"), // Reference to teams table
   divisionId: varchar("division_id"), // Reference to divisions table
   bibNumber: text("bib_number"),
   gender: text("gender"),
-});
+}, (table) => ({
+  meetIdIdx: index("athletes_meet_id_idx").on(table.meetId),
+  meetAthleteUnique: unique("athletes_meet_athlete_unique").on(table.meetId, table.athleteNumber),
+}));
 
 export const insertAthleteSchema = createInsertSchema(athletes).omit({ id: true });
 export type InsertAthlete = z.infer<typeof insertAthleteSchema>;
@@ -107,8 +130,8 @@ export type Athlete = typeof athletes.$inferSelect;
 // Events
 export const events = pgTable("events", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  meetId: varchar("meet_id").notNull(), // Reference to meets table
-  eventNumber: integer("event_number").notNull().unique(), // From .mdb Event_no
+  meetId: varchar("meet_id").notNull().references(() => meets.id, { onDelete: "cascade" }),
+  eventNumber: integer("event_number").notNull(), // From .mdb Event_no
   name: text("name").notNull(),
   eventType: text("event_type").notNull(),
   gender: text("gender").notNull(),
@@ -116,7 +139,9 @@ export const events = pgTable("events", {
   status: text("status").notNull().default("scheduled"),
   numRounds: integer("num_rounds").default(1),
   numLanes: integer("num_lanes").default(8),
-});
+}, (table) => ({
+  meetEventUnique: unique("events_meet_event_unique").on(table.meetId, table.eventNumber),
+}));
 
 export const insertEventSchema = createInsertSchema(events).omit({ id: true }).extend({
   eventType: z.string(), // Allow any event type string from MDB
@@ -201,6 +226,46 @@ export type InsertEntrySplit = z.infer<typeof insertEntrySplitSchema>;
 export type EntrySplit = typeof entrySplits.$inferSelect;
 
 // ====================
+// DISPLAY MANAGEMENT
+// ====================
+
+// Display Computers
+export const displayComputers = pgTable("display_computers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  meetId: varchar("meet_id").notNull().references(() => meets.id, { onDelete: "cascade" }),
+  computerName: text("computer_name").notNull(), // Friendly name from user
+  authToken: varchar("auth_token").notNull().default(sql`gen_random_uuid()`), // UUID for authentication
+  lastSeenAt: timestamp("last_seen_at"), // For heartbeat tracking
+  isOnline: boolean("is_online").default(true),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+}, (table) => ({
+  meetIdIdx: index("display_computers_meet_id_idx").on(table.meetId),
+}));
+
+export const insertDisplayComputerSchema = createInsertSchema(displayComputers).omit({ id: true, authToken: true, createdAt: true });
+export type InsertDisplayComputer = z.infer<typeof insertDisplayComputerSchema>;
+export type DisplayComputer = typeof displayComputers.$inferSelect;
+
+// Display Assignments
+export const displayAssignments = pgTable("display_assignments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  meetId: varchar("meet_id").notNull().references(() => meets.id, { onDelete: "cascade" }),
+  displayId: varchar("display_id").notNull().references(() => displayComputers.id, { onDelete: "cascade" }),
+  targetType: text("target_type").notNull(), // track_event, field_event, standings, schedule
+  targetId: varchar("target_id"), // eventId if showing specific event
+  layout: text("layout"), // JSON config for display layout
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+}, (table) => ({
+  displayIdIdx: index("display_assignments_display_id_idx").on(table.displayId),
+}));
+
+export const insertDisplayAssignmentSchema = createInsertSchema(displayAssignments).omit({ id: true, createdAt: true }).extend({
+  targetType: displayTargetTypeEnum,
+});
+export type InsertDisplayAssignment = z.infer<typeof insertDisplayAssignmentSchema>;
+export type DisplayAssignment = typeof displayAssignments.$inferSelect;
+
+// ====================
 // HELPER TYPES
 // ====================
 
@@ -247,6 +312,10 @@ export const eventsRelations = relations(events, ({ one, many }) => ({
 }));
 
 export const athletesRelations = relations(athletes, ({ one, many }) => ({
+  meet: one(meets, {
+    fields: [athletes.meetId],
+    references: [meets.id],
+  }),
   team: one(teams, {
     fields: [athletes.teamId],
     references: [teams.id],
@@ -276,4 +345,55 @@ export const entriesRelations = relations(entries, ({ one, many }) => ({
     references: [divisions.id],
   }),
   splits: many(entrySplits),
+}));
+
+export const entrySplitsRelations = relations(entrySplits, ({ one }) => ({
+  entry: one(entries, {
+    fields: [entrySplits.entryId],
+    references: [entries.id],
+  }),
+}));
+
+export const meetsRelations = relations(meets, ({ many }) => ({
+  events: many(events),
+  teams: many(teams),
+  divisions: many(divisions),
+  athletes: many(athletes),
+  displayComputers: many(displayComputers),
+  displayAssignments: many(displayAssignments),
+}));
+
+export const teamsRelations = relations(teams, ({ one, many }) => ({
+  meet: one(meets, {
+    fields: [teams.meetId],
+    references: [meets.id],
+  }),
+  athletes: many(athletes),
+}));
+
+export const divisionsRelations = relations(divisions, ({ one, many }) => ({
+  meet: one(meets, {
+    fields: [divisions.meetId],
+    references: [meets.id],
+  }),
+  athletes: many(athletes),
+}));
+
+export const displayComputersRelations = relations(displayComputers, ({ one, many }) => ({
+  meet: one(meets, {
+    fields: [displayComputers.meetId],
+    references: [meets.id],
+  }),
+  assignments: many(displayAssignments),
+}));
+
+export const displayAssignmentsRelations = relations(displayAssignments, ({ one }) => ({
+  meet: one(meets, {
+    fields: [displayAssignments.meetId],
+    references: [meets.id],
+  }),
+  display: one(displayComputers, {
+    fields: [displayAssignments.displayId],
+    references: [displayComputers.id],
+  }),
 }));

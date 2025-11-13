@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Event, Athlete, InsertEvent, InsertAthlete, InsertEntry } from "@shared/schema";
@@ -12,14 +12,28 @@ import { ConnectionStatus } from "@/components/connection-status";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { PlayCircle, CheckCircle2, Monitor } from "lucide-react";
+import { PlayCircle, CheckCircle2, Monitor, Upload, Database } from "lucide-react";
 import { Link } from "wouter";
+
+type ImportStatistics = {
+  meets: number;
+  teams: number;
+  divisions: number;
+  athletes: number;
+  events: number;
+  entries: number;
+};
 
 export default function Control() {
   const { toast } = useToast();
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [importStats, setImportStats] = useState<ImportStatistics | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Check WebSocket connectivity
   useEffect(() => {
@@ -133,6 +147,67 @@ export default function Control() {
     },
   });
 
+  // Import MDB file mutation
+  const importMdbMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append("mdbFile", file);
+      
+      const response = await fetch("/api/import/mdb", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || errorData.details || "Import failed");
+      }
+
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setImportStats(data.statistics);
+      setSelectedFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      
+      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/athletes"] });
+      
+      toast({
+        title: "Import successful",
+        description: `Imported ${data.statistics.meets} meets, ${data.statistics.teams} teams, ${data.statistics.divisions} divisions, ${data.statistics.athletes} athletes, ${data.statistics.events} events, and ${data.statistics.entries} entries`,
+      });
+    },
+    onError: (error: any) => {
+      setSelectedFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      
+      toast({
+        title: "Import failed",
+        description: error.message || "Failed to import .mdb file",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      setImportStats(null);
+    }
+  };
+
+  const handleImport = () => {
+    if (selectedFile) {
+      importMdbMutation.mutate(selectedFile);
+    }
+  };
+
   const isTrackEvent = (eventType: string) => {
     return ![
       "high_jump",
@@ -166,6 +241,93 @@ export default function Control() {
           </Link>
         </div>
       </div>
+
+      {/* Import Meet Data Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Database className="w-5 h-5" />
+            Import Meet Data
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-end gap-4">
+            <div className="flex-1 min-w-[200px]">
+              <label htmlFor="mdb-file-input" className="text-sm font-medium mb-2 block">
+                Select .mdb file
+              </label>
+              <Input
+                id="mdb-file-input"
+                ref={fileInputRef}
+                type="file"
+                accept=".mdb"
+                onChange={handleFileChange}
+                disabled={importMdbMutation.isPending}
+                data-testid="input-mdb-file"
+              />
+            </div>
+            <Button
+              onClick={handleImport}
+              disabled={!selectedFile || importMdbMutation.isPending}
+              className="gap-2"
+              data-testid="button-import-mdb"
+            >
+              <Upload className="w-4 h-4" />
+              {importMdbMutation.isPending ? "Importing..." : "Import File"}
+            </Button>
+          </div>
+
+          {importMdbMutation.isPending && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Uploading and processing file...</span>
+              </div>
+              <Progress value={100} className="h-2" data-testid="progress-import" />
+            </div>
+          )}
+
+          {importStats && (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 p-4 bg-muted rounded-md" data-testid="import-statistics">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-foreground" data-testid="stat-meets">
+                  {importStats.meets}
+                </div>
+                <div className="text-xs text-muted-foreground">Meets</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-foreground" data-testid="stat-teams">
+                  {importStats.teams}
+                </div>
+                <div className="text-xs text-muted-foreground">Teams</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-foreground" data-testid="stat-divisions">
+                  {importStats.divisions}
+                </div>
+                <div className="text-xs text-muted-foreground">Divisions</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-foreground" data-testid="stat-athletes">
+                  {importStats.athletes}
+                </div>
+                <div className="text-xs text-muted-foreground">Athletes</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-foreground" data-testid="stat-events">
+                  {importStats.events}
+                </div>
+                <div className="text-xs text-muted-foreground">Events</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-foreground" data-testid="stat-entries">
+                  {importStats.entries}
+                </div>
+                <div className="text-xs text-muted-foreground">Entries</div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column - Event Management */}
