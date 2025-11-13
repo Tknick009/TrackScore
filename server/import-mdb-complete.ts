@@ -188,10 +188,21 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
   try {
     const eventTable = reader.getTable("Event");
     const eventData = eventTable.getData();
+    
+    // DEBUG: Show Event table structure
+    console.log(`   📊 Event table has ${eventData.length} rows`);
+    if (eventData.length > 0) {
+      const firstRow = eventData[0];
+      const columnNames = Object.keys(firstRow);
+      console.log(`   📝 Available columns in Event table: ${columnNames.join(', ')}`);
+      console.log(`   📝 Sample first event row:`, JSON.stringify(firstRow, null, 2));
+    }
+    
     const eventBatch = [];
     let datesFound = 0;
     let timesFound = 0;
     let namesFound = 0;
+    let ccTimesFound = 0; // Track individual CCracestart times
     
     // Try to read Session table for scheduling information
     const sessionMap = new Map();
@@ -254,19 +265,6 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       // Get session info for this event (if available)
       const sessionInfo = sessionMap.get(eventNum);
       
-      // Extract event name - prioritize Session table, fallback to Event table
-      let finalEventName = `Event ${eventNum}`;
-      if (sessionInfo && sessionInfo.name) {
-        finalEventName = String(sessionInfo.name);
-        namesFound++;
-      } else {
-        const eventName = row.Event_name || row.Event_desc || row.Event_description || row.Name || row.Description || null;
-        if (eventName) {
-          finalEventName = String(eventName);
-          namesFound++;
-        }
-      }
-      
       // Determine event type from distance and track/field indicator
       let eventType = "100m"; // default
       
@@ -286,49 +284,86 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         else eventType = `${distance}m`;
       }
       
-      // Extract date/time fields - prioritize Session table, fallback to Event table
+      // Extract individual event date/time from Event table
       let eventDate: Date | null = null;
       let eventTime: string | null = null;
+      let eventName = `Event ${eventNum}`;
       
-      // First try Session table data
-      if (sessionInfo) {
-        // Handle date from Session
-        if (sessionInfo.date) {
-          if (sessionInfo.date instanceof Date) {
-            eventDate = sessionInfo.date;
+      // Priority 1: Individual event date/time from CCracestart fields
+      if (row.CCracestart_date) {
+        if (row.CCracestart_date instanceof Date) {
+          eventDate = row.CCracestart_date;
+          datesFound++;
+        } else if (typeof row.CCracestart_date === 'string' || typeof row.CCracestart_date === 'number') {
+          const parsed = new Date(row.CCracestart_date);
+          if (!isNaN(parsed.getTime())) {
+            eventDate = parsed;
             datesFound++;
-          } else {
-            const parsed = new Date(sessionInfo.date);
-            if (!isNaN(parsed.getTime())) {
-              eventDate = parsed;
-              datesFound++;
-            }
-          }
-        }
-        
-        // Handle time from Session
-        if (sessionInfo.time) {
-          if (sessionInfo.time instanceof Date) {
-            const hours = sessionInfo.time.getHours();
-            const minutes = sessionInfo.time.getMinutes();
-            const ampm = hours >= 12 ? 'PM' : 'AM';
-            const displayHours = hours % 12 || 12;
-            eventTime = `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
-            timesFound++;
-          } else {
-            eventTime = String(sessionInfo.time);
-            timesFound++;
           }
         }
       }
       
-      // Fallback to Event table if Session didn't have date/time
-      if (!eventDate || !eventTime) {
+      if (row.CCracestart_time) {
+        if (typeof row.CCracestart_time === 'number') {
+          // Convert seconds since midnight to time string
+          const totalSeconds = row.CCracestart_time;
+          const hours = Math.floor(totalSeconds / 3600);
+          const minutes = Math.floor((totalSeconds % 3600) / 60);
+          const ampm = hours >= 12 ? 'PM' : 'AM';
+          const displayHours = hours % 12 || 12;
+          eventTime = `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+          ccTimesFound++;
+          timesFound++;
+        } else if (row.CCracestart_time instanceof Date) {
+          const hours = row.CCracestart_time.getHours();
+          const minutes = row.CCracestart_time.getMinutes();
+          const ampm = hours >= 12 ? 'PM' : 'AM';
+          const displayHours = hours % 12 || 12;
+          eventTime = `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+          ccTimesFound++;
+          timesFound++;
+        } else {
+          eventTime = String(row.CCracestart_time);
+          ccTimesFound++;
+          timesFound++;
+        }
+      }
+      
+      // Priority 2: Fall back to session time/name if no individual event time
+      if (!eventTime && sessionInfo?.time) {
+        eventTime = sessionInfo.time;
+        timesFound++;
+      }
+      
+      if (!eventDate && sessionInfo?.date) {
+        if (sessionInfo.date instanceof Date) {
+          eventDate = sessionInfo.date;
+          datesFound++;
+        } else {
+          const parsed = new Date(sessionInfo.date);
+          if (!isNaN(parsed.getTime())) {
+            eventDate = parsed;
+            datesFound++;
+          }
+        }
+      }
+      
+      // Priority 3: Use event name from session or Event table
+      if (sessionInfo?.name) {
+        eventName = String(sessionInfo.name);
+        namesFound++;
+      } else {
+        const rawEventName = row.Event_name || row.Event_desc || row.Event_description || row.Name || row.Description || null;
+        if (rawEventName) {
+          eventName = String(rawEventName);
+          namesFound++;
+        }
+      }
+      
+      // Priority 4: Final fallback to other Event table fields
+      if (!eventDate) {
         const rawEventDate = row.Event_date || row.Start_date || row.Sched_date || null;
-        const rawEventTime = row.Event_time || row.Start_time || row.Sched_time || row.Event_Starttime || null;
-        
-        // Handle Date objects - convert to timestamp
-        if (!eventDate && rawEventDate) {
+        if (rawEventDate) {
           if (rawEventDate instanceof Date) {
             eventDate = rawEventDate;
             datesFound++;
@@ -346,9 +381,11 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
             }
           }
         }
-        
-        // Handle time strings
-        if (!eventTime && rawEventTime) {
+      }
+      
+      if (!eventTime) {
+        const rawEventTime = row.Event_time || row.Start_time || row.Sched_time || row.Event_Starttime || null;
+        if (rawEventTime) {
           if (rawEventTime instanceof Date) {
             eventTime = rawEventTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
             timesFound++;
@@ -365,15 +402,15 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       eventBatch.push({
         meetId,
         eventNumber: eventNum,
-        name: finalEventName,
+        name: eventName,
         eventType,
         gender,
         distance,
         status: "scheduled",
         numRounds,
         numLanes,
-        eventDate: eventDate || null,
-        eventTime: eventTime || null,
+        eventDate,
+        eventTime,
       });
     }
     
@@ -404,6 +441,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       console.log(`   📝 Events with names from database: ${namesFound}`);
       console.log(`   📅 Events with dates: ${datesFound}`);
       console.log(`   ⏰ Events with times: ${timesFound}`);
+      console.log(`   ⏰ Events with individual CCracestart times: ${ccTimesFound}`);
     }
   } catch (error) {
     console.error("   ❌ Error importing events:", error);
