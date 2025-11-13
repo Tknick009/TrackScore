@@ -17,6 +17,10 @@ import {
   type InsertDisplayComputer,
   type DisplayAssignment,
   type InsertDisplayAssignment,
+  type DisplayTheme,
+  type InsertDisplayTheme,
+  type BoardConfig,
+  type InsertBoardConfig,
   events,
   athletes,
   entries,
@@ -26,9 +30,11 @@ import {
   entrySplits,
   displayComputers,
   displayAssignments,
+  displayThemes,
+  boardConfigs,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, and, not } from "drizzle-orm";
 
 export interface IStorage {
   // Events
@@ -77,6 +83,20 @@ export interface IStorage {
   getDisplayAssignment(displayId: string): Promise<DisplayAssignment | null>;
   updateDisplayHeartbeat(displayId: string): Promise<void>;
   verifyDisplayToken(displayId: string, authToken: string): Promise<boolean>;
+
+  // Display Themes
+  createDisplayTheme(theme: InsertDisplayTheme): Promise<DisplayTheme>;
+  getDisplayThemes(meetId: string): Promise<DisplayTheme[]>;
+  getDisplayTheme(id: string): Promise<DisplayTheme | null>;
+  getDefaultDisplayTheme(meetId: string): Promise<DisplayTheme | null>;
+  updateDisplayTheme(id: string, theme: Partial<InsertDisplayTheme>): Promise<DisplayTheme | null>;
+  deleteDisplayTheme(id: string): Promise<void>;
+
+  // Board Configs
+  createBoardConfig(config: InsertBoardConfig): Promise<BoardConfig>;
+  getBoardConfig(boardId: string, meetId: string): Promise<BoardConfig | null>;
+  updateBoardConfig(id: string, config: Partial<InsertBoardConfig>): Promise<BoardConfig | null>;
+  deleteBoardConfig(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -361,6 +381,130 @@ export class DatabaseStorage implements IStorage {
     }
 
     return display.authToken === authToken;
+  }
+
+  // Display Themes
+  async createDisplayTheme(theme: InsertDisplayTheme): Promise<DisplayTheme> {
+    return await db.transaction(async (tx) => {
+      // If this is being set as default, unset any existing defaults for this meet
+      if (theme.isDefault) {
+        await tx
+          .update(displayThemes)
+          .set({ isDefault: false })
+          .where(and(
+            eq(displayThemes.meetId, theme.meetId),
+            eq(displayThemes.isDefault, true)
+          ));
+      }
+
+      const [newTheme] = await tx
+        .insert(displayThemes)
+        .values({
+          ...theme,
+          updatedAt: new Date(),
+        } as any)
+        .returning();
+
+      return newTheme;
+    });
+  }
+
+  async getDisplayThemes(meetId: string): Promise<DisplayTheme[]> {
+    return db
+      .select()
+      .from(displayThemes)
+      .where(eq(displayThemes.meetId, meetId));
+  }
+
+  async getDisplayTheme(id: string): Promise<DisplayTheme | null> {
+    const [theme] = await db
+      .select()
+      .from(displayThemes)
+      .where(eq(displayThemes.id, id));
+    return theme || null;
+  }
+
+  async getDefaultDisplayTheme(meetId: string): Promise<DisplayTheme | null> {
+    const [theme] = await db
+      .select()
+      .from(displayThemes)
+      .where(and(
+        eq(displayThemes.meetId, meetId),
+        eq(displayThemes.isDefault, true)
+      ));
+    return theme || null;
+  }
+
+  async updateDisplayTheme(id: string, theme: Partial<InsertDisplayTheme>): Promise<DisplayTheme | null> {
+    return await db.transaction(async (tx) => {
+      // Get existing theme to check meetId
+      const [existing] = await tx.select().from(displayThemes).where(eq(displayThemes.id, id));
+      if (!existing) return null;
+
+      // If setting as default, unset other defaults for same meet
+      if (theme.isDefault) {
+        await tx
+          .update(displayThemes)
+          .set({ isDefault: false })
+          .where(and(
+            eq(displayThemes.meetId, existing.meetId),
+            eq(displayThemes.isDefault, true),
+            not(eq(displayThemes.id, id))
+          ));
+      }
+
+      const [updated] = await tx
+        .update(displayThemes)
+        .set({
+          ...theme,
+          updatedAt: new Date(),
+        } as any)
+        .where(eq(displayThemes.id, id))
+        .returning();
+
+      return updated || null;
+    });
+  }
+
+  async deleteDisplayTheme(id: string): Promise<void> {
+    await db
+      .delete(displayThemes)
+      .where(eq(displayThemes.id, id));
+  }
+
+  // Board Configs
+  async createBoardConfig(config: InsertBoardConfig): Promise<BoardConfig> {
+    const [newConfig] = await db
+      .insert(boardConfigs)
+      .values(config as any)
+      .returning();
+    return newConfig;
+  }
+
+  async getBoardConfig(boardId: string, meetId: string): Promise<BoardConfig | null> {
+    const [config] = await db
+      .select()
+      .from(boardConfigs)
+      .where(and(
+        eq(boardConfigs.boardId, boardId),
+        eq(boardConfigs.meetId, meetId)
+      ));
+    return config || null;
+  }
+
+  async updateBoardConfig(id: string, config: Partial<InsertBoardConfig>): Promise<BoardConfig | null> {
+    const [updated] = await db
+      .update(boardConfigs)
+      .set({ ...config, updatedAt: new Date() } as any)
+      .where(eq(boardConfigs.id, id))
+      .returning();
+    return updated || null;
+  }
+
+  async deleteBoardConfig(id: string): Promise<void> {
+    await db
+      .delete(boardConfigs)
+      .where(eq(boardConfigs.id, id));
   }
 }
 

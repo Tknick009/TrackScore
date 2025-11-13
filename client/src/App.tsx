@@ -9,6 +9,7 @@ import MeetsList from "@/pages/meets-list";
 import MeetDetail from "@/pages/meet-detail";
 import Control from "@/pages/control";
 import Display from "@/pages/display";
+import DisplayCustomizePage from "@/pages/DisplayCustomizePage";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -17,6 +18,7 @@ function Router() {
       <Route path="/" component={MeetsList} />
       <Route path="/meets/:id" component={MeetDetail} />
       <Route path="/control" component={Control} />
+      <Route path="/control/displays/customize" component={DisplayCustomizePage} />
       <Route path="/display" component={Display} />
       <Route component={NotFound} />
     </Switch>

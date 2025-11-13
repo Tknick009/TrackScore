@@ -12,6 +12,8 @@ import {
   insertMeetSchema,
   insertTeamSchema,
   insertDivisionSchema,
+  insertDisplayThemeSchema,
+  insertBoardConfigSchema,
   type DisplayBoardState,
   type WSMessage,
 } from "@shared/schema";
@@ -393,6 +395,142 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ===== DISPLAY THEMES =====
+
+  // Get all themes for a meet
+  app.get("/api/meets/:meetId/themes", async (req, res) => {
+    try {
+      const themes = await storage.getDisplayThemes(req.params.meetId);
+      res.json(themes);
+    } catch (error) {
+      console.error("Error fetching display themes:", error);
+      res.status(500).json({ error: "Failed to fetch display themes" });
+    }
+  });
+
+  // Get default theme for a meet
+  app.get("/api/meets/:meetId/themes/default", async (req, res) => {
+    try {
+      const theme = await storage.getDefaultDisplayTheme(req.params.meetId);
+      if (!theme) {
+        return res.status(404).json({ error: "Default theme not found" });
+      }
+      res.json(theme);
+    } catch (error) {
+      console.error("Error fetching default theme:", error);
+      res.status(500).json({ error: "Failed to fetch default theme" });
+    }
+  });
+
+  // Create a new theme
+  app.post("/api/meets/:meetId/themes", async (req, res) => {
+    try {
+      const parsed = insertDisplayThemeSchema.parse({
+        ...req.body,
+        meetId: req.params.meetId,
+      });
+      const theme = await storage.createDisplayTheme(parsed);
+      res.json(theme);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid theme data", details: error.errors });
+      }
+      console.error("Error creating display theme:", error);
+      res.status(500).json({ error: "Failed to create display theme" });
+    }
+  });
+
+  // Update a theme
+  app.patch("/api/themes/:id", async (req, res) => {
+    try {
+      const parsed = insertDisplayThemeSchema.partial().parse(req.body);
+      const theme = await storage.updateDisplayTheme(req.params.id, parsed);
+      if (!theme) {
+        return res.status(404).json({ error: "Theme not found" });
+      }
+      res.json(theme);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid theme data", details: error.errors });
+      }
+      console.error("Error updating display theme:", error);
+      res.status(500).json({ error: "Failed to update display theme" });
+    }
+  });
+
+  // Delete a theme
+  app.delete("/api/themes/:id", async (req, res) => {
+    try {
+      await storage.deleteDisplayTheme(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting display theme:", error);
+      res.status(500).json({ error: "Failed to delete display theme" });
+    }
+  });
+
+  // ===== BOARD CONFIGS =====
+
+  // Get board config
+  app.get("/api/meets/:meetId/boards/:boardId/config", async (req, res) => {
+    try {
+      const config = await storage.getBoardConfig(req.params.boardId, req.params.meetId);
+      res.json(config || null);
+    } catch (error) {
+      console.error("Error fetching board config:", error);
+      res.status(500).json({ error: "Failed to fetch board config" });
+    }
+  });
+
+  // Create or update board config
+  app.put("/api/meets/:meetId/boards/:boardId/config", async (req, res) => {
+    try {
+      // Check if config exists
+      const existing = await storage.getBoardConfig(req.params.boardId, req.params.meetId);
+      
+      if (existing) {
+        // Update existing
+        const parsed = insertBoardConfigSchema.partial().parse(req.body);
+        const updated = await storage.updateBoardConfig(existing.id, parsed);
+        return res.json(updated);
+      } else {
+        // Create new
+        const parsed = insertBoardConfigSchema.parse({
+          ...req.body,
+          meetId: req.params.meetId,
+          boardId: req.params.boardId,
+        });
+        const created = await storage.createBoardConfig(parsed);
+        return res.json(created);
+      }
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid config data", details: error.errors });
+      }
+      console.error("Error saving board config:", error);
+      res.status(500).json({ error: "Failed to save board config" });
+    }
+  });
+
+  // Delete board config
+  app.delete("/api/boards/:boardId/config", async (req, res) => {
+    try {
+      const meetId = req.query.meetId as string;
+      if (!meetId) {
+        return res.status(400).json({ error: "meetId query parameter required" });
+      }
+      
+      const config = await storage.getBoardConfig(req.params.boardId, meetId);
+      if (config) {
+        await storage.deleteBoardConfig(config.id);
+      }
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting board config:", error);
+      res.status(500).json({ error: "Failed to delete board config" });
     }
   });
 

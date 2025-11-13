@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, real, timestamp, boolean, index, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, real, timestamp, boolean, index, unique, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -267,6 +267,75 @@ export const insertDisplayAssignmentSchema = createInsertSchema(displayAssignmen
 export type InsertDisplayAssignment = z.infer<typeof insertDisplayAssignmentSchema>;
 export type DisplayAssignment = typeof displayAssignments.$inferSelect;
 
+// Display Themes - Global theme configurations per meet
+export const displayThemes = pgTable("display_themes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  meetId: varchar("meet_id").notNull().references(() => meets.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  isDefault: boolean("is_default").default(false),
+  
+  // Colors (stored as "H S% L%" format to match CSS variables)
+  accentColor: text("accent_color").default("165 95% 50%"),
+  bgColor: text("bg_color").default("220 15% 8%"),
+  bgElevatedColor: text("bg_elevated_color").default("220 15% 12%"),
+  bgBorderColor: text("bg_border_color").default("220 15% 18%"),
+  fgColor: text("fg_color").default("0 0% 95%"),
+  mutedColor: text("muted_color").default("0 0% 60%"),
+  
+  // Typography
+  headingFont: text("heading_font").default("Barlow Semi Condensed"),
+  bodyFont: text("body_font").default("Roboto"),
+  numbersFont: text("numbers_font").default("Barlow Semi Condensed"),
+  
+  // Branding (JSONB for flexibility)
+  logoUrl: text("logo_url"),
+  sponsorLogos: jsonb("sponsor_logos").$type<{ url: string; label?: string; order: number }[]>(),
+  
+  // Feature toggles (JSONB for flexibility)
+  features: jsonb("features").$type<{
+    showTeamColors?: boolean;
+    showReactionTimes?: boolean;
+    showSplits?: boolean;
+  }>().default({"showTeamColors":true,"showReactionTimes":true,"showSplits":true}),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  meetIdIdx: index("display_themes_meet_id_idx").on(table.meetId),
+  meetNameUnique: unique("display_themes_meet_name_unique").on(table.meetId, table.name),
+}));
+
+export const insertDisplayThemeSchema = createInsertSchema(displayThemes).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertDisplayTheme = z.infer<typeof insertDisplayThemeSchema>;
+export type DisplayTheme = typeof displayThemes.$inferSelect;
+
+// Board Configs - Per-board theme overrides
+export const boardConfigs = pgTable("board_configs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  meetId: varchar("meet_id").notNull().references(() => meets.id, { onDelete: "cascade" }),
+  boardId: varchar("board_id").notNull().references(() => displayComputers.id, { onDelete: "cascade" }),
+  themeId: varchar("theme_id").references(() => displayThemes.id, { onDelete: "set null" }),
+  
+  // Overrides (JSONB for flexibility - can override any theme field)
+  overrides: jsonb("overrides").$type<{
+    accentColor?: string;
+    bgColor?: string;
+    logoUrl?: string;
+    features?: Record<string, boolean>;
+    // ... any other theme fields
+  }>(),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  meetIdIdx: index("board_configs_meet_id_idx").on(table.meetId),
+  boardUnique: unique("board_configs_board_unique").on(table.meetId, table.boardId),
+}));
+
+export const insertBoardConfigSchema = createInsertSchema(boardConfigs).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertBoardConfig = z.infer<typeof insertBoardConfigSchema>;
+export type BoardConfig = typeof boardConfigs.$inferSelect;
+
 // ====================
 // HELPER TYPES
 // ====================
@@ -363,6 +432,8 @@ export const meetsRelations = relations(meets, ({ many }) => ({
   athletes: many(athletes),
   displayComputers: many(displayComputers),
   displayAssignments: many(displayAssignments),
+  displayThemes: many(displayThemes),
+  boardConfigs: many(boardConfigs),
 }));
 
 export const teamsRelations = relations(teams, ({ one, many }) => ({
@@ -397,5 +468,28 @@ export const displayAssignmentsRelations = relations(displayAssignments, ({ one 
   display: one(displayComputers, {
     fields: [displayAssignments.displayId],
     references: [displayComputers.id],
+  }),
+}));
+
+export const displayThemesRelations = relations(displayThemes, ({ one, many }) => ({
+  meet: one(meets, {
+    fields: [displayThemes.meetId],
+    references: [meets.id],
+  }),
+  boardConfigs: many(boardConfigs),
+}));
+
+export const boardConfigsRelations = relations(boardConfigs, ({ one }) => ({
+  meet: one(meets, {
+    fields: [boardConfigs.meetId],
+    references: [meets.id],
+  }),
+  board: one(displayComputers, {
+    fields: [boardConfigs.boardId],
+    references: [displayComputers.id],
+  }),
+  theme: one(displayThemes, {
+    fields: [boardConfigs.themeId],
+    references: [displayThemes.id],
   }),
 }));
