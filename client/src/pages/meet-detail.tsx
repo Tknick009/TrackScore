@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
-import { format } from "date-fns";
-import { Calendar, MapPin, Settings, Monitor, ArrowLeft, Hash, Upload } from "lucide-react";
+import { format, formatDistanceToNow } from "date-fns";
+import { Calendar, MapPin, Settings, Monitor, ArrowLeft, Hash, Upload, RefreshCw } from "lucide-react";
 import type { Meet, Event } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -244,6 +245,138 @@ function EventsTable({ events }: { events: Event[] }) {
   );
 }
 
+interface AutoRefreshSettingsProps {
+  meet: Meet;
+  meetId: string;
+}
+
+function AutoRefreshSettings({ meet, meetId }: AutoRefreshSettingsProps) {
+  const { toast } = useToast();
+  const [intervalInput, setIntervalInput] = useState<string>(
+    meet.refreshInterval?.toString() || "30"
+  );
+
+  const updateMeetMutation = useMutation({
+    mutationFn: async (data: { autoRefresh?: boolean; refreshInterval?: number }) => {
+      return await apiRequest("PATCH", `/api/meets/${meetId}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/meets", meetId] });
+      toast({ title: "Settings updated" });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to update settings",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  useEffect(() => {
+    const value = parseInt(intervalInput, 10);
+    if (isNaN(value) || value < 5 || value > 300) {
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      if (value !== meet.refreshInterval) {
+        updateMeetMutation.mutate({ refreshInterval: value });
+      }
+    }, 1000);
+
+    return () => clearTimeout(timeoutId);
+  }, [intervalInput]);
+
+  const handleAutoRefreshToggle = (checked: boolean) => {
+    updateMeetMutation.mutate({ autoRefresh: checked });
+  };
+
+  const handleIntervalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setIntervalInput(e.target.value);
+  };
+
+  const getFileName = (path: string | null) => {
+    if (!path) return null;
+    return path.split("/").pop() || path;
+  };
+
+  return (
+    <Card data-testid="card-auto-refresh-settings">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <RefreshCw className="w-5 h-5" />
+          Auto-Refresh Settings
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="auto-refresh-switch" className="text-base">
+                Automatically refresh from database file
+              </Label>
+              <p className="text-sm text-muted-foreground">
+                Periodically re-import the uploaded database file to keep results up-to-date
+              </p>
+            </div>
+            <Switch
+              id="auto-refresh-switch"
+              checked={meet.autoRefresh || false}
+              onCheckedChange={handleAutoRefreshToggle}
+              disabled={updateMeetMutation.isPending}
+              data-testid="switch-auto-refresh"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="refresh-interval" className="text-base">
+              Refresh interval (seconds)
+            </Label>
+            <Input
+              id="refresh-interval"
+              type="number"
+              min="5"
+              max="300"
+              value={intervalInput}
+              onChange={handleIntervalChange}
+              disabled={!meet.autoRefresh || updateMeetMutation.isPending}
+              data-testid="input-refresh-interval"
+              className="max-w-xs"
+            />
+            <p className="text-sm text-muted-foreground">
+              How often to check for updates (minimum 5 seconds, maximum 300 seconds)
+            </p>
+          </div>
+
+          {meet.mdbPath && (
+            <>
+              <div className="pt-4 border-t space-y-2">
+                <div className="flex items-center gap-2 text-sm">
+                  <RefreshCw className="w-4 h-4 text-muted-foreground" />
+                  <span className="font-medium">Last updated:</span>
+                  <span data-testid="text-last-import">
+                    {meet.lastImportAt
+                      ? formatDistanceToNow(new Date(meet.lastImportAt), { addSuffix: true })
+                      : "Never"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <div className="text-sm font-medium">Database file</div>
+                <div className="text-sm text-muted-foreground font-mono" data-testid="text-database-filename">
+                  {getFileName(meet.mdbPath)}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function MeetDetail() {
   const [match, params] = useRoute("/meets/:id");
   const meetId = params?.id;
@@ -337,6 +470,8 @@ export default function MeetDetail() {
             )}
           </CardContent>
         </Card>
+
+        {meetId && <AutoRefreshSettings meet={meet} meetId={meetId} />}
 
         <Card>
           <CardHeader>

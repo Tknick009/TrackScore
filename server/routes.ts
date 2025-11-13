@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import multer from "multer";
 import { unlink } from "fs/promises";
+import { z } from "zod";
 import { storage } from "./storage";
 import {
   insertEventSchema,
@@ -222,6 +223,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const data = insertMeetSchema.parse(req.body);
       const meet = await storage.createMeet(data);
       await broadcastCurrentEvent();
+      res.json(meet);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/meets/:id", async (req, res) => {
+    try {
+      const updateSchema = insertMeetSchema.partial().pick({
+        autoRefresh: true,
+        refreshInterval: true,
+      }).extend({
+        refreshInterval: z.number().min(5).max(300).optional(),
+      });
+
+      const data = updateSchema.parse(req.body);
+      const meet = await storage.updateMeet(req.params.id, data);
+
+      if (!meet) {
+        return res.status(404).json({ error: "Meet not found" });
+      }
+
       res.json(meet);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
