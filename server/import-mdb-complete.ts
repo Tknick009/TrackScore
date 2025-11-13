@@ -3,6 +3,7 @@ import MDBReader from "mdb-reader";
 import { db } from "./db";
 import { meets, teams, divisions, athletes, events, entries, entrySplits } from "@shared/schema";
 import { sql } from "drizzle-orm";
+import { parseComm1 } from "./parse-comm1";
 
 export interface ImportStatistics {
   teams: number;
@@ -10,6 +11,88 @@ export interface ImportStatistics {
   athletes: number;
   events: number;
   entries: number;
+}
+
+export interface MDBEvent {
+  Event_no?: number;
+  Event_ptr?: number;
+  Event_sex?: string;
+  Event_gender?: string;
+  Event_dist?: number;
+  Event_stroke?: string;
+  Ind_rel?: string;
+  Comm_1?: string;
+}
+
+export function generateEventName(mdbEvent: MDBEvent): string {
+  // Normalize gender (handle uppercase, lowercase, and word variants)
+  const normalizedGender = (mdbEvent.Event_sex || mdbEvent.Event_gender || '')
+    .toString()
+    .toLowerCase()
+    .trim();
+
+  let genderPrefix = "Men's";
+  if (normalizedGender === 'w' || normalizedGender === 'f' || normalizedGender === 'g' ||
+      normalizedGender === 'women' || normalizedGender === 'female' || 
+      normalizedGender === 'girls' || normalizedGender === 'girl') {
+    genderPrefix = "Women's";
+  } else if (normalizedGender === 'mixed' || normalizedGender === 'x' ||
+             normalizedGender === 'coed' || normalizedGender === 'co-ed' ||
+             normalizedGender === 'both') {
+    genderPrefix = "Mixed";
+  } else if (normalizedGender === 'b' || normalizedGender === 'boys' || normalizedGender === 'boy') {
+    genderPrefix = "Men's";
+  }
+  
+  const distance = mdbEvent.Event_dist || 0;
+  const stroke = mdbEvent.Event_stroke || "";
+  const isRelay = (mdbEvent.Ind_rel || '').toString().toUpperCase() === 'R';
+  
+  if (isRelay) {
+    if (distance === 400) return `${genderPrefix} 4x100m Relay`;
+    if (distance === 800) return `${genderPrefix} 4x200m Relay`;
+    if (distance === 1600) return `${genderPrefix} 4x400m Relay`;
+    if (distance === 3200) return `${genderPrefix} 4x800m Relay`;
+    return `${genderPrefix} ${distance}m Relay`;
+  }
+  
+  if (distance === 0) {
+    switch (stroke) {
+      case "K": return `${genderPrefix} High Jump`;
+      case "L": return `${genderPrefix} Long Jump`;
+      case "M": return `${genderPrefix} Shot Put`;
+      case "N": return `${genderPrefix} Discus`;
+      case "O": return `${genderPrefix} Hammer`;
+      case "P": return `${genderPrefix} Pole Vault`;
+      case "Q": return `${genderPrefix} Javelin`;
+      case "R": return `${genderPrefix} Triple Jump`;
+      default: return `${genderPrefix} Field Event`;
+    }
+  }
+  
+  let eventTypeText = "";
+  switch (stroke) {
+    case "A":
+      eventTypeText = "Dash";
+      break;
+    case "B":
+      eventTypeText = "Run";
+      break;
+    case "H":
+    case "E":
+      eventTypeText = "Hurdles";
+      break;
+    case "W":
+      eventTypeText = "Walk";
+      break;
+    case "D":
+      eventTypeText = "Steeplechase";
+      break;
+    default:
+      eventTypeText = "Run";
+  }
+  
+  return `${genderPrefix} ${distance}m ${eventTypeText}`;
 }
 
 export async function importCompleteMDB(filePath: string, meetId: string): Promise<ImportStatistics> {
@@ -185,6 +268,20 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
   // 4. IMPORT EVENTS
   // ===========================
   console.log("\n🏁 Importing Events...");
+  
+  // Get meet start date for fallback
+  let meetStartDate: Date | null = null;
+  try {
+    const meetRecord = await db.query.meets.findFirst({
+      where: (meets, { eq }) => eq(meets.id, meetId)
+    });
+    if (meetRecord?.startDate) {
+      meetStartDate = meetRecord.startDate;
+    }
+  } catch (error) {
+    console.log("   ⚠️  Could not retrieve meet start date");
+  }
+  
   try {
     const eventTable = reader.getTable("Event");
     const eventData = eventTable.getData();
@@ -202,7 +299,9 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
     let datesFound = 0;
     let timesFound = 0;
     let namesFound = 0;
-    let ccTimesFound = 0; // Track individual CCracestart times
+    let ccTimesFound = 0;
+    let comm1TimesFound = 0;
+    let generatedNamesCount = 0;
     
     // Try to read Session table for scheduling information
     const sessionMap = new Map();
@@ -330,12 +429,30 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         }
       }
       
-      // Priority 2: Fall back to session time/name if no individual event time
+      // Priority 2: Parse Comm_1 field for time information
+      if (!eventTime && row.Comm_1) {
+        const comm1Text = String(row.Comm_1).trim();
+        if (comm1Text) {
+          const parsed = parseComm1(comm1Text);
+          if (parsed.time) {
+            // Convert 24-hour time to 12-hour format
+            const [hours24, minutes] = parsed.time.split(':').map(Number);
+            const ampm = hours24 >= 12 ? 'PM' : 'AM';
+            const displayHours = hours24 % 12 || 12;
+            eventTime = `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+            comm1TimesFound++;
+            timesFound++;
+          }
+        }
+      }
+      
+      // Priority 3: Fall back to session time if no individual event time or Comm_1 time
       if (!eventTime && sessionInfo?.time) {
         eventTime = sessionInfo.time;
         timesFound++;
       }
       
+      // Priority 4: Set date from session or fallback to meet start date
       if (!eventDate && sessionInfo?.date) {
         if (sessionInfo.date instanceof Date) {
           eventDate = sessionInfo.date;
@@ -349,14 +466,28 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         }
       }
       
-      // Priority 3: Use event name from session or Event table
+      // Fallback to meet start date if still no date
+      if (!eventDate && meetStartDate) {
+        eventDate = meetStartDate;
+        datesFound++;
+      }
+      
+      // Priority 5: Use event name from session or generate descriptive name
       if (sessionInfo?.name) {
         eventName = String(sessionInfo.name);
         namesFound++;
       } else {
         const rawEventName = row.Event_name || row.Event_desc || row.Event_description || row.Name || row.Description || null;
-        if (rawEventName) {
+        // Check if raw name is meaningful (not just "Event N")
+        const isGenericName = rawEventName && /^Event\s+\d+$/i.test(String(rawEventName).trim());
+        
+        if (rawEventName && !isGenericName) {
           eventName = String(rawEventName);
+          namesFound++;
+        } else {
+          // Generate descriptive name from event data
+          eventName = generateEventName(row);
+          generatedNamesCount++;
           namesFound++;
         }
       }
@@ -440,9 +571,11 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       console.log(`   📊 Track events: ${eventBatch.filter(e => !e.eventType.includes('jump') && !e.eventType.includes('throw')).length}`);
       console.log(`   📊 Field events: ${eventBatch.filter(e => e.eventType.includes('jump') || e.eventType.includes('throw')).length}`);
       console.log(`   📝 Events with names from database: ${namesFound}`);
+      console.log(`   📝 Events with generated names: ${generatedNamesCount}`);
       console.log(`   📅 Events with dates: ${datesFound}`);
       console.log(`   ⏰ Events with times: ${timesFound}`);
       console.log(`   ⏰ Events with individual CCracestart times: ${ccTimesFound}`);
+      console.log(`   ⏰ Events with Comm_1 parsed times: ${comm1TimesFound}`);
     }
   } catch (error) {
     console.error("   ❌ Error importing events:", error);
