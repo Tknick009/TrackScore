@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700;900&family=Bebas+Neue&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -57,6 +59,15 @@
   --shadow-2xl: 0px 2px 0px 0px hsl(0 0% 0% / 0.00);
   --tracking-normal: 0em;
   --spacing: 0.25rem;
+
+  /* Stadium Display Board Tokens - High Contrast Theme */
+  --display-bg: 220 20% 12%;
+  --display-fg: 0 0% 100%;
+  --display-accent: 210 100% 55%;
+  --display-success: 142 76% 48%;
+  --display-warning: 25 95% 55%;
+  --display-muted: 220 10% 65%;
+  --display-border: 220 15% 25%;
 
 /* Fallback for older browsers */
   --sidebar-primary-border: hsl(var(--sidebar-primary));
@@ -135,6 +146,15 @@
   --shadow-lg: 0px 2px 0px 0px hsl(0 0% 0% / 0.00), 0px 4px 6px -1px hsl(0 0% 0% / 0.00);
   --shadow-xl: 0px 2px 0px 0px hsl(0 0% 0% / 0.00), 0px 8px 10px -1px hsl(0 0% 0% / 0.00);
   --shadow-2xl: 0px 2px 0px 0px hsl(0 0% 0% / 0.00);
+
+  /* Stadium Display Board Tokens - High Contrast Theme (consistent across modes) */
+  --display-bg: 220 20% 12%;
+  --display-fg: 0 0% 100%;
+  --display-accent: 210 100% 55%;
+  --display-success: 142 76% 48%;
+  --display-warning: 25 95% 55%;
+  --display-muted: 220 10% 65%;
+  --display-border: 220 15% 25%;
 
 /* Fallback for older browsers */
   --sidebar-primary-border: hsl(var(--sidebar-primary));
@@ -216,6 +236,15 @@
 
   .no-default-active-elevate {}
 
+  /* Stadium Display Board Typography */
+  .font-stadium {
+    font-family: 'Barlow Semi Condensed', sans-serif;
+  }
+
+  .font-stadium-numbers {
+    font-family: 'Bebas Neue', sans-serif;
+    font-variant-numeric: tabular-nums;
+  }
 
   /**
    * Toggleable backgrounds go behind the content. Hoverable/active goes on top.
