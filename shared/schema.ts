@@ -30,6 +30,14 @@ export type EventType = z.infer<typeof eventTypeEnum>;
 export const eventStatusEnum = z.enum(["scheduled", "in_progress", "completed"]);
 export type EventStatus = z.infer<typeof eventStatusEnum>;
 
+// HyTek Event Status (from MDB)
+export const hytekEventStatusEnum = z.enum(["unseeded", "seeded", "done", "scored"]);
+export type HytekEventStatus = z.infer<typeof hytekEventStatusEnum>;
+
+// Data source for provenance tracking
+export const dataSourceEnum = z.enum(["mdb", "port", "lif", "lff", "manual"]);
+export type DataSource = z.infer<typeof dataSourceEnum>;
+
 // Gender (widened to accept raw MDB codes)
 export const genderEnum = z.enum(["M", "F", "W", "m", "f", "w", "men", "women", "mixed"]);
 export type Gender = z.infer<typeof genderEnum>;
@@ -141,6 +149,10 @@ export const events = pgTable("events", {
   numLanes: integer("num_lanes").default(8),
   eventDate: timestamp("event_date"), // Scheduled date for this event
   eventTime: text("event_time"), // Scheduled time string (e.g., "2:30 PM")
+  hytekStatus: text("hytek_status"), // unseeded, seeded, done, scored from MDB
+  isScored: boolean("is_scored").default(false), // Derived: true if hytekStatus = 'done' or 'scored'
+  lastResultSource: text("last_result_source"), // port, lif, lff, manual
+  lastResultAt: timestamp("last_result_at"), // When results were last updated
 }, (table) => ({
   meetEventUnique: unique("events_meet_event_unique").on(table.meetId, table.eventNumber),
 }));
@@ -149,6 +161,8 @@ export const insertEventSchema = createInsertSchema(events).omit({ id: true }).e
   eventType: z.string(), // Allow any event type string from MDB
   gender: z.string(), // Allow raw MDB gender codes
   status: eventStatusEnum,
+  hytekStatus: hytekEventStatusEnum.optional(),
+  lastResultSource: dataSourceEnum.optional(),
 });
 export type InsertEvent = z.infer<typeof insertEventSchema>;
 export type Event = typeof events.$inferSelect;
@@ -226,6 +240,31 @@ export const insertEntrySplitSchema = createInsertSchema(entrySplits).omit({ id:
 });
 export type InsertEntrySplit = z.infer<typeof insertEntrySplitSchema>;
 export type EntrySplit = typeof entrySplits.$inferSelect;
+
+// Result Updates (audit trail for timing data ingestion)
+export const resultUpdates = pgTable("result_updates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  entryId: varchar("entry_id").notNull(),
+  round: text("round").notNull(), // preliminary, quarterfinal, semifinal, final
+  source: text("source").notNull(), // port, lif, lff, manual
+  mark: real("mark"), // The timing/distance/height value
+  wind: real("wind"),
+  place: integer("place"),
+  rawPayload: jsonb("raw_payload"), // Original data from source
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  wasAccepted: boolean("was_accepted").default(true), // False if rejected due to score-lock
+  rejectionReason: text("rejection_reason"), // e.g., "Event is scored"
+}, (table) => ({
+  entryIdIdx: index("result_updates_entry_id_idx").on(table.entryId),
+  createdAtIdx: index("result_updates_created_at_idx").on(table.createdAt),
+}));
+
+export const insertResultUpdateSchema = createInsertSchema(resultUpdates).omit({ id: true, createdAt: true }).extend({
+  round: roundTypeEnum,
+  source: dataSourceEnum,
+});
+export type InsertResultUpdate = z.infer<typeof insertResultUpdateSchema>;
+export type ResultUpdate = typeof resultUpdates.$inferSelect;
 
 // ====================
 // DISPLAY MANAGEMENT

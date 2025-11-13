@@ -390,6 +390,27 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       const gender = String(genderRaw);
       const trkField = row.Trk_Field || "T"; // T = Track, F = Field
       
+      // Extract HyTek event status and determine if results are locked
+      const hytekStatusRaw = row.Event_status || row.Event_Status || row.STATUS || null;
+      let hytekStatus: string | null = null;
+      let isScored = false;
+      
+      if (hytekStatusRaw) {
+        const statusStr = String(hytekStatusRaw).trim().toLowerCase();
+        // Map HyTek status values to our enum
+        if (statusStr === 'unseeded' || statusStr === 'un-seeded') {
+          hytekStatus = 'unseeded';
+        } else if (statusStr === 'seeded') {
+          hytekStatus = 'seeded';
+        } else if (statusStr === 'done') {
+          hytekStatus = 'done';
+          isScored = true; // Lock results when event is done
+        } else if (statusStr === 'scored') {
+          hytekStatus = 'scored';
+          isScored = true; // Lock results when event is scored
+        }
+      }
+      
       // Get session info for this event (if available) - use Event_ptr to match Sess_ptr
       const sessionInfo = sessionMap.get(eventPtr);
       
@@ -565,6 +586,8 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         numLanes,
         eventDate,
         eventTime,
+        hytekStatus, // NEW: HyTek status from MDB
+        isScored,    // NEW: Derived lock flag
       });
     }
     
@@ -582,6 +605,8 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
             numLanes: sql`excluded.num_lanes`,
             eventDate: sql`excluded.event_date`,
             eventTime: sql`excluded.event_time`,
+            hytekStatus: sql`excluded.hytek_status`, // NEW
+            isScored: sql`excluded.is_scored`,       // NEW
           }
         })
         .returning();
@@ -598,6 +623,8 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       console.log(`   ⏰ Events with times: ${timesFound}`);
       console.log(`   ⏰ Events with individual CCracestart times: ${ccTimesFound}`);
       console.log(`   ⏰ Events with Comm_1 parsed times: ${comm1TimesFound}`);
+      console.log(`   🔒 Events marked as scored/done: ${eventBatch.filter(e => e.isScored).length}`);
+      console.log(`   📝 Events with HyTek status: ${eventBatch.filter(e => e.hytekStatus).length}`);
     }
   } catch (error) {
     console.error("   ❌ Error importing events:", error);
@@ -711,7 +738,32 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       }
       
       if (entryBatch.length > 0) {
-        await db.insert(entries).values(entryBatch).onConflictDoNothing();
+        // CRITICAL: Only update registration data, NEVER result data
+        // This prevents MDB imports from overwriting timing system results
+        await db.insert(entries).values(entryBatch)
+          .onConflictDoUpdate({
+            target: [entries.eventId, entries.athleteId],
+            set: {
+              // Update registration data only
+              seedMark: sql`excluded.seed_mark`,
+              resultType: sql`excluded.result_type`,
+              teamId: sql`excluded.team_id`,
+              divisionId: sql`excluded.division_id`,
+              
+              // Update heat/lane assignments (these may change before event starts)
+              preliminaryHeat: sql`excluded.preliminary_heat`,
+              preliminaryLane: sql`excluded.preliminary_lane`,
+              quarterfinalHeat: sql`excluded.quarterfinal_heat`,
+              quarterfinalLane: sql`excluded.quarterfinal_lane`,
+              semifinalHeat: sql`excluded.semifinal_heat`,
+              semifinalLane: sql`excluded.semifinal_lane`,
+              finalHeat: sql`excluded.final_heat`,
+              finalLane: sql`excluded.final_lane`,
+              
+              // DO NOT UPDATE: marks, places, wind readings - these come from timing system only
+              // This ensures timing system results are never overwritten by MDB imports
+            }
+          });
         imported += entryBatch.length;
       }
       
