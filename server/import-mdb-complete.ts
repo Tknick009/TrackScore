@@ -213,17 +213,27 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       
       // Create a map of event_ptr -> session data for quick lookup
       sessionData.forEach((session) => {
-        // DEBUG: Log what we're trying to extract for each session
-        const eventPtr = session.Event_ptr || session.Event_no || session.EventNo;
+        // Use correct FinishLynx field names
+        const eventPtr = session.Sess_ptr;
         if (eventPtr) {
           const sessionInfo = {
-            date: session.Date || session.Session_date || session.Sched_date || null,
-            time: session.Time || session.Session_time || session.Start_time || null,
-            name: session.Event_name || session.EventName || session.Description || null,
+            date: null,
+            time: null as string | null,
+            name: session.Sess_name || null,
           };
           
+          // Convert Sess_starttime (seconds since midnight) to readable time
+          if (session.Sess_starttime != null) {
+            const totalSeconds = Number(session.Sess_starttime);
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            const displayHours = hours % 12 || 12;
+            sessionInfo.time = `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+          }
+          
           // Only add to map if we found something
-          if (sessionInfo.date || sessionInfo.time || sessionInfo.name) {
+          if (sessionInfo.time || sessionInfo.name) {
             sessionMap.set(eventPtr, sessionInfo);
           }
         }
