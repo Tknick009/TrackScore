@@ -149,3 +149,67 @@ Preferred communication style: Simple, everyday language.
 - **tsx**: TypeScript execution for development
 - **esbuild**: Fast bundling for production server build
 - **PostCSS & Autoprefixer**: CSS processing
+- **mdb-reader**: HyTek/FinishLynx .mdb database file parser
+
+## HyTek MDB Import System
+
+### Event Scheduling Implementation
+
+**Multi-Source Scheduling Strategy:**
+The importer extracts event dates and times from multiple sources in the HyTek MDB database:
+
+1. **Meet Start Date** (Primary baseline)
+   - Read from `Meet` table's `Meet_start` field
+   - Provides the base date for all events without session assignment
+   - Sample data: April 12, 2024
+
+2. **Session-Based Dates** (For multi-day meets)
+   - Session table stores `Sess_ptr` (session ID) and `Sess_day` (day offset: 1, 2, 3...)
+   - Events link to sessions via `Event.Event_ptr = Session.Sess_ptr`
+   - Date calculation: `eventDate = meetStartDate + (sessDay - 1) days`
+   - Only 3/56 events in sample data have session linkage (Heptathlon, Decathlon, Women's 1500m)
+   - Example: Event with Sess_day=2 → April 13, 2024 (meetStart + 1 day)
+
+3. **Comm_1 Time Parsing** (Text-based scheduling hints)
+   - Extracts times from free-text `Comm_1` field
+   - Patterns supported:
+     - "run at 8:10" / "runs at 9:15"
+     - "goes off 10:30" / "go off 11:45"  
+     - "@ 8:05" / "@9:30"
+     - Bare times: "8:10" / "9:15 AM"
+   - Handles AM/PM markers and 12/24-hour formats
+   - Sample coverage: 3/56 events have parsed times
+
+4. **CCracestart Fields** (Individual event scheduling)
+   - `CCracestart_date` and `CCracestart_time` fields on Event table
+   - Sample data: 0/56 events use this field (all null)
+   - Future enhancement opportunity
+
+**Fallback Hierarchy:**
+- Events WITH sessions → Use Sess_day offset from Meet_start
+- Events WITHOUT sessions → Use Meet_start date
+- Times: CCracestart_time (if present) → Comm_1 parsing → null
+
+**Coverage in Sample Data:**
+- Events with dates: 56/56 (100%)
+- Events with session-based dates: 3/56 (5.4%)
+- Events with times: 5/56 (8.9%)
+- Events with Comm_1 parsed times: 3/56
+
+### Event Name Generation
+
+**Comprehensive Gender Code Support:**
+- Uppercase: M, W, F, G, B, X (Men, Women, Girls, Boys, Mixed)
+- Lowercase: m, w, f, g, b, x
+- Word variants: "women", "girls", "coed", "mixed", "both"
+- Relay detection: Case-insensitive check for "R"/"r" in `Ind_rel` field
+
+**Event Type Coverage:**
+- Track events: Sprints (100m-400m), middle distance (800m-1500m), distance (3000m-10000m), hurdles, steeplechase, relays
+- Field events: Jumps (high, long, triple, pole vault), throws (shot put, discus, javelin, hammer)
+- Multi-events: Heptathlon, Decathlon
+
+**Name Generation Strategy:**
+- 53/56 events generated from Event table fields (gender + distance/type)
+- 3/56 events use Session.Sess_name for multi-event competitions
+- Format: "{Gender} {Distance/Type}" (e.g., "Women's 1500m Run", "Men's High Jump")
