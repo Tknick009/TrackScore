@@ -3,6 +3,10 @@ import { pgTable, text, varchar, integer, real, timestamp, boolean } from "drizz
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// ====================
+// ENUMS
+// ====================
+
 // Event Types
 export const eventTypeEnum = z.enum([
   // Sprints
@@ -20,161 +24,203 @@ export const eventTypeEnum = z.enum([
   // Field - Throws
   "shot_put", "discus", "javelin", "hammer"
 ]);
-
 export type EventType = z.infer<typeof eventTypeEnum>;
-
-// Event Categories
-export const eventCategoryEnum = z.enum(["track", "field_jump", "field_throw"]);
-export type EventCategory = z.infer<typeof eventCategoryEnum>;
 
 // Event Status
 export const eventStatusEnum = z.enum(["scheduled", "in_progress", "completed"]);
 export type EventStatus = z.infer<typeof eventStatusEnum>;
 
-// Gender
-export const genderEnum = z.enum(["men", "women", "mixed"]);
+// Gender (widened to accept raw MDB codes)
+export const genderEnum = z.enum(["M", "F", "W", "m", "f", "w", "men", "women", "mixed"]);
 export type Gender = z.infer<typeof genderEnum>;
+
+// Result Type (for unified entries)
+export const resultTypeEnum = z.enum(["time", "distance", "height", "points"]);
+export type ResultType = z.infer<typeof resultTypeEnum>;
+
+// Round Type
+export const roundTypeEnum = z.enum(["preliminary", "quarterfinal", "semifinal", "final"]);
+export type RoundType = z.infer<typeof roundTypeEnum>;
+
+// ====================
+// CORE TABLES
+// ====================
+
+// Meets
+export const meets = pgTable("meets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  location: text("location"),
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date"),
+  trackLength: integer("track_length").default(400), // Track length in meters
+  logoUrl: text("logo_url"),
+});
+
+export const insertMeetSchema = createInsertSchema(meets).omit({ id: true });
+export type InsertMeet = z.infer<typeof insertMeetSchema>;
+export type Meet = typeof meets.$inferSelect;
+
+// Teams
+export const teams = pgTable("teams", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamNumber: integer("team_number").notNull().unique(), // From .mdb Team_no
+  name: text("name").notNull(),
+  shortName: text("short_name"),
+  abbreviation: text("abbreviation"),
+});
+
+export const insertTeamSchema = createInsertSchema(teams).omit({ id: true });
+export type InsertTeam = z.infer<typeof insertTeamSchema>;
+export type Team = typeof teams.$inferSelect;
+
+// Divisions (age groups)
+export const divisions = pgTable("divisions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  divisionNumber: integer("division_number").notNull().unique(),
+  name: text("name").notNull(),
+  abbreviation: text("abbreviation"),
+  lowAge: integer("low_age"),
+  highAge: integer("high_age"),
+});
+
+export const insertDivisionSchema = createInsertSchema(divisions).omit({ id: true });
+export type InsertDivision = z.infer<typeof insertDivisionSchema>;
+export type Division = typeof divisions.$inferSelect;
 
 // Athletes
 export const athletes = pgTable("athletes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  athleteIdNumber: integer("athlete_id_number").notNull().unique(), // ID Number for athlete
-  name: text("name").notNull(),
-  bib: text("bib").notNull(),
-  team: text("team"),
-  country: text("country"),
+  athleteNumber: integer("athlete_number").notNull().unique(), // From .mdb Ath_no
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name").notNull(),
+  teamId: varchar("team_id"), // Reference to teams table
+  divisionId: varchar("division_id"), // Reference to divisions table
+  bibNumber: text("bib_number"),
+  gender: text("gender"),
 });
 
-export const insertAthleteSchema = createInsertSchema(athletes).omit({
-  id: true,
-}).extend({
-  athleteIdNumber: z.number().int().positive(),
-});
-
+export const insertAthleteSchema = createInsertSchema(athletes).omit({ id: true });
 export type InsertAthlete = z.infer<typeof insertAthleteSchema>;
 export type Athlete = typeof athletes.$inferSelect;
 
 // Events
 export const events = pgTable("events", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  eventNumber: integer("event_number").notNull().unique(), // Event number to match timing software
+  meetId: varchar("meet_id").notNull(), // Reference to meets table
+  eventNumber: integer("event_number").notNull().unique(), // From .mdb Event_no
   name: text("name").notNull(),
   eventType: text("event_type").notNull(),
   gender: text("gender").notNull(),
-  heat: integer("heat").default(1),
-  round: text("round").default("Final"),
+  distance: integer("distance"), // Event distance in meters
   status: text("status").notNull().default("scheduled"),
-  windReading: real("wind_reading"),
-  startTime: timestamp("start_time"),
+  numRounds: integer("num_rounds").default(1),
+  numLanes: integer("num_lanes").default(8),
 });
 
-export const insertEventSchema = createInsertSchema(events).omit({
-  id: true,
-}).extend({
-  eventType: eventTypeEnum,
-  gender: genderEnum,
+export const insertEventSchema = createInsertSchema(events).omit({ id: true }).extend({
+  eventType: z.string(), // Allow any event type string from MDB
+  gender: z.string(), // Allow raw MDB gender codes
   status: eventStatusEnum,
-  eventNumber: z.number().int().positive(),
 });
-
 export type InsertEvent = z.infer<typeof insertEventSchema>;
 export type Event = typeof events.$inferSelect;
 
-// Results for Track Events
-export const trackResults = pgTable("track_results", {
+// ====================
+// ENTRY-CENTRIC MODEL
+// ====================
+
+// Entries (unified registration + results for ALL events)
+export const entries = pgTable("entries", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   eventId: varchar("event_id").notNull(),
   athleteId: varchar("athlete_id").notNull(),
-  lane: integer("lane"),
-  time: real("time"),
-  position: integer("position"),
-  reaction: real("reaction"),
+  teamId: varchar("team_id"), // Denormalized for convenience
+  divisionId: varchar("division_id"), // Division for this entry
+  
+  // Registration data
+  seedMark: real("seed_mark"), // Seed time or distance
+  resultType: text("result_type").notNull().default("time"), // time, distance, height, points
+  
+  // Assignment data
+  preliminaryHeat: integer("preliminary_heat"),
+  preliminaryLane: integer("preliminary_lane"),
+  quarterfinalHeat: integer("quarterfinal_heat"),
+  quarterfinalLane: integer("quarterfinal_lane"),
+  semifinalHeat: integer("semifinal_heat"),
+  semifinalLane: integer("semifinal_lane"),
+  finalHeat: integer("final_heat"),
+  finalLane: integer("final_lane"),
+  
+  // Result data (denormalized per round)
+  preliminaryMark: real("preliminary_mark"),
+  preliminaryPlace: integer("preliminary_place"),
+  preliminaryWind: real("preliminary_wind"),
+  
+  quarterfinalMark: real("quarterfinal_mark"),
+  quarterfinalPlace: integer("quarterfinal_place"),
+  quarterfinalWind: real("quarterfinal_wind"),
+  
+  semifinalMark: real("semifinal_mark"),
+  semifinalPlace: integer("semifinal_place"),
+  semifinalWind: real("semifinal_wind"),
+  
+  finalMark: real("final_mark"),
+  finalPlace: integer("final_place"),
+  finalWind: real("final_wind"),
+  
+  // Flags
   isDisqualified: boolean("is_disqualified").default(false),
+  isScratched: boolean("is_scratched").default(false),
+  
+  // Notes
   notes: text("notes"),
 });
 
-export const insertTrackResultSchema = createInsertSchema(trackResults).omit({
-  id: true,
+export const insertEntrySchema = createInsertSchema(entries).omit({ id: true }).extend({
+  resultType: resultTypeEnum,
 });
+export type InsertEntry = z.infer<typeof insertEntrySchema>;
+export type Entry = typeof entries.$inferSelect;
 
-export type InsertTrackResult = z.infer<typeof insertTrackResultSchema>;
-export type TrackResult = typeof trackResults.$inferSelect;
-
-// Results for Field Events
-export const fieldResults = pgTable("field_results", {
+// Entry Splits (for lap/attempt breakdowns)
+export const entrySplits = pgTable("entry_splits", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  eventId: varchar("event_id").notNull(),
-  athleteId: varchar("athlete_id").notNull(),
-  attempt1: real("attempt_1"),
-  attempt2: real("attempt_2"),
-  attempt3: real("attempt_3"),
-  attempt4: real("attempt_4"),
-  attempt5: real("attempt_5"),
-  attempt6: real("attempt_6"),
-  bestMark: real("best_mark"),
-  position: integer("position"),
-  isDisqualified: boolean("is_disqualified").default(false),
-  notes: text("notes"),
+  entryId: varchar("entry_id").notNull(),
+  round: text("round").notNull(), // preliminary, quarterfinal, semifinal, final
+  splitNumber: integer("split_number").notNull(), // 1, 2, 3, etc. (lap or attempt number)
+  splitTime: real("split_time"), // For running events
+  cumulativeTime: real("cumulative_time"), // Total time up to this split
+  distance: real("distance"), // For field events (attempt distance/height)
 });
 
-export const insertFieldResultSchema = createInsertSchema(fieldResults).omit({
-  id: true,
+export const insertEntrySplitSchema = createInsertSchema(entrySplits).omit({ id: true }).extend({
+  round: roundTypeEnum,
 });
+export type InsertEntrySplit = z.infer<typeof insertEntrySplitSchema>;
+export type EntrySplit = typeof entrySplits.$inferSelect;
 
-export type InsertFieldResult = z.infer<typeof insertFieldResultSchema>;
-export type FieldResult = typeof fieldResults.$inferSelect;
+// ====================
+// HELPER TYPES
+// ====================
 
-// Meet Information
-export const meets = pgTable("meets", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  name: text("name").notNull(),
-  location: text("location"),
-  date: timestamp("date").notNull(),
-  logoUrl: text("logo_url"),
-  trackLength: integer("track_length").default(400), // Track length in meters (200m, 400m, etc.)
-});
-
-// Split Times for distance running events
-export const splitTimes = pgTable("split_times", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  trackResultId: varchar("track_result_id").notNull(),
-  lapNumber: integer("lap_number").notNull(),
-  splitTime: real("split_time").notNull(), // Time at this split in seconds
-  cumulativeTime: real("cumulative_time").notNull(), // Total time up to this split
-});
-
-export const insertMeetSchema = createInsertSchema(meets).omit({
-  id: true,
-});
-
-export type InsertMeet = z.infer<typeof insertMeetSchema>;
-export type Meet = typeof meets.$inferSelect;
-
-// Split Times
-export const insertSplitTimeSchema = createInsertSchema(splitTimes).omit({
-  id: true,
-});
-
-export type InsertSplitTime = z.infer<typeof insertSplitTimeSchema>;
-export type SplitTime = typeof splitTimes.$inferSelect;
-
-// Helper type for combined results with splits
-export type AthleteResult = {
+// Entry with full athlete and team info
+export type EntryWithDetails = Entry & {
   athlete: Athlete;
-  trackResult?: TrackResult;
-  fieldResult?: FieldResult;
-  splitTimes?: SplitTime[];
+  team?: Team;
+  event: Event;
+  splits?: EntrySplit[];
 };
 
-// Event with results
-export type EventWithResults = Event & {
-  results: AthleteResult[];
+// Event with all entries
+export type EventWithEntries = Event & {
+  entries: EntryWithDetails[];
 };
 
 // Display Board State (for WebSocket broadcasting)
 export type DisplayBoardState = {
   mode: "live" | "results" | "schedule" | "standings";
-  currentEvent?: EventWithResults;
+  currentEvent?: EventWithEntries;
   meet?: Meet;
   timestamp: number;
 };
@@ -183,5 +229,5 @@ export type DisplayBoardState = {
 export type WSMessage = 
   | { type: "board_update"; data: DisplayBoardState }
   | { type: "event_update"; data: Event }
-  | { type: "result_update"; data: TrackResult | FieldResult }
+  | { type: "entry_update"; data: Entry }
   | { type: "connection_status"; connected: boolean };
