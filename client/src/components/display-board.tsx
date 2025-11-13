@@ -25,6 +25,48 @@ export function DisplayBoard({ event, meet, mode }: DisplayBoardProps) {
     );
   }
 
+  // Check if results are available
+  if (!event.results || event.results.length === 0) {
+    return (
+      <div className="h-screen w-full bg-background flex items-center justify-center p-16">
+        <div className="text-center">
+          <Medal className="w-32 h-32 text-muted-foreground mx-auto mb-8" />
+          <h1
+            className="text-5xl font-display font-bold text-foreground mb-4"
+            data-testid="text-event-name"
+          >
+            {event.name}
+          </h1>
+          <div className="flex items-center gap-4 text-xl md:text-2xl text-muted-foreground justify-center mb-8">
+            <span className="capitalize">{event.gender}</span>
+            <span>•</span>
+            <span>{event.round}</span>
+            {event.heat && event.heat > 1 && (
+              <>
+                <span>•</span>
+                <span>Heat {event.heat}</span>
+              </>
+            )}
+          </div>
+          <Badge
+            variant={event.status === "in_progress" ? "default" : "outline"}
+            className="text-2xl px-6 py-2 uppercase tracking-wide mb-8"
+            data-testid="badge-event-status"
+          >
+            {event.status === "in_progress"
+              ? "IN PROGRESS"
+              : event.status === "completed"
+              ? "OFFICIAL RESULTS"
+              : "ON DECK"}
+          </Badge>
+          <p className="text-2xl text-muted-foreground">
+            No results available yet
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   // Check if this is a track or field event
   const isTrackEvent = event.results[0]?.trackResult !== undefined;
 

@@ -282,6 +282,34 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
     console.log("   ⚠️  Could not retrieve meet start date");
   }
   
+  // Read Meet table to get actual meet dates from MDB
+  try {
+    console.log("\n📅 Reading Meet table for actual meet dates...");
+    const meetTable = reader.getTable("Meet");
+    const meetData = meetTable.getData();
+    
+    if (meetData && meetData.length > 0) {
+      const mdbMeet = meetData[0]; // Should only be 1 row
+      console.log(`   📝 Meet table has ${meetData.length} row(s)`);
+      
+      if (mdbMeet.Meet_start) {
+        if (mdbMeet.Meet_start instanceof Date) {
+          meetStartDate = mdbMeet.Meet_start;
+        } else if (typeof mdbMeet.Meet_start === 'string' || typeof mdbMeet.Meet_start === 'number') {
+          const parsed = new Date(mdbMeet.Meet_start);
+          if (!isNaN(parsed.getTime())) {
+            meetStartDate = parsed;
+          }
+        }
+        if (meetStartDate) {
+          console.log(`   📅 Meet start date from MDB: ${meetStartDate.toISOString().split('T')[0]}`);
+        }
+      }
+    }
+  } catch (meetError) {
+    console.log("   ⚠️  Meet table not found or could not be read, using fallback date");
+  }
+  
   try {
     const eventTable = reader.getTable("Event");
     const eventData = eventTable.getData();
@@ -327,7 +355,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         const eventPtr = session.Sess_ptr;
         if (eventPtr) {
           const sessionInfo = {
-            date: null,
+            sessDay: session.Sess_day ? Number(session.Sess_day) : null,
             time: null as string | null,
             name: session.Sess_name || null,
           };
@@ -343,7 +371,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           }
           
           // Only add to map if we found something
-          if (sessionInfo.time || sessionInfo.name) {
+          if (sessionInfo.time || sessionInfo.name || sessionInfo.sessDay) {
             sessionMap.set(eventPtr, sessionInfo);
           }
         }
@@ -452,24 +480,18 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         timesFound++;
       }
       
-      // Priority 4: Set date from session or fallback to meet start date
-      if (!eventDate && sessionInfo?.date) {
-        if (sessionInfo.date instanceof Date) {
-          eventDate = sessionInfo.date;
+      // Priority 4: Calculate date from session Sess_day or fallback to meet start date
+      if (!eventDate) {
+        if (sessionInfo?.sessDay && meetStartDate) {
+          // Calculate event date based on which day of the meet (Sess_day is 1-based)
+          eventDate = new Date(meetStartDate);
+          eventDate.setDate(eventDate.getDate() + (sessionInfo.sessDay - 1));
           datesFound++;
-        } else {
-          const parsed = new Date(sessionInfo.date);
-          if (!isNaN(parsed.getTime())) {
-            eventDate = parsed;
-            datesFound++;
-          }
+        } else if (meetStartDate) {
+          // Fallback to meet start date if no session match
+          eventDate = meetStartDate;
+          datesFound++;
         }
-      }
-      
-      // Fallback to meet start date if still no date
-      if (!eventDate && meetStartDate) {
-        eventDate = meetStartDate;
-        datesFound++;
       }
       
       // Priority 5: Use event name from session or generate descriptive name
