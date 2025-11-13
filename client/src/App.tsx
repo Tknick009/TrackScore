@@ -5,7 +5,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
-import Home from "@/pages/home";
+import MeetsList from "@/pages/meets-list";
+import MeetDetail from "@/pages/meet-detail";
 import Control from "@/pages/control";
 import Display from "@/pages/display";
 import NotFound from "@/pages/not-found";
@@ -13,7 +14,8 @@ import NotFound from "@/pages/not-found";
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Home} />
+      <Route path="/" component={MeetsList} />
+      <Route path="/meets/:id" component={MeetDetail} />
       <Route path="/control" component={Control} />
       <Route path="/display" component={Display} />
       <Route component={NotFound} />

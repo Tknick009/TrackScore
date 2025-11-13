@@ -34,6 +34,7 @@ export interface IStorage {
   // Events
   getEvents(): Promise<Event[]>;
   getEvent(id: string): Promise<Event | undefined>;
+  getEventsByMeetId(meetId: string): Promise<Event[]>;
   getCurrentEvent(): Promise<EventWithEntries | undefined>;
   createEvent(event: InsertEvent): Promise<Event>;
   updateEventStatus(id: string, status: string): Promise<Event | undefined>;
@@ -86,6 +87,10 @@ export class DatabaseStorage implements IStorage {
   async getEvent(id: string): Promise<Event | undefined> {
     const [event] = await db.select().from(events).where(eq(events.id, id));
     return event || undefined;
+  }
+
+  async getEventsByMeetId(meetId: string): Promise<Event[]> {
+    return db.select().from(events).where(eq(events.meetId, meetId));
   }
 
   async getCurrentEvent(): Promise<EventWithEntries | undefined> {

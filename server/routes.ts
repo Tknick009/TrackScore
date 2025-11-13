@@ -49,6 +49,14 @@ async function broadcastCurrentEvent() {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Configure multer for file uploads
+  const upload = multer({
+    dest: "uploads/",
+    limits: {
+      fileSize: 50 * 1024 * 1024, // 50MB limit
+    },
+  });
+
   // Events
   app.get("/api/events", async (req, res) => {
     const events = await storage.getEvents();
@@ -220,6 +228,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/meets/:id/events", async (req, res) => {
+    try {
+      const events = await storage.getEventsByMeetId(req.params.id);
+      res.json(events);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/meets/:id/upload", upload.single("mdbFile"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const file = req.file;
+      const filePath = file.path;
+      const meetId = req.params.id;
+
+      // Validate file extension
+      const originalName = file.originalname.toLowerCase();
+      if (!originalName.endsWith(".mdb")) {
+        await unlink(filePath).catch(console.error);
+        return res.status(400).json({ 
+          error: "Invalid file type. Only .mdb files are allowed" 
+        });
+      }
+
+      // Verify meet exists
+      const existingMeet = await storage.getMeet(meetId);
+      if (!existingMeet) {
+        await unlink(filePath).catch(console.error);
+        return res.status(404).json({ error: "Meet not found" });
+      }
+
+      console.log(`📁 Processing MDB import for meet: ${existingMeet.name} (${meetId})`);
+      console.log(`📍 File: ${file.originalname}`);
+
+      // Run the import
+      const stats = await importCompleteMDB(filePath, meetId);
+
+      // Delete the temporary file
+      await unlink(filePath).catch((err) => {
+        console.warn(`⚠️  Failed to delete temporary file: ${filePath}`, err);
+      });
+
+      // Broadcast current event after successful import
+      await broadcastCurrentEvent();
+
+      console.log(`✅ Import complete: ${JSON.stringify(stats)}`);
+
+      res.json({
+        success: true,
+        message: "Import completed successfully",
+        statistics: stats,
+      });
+    } catch (error: any) {
+      console.error("❌ Import error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Display Management
   app.post("/api/displays/register", async (req, res) => {
     try {
@@ -297,14 +367,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
-  });
-
-  // Configure multer for file uploads
-  const upload = multer({
-    dest: "uploads/",
-    limits: {
-      fileSize: 50 * 1024 * 1024, // 50MB limit
-    },
   });
 
   // MDB File Import
