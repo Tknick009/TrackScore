@@ -1,5 +1,49 @@
-import { EntryWithDetails } from "@shared/schema";
+import { EntryWithDetails, Event } from "@shared/schema";
 import { getEventDescriptor } from "@shared/event-catalog";
+
+export interface RoundInfo {
+  roundLabel?: string;
+  heat?: number;
+}
+
+export function deriveRoundInfo(entry: EntryWithDetails, event?: Event): RoundInfo {
+  if (entry.finalMark !== null || entry.finalPlace !== null || entry.finalHeat !== null) {
+    return {
+      roundLabel: "Final",
+      heat: entry.finalHeat ?? undefined
+    };
+  }
+  
+  if (entry.semifinalMark !== null || entry.semifinalPlace !== null || entry.semifinalHeat !== null) {
+    return {
+      roundLabel: "Semifinal",
+      heat: entry.semifinalHeat ?? undefined
+    };
+  }
+  
+  if (entry.quarterfinalMark !== null || entry.quarterfinalPlace !== null || entry.quarterfinalHeat !== null) {
+    return {
+      roundLabel: "Quarterfinal",
+      heat: entry.quarterfinalHeat ?? undefined
+    };
+  }
+  
+  if (entry.preliminaryMark !== null || entry.preliminaryPlace !== null || entry.preliminaryHeat !== null) {
+    return {
+      roundLabel: "Preliminary",
+      heat: entry.preliminaryHeat ?? undefined
+    };
+  }
+  
+  if (event && event.numRounds !== null && event.numRounds <= 1) {
+    return {
+      roundLabel: "Final",
+      heat: undefined
+    };
+  }
+  
+  return {};
+}
 
 export function getUnitSuffix(resultType: string | null | undefined): string {
   switch (resultType) {
@@ -59,4 +103,24 @@ export function generateAttemptHeaders(entries: EntryWithDetails[]): string[] {
     if (priorityA !== priorityB) return priorityA - priorityB;
     return parseInt(numA) - parseInt(numB);
   });
+}
+
+export function formatSplitTime(seconds: number | null | undefined): string {
+  if (seconds === null || seconds === undefined) return '–';
+  
+  const mins = Math.floor(seconds / 60);
+  const secs = (seconds % 60).toFixed(2);
+  
+  if (mins > 0) {
+    return `${mins}:${secs.padStart(5, '0')}`;
+  }
+  return `${secs}s`;
+}
+
+export function calculatePaceDelta(time: number, leaderTime: number): string {
+  const delta = time - leaderTime;
+  if (Math.abs(delta) < 0.01) return '—';
+  
+  const sign = delta > 0 ? '+' : '';
+  return `${sign}${delta.toFixed(2)}s`;
 }
