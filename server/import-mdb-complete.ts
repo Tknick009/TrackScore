@@ -2,6 +2,7 @@ import { readFileSync } from "fs";
 import MDBReader from "mdb-reader";
 import { db } from "./db";
 import { meets, teams, divisions, athletes, events, entries, entrySplits } from "@shared/schema";
+import { sql } from "drizzle-orm";
 
 export interface ImportStatistics {
   teams: number;
@@ -57,7 +58,16 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
     }
     
     if (teamBatch.length > 0) {
-      const insertedTeams = await db.insert(teams).values(teamBatch).returning();
+      const insertedTeams = await db.insert(teams).values(teamBatch)
+        .onConflictDoUpdate({
+          target: [teams.meetId, teams.teamNumber],
+          set: {
+            name: sql`excluded.name`,
+            shortName: sql`excluded.short_name`,
+            abbreviation: sql`excluded.abbreviation`,
+          }
+        })
+        .returning();
       insertedTeams.forEach((team) => {
         teamIdMap.set(team.teamNumber, team.id);
       });
@@ -93,7 +103,17 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
     }
     
     if (divisionBatch.length > 0) {
-      const insertedDivisions = await db.insert(divisions).values(divisionBatch).returning();
+      const insertedDivisions = await db.insert(divisions).values(divisionBatch)
+        .onConflictDoUpdate({
+          target: [divisions.meetId, divisions.divisionNumber],
+          set: {
+            name: sql`excluded.name`,
+            abbreviation: sql`excluded.abbreviation`,
+            lowAge: sql`excluded.low_age`,
+            highAge: sql`excluded.high_age`,
+          }
+        })
+        .returning();
       insertedDivisions.forEach((division) => {
         divisionIdMap.set(division.divisionNumber, division.id);
       });
@@ -249,7 +269,22 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
     }
     
     if (eventBatch.length > 0) {
-      const insertedEvents = await db.insert(events).values(eventBatch).returning();
+      const insertedEvents = await db.insert(events).values(eventBatch)
+        .onConflictDoUpdate({
+          target: [events.meetId, events.eventNumber],
+          set: {
+            name: sql`excluded.name`,
+            eventType: sql`excluded.event_type`,
+            gender: sql`excluded.gender`,
+            distance: sql`excluded.distance`,
+            status: sql`excluded.status`,
+            numRounds: sql`excluded.num_rounds`,
+            numLanes: sql`excluded.num_lanes`,
+            eventDate: sql`excluded.event_date`,
+            eventTime: sql`excluded.event_time`,
+          }
+        })
+        .returning();
       insertedEvents.forEach((event) => {
         eventIdMap.set(event.eventNumber, event.id);
       });
