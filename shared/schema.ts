@@ -231,3 +231,49 @@ export type WSMessage =
   | { type: "event_update"; data: Event }
   | { type: "entry_update"; data: Entry }
   | { type: "connection_status"; connected: boolean };
+
+// ====================
+// RELATIONS
+// ====================
+
+import { relations } from "drizzle-orm";
+
+export const eventsRelations = relations(events, ({ one, many }) => ({
+  meet: one(meets, {
+    fields: [events.meetId],
+    references: [meets.id],
+  }),
+  entries: many(entries),
+}));
+
+export const athletesRelations = relations(athletes, ({ one, many }) => ({
+  team: one(teams, {
+    fields: [athletes.teamId],
+    references: [teams.id],
+  }),
+  division: one(divisions, {
+    fields: [athletes.divisionId],
+    references: [divisions.id],
+  }),
+  entries: many(entries),
+}));
+
+export const entriesRelations = relations(entries, ({ one, many }) => ({
+  event: one(events, {
+    fields: [entries.eventId],
+    references: [events.id],
+  }),
+  athlete: one(athletes, {
+    fields: [entries.athleteId],
+    references: [athletes.id],
+  }),
+  team: one(teams, {
+    fields: [entries.teamId],
+    references: [teams.id],
+  }),
+  division: one(divisions, {
+    fields: [entries.divisionId],
+    references: [divisions.id],
+  }),
+  splits: many(entrySplits),
+}));
