@@ -257,13 +257,14 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
     
     for (const row of eventData) {
       const eventNum = typeof row.Event_no === 'number' ? row.Event_no : Number(row.Event_no || 0);
+      const eventPtr = typeof row.Event_ptr === 'number' ? row.Event_ptr : Number(row.Event_ptr || 0);
       const distance = row.Event_dist ? Number(row.Event_dist) : null;
       const genderRaw = row.Event_sex || row.Event_gender || "M";
       const gender = String(genderRaw);
       const trkField = row.Trk_Field || "T"; // T = Track, F = Field
       
-      // Get session info for this event (if available)
-      const sessionInfo = sessionMap.get(eventNum);
+      // Get session info for this event (if available) - use Event_ptr to match Sess_ptr
+      const sessionInfo = sessionMap.get(eventPtr);
       
       // Determine event type from distance and track/field indicator
       let eventType = "100m"; // default
