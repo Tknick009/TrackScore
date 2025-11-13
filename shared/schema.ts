@@ -139,6 +139,8 @@ export const events = pgTable("events", {
   status: text("status").notNull().default("scheduled"),
   numRounds: integer("num_rounds").default(1),
   numLanes: integer("num_lanes").default(8),
+  eventDate: timestamp("event_date"), // Scheduled date for this event
+  eventTime: text("event_time"), // Scheduled time string (e.g., "2:30 PM")
 }, (table) => ({
   meetEventUnique: unique("events_meet_event_unique").on(table.meetId, table.eventNumber),
 }));

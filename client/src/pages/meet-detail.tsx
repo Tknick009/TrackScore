@@ -185,6 +185,8 @@ function EventsTable({ events }: { events: Event[] }) {
                 <TableHead data-testid="header-event-type">Type</TableHead>
                 <TableHead data-testid="header-event-gender">Gender</TableHead>
                 <TableHead data-testid="header-event-distance">Distance</TableHead>
+                <TableHead data-testid="header-event-date">Date</TableHead>
+                <TableHead data-testid="header-event-time">Time</TableHead>
                 <TableHead data-testid="header-event-status">Status</TableHead>
               </TableRow>
             </TableHeader>
@@ -205,6 +207,12 @@ function EventsTable({ events }: { events: Event[] }) {
                   </TableCell>
                   <TableCell data-testid={`cell-event-distance-${event.id}`}>
                     {event.distance ? `${event.distance}m` : "-"}
+                  </TableCell>
+                  <TableCell data-testid={`cell-event-date-${event.id}`}>
+                    {event.eventDate ? format(new Date(event.eventDate), "MMM d") : "-"}
+                  </TableCell>
+                  <TableCell data-testid={`cell-event-time-${event.id}`}>
+                    {event.eventTime || "-"}
                   </TableCell>
                   <TableCell data-testid={`cell-event-status-${event.id}`}>
                     <Badge

@@ -43,12 +43,16 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
     const teamBatch = [];
     
     for (const row of teamData) {
+      const teamNo = typeof row.Team_no === 'number' ? row.Team_no : Number(row.Team_no || 0);
+      const teamName = String(row.Team_name || "Unknown Team");
+      const teamAbbr = row.Team_abbr ? (typeof row.Team_abbr === 'string' ? row.Team_abbr.trim() : String(row.Team_abbr)) : null;
+      
       teamBatch.push({
         meetId,
-        teamNumber: row.Team_no,
-        name: row.Team_name || "Unknown Team",
-        shortName: row.Team_short || null,
-        abbreviation: row.Team_abbr?.trim() || null,
+        teamNumber: teamNo,
+        name: teamName,
+        shortName: row.Team_short ? String(row.Team_short) : null,
+        abbreviation: teamAbbr,
       });
     }
     
@@ -74,13 +78,17 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
     const divisionBatch = [];
     
     for (const row of divisionData) {
+      const divNo = typeof row.Div_no === 'number' ? row.Div_no : Number(row.Div_no || 0);
+      const divName = String(row.Div_name || "Unknown Division");
+      const divAbbr = row.Div_abbr ? (typeof row.Div_abbr === 'string' ? row.Div_abbr.trim() : String(row.Div_abbr)) : null;
+      
       divisionBatch.push({
         meetId,
-        divisionNumber: row.Div_no,
-        name: row.Div_name || "Unknown Division",
-        abbreviation: row.Div_abbr?.trim() || null,
-        lowAge: row.low_age || null,
-        highAge: row.high_age || null,
+        divisionNumber: divNo,
+        name: divName,
+        abbreviation: divAbbr,
+        lowAge: row.low_age ? Number(row.low_age) : null,
+        highAge: row.high_age ? Number(row.high_age) : null,
       });
     }
     
@@ -108,16 +116,22 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
     
     for (let i = 0; i < athleteData.length; i += batchSize) {
       const batch = athleteData.slice(i, i + batchSize);
-      const athleteBatch = batch.map((row) => ({
-        meetId,
-        athleteNumber: row.Ath_no,
-        firstName: row.First_name || "",
-        lastName: row.Last_name || "",
-        teamId: teamIdMap.get(row.Team_no) || null,
-        divisionId: divisionIdMap.get(row.Div_no) || null,
-        bibNumber: row.Comp_no ? String(row.Comp_no) : null,
-        gender: row.Ath_Sex || null,
-      }));
+      const athleteBatch = batch.map((row) => {
+        const athNo = typeof row.Ath_no === 'number' ? row.Ath_no : Number(row.Ath_no || 0);
+        const teamNo = typeof row.Team_no === 'number' ? row.Team_no : Number(row.Team_no || 0);
+        const divNo = typeof row.Div_no === 'number' ? row.Div_no : Number(row.Div_no || 0);
+        
+        return {
+          meetId,
+          athleteNumber: athNo,
+          firstName: String(row.First_name || ""),
+          lastName: String(row.Last_name || ""),
+          teamId: teamIdMap.get(teamNo) || null,
+          divisionId: divisionIdMap.get(divNo) || null,
+          bibNumber: row.Comp_no ? String(row.Comp_no) : null,
+          gender: row.Ath_Sex ? String(row.Ath_Sex) : null,
+        };
+      });
       
       const insertedAthletes = await db.insert(athletes).values(athleteBatch).returning();
       insertedAthletes.forEach((athlete) => {
@@ -143,12 +157,21 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
     const eventTable = reader.getTable("Event");
     const eventData = eventTable.getData();
     const eventBatch = [];
+    let datesFound = 0;
+    let timesFound = 0;
+    let namesFound = 0;
     
     for (const row of eventData) {
-      const eventNum = row.Event_no;
-      const distance = row.Event_dist || null;
-      const gender = row.Event_sex || row.Event_gender || "M";
+      const eventNum = typeof row.Event_no === 'number' ? row.Event_no : Number(row.Event_no || 0);
+      const distance = row.Event_dist ? Number(row.Event_dist) : null;
+      const genderRaw = row.Event_sex || row.Event_gender || "M";
+      const gender = String(genderRaw);
       const trkField = row.Trk_Field || "T"; // T = Track, F = Field
+      
+      // Extract event name from database - try multiple field names
+      const eventName = row.Event_name || row.Event_desc || row.Event_description || row.Name || row.Description || null;
+      const finalEventName = eventName ? String(eventName) : `Event ${eventNum}`;
+      if (eventName) namesFound++;
       
       // Determine event type from distance and track/field indicator
       let eventType = "100m"; // default
@@ -169,16 +192,59 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         else eventType = `${distance}m`;
       }
       
+      // Extract date/time fields - try multiple field name variations
+      let eventDate: Date | null = null;
+      let eventTime: string | null = null;
+      
+      const rawEventDate = row.Event_date || row.Start_date || row.Sched_date || null;
+      const rawEventTime = row.Event_time || row.Start_time || row.Sched_time || row.Event_Starttime || null;
+      
+      // Handle Date objects - convert to timestamp
+      if (rawEventDate instanceof Date) {
+        eventDate = rawEventDate;
+        datesFound++;
+      } else if (rawEventDate && typeof rawEventDate === 'string') {
+        // Try to parse string dates
+        const parsed = new Date(rawEventDate);
+        if (!isNaN(parsed.getTime())) {
+          eventDate = parsed;
+          datesFound++;
+        }
+      } else if (rawEventDate) {
+        // Try to convert other types to Date
+        const parsed = new Date(String(rawEventDate));
+        if (!isNaN(parsed.getTime())) {
+          eventDate = parsed;
+          datesFound++;
+        }
+      }
+      
+      // Handle time strings
+      if (rawEventTime) {
+        if (rawEventTime instanceof Date) {
+          // If it's a Date object, extract time portion
+          eventTime = rawEventTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+        } else {
+          eventTime = String(rawEventTime);
+        }
+        timesFound++;
+      }
+      
+      const numRounds = row.Event_rounds ? Number(row.Event_rounds) : 1;
+      const numLanes = row.Num_finlanes ? Number(row.Num_finlanes) : 8;
+      
       eventBatch.push({
         meetId,
         eventNumber: eventNum,
-        name: `Event ${eventNum}`,
+        name: finalEventName,
         eventType,
         gender,
         distance,
         status: "scheduled",
-        numRounds: row.Event_rounds || 1,
-        numLanes: row.Num_finlanes || 8,
+        numRounds,
+        numLanes,
+        eventDate: eventDate || null,
+        eventTime: eventTime || null,
       });
     }
     
@@ -191,6 +257,9 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       console.log(`   ✅ Imported ${insertedEvents.length} events`);
       console.log(`   📊 Track events: ${eventBatch.filter(e => !e.eventType.includes('jump') && !e.eventType.includes('throw')).length}`);
       console.log(`   📊 Field events: ${eventBatch.filter(e => e.eventType.includes('jump') || e.eventType.includes('throw')).length}`);
+      console.log(`   📝 Events with names from database: ${namesFound}`);
+      console.log(`   📅 Events with dates: ${datesFound}`);
+      console.log(`   ⏰ Events with times: ${timesFound}`);
     }
   } catch (error) {
     console.error("   ❌ Error importing events:", error);
@@ -221,8 +290,11 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       const entryBatch = [];
       
       for (const row of batch) {
-        const eventId = eventIdMap.get(row.Event_ptr);
-        const athleteId = athleteIdMap.get(row.Ath_no);
+        const eventPtr = typeof row.Event_ptr === 'number' ? row.Event_ptr : Number(row.Event_ptr || 0);
+        const athNo = typeof row.Ath_no === 'number' ? row.Ath_no : Number(row.Ath_no || 0);
+        
+        const eventId = eventIdMap.get(eventPtr);
+        const athleteId = athleteIdMap.get(athNo);
         
         if (!eventId) {
           skippedMissingEvent++;
@@ -245,46 +317,52 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           }
         }
         
-        // Get teamId from the athlete's Team_no in the Entry row
-        const teamId = row.Team_no ? teamIdMap.get(row.Team_no) || null : null;
+        // Get teamId and divisionId from the Entry row
+        const teamNo = row.Team_no ? (typeof row.Team_no === 'number' ? row.Team_no : Number(row.Team_no)) : null;
+        const divNo = row.Div_no ? (typeof row.Div_no === 'number' ? row.Div_no : Number(row.Div_no)) : null;
+        const teamId = teamNo ? teamIdMap.get(teamNo) || null : null;
+        const divisionId = divNo ? divisionIdMap.get(divNo) || null : null;
+        
+        // Convert seedMark to number
+        const seedMark = row.ActualSeed_time ? (typeof row.ActualSeed_time === 'number' ? row.ActualSeed_time : parseFloat(String(row.ActualSeed_time))) : null;
         
         entryBatch.push({
           eventId,
           athleteId,
           teamId,
-          divisionId: divisionIdMap.get(row.Div_no) || null,
+          divisionId,
           
           // Registration
-          seedMark: row.ActualSeed_time || null,
+          seedMark,
           resultType,
           
           // Preliminary round
-          preliminaryHeat: row.Pre_heat || null,
-          preliminaryLane: row.Pre_lane || null,
-          preliminaryMark: row.Pre_Time || null,
-          preliminaryPlace: row.Pre_place || null,
-          preliminaryWind: row.Pre_wind || null,
+          preliminaryHeat: row.Pre_heat ? Number(row.Pre_heat) : null,
+          preliminaryLane: row.Pre_lane ? Number(row.Pre_lane) : null,
+          preliminaryMark: row.Pre_Time ? Number(row.Pre_Time) : null,
+          preliminaryPlace: row.Pre_place ? Number(row.Pre_place) : null,
+          preliminaryWind: row.Pre_wind ? Number(row.Pre_wind) : null,
           
           // Quarterfinal round
-          quarterfinalHeat: row.Qtr_heat || null,
-          quarterfinalLane: row.Qtr_lane || null,
-          quarterfinalMark: row.Qtr_Time || null,
-          quarterfinalPlace: row.Qtr_place || null,
-          quarterfinalWind: row.Qtr_wind || null,
+          quarterfinalHeat: row.Qtr_heat ? Number(row.Qtr_heat) : null,
+          quarterfinalLane: row.Qtr_lane ? Number(row.Qtr_lane) : null,
+          quarterfinalMark: row.Qtr_Time ? Number(row.Qtr_Time) : null,
+          quarterfinalPlace: row.Qtr_place ? Number(row.Qtr_place) : null,
+          quarterfinalWind: row.Qtr_wind ? Number(row.Qtr_wind) : null,
           
           // Semifinal round
-          semifinalHeat: row.Sem_heat || null,
-          semifinalLane: row.Sem_lane || null,
-          semifinalMark: row.Sem_Time || null,
-          semifinalPlace: row.Sem_place || null,
-          semifinalWind: row.Sem_wind || null,
+          semifinalHeat: row.Sem_heat ? Number(row.Sem_heat) : null,
+          semifinalLane: row.Sem_lane ? Number(row.Sem_lane) : null,
+          semifinalMark: row.Sem_Time ? Number(row.Sem_Time) : null,
+          semifinalPlace: row.Sem_place ? Number(row.Sem_place) : null,
+          semifinalWind: row.Sem_wind ? Number(row.Sem_wind) : null,
           
           // Final round
-          finalHeat: row.Fin_heat || null,
-          finalLane: row.Fin_lane || null,
-          finalMark: row.Fin_Time || null,
-          finalPlace: row.Fin_place || null,
-          finalWind: row.Fin_wind || null,
+          finalHeat: row.Fin_heat ? Number(row.Fin_heat) : null,
+          finalLane: row.Fin_lane ? Number(row.Fin_lane) : null,
+          finalMark: row.Fin_Time ? Number(row.Fin_Time) : null,
+          finalPlace: row.Fin_place ? Number(row.Fin_place) : null,
+          finalWind: row.Fin_wind ? Number(row.Fin_wind) : null,
           
           // Flags (proper boolean parsing)
           isDisqualified: row.dq_type !== null && row.dq_type !== undefined && row.dq_type !== "",
