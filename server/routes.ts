@@ -637,6 +637,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const parsed = insertLayoutCellSchema.partial().parse(req.body);
       const cell = await storage.updateLayoutCell(req.params.id, parsed);
+      
+      // Broadcast layout_update to all connected displays when cell is updated
+      // This ensures other clients stay in sync when cells are auto-cleared or manually edited
+      broadcastToDisplays({
+        type: "layout_update",
+        data: { layoutId: cell.layoutId, cellId: cell.id },
+      });
+      
       res.json(cell);
     } catch (error) {
       if (error instanceof z.ZodError) {

@@ -449,6 +449,7 @@ export type WSMessage =
   | { type: "board_update"; data: DisplayBoardState }
   | { type: "event_update"; data: Event }
   | { type: "entry_update"; data: Entry }
+  | { type: "layout_update"; data: { layoutId: string; cellId?: string } }
   | { type: "connection_status"; connected: boolean };
 
 // ====================

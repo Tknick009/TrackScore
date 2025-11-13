@@ -2,8 +2,9 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { EventWithEntries, DisplayBoardState, WSMessage, Event } from "@shared/schema";
 import { DisplayBoard } from "@/components/display-board";
+import { MultiEventDisplay } from "@/components/display/MultiEventDisplay";
 
-export default function Display() {
+function SingleEventDisplay() {
   const [boardState, setBoardState] = useState<DisplayBoardState>({
     mode: "live",
     timestamp: Date.now(),
@@ -69,4 +70,18 @@ export default function Display() {
       />
     </div>
   );
+}
+
+export default function Display() {
+  const params = new URLSearchParams(window.location.search);
+  const layoutId = params.get('layoutId');
+  const meetId = params.get('meetId');
+
+  // Multi-event mode - ONLY render MultiEventDisplay
+  if (layoutId && meetId) {
+    return <MultiEventDisplay layoutId={layoutId} meetId={meetId} />;
+  }
+
+  // Single-event mode - ONLY render SingleEventDisplay
+  return <SingleEventDisplay />;
 }
