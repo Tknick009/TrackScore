@@ -153,7 +153,19 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         };
       });
       
-      const insertedAthletes = await db.insert(athletes).values(athleteBatch).returning();
+      const insertedAthletes = await db.insert(athletes).values(athleteBatch)
+        .onConflictDoUpdate({
+          target: [athletes.meetId, athletes.athleteNumber],
+          set: {
+            firstName: sql`excluded.first_name`,
+            lastName: sql`excluded.last_name`,
+            teamId: sql`excluded.team_id`,
+            divisionId: sql`excluded.division_id`,
+            bibNumber: sql`excluded.bib_number`,
+            gender: sql`excluded.gender`,
+          }
+        })
+        .returning();
       insertedAthletes.forEach((athlete) => {
         athleteIdMap.set(athlete.athleteNumber, athlete.id);
       });
@@ -181,6 +193,47 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
     let timesFound = 0;
     let namesFound = 0;
     
+    // Try to read Session table for scheduling information
+    const sessionMap = new Map();
+    try {
+      console.log("\n📋 Attempting to read Session table...");
+      const sessionTable = reader.getTable("Session");
+      const sessionData = sessionTable.getData();
+      
+      // DEBUG: Log table info
+      console.log(`   📊 Session table has ${sessionData.length} rows`);
+      
+      // DEBUG: If there's at least one row, show all available column names
+      if (sessionData.length > 0) {
+        const firstRow = sessionData[0];
+        const columnNames = Object.keys(firstRow);
+        console.log(`   📝 Available columns: ${columnNames.join(', ')}`);
+        console.log(`   📝 Sample first row data:`, JSON.stringify(firstRow, null, 2));
+      }
+      
+      // Create a map of event_ptr -> session data for quick lookup
+      sessionData.forEach((session) => {
+        // DEBUG: Log what we're trying to extract for each session
+        const eventPtr = session.Event_ptr || session.Event_no || session.EventNo;
+        if (eventPtr) {
+          const sessionInfo = {
+            date: session.Date || session.Session_date || session.Sched_date || null,
+            time: session.Time || session.Session_time || session.Start_time || null,
+            name: session.Event_name || session.EventName || session.Description || null,
+          };
+          
+          // Only add to map if we found something
+          if (sessionInfo.date || sessionInfo.time || sessionInfo.name) {
+            sessionMap.set(eventPtr, sessionInfo);
+          }
+        }
+      });
+      
+      console.log(`   ✅ Session table found, extracted ${sessionMap.size} session records`);
+    } catch (sessionError) {
+      console.log("   ⚠️  Session table not found, using Event table only");
+    }
+    
     for (const row of eventData) {
       const eventNum = typeof row.Event_no === 'number' ? row.Event_no : Number(row.Event_no || 0);
       const distance = row.Event_dist ? Number(row.Event_dist) : null;
@@ -188,10 +241,21 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       const gender = String(genderRaw);
       const trkField = row.Trk_Field || "T"; // T = Track, F = Field
       
-      // Extract event name from database - try multiple field names
-      const eventName = row.Event_name || row.Event_desc || row.Event_description || row.Name || row.Description || null;
-      const finalEventName = eventName ? String(eventName) : `Event ${eventNum}`;
-      if (eventName) namesFound++;
+      // Get session info for this event (if available)
+      const sessionInfo = sessionMap.get(eventNum);
+      
+      // Extract event name - prioritize Session table, fallback to Event table
+      let finalEventName = `Event ${eventNum}`;
+      if (sessionInfo && sessionInfo.name) {
+        finalEventName = String(sessionInfo.name);
+        namesFound++;
+      } else {
+        const eventName = row.Event_name || row.Event_desc || row.Event_description || row.Name || row.Description || null;
+        if (eventName) {
+          finalEventName = String(eventName);
+          namesFound++;
+        }
+      }
       
       // Determine event type from distance and track/field indicator
       let eventType = "100m"; // default
@@ -212,42 +276,77 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         else eventType = `${distance}m`;
       }
       
-      // Extract date/time fields - try multiple field name variations
+      // Extract date/time fields - prioritize Session table, fallback to Event table
       let eventDate: Date | null = null;
       let eventTime: string | null = null;
       
-      const rawEventDate = row.Event_date || row.Start_date || row.Sched_date || null;
-      const rawEventTime = row.Event_time || row.Start_time || row.Sched_time || row.Event_Starttime || null;
-      
-      // Handle Date objects - convert to timestamp
-      if (rawEventDate instanceof Date) {
-        eventDate = rawEventDate;
-        datesFound++;
-      } else if (rawEventDate && typeof rawEventDate === 'string') {
-        // Try to parse string dates
-        const parsed = new Date(rawEventDate);
-        if (!isNaN(parsed.getTime())) {
-          eventDate = parsed;
-          datesFound++;
+      // First try Session table data
+      if (sessionInfo) {
+        // Handle date from Session
+        if (sessionInfo.date) {
+          if (sessionInfo.date instanceof Date) {
+            eventDate = sessionInfo.date;
+            datesFound++;
+          } else {
+            const parsed = new Date(sessionInfo.date);
+            if (!isNaN(parsed.getTime())) {
+              eventDate = parsed;
+              datesFound++;
+            }
+          }
         }
-      } else if (rawEventDate) {
-        // Try to convert other types to Date
-        const parsed = new Date(String(rawEventDate));
-        if (!isNaN(parsed.getTime())) {
-          eventDate = parsed;
-          datesFound++;
+        
+        // Handle time from Session
+        if (sessionInfo.time) {
+          if (sessionInfo.time instanceof Date) {
+            const hours = sessionInfo.time.getHours();
+            const minutes = sessionInfo.time.getMinutes();
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            const displayHours = hours % 12 || 12;
+            eventTime = `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+            timesFound++;
+          } else {
+            eventTime = String(sessionInfo.time);
+            timesFound++;
+          }
         }
       }
       
-      // Handle time strings
-      if (rawEventTime) {
-        if (rawEventTime instanceof Date) {
-          // If it's a Date object, extract time portion
-          eventTime = rawEventTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-        } else {
-          eventTime = String(rawEventTime);
+      // Fallback to Event table if Session didn't have date/time
+      if (!eventDate || !eventTime) {
+        const rawEventDate = row.Event_date || row.Start_date || row.Sched_date || null;
+        const rawEventTime = row.Event_time || row.Start_time || row.Sched_time || row.Event_Starttime || null;
+        
+        // Handle Date objects - convert to timestamp
+        if (!eventDate && rawEventDate) {
+          if (rawEventDate instanceof Date) {
+            eventDate = rawEventDate;
+            datesFound++;
+          } else if (typeof rawEventDate === 'string') {
+            const parsed = new Date(rawEventDate);
+            if (!isNaN(parsed.getTime())) {
+              eventDate = parsed;
+              datesFound++;
+            }
+          } else {
+            const parsed = new Date(String(rawEventDate));
+            if (!isNaN(parsed.getTime())) {
+              eventDate = parsed;
+              datesFound++;
+            }
+          }
         }
-        timesFound++;
+        
+        // Handle time strings
+        if (!eventTime && rawEventTime) {
+          if (rawEventTime instanceof Date) {
+            eventTime = rawEventTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+            timesFound++;
+          } else {
+            eventTime = String(rawEventTime);
+            timesFound++;
+          }
+        }
       }
       
       const numRounds = row.Event_rounds ? Number(row.Event_rounds) : 1;
