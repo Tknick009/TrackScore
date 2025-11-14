@@ -25,6 +25,10 @@ import {
   type InsertDisplayLayout,
   type LayoutCell,
   type InsertLayoutCell,
+  type AthletePhoto,
+  type InsertAthletePhoto,
+  type TeamLogo,
+  type InsertTeamLogo,
   events,
   athletes,
   entries,
@@ -38,6 +42,8 @@ import {
   boardConfigs,
   displayLayouts,
   layoutCells,
+  athletePhotos,
+  teamLogos,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql, and, not } from "drizzle-orm";
@@ -116,6 +122,18 @@ export interface IStorage {
   getLayoutCellsByLayout(layoutId: string): Promise<LayoutCell[]>;
   updateLayoutCell(id: string, cell: Partial<InsertLayoutCell>): Promise<LayoutCell>;
   deleteLayoutCell(id: string): Promise<void>;
+
+  // Athlete Photos
+  getAthletePhoto(athleteId: string): Promise<AthletePhoto | null>;
+  createAthletePhoto(photo: InsertAthletePhoto): Promise<{ newPhoto: AthletePhoto; oldPhoto: AthletePhoto | null }>;
+  deleteAthletePhoto(athleteId: string): Promise<{ photo: AthletePhoto; deleted: boolean }>;
+  getAthletePhotosByMeet(meetId: string): Promise<AthletePhoto[]>;
+
+  // Team Logos
+  getTeamLogo(teamId: string): Promise<TeamLogo | null>;
+  createTeamLogo(logo: InsertTeamLogo): Promise<{ newLogo: TeamLogo; oldLogo: TeamLogo | null }>;
+  deleteTeamLogo(teamId: string): Promise<{ logo: TeamLogo; deleted: boolean }>;
+  getTeamLogosByMeet(meetId: string): Promise<TeamLogo[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -600,6 +618,118 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(layoutCells)
       .where(eq(layoutCells.id, id));
+  }
+
+  // Athlete Photos
+  async getAthletePhoto(athleteId: string): Promise<AthletePhoto | null> {
+    const [photo] = await db
+      .select()
+      .from(athletePhotos)
+      .where(eq(athletePhotos.athleteId, athleteId));
+    return photo || null;
+  }
+
+  async createAthletePhoto(photo: InsertAthletePhoto): Promise<{ newPhoto: AthletePhoto; oldPhoto: AthletePhoto | null }> {
+    const [oldPhoto] = await db.select().from(athletePhotos).where(eq(athletePhotos.athleteId, photo.athleteId));
+    
+    const [newPhoto] = await db
+      .insert(athletePhotos)
+      .values(photo as any)
+      .onConflictDoUpdate({
+        target: athletePhotos.athleteId,
+        set: {
+          storageKey: photo.storageKey,
+          originalFilename: photo.originalFilename,
+          contentType: photo.contentType,
+          width: photo.width,
+          height: photo.height,
+          byteSize: photo.byteSize,
+          uploadedAt: sql`now()`,
+        },
+      })
+      .returning();
+    
+    return { newPhoto, oldPhoto: oldPhoto || null };
+  }
+
+  async deleteAthletePhoto(athleteId: string): Promise<{ photo: AthletePhoto; deleted: boolean }> {
+    const [photo] = await db
+      .select()
+      .from(athletePhotos)
+      .where(eq(athletePhotos.athleteId, athleteId));
+
+    if (!photo) {
+      throw new Error(`Athlete photo not found for athleteId: ${athleteId}`);
+    }
+
+    await db
+      .delete(athletePhotos)
+      .where(eq(athletePhotos.athleteId, athleteId));
+
+    return { photo, deleted: true };
+  }
+
+  async getAthletePhotosByMeet(meetId: string): Promise<AthletePhoto[]> {
+    return db
+      .select()
+      .from(athletePhotos)
+      .where(eq(athletePhotos.meetId, meetId));
+  }
+
+  // Team Logos
+  async getTeamLogo(teamId: string): Promise<TeamLogo | null> {
+    const [logo] = await db
+      .select()
+      .from(teamLogos)
+      .where(eq(teamLogos.teamId, teamId));
+    return logo || null;
+  }
+
+  async createTeamLogo(logo: InsertTeamLogo): Promise<{ newLogo: TeamLogo; oldLogo: TeamLogo | null }> {
+    const [oldLogo] = await db.select().from(teamLogos).where(eq(teamLogos.teamId, logo.teamId));
+    
+    const [newLogo] = await db
+      .insert(teamLogos)
+      .values(logo as any)
+      .onConflictDoUpdate({
+        target: teamLogos.teamId,
+        set: {
+          storageKey: logo.storageKey,
+          originalFilename: logo.originalFilename,
+          contentType: logo.contentType,
+          width: logo.width,
+          height: logo.height,
+          byteSize: logo.byteSize,
+          uploadedAt: sql`now()`,
+        },
+      })
+      .returning();
+    
+    return { newLogo, oldLogo: oldLogo || null };
+  }
+
+  async deleteTeamLogo(teamId: string): Promise<{ logo: TeamLogo; deleted: boolean }> {
+    const [logo] = await db
+      .select()
+      .from(teamLogos)
+      .where(eq(teamLogos.teamId, teamId));
+
+    if (!logo) {
+      throw new Error(`Team logo not found for teamId: ${teamId}`);
+    }
+
+    await db
+      .delete(teamLogos)
+      .where(eq(teamLogos.teamId, teamId));
+
+    return { logo, deleted: true };
+  }
+
+  async getTeamLogosByMeet(meetId: string): Promise<TeamLogo[]> {
+    return db
+      .select()
+      .from(teamLogos)
+      .where(eq(teamLogos.meetId, meetId));
   }
 }
 

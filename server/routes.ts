@@ -5,6 +5,7 @@ import multer from "multer";
 import { unlink } from "fs/promises";
 import { z } from "zod";
 import { storage } from "./storage";
+import { FileStorage } from "./file-storage";
 import {
   insertEventSchema,
   insertAthleteSchema,
@@ -61,6 +62,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       fileSize: 50 * 1024 * 1024, // 50MB limit
     },
   });
+
+  // Initialize FileStorage for photo/logo management
+  const fileStorage = new FileStorage();
 
   // Events
   app.get("/api/events", async (req, res) => {
@@ -663,6 +667,300 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting layout cell:", error);
       res.status(500).json({ error: "Failed to delete layout cell" });
+    }
+  });
+
+  // ===== ATHLETE PHOTOS =====
+
+  // Upload athlete photo
+  // Test with: POST /api/athletes/{athleteId}/photo with multipart/form-data photo field
+  app.post("/api/athletes/:id/photo", upload.single("photo"), async (req, res) => {
+    let photoData: {
+      storageKey: string;
+      width: number;
+      height: number;
+      byteSize: number;
+      contentType: string;
+    } | null = null;
+
+    try {
+      const athleteId = req.params.id;
+
+      if (!req.file) {
+        return res.status(400).json({ error: "No photo uploaded" });
+      }
+
+      const file = req.file;
+      const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+
+      // Validate file size
+      if (file.size > MAX_FILE_SIZE) {
+        await unlink(file.path).catch(console.error);
+        return res.status(400).json({ 
+          error: "File too large. Maximum size is 5MB" 
+        });
+      }
+
+      // Validate MIME type
+      const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif'];
+      if (!ALLOWED_TYPES.includes(file.mimetype)) {
+        await unlink(file.path).catch(console.error);
+        return res.status(400).json({ 
+          error: "Invalid file type. Only JPEG, PNG, and GIF are allowed" 
+        });
+      }
+
+      // Check if athlete exists
+      const athlete = await storage.getAthlete(athleteId);
+      if (!athlete) {
+        await unlink(file.path).catch(console.error);
+        return res.status(404).json({ error: "Athlete not found" });
+      }
+
+      // Read file buffer
+      const fs = await import('fs/promises');
+      const buffer = await fs.readFile(file.path);
+
+      // ATOMIC PATTERN:
+      // 1. Save new file to disk first
+      photoData = await fileStorage.saveAthletePhoto(
+        buffer,
+        athleteId,
+        athlete.meetId,
+        file.originalname
+      );
+
+      // Clean up temp file
+      await unlink(file.path).catch(console.error);
+
+      // 2. DB transaction: get old, delete old, insert new, return old storageKey
+      const { newPhoto, oldPhoto } = await storage.createAthletePhoto({
+        athleteId,
+        meetId: athlete.meetId,
+        storageKey: photoData.storageKey,
+        originalFilename: file.originalname,
+        contentType: photoData.contentType,
+        width: photoData.width,
+        height: photoData.height,
+        byteSize: photoData.byteSize,
+      });
+
+      // 3. Delete old file from disk (only after DB commit succeeds)
+      if (oldPhoto && oldPhoto.storageKey) {
+        await fileStorage.deleteByKey(oldPhoto.storageKey).catch(console.error);
+      }
+
+      // Return photo with URL
+      res.json({
+        id: newPhoto.id,
+        url: fileStorage.publicUrlForKey(newPhoto.storageKey),
+        width: newPhoto.width,
+        height: newPhoto.height,
+        byteSize: newPhoto.byteSize,
+      });
+    } catch (error: any) {
+      console.error("Error uploading athlete photo:", error);
+      
+      // Cleanup new file if DB transaction failed
+      if (photoData && photoData.storageKey) {
+        await fileStorage.deleteByKey(photoData.storageKey).catch(console.error);
+      }
+      
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get athlete photo
+  // Test with: GET /api/athletes/{athleteId}/photo
+  app.get("/api/athletes/:id/photo", async (req, res) => {
+    try {
+      const athleteId = req.params.id;
+      const photo = await storage.getAthletePhoto(athleteId);
+      
+      if (!photo) {
+        return res.status(404).json({ error: "Photo not found" });
+      }
+
+      res.json({
+        id: photo.id,
+        url: fileStorage.publicUrlForKey(photo.storageKey),
+        width: photo.width,
+        height: photo.height,
+        byteSize: photo.byteSize,
+      });
+    } catch (error: any) {
+      console.error("Error fetching athlete photo:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Delete athlete photo
+  // Test with: DELETE /api/athletes/{athleteId}/photo
+  app.delete("/api/athletes/:id/photo", async (req, res) => {
+    try {
+      const athleteId = req.params.id;
+      
+      // Delete from database (returns old record with storageKey)
+      const result = await storage.deleteAthletePhoto(athleteId);
+      
+      if (!result.deleted) {
+        return res.status(404).json({ error: "Photo not found" });
+      }
+
+      // Delete physical file
+      await fileStorage.deleteByKey(result.photo.storageKey);
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting athlete photo:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ===== TEAM LOGOS =====
+
+  // Upload team logo
+  // Test with: POST /api/teams/{teamId}/logo with multipart/form-data logo field
+  app.post("/api/teams/:id/logo", upload.single("logo"), async (req, res) => {
+    let logoData: {
+      storageKey: string;
+      width: number;
+      height: number;
+      byteSize: number;
+      contentType: string;
+    } | null = null;
+
+    try {
+      const teamId = req.params.id;
+
+      if (!req.file) {
+        return res.status(400).json({ error: "No logo uploaded" });
+      }
+
+      const file = req.file;
+      const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+
+      // Validate file size
+      if (file.size > MAX_FILE_SIZE) {
+        await unlink(file.path).catch(console.error);
+        return res.status(400).json({ 
+          error: "File too large. Maximum size is 5MB" 
+        });
+      }
+
+      // Validate MIME type
+      const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif'];
+      if (!ALLOWED_TYPES.includes(file.mimetype)) {
+        await unlink(file.path).catch(console.error);
+        return res.status(400).json({ 
+          error: "Invalid file type. Only JPEG, PNG, and GIF are allowed" 
+        });
+      }
+
+      // Check if team exists
+      const team = await storage.getTeam(teamId);
+      if (!team) {
+        await unlink(file.path).catch(console.error);
+        return res.status(404).json({ error: "Team not found" });
+      }
+
+      // Read file buffer
+      const fs = await import('fs/promises');
+      const buffer = await fs.readFile(file.path);
+
+      // ATOMIC PATTERN:
+      // 1. Save new file to disk first
+      logoData = await fileStorage.saveTeamLogo(
+        buffer,
+        teamId,
+        team.meetId,
+        file.originalname
+      );
+
+      // Clean up temp file
+      await unlink(file.path).catch(console.error);
+
+      // 2. DB transaction: get old, delete old, insert new, return old storageKey
+      const { newLogo, oldLogo } = await storage.createTeamLogo({
+        teamId,
+        meetId: team.meetId,
+        storageKey: logoData.storageKey,
+        originalFilename: file.originalname,
+        contentType: logoData.contentType,
+        width: logoData.width,
+        height: logoData.height,
+        byteSize: logoData.byteSize,
+      });
+
+      // 3. Delete old file from disk (only after DB commit succeeds)
+      if (oldLogo && oldLogo.storageKey) {
+        await fileStorage.deleteByKey(oldLogo.storageKey).catch(console.error);
+      }
+
+      // Return logo with URL
+      res.json({
+        id: newLogo.id,
+        url: fileStorage.publicUrlForKey(newLogo.storageKey),
+        width: newLogo.width,
+        height: newLogo.height,
+        byteSize: newLogo.byteSize,
+      });
+    } catch (error: any) {
+      console.error("Error uploading team logo:", error);
+      
+      // Cleanup new file if DB transaction failed
+      if (logoData && logoData.storageKey) {
+        await fileStorage.deleteByKey(logoData.storageKey).catch(console.error);
+      }
+      
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get team logo
+  // Test with: GET /api/teams/{teamId}/logo
+  app.get("/api/teams/:id/logo", async (req, res) => {
+    try {
+      const teamId = req.params.id;
+      const logo = await storage.getTeamLogo(teamId);
+      
+      if (!logo) {
+        return res.status(404).json({ error: "Logo not found" });
+      }
+
+      res.json({
+        id: logo.id,
+        url: fileStorage.publicUrlForKey(logo.storageKey),
+        width: logo.width,
+        height: logo.height,
+        byteSize: logo.byteSize,
+      });
+    } catch (error: any) {
+      console.error("Error fetching team logo:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Delete team logo
+  // Test with: DELETE /api/teams/{teamId}/logo
+  app.delete("/api/teams/:id/logo", async (req, res) => {
+    try {
+      const teamId = req.params.id;
+      
+      // Delete from database (returns old record with storageKey)
+      const result = await storage.deleteTeamLogo(teamId);
+      
+      if (!result.deleted) {
+        return res.status(404).json({ error: "Logo not found" });
+      }
+
+      // Delete physical file
+      await fileStorage.deleteByKey(result.logo.storageKey);
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting team logo:", error);
+      res.status(500).json({ error: error.message });
     }
   });
 

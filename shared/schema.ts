@@ -420,6 +420,54 @@ export type InsertLayoutCell = z.infer<typeof insertLayoutCellSchema>;
 export type LayoutCell = typeof layoutCells.$inferSelect;
 
 // ====================
+// ASSET MANAGEMENT
+// ====================
+
+// Athlete Photos (headshots for display boards)
+export const athletePhotos = pgTable("athlete_photos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  athleteId: varchar("athlete_id").notNull().references(() => athletes.id, { onDelete: "cascade" }),
+  meetId: varchar("meet_id").notNull().references(() => meets.id, { onDelete: "cascade" }),
+  storageKey: text("storage_key").notNull(), // Relative path: uploads/athletes/{meetId}/{athleteId}/photo.jpg
+  originalFilename: text("original_filename").notNull(),
+  contentType: text("content_type").notNull(), // image/jpeg, image/png, etc.
+  width: integer("width").notNull(),
+  height: integer("height").notNull(),
+  byteSize: integer("byte_size").notNull(),
+  uploadedAt: timestamp("uploaded_at").notNull().defaultNow(),
+}, (table) => ({
+  athleteIdIdx: index("athlete_photos_athlete_id_idx").on(table.athleteId),
+  meetIdIdx: index("athlete_photos_meet_id_idx").on(table.meetId),
+  athleteIdUnique: unique("athlete_photos_athlete_id_unique").on(table.athleteId), // One photo per athlete
+}));
+
+export const insertAthletePhotoSchema = createInsertSchema(athletePhotos).omit({ id: true, uploadedAt: true });
+export type InsertAthletePhoto = z.infer<typeof insertAthletePhotoSchema>;
+export type AthletePhoto = typeof athletePhotos.$inferSelect;
+
+// Team Logos (for display alongside athlete names)
+export const teamLogos = pgTable("team_logos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
+  meetId: varchar("meet_id").notNull().references(() => meets.id, { onDelete: "cascade" }),
+  storageKey: text("storage_key").notNull(), // Relative path: uploads/teams/{meetId}/{teamId}/logo.png
+  originalFilename: text("original_filename").notNull(),
+  contentType: text("content_type").notNull(), // image/png, image/svg+xml, etc.
+  width: integer("width").notNull(),
+  height: integer("height").notNull(),
+  byteSize: integer("byte_size").notNull(),
+  uploadedAt: timestamp("uploaded_at").notNull().defaultNow(),
+}, (table) => ({
+  teamIdIdx: index("team_logos_team_id_idx").on(table.teamId),
+  meetIdIdx: index("team_logos_meet_id_idx").on(table.meetId),
+  teamIdUnique: unique("team_logos_team_id_unique").on(table.teamId), // One logo per team
+}));
+
+export const insertTeamLogoSchema = createInsertSchema(teamLogos).omit({ id: true, uploadedAt: true });
+export type InsertTeamLogo = z.infer<typeof insertTeamLogoSchema>;
+export type TeamLogo = typeof teamLogos.$inferSelect;
+
+// ====================
 // HELPER TYPES
 // ====================
 
