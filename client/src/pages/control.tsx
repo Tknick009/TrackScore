@@ -1,13 +1,16 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Event, Athlete, InsertEvent, InsertAthlete, InsertEntry } from "@shared/schema";
+import { Event, Athlete, Team, InsertEvent, InsertAthlete, InsertEntry } from "@shared/schema";
 import { EventForm } from "@/components/event-form";
 import { AthleteForm } from "@/components/athlete-form";
 import { TrackResultForm } from "@/components/track-result-form";
 import { FieldResultForm } from "@/components/field-result-form";
 import { EventList } from "@/components/event-list";
 import { AthleteList } from "@/components/athlete-list";
+import { AthleteDetailDialog } from "@/components/athlete-detail-dialog";
+import { TeamList } from "@/components/team-list";
+import { TeamDetailDialog } from "@/components/team-detail-dialog";
 import { ConnectionStatus } from "@/components/connection-status";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { PlayCircle, CheckCircle2, Monitor, Upload, Database, Trophy, Users, Target } from "lucide-react";
+import { PlayCircle, CheckCircle2, Monitor, Upload, Database, Trophy, Users, Target, Shield } from "lucide-react";
 import { Link } from "wouter";
 
 type ImportStatistics = {
@@ -30,6 +33,10 @@ type ImportStatistics = {
 export default function Control() {
   const { toast } = useToast();
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [selectedAthlete, setSelectedAthlete] = useState<Athlete | null>(null);
+  const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
+  const [athleteDialogOpen, setAthleteDialogOpen] = useState(false);
+  const [teamDialogOpen, setTeamDialogOpen] = useState(false);
   const [wsConnected, setWsConnected] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [importStats, setImportStats] = useState<ImportStatistics | null>(null);
@@ -67,6 +74,11 @@ export default function Control() {
   // Fetch athletes
   const { data: athletes = [], isLoading: athletesLoading } = useQuery<Athlete[]>({
     queryKey: ["/api/athletes"],
+  });
+
+  // Fetch teams
+  const { data: teams = [], isLoading: teamsLoading } = useQuery<Team[]>({
+    queryKey: ["/api/teams"],
   });
 
   // Create event mutation
@@ -208,6 +220,16 @@ export default function Control() {
     }
   };
 
+  const handleAthleteSelect = (athlete: Athlete) => {
+    setSelectedAthlete(athlete);
+    setAthleteDialogOpen(true);
+  };
+
+  const handleTeamSelect = (team: Team) => {
+    setSelectedTeam(team);
+    setTeamDialogOpen(true);
+  };
+
   const isTrackEvent = (eventType: string) => {
     return ![
       "high_jump",
@@ -333,7 +355,7 @@ export default function Control() {
         {/* Left Column - Event Management */}
         <div className="lg:col-span-2 space-y-6">
           <Tabs defaultValue="events" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="events" data-testid="tab-events" className="gap-2">
                 <Trophy className="w-4 h-4" />
                 Events
@@ -341,6 +363,10 @@ export default function Control() {
               <TabsTrigger value="athletes" data-testid="tab-athletes" className="gap-2">
                 <Users className="w-4 h-4" />
                 Athletes
+              </TabsTrigger>
+              <TabsTrigger value="teams" data-testid="tab-teams" className="gap-2">
+                <Shield className="w-4 h-4" />
+                Teams
               </TabsTrigger>
               <TabsTrigger value="results" data-testid="tab-results" className="gap-2">
                 <Target className="w-4 h-4" />
@@ -385,7 +411,23 @@ export default function Control() {
                   Loading athletes...
                 </div>
               ) : (
-                <AthleteList athletes={athletes} />
+                <AthleteList 
+                  athletes={athletes} 
+                  onSelectAthlete={handleAthleteSelect}
+                />
+              )}
+            </TabsContent>
+
+            <TabsContent value="teams" className="space-y-4">
+              {teamsLoading ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Loading teams...
+                </div>
+              ) : (
+                <TeamList 
+                  teams={teams} 
+                  onSelectTeam={handleTeamSelect}
+                />
               )}
             </TabsContent>
 
@@ -493,6 +535,20 @@ export default function Control() {
           )}
         </div>
       </div>
+
+      {/* Athlete Detail Dialog */}
+      <AthleteDetailDialog
+        athlete={selectedAthlete}
+        open={athleteDialogOpen}
+        onOpenChange={setAthleteDialogOpen}
+      />
+
+      {/* Team Detail Dialog */}
+      <TeamDetailDialog
+        team={selectedTeam}
+        open={teamDialogOpen}
+        onOpenChange={setTeamDialogOpen}
+      />
     </div>
   );
 }

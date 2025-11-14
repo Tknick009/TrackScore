@@ -151,6 +151,82 @@ Preferred communication style: Simple, everyday language.
 - **PostCSS & Autoprefixer**: CSS processing
 - **mdb-reader**: HyTek/FinishLynx .mdb database file parser
 
+### Image Processing
+- **Sharp**: High-performance image processing library for resizing, format conversion, and optimization
+- **Multer**: Multipart/form-data handling for file uploads
+
+## Asset Management System
+
+### Database Schema
+
+**Asset Tables:**
+- `athletePhotos` - One-to-one relationship with athletes table
+  - Stores: storageKey, originalFilename, contentType, width, height, byteSize, uploadedAt
+  - Unique constraint on athleteId for atomic upserts
+- `teamLogos` - One-to-one relationship with teams table
+  - Stores: storageKey, originalFilename, contentType, width, height, byteSize, uploadedAt
+  - Unique constraint on teamId for atomic upserts
+
+**Design Patterns:**
+- Foreign key cascade deletes: Photo/logo deleted when athlete/team deleted
+- Atomic upserts via PostgreSQL INSERT ... ON CONFLICT DO UPDATE
+- storageKey references filesystem location for cleanup operations
+
+### File Storage Infrastructure
+
+**FileStorage Class** (`server/file-storage.ts`):
+- **Image Processing:** Resizes images to 1024px maximum dimension, strips EXIF data, optimizes quality
+- **Format Support:** JPEG (quality 85), PNG (compression 9), GIF
+- **Directory Structure:** 
+  - Athlete photos: `uploads/athletes/{meetId}/{athleteId}/photo.{ext}`
+  - Team logos: `uploads/teams/{meetId}/{teamId}/logo.{ext}`
+- **Public URL Generation:** Maps storage keys to web-accessible paths
+
+**Upload Workflow:**
+1. Multer receives multipart upload and writes to temp location
+2. Sharp processes image (resize, auto-rotate, optimize)
+3. FileStorage saves processed image to organized directory
+4. Database upsert creates/updates metadata record atomically
+5. Old file cleaned up from disk (if replacement)
+
+### API Endpoints
+
+**Athlete Photos:**
+- `POST /api/athletes/:id/photo` - Upload/replace athlete photo
+- `GET /api/athletes/:id/photo` - Retrieve photo metadata and URL
+- `DELETE /api/athletes/:id/photo` - Delete photo from database and disk
+
+**Team Logos:**
+- `POST /api/teams/:id/logo` - Upload/replace team logo
+- `GET /api/teams/:id/logo` - Retrieve logo metadata and URL
+- `DELETE /api/teams/:id/logo` - Delete logo from database and disk
+
+**Validation:**
+- File type: JPEG, PNG, GIF only (MIME type validation)
+- File size: 5MB maximum
+- Entity existence: Verifies athlete/team exists before upload
+- HTTP status codes: 400 (validation), 404 (not found), 500 (server error)
+
+**Concurrency Handling:**
+- Atomic upserts prevent most race conditions
+- Known limitation: Simultaneous uploads for same athlete/team can orphan intermediate files on disk (extremely rare edge case, affects disk hygiene not data accuracy)
+- Database always has single consistent record per athlete/team
+- File cleanup targets storageKey from pre-upload SELECT
+
+### Storage Layer Interface
+
+**IStorage Extensions:**
+- `getAthletePhoto(athleteId)` - Retrieve photo metadata
+- `createAthletePhoto(photo)` - Upsert photo metadata, returns `{ newPhoto, oldPhoto }`
+- `deleteAthletePhoto(athleteId)` - Delete photo metadata, returns old record with storageKey
+- `bulkGetAthletePhotos(athleteIds[])` - Efficient batch retrieval
+- Same four methods for team logos
+
+**DatabaseStorage Implementation:**
+- Uses Drizzle ORM for type-safe database operations
+- Returns old storageKey for file cleanup operations
+- Atomic upserts leverage PostgreSQL's ON CONFLICT clause
+
 ## HyTek MDB Import System
 
 ### Event Scheduling Implementation
