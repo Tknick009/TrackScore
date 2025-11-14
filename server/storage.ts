@@ -29,6 +29,10 @@ import {
   type InsertAthletePhoto,
   type TeamLogo,
   type InsertTeamLogo,
+  type SelectCompositeLayout,
+  type InsertCompositeLayout,
+  type SelectLayoutZone,
+  type InsertLayoutZone,
   events,
   athletes,
   entries,
@@ -44,6 +48,8 @@ import {
   layoutCells,
   athletePhotos,
   teamLogos,
+  compositeLayouts,
+  layoutZones,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql, and, not } from "drizzle-orm";
@@ -134,6 +140,20 @@ export interface IStorage {
   createTeamLogo(logo: InsertTeamLogo): Promise<{ newLogo: TeamLogo; oldLogo: TeamLogo | null }>;
   deleteTeamLogo(teamId: string): Promise<{ logo: TeamLogo; deleted: boolean }>;
   getTeamLogosByMeet(meetId: string): Promise<TeamLogo[]>;
+
+  // Composite Layouts
+  listLayouts(meetId?: string): Promise<SelectCompositeLayout[]>;
+  getLayout(id: number): Promise<SelectCompositeLayout | null>;
+  getLayoutWithZones(id: number): Promise<{ layout: SelectCompositeLayout; zones: SelectLayoutZone[] } | null>;
+  createLayout(data: InsertCompositeLayout): Promise<SelectCompositeLayout>;
+  updateLayout(id: number, data: Partial<InsertCompositeLayout>): Promise<SelectCompositeLayout | null>;
+  deleteLayout(id: number): Promise<boolean>;
+
+  // Layout Zones
+  createZone(data: InsertLayoutZone): Promise<SelectLayoutZone>;
+  updateZone(id: number, data: Partial<InsertLayoutZone>): Promise<SelectLayoutZone | null>;
+  deleteZone(id: number): Promise<boolean>;
+  getZonesByLayout(layoutId: number): Promise<SelectLayoutZone[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -730,6 +750,98 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(teamLogos)
       .where(eq(teamLogos.meetId, meetId));
+  }
+
+  // Composite Layouts
+  async listLayouts(meetId?: string): Promise<SelectCompositeLayout[]> {
+    if (meetId) {
+      return db
+        .select()
+        .from(compositeLayouts)
+        .where(eq(compositeLayouts.meetId, meetId));
+    }
+    return db.select().from(compositeLayouts);
+  }
+
+  async getLayout(id: number): Promise<SelectCompositeLayout | null> {
+    const [layout] = await db
+      .select()
+      .from(compositeLayouts)
+      .where(eq(compositeLayouts.id, id));
+    return layout || null;
+  }
+
+  async getLayoutWithZones(id: number): Promise<{ layout: SelectCompositeLayout; zones: SelectLayoutZone[] } | null> {
+    const layout = await this.getLayout(id);
+    if (!layout) {
+      return null;
+    }
+
+    const zones = await this.getZonesByLayout(id);
+    return { layout, zones };
+  }
+
+  async createLayout(data: InsertCompositeLayout): Promise<SelectCompositeLayout> {
+    const [layout] = await db
+      .insert(compositeLayouts)
+      .values({
+        ...data,
+        updatedAt: new Date(),
+      } as any)
+      .returning();
+    return layout;
+  }
+
+  async updateLayout(id: number, data: Partial<InsertCompositeLayout>): Promise<SelectCompositeLayout | null> {
+    const [layout] = await db
+      .update(compositeLayouts)
+      .set({
+        ...data,
+        updatedAt: new Date(),
+      } as any)
+      .where(eq(compositeLayouts.id, id))
+      .returning();
+    return layout || null;
+  }
+
+  async deleteLayout(id: number): Promise<boolean> {
+    const result = await db
+      .delete(compositeLayouts)
+      .where(eq(compositeLayouts.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // Layout Zones
+  async createZone(data: InsertLayoutZone): Promise<SelectLayoutZone> {
+    const [zone] = await db
+      .insert(layoutZones)
+      .values(data as any)
+      .returning();
+    return zone;
+  }
+
+  async updateZone(id: number, data: Partial<InsertLayoutZone>): Promise<SelectLayoutZone | null> {
+    const [zone] = await db
+      .update(layoutZones)
+      .set(data as any)
+      .where(eq(layoutZones.id, id))
+      .returning();
+    return zone || null;
+  }
+
+  async deleteZone(id: number): Promise<boolean> {
+    const result = await db
+      .delete(layoutZones)
+      .where(eq(layoutZones.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  async getZonesByLayout(layoutId: number): Promise<SelectLayoutZone[]> {
+    return db
+      .select()
+      .from(layoutZones)
+      .where(eq(layoutZones.layoutId, layoutId))
+      .orderBy(layoutZones.order);
   }
 }
 

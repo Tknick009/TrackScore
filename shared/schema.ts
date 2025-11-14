@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, real, timestamp, boolean, index, unique, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, real, timestamp, boolean, index, unique, jsonb, pgEnum, serial } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -53,6 +53,57 @@ export type RoundType = z.infer<typeof roundTypeEnum>;
 // Display Target Type
 export const displayTargetTypeEnum = z.enum(["track_event", "field_event", "standings", "schedule"]);
 export type DisplayTargetType = z.infer<typeof displayTargetTypeEnum>;
+
+// ====================
+// LAYOUT ENUMS (TypeScript const arrays for shared use)
+// ====================
+
+// Board type enum values
+export const BOARD_TYPES = [
+  'athlete-card-grid',
+  'athlete-card-single',
+  'attempt-tracker',
+  'live-timer',
+  'lane-visualization',
+  'standings-table',
+  'event-info',
+  'logo-banner'
+] as const;
+
+// Data binding type values
+export const BINDING_TYPES = [
+  'event',
+  'current-event',
+  'standings',
+  'static'
+] as const;
+
+// Style preset values
+export const STYLE_PRESETS = [
+  'none',
+  'gradient-blue',
+  'gradient-blue-thick',
+  'gradient-blue-glow',
+  'accent-yellow',
+  'accent-yellow-pulse',
+  'gradient-yellow-combo'
+] as const;
+
+// Board config size enums
+export const CARD_SIZES = ['small', 'medium', 'large'] as const;
+export const TIMER_MODES = ['countdown', 'stopwatch', 'static'] as const;
+export const LANE_SIZES = ['compact', 'standard', 'expanded'] as const;
+export const FONT_SIZES = ['small', 'medium', 'large'] as const;
+export const GENERAL_SIZES = ['small', 'medium', 'large'] as const;
+
+// Combined zone sizes (for form validation where both general and lane sizes are allowed)
+export const ALL_ZONE_SIZES = [
+  ...GENERAL_SIZES,
+  ...LANE_SIZES
+] as const;
+
+// Board Type (for composite layout zones)
+export const boardTypeEnum = pgEnum('board_type', BOARD_TYPES);
 
 // ====================
 // CORE TABLES
@@ -466,6 +517,109 @@ export const teamLogos = pgTable("team_logos", {
 export const insertTeamLogoSchema = createInsertSchema(teamLogos).omit({ id: true, uploadedAt: true });
 export type InsertTeamLogo = z.infer<typeof insertTeamLogoSchema>;
 export type TeamLogo = typeof teamLogos.$inferSelect;
+
+// ====================
+// COMPOSITE LAYOUTS
+// ====================
+
+// Composite Layouts - Template-driven multi-board layouts
+export const compositeLayouts = pgTable('composite_layouts', {
+  id: serial('id').primaryKey(),
+  meetId: varchar('meet_id').references(() => meets.id, { onDelete: 'cascade' }), // varchar to match meets.id
+  name: varchar('name', { length: 255 }).notNull(),
+  description: text('description'),
+  aspectRatio: varchar('aspect_ratio', { length: 20 }).default('16:9'),
+  previewUrl: text('preview_url'),
+  backgroundStyle: varchar('background_style', { length: 50 }).default('default'),
+  baseTheme: varchar('base_theme', { length: 50 }).default('stadium'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+// Layout Zones - Individual display zones within a composite layout
+export const layoutZones = pgTable('layout_zones', {
+  id: serial('id').primaryKey(),
+  layoutId: integer('layout_id').references(() => compositeLayouts.id, { onDelete: 'cascade' }).notNull(),
+  order: integer('order').notNull(),
+  
+  // Percentage-based positioning
+  xPercent: real('x_percent').notNull(),
+  yPercent: real('y_percent').notNull(),
+  widthPercent: real('width_percent').notNull(),
+  heightPercent: real('height_percent').notNull(),
+  
+  // Optional constraints
+  minWidth: integer('min_width'),
+  maxWidth: integer('max_width'),
+  minHeight: integer('min_height'),
+  maxHeight: integer('max_height'),
+  
+  // Board configuration
+  boardType: boardTypeEnum('board_type').notNull(),
+  dataBinding: jsonb('data_binding').notNull(),
+  boardConfig: jsonb('board_config').notNull(),
+  
+  // Styling
+  stylePreset: varchar('style_preset', { length: 50 }).default('none'),
+  
+  createdAt: timestamp('created_at').defaultNow()
+});
+
+// Data binding types (discriminated union)
+export type DataBinding = 
+  | { type: 'event'; eventId: string; heatNumber?: number; limit?: number } // eventId is string to match events.id
+  | { type: 'current-event' }
+  | { type: 'standings'; eventId?: string; limit?: number }
+  | { type: 'static'; content: string };
+
+// Board config types (discriminated union by board type)
+export type BoardConfig = 
+  | { boardType: 'athlete-card-grid'; cardSize: 'small' | 'medium' | 'large'; columns: number }
+  | { boardType: 'athlete-card-single'; cardSize: 'small' | 'medium' | 'large' }
+  | { boardType: 'attempt-tracker'; size: 'small' | 'medium' | 'large'; showMarks: boolean }
+  | { boardType: 'live-timer'; mode: 'countdown' | 'stopwatch' | 'static'; size: 'small' | 'medium' | 'large'; showMillis: boolean }
+  | { boardType: 'lane-visualization'; size: 'compact' | 'standard' | 'expanded'; totalLanes: number; showProgress: boolean; showTimes: boolean }
+  | { boardType: 'standings-table'; maxRows: number; showPhotos: boolean }
+  | { boardType: 'event-info'; fontSize: 'small' | 'medium' | 'large' }
+  | { boardType: 'logo-banner'; height: number };
+
+// Zod validation schemas
+export const dataBindingSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('event'), eventId: z.string(), heatNumber: z.number().optional(), limit: z.number().optional() }),
+  z.object({ type: z.literal('current-event') }),
+  z.object({ type: z.literal('standings'), eventId: z.string().optional(), limit: z.number().optional() }),
+  z.object({ type: z.literal('static'), content: z.string() }),
+]);
+
+export const boardConfigSchema = z.discriminatedUnion('boardType', [
+  z.object({ boardType: z.literal('athlete-card-grid'), cardSize: z.enum(CARD_SIZES), columns: z.number() }),
+  z.object({ boardType: z.literal('athlete-card-single'), cardSize: z.enum(CARD_SIZES) }),
+  z.object({ boardType: z.literal('attempt-tracker'), size: z.enum(GENERAL_SIZES), showMarks: z.boolean() }),
+  z.object({ boardType: z.literal('live-timer'), mode: z.enum(TIMER_MODES), size: z.enum(GENERAL_SIZES), showMillis: z.boolean() }),
+  z.object({ boardType: z.literal('lane-visualization'), size: z.enum(LANE_SIZES), totalLanes: z.number(), showProgress: z.boolean(), showTimes: z.boolean() }),
+  z.object({ boardType: z.literal('standings-table'), maxRows: z.number(), showPhotos: z.boolean() }),
+  z.object({ boardType: z.literal('event-info'), fontSize: z.enum(FONT_SIZES) }),
+  z.object({ boardType: z.literal('logo-banner'), height: z.number() }),
+]);
+
+export const stylePresetSchema = z.enum(STYLE_PRESETS);
+
+// Insert/Select schemas
+export const insertCompositeLayoutSchema = createInsertSchema(compositeLayouts).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertLayoutZoneSchema = createInsertSchema(layoutZones)
+  .omit({ id: true, createdAt: true })
+  .extend({
+    dataBinding: dataBindingSchema,
+    boardConfig: boardConfigSchema,
+    stylePreset: stylePresetSchema,
+  });
+export const updateLayoutZoneSchema = insertLayoutZoneSchema.partial();
+
+export type InsertCompositeLayout = z.infer<typeof insertCompositeLayoutSchema>;
+export type InsertLayoutZone = z.infer<typeof insertLayoutZoneSchema>;
+
+export type SelectCompositeLayout = typeof compositeLayouts.$inferSelect;
+export type SelectLayoutZone = typeof layoutZones.$inferSelect;
 
 // ====================
 // HELPER TYPES

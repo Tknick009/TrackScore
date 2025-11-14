@@ -12,6 +12,7 @@ import Display from "@/pages/display";
 import DisplayCustomizePage from "@/pages/DisplayCustomizePage";
 import DisplayExamples from "@/pages/display-examples";
 import LayoutDesigner from "@/pages/layout-designer";
+import CompositeDisplayPage from "@/pages/composite-display";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -25,6 +26,7 @@ function Router() {
       <Route path="/control/layouts/designer/:layoutId" component={LayoutDesigner} />
       <Route path="/display" component={Display} />
       <Route path="/display-examples" component={DisplayExamples} />
+      <Route path="/composite-display/:layoutId" component={CompositeDisplayPage} />
       <Route component={NotFound} />
     </Switch>
   );

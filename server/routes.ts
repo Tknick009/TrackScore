@@ -17,6 +17,9 @@ import {
   insertBoardConfigSchema,
   insertDisplayLayoutSchema,
   insertLayoutCellSchema,
+  insertCompositeLayoutSchema,
+  insertLayoutZoneSchema,
+  updateLayoutZoneSchema,
   type DisplayBoardState,
   type WSMessage,
 } from "@shared/schema";
@@ -1042,6 +1045,175 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: "Import failed", 
         details: error.message 
       });
+    }
+  });
+
+  // =============================
+  // COMPOSITE LAYOUTS API ROUTES
+  // =============================
+
+  // List all layouts (optionally filtered by meetId)
+  app.get('/api/layouts', async (req, res) => {
+    try {
+      const meetId = req.query.meetId as string | undefined;
+      const layouts = await storage.listLayouts(meetId);
+      res.json(layouts);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get single layout by ID
+  app.get('/api/layouts/:id', async (req, res) => {
+    try {
+      const layout = await storage.getLayout(parseInt(req.params.id));
+      if (!layout) {
+        return res.status(404).json({ error: 'Layout not found' });
+      }
+      res.json(layout);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get layout with all its zones
+  app.get('/api/layouts/:id/with-zones', async (req, res) => {
+    try {
+      const result = await storage.getLayoutWithZones(parseInt(req.params.id));
+      if (!result) {
+        return res.status(404).json({ error: 'Layout not found' });
+      }
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Create new layout
+  app.post('/api/layouts', async (req, res) => {
+    try {
+      const parsed = insertCompositeLayoutSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error.errors });
+      }
+      const layout = await storage.createLayout(parsed.data);
+      res.status(201).json(layout);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Update layout
+  app.patch('/api/layouts/:id', async (req, res) => {
+    try {
+      const layout = await storage.updateLayout(parseInt(req.params.id), req.body);
+      if (!layout) {
+        return res.status(404).json({ error: 'Layout not found' });
+      }
+      res.json(layout);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Delete layout
+  app.delete('/api/layouts/:id', async (req, res) => {
+    try {
+      const success = await storage.deleteLayout(parseInt(req.params.id));
+      if (!success) {
+        return res.status(404).json({ error: 'Layout not found' });
+      }
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get zones for a specific layout
+  app.get('/api/layouts/:id/zones', async (req, res) => {
+    try {
+      const zones = await storage.getZonesByLayout(parseInt(req.params.id));
+      res.json(zones);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // =============================
+  // LAYOUT ZONES API ROUTES
+  // =============================
+
+  // Create new zone
+  app.post('/api/zones', async (req, res) => {
+    try {
+      console.log('[POST /api/zones] Incoming request body:', JSON.stringify(req.body, null, 2));
+      
+      const parsed = insertLayoutZoneSchema.safeParse(req.body);
+      if (!parsed.success) {
+        console.error('[POST /api/zones] Validation error:', parsed.error.errors);
+        return res.status(400).json({ error: parsed.error.errors });
+      }
+      
+      console.log('[POST /api/zones] Validated data:', JSON.stringify(parsed.data, null, 2));
+      console.log('[POST /api/zones] dataBinding type:', typeof parsed.data.dataBinding, 'value:', parsed.data.dataBinding);
+      console.log('[POST /api/zones] boardConfig type:', typeof parsed.data.boardConfig, 'value:', parsed.data.boardConfig);
+      
+      const zone = await storage.createZone(parsed.data);
+      
+      console.log('[POST /api/zones] Created zone:', JSON.stringify(zone, null, 2));
+      console.log('[POST /api/zones] Returned dataBinding type:', typeof zone.dataBinding, 'value:', zone.dataBinding);
+      
+      res.status(201).json(zone);
+    } catch (error: any) {
+      console.error('[POST /api/zones] Error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Update zone
+  app.patch('/api/zones/:id', async (req, res) => {
+    try {
+      console.log(`[PATCH /api/zones/${req.params.id}] Incoming request body:`, JSON.stringify(req.body, null, 2));
+      
+      const parsed = updateLayoutZoneSchema.safeParse(req.body);
+      if (!parsed.success) {
+        console.error(`[PATCH /api/zones/${req.params.id}] Validation error:`, parsed.error.errors);
+        return res.status(400).json({ error: parsed.error.errors });
+      }
+      
+      console.log(`[PATCH /api/zones/${req.params.id}] Validated data:`, JSON.stringify(parsed.data, null, 2));
+      if (parsed.data.dataBinding) {
+        console.log(`[PATCH /api/zones/${req.params.id}] dataBinding type:`, typeof parsed.data.dataBinding, 'value:', parsed.data.dataBinding);
+      }
+      if (parsed.data.boardConfig) {
+        console.log(`[PATCH /api/zones/${req.params.id}] boardConfig type:`, typeof parsed.data.boardConfig, 'value:', parsed.data.boardConfig);
+      }
+      
+      const zone = await storage.updateZone(parseInt(req.params.id), parsed.data);
+      if (!zone) {
+        return res.status(404).json({ error: 'Zone not found' });
+      }
+      
+      console.log(`[PATCH /api/zones/${req.params.id}] Updated zone:`, JSON.stringify(zone, null, 2));
+      console.log(`[PATCH /api/zones/${req.params.id}] Returned dataBinding type:`, typeof zone.dataBinding, 'value:', zone.dataBinding);
+      
+      res.json(zone);
+    } catch (error: any) {
+      console.error(`[PATCH /api/zones/${req.params.id}] Error:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Delete zone
+  app.delete('/api/zones/:id', async (req, res) => {
+    try {
+      const success = await storage.deleteZone(parseInt(req.params.id));
+      if (!success) {
+        return res.status(404).json({ error: 'Zone not found' });
+      }
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
   });
 
