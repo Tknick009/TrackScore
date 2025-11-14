@@ -1512,6 +1512,451 @@ export default function DisplayExamples() {
             </div>
           </div>
         </section>
+
+        {/* Gradient Edge Styling Examples */}
+        <section className="border-t-4 border-[hsl(var(--display-accent))] pt-12">
+          <h1 className="font-stadium text-[72px] font-[900] text-[hsl(var(--display-fg))] mb-4 text-center">
+            Gradient Edge Styling
+          </h1>
+          <p className="text-[32px] text-[hsl(var(--display-muted))] text-center mb-12">
+            Blue gradient edges for professional stadium display aesthetic
+          </p>
+          
+          <div className="space-y-12">
+            {/* AthleteCard with gradient edge */}
+            <div>
+              <h2 className="font-stadium text-[48px] font-[700] text-[hsl(var(--display-accent))] mb-6">
+                Athlete Cards with Blue Edges
+              </h2>
+              <div className="flex gap-4 flex-wrap">
+                <div className="gradient-edge-blue rounded-lg p-1" data-testid="gradient-example-normal">
+                  <AthleteCard
+                    athlete={{
+                      id: '10',
+                      name: 'Bolt, Usain',
+                      bibNumber: '1234',
+                      teamName: 'Jamaica',
+                      country: 'JAM',
+                      photoUrl: null,
+                    }}
+                    result={{ place: 1, time: '9.58' }}
+                    size="medium"
+                  />
+                </div>
+                
+                <div className="gradient-edge-blue-thick rounded-lg p-1" data-testid="gradient-example-thick">
+                  <AthleteCard
+                    athlete={{
+                      id: '11',
+                      name: 'Blake, Yohan',
+                      bibNumber: '5678',
+                      teamName: 'Jamaica',
+                      country: 'JAM',
+                      photoUrl: null,
+                    }}
+                    result={{ place: 2, time: '9.69' }}
+                    size="medium"
+                  />
+                </div>
+                
+                <div className="gradient-edge-blue-glow rounded-lg p-1" data-testid="gradient-example-glow">
+                  <AthleteCard
+                    athlete={{
+                      id: '12',
+                      name: 'Gatlin, Justin',
+                      bibNumber: '9012',
+                      teamName: 'USA',
+                      country: 'USA',
+                      photoUrl: null,
+                    }}
+                    result={{ place: 3, time: '9.79' }}
+                    size="medium"
+                    highlighted
+                  />
+                </div>
+              </div>
+            </div>
+            
+            {/* LiveTimer with gradient edge */}
+            <div>
+              <h2 className="font-stadium text-[48px] font-[700] text-[hsl(var(--display-accent))] mb-6">
+                Timer with Blue Edge
+              </h2>
+              <div className="gradient-edge-blue-glow rounded-lg p-4 inline-block" data-testid="gradient-timer-glow">
+                <LiveTimer mode="countdown" time={45000} label="Race starts in" size="medium" />
+              </div>
+            </div>
+            
+            {/* Lane Visualization with gradient edge */}
+            <div>
+              <h2 className="font-stadium text-[48px] font-[700] text-[hsl(var(--display-accent))] mb-6">
+                Lane Display with Blue Edge
+              </h2>
+              <div className="gradient-edge-blue rounded-lg p-4" data-testid="gradient-lane-viz">
+                <LaneVisualization
+                  lanes={[
+                    { laneNumber: 1, athlete: { name: 'Smith, John', country: 'USA' }, place: 1, time: '10.05' },
+                    { laneNumber: 4, athlete: { name: 'Bolt, Usain', country: 'JAM' }, place: 2, time: '10.12' },
+                  ]}
+                  totalLanes={6}
+                  showTimes
+                />
+              </div>
+            </div>
+
+            {/* Different Variants Comparison */}
+            <div>
+              <h2 className="font-stadium text-[48px] font-[700] text-[hsl(var(--display-accent))] mb-6">
+                Variant Comparison
+              </h2>
+              <p className="text-[24px] text-[hsl(var(--display-muted))] mb-6">
+                Three border variants: Normal (2px), Thick (4px), Glow (3px + shadow)
+              </p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div>
+                  <h3 className="font-stadium text-[28px] font-[600] text-[hsl(var(--display-fg))] mb-3">
+                    Normal (2px border)
+                  </h3>
+                  <div className="gradient-edge-blue rounded-lg p-4">
+                    <div className="text-[24px] font-stadium text-[hsl(var(--display-fg))] text-center">
+                      Subtle Accent
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="font-stadium text-[28px] font-[600] text-[hsl(var(--display-fg))] mb-3">
+                    Thick (4px border)
+                  </h3>
+                  <div className="gradient-edge-blue-thick rounded-lg p-4">
+                    <div className="text-[24px] font-stadium text-[hsl(var(--display-fg))] text-center">
+                      More Prominent
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="font-stadium text-[28px] font-[600] text-[hsl(var(--display-fg))] mb-3">
+                    Glow (3px + shadow)
+                  </h3>
+                  <div className="gradient-edge-blue-glow rounded-lg p-4">
+                    <div className="text-[24px] font-stadium text-[hsl(var(--display-fg))] text-center">
+                      Featured Content
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* AttemptTracker with gradient edge */}
+            <div>
+              <h2 className="font-stadium text-[48px] font-[700] text-[hsl(var(--display-accent))] mb-6">
+                Attempt Tracker with Blue Edge
+              </h2>
+              <div className="gradient-edge-blue-thick rounded-lg p-6" data-testid="gradient-attempt-tracker">
+                <AttemptTracker
+                  attempts={[
+                    { result: 'made', mark: '7.42m' },
+                    { result: 'fault' },
+                    { result: 'made', mark: '7.65m' },
+                    { result: 'pass' },
+                    { result: 'made', mark: '7.81m' },
+                    { result: 'fault' },
+                  ]}
+                  size="large"
+                  showMarks={true}
+                />
+              </div>
+            </div>
+
+            {/* Nested Example */}
+            <div>
+              <h2 className="font-stadium text-[48px] font-[700] text-[hsl(var(--display-accent))] mb-6">
+                Composite Layout Example
+              </h2>
+              <p className="text-[24px] text-[hsl(var(--display-muted))] mb-6">
+                Multiple components with gradient edges in a professional layout
+              </p>
+              
+              <div className="gradient-edge-blue-thick rounded-lg p-8">
+                <h3 className="font-stadium text-[48px] font-[700] text-[hsl(var(--display-warning))] mb-6 text-center">
+                  MEN'S 100M - FINAL RESULTS
+                </h3>
+                
+                <div className="space-y-4">
+                  <div className="gradient-edge-blue-glow rounded-lg p-2">
+                    <AthleteCard
+                      athlete={{
+                        id: '20',
+                        name: 'Bolt, Usain',
+                        bibNumber: '2163',
+                        teamName: 'Jamaica',
+                        country: 'JAM',
+                        photoUrl: null,
+                      }}
+                      result={{ place: 1, time: '9.58' }}
+                      size="large"
+                    />
+                  </div>
+                  
+                  <div className="gradient-edge-blue rounded-lg p-2">
+                    <AthleteCard
+                      athlete={{
+                        id: '21',
+                        name: 'Blake, Yohan',
+                        bibNumber: '2164',
+                        teamName: 'Jamaica',
+                        country: 'JAM',
+                        photoUrl: null,
+                      }}
+                      result={{ place: 2, time: '9.69' }}
+                      size="medium"
+                    />
+                  </div>
+                  
+                  <div className="gradient-edge-blue rounded-lg p-2">
+                    <AthleteCard
+                      athlete={{
+                        id: '22',
+                        name: 'Gatlin, Justin',
+                        bibNumber: '2165',
+                        teamName: 'USA',
+                        country: 'USA',
+                        photoUrl: null,
+                      }}
+                      result={{ place: 3, time: '9.79' }}
+                      size="medium"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Yellow Accent Box Examples */}
+        <section className="border-t-4 border-[hsl(var(--display-accent))] pt-12">
+          <h1 className="font-stadium text-[72px] font-[900] text-[hsl(var(--display-fg))] mb-4 text-center">
+            Yellow Accent Highlighting
+          </h1>
+          <p className="text-[32px] text-[hsl(var(--display-muted))] text-center mb-12">
+            Yellow accent boxes for highlighting active/current data
+          </p>
+          
+          <div className="space-y-12">
+            {/* Athlete Cards with yellow accents */}
+            <div>
+              <h2 className="font-stadium text-[48px] font-[700] text-[hsl(var(--display-accent))] mb-6">
+                Current Competitor Highlight
+              </h2>
+              <div className="flex gap-4 flex-wrap">
+                <AthleteCard
+                  athlete={{
+                    id: '30',
+                    name: 'Previous',
+                    teamName: 'Team A',
+                    bibNumber: '100',
+                    country: null,
+                    photoUrl: null,
+                  }}
+                  result={{ place: null, mark: '7.42m' }}
+                  size="medium"
+                  data-testid="yellow-example-previous"
+                />
+                
+                <div className="accent-box-yellow rounded-lg p-2" data-testid="yellow-wrapper-current">
+                  <AthleteCard
+                    athlete={{
+                      id: '31',
+                      name: 'Current Competitor',
+                      teamName: 'Team B',
+                      bibNumber: '101',
+                      country: 'USA',
+                      photoUrl: null,
+                    }}
+                    result={{ place: null, mark: '7.65m' }}
+                    size="medium"
+                    data-testid="yellow-example-current"
+                  />
+                </div>
+                
+                <AthleteCard
+                  athlete={{
+                    id: '32',
+                    name: 'Up Next',
+                    teamName: 'Team C',
+                    bibNumber: '102',
+                    country: null,
+                    photoUrl: null,
+                  }}
+                  result={{ place: null, mark: null }}
+                  size="medium"
+                  data-testid="yellow-example-next"
+                />
+              </div>
+            </div>
+            
+            {/* Live timer with yellow accent */}
+            <div>
+              <h2 className="font-stadium text-[48px] font-[700] text-[hsl(var(--display-accent))] mb-6">
+                Active Timer (Pulsing)
+              </h2>
+              <div className="accent-box-yellow-pulse rounded-lg p-4 inline-block" data-testid="yellow-timer-pulse">
+                <LiveTimer mode="stopwatch" time={12340} running label="Race in Progress" size="medium" showMillis />
+              </div>
+            </div>
+            
+            {/* Attempt tracker with yellow accent on current */}
+            <div>
+              <h2 className="font-stadium text-[48px] font-[700] text-[hsl(var(--display-accent))] mb-6">
+                Current Attempt Highlight
+              </h2>
+              <div className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <span className="font-stadium text-[24px] text-[hsl(var(--display-fg))] w-[300px]">Johnson, Michael</span>
+                  <AttemptTracker
+                    attempts={[
+                      { result: 'made', mark: '7.42m' },
+                      { result: 'fault' },
+                      { result: 'made', mark: '7.65m' },
+                    ]}
+                    maxAttempts={6}
+                    showMarks
+                    size="medium"
+                    data-testid="yellow-tracker-previous"
+                  />
+                </div>
+                
+                <div className="accent-box-yellow rounded-lg p-3" data-testid="yellow-wrapper-attempt">
+                  <div className="flex items-center gap-4">
+                    <span className="font-stadium text-[24px] text-[hsl(var(--display-fg))] w-[300px]">Smith, Sarah (NOW)</span>
+                    <AttemptTracker
+                      attempts={[
+                        { result: 'made', mark: '7.21m' },
+                        { result: 'pass' },
+                      ]}
+                      maxAttempts={6}
+                      showMarks
+                      size="medium"
+                      data-testid="yellow-tracker-current"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Variants comparison */}
+            <div>
+              <h2 className="font-stadium text-[48px] font-[700] text-[hsl(var(--display-accent))] mb-6">
+                Yellow Accent Variants
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div className="accent-box-yellow rounded-lg p-6 text-center" data-testid="yellow-variant-subtle">
+                  <div className="font-stadium text-[32px] font-[700] text-[hsl(var(--display-fg))]">Subtle</div>
+                  <div className="text-[20px] text-[hsl(var(--display-muted))] mt-2">accent-box-yellow</div>
+                  <div className="text-[16px] text-[hsl(var(--display-muted))] mt-4">Gentle highlighting without distraction</div>
+                </div>
+                
+                <div className="accent-box-yellow-solid rounded-lg p-6 text-center" data-testid="yellow-variant-solid">
+                  <div className="font-stadium text-[32px] font-[700]">Solid</div>
+                  <div className="text-[20px] mt-2">accent-box-yellow-solid</div>
+                  <div className="text-[16px] mt-4">Maximum visibility for important alerts</div>
+                </div>
+                
+                <div className="accent-box-yellow-pulse rounded-lg p-6 text-center" data-testid="yellow-variant-pulse">
+                  <div className="font-stadium text-[32px] font-[700] text-[hsl(var(--display-fg))]">Pulsing</div>
+                  <div className="text-[20px] text-[hsl(var(--display-muted))] mt-2">accent-box-yellow-pulse</div>
+                  <div className="text-[16px] text-[hsl(var(--display-muted))] mt-4">Animated attention for live content</div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Combo: Gradient + Yellow */}
+            <div>
+              <h2 className="font-stadium text-[48px] font-[700] text-[hsl(var(--display-accent))] mb-6">
+                Combined: Yellow Gradient Edge
+              </h2>
+              <p className="text-[24px] text-[hsl(var(--display-muted))] mb-6">
+                Yellow gradient border alternative to blue edge styling
+              </p>
+              <div className="gradient-yellow-combo rounded-lg p-6" data-testid="yellow-gradient-combo">
+                <LaneVisualization
+                  lanes={[
+                    { laneNumber: 4, athlete: { name: 'Current Leader', country: 'USA' }, position: 95, place: null, time: null },
+                    { laneNumber: 5, athlete: { name: 'Second Place', country: 'JAM' }, position: 92, place: null, time: null },
+                  ]}
+                  totalLanes={6}
+                  showProgress
+                  data-testid="yellow-lane-viz"
+                />
+              </div>
+            </div>
+
+            {/* Real-world usage example */}
+            <div>
+              <h2 className="font-stadium text-[48px] font-[700] text-[hsl(var(--display-accent))] mb-6">
+                Real-World Usage Example
+              </h2>
+              <p className="text-[24px] text-[hsl(var(--display-muted))] mb-6">
+                Field event display showing current athlete taking attempt
+              </p>
+              
+              <div className="gradient-edge-blue-thick rounded-lg p-8" data-testid="yellow-real-world">
+                <h3 className="font-stadium text-[48px] font-[700] text-[hsl(var(--display-warning))] mb-6 text-center">
+                  WOMEN'S LONG JUMP - FINAL
+                </h3>
+                
+                <div className="space-y-4">
+                  <div className="gradient-edge-blue rounded-lg p-2">
+                    <AthleteCard
+                      athlete={{
+                        id: '40',
+                        name: 'Williams, Sarah',
+                        bibNumber: '245',
+                        teamName: 'United States',
+                        country: 'USA',
+                        photoUrl: null,
+                      }}
+                      result={{ place: 1, mark: '7.81m' }}
+                      size="medium"
+                    />
+                  </div>
+                  
+                  <div className="accent-box-yellow-pulse rounded-lg p-2">
+                    <AthleteCard
+                      athlete={{
+                        id: '41',
+                        name: 'Johnson, Emma',
+                        bibNumber: '156',
+                        teamName: 'Jamaica',
+                        country: 'JAM',
+                        photoUrl: null,
+                      }}
+                      result={{ place: 2, mark: '7.65m' }}
+                      size="medium"
+                    />
+                  </div>
+                  
+                  <div className="gradient-edge-blue rounded-lg p-2">
+                    <AthleteCard
+                      athlete={{
+                        id: '42',
+                        name: 'Chen, Li',
+                        bibNumber: '789',
+                        teamName: 'China',
+                        country: 'CHN',
+                        photoUrl: null,
+                      }}
+                      result={{ place: 3, mark: '7.42m' }}
+                      size="medium"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   );

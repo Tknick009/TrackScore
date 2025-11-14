@@ -246,6 +246,81 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /* Gradient Edge Styling - Blue stadium aesthetic */
+  .gradient-edge-blue {
+    position: relative;
+    border: 2px solid transparent;
+    background-image: 
+      linear-gradient(hsl(var(--display-bg)), hsl(var(--display-bg))),
+      linear-gradient(135deg, #1e40af 0%, #3b82f6 25%, #60a5fa 50%, #3b82f6 75%, #1e40af 100%);
+    background-origin: padding-box, border-box;
+    background-clip: padding-box, border-box;
+  }
+  
+  .gradient-edge-blue-thick {
+    position: relative;
+    border: 4px solid transparent;
+    background-image: 
+      linear-gradient(hsl(var(--display-bg)), hsl(var(--display-bg))),
+      linear-gradient(135deg, #1e40af 0%, #3b82f6 25%, #60a5fa 50%, #3b82f6 75%, #1e40af 100%);
+    background-origin: padding-box, border-box;
+    background-clip: padding-box, border-box;
+  }
+  
+  .gradient-edge-blue-glow {
+    position: relative;
+    border: 3px solid transparent;
+    background-image: 
+      linear-gradient(hsl(var(--display-bg)), hsl(var(--display-bg))),
+      linear-gradient(135deg, #1e40af 0%, #3b82f6 25%, #60a5fa 50%, #3b82f6 75%, #1e40af 100%);
+    background-origin: padding-box, border-box;
+    background-clip: padding-box, border-box;
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
+  }
+
+  /* Yellow Accent Box - Highlights active/current data */
+  .accent-box-yellow {
+    border: 3px solid #fbbf24;
+    background-color: rgba(251, 191, 36, 0.1);
+    box-shadow: 0 0 15px rgba(251, 191, 36, 0.3);
+  }
+  
+  .accent-box-yellow-solid {
+    border: 3px solid #fbbf24;
+    background-color: #fbbf24;
+    color: #000;
+  }
+  
+  .accent-box-yellow-pulse {
+    border: 3px solid #fbbf24;
+    background-color: rgba(251, 191, 36, 0.15);
+    box-shadow: 0 0 20px rgba(251, 191, 36, 0.5);
+    animation: pulse-yellow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  
+  @keyframes pulse-yellow {
+    0%, 100% {
+      box-shadow: 0 0 20px rgba(251, 191, 36, 0.5);
+      border-color: #fbbf24;
+    }
+    50% {
+      box-shadow: 0 0 30px rgba(251, 191, 36, 0.8);
+      border-color: #f59e0b;
+    }
+  }
+  
+  /* Combine gradient edge + yellow accent */
+  .gradient-yellow-combo {
+    position: relative;
+    border: 4px solid transparent;
+    background-image: 
+      linear-gradient(rgba(251, 191, 36, 0.1), rgba(251, 191, 36, 0.1)),
+      linear-gradient(135deg, #f59e0b 0%, #fbbf24 25%, #fcd34d 50%, #fbbf24 75%, #f59e0b 100%);
+    background-origin: padding-box, border-box;
+    background-clip: padding-box, border-box;
+    box-shadow: 0 0 20px rgba(251, 191, 36, 0.4);
+  }
+
   /**
    * Toggleable backgrounds go behind the content. Hoverable/active goes on top.
    * This way they can stack/compound. Both will overlap the parent's borders!
