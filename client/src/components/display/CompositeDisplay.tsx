@@ -1,3 +1,4 @@
+import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import type { SelectLayoutZone, DataBinding, BoardConfig } from "@shared/schema";
@@ -22,7 +23,7 @@ interface LayoutWithZones {
 }
 
 // Hook to fetch zone-specific data based on data binding
-function useZoneData(dataBinding: DataBinding) {
+function useZoneData(dataBinding: DataBinding, boardType: string) {
   const bindingType = dataBinding.type;
 
   // Fetch specific event data
@@ -37,13 +38,126 @@ function useZoneData(dataBinding: DataBinding) {
     enabled: bindingType === 'current-event',
   });
 
-  // Return appropriate data based on binding type
-  if (bindingType === 'event') return eventData || null;
-  if (bindingType === 'current-event') return currentEvent || null;
-  if (bindingType === 'static') return { content: dataBinding.content };
-  if (bindingType === 'standings') return null; // TODO: Implement standings query
+  // Determine base data
+  let baseData = null;
+  if (bindingType === 'event') baseData = eventData || null;
+  else if (bindingType === 'current-event') baseData = currentEvent || null;
+  else if (bindingType === 'static') baseData = { content: dataBinding.content };
+  else if (bindingType === 'standings') baseData = null; // TODO: Implement standings query
 
-  return null;
+  // Extract athlete IDs for photo fetching
+  const athleteIds = React.useMemo(() => {
+    if (!baseData) return [];
+    if (typeof baseData !== 'object') return [];
+    
+    const data = baseData as any;
+    
+    if (boardType === 'athlete-card-grid') {
+      return data.athletes?.map((a: any) => a.id).filter(Boolean) || [];
+    }
+    
+    if (boardType === 'athlete-card-single') {
+      return data.athlete?.id ? [data.athlete.id] : [];
+    }
+    
+    return [];
+  }, [
+    JSON.stringify((baseData as any)?.athletes?.map((a: any) => a.id)),
+    boardType === 'athlete-card-single' ? (baseData as any)?.athlete?.id : null,
+    boardType
+  ]);
+
+  // Fetch athlete photos in bulk
+  const { data: photosData } = useQuery({
+    queryKey: ['/api/athletes/photos/bulk', athleteIds.slice().sort((a: number, b: number) => a - b).join(',')],
+    queryFn: async () => {
+      if (!athleteIds.length) return [];
+      const response = await fetch(`/api/athletes/photos/bulk?ids=${athleteIds.join(',')}`);
+      if (!response.ok) throw new Error('Failed to fetch photos');
+      return response.json();
+    },
+    enabled: athleteIds.length > 0,
+  });
+
+  // Extract team IDs from athlete data
+  const teamIds = React.useMemo(() => {
+    if (!athleteIds.length) return [];
+    if (!baseData) return [];
+    if (typeof baseData !== 'object') return [];
+    
+    const data = baseData as any;
+    const athletes = boardType === 'athlete-card-grid' 
+      ? data.athletes 
+      : (data.athlete ? [data.athlete] : []);
+    
+    const teamIdSet = new Set<number>(
+      athletes
+        ?.map((a: any) => a.teamId)
+        .filter(Boolean) || []
+    );
+    return Array.from(teamIdSet);
+  }, [
+    JSON.stringify((baseData as any)?.athletes?.map((a: any) => a.teamId)),
+    boardType === 'athlete-card-single' ? (baseData as any)?.athlete?.teamId : null,
+    boardType,
+    athleteIds.length
+  ]);
+
+  // Fetch team logos in bulk
+  const { data: logosData } = useQuery({
+    queryKey: ['/api/teams/logos/bulk', [...teamIds].sort((a: number, b: number) => a - b).join(',')],
+    queryFn: async () => {
+      if (!teamIds.length) return [];
+      const response = await fetch(`/api/teams/logos/bulk?ids=${teamIds.join(',')}`);
+      if (!response.ok) throw new Error('Failed to fetch logos');
+      return response.json();
+    },
+    enabled: teamIds.length > 0,
+  });
+
+  // Merge photos and logos into athlete data
+  const dataWithPhotosAndLogos = React.useMemo(() => {
+    if (!baseData || typeof baseData !== 'object') return baseData;
+
+    // Create lookup maps
+    const photoMap = new Map(
+      photosData ? (photosData as any[]).map((p: any) => [p.athleteId, p.url]) : []
+    );
+    const logoMap = new Map(
+      logosData ? (logosData as any[]).map((l: any) => [l.teamId, l.url]) : []
+    );
+
+    // For athlete-card-grid: map photos and logos to all athletes
+    if (boardType === 'athlete-card-grid' && 'athletes' in baseData && Array.isArray(baseData.athletes)) {
+      return {
+        ...baseData,
+        athletes: baseData.athletes.map((athlete: any) => ({
+          ...athlete,
+          photoUrl: photoMap.get(athlete.id) || null,
+          teamLogoUrl: athlete.teamId ? logoMap.get(athlete.teamId) || null : null,
+        })),
+      };
+    }
+
+    // For athlete-card-single: add photo and logo to single athlete
+    if (boardType === 'athlete-card-single' && 'athlete' in baseData) {
+      const athlete = (baseData as any).athlete;
+      if (athlete) {
+        return {
+          ...baseData,
+          athlete: {
+            ...athlete,
+            photoUrl: photoMap.get(athlete.id) || null,
+            teamLogoUrl: athlete.teamId ? logoMap.get(athlete.teamId) || null : null,
+          },
+        };
+      }
+    }
+
+    return baseData;
+  }, [baseData, photosData, logosData, athleteIds, teamIds, boardType]);
+
+  return dataWithPhotosAndLogos;
 }
 
 // Render board content based on board type and configuration
@@ -53,7 +167,7 @@ function renderBoardContent(zone: SelectLayoutZone, data: any): React.ReactNode 
   switch (zone.boardType) {
     case 'athlete-card-grid': {
       const athletes = data?.athletes || [];
-      const config = boardConfig as { boardType: 'athlete-card-grid'; cardSize: string; columns: number };
+      const config = boardConfig as { boardType: 'athlete-card-grid'; cardSize: 'small' | 'medium' | 'large'; columns: number };
 
       return (
         <div 
@@ -70,9 +184,11 @@ function renderBoardContent(zone: SelectLayoutZone, data: any): React.ReactNode 
                   name: athlete.name || 'Unknown Athlete',
                   bibNumber: athlete.bibNumber,
                   teamName: athlete.teamName,
+                  teamLogoUrl: athlete.teamLogoUrl,
                   country: athlete.country,
                 }}
                 result={athlete.result}
+                photoUrl={athlete.photoUrl}
                 size={config.cardSize}
               />
             ))
@@ -87,7 +203,7 @@ function renderBoardContent(zone: SelectLayoutZone, data: any): React.ReactNode 
 
     case 'athlete-card-single': {
       const athlete = data?.athlete;
-      const config = boardConfig as { boardType: 'athlete-card-single'; cardSize: string };
+      const config = boardConfig as { boardType: 'athlete-card-single'; cardSize: 'small' | 'medium' | 'large' };
 
       return athlete ? (
         <div className="flex items-center justify-center h-full p-4" data-testid="athlete-card-single">
@@ -97,9 +213,11 @@ function renderBoardContent(zone: SelectLayoutZone, data: any): React.ReactNode 
               name: athlete.name || 'Featured Athlete',
               bibNumber: athlete.bibNumber,
               teamName: athlete.teamName,
+              teamLogoUrl: athlete.teamLogoUrl,
               country: athlete.country,
             }}
             result={athlete.result}
+            photoUrl={athlete.photoUrl}
             size={config.cardSize}
           />
         </div>
@@ -111,7 +229,7 @@ function renderBoardContent(zone: SelectLayoutZone, data: any): React.ReactNode 
     }
 
     case 'live-timer': {
-      const config = boardConfig as { boardType: 'live-timer'; mode: string; size: string; showMillis: boolean };
+      const config = boardConfig as { boardType: 'live-timer'; mode: 'countdown' | 'stopwatch' | 'static'; size: 'small' | 'medium' | 'large'; showMillis: boolean };
 
       return (
         <div className="flex items-center justify-center h-full" data-testid="live-timer">
@@ -129,7 +247,7 @@ function renderBoardContent(zone: SelectLayoutZone, data: any): React.ReactNode 
 
     case 'lane-visualization': {
       const lanes = data?.lanes || [];
-      const config = boardConfig as { boardType: 'lane-visualization'; totalLanes: number; showProgress: boolean; showTimes: boolean; size: string };
+      const config = boardConfig as { boardType: 'lane-visualization'; totalLanes: number; showProgress: boolean; showTimes: boolean; size: 'compact' | 'standard' | 'expanded' };
 
       return lanes.length > 0 ? (
         <div className="p-4 h-full" data-testid="lane-visualization">
@@ -150,7 +268,7 @@ function renderBoardContent(zone: SelectLayoutZone, data: any): React.ReactNode 
 
     case 'attempt-tracker': {
       const attempts = data?.attempts || [];
-      const config = boardConfig as { boardType: 'attempt-tracker'; size: string; showMarks: boolean };
+      const config = boardConfig as { boardType: 'attempt-tracker'; size: 'small' | 'medium' | 'large'; showMarks: boolean };
 
       return attempts.length > 0 ? (
         <div className="flex items-center justify-center h-full p-4" data-testid="attempt-tracker">
@@ -306,7 +424,7 @@ interface ZoneProps {
 
 function Zone({ zone }: ZoneProps) {
   const dataBinding = zone.dataBinding as DataBinding;
-  const zoneData = useZoneData(dataBinding);
+  const zoneData = useZoneData(dataBinding, zone.boardType);
 
   const boardContent = renderBoardContent(zone, zoneData);
   const styledContent = applyStylePreset(boardContent, zone.stylePreset);

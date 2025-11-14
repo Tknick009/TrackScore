@@ -8,6 +8,7 @@ interface AthleteCardProps {
     name: string;
     bibNumber?: string | null;
     teamName?: string;
+    teamLogoUrl?: string | null;
     country?: string | null;
   };
   result?: {
@@ -157,15 +158,28 @@ export function AthleteCard({
         {(athlete.teamName || athlete.country) && (
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             {athlete.teamName && (
-              <p
-                className={cn(
-                  'text-[hsl(var(--display-muted))] leading-none',
-                  config.teamSize
+              <div className="flex items-center gap-1">
+                {athlete.teamLogoUrl && (
+                  <img 
+                    src={athlete.teamLogoUrl} 
+                    alt={athlete.teamName} 
+                    className={cn(
+                      'object-contain shrink-0',
+                      size === 'small' ? 'h-[16px] w-[16px]' : size === 'medium' ? 'h-[20px] w-[20px]' : 'h-[28px] w-[28px]'
+                    )}
+                    data-testid={`img-team-logo-${athlete.id}`}
+                  />
                 )}
-                data-testid={`text-team-${athlete.id}`}
-              >
-                {athlete.teamName}
-              </p>
+                <p
+                  className={cn(
+                    'text-[hsl(var(--display-muted))] leading-none',
+                    config.teamSize
+                  )}
+                  data-testid={`text-team-${athlete.id}`}
+                >
+                  {athlete.teamName}
+                </p>
+              </div>
             )}
             {athlete.country && (
               <span

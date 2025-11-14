@@ -820,7 +820,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get bulk athlete photos by athlete IDs
+  // Test with: GET /api/athletes/photos/bulk?ids=id1,id2,id3
+  app.get("/api/athletes/photos/bulk", async (req, res) => {
+    try {
+      const idsParam = req.query.ids as string;
+      
+      if (!idsParam) {
+        return res.json([]);
+      }
+
+      const athleteIds = idsParam.split(',').map(id => id.trim()).filter(Boolean);
+      
+      if (athleteIds.length === 0) {
+        return res.json([]);
+      }
+
+      // Fetch photos for all athlete IDs in parallel
+      const photoPromises = athleteIds.map(id => storage.getAthletePhoto(id));
+      const photos = await Promise.all(photoPromises);
+
+      // Map to response format with public URLs
+      const photoData = photos
+        .map((photo, index) => {
+          if (!photo) return null;
+          return {
+            athleteId: athleteIds[index],
+            url: fileStorage.publicUrlForKey(photo.storageKey),
+            width: photo.width,
+            height: photo.height,
+          };
+        })
+        .filter(Boolean);
+
+      res.json(photoData);
+    } catch (error: any) {
+      console.error("Error fetching bulk athlete photos:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // ===== TEAM LOGOS =====
+
+  // Get bulk team logos by team IDs
+  // Test with: GET /api/teams/logos/bulk?ids=id1,id2,id3
+  app.get("/api/teams/logos/bulk", async (req, res) => {
+    try {
+      const idsParam = req.query.ids as string;
+      
+      if (!idsParam) {
+        return res.json([]);
+      }
+
+      const teamIds = idsParam.split(',').map(id => id.trim()).filter(Boolean);
+      
+      if (teamIds.length === 0) {
+        return res.json([]);
+      }
+
+      // Fetch logos for all team IDs in parallel
+      const logoPromises = teamIds.map(id => storage.getTeamLogo(id));
+      const logos = await Promise.all(logoPromises);
+
+      // Map to response format with public URLs
+      const logoData = logos
+        .map((logo, index) => {
+          if (!logo) return null;
+          return {
+            teamId: teamIds[index],
+            url: fileStorage.publicUrlForKey(logo.storageKey),
+            width: logo.width,
+            height: logo.height,
+          };
+        })
+        .filter(Boolean);
+
+      res.json(logoData);
+    } catch (error: any) {
+      console.error("Error fetching bulk team logos:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
 
   // Upload team logo
   // Test with: POST /api/teams/{teamId}/logo with multipart/form-data logo field
