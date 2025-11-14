@@ -10,6 +10,7 @@ import MeetDetail from "@/pages/meet-detail";
 import Control from "@/pages/control";
 import Display from "@/pages/display";
 import DisplayCustomizePage from "@/pages/DisplayCustomizePage";
+import DisplayExamples from "@/pages/display-examples";
 import LayoutDesigner from "@/pages/layout-designer";
 import NotFound from "@/pages/not-found";
 
@@ -23,6 +24,7 @@ function Router() {
       <Route path="/control/layouts/designer" component={LayoutDesigner} />
       <Route path="/control/layouts/designer/:layoutId" component={LayoutDesigner} />
       <Route path="/display" component={Display} />
+      <Route path="/display-examples" component={DisplayExamples} />
       <Route component={NotFound} />
     </Switch>
   );
