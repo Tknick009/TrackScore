@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Event, Athlete, Team, InsertEvent, InsertAthlete, InsertEntry } from "@shared/schema";
+import { Event, Athlete, Team, Meet, InsertEvent, InsertAthlete, InsertEntry } from "@shared/schema";
 import { EventForm } from "@/components/event-form";
 import { AthleteForm } from "@/components/athlete-form";
 import { TrackResultForm } from "@/components/track-result-form";
@@ -12,11 +12,14 @@ import { AthleteDetailDialog } from "@/components/athlete-detail-dialog";
 import { TeamList } from "@/components/team-list";
 import { TeamDetailDialog } from "@/components/team-detail-dialog";
 import { ConnectionStatus } from "@/components/connection-status";
+import { useMeet } from "@/contexts/MeetContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { PlayCircle, CheckCircle2, Monitor, Upload, Database, Trophy, Users, Target, Shield } from "lucide-react";
 import { Link } from "wouter";
@@ -32,6 +35,7 @@ type ImportStatistics = {
 
 export default function Control() {
   const { toast } = useToast();
+  const { currentMeetId, setCurrentMeetId, currentMeet } = useMeet();
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [selectedAthlete, setSelectedAthlete] = useState<Athlete | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
@@ -41,6 +45,11 @@ export default function Control() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [importStats, setImportStats] = useState<ImportStatistics | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch all meets for selector
+  const { data: allMeets = [] } = useQuery<Meet[]>({
+    queryKey: ["/api/meets"],
+  });
 
   // Check WebSocket connectivity
   useEffect(() => {
@@ -263,6 +272,52 @@ export default function Control() {
           </Link>
         </div>
       </div>
+
+      {/* Meet Selector */}
+      {allMeets.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Trophy className="w-5 h-5" />
+              Current Meet
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex-1 min-w-[250px]">
+                <Select
+                  value={currentMeetId || ""}
+                  onValueChange={(value) => setCurrentMeetId(value)}
+                  data-testid="select-current-meet"
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a meet..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allMeets.map((meet) => (
+                      <SelectItem key={meet.id} value={meet.id} data-testid={`meet-option-${meet.id}`}>
+                        {meet.name} - {meet.location || "No location"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {currentMeet && (
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" data-testid="badge-meet-status">
+                    {currentMeet.status || "upcoming"}
+                  </Badge>
+                  {currentMeet.startDate && (
+                    <span className="text-sm text-muted-foreground">
+                      {new Date(currentMeet.startDate).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Import Meet Data Section */}
       <Card>

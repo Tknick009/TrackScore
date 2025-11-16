@@ -11,6 +11,7 @@ import {
   insertAthleteSchema,
   insertEntrySchema,
   insertMeetSchema,
+  insertSeasonSchema,
   insertTeamSchema,
   insertDivisionSchema,
   insertDisplayThemeSchema,
@@ -20,6 +21,8 @@ import {
   insertCompositeLayoutSchema,
   insertLayoutZoneSchema,
   updateLayoutZoneSchema,
+  insertRecordBookSchema,
+  insertRecordSchema,
   type DisplayBoardState,
   type WSMessage,
 } from "@shared/schema";
@@ -71,8 +74,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Events
   app.get("/api/events", async (req, res) => {
-    const events = await storage.getEvents();
-    res.json(events);
+    try {
+      const { meetId } = req.query;
+      if (meetId) {
+        const events = await storage.getEventsByMeetId(meetId as string);
+        return res.json(events);
+      }
+      const events = await storage.getEvents();
+      res.json(events);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
   });
 
   app.get("/api/events/current", async (req, res) => {
@@ -126,8 +138,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Athletes
   app.get("/api/athletes", async (req, res) => {
-    const athletes = await storage.getAthletes();
-    res.json(athletes);
+    try {
+      const { meetId } = req.query;
+      if (meetId) {
+        const athletes = await storage.getAthletesByMeetId(meetId as string);
+        return res.json(athletes);
+      }
+      const athletes = await storage.getAthletes();
+      res.json(athletes);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
   });
 
   app.get("/api/athletes/:id", async (req, res) => {
@@ -215,10 +236,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Seasons
+  app.get("/api/seasons", async (req, res) => {
+    try {
+      const seasons = await storage.getSeasons();
+      res.json(seasons);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/seasons/:id", async (req, res) => {
+    try {
+      const season = await storage.getSeason(parseInt(req.params.id));
+      if (!season) {
+        return res.status(404).json({ error: "Season not found" });
+      }
+      res.json(season);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/seasons", async (req, res) => {
+    try {
+      const data = insertSeasonSchema.parse(req.body);
+      const season = await storage.createSeason(data);
+      res.json(season);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/seasons/:id", async (req, res) => {
+    try {
+      const data = insertSeasonSchema.partial().parse(req.body);
+      const season = await storage.updateSeason(parseInt(req.params.id), data);
+      if (!season) {
+        return res.status(404).json({ error: "Season not found" });
+      }
+      res.json(season);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/seasons/:id", async (req, res) => {
+    try {
+      await storage.deleteSeason(parseInt(req.params.id));
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Meets
   app.get("/api/meets", async (req, res) => {
-    const meets = await storage.getMeets();
-    res.json(meets);
+    try {
+      const { seasonId } = req.query;
+      if (seasonId) {
+        const meets = await storage.getMeetsBySeason(parseInt(seasonId as string));
+        return res.json(meets);
+      }
+      const meets = await storage.getMeets();
+      res.json(meets);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
   });
 
   app.get("/api/meets/:id", async (req, res) => {
@@ -256,6 +340,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Meet not found" });
       }
 
+      res.json(meet);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/meets/:id/status", async (req, res) => {
+    try {
+      const { status } = req.body;
+      if (!status) {
+        return res.status(400).json({ error: "Status is required" });
+      }
+      const meet = await storage.updateMeetStatus(req.params.id, status);
+      if (!meet) {
+        return res.status(404).json({ error: "Meet not found" });
+      }
+      await broadcastCurrentEvent();
       res.json(meet);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -1291,6 +1392,142 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!success) {
         return res.status(404).json({ error: 'Zone not found' });
       }
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Record Books
+  app.get('/api/record-books', async (req, res) => {
+    try {
+      const books = await storage.getRecordBooks();
+      res.json(books);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get('/api/record-books/:id', async (req, res) => {
+    try {
+      const book = await storage.getRecordBook(parseInt(req.params.id));
+      if (!book) {
+        return res.status(404).json({ error: 'Record book not found' });
+      }
+      
+      const bookRecords = await storage.getRecords(book.id);
+      res.json({ ...book, records: bookRecords });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post('/api/record-books', async (req, res) => {
+    try {
+      const data = insertRecordBookSchema.parse(req.body);
+      const book = await storage.createRecordBook(data);
+      res.json(book);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.patch('/api/record-books/:id', async (req, res) => {
+    try {
+      const data = insertRecordBookSchema.partial().parse(req.body);
+      const book = await storage.updateRecordBook(parseInt(req.params.id), data);
+      if (!book) {
+        return res.status(404).json({ error: 'Record book not found' });
+      }
+      res.json(book);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.delete('/api/record-books/:id', async (req, res) => {
+    try {
+      await storage.deleteRecordBook(parseInt(req.params.id));
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Records
+  app.get('/api/records', async (req, res) => {
+    try {
+      const bookId = req.query.bookId ? parseInt(req.query.bookId as string) : undefined;
+      const eventType = req.query.eventType as string | undefined;
+      const gender = req.query.gender as string | undefined;
+      
+      const recordsList = await storage.getRecords(bookId, eventType, gender);
+      res.json(recordsList);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get('/api/records/check', async (req, res) => {
+    try {
+      const { eventType, performance, gender } = req.query;
+      
+      if (!eventType || !performance || !gender) {
+        return res.status(400).json({ 
+          error: 'Missing required parameters: eventType, performance, gender' 
+        });
+      }
+      
+      const checks = await storage.checkForRecords(
+        eventType as string,
+        gender as string,
+        performance as string
+      );
+      
+      res.json(checks);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get('/api/records/:id', async (req, res) => {
+    try {
+      const record = await storage.getRecord(parseInt(req.params.id));
+      if (!record) {
+        return res.status(404).json({ error: 'Record not found' });
+      }
+      res.json(record);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post('/api/records', async (req, res) => {
+    try {
+      const data = insertRecordSchema.parse(req.body);
+      const record = await storage.createRecord(data);
+      res.json(record);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.patch('/api/records/:id', async (req, res) => {
+    try {
+      const data = insertRecordSchema.partial().parse(req.body);
+      const record = await storage.updateRecord(parseInt(req.params.id), data);
+      if (!record) {
+        return res.status(404).json({ error: 'Record not found' });
+      }
+      res.json(record);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.delete('/api/records/:id', async (req, res) => {
+    try {
+      await storage.deleteRecord(parseInt(req.params.id));
       res.status(204).send();
     } catch (error: any) {
       res.status(500).json({ error: error.message });

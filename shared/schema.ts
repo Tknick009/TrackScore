@@ -26,6 +26,88 @@ export const eventTypeEnum = z.enum([
 ]);
 export type EventType = z.infer<typeof eventTypeEnum>;
 
+// ====================
+// EVENT TYPE CATEGORIZATION - SINGLE SOURCE OF TRUTH
+// ====================
+
+export const EVENT_TYPE_CATEGORIES = {
+  TIME_EVENTS: [
+    '100m', '200m', '400m', '800m', '1500m', '3000m', '5000m', '10000m',
+    '110m_hurdles', '400m_hurdles',
+    '4x100m', '4x400m',
+  ] as const,
+  DISTANCE_EVENTS: [
+    'long_jump', 'triple_jump',
+    'shot_put', 'discus', 'javelin', 'hammer',
+  ] as const,
+  HEIGHT_EVENTS: [
+    'high_jump', 'pole_vault',
+  ] as const,
+} as const;
+
+export function isTimeEvent(eventType: string): boolean {
+  return EVENT_TYPE_CATEGORIES.TIME_EVENTS.includes(eventType as any);
+}
+
+export function isDistanceEvent(eventType: string): boolean {
+  return EVENT_TYPE_CATEGORIES.DISTANCE_EVENTS.includes(eventType as any);
+}
+
+export function isHeightEvent(eventType: string): boolean {
+  return EVENT_TYPE_CATEGORIES.HEIGHT_EVENTS.includes(eventType as any);
+}
+
+// ====================
+// PERFORMANCE PARSING AND VALIDATION - SINGLE SOURCE OF TRUTH
+// ====================
+
+export function parsePerformanceToSeconds(performance: string): number | null {
+  const trimmed = performance.trim();
+  
+  if (!trimmed) return null;
+  
+  // Check for colon format (mm:ss.ss or m:ss.ss)
+  if (trimmed.includes(':')) {
+    const parts = trimmed.split(':');
+    if (parts.length !== 2) return null;
+    
+    const minutes = parseInt(parts[0]);
+    const seconds = parseFloat(parts[1]);
+    
+    if (isNaN(minutes) || isNaN(seconds) || seconds < 0 || seconds >= 60) {
+      return null;
+    }
+    
+    return minutes * 60 + seconds;
+  }
+  
+  // Plain numeric format
+  const num = parseFloat(trimmed);
+  if (isNaN(num) || num <= 0) return null;
+  
+  return num;
+}
+
+export function validatePerformanceString(performance: string): { valid: boolean, error?: string, seconds?: number } {
+  const trimmed = performance.trim();
+  
+  if (!trimmed) {
+    return { valid: false, error: 'Performance cannot be empty' };
+  }
+  
+  const seconds = parsePerformanceToSeconds(trimmed);
+  
+  if (seconds === null) {
+    return { valid: false, error: 'Performance must be a valid number or time format (mm:ss.ss)' };
+  }
+  
+  if (seconds <= 0) {
+    return { valid: false, error: 'Performance must be positive' };
+  }
+  
+  return { valid: true, seconds };
+}
+
 // Event Status
 export const eventStatusEnum = z.enum(["scheduled", "in_progress", "completed"]);
 export type EventStatus = z.infer<typeof eventStatusEnum>;
@@ -53,6 +135,10 @@ export type RoundType = z.infer<typeof roundTypeEnum>;
 // Display Target Type
 export const displayTargetTypeEnum = z.enum(["track_event", "field_event", "standings", "schedule"]);
 export type DisplayTargetType = z.infer<typeof displayTargetTypeEnum>;
+
+// Meet Status
+export const meetStatusEnum = z.enum(["upcoming", "in_progress", "completed"]);
+export type MeetStatus = z.infer<typeof meetStatusEnum>;
 
 // ====================
 // LAYOUT ENUMS (TypeScript const arrays for shared use)
@@ -109,13 +195,28 @@ export const boardTypeEnum = pgEnum('board_type', BOARD_TYPES);
 // CORE TABLES
 // ====================
 
+// Seasons
+export const seasons = pgTable("seasons", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(), // e.g., "2024-2025 Indoor Season"
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date"),
+  isActive: boolean("is_active").default(true),
+});
+
+export const insertSeasonSchema = createInsertSchema(seasons).omit({ id: true });
+export type InsertSeason = z.infer<typeof insertSeasonSchema>;
+export type Season = typeof seasons.$inferSelect;
+
 // Meets
 export const meets = pgTable("meets", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  seasonId: integer("season_id").references(() => seasons.id, { onDelete: "set null" }),
   name: text("name").notNull(),
   location: text("location"),
   startDate: timestamp("start_date").notNull(),
   endDate: timestamp("end_date"),
+  status: text("status").default("upcoming"), // upcoming, in_progress, completed
   trackLength: integer("track_length").default(400), // Track length in meters
   logoUrl: text("logo_url"),
   meetCode: varchar("meet_code", { length: 6 }).notNull().unique().default(sql`upper(substring(md5(random()::text) from 1 for 6))`), // 6-character code for displays to join
@@ -125,9 +226,12 @@ export const meets = pgTable("meets", {
   lastImportAt: timestamp("last_import_at"), // When last import completed
 }, (table) => ({
   meetCodeIdx: index("meet_code_idx").on(table.meetCode),
+  seasonIdIdx: index("meets_season_id_idx").on(table.seasonId),
 }));
 
-export const insertMeetSchema = createInsertSchema(meets).omit({ id: true });
+export const insertMeetSchema = createInsertSchema(meets).omit({ id: true }).extend({
+  status: meetStatusEnum.optional(),
+});
 export type InsertMeet = z.infer<typeof insertMeetSchema>;
 export type Meet = typeof meets.$inferSelect;
 
@@ -622,6 +726,82 @@ export type SelectCompositeLayout = typeof compositeLayouts.$inferSelect;
 export type SelectLayoutZone = typeof layoutZones.$inferSelect;
 
 // ====================
+// RECORDS SYSTEM
+// ====================
+
+// Record Books - Collections of records (Facility, Meet, National, etc.)
+export const recordBooks = pgTable('record_books', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  description: text('description'),
+  scope: text('scope', { enum: ['facility', 'meet', 'national', 'international', 'custom'] }).notNull(),
+  isActive: boolean('is_active').default(true),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// Individual Records within a Record Book
+export const records = pgTable('records', {
+  id: serial('id').primaryKey(),
+  recordBookId: integer('record_book_id').references(() => recordBooks.id, { onDelete: 'cascade' }).notNull(),
+  eventType: text('event_type').notNull(),
+  gender: text('gender').notNull(),
+  performance: text('performance').notNull(),
+  athleteName: text('athlete_name').notNull(),
+  team: text('team'),
+  date: timestamp('date').notNull(),
+  location: text('location'),
+  wind: text('wind'),
+  notes: text('notes'),
+  verifiedBy: text('verified_by'),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  eventTypeIdx: index('records_event_type_idx').on(table.eventType),
+  bookIdIdx: index('records_book_id_idx').on(table.recordBookId),
+  genderIdx: index('records_gender_idx').on(table.gender),
+}));
+
+// Record scope enum
+export const recordScopeEnum = z.enum(['facility', 'meet', 'national', 'international', 'custom']);
+export type RecordScope = z.infer<typeof recordScopeEnum>;
+
+// Insert/Select schemas for Record Books
+export const insertRecordBookSchema = createInsertSchema(recordBooks).omit({ id: true, createdAt: true }).extend({
+  scope: recordScopeEnum,
+});
+export type InsertRecordBook = z.infer<typeof insertRecordBookSchema>;
+export type SelectRecordBook = typeof recordBooks.$inferSelect;
+
+// Insert/Select schemas for Records
+export const insertRecordSchema = createInsertSchema(records).omit({ id: true, createdAt: true }).extend({
+  // Use custom validation instead of regex to handle both numeric and time formats
+  performance: z.string().refine(
+    (val) => parsePerformanceToSeconds(val) !== null,
+    { message: 'Performance must be a valid number or time format (mm:ss.ss)' }
+  ),
+  eventType: z.string().min(1, 'Event type is required'),
+  athleteName: z.string().min(1, 'Athlete name is required'),
+});
+export type InsertRecord = z.infer<typeof insertRecordSchema>;
+export type SelectRecord = typeof records.$inferSelect;
+
+// Record Book with Records (for detailed views)
+export type RecordBookWithRecords = SelectRecordBook & {
+  records: SelectRecord[];
+};
+
+// Record comparison result
+export type RecordCheck = {
+  recordId: number;
+  recordBookId: number;
+  recordBookName: string;
+  isRecord: boolean;
+  isTied: boolean;
+  margin: string;
+  existingPerformance: string;
+  newPerformance: string;
+};
+
+// ====================
 // HELPER TYPES
 // ====================
 
@@ -711,7 +891,15 @@ export const entrySplitsRelations = relations(entrySplits, ({ one }) => ({
   }),
 }));
 
-export const meetsRelations = relations(meets, ({ many }) => ({
+export const seasonsRelations = relations(seasons, ({ many }) => ({
+  meets: many(meets),
+}));
+
+export const meetsRelations = relations(meets, ({ one, many }) => ({
+  season: one(seasons, {
+    fields: [meets.seasonId],
+    references: [seasons.id],
+  }),
   events: many(events),
   teams: many(teams),
   divisions: many(divisions),

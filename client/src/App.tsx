@@ -5,9 +5,12 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
+import { MeetProvider } from "@/contexts/MeetContext";
 import MeetsList from "@/pages/meets-list";
 import MeetDetail from "@/pages/meet-detail";
 import Control from "@/pages/control";
+import SeasonManager from "@/pages/season-manager";
+import RecordBooks from "@/pages/record-books";
 import Display from "@/pages/display";
 import DisplayCustomizePage from "@/pages/DisplayCustomizePage";
 import DisplayExamples from "@/pages/display-examples";
@@ -21,6 +24,8 @@ function Router() {
       <Route path="/" component={MeetsList} />
       <Route path="/meets/:id" component={MeetDetail} />
       <Route path="/control" component={Control} />
+      <Route path="/control/seasons" component={SeasonManager} />
+      <Route path="/control/records" component={RecordBooks} />
       <Route path="/control/displays/customize" component={DisplayCustomizePage} />
       <Route path="/control/layouts/designer" component={LayoutDesigner} />
       <Route path="/control/layouts/designer/:layoutId" component={LayoutDesigner} />
@@ -64,10 +69,12 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <SidebarProvider style={sidebarStyle as React.CSSProperties}>
-          <AppContent />
-        </SidebarProvider>
-        <Toaster />
+        <MeetProvider>
+          <SidebarProvider style={sidebarStyle as React.CSSProperties}>
+            <AppContent />
+          </SidebarProvider>
+          <Toaster />
+        </MeetProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

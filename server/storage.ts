@@ -11,6 +11,8 @@ import {
   type InsertTeam,
   type Division,
   type InsertDivision,
+  type Season,
+  type InsertSeason,
   type EntryWithDetails,
   type EventWithEntries,
   type DisplayComputer,
@@ -33,10 +35,16 @@ import {
   type InsertCompositeLayout,
   type SelectLayoutZone,
   type InsertLayoutZone,
+  type SelectRecordBook,
+  type InsertRecordBook,
+  type SelectRecord,
+  type InsertRecord,
+  type RecordCheck,
   events,
   athletes,
   entries,
   meets,
+  seasons,
   teams,
   divisions,
   entrySplits,
@@ -50,6 +58,12 @@ import {
   teamLogos,
   compositeLayouts,
   layoutZones,
+  recordBooks,
+  records,
+  isTimeEvent,
+  isDistanceEvent,
+  isHeightEvent,
+  parsePerformanceToSeconds,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql, and, not } from "drizzle-orm";
@@ -66,6 +80,7 @@ export interface IStorage {
   // Athletes
   getAthletes(): Promise<Athlete[]>;
   getAthlete(id: string): Promise<Athlete | undefined>;
+  getAthletesByMeetId(meetId: string): Promise<Athlete[]>;
   createAthlete(athlete: InsertAthlete): Promise<Athlete>;
 
   // Entries (unified results for track and field)
@@ -75,11 +90,20 @@ export interface IStorage {
   createEntry(entry: InsertEntry): Promise<Entry>;
   updateEntry(id: string, updates: Partial<InsertEntry>): Promise<Entry | undefined>;
 
+  // Seasons
+  getSeasons(): Promise<Season[]>;
+  getSeason(id: number): Promise<Season | undefined>;
+  createSeason(season: InsertSeason): Promise<Season>;
+  updateSeason(id: number, updates: Partial<InsertSeason>): Promise<Season | undefined>;
+  deleteSeason(id: number): Promise<void>;
+
   // Meets
   getMeets(): Promise<Meet[]>;
   getMeet(id: string): Promise<Meet | undefined>;
+  getMeetsBySeason(seasonId: number): Promise<Meet[]>;
   createMeet(meet: InsertMeet): Promise<Meet>;
   updateMeet(id: string, data: Partial<InsertMeet>): Promise<Meet | null>;
+  updateMeetStatus(meetId: string, status: string): Promise<Meet | undefined>;
 
   // Teams
   getTeams(): Promise<Team[]>;
@@ -154,6 +178,24 @@ export interface IStorage {
   updateZone(id: number, data: Partial<InsertLayoutZone>): Promise<SelectLayoutZone | null>;
   deleteZone(id: number): Promise<boolean>;
   getZonesByLayout(layoutId: number): Promise<SelectLayoutZone[]>;
+
+  // Record Books
+  getRecordBooks(): Promise<SelectRecordBook[]>;
+  getRecordBook(id: number): Promise<SelectRecordBook | undefined>;
+  createRecordBook(book: InsertRecordBook): Promise<SelectRecordBook>;
+  updateRecordBook(id: number, updates: Partial<InsertRecordBook>): Promise<SelectRecordBook | undefined>;
+  deleteRecordBook(id: number): Promise<void>;
+
+  // Records
+  getRecords(bookId?: number, eventType?: string, gender?: string): Promise<SelectRecord[]>;
+  getRecord(id: number): Promise<SelectRecord | undefined>;
+  getRecordForEvent(bookId: number, eventType: string, gender: string): Promise<SelectRecord | undefined>;
+  createRecord(record: InsertRecord): Promise<SelectRecord>;
+  updateRecord(id: number, updates: Partial<InsertRecord>): Promise<SelectRecord | undefined>;
+  deleteRecord(id: number): Promise<void>;
+
+  // Record Checking
+  checkForRecords(eventType: string, gender: string, performance: string): Promise<RecordCheck[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -218,6 +260,10 @@ export class DatabaseStorage implements IStorage {
     return athlete || undefined;
   }
 
+  async getAthletesByMeetId(meetId: string): Promise<Athlete[]> {
+    return db.select().from(athletes).where(eq(athletes.meetId, meetId));
+  }
+
   async createAthlete(insertAthlete: InsertAthlete): Promise<Athlete> {
     const [athlete] = await db
       .insert(athletes)
@@ -270,6 +316,37 @@ export class DatabaseStorage implements IStorage {
     return updated || undefined;
   }
 
+  // Seasons
+  async getSeasons(): Promise<Season[]> {
+    return db.select().from(seasons);
+  }
+
+  async getSeason(id: number): Promise<Season | undefined> {
+    const [season] = await db.select().from(seasons).where(eq(seasons.id, id));
+    return season || undefined;
+  }
+
+  async createSeason(insertSeason: InsertSeason): Promise<Season> {
+    const [season] = await db
+      .insert(seasons)
+      .values(insertSeason)
+      .returning();
+    return season;
+  }
+
+  async updateSeason(id: number, updates: Partial<InsertSeason>): Promise<Season | undefined> {
+    const [updated] = await db
+      .update(seasons)
+      .set(updates)
+      .where(eq(seasons.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async deleteSeason(id: number): Promise<void> {
+    await db.delete(seasons).where(eq(seasons.id, id));
+  }
+
   // Meets
   async getMeets(): Promise<Meet[]> {
     return db.select().from(meets);
@@ -278,6 +355,10 @@ export class DatabaseStorage implements IStorage {
   async getMeet(id: string): Promise<Meet | undefined> {
     const [meet] = await db.select().from(meets).where(eq(meets.id, id));
     return meet || undefined;
+  }
+
+  async getMeetsBySeason(seasonId: number): Promise<Meet[]> {
+    return db.select().from(meets).where(eq(meets.seasonId, seasonId));
   }
 
   async createMeet(insertMeet: InsertMeet): Promise<Meet> {
@@ -295,6 +376,15 @@ export class DatabaseStorage implements IStorage {
       .where(eq(meets.id, id))
       .returning();
     return meet || null;
+  }
+
+  async updateMeetStatus(meetId: string, status: string): Promise<Meet | undefined> {
+    const [updated] = await db
+      .update(meets)
+      .set({ status })
+      .where(eq(meets.id, meetId))
+      .returning();
+    return updated || undefined;
   }
 
   // Teams
@@ -842,6 +932,169 @@ export class DatabaseStorage implements IStorage {
       .from(layoutZones)
       .where(eq(layoutZones.layoutId, layoutId))
       .orderBy(layoutZones.order);
+  }
+
+  // Record Books
+  async getRecordBooks(): Promise<SelectRecordBook[]> {
+    return db.select().from(recordBooks);
+  }
+
+  async getRecordBook(id: number): Promise<SelectRecordBook | undefined> {
+    const [book] = await db
+      .select()
+      .from(recordBooks)
+      .where(eq(recordBooks.id, id));
+    return book || undefined;
+  }
+
+  async createRecordBook(book: InsertRecordBook): Promise<SelectRecordBook> {
+    const [newBook] = await db
+      .insert(recordBooks)
+      .values(book)
+      .returning();
+    return newBook;
+  }
+
+  async updateRecordBook(id: number, updates: Partial<InsertRecordBook>): Promise<SelectRecordBook | undefined> {
+    const [book] = await db
+      .update(recordBooks)
+      .set(updates)
+      .where(eq(recordBooks.id, id))
+      .returning();
+    return book || undefined;
+  }
+
+  async deleteRecordBook(id: number): Promise<void> {
+    await db.delete(recordBooks).where(eq(recordBooks.id, id));
+  }
+
+  // Records
+  async getRecords(bookId?: number, eventType?: string, gender?: string): Promise<SelectRecord[]> {
+    let query = db.select().from(records);
+    
+    const conditions = [];
+    if (bookId) {
+      conditions.push(eq(records.recordBookId, bookId));
+    }
+    if (eventType) {
+      conditions.push(eq(records.eventType, eventType));
+    }
+    if (gender) {
+      conditions.push(eq(records.gender, gender));
+    }
+
+    if (conditions.length > 0) {
+      return query.where(and(...conditions));
+    }
+    
+    return query;
+  }
+
+  async getRecord(id: number): Promise<SelectRecord | undefined> {
+    const [record] = await db
+      .select()
+      .from(records)
+      .where(eq(records.id, id));
+    return record || undefined;
+  }
+
+  async getRecordForEvent(bookId: number, eventType: string, gender: string): Promise<SelectRecord | undefined> {
+    const [record] = await db
+      .select()
+      .from(records)
+      .where(
+        and(
+          eq(records.recordBookId, bookId),
+          eq(records.eventType, eventType),
+          eq(records.gender, gender)
+        )
+      );
+    return record || undefined;
+  }
+
+  async createRecord(record: InsertRecord): Promise<SelectRecord> {
+    const [newRecord] = await db
+      .insert(records)
+      .values(record)
+      .returning();
+    return newRecord;
+  }
+
+  async updateRecord(id: number, updates: Partial<InsertRecord>): Promise<SelectRecord | undefined> {
+    const [record] = await db
+      .update(records)
+      .set(updates)
+      .where(eq(records.id, id))
+      .returning();
+    return record || undefined;
+  }
+
+  async deleteRecord(id: number): Promise<void> {
+    await db.delete(records).where(eq(records.id, id));
+  }
+
+  // Record Checking
+  async checkForRecords(eventType: string, gender: string, performance: string): Promise<RecordCheck[]> {
+    const activeBooks = await db
+      .select()
+      .from(recordBooks)
+      .where(eq(recordBooks.isActive, true));
+
+    const results: RecordCheck[] = [];
+
+    for (const book of activeBooks) {
+      const existingRecord = await this.getRecordForEvent(book.id, eventType, gender);
+      
+      if (!existingRecord) {
+        continue;
+      }
+
+      const comparison = this.comparePerformances(eventType, performance, existingRecord.performance);
+      
+      results.push({
+        recordId: existingRecord.id,
+        recordBookId: book.id,
+        recordBookName: book.name,
+        isRecord: comparison.isRecord,
+        isTied: comparison.isTied,
+        margin: comparison.margin,
+        existingPerformance: existingRecord.performance,
+        newPerformance: performance,
+      });
+    }
+
+    return results;
+  }
+
+  private comparePerformances(eventType: string, newPerf: string, existingPerf: string): {
+    isRecord: boolean;
+    isTied: boolean;
+    margin: string;
+  } {
+    const newValue = parsePerformanceToSeconds(newPerf);
+    const existingValue = parsePerformanceToSeconds(existingPerf);
+
+    if (newValue === null || existingValue === null) {
+      return { isRecord: false, isTied: false, margin: 'Invalid performance' };
+    }
+
+    let isRecord: boolean;
+    let isTied: boolean;
+    let margin: string;
+
+    const isTimeBasedEvent = isTimeEvent(eventType);
+
+    if (isTimeBasedEvent) {
+      isRecord = newValue < existingValue;
+      isTied = Math.abs(newValue - existingValue) < 0.01;
+      margin = isTied ? 'Tied' : `${Math.abs(newValue - existingValue).toFixed(2)}s ${isRecord ? 'faster' : 'slower'}`;
+    } else {
+      isRecord = newValue > existingValue;
+      isTied = Math.abs(newValue - existingValue) < 0.01;
+      margin = isTied ? 'Tied' : `${Math.abs(newValue - existingValue).toFixed(2)}m ${isRecord ? 'farther' : 'shorter'}`;
+    }
+
+    return { isRecord, isTied, margin };
   }
 }
 
