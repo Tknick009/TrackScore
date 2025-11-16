@@ -530,7 +530,7 @@ export const boardConfigs = pgTable("board_configs", {
 
 export const insertBoardConfigSchema = createInsertSchema(boardConfigs).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertBoardConfig = z.infer<typeof insertBoardConfigSchema>;
-export type BoardConfig = typeof boardConfigs.$inferSelect;
+export type SelectBoardConfig = typeof boardConfigs.$inferSelect;
 
 // Display Layouts (multi-event grid configurations)
 export const displayLayouts = pgTable("display_layouts", {
