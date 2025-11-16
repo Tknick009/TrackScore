@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Separator } from "@/components/ui/separator";
+import { ExportMenu } from "@/components/ExportMenu";
 
 function MeetDetailSkeleton() {
   return (
@@ -459,6 +460,8 @@ export default function MeetDetail() {
               Back to Meets
             </Button>
           </Link>
+          
+          <ExportMenu meetId={meetId} type="meet" />
         </div>
 
         {/* Meet Title Section */}

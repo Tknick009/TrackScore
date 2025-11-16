@@ -27,6 +27,7 @@ import {
   type WSMessage,
 } from "@shared/schema";
 import { importCompleteMDB } from "./import-mdb-complete";
+import { generateEventCSV, generateMeetCSV } from "./export-utils";
 
 // Track connected WebSocket clients
 const displayClients = new Set<WebSocket>();
@@ -134,6 +135,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(404).json({ error: "Event not found" });
     }
     res.json(eventWithEntries);
+  });
+
+  // Export endpoints for events
+  app.get("/api/events/:id/export", async (req, res) => {
+    try {
+      const { format } = req.query;
+      
+      // Only support CSV - print/PDF use React routes
+      if (format !== 'csv') {
+        return res.status(400).json({ error: 'Only CSV format supported. Use /print/events/:id for printing.' });
+      }
+      
+      const eventWithEntries = await storage.getEventWithEntries(req.params.id);
+      
+      if (!eventWithEntries) {
+        return res.status(404).json({ error: "Event not found" });
+      }
+      
+      const csv = generateEventCSV(eventWithEntries);
+      const filename = `${eventWithEntries.name.replace(/\s+/g, '-')}-results.csv`;
+      
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(csv);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
   });
 
   // Athletes
@@ -367,6 +395,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const events = await storage.getEventsByMeetId(req.params.id);
       res.json(events);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Print data endpoint for event (React print page hydration)
+  app.get("/api/events/:id/print-data", async (req, res) => {
+    try {
+      const eventWithEntries = await storage.getEventWithEntries(req.params.id);
+      
+      if (!eventWithEntries) {
+        return res.status(404).json({ error: "Event not found" });
+      }
+
+      const meet = await storage.getMeet(eventWithEntries.meetId);
+      
+      res.json({
+        event: eventWithEntries,
+        entries: eventWithEntries.entries || [],
+        meet: meet || null
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Print data endpoint for meet (React print page hydration)
+  app.get("/api/meets/:id/print-data", async (req, res) => {
+    try {
+      const meet = await storage.getMeet(req.params.id);
+      
+      if (!meet) {
+        return res.status(404).json({ error: "Meet not found" });
+      }
+
+      // Get all events for this meet
+      const events = await storage.getEventsByMeetId(req.params.id);
+      
+      // Use getEventWithEntries to get full EventWithEntries objects with all metadata
+      const eventsWithEntriesRaw = await Promise.all(
+        events.map(event => storage.getEventWithEntries(event.id))
+      );
+      
+      // Filter out nulls and handle properly
+      const eventsWithEntries = eventsWithEntriesRaw
+        .filter((item): item is NonNullable<typeof item> => item !== null);
+      
+      // If some events returned null, log a warning
+      if (eventsWithEntries.length < events.length) {
+        console.warn(`Some events returned null from getEventWithEntries`);
+      }
+      
+      res.json({
+        meet,
+        eventsWithEntries  // Now contains full EventWithEntries objects, not partial data
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Export endpoint for meets (all events)
+  app.get("/api/meets/:id/export", async (req, res) => {
+    try {
+      const { format } = req.query;
+      const meet = await storage.getMeet(req.params.id);
+      
+      if (!meet) {
+        return res.status(404).json({ error: "Meet not found" });
+      }
+
+      // Get all events for this meet
+      const events = await storage.getEventsByMeetId(req.params.id);
+      
+      // Use getEventWithEntries to get full EventWithEntries objects
+      const eventsWithEntriesRaw = await Promise.all(
+        events.map(event => storage.getEventWithEntries(event.id))
+      );
+      
+      // Filter out nulls - EventWithEntries should include events with empty entries
+      const eventsWithEntries = eventsWithEntriesRaw
+        .filter((item): item is NonNullable<typeof item> => item !== null);
+      
+      if (format === 'csv') {
+        const csv = generateMeetCSV(meet, eventsWithEntries);
+        const filename = `${meet.name.replace(/\s+/g, '-')}-results.csv`;
+        
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.send(csv);
+      } else {
+        res.status(400).json({ error: 'Invalid format. Use csv for meet exports' });
+      }
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

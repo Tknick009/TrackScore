@@ -389,4 +389,95 @@
   .border.hover-elevate:not(.no-hover-interaction-elevate)::after {
     inset: -1px;
   }
+
+  /* Print styles for results export */
+  @media print {
+    /* Hide navigation, controls, and interactive elements */
+    .no-print,
+    nav,
+    button,
+    .sidebar,
+    header,
+    footer:not(.print-footer),
+    [data-sidebar],
+    [role="navigation"] {
+      display: none !important;
+    }
+
+    /* Ensure content uses full page width */
+    body {
+      background: white !important;
+      color: black !important;
+    }
+
+    /* Optimize page breaks */
+    table {
+      page-break-inside: avoid;
+    }
+
+    tr {
+      page-break-inside: avoid;
+      page-break-after: auto;
+    }
+
+    thead {
+      display: table-header-group;
+    }
+
+    tfoot {
+      display: table-footer-group;
+    }
+
+    /* Force black text and borders for printing */
+    * {
+      color: black !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    /* Ensure tables have visible borders */
+    table,
+    th,
+    td {
+      border: 1px solid black !important;
+    }
+
+    /* Preserve podium colors for printing */
+    .bg-yellow-100,
+    .podium-1 {
+      background-color: #fef3c7 !important;
+    }
+
+    .bg-gray-100,
+    .podium-2 {
+      background-color: #f3f4f6 !important;
+    }
+
+    .bg-orange-100,
+    .podium-3 {
+      background-color: #ffedd5 !important;
+    }
+
+    /* Remove shadows and effects */
+    * {
+      box-shadow: none !important;
+      text-shadow: none !important;
+    }
+
+    /* Ensure images print correctly */
+    img {
+      max-width: 100% !important;
+      page-break-inside: avoid;
+    }
+
+    /* Make sure headings stay with content */
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+      page-break-after: avoid;
+    }
+  }
 }

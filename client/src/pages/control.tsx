@@ -12,6 +12,7 @@ import { AthleteDetailDialog } from "@/components/athlete-detail-dialog";
 import { TeamList } from "@/components/team-list";
 import { TeamDetailDialog } from "@/components/team-detail-dialog";
 import { ConnectionStatus } from "@/components/connection-status";
+import { ExportMenu } from "@/components/ExportMenu";
 import { useMeet } from "@/contexts/MeetContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -264,6 +265,7 @@ export default function Control() {
         </div>
         <div className="flex items-center gap-3">
           <ConnectionStatus connected={wsConnected} />
+          {currentMeetId && <ExportMenu meetId={currentMeetId} type="meet" />}
           <Link href="/display">
             <Button variant="outline" className="gap-2" data-testid="button-view-display">
               <Monitor className="w-4 h-4" />
