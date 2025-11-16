@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { MeetProvider } from "@/contexts/MeetContext";
+import { WebSocketProvider } from "@/contexts/WebSocketContext";
 import MeetsList from "@/pages/meets-list";
 import MeetDetail from "@/pages/meet-detail";
 import Control from "@/pages/control";
@@ -73,12 +74,14 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <MeetProvider>
-          <SidebarProvider style={sidebarStyle as React.CSSProperties}>
-            <AppContent />
-          </SidebarProvider>
-          <Toaster />
-        </MeetProvider>
+        <WebSocketProvider>
+          <MeetProvider>
+            <SidebarProvider style={sidebarStyle as React.CSSProperties}>
+              <AppContent />
+            </SidebarProvider>
+            <Toaster />
+          </MeetProvider>
+        </WebSocketProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

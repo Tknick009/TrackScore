@@ -86,7 +86,7 @@ import {
   parsePerformanceToSeconds,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, sql, and, not } from "drizzle-orm";
+import { eq, sql, and, not, inArray, count } from "drizzle-orm";
 
 export interface IStorage {
   // Events
@@ -105,6 +105,7 @@ export interface IStorage {
 
   // Entries (unified results for track and field)
   getEntries(): Promise<Entry[]>;
+  getEntry(id: string): Promise<EntryWithDetails | null>;
   getEntriesByEvent(eventId: string): Promise<Entry[]>;
   getEntriesWithDetails(eventId: string): Promise<EntryWithDetails[]>;
   createEntry(entry: InsertEntry): Promise<Entry>;
@@ -223,6 +224,9 @@ export interface IStorage {
   getPresetRules(presetId: number): Promise<PresetRule[]>;
   createScoringPreset(preset: InsertScoringPreset): Promise<ScoringPreset>;
   createPresetRule(rule: InsertPresetRule): Promise<PresetRule>;
+  
+  // Scoring seeding
+  seedScoringPresets(): Promise<void>;
 
   // Team Scoring - Meet Profile
   getMeetScoringProfile(meetId: string): Promise<MeetScoringProfile | undefined>;
@@ -241,6 +245,11 @@ export interface IStorage {
   getTeamStandings(meetId: string, scope?: { gender?: string; division?: string }): Promise<TeamStandingsEntry[]>;
   recalculateTeamScoring(meetId: string): Promise<void>;
   getEventPoints(eventId: string): Promise<EventPointsBreakdown>;
+  
+  // Check-in operations
+  markCheckedIn(entryId: string, operator: string, method: string): Promise<EntryWithDetails>;
+  bulkCheckIn(entryIds: string[], operator: string, method: string): Promise<EntryWithDetails[]>;
+  getCheckInStats(eventId: string): Promise<{ total: number; checkedIn: number; pending: number; noShow: number }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -320,6 +329,20 @@ export class DatabaseStorage implements IStorage {
   // Entries (unified results)
   async getEntries(): Promise<Entry[]> {
     return db.select().from(entries);
+  }
+
+  async getEntry(id: string): Promise<EntryWithDetails | null> {
+    const result = await db.query.entries.findFirst({
+      where: eq(entries.id, id),
+      with: {
+        athlete: true,
+        team: true,
+        event: true,
+        splits: true,
+      },
+    });
+    
+    return result ? (result as EntryWithDetails) : null;
   }
 
   async getEntriesByEvent(eventId: string): Promise<Entry[]> {
@@ -1176,6 +1199,69 @@ export class DatabaseStorage implements IStorage {
     return newRule;
   }
 
+  async seedScoringPresets(): Promise<void> {
+    // Check if already seeded
+    const existing = await this.getScoringPresets();
+    if (existing.length > 0) {
+      return; // Already seeded
+    }
+    
+    // Use transaction for atomic seeding
+    await db.transaction(async (tx) => {
+      // Dual Meet 5-3-1
+      const [dualMeetPreset] = await tx.insert(scoringPresets).values({
+        name: "Dual Meet 5-3-1",
+        category: "dual_meet",
+        description: "Standard dual meet scoring: 5 points for 1st, 3 for 2nd, 1 for 3rd",
+        defaultRelayMultiplier: 1.0,
+        allowRelayScoring: true
+      }).returning();
+      
+      await tx.insert(presetRules).values([
+        { presetId: dualMeetPreset.id, place: 1, points: 5, isRelayOverride: false },
+        { presetId: dualMeetPreset.id, place: 2, points: 3, isRelayOverride: false },
+        { presetId: dualMeetPreset.id, place: 3, points: 1, isRelayOverride: false }
+      ]);
+      
+      // Invitational 10-8-6-5-4-3-2-1
+      const [invitePreset] = await tx.insert(scoringPresets).values({
+        name: "Invitational 10-8-6-5-4-3-2-1",
+        category: "invitational",
+        description: "Standard invitational scoring for top 8 places",
+        defaultRelayMultiplier: 1.0,
+        allowRelayScoring: true
+      }).returning();
+      
+      const invitePoints = [10, 8, 6, 5, 4, 3, 2, 1];
+      await tx.insert(presetRules).values(
+        invitePoints.map((points, i) => ({
+          presetId: invitePreset.id,
+          place: i + 1,
+          points,
+          isRelayOverride: false
+        }))
+      );
+      
+      // Championship
+      const [champPreset] = await tx.insert(scoringPresets).values({
+        name: "Championship",
+        category: "championship",
+        description: "Championship meet scoring for top 8 places",
+        defaultRelayMultiplier: 2.0,
+        allowRelayScoring: true
+      }).returning();
+      
+      await tx.insert(presetRules).values(
+        invitePoints.map((points, i) => ({
+          presetId: champPreset.id,
+          place: i + 1,
+          points,
+          isRelayOverride: false
+        }))
+      );
+    });
+  }
+
   // Meet Scoring Profile
   async getMeetScoringProfile(meetId: string): Promise<MeetScoringProfile | undefined> {
     const [profile] = await db
@@ -1346,7 +1432,10 @@ export class DatabaseStorage implements IStorage {
         const allBreakdowns: any[] = [];
         for (const row of breakdownRows) {
           if (row.eventBreakdown) {
-            allBreakdowns.push(...(row.eventBreakdown as any[]));
+            const breakdown = typeof row.eventBreakdown === 'string' 
+              ? JSON.parse(row.eventBreakdown) 
+              : row.eventBreakdown;
+            allBreakdowns.push(...(breakdown as any[]));
           }
         }
 
@@ -1402,6 +1491,56 @@ export class DatabaseStorage implements IStorage {
     };
 
     return breakdown;
+  }
+  
+  // Check-in operations
+  async markCheckedIn(entryId: string, operator: string, method: string): Promise<EntryWithDetails> {
+    await db.update(entries)
+      .set({ 
+        checkInStatus: "checked_in",
+        checkInTime: new Date(),
+        checkInOperator: operator,
+        checkInMethod: method
+      })
+      .where(eq(entries.id, entryId));
+    
+    // Return full entry with athlete and event data
+    const fullEntry = await this.getEntry(entryId);
+    if (!fullEntry) {
+      throw new Error(`Entry ${entryId} not found after check-in`);
+    }
+    return fullEntry;
+  }
+
+  async bulkCheckIn(entryIds: string[], operator: string, method: string): Promise<EntryWithDetails[]> {
+    await db.update(entries)
+      .set({
+        checkInStatus: "checked_in",
+        checkInTime: new Date(),
+        checkInOperator: operator,
+        checkInMethod: method
+      })
+      .where(inArray(entries.id, entryIds));
+    
+    // Return full entries with athlete and event data
+    const fullEntries = await Promise.all(
+      entryIds.map(id => this.getEntry(id))
+    );
+    
+    return fullEntries.filter((e): e is EntryWithDetails => e !== null);
+  }
+
+  async getCheckInStats(eventId: string): Promise<{ total: number; checkedIn: number; pending: number; noShow: number }> {
+    const result = await db.select({
+      total: count(),
+      checkedIn: count(sql`CASE WHEN ${entries.checkInStatus} = 'checked_in' THEN 1 END`),
+      pending: count(sql`CASE WHEN ${entries.checkInStatus} = 'pending' THEN 1 END`),
+      noShow: count(sql`CASE WHEN ${entries.checkInStatus} = 'no_show' THEN 1 END`)
+    })
+    .from(entries)
+    .where(eq(entries.eventId, eventId));
+    
+    return result[0] || { total: 0, checkedIn: 0, pending: 0, noShow: 0 };
   }
 }
 

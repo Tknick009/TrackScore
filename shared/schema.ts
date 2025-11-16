@@ -140,6 +140,10 @@ export type DisplayTargetType = z.infer<typeof displayTargetTypeEnum>;
 export const meetStatusEnum = z.enum(["upcoming", "in_progress", "completed"]);
 export type MeetStatus = z.infer<typeof meetStatusEnum>;
 
+// Check-in Status
+export const checkInStatusEnum = z.enum(["pending", "checked_in", "no_show"]);
+export type CheckInStatus = z.infer<typeof checkInStatusEnum>;
+
 // ====================
 // LAYOUT ENUMS (TypeScript const arrays for shared use)
 // ====================
@@ -375,6 +379,12 @@ export const entries = pgTable("entries", {
   
   // Notes
   notes: text("notes"),
+  
+  // Check-in tracking
+  checkInStatus: text("check_in_status").default("pending"), // pending, checked_in, no_show
+  checkInTime: timestamp("check_in_time"),
+  checkInOperator: text("check_in_operator"), // Name/ID of person who checked in athlete
+  checkInMethod: text("check_in_method"), // manual, qr_code, bulk, etc.
 }, (table) => ({
   eventAthleteUnique: unique("entries_event_athlete_unique").on(table.eventId, table.athleteId),
 }));
@@ -966,6 +976,7 @@ export type WSMessage =
   | { type: "entry_update"; data: Entry }
   | { type: "layout_update"; data: { layoutId: string; cellId?: string } }
   | { type: "team_scoring_update"; meetId: string; standings: TeamStandingsEntry[] }
+  | { type: "check_in_update"; meetId: string; eventId: string; entry: EntryWithDetails }
   | { type: "connection_status"; connected: boolean };
 
 // ====================

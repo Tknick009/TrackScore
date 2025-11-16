@@ -30,6 +30,18 @@ import {
 import { importCompleteMDB } from "./import-mdb-complete";
 import { generateEventCSV, generateMeetCSV } from "./export-utils";
 
+// Check-in validation schemas
+const checkInSchema = z.object({
+  operator: z.string().min(1),
+  method: z.string().default('manual')
+});
+
+const bulkCheckInSchema = z.object({
+  entryIds: z.array(z.string().uuid()).min(1),
+  operator: z.string().min(1),
+  method: z.string().default('bulk')
+});
+
 // Track connected WebSocket clients
 const displayClients = new Set<WebSocket>();
 
@@ -230,6 +242,102 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(entry);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Check-in endpoints
+  app.post("/api/entries/:id/check-in", async (req, res) => {
+    try {
+      // Validate request body
+      const validated = checkInSchema.parse(req.body);
+      
+      // Verify entry exists and get initial entry with full details
+      const entry = await storage.getEntry(req.params.id);
+      if (!entry) {
+        return res.status(404).json({ error: "Entry not found" });
+      }
+      
+      const updated = await storage.markCheckedIn(
+        req.params.id, 
+        validated.operator, 
+        validated.method
+      );
+      
+      // Broadcast full entry data
+      broadcastToDisplays({
+        type: 'check_in_update',
+        meetId: entry.event.meetId,
+        eventId: entry.eventId,
+        entry: updated
+      });
+      
+      res.json(updated);
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid request", details: error.errors });
+      }
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/events/:eventId/bulk-check-in", async (req, res) => {
+    try {
+      const validated = bulkCheckInSchema.parse(req.body);
+      const event = await storage.getEvent(req.params.eventId);
+      if (!event) {
+        return res.status(404).json({ error: "Event not found" });
+      }
+      
+      // SHORT-CIRCUIT: Verify ALL entries BEFORE any updates
+      const invalidIds: string[] = [];
+      
+      for (const id of validated.entryIds) {
+        const entry = await storage.getEntry(id);
+        if (!entry || entry.eventId !== req.params.eventId) {
+          invalidIds.push(id);
+        }
+      }
+      
+      if (invalidIds.length > 0) {
+        return res.status(400).json({ 
+          error: "Some entries do not belong to this event or do not exist",
+          invalidIds,
+          invalidCount: invalidIds.length
+        });
+      }
+      
+      // All entries valid, safe to update
+      const updated = await storage.bulkCheckIn(
+        validated.entryIds, 
+        validated.operator, 
+        validated.method
+      );
+      
+      // Broadcast each updated entry
+      for (const entry of updated) {
+        broadcastToDisplays({
+          type: 'check_in_update',
+          meetId: event.meetId,
+          eventId: event.id,
+          entry
+        });
+      }
+      
+      res.json(updated);
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid request", details: error.errors });
+      }
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/events/:eventId/check-in-stats", async (req, res) => {
+    try {
+      const stats = await storage.getCheckInStats(req.params.eventId);
+      res.json(stats);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
   });
 
@@ -1733,8 +1841,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Upsert profile
       const profile = await storage.upsertMeetScoringProfile(validated);
       
-      // Handle overrides if provided
-      if (overrides && Array.isArray(overrides)) {
+      // Only handle overrides if explicitly provided (not undefined)
+      if (overrides !== undefined && Array.isArray(overrides)) {
         // Delete existing overrides for this profile
         await storage.deleteScoringOverrides(profile.id);
         

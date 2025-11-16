@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { startAutoRefresh } from "./auto-refresh";
+import { storage } from "./storage";
 
 const app = express();
 
@@ -48,6 +49,15 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Seed scoring presets using storage abstraction
+  try {
+    await storage.seedScoringPresets();
+    console.log("✅ Scoring presets initialized");
+  } catch (error) {
+    console.error("❌ Failed to seed scoring presets:", error);
+    throw error; // Prevent server start on seed failure
+  }
+  
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
