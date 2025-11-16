@@ -24,8 +24,11 @@ import {
   insertRecordBookSchema,
   insertRecordSchema,
   insertMeetScoringProfileSchema,
+  insertEventSplitConfigSchema,
+  insertEntrySplitSchema,
   type DisplayBoardState,
   type WSMessage,
+  type EntrySplit,
 } from "@shared/schema";
 import { importCompleteMDB } from "./import-mdb-complete";
 import { generateEventCSV, generateMeetCSV } from "./export-utils";
@@ -339,6 +342,120 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
+  });
+
+  // Split Times
+  app.get("/api/events/:eventId/splits/config", async (req, res) => {
+    const configs = await storage.getSplitConfigs(req.params.eventId);
+    res.json(configs);
+  });
+
+  app.put("/api/events/:eventId/splits/config", async (req, res) => {
+    try {
+      const event = await storage.getEvent(req.params.eventId);
+      if (!event) {
+        return res.status(404).json({ error: "Event not found" });
+      }
+      
+      const validated = z.array(insertEventSplitConfigSchema).parse(req.body);
+      const updated = await storage.updateSplitConfigs(event.type, event.meetId, validated);
+      res.json(updated);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid request", details: error.errors });
+      }
+      throw error;
+    }
+  });
+
+  app.post("/api/entries/:entryId/splits", async (req, res) => {
+    try {
+      const validated = insertEntrySplitSchema.parse(req.body);
+      const entry = await storage.getEntry(req.params.entryId);
+      if (!entry) {
+        return res.status(404).json({ error: "Entry not found" });
+      }
+      
+      const split = await storage.createEntrySplit({
+        ...validated,
+        entryId: req.params.entryId
+      });
+      
+      const allSplits = await storage.getEntrySplits(entry.eventId);
+      broadcastToDisplays({
+        type: 'split_update',
+        meetId: entry.event.meetId,
+        eventId: entry.eventId,
+        entryId: entry.id,
+        splits: allSplits.get(entry.id) || []
+      });
+      
+      res.json(split);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid request", details: error.errors });
+      }
+      throw error;
+    }
+  });
+
+  app.post("/api/events/:eventId/splits/batch", async (req, res) => {
+    try {
+      const validated = z.array(insertEntrySplitSchema).parse(req.body);
+      const event = await storage.getEvent(req.params.eventId);
+      if (!event) {
+        return res.status(404).json({ error: "Event not found" });
+      }
+      
+      const splits = await storage.createEntrySplitsBatch(validated);
+      
+      const affectedEntryIds = [...new Set(splits.map(s => s.entryId))];
+      const allSplits = await storage.getEntrySplits(event.id);
+      
+      for (const entryId of affectedEntryIds) {
+        broadcastToDisplays({
+          type: 'split_update',
+          meetId: event.meetId,
+          eventId: event.id,
+          entryId,
+          splits: allSplits.get(entryId) || []
+        });
+      }
+      
+      res.json(splits);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid request", details: error.errors });
+      }
+      throw error;
+    }
+  });
+
+  app.get("/api/events/:eventId/splits", async (req, res) => {
+    const splits = await storage.getEntrySplits(req.params.eventId);
+    const obj: Record<string, EntrySplit[]> = {};
+    splits.forEach((value, key) => { obj[key] = value; });
+    res.json(obj);
+  });
+
+  app.delete("/api/entries/:entryId/splits/:splitIndex", async (req, res) => {
+    const entry = await storage.getEntry(req.params.entryId);
+    if (!entry) {
+      return res.status(404).json({ error: "Entry not found" });
+    }
+    
+    await storage.deleteEntrySplit(req.params.entryId, parseInt(req.params.splitIndex));
+    
+    const allSplits = await storage.getEntrySplits(entry.eventId);
+    broadcastToDisplays({
+      type: 'split_update',
+      meetId: entry.event.meetId,
+      eventId: entry.eventId,
+      entryId: entry.id,
+      splits: allSplits.get(entry.id) || []
+    });
+    
+    res.status(204).send();
   });
 
   // Teams

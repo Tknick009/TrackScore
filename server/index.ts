@@ -57,6 +57,15 @@ app.use((req, res, next) => {
     console.error("❌ Failed to seed scoring presets:", error);
     throw error; // Prevent server start on seed failure
   }
+
+  // Seed split time defaults
+  try {
+    await storage.seedSplitDefaults();
+    console.log("✅ Split defaults initialized");
+  } catch (error) {
+    console.error("❌ Failed to seed split defaults:", error);
+    throw error;
+  }
   
   const server = await registerRoutes(app);
 

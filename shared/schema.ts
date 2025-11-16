@@ -395,19 +395,42 @@ export const insertEntrySchema = createInsertSchema(entries).omit({ id: true }).
 export type InsertEntry = z.infer<typeof insertEntrySchema>;
 export type Entry = typeof entries.$inferSelect;
 
-// Entry Splits (for lap/attempt breakdowns)
-export const entrySplits = pgTable("entry_splits", {
+// Event Split Configurations (default + meet-specific)
+export const eventSplitConfigs = pgTable("event_split_configs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  entryId: varchar("entry_id").notNull(),
-  round: text("round").notNull(), // preliminary, quarterfinal, semifinal, final
-  splitNumber: integer("split_number").notNull(), // 1, 2, 3, etc. (lap or attempt number)
-  splitTime: real("split_time"), // For running events
-  cumulativeTime: real("cumulative_time"), // Total time up to this split
-  distance: real("distance"), // For field events (attempt distance/height)
+  eventType: text("event_type").notNull(),
+  meetId: varchar("meet_id").references(() => meets.id, { onDelete: "cascade" }),
+  splitOrder: integer("split_order").notNull(),
+  distanceMeters: integer("distance_meters").notNull(),
+  label: varchar("label", { length: 100 }),
+  expectedLapCount: integer("expected_lap_count"),
+  isDefault: boolean("is_default").default(false),
+  createdAt: timestamp("created_at").defaultNow()
 });
 
-export const insertEntrySplitSchema = createInsertSchema(entrySplits).omit({ id: true }).extend({
-  round: roundTypeEnum,
+export const insertEventSplitConfigSchema = createInsertSchema(eventSplitConfigs).omit({
+  id: true,
+  createdAt: true
+});
+export type InsertEventSplitConfig = z.infer<typeof insertEventSplitConfigSchema>;
+export type EventSplitConfig = typeof eventSplitConfigs.$inferSelect;
+
+// Recorded split times for entries
+export const entrySplits = pgTable("entry_splits", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  entryId: varchar("entry_id").notNull().references(() => entries.id, { onDelete: "cascade" }),
+  splitConfigId: varchar("split_config_id").references(() => eventSplitConfigs.id, { onDelete: "set null" }),
+  splitIndex: integer("split_index").notNull(),
+  distanceMeters: integer("distance_meters").notNull(),
+  elapsedSeconds: real("elapsed_seconds").notNull(),
+  source: varchar("source", { length: 50 }).default("manual"),
+  recordedAt: timestamp("recorded_at").defaultNow(),
+  recorderId: varchar("recorder_id", { length: 100 })
+});
+
+export const insertEntrySplitSchema = createInsertSchema(entrySplits).omit({
+  id: true,
+  recordedAt: true
 });
 export type InsertEntrySplit = z.infer<typeof insertEntrySplitSchema>;
 export type EntrySplit = typeof entrySplits.$inferSelect;
@@ -977,6 +1000,7 @@ export type WSMessage =
   | { type: "layout_update"; data: { layoutId: string; cellId?: string } }
   | { type: "team_scoring_update"; meetId: string; standings: TeamStandingsEntry[] }
   | { type: "check_in_update"; meetId: string; eventId: string; entry: EntryWithDetails }
+  | { type: "split_update"; meetId: string; eventId: string; entryId: string; splits: EntrySplit[] }
   | { type: "connection_status"; connected: boolean };
 
 // ====================

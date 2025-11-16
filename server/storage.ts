@@ -54,6 +54,10 @@ import {
   type InsertTeamScoringResult,
   type TeamStandingsEntry,
   type EventPointsBreakdown,
+  type EventSplitConfig,
+  type InsertEventSplitConfig,
+  type EntrySplit,
+  type InsertEntrySplit,
   events,
   athletes,
   entries,
@@ -61,6 +65,7 @@ import {
   seasons,
   teams,
   divisions,
+  eventSplitConfigs,
   entrySplits,
   displayComputers,
   displayAssignments,
@@ -86,7 +91,7 @@ import {
   parsePerformanceToSeconds,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, sql, and, not, inArray, count } from "drizzle-orm";
+import { eq, sql, and, not, inArray, count, isNull } from "drizzle-orm";
 
 export interface IStorage {
   // Events
@@ -250,6 +255,16 @@ export interface IStorage {
   markCheckedIn(entryId: string, operator: string, method: string): Promise<EntryWithDetails>;
   bulkCheckIn(entryIds: string[], operator: string, method: string): Promise<EntryWithDetails[]>;
   getCheckInStats(eventId: string): Promise<{ total: number; checkedIn: number; pending: number; noShow: number }>;
+
+  // Split times
+  seedSplitDefaults(): Promise<void>;
+  getSplitConfigs(eventId: string): Promise<EventSplitConfig[]>;
+  createSplitConfig(config: InsertEventSplitConfig): Promise<EventSplitConfig>;
+  updateSplitConfigs(eventType: string, meetId: string | null, configs: InsertEventSplitConfig[]): Promise<EventSplitConfig[]>;
+  getEntrySplits(eventId: string): Promise<Map<string, EntrySplit[]>>;
+  createEntrySplit(split: InsertEntrySplit): Promise<EntrySplit>;
+  createEntrySplitsBatch(splits: InsertEntrySplit[]): Promise<EntrySplit[]>;
+  deleteEntrySplit(entryId: string, splitIndex: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1541,6 +1556,116 @@ export class DatabaseStorage implements IStorage {
     .where(eq(entries.eventId, eventId));
     
     return result[0] || { total: 0, checkedIn: 0, pending: 0, noShow: 0 };
+  }
+
+  // Split times implementation
+  async seedSplitDefaults(): Promise<void> {
+    const defaults: InsertEventSplitConfig[] = [
+      { eventType: "800m", meetId: null, splitOrder: 1, distanceMeters: 400, label: "400m", isDefault: true },
+      
+      { eventType: "1500m", meetId: null, splitOrder: 1, distanceMeters: 400, label: "400m", isDefault: true },
+      { eventType: "1500m", meetId: null, splitOrder: 2, distanceMeters: 800, label: "800m", isDefault: true },
+      { eventType: "1500m", meetId: null, splitOrder: 3, distanceMeters: 1200, label: "1200m", isDefault: true },
+      
+      { eventType: "3000m", meetId: null, splitOrder: 1, distanceMeters: 1000, label: "1000m", isDefault: true },
+      { eventType: "3000m", meetId: null, splitOrder: 2, distanceMeters: 2000, label: "2000m", isDefault: true },
+      
+      { eventType: "5000m", meetId: null, splitOrder: 1, distanceMeters: 1000, label: "1000m", isDefault: true },
+      { eventType: "5000m", meetId: null, splitOrder: 2, distanceMeters: 2000, label: "2000m", isDefault: true },
+      { eventType: "5000m", meetId: null, splitOrder: 3, distanceMeters: 3000, label: "3000m", isDefault: true },
+      { eventType: "5000m", meetId: null, splitOrder: 4, distanceMeters: 4000, label: "4000m", isDefault: true },
+      
+      { eventType: "10000m", meetId: null, splitOrder: 1, distanceMeters: 2000, label: "2000m", isDefault: true },
+      { eventType: "10000m", meetId: null, splitOrder: 2, distanceMeters: 4000, label: "4000m", isDefault: true },
+      { eventType: "10000m", meetId: null, splitOrder: 3, distanceMeters: 6000, label: "6000m", isDefault: true },
+      { eventType: "10000m", meetId: null, splitOrder: 4, distanceMeters: 8000, label: "8000m", isDefault: true },
+    ];
+    
+    const existing = await db.select().from(eventSplitConfigs).where(eq(eventSplitConfigs.isDefault, true));
+    if (existing.length === 0) {
+      await db.insert(eventSplitConfigs).values(defaults);
+      console.log("✅ Split defaults seeded");
+    }
+  }
+
+  async getSplitConfigs(eventId: string): Promise<EventSplitConfig[]> {
+    const event = await this.getEvent(eventId);
+    if (!event) return [];
+    
+    const meetSpecific = await db.select()
+      .from(eventSplitConfigs)
+      .where(and(
+        eq(eventSplitConfigs.eventType, event.type),
+        eq(eventSplitConfigs.meetId, event.meetId)
+      ))
+      .orderBy(eventSplitConfigs.splitOrder);
+    
+    if (meetSpecific.length > 0) return meetSpecific;
+    
+    return db.select()
+      .from(eventSplitConfigs)
+      .where(and(
+        eq(eventSplitConfigs.eventType, event.type),
+        isNull(eventSplitConfigs.meetId)
+      ))
+      .orderBy(eventSplitConfigs.splitOrder);
+  }
+
+  async createSplitConfig(config: InsertEventSplitConfig): Promise<EventSplitConfig> {
+    const [created] = await db.insert(eventSplitConfigs).values(config).returning();
+    return created;
+  }
+
+  async updateSplitConfigs(eventType: string, meetId: string | null, configs: InsertEventSplitConfig[]): Promise<EventSplitConfig[]> {
+    await db.delete(eventSplitConfigs)
+      .where(and(
+        eq(eventSplitConfigs.eventType, eventType),
+        meetId ? eq(eventSplitConfigs.meetId, meetId) : isNull(eventSplitConfigs.meetId)
+      ));
+    
+    const created = await db.insert(eventSplitConfigs).values(configs).returning();
+    return created;
+  }
+
+  async getEntrySplits(eventId: string): Promise<Map<string, EntrySplit[]>> {
+    const eventEntries = await db.select()
+      .from(entries)
+      .where(eq(entries.eventId, eventId));
+    
+    const entryIds = eventEntries.map(e => e.id);
+    if (entryIds.length === 0) return new Map();
+    
+    const splits = await db.select()
+      .from(entrySplits)
+      .where(inArray(entrySplits.entryId, entryIds))
+      .orderBy(entrySplits.splitIndex);
+    
+    const map = new Map<string, EntrySplit[]>();
+    for (const split of splits) {
+      const existing = map.get(split.entryId) || [];
+      existing.push(split);
+      map.set(split.entryId, existing);
+    }
+    
+    return map;
+  }
+
+  async createEntrySplit(split: InsertEntrySplit): Promise<EntrySplit> {
+    const [created] = await db.insert(entrySplits).values(split).returning();
+    return created;
+  }
+
+  async createEntrySplitsBatch(splits: InsertEntrySplit[]): Promise<EntrySplit[]> {
+    const created = await db.insert(entrySplits).values(splits).returning();
+    return created;
+  }
+
+  async deleteEntrySplit(entryId: string, splitIndex: number): Promise<void> {
+    await db.delete(entrySplits)
+      .where(and(
+        eq(entrySplits.entryId, entryId),
+        eq(entrySplits.splitIndex, splitIndex)
+      ));
   }
 }
 

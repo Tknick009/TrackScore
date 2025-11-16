@@ -16,6 +16,7 @@ import { ExportMenu } from "@/components/ExportMenu";
 import { TeamScoringConfig } from "@/components/team-scoring-config";
 import { TeamStandingsPanel } from "@/components/team-standings-panel";
 import { AthleteCheckInPanel } from "@/components/athlete-check-in-panel";
+import { SplitRecorderPanel } from "@/components/split-recorder-panel";
 import { useMeet } from "@/contexts/MeetContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,7 +26,7 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { PlayCircle, CheckCircle2, Monitor, Upload, Database, Trophy, Users, Target, Shield, Award, UserCheck } from "lucide-react";
+import { PlayCircle, CheckCircle2, Monitor, Upload, Database, Trophy, Users, Target, Shield, Award, UserCheck, Timer } from "lucide-react";
 import { Link } from "wouter";
 
 type ImportStatistics = {
@@ -415,7 +416,7 @@ export default function Control() {
         {/* Left Column - Event Management */}
         <div className="lg:col-span-2 space-y-6">
           <Tabs defaultValue="events" className="w-full">
-            <TabsList className="grid w-full grid-cols-6">
+            <TabsList className="grid w-full grid-cols-7">
               <TabsTrigger value="events" data-testid="tab-events" className="gap-2">
                 <Trophy className="w-4 h-4" />
                 Events
@@ -439,6 +440,10 @@ export default function Control() {
               <TabsTrigger value="checkin" data-testid="tab-checkin" className="gap-2">
                 <UserCheck className="w-4 h-4" />
                 Check-In
+              </TabsTrigger>
+              <TabsTrigger value="splits" data-testid="tab-splits" className="gap-2">
+                <Timer className="w-4 h-4" />
+                Splits
               </TabsTrigger>
             </TabsList>
 
@@ -552,6 +557,10 @@ export default function Control() {
 
             <TabsContent value="checkin" className="space-y-4">
               <AthleteCheckInPanel />
+            </TabsContent>
+
+            <TabsContent value="splits" className="space-y-4">
+              <SplitRecorderPanel />
             </TabsContent>
           </Tabs>
         </div>
