@@ -438,9 +438,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         events.map(event => storage.getEventWithEntries(event.id))
       );
       
-      // Filter out nulls and handle properly
+      // Normalize to always have entries as array, never undefined
       const eventsWithEntries = eventsWithEntriesRaw
-        .filter((item): item is NonNullable<typeof item> => item !== null);
+        .filter((item): item is NonNullable<typeof item> => item !== null)
+        .map(item => ({
+          ...item,
+          entries: item.entries ?? []  // Ensure entries is always an array
+        }));
       
       // If some events returned null, log a warning
       if (eventsWithEntries.length < events.length) {
@@ -474,9 +478,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         events.map(event => storage.getEventWithEntries(event.id))
       );
       
-      // Filter out nulls - EventWithEntries should include events with empty entries
+      // Normalize to always have entries as array, never undefined
       const eventsWithEntries = eventsWithEntriesRaw
-        .filter((item): item is NonNullable<typeof item> => item !== null);
+        .filter((item): item is NonNullable<typeof item> => item !== null)
+        .map(item => ({
+          ...item,
+          entries: item.entries ?? []  // Ensure entries is always an array
+        }));
       
       if (format === 'csv') {
         const csv = generateMeetCSV(meet, eventsWithEntries);
