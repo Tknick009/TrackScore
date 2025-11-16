@@ -23,6 +23,7 @@ import {
   updateLayoutZoneSchema,
   insertRecordBookSchema,
   insertRecordSchema,
+  insertMeetScoringProfileSchema,
   type DisplayBoardState,
   type WSMessage,
 } from "@shared/schema";
@@ -1658,6 +1659,166 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       await storage.deleteRecord(parseInt(req.params.id));
       res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ==================
+  // TEAM SCORING APIs
+  // ==================
+
+  // Get available scoring presets
+  app.get('/api/scoring/presets', async (req, res) => {
+    try {
+      const presets = await storage.getScoringPresets();
+      res.json(presets);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get preset with rules
+  app.get('/api/scoring/presets/:id', async (req, res) => {
+    try {
+      const preset = await storage.getScoringPreset(parseInt(req.params.id));
+      if (!preset) {
+        return res.status(404).json({ error: 'Preset not found' });
+      }
+      const rules = await storage.getPresetRules(preset.id);
+      res.json({ preset, rules });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get meet scoring configuration
+  app.get('/api/meets/:meetId/scoring', async (req, res) => {
+    try {
+      const profile = await storage.getMeetScoringProfile(req.params.meetId);
+      
+      // If no profile exists, return sensible defaults so UI can configure
+      if (!profile) {
+        const presets = await storage.getScoringPresets();
+        const defaultPreset = presets.find(p => p.category === 'invitational') || presets[0];
+        
+        return res.json({
+          meetId: req.params.meetId,
+          presetId: defaultPreset?.id || 1,
+          genderMode: 'combined',
+          divisionMode: 'overall',
+          allowRelayScoring: true,
+          overrides: []
+        });
+      }
+      
+      const overrides = await storage.getMeetScoringOverrides(profile.id);
+      res.json({ ...profile, overrides }); // Flatten into single object
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Update meet scoring configuration
+  app.put('/api/meets/:meetId/scoring', async (req, res) => {
+    try {
+      const { overrides, ...profileData } = req.body;
+      
+      // Validate profile data
+      const validated = insertMeetScoringProfileSchema.parse({
+        ...profileData,
+        meetId: req.params.meetId,
+      });
+      
+      // Upsert profile
+      const profile = await storage.upsertMeetScoringProfile(validated);
+      
+      // Handle overrides if provided
+      if (overrides && Array.isArray(overrides)) {
+        // Delete existing overrides for this profile
+        await storage.deleteScoringOverrides(profile.id);
+        
+        // Insert new overrides
+        for (const override of overrides) {
+          await storage.upsertScoringOverride({
+            profileId: profile.id,
+            eventId: override.eventId,
+            pointsMap: override.pointsMap,
+            relayMultiplier: override.relayMultiplier,
+          });
+        }
+      }
+      
+      // Broadcast scoring update
+      broadcastToDisplays({
+        type: 'team_scoring_update',
+        meetId: req.params.meetId
+      });
+      
+      // Return updated profile with overrides
+      const updatedOverrides = await storage.getMeetScoringOverrides(profile.id);
+      res.json({ ...profile, overrides: updatedOverrides });
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid scoring configuration", details: error.errors });
+      }
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Get team standings
+  app.get('/api/meets/:meetId/scoring/standings', async (req, res) => {
+    try {
+      const { gender, division, topN } = req.query;
+      
+      const standings = await storage.getTeamStandings(req.params.meetId, {
+        gender: gender as string | undefined,
+        division: division as string | undefined,
+      });
+      
+      // Apply topN limit if provided
+      const limit = topN ? parseInt(topN as string) : undefined;
+      const limitedStandings = limit ? standings.slice(0, limit) : standings;
+      
+      res.json(limitedStandings);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Recalculate team scoring
+  app.post('/api/meets/:meetId/scoring/recalculate', async (req, res) => {
+    try {
+      await storage.recalculateTeamScoring(req.params.meetId);
+      
+      // Broadcast update to displays
+      broadcastToDisplays({
+        type: 'event_update',
+        data: { meetId: req.params.meetId, action: 'scoring_updated' } as any,
+      });
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get event points breakdown
+  app.get('/api/events/:eventId/points', async (req, res) => {
+    try {
+      const breakdown = await storage.getEventPoints(req.params.eventId);
+      res.json(breakdown);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Seed default scoring presets (one-time initialization)
+  app.post('/api/scoring/presets/seed', async (req, res) => {
+    try {
+      const { seedScoringPresets } = await import('./scoring-calculator');
+      await seedScoringPresets(storage);
+      res.json({ success: true, message: 'Scoring presets seeded successfully' });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

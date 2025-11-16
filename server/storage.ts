@@ -40,6 +40,20 @@ import {
   type SelectRecord,
   type InsertRecord,
   type RecordCheck,
+  type ScoringPreset,
+  type InsertScoringPreset,
+  type PresetRule,
+  type InsertPresetRule,
+  type MeetScoringProfile,
+  type InsertMeetScoringProfile,
+  type MeetScoringOverride,
+  type InsertMeetScoringOverride,
+  type MeetScoringState,
+  type InsertMeetScoringState,
+  type TeamScoringResult,
+  type InsertTeamScoringResult,
+  type TeamStandingsEntry,
+  type EventPointsBreakdown,
   events,
   athletes,
   entries,
@@ -60,6 +74,12 @@ import {
   layoutZones,
   recordBooks,
   records,
+  scoringPresets,
+  presetRules,
+  meetScoringProfiles,
+  meetScoringOverrides,
+  meetScoringState,
+  teamScoringResults,
   isTimeEvent,
   isDistanceEvent,
   isHeightEvent,
@@ -196,6 +216,31 @@ export interface IStorage {
 
   // Record Checking
   checkForRecords(eventType: string, gender: string, performance: string): Promise<RecordCheck[]>;
+
+  // Team Scoring - Presets
+  getScoringPresets(): Promise<ScoringPreset[]>;
+  getScoringPreset(id: number): Promise<ScoringPreset | undefined>;
+  getPresetRules(presetId: number): Promise<PresetRule[]>;
+  createScoringPreset(preset: InsertScoringPreset): Promise<ScoringPreset>;
+  createPresetRule(rule: InsertPresetRule): Promise<PresetRule>;
+
+  // Team Scoring - Meet Profile
+  getMeetScoringProfile(meetId: string): Promise<MeetScoringProfile | undefined>;
+  upsertMeetScoringProfile(profile: InsertMeetScoringProfile): Promise<MeetScoringProfile>;
+  getMeetScoringOverrides(profileId: string): Promise<MeetScoringOverride[]>;
+  upsertScoringOverride(override: InsertMeetScoringOverride): Promise<MeetScoringOverride>;
+  deleteScoringOverrides(profileId: string): Promise<void>;
+
+  // Team Scoring - State and Results
+  getMeetScoringState(profileId: string): Promise<MeetScoringState | undefined>;
+  updateMeetScoringState(profileId: string, updates: Partial<InsertMeetScoringState>): Promise<void>;
+  clearTeamScoringResults(profileId: string): Promise<void>;
+  createTeamScoringResult(result: InsertTeamScoringResult): Promise<TeamScoringResult>;
+
+  // Team Scoring - Queries
+  getTeamStandings(meetId: string, scope?: { gender?: string; division?: string }): Promise<TeamStandingsEntry[]>;
+  recalculateTeamScoring(meetId: string): Promise<void>;
+  getEventPoints(eventId: string): Promise<EventPointsBreakdown>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1095,6 +1140,268 @@ export class DatabaseStorage implements IStorage {
     }
 
     return { isRecord, isTied, margin };
+  }
+
+  // ===============================
+  // TEAM SCORING METHODS
+  // ===============================
+
+  // Scoring Presets
+  async getScoringPresets(): Promise<ScoringPreset[]> {
+    return db.select().from(scoringPresets);
+  }
+
+  async getScoringPreset(id: number): Promise<ScoringPreset | undefined> {
+    const [preset] = await db.select().from(scoringPresets).where(eq(scoringPresets.id, id));
+    return preset || undefined;
+  }
+
+  async getPresetRules(presetId: number): Promise<PresetRule[]> {
+    return db.select().from(presetRules).where(eq(presetRules.presetId, presetId));
+  }
+
+  async createScoringPreset(preset: InsertScoringPreset): Promise<ScoringPreset> {
+    const [newPreset] = await db
+      .insert(scoringPresets)
+      .values(preset)
+      .returning();
+    return newPreset;
+  }
+
+  async createPresetRule(rule: InsertPresetRule): Promise<PresetRule> {
+    const [newRule] = await db
+      .insert(presetRules)
+      .values(rule)
+      .returning();
+    return newRule;
+  }
+
+  // Meet Scoring Profile
+  async getMeetScoringProfile(meetId: string): Promise<MeetScoringProfile | undefined> {
+    const [profile] = await db
+      .select()
+      .from(meetScoringProfiles)
+      .where(eq(meetScoringProfiles.meetId, meetId));
+    return profile || undefined;
+  }
+
+  async upsertMeetScoringProfile(profile: InsertMeetScoringProfile): Promise<MeetScoringProfile> {
+    // Check if profile exists for this meet
+    const existing = await this.getMeetScoringProfile(profile.meetId);
+
+    if (existing) {
+      // Update existing profile
+      const [updated] = await db
+        .update(meetScoringProfiles)
+        .set({ ...profile, updatedAt: new Date() })
+        .where(eq(meetScoringProfiles.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      // Create new profile
+      const [newProfile] = await db
+        .insert(meetScoringProfiles)
+        .values(profile)
+        .returning();
+      return newProfile;
+    }
+  }
+
+  async getMeetScoringOverrides(profileId: string): Promise<MeetScoringOverride[]> {
+    return db
+      .select()
+      .from(meetScoringOverrides)
+      .where(eq(meetScoringOverrides.profileId, profileId));
+  }
+
+  async upsertScoringOverride(override: InsertMeetScoringOverride): Promise<MeetScoringOverride> {
+    // Check if override exists for this profile + event
+    const [existing] = await db
+      .select()
+      .from(meetScoringOverrides)
+      .where(
+        and(
+          eq(meetScoringOverrides.profileId, override.profileId),
+          eq(meetScoringOverrides.eventId, override.eventId)
+        )
+      );
+
+    if (existing) {
+      // Update existing override
+      const [updated] = await db
+        .update(meetScoringOverrides)
+        .set(override)
+        .where(eq(meetScoringOverrides.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      // Create new override
+      const [newOverride] = await db
+        .insert(meetScoringOverrides)
+        .values(override)
+        .returning();
+      return newOverride;
+    }
+  }
+
+  async deleteScoringOverrides(profileId: string): Promise<void> {
+    await db.delete(meetScoringOverrides)
+      .where(eq(meetScoringOverrides.profileId, profileId));
+  }
+
+  // Scoring State
+  async getMeetScoringState(profileId: string): Promise<MeetScoringState | undefined> {
+    const [state] = await db
+      .select()
+      .from(meetScoringState)
+      .where(eq(meetScoringState.profileId, profileId));
+    return state || undefined;
+  }
+
+  async updateMeetScoringState(profileId: string, updates: Partial<InsertMeetScoringState>): Promise<void> {
+    const existing = await this.getMeetScoringState(profileId);
+
+    if (existing) {
+      await db
+        .update(meetScoringState)
+        .set(updates)
+        .where(eq(meetScoringState.profileId, profileId));
+    } else {
+      await db
+        .insert(meetScoringState)
+        .values({ profileId, ...updates });
+    }
+  }
+
+  async clearTeamScoringResults(profileId: string): Promise<void> {
+    await db
+      .delete(teamScoringResults)
+      .where(eq(teamScoringResults.profileId, profileId));
+  }
+
+  async createTeamScoringResult(result: InsertTeamScoringResult): Promise<TeamScoringResult> {
+    const [newResult] = await db
+      .insert(teamScoringResults)
+      .values(result)
+      .returning();
+    return newResult;
+  }
+
+  // Team Standings Query
+  async getTeamStandings(
+    meetId: string,
+    scope?: { gender?: string; division?: string }
+  ): Promise<TeamStandingsEntry[]> {
+    const profile = await this.getMeetScoringProfile(meetId);
+    if (!profile) {
+      return [];
+    }
+
+    // Build WHERE conditions based on scope
+    const conditions = [eq(teamScoringResults.profileId, profile.id)];
+    
+    if (scope?.gender) {
+      conditions.push(eq(teamScoringResults.gender, scope.gender));
+    }
+    
+    if (scope?.division) {
+      conditions.push(eq(teamScoringResults.division, scope.division));
+    }
+
+    // Query with proper SQL aggregation
+    const results = await db
+      .select({
+        teamId: teamScoringResults.teamId,
+        teamName: teams.name,
+        totalPoints: sql<number>`COALESCE(SUM(${teamScoringResults.pointsAwarded}), 0)`,
+        eventCount: sql<number>`COUNT(DISTINCT ${teamScoringResults.eventId})`,
+      })
+      .from(teamScoringResults)
+      .innerJoin(teams, eq(teamScoringResults.teamId, teams.id))
+      .where(and(...conditions))
+      .groupBy(teamScoringResults.teamId, teams.name)
+      .orderBy(sql`COALESCE(SUM(${teamScoringResults.pointsAwarded}), 0) DESC`);
+
+    // Get event breakdown for each team separately (can't aggregate in GROUP BY)
+    const standingsWithBreakdown = await Promise.all(
+      results.map(async (result, index) => {
+        const breakdownConditions = [
+          eq(teamScoringResults.profileId, profile.id),
+          eq(teamScoringResults.teamId, result.teamId)
+        ];
+        
+        if (scope?.gender) {
+          breakdownConditions.push(eq(teamScoringResults.gender, scope.gender));
+        }
+        
+        if (scope?.division) {
+          breakdownConditions.push(eq(teamScoringResults.division, scope.division));
+        }
+
+        const breakdownRows = await db
+          .select({ eventBreakdown: teamScoringResults.eventBreakdown })
+          .from(teamScoringResults)
+          .where(and(...breakdownConditions));
+
+        const allBreakdowns: any[] = [];
+        for (const row of breakdownRows) {
+          if (row.eventBreakdown) {
+            allBreakdowns.push(...(row.eventBreakdown as any[]));
+          }
+        }
+
+        return {
+          rank: index + 1,
+          teamId: result.teamId,
+          teamName: result.teamName,
+          totalPoints: result.totalPoints,
+          eventCount: result.eventCount,
+          eventBreakdown: allBreakdowns,
+        };
+      })
+    );
+
+    return standingsWithBreakdown;
+  }
+
+  // Recalculate Team Scoring
+  async recalculateTeamScoring(meetId: string): Promise<void> {
+    const { ScoringCalculator } = await import('./scoring-calculator');
+    const calculator = new ScoringCalculator();
+    await calculator.calculateMeetScoring(meetId, this);
+  }
+
+  // Get Event Points Breakdown
+  async getEventPoints(eventId: string): Promise<EventPointsBreakdown> {
+    const event = await this.getEvent(eventId);
+    if (!event) {
+      throw new Error(`Event ${eventId} not found`);
+    }
+
+    const eventEntries = await this.getEntriesWithDetails(eventId);
+
+    // Filter to entries with places and teams
+    const scoredEntries = eventEntries.filter(
+      e => e.finalPlace !== null && e.finalPlace !== undefined && !e.isDisqualified && !e.isScratched
+    );
+
+    // Sort by place
+    scoredEntries.sort((a, b) => (a.finalPlace || 0) - (b.finalPlace || 0));
+
+    const breakdown: EventPointsBreakdown = {
+      eventId: event.id,
+      eventName: event.name,
+      entries: scoredEntries.map(entry => ({
+        place: entry.finalPlace!,
+        athleteId: entry.athleteId,
+        athleteName: `${entry.athlete.firstName} ${entry.athlete.lastName}`,
+        teamId: entry.teamId,
+        teamName: entry.team?.name || null,
+        points: entry.scoredPoints || 0,
+      })),
+    };
+
+    return breakdown;
   }
 }
 

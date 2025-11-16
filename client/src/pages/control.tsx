@@ -13,6 +13,8 @@ import { TeamList } from "@/components/team-list";
 import { TeamDetailDialog } from "@/components/team-detail-dialog";
 import { ConnectionStatus } from "@/components/connection-status";
 import { ExportMenu } from "@/components/ExportMenu";
+import { TeamScoringConfig } from "@/components/team-scoring-config";
+import { TeamStandingsPanel } from "@/components/team-standings-panel";
 import { useMeet } from "@/contexts/MeetContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,7 +24,7 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { PlayCircle, CheckCircle2, Monitor, Upload, Database, Trophy, Users, Target, Shield } from "lucide-react";
+import { PlayCircle, CheckCircle2, Monitor, Upload, Database, Trophy, Users, Target, Shield, Award } from "lucide-react";
 import { Link } from "wouter";
 
 type ImportStatistics = {
@@ -412,7 +414,7 @@ export default function Control() {
         {/* Left Column - Event Management */}
         <div className="lg:col-span-2 space-y-6">
           <Tabs defaultValue="events" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="events" data-testid="tab-events" className="gap-2">
                 <Trophy className="w-4 h-4" />
                 Events
@@ -428,6 +430,10 @@ export default function Control() {
               <TabsTrigger value="results" data-testid="tab-results" className="gap-2">
                 <Target className="w-4 h-4" />
                 Results
+              </TabsTrigger>
+              <TabsTrigger value="scoring" data-testid="tab-scoring" className="gap-2">
+                <Award className="w-4 h-4" />
+                Scoring
               </TabsTrigger>
             </TabsList>
 
@@ -515,6 +521,27 @@ export default function Control() {
                   onSubmit={(data) => createEntryMutation.mutate(data)}
                   isPending={createEntryMutation.isPending}
                 />
+              )}
+            </TabsContent>
+
+            <TabsContent value="scoring" className="space-y-4">
+              {!currentMeetId ? (
+                <Card>
+                  <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                    <Award className="w-12 h-12 text-muted-foreground mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">
+                      Select a Meet First
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      Choose a meet to configure team scoring
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <>
+                  <TeamScoringConfig meetId={currentMeetId} />
+                  <TeamStandingsPanel meetId={currentMeetId} />
+                </>
               )}
             </TabsContent>
           </Tabs>

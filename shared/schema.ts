@@ -369,6 +369,10 @@ export const entries = pgTable("entries", {
   isDisqualified: boolean("is_disqualified").default(false),
   isScratched: boolean("is_scratched").default(false),
   
+  // Team Scoring
+  scoringStatus: text("scoring_status").default("pending"),
+  scoredPoints: real("scored_points"),
+  
   // Notes
   notes: text("notes"),
 }, (table) => ({
@@ -802,6 +806,135 @@ export type RecordCheck = {
 };
 
 // ====================
+// TEAM SCORING SYSTEM
+// ====================
+
+// Scoring Presets (Global Reusable Templates)
+export const scoringPresets = pgTable("scoring_presets", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  category: text("category").notNull(),
+  defaultRelayMultiplier: real("default_relay_multiplier").default(1.0),
+  allowRelayScoring: boolean("allow_relay_scoring").default(true),
+  description: text("description"),
+});
+
+export const presetRules = pgTable("preset_rules", {
+  id: serial("id").primaryKey(),
+  presetId: integer("preset_id").notNull().references(() => scoringPresets.id, { onDelete: "cascade" }),
+  place: integer("place").notNull(),
+  points: real("points").notNull(),
+  isRelayOverride: boolean("is_relay_override").default(false),
+}, (table) => ({
+  presetPlaceUnique: unique("preset_rules_preset_place").on(table.presetId, table.place, table.isRelayOverride),
+}));
+
+// Meet Scoring Profiles
+export const meetScoringProfiles = pgTable("meet_scoring_profiles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  meetId: varchar("meet_id").notNull().references(() => meets.id, { onDelete: "cascade" }).unique(),
+  presetId: integer("preset_id").notNull().references(() => scoringPresets.id),
+  genderMode: text("gender_mode").notNull().default("combined"),
+  divisionMode: text("division_mode").notNull().default("overall"),
+  allowRelayScoring: boolean("allow_relay_scoring").default(true),
+  customTieBreak: jsonb("custom_tie_break").$type<{ rule: string; priority: number }[]>(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const meetScoringOverrides = pgTable("meet_scoring_overrides", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  profileId: varchar("profile_id").notNull().references(() => meetScoringProfiles.id, { onDelete: "cascade" }),
+  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  pointsMap: jsonb("points_map").$type<Record<number, number>>(),
+  relayMultiplier: real("relay_multiplier"),
+}, (table) => ({
+  profileEventUnique: unique("scoring_overrides_profile_event").on(table.profileId, table.eventId),
+}));
+
+export const meetScoringState = pgTable("meet_scoring_state", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  profileId: varchar("profile_id").notNull().references(() => meetScoringProfiles.id, { onDelete: "cascade" }).unique(),
+  lastComputedAt: timestamp("last_computed_at"),
+  checksum: text("checksum"),
+});
+
+// Team Scoring Results (Cached Aggregations)
+export const teamScoringResults = pgTable("team_scoring_results", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  profileId: varchar("profile_id").notNull().references(() => meetScoringProfiles.id, { onDelete: "cascade" }),
+  teamId: varchar("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
+  eventId: varchar("event_id").references(() => events.id, { onDelete: "cascade" }),
+  gender: text("gender"),
+  division: text("division"),
+  pointsAwarded: real("points_awarded").notNull().default(0),
+  eventBreakdown: jsonb("event_breakdown").$type<{ eventId: string; eventName: string; points: number; athletes: { athleteId: string; name: string; place: number; points: number }[] }[]>(),
+  tieBreakData: jsonb("tie_break_data").$type<{ totalWins: number; headToHead: Record<string, number> }>(),
+  computedAt: timestamp("computed_at").defaultNow(),
+}, (table) => ({
+  profileTeamIdx: index("team_scoring_results_profile_team").on(table.profileId, table.teamId),
+}));
+
+// Zod schemas and types for scoring presets
+export const insertScoringPresetSchema = createInsertSchema(scoringPresets).omit({ id: true });
+export type InsertScoringPreset = z.infer<typeof insertScoringPresetSchema>;
+export type ScoringPreset = typeof scoringPresets.$inferSelect;
+
+export const insertPresetRuleSchema = createInsertSchema(presetRules).omit({ id: true });
+export type InsertPresetRule = z.infer<typeof insertPresetRuleSchema>;
+export type PresetRule = typeof presetRules.$inferSelect;
+
+// Zod schemas and types for meet scoring profiles
+export const genderModeEnum = z.enum(["combined", "separate"]);
+export const divisionModeEnum = z.enum(["overall", "by_division"]);
+
+export const insertMeetScoringProfileSchema = createInsertSchema(meetScoringProfiles).omit({ id: true, createdAt: true, updatedAt: true }).extend({
+  genderMode: genderModeEnum,
+  divisionMode: divisionModeEnum,
+});
+export type InsertMeetScoringProfile = z.infer<typeof insertMeetScoringProfileSchema>;
+export type MeetScoringProfile = typeof meetScoringProfiles.$inferSelect;
+
+export const insertMeetScoringOverrideSchema = createInsertSchema(meetScoringOverrides).omit({ id: true });
+export type InsertMeetScoringOverride = z.infer<typeof insertMeetScoringOverrideSchema>;
+export type MeetScoringOverride = typeof meetScoringOverrides.$inferSelect;
+
+export const insertMeetScoringStateSchema = createInsertSchema(meetScoringState).omit({ id: true });
+export type InsertMeetScoringState = z.infer<typeof insertMeetScoringStateSchema>;
+export type MeetScoringState = typeof meetScoringState.$inferSelect;
+
+export const insertTeamScoringResultSchema = createInsertSchema(teamScoringResults).omit({ id: true, computedAt: true });
+export type InsertTeamScoringResult = z.infer<typeof insertTeamScoringResultSchema>;
+export type TeamScoringResult = typeof teamScoringResults.$inferSelect;
+
+// Helper types for team scoring
+export type TeamStandingsEntry = {
+  teamId: string;
+  teamName: string;
+  totalPoints: number;
+  eventCount: number;
+  eventBreakdown: { eventId: string; eventName: string; points: number }[];
+  rank: number;
+};
+
+export type EventPointsBreakdown = {
+  eventId: string;
+  eventName: string;
+  entries: {
+    place: number;
+    athleteId: string;
+    athleteName: string;
+    teamId: string | null;
+    teamName: string | null;
+    points: number;
+  }[];
+};
+
+export type ScoringPresetWithRules = ScoringPreset & {
+  rules: PresetRule[];
+};
+
+// ====================
 // HELPER TYPES
 // ====================
 
@@ -832,6 +965,7 @@ export type WSMessage =
   | { type: "event_update"; data: Event }
   | { type: "entry_update"; data: Entry }
   | { type: "layout_update"; data: { layoutId: string; cellId?: string } }
+  | { type: "team_scoring_update"; meetId: string; standings: TeamStandingsEntry[] }
   | { type: "connection_status"; connected: boolean };
 
 // ====================
