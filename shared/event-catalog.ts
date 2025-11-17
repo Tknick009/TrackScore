@@ -53,3 +53,38 @@ export function isTrackEvent(eventType: string): boolean {
 export function isFieldEvent(eventType: string): boolean {
   return getEventDescriptor(eventType).discipline === 'field';
 }
+
+// Wind-affected event types per IAAF/World Athletics rules
+export const WIND_AFFECTED_EVENT_TYPES = [
+  "100m",
+  "200m", 
+  "100m_hurdles",
+  "110m_hurdles",
+  "long_jump",
+  "triple_jump",
+] as const;
+
+export type WindAffectedEventType = typeof WIND_AFFECTED_EVENT_TYPES[number];
+
+export function isWindAffectedEvent(eventType: string): boolean {
+  return WIND_AFFECTED_EVENT_TYPES.includes(eventType as WindAffectedEventType);
+}
+
+// Wind legality classification per IAAF rules
+export enum WindLegality {
+  LEGAL = "legal",
+  MARGINAL = "marginal",
+  ILLEGAL = "illegal"
+}
+
+export function classifyWindLegality(windSpeed: number): WindLegality {
+  if (windSpeed <= 2.0) return WindLegality.LEGAL;
+  if (windSpeed <= 2.5) return WindLegality.MARGINAL;
+  return WindLegality.ILLEGAL;
+}
+
+export function formatWindSpeed(windSpeed: number | null): string {
+  if (windSpeed === null) return "—";
+  const sign = windSpeed >= 0 ? "+" : "";
+  return `${sign}${windSpeed.toFixed(1)} m/s`;
+}
