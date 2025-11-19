@@ -720,8 +720,7 @@ export const weatherStationConfigs = pgTable("weather_station_configs", {
   provider: varchar("provider").notNull().default("openweathermap"),
   latitude: real("latitude").notNull(),
   longitude: real("longitude").notNull(),
-  // PRODUCTION NOTE: API keys should be encrypted at rest using a key management service
-  // Current implementation stores plaintext for MVP; encrypt before production deployment
+  // API keys are encrypted at rest using AES-256-GCM with environment-stored key
   apiKey: text("api_key").notNull(),
   pollingIntervalSec: integer("polling_interval_sec").notNull().default(300),
   units: varchar("units").notNull().default("metric"),

@@ -1,18 +1,17 @@
 import { Badge } from "@/components/ui/badge";
 import { Wifi, WifiOff } from "lucide-react";
+import { useWebSocketConnection } from "@/contexts/WebSocketContext";
 
-interface ConnectionStatusProps {
-  connected: boolean;
-}
-
-export function ConnectionStatus({ connected }: ConnectionStatusProps) {
+export function ConnectionStatus() {
+  const { isConnected } = useWebSocketConnection();
+  
   return (
     <Badge
-      variant={connected ? "default" : "destructive"}
+      variant={isConnected ? "default" : "destructive"}
       className="gap-1.5"
       data-testid="badge-connection-status"
     >
-      {connected ? (
+      {isConnected ? (
         <>
           <Wifi className="w-3 h-3" />
           <span className="animate-pulse">Broadcasting</span>
@@ -20,7 +19,7 @@ export function ConnectionStatus({ connected }: ConnectionStatusProps) {
       ) : (
         <>
           <WifiOff className="w-3 h-3" />
-          <span>Disconnected</span>
+          <span>Reconnecting...</span>
         </>
       )}
     </Badge>

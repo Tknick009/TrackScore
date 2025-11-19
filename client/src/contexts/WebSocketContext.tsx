@@ -1,47 +1,121 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, useRef, useCallback } from "react";
 
-// Context exposes raw WebSocket for backward compatibility
-const WebSocketContext = createContext<WebSocket | null>(null);
+interface WebSocketContextType {
+  ws: WebSocket | null;
+  isConnected: boolean;
+}
+
+const WebSocketContext = createContext<WebSocketContextType>({ 
+  ws: null,
+  isConnected: false 
+});
 
 export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const [ws, setWs] = useState<WebSocket | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectAttemptsRef = useRef(0);
+  const shouldReconnectRef = useRef(true); // Track whether to reconnect
+  const maxReconnectDelay = 30000; // 30 seconds max
+  const baseDelay = 1000; // 1 second base
 
-  useEffect(() => {
+  const connect = useCallback(() => {
+    // Clean up existing connection
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const socket = new WebSocket(`${protocol}//${window.location.host}/ws`);
+    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    
+    console.log(`Connecting to WebSocket: ${wsUrl}`);
+    const newWs = new WebSocket(wsUrl);
+    wsRef.current = newWs;
 
-    socket.onopen = () => {
+    newWs.onopen = () => {
       console.log("WebSocket connected");
-      setWs(socket);
+      setIsConnected(true);
+      reconnectAttemptsRef.current = 0; // Reset on successful connection
+      setWs(newWs);
     };
 
-    socket.onerror = (error) => {
-      console.error("WebSocket error:", error);
-    };
-
-    socket.onclose = () => {
+    newWs.onclose = () => {
       console.log("WebSocket disconnected");
+      setIsConnected(false);
       setWs(null);
+      wsRef.current = null;
+      
+      // Only attempt reconnection if we should (not during intentional shutdown)
+      if (!shouldReconnectRef.current) {
+        console.log("Skipping reconnection (intentional shutdown)");
+        return;
+      }
+      
+      // Attempt reconnection with exponential backoff
+      const delay = Math.min(
+        baseDelay * Math.pow(2, reconnectAttemptsRef.current),
+        maxReconnectDelay
+      );
+      
+      console.log(`Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current + 1})`);
+      
+      reconnectTimeoutRef.current = setTimeout(() => {
+        reconnectAttemptsRef.current++;
+        connect();
+      }, delay);
     };
 
-    return () => {
-      socket.close();
+    newWs.onerror = (error) => {
+      console.error("WebSocket error:", error);
     };
   }, []);
 
-  // Context value is raw WebSocket for backward compatibility
-  return <WebSocketContext.Provider value={ws}>{children}</WebSocketContext.Provider>;
+  useEffect(() => {
+    shouldReconnectRef.current = true; // Enable reconnection
+    connect();
+
+    return () => {
+      // Disable reconnection before cleanup
+      shouldReconnectRef.current = false;
+      
+      // Cleanup timeout
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+      
+      // Cleanup socket using ref (always has latest value)
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+    };
+  }, [connect]);
+
+  return (
+    <WebSocketContext.Provider value={{ ws, isConnected }}>
+      {children}
+    </WebSocketContext.Provider>
+  );
 }
 
 // Hook returns raw WebSocket (backward compatible)
 export function useWebSocket() {
+  const context = useContext(WebSocketContext);
+  return context.ws;
+}
+
+// NEW: Hook to get WebSocket connection status
+export function useWebSocketConnection() {
   return useContext(WebSocketContext);
 }
 
 // NEW: Dedicated hook for overlay messages
 export function useOverlayMessages() {
   const ws = useWebSocket();
-  const [lastMessage, setLastMessage] = useState<any>(null);
+  const [message, setMessage] = useState<any>(null);
 
   useEffect(() => {
     if (!ws) return;
@@ -51,18 +125,16 @@ export function useOverlayMessages() {
         const data = JSON.parse(event.data);
         // Only track overlay-specific messages
         if (data.type === 'overlay_show' || data.type === 'overlay_hide' || data.type === 'overlay_update') {
-          setLastMessage(data);
+          setMessage(data);
         }
       } catch (error) {
-        // Ignore non-JSON messages
+        console.error("Failed to parse WebSocket message:", error);
       }
     };
 
     ws.addEventListener('message', handleMessage);
-    return () => {
-      ws.removeEventListener('message', handleMessage);
-    };
+    return () => ws.removeEventListener('message', handleMessage);
   }, [ws]);
 
-  return lastMessage;
+  return message;
 }

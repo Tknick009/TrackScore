@@ -2253,26 +2253,58 @@ export class DatabaseStorage implements IStorage {
       .where(eq(weatherStationConfigs.meetId, meetId))
       .limit(1);
     
-    return config || null;
+    if (!config) return null;
+    
+    // Decrypt API key (handles plaintext gracefully)
+    const { decryptApiKey, encryptApiKey } = await import('./crypto-utils');
+    const decryptedKey = decryptApiKey(config.apiKey);
+    
+    // If the key was plaintext (no encryption format), re-encrypt it
+    if (!config.apiKey.includes(':')) {
+      console.log(`Migrating plaintext API key to encrypted format for meet ${meetId}`);
+      const encryptedKey = encryptApiKey(decryptedKey);
+      
+      // Update database with encrypted version
+      await db
+        .update(weatherStationConfigs)
+        .set({ apiKey: encryptedKey })
+        .where(eq(weatherStationConfigs.meetId, meetId));
+    }
+    
+    return {
+      ...config,
+      apiKey: decryptedKey
+    };
   }
 
   async setWeatherConfig(config: InsertWeatherConfig): Promise<WeatherStationConfig> {
+    // Encrypt API key before storing
+    const { encryptApiKey, decryptApiKey } = await import('./crypto-utils');
+    const encryptedConfig = {
+      ...config,
+      apiKey: encryptApiKey(config.apiKey)
+    };
+    
     const [result] = await db
       .insert(weatherStationConfigs)
       .values({
-        ...config,
+        ...encryptedConfig,
         updatedAt: new Date()
       })
       .onConflictDoUpdate({
         target: weatherStationConfigs.meetId,
         set: {
-          ...config,
+          ...encryptedConfig,
           updatedAt: new Date()
         }
       })
       .returning();
     
-    return result;
+    // Decrypt before returning
+    return {
+      ...result,
+      apiKey: decryptApiKey(result.apiKey)
+    };
   }
 
   async deleteWeatherConfig(meetId: string): Promise<void> {
