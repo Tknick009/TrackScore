@@ -1,6 +1,5 @@
 import { storage } from './storage';
-import { nanoid } from 'nanoid';
-import type { WeatherReading } from '@shared/schema';
+import type { InsertWeatherReading } from '@shared/schema';
 
 const activePollers = new Map<string, NodeJS.Timeout>();
 const inflightRequests = new Map<string, boolean>(); // Track in-flight API calls
@@ -61,7 +60,7 @@ export function stopWeatherPolling(meetId: string) {
   }
 }
 
-async function fetchWeatherData(config: any): Promise<WeatherReading> {
+async function fetchWeatherData(config: any): Promise<InsertWeatherReading> {
   const url = `https://api.openweathermap.org/data/2.5/weather?lat=${config.latitude}&lon=${config.longitude}&appid=${config.apiKey}&units=${config.units}`;
   
   const response = await fetch(url);
@@ -72,7 +71,6 @@ async function fetchWeatherData(config: any): Promise<WeatherReading> {
   const data = await response.json();
   
   return {
-    id: nanoid(),
     meetId: config.meetId,
     provider: config.provider,
     observedAt: new Date(),

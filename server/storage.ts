@@ -82,7 +82,9 @@ import {
   type QRCodeMeta,
   type SocialMediaPost,
   type WeatherStationConfig,
+  type InsertWeatherConfig,
   type WeatherReading,
+  type InsertWeatherReading,
   events,
   athletes,
   entries,
@@ -100,6 +102,8 @@ import {
   layoutCells,
   athletePhotos,
   teamLogos,
+  weatherStationConfigs,
+  weatherReadings,
   compositeLayouts,
   layoutZones,
   recordBooks,
@@ -381,11 +385,11 @@ export interface IStorage {
 
   // Weather station configuration
   getWeatherConfig(meetId: string): Promise<WeatherStationConfig | null>;
-  setWeatherConfig(config: WeatherStationConfig): Promise<void>;
+  setWeatherConfig(config: InsertWeatherConfig): Promise<WeatherStationConfig>;
   deleteWeatherConfig(meetId: string): Promise<void>;
 
   // Weather readings
-  addWeatherReading(reading: WeatherReading): Promise<void>;
+  addWeatherReading(reading: InsertWeatherReading): Promise<WeatherReading>;
   getLatestWeatherReading(meetId: string): Promise<WeatherReading | null>;
   getWeatherHistory(meetId: string, hoursBack: number): Promise<WeatherReading[]>;
 }
@@ -394,8 +398,6 @@ export class DatabaseStorage implements IStorage {
   private qrCodes: Map<string, QRCodeMeta> = new Map();
   private socialMediaPosts: Map<string, SocialMediaPost> = new Map();
   private resultSignatures: Map<string, Date> = new Map();
-  private weatherConfigs: Map<string, WeatherStationConfig> = new Map();
-  private weatherReadings: Map<string, WeatherReading[]> = new Map();
 
   // Events
   async getEvents(): Promise<Event[]> {
@@ -2242,43 +2244,87 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // Weather station configuration
+  // ===== WEATHER STATION =====
+
   async getWeatherConfig(meetId: string): Promise<WeatherStationConfig | null> {
-    return this.weatherConfigs.get(meetId) || null;
+    const [config] = await db
+      .select()
+      .from(weatherStationConfigs)
+      .where(eq(weatherStationConfigs.meetId, meetId))
+      .limit(1);
+    
+    return config || null;
   }
 
-  async setWeatherConfig(config: WeatherStationConfig): Promise<void> {
-    this.weatherConfigs.set(config.meetId, config);
+  async setWeatherConfig(config: InsertWeatherConfig): Promise<WeatherStationConfig> {
+    const [result] = await db
+      .insert(weatherStationConfigs)
+      .values({
+        ...config,
+        updatedAt: new Date()
+      })
+      .onConflictDoUpdate({
+        target: weatherStationConfigs.meetId,
+        set: {
+          ...config,
+          updatedAt: new Date()
+        }
+      })
+      .returning();
+    
+    return result;
   }
 
   async deleteWeatherConfig(meetId: string): Promise<void> {
-    this.weatherConfigs.delete(meetId);
-    this.weatherReadings.delete(meetId);
+    await db
+      .delete(weatherStationConfigs)
+      .where(eq(weatherStationConfigs.meetId, meetId));
+    
+    await db
+      .delete(weatherReadings)
+      .where(eq(weatherReadings.meetId, meetId));
   }
 
-  // Weather readings
-  async addWeatherReading(reading: WeatherReading): Promise<void> {
-    if (!this.weatherReadings.has(reading.meetId)) {
-      this.weatherReadings.set(reading.meetId, []);
-    }
-    const readings = this.weatherReadings.get(reading.meetId)!;
-    readings.push(reading);
+  async addWeatherReading(reading: InsertWeatherReading): Promise<WeatherReading> {
+    const [result] = await db
+      .insert(weatherReadings)
+      .values(reading)
+      .returning();
     
-    // Keep only last 288 readings (24 hours at 5-minute intervals)
-    if (readings.length > 288) {
-      readings.shift();
-    }
+    await db
+      .delete(weatherReadings)
+      .where(
+        and(
+          eq(weatherReadings.meetId, reading.meetId),
+          sql`${weatherReadings.observedAt} < NOW() - INTERVAL '24 hours'`
+        )
+      );
+    
+    return result;
   }
 
   async getLatestWeatherReading(meetId: string): Promise<WeatherReading | null> {
-    const readings = this.weatherReadings.get(meetId);
-    return readings && readings.length > 0 ? readings[readings.length - 1] : null;
+    const [reading] = await db
+      .select()
+      .from(weatherReadings)
+      .where(eq(weatherReadings.meetId, meetId))
+      .orderBy(desc(weatherReadings.observedAt))
+      .limit(1);
+    
+    return reading || null;
   }
 
   async getWeatherHistory(meetId: string, hoursBack: number): Promise<WeatherReading[]> {
-    const readings = this.weatherReadings.get(meetId) || [];
-    const cutoffTime = new Date(Date.now() - hoursBack * 60 * 60 * 1000);
-    return readings.filter(r => r.observedAt >= cutoffTime);
+    return await db
+      .select()
+      .from(weatherReadings)
+      .where(
+        and(
+          eq(weatherReadings.meetId, meetId),
+          sql`${weatherReadings.observedAt} >= NOW() - INTERVAL '${sql.raw(hoursBack.toString())} hours'`
+        )
+      )
+      .orderBy(sql`${weatherReadings.observedAt} ASC`);
   }
 }
 

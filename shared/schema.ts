@@ -711,6 +711,65 @@ export type InsertTeamLogo = z.infer<typeof insertTeamLogoSchema>;
 export type TeamLogo = typeof teamLogos.$inferSelect;
 
 // ====================
+// WEATHER STATION
+// ====================
+
+export const weatherStationConfigs = pgTable("weather_station_configs", {
+  id: serial("id").primaryKey(),
+  meetId: varchar("meet_id").notNull().references(() => meets.id, { onDelete: "cascade" }),
+  provider: varchar("provider").notNull().default("openweathermap"),
+  latitude: real("latitude").notNull(),
+  longitude: real("longitude").notNull(),
+  // PRODUCTION NOTE: API keys should be encrypted at rest using a key management service
+  // Current implementation stores plaintext for MVP; encrypt before production deployment
+  apiKey: text("api_key").notNull(),
+  pollingIntervalSec: integer("polling_interval_sec").notNull().default(300),
+  units: varchar("units").notNull().default("metric"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow()
+}, (table) => ({
+  uniqueMeet: unique().on(table.meetId)
+}));
+
+export const weatherReadings = pgTable("weather_readings", {
+  id: serial("id").primaryKey(),
+  meetId: varchar("meet_id").notNull().references(() => meets.id, { onDelete: "cascade" }),
+  provider: varchar("provider").notNull(),
+  observedAt: timestamp("observed_at").notNull().defaultNow(),
+  temperatureC: real("temperature_c").notNull(),
+  windSpeedMs: real("wind_speed_ms").notNull(),
+  windDirectionDeg: integer("wind_direction_deg").notNull(),
+  humidityPct: integer("humidity_pct").notNull(),
+  pressureHPa: integer("pressure_hpa").notNull(),
+  precipitationMm: real("precipitation_mm"),
+  rawData: jsonb("raw_data")
+}, (table) => ({
+  meetIdx: index("weather_readings_meet_idx").on(table.meetId),
+  observedIdx: index("weather_readings_observed_idx").on(table.observedAt)
+}));
+
+export const insertWeatherConfigSchema = createInsertSchema(weatherStationConfigs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+}).extend({
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+  apiKey: z.string().min(1),
+  pollingIntervalSec: z.number().min(60).default(300),
+  units: z.enum(['metric', 'imperial']).default('metric')
+});
+
+export const insertWeatherReadingSchema = createInsertSchema(weatherReadings).omit({
+  id: true
+});
+
+export type WeatherStationConfig = typeof weatherStationConfigs.$inferSelect;
+export type InsertWeatherConfig = z.infer<typeof insertWeatherConfigSchema>;
+export type WeatherReading = typeof weatherReadings.$inferSelect;
+export type InsertWeatherReading = z.infer<typeof insertWeatherReadingSchema>;
+
+// ====================
 // COMPOSITE LAYOUTS
 // ====================
 
@@ -1330,46 +1389,6 @@ export const overlayConfigSchema = z.object({
 });
 
 export type OverlayConfigPayload = z.infer<typeof overlayConfigSchema>;
-
-// ====================
-// WEATHER STATION
-// ====================
-
-export interface WeatherStationConfig {
-  meetId: string;
-  provider: 'openweathermap';
-  latitude: number;
-  longitude: number;
-  apiKey: string;
-  pollingIntervalSec: number;
-  units: 'metric' | 'imperial';
-}
-
-export interface WeatherReading {
-  id: string;
-  meetId: string;
-  provider: string;
-  observedAt: Date;
-  temperatureC: number;
-  windSpeedMs: number;
-  windDirectionDeg: number;
-  humidityPct: number;
-  pressureHPa: number;
-  precipitationMm: number | null;
-  rawData: any;
-}
-
-export const insertWeatherConfigSchema = z.object({
-  meetId: z.string(),
-  provider: z.literal('openweathermap'),
-  latitude: z.number().min(-90).max(90),
-  longitude: z.number().min(-180).max(180),
-  apiKey: z.string().min(1),
-  pollingIntervalSec: z.number().min(60).default(300), // 5 minutes
-  units: z.enum(['metric', 'imperial']).default('metric')
-});
-
-export type InsertWeatherConfig = z.infer<typeof insertWeatherConfigSchema>;
 
 // ====================
 // RELATIONS

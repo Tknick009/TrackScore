@@ -3281,8 +3281,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Delete weather config and stop polling
   app.delete("/api/weather/config/:meetId", async (req, res) => {
-    stopWeatherPolling(req.params.meetId);
     await storage.deleteWeatherConfig(req.params.meetId);
+    stopWeatherPolling(req.params.meetId);
     res.json({ success: true });
   });
 
@@ -3366,6 +3366,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("WebSocket error:", error);
       displayClients.delete(ws);
     });
+  });
+
+  // Initialize weather polling for all meets on server start
+  setImmediate(async () => {
+    try {
+      const meets = await storage.getMeets();
+      
+      for (const meet of meets) {
+        const config = await storage.getWeatherConfig(meet.id);
+        if (config) {
+          startWeatherPolling(meet.id, broadcastToDisplays);
+          console.log(`✅ Resumed weather polling for meet: ${meet.name}`);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Failed to initialize weather polling:', error);
+    }
   });
 
   return httpServer;
