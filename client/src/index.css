@@ -390,6 +390,19 @@
     inset: -1px;
   }
 
+  /* Overlay page transparent background for OBS */
+  body.overlay-page {
+    background: transparent !important;
+  }
+
+  body.overlay-page #root {
+    background: transparent !important;
+  }
+
+  .overlay-container {
+    background: transparent;
+  }
+
   /* Print styles for results export */
   @media print {
     /* Hide navigation, controls, and interactive elements */

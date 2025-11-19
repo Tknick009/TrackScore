@@ -1299,7 +1299,36 @@ export type WSMessage =
   | { type: "sponsor_rotation"; meetId: string; zoneName: string; sponsor: SelectSponsor }
   | { type: "combined_event_update"; meetId: string; combinedEventId: number; standings: CombinedEventStanding[] }
   | { type: "finishlynx_update"; meetId: string; timestamp: string }
-  | { type: "connection_status"; connected: boolean };
+  | { type: "connection_status"; connected: boolean }
+  | { type: "overlay_show"; overlayType: string; config: Record<string, any> }
+  | { type: "overlay_hide"; overlayType: string }
+  | { type: "overlay_update"; overlayType: string; data: Record<string, any> };
+
+export type OverlayType = 'lower-third' | 'scorebug' | 'athlete-spotlight' | 'team-standings';
+
+export interface OverlayConfig {
+  type: OverlayType;
+  meetId?: string;
+  eventId?: string;
+  athleteId?: string;
+  teamId?: string;
+  variant?: string;
+  position?: 'bottom-left' | 'bottom-right' | 'top-left' | 'top-right' | 'center';
+}
+
+// Zod validation schema for overlay payloads
+export const overlayConfigSchema = z.object({
+  overlayType: z.enum(['lower-third', 'scorebug', 'athlete-spotlight', 'team-standings']),
+  config: z.object({
+    meetId: z.string().optional(),
+    eventId: z.string().optional(),
+    athleteId: z.string().optional(),
+    teamId: z.string().optional(),
+    variant: z.string().optional()
+  })
+});
+
+export type OverlayConfigPayload = z.infer<typeof overlayConfigSchema>;
 
 // ====================
 // RELATIONS

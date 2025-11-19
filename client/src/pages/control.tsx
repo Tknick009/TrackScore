@@ -27,6 +27,7 @@ import { QRCodeGenerator } from "@/components/qr-code-generator";
 import { SocialMediaGenerator } from "@/components/social-media-generator";
 import { FinishLynxUploader } from "@/components/finishlynx-uploader";
 import { CertificateGenerator } from "@/components/certificate-generator";
+import { OverlayControl } from "@/components/overlay-control";
 import { useMeet } from "@/contexts/MeetContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -426,7 +427,7 @@ export default function Control() {
         {/* Left Column - Event Management */}
         <div className="lg:col-span-2 space-y-6">
           <Tabs defaultValue="events" className="w-full">
-            <TabsList className="grid w-full grid-cols-17">
+            <TabsList className="grid w-full grid-cols-18">
               <TabsTrigger value="events" data-testid="tab-events" className="gap-2">
                 <Trophy className="w-4 h-4" />
                 Events
@@ -494,6 +495,10 @@ export default function Control() {
               <TabsTrigger value="certificates" data-testid="tab-certificates" className="gap-2">
                 <Award className="w-4 h-4" />
                 Certs
+              </TabsTrigger>
+              <TabsTrigger value="overlays" data-testid="tab-overlays" className="gap-2">
+                <Monitor className="w-4 h-4" />
+                Overlays
               </TabsTrigger>
             </TabsList>
 
@@ -651,6 +656,10 @@ export default function Control() {
 
             <TabsContent value="certificates" className="space-y-4">
               <CertificateGenerator />
+            </TabsContent>
+
+            <TabsContent value="overlays" className="space-y-4">
+              <OverlayControl />
             </TabsContent>
           </Tabs>
         </div>

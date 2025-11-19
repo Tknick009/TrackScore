@@ -21,6 +21,7 @@ import PrintResults from "@/pages/print-results";
 import PrintMeet from "@/pages/print-meet";
 import JudgePage from "@/pages/judge";
 import Spectator from "@/pages/spectator";
+import OverlayPage from "@/pages/overlay";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -41,6 +42,7 @@ function Router() {
       <Route path="/print/meets/:id" component={PrintMeet} />
       <Route path="/judge" component={JudgePage} />
       <Route path="/spectator" component={Spectator} />
+      <Route path="/overlay/:type" component={OverlayPage} />
       <Route component={NotFound} />
     </Switch>
   );

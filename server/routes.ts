@@ -35,6 +35,7 @@ import {
   insertSponsorRotationProfileSchema,
   insertCombinedEventSchema,
   insertCombinedEventComponentSchema,
+  overlayConfigSchema,
   type DisplayBoardState,
   type WSMessage,
   type EntrySplit,
@@ -57,6 +58,21 @@ const bulkCheckInSchema = z.object({
   entryIds: z.array(z.string().uuid()).min(1),
   operator: z.string().min(1),
   method: z.string().default('bulk')
+});
+
+// Overlay validation schemas
+const overlayUpdateSchema = z.object({
+  overlayType: z.enum(['lower-third', 'scorebug', 'athlete-spotlight', 'team-standings']),
+  data: z.object({
+    meetId: z.string().optional(),
+    eventId: z.string().optional(),
+    athleteId: z.string().optional(),
+    teamId: z.string().optional()
+  })
+});
+
+const overlayHideSchema = z.object({
+  overlayType: z.enum(['lower-third', 'scorebug', 'athlete-spotlight', 'team-standings'])
 });
 
 // Track connected WebSocket clients
@@ -1521,6 +1537,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting layout cell:", error);
       res.status(500).json({ error: "Failed to delete layout cell" });
+    }
+  });
+
+  // ===== OVERLAY CONTROL =====
+
+  app.post("/api/overlay/show", async (req, res) => {
+    try {
+      const validated = overlayConfigSchema.parse(req.body);
+      
+      broadcastToDisplays({
+        type: 'overlay_show',
+        ...validated
+      });
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        res.status(400).json({ error: "Invalid overlay configuration", details: error.errors });
+      } else {
+        res.status(500).json({ error: error.message });
+      }
+    }
+  });
+
+  app.post("/api/overlay/hide", async (req, res) => {
+    try {
+      const validated = overlayHideSchema.parse(req.body);
+      
+      broadcastToDisplays({
+        type: 'overlay_hide',
+        ...validated
+      });
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ error: "Invalid overlay type" });
+    }
+  });
+
+  app.post("/api/overlay/update", async (req, res) => {
+    try {
+      const validated = overlayUpdateSchema.parse(req.body);
+      
+      broadcastToDisplays({
+        type: 'overlay_update',
+        ...validated
+      });
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ error: "Invalid overlay update configuration" });
     }
   });
 
@@ -3190,7 +3257,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
 
   wss.on("connection", (ws: WebSocket) => {
-    console.log("Display client connected");
+    console.log("WebSocket client connected");
+
+    // Handle incoming messages for client identification
+    ws.on('message', (message) => {
+      try {
+        const data = JSON.parse(message.toString());
+        
+        // Handle client identification
+        if (data.type === 'identify' && data.clientType === 'overlay') {
+          console.log('Overlay client identified');
+          displayClients.add(ws);
+          
+          // Send connection confirmation to overlay
+          ws.send(
+            JSON.stringify({
+              type: "connection_status",
+              connected: true,
+            } as WSMessage)
+          );
+        }
+      } catch (error) {
+        // Not a control message, could be other WebSocket traffic
+      }
+    });
+
+    // Non-overlay clients are added immediately
+    // They will receive all broadcasts but can filter on client side
     displayClients.add(ws);
 
     // Send current state immediately on connection
@@ -3205,7 +3298,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     );
 
     ws.on("close", () => {
-      console.log("Display client disconnected");
+      console.log("WebSocket client disconnected");
       displayClients.delete(ws);
     });
 
