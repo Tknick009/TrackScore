@@ -81,6 +81,8 @@ import {
   type CombinedEventStanding,
   type QRCodeMeta,
   type SocialMediaPost,
+  type WeatherStationConfig,
+  type WeatherReading,
   events,
   athletes,
   entries,
@@ -376,12 +378,24 @@ export interface IStorage {
   hasResultSignature(signature: string): Promise<boolean>;
   addResultSignature(signature: string): Promise<void>;
   clearOldSignatures(olderThan: Date): Promise<void>;
+
+  // Weather station configuration
+  getWeatherConfig(meetId: string): Promise<WeatherStationConfig | null>;
+  setWeatherConfig(config: WeatherStationConfig): Promise<void>;
+  deleteWeatherConfig(meetId: string): Promise<void>;
+
+  // Weather readings
+  addWeatherReading(reading: WeatherReading): Promise<void>;
+  getLatestWeatherReading(meetId: string): Promise<WeatherReading | null>;
+  getWeatherHistory(meetId: string, hoursBack: number): Promise<WeatherReading[]>;
 }
 
 export class DatabaseStorage implements IStorage {
   private qrCodes: Map<string, QRCodeMeta> = new Map();
   private socialMediaPosts: Map<string, SocialMediaPost> = new Map();
   private resultSignatures: Map<string, Date> = new Map();
+  private weatherConfigs: Map<string, WeatherStationConfig> = new Map();
+  private weatherReadings: Map<string, WeatherReading[]> = new Map();
 
   // Events
   async getEvents(): Promise<Event[]> {
@@ -2226,6 +2240,45 @@ export class DatabaseStorage implements IStorage {
         this.resultSignatures.delete(sig);
       }
     }
+  }
+
+  // Weather station configuration
+  async getWeatherConfig(meetId: string): Promise<WeatherStationConfig | null> {
+    return this.weatherConfigs.get(meetId) || null;
+  }
+
+  async setWeatherConfig(config: WeatherStationConfig): Promise<void> {
+    this.weatherConfigs.set(config.meetId, config);
+  }
+
+  async deleteWeatherConfig(meetId: string): Promise<void> {
+    this.weatherConfigs.delete(meetId);
+    this.weatherReadings.delete(meetId);
+  }
+
+  // Weather readings
+  async addWeatherReading(reading: WeatherReading): Promise<void> {
+    if (!this.weatherReadings.has(reading.meetId)) {
+      this.weatherReadings.set(reading.meetId, []);
+    }
+    const readings = this.weatherReadings.get(reading.meetId)!;
+    readings.push(reading);
+    
+    // Keep only last 288 readings (24 hours at 5-minute intervals)
+    if (readings.length > 288) {
+      readings.shift();
+    }
+  }
+
+  async getLatestWeatherReading(meetId: string): Promise<WeatherReading | null> {
+    const readings = this.weatherReadings.get(meetId);
+    return readings && readings.length > 0 ? readings[readings.length - 1] : null;
+  }
+
+  async getWeatherHistory(meetId: string, hoursBack: number): Promise<WeatherReading[]> {
+    const readings = this.weatherReadings.get(meetId) || [];
+    const cutoffTime = new Date(Date.now() - hoursBack * 60 * 60 * 1000);
+    return readings.filter(r => r.observedAt >= cutoffTime);
   }
 }
 

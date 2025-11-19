@@ -36,6 +36,7 @@ import {
   insertCombinedEventSchema,
   insertCombinedEventComponentSchema,
   overlayConfigSchema,
+  insertWeatherConfigSchema,
   type DisplayBoardState,
   type WSMessage,
   type EntrySplit,
@@ -46,6 +47,7 @@ import { importCompleteMDB } from "./import-mdb-complete";
 import { generateEventCSV, generateMeetCSV } from "./export-utils";
 import { ingestLIFResults } from "./finishlynx-ingestion";
 import { generateCertificatePDF, type CertificateData } from './certificate-generator';
+import { startWeatherPolling, stopWeatherPolling } from './weather-poller';
 import archiver from 'archiver';
 
 // Check-in validation schemas
@@ -3249,6 +3251,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(404).send("QR code not found");
     }
     res.redirect(qrMeta.url);
+  });
+
+  // ===== WEATHER STATION =====
+
+  // Get weather config (don't expose API key)
+  app.get("/api/weather/config/:meetId", async (req, res) => {
+    const config = await storage.getWeatherConfig(req.params.meetId);
+    if (!config) {
+      return res.json(null);
+    }
+    
+    // Return config without API key
+    const { apiKey, ...safeConfig } = config;
+    res.json({ ...safeConfig, hasApiKey: !!apiKey });
+  });
+
+  // Set weather config and start polling
+  app.post("/api/weather/config", async (req, res) => {
+    try {
+      const validated = insertWeatherConfigSchema.parse(req.body);
+      await storage.setWeatherConfig(validated);
+      startWeatherPolling(validated.meetId, broadcastToDisplays);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Delete weather config and stop polling
+  app.delete("/api/weather/config/:meetId", async (req, res) => {
+    stopWeatherPolling(req.params.meetId);
+    await storage.deleteWeatherConfig(req.params.meetId);
+    res.json({ success: true });
+  });
+
+  // Get current weather
+  app.get("/api/weather/current/:meetId", async (req, res) => {
+    const reading = await storage.getLatestWeatherReading(req.params.meetId);
+    res.json(reading);
+  });
+
+  // Get weather history
+  app.get("/api/weather/history/:meetId", async (req, res) => {
+    const hours = parseInt(req.query.hours as string) || 2;
+    const history = await storage.getWeatherHistory(req.params.meetId, hours);
+    res.json(history);
+  });
+
+  // Manual refresh
+  app.post("/api/weather/refresh/:meetId", async (req, res) => {
+    const config = await storage.getWeatherConfig(req.params.meetId);
+    if (!config) {
+      return res.status(404).json({ error: "Weather config not found" });
+    }
+    
+    // Restart polling (triggers immediate fetch)
+    startWeatherPolling(config.meetId, broadcastToDisplays);
+    res.json({ success: true });
   });
 
   const httpServer = createServer(app);

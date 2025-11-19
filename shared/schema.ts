@@ -1302,7 +1302,8 @@ export type WSMessage =
   | { type: "connection_status"; connected: boolean }
   | { type: "overlay_show"; overlayType: string; config: Record<string, any> }
   | { type: "overlay_hide"; overlayType: string }
-  | { type: "overlay_update"; overlayType: string; data: Record<string, any> };
+  | { type: "overlay_update"; overlayType: string; data: Record<string, any> }
+  | { type: "weather_update"; meetId: string; reading: WeatherReading };
 
 export type OverlayType = 'lower-third' | 'scorebug' | 'athlete-spotlight' | 'team-standings';
 
@@ -1329,6 +1330,46 @@ export const overlayConfigSchema = z.object({
 });
 
 export type OverlayConfigPayload = z.infer<typeof overlayConfigSchema>;
+
+// ====================
+// WEATHER STATION
+// ====================
+
+export interface WeatherStationConfig {
+  meetId: string;
+  provider: 'openweathermap';
+  latitude: number;
+  longitude: number;
+  apiKey: string;
+  pollingIntervalSec: number;
+  units: 'metric' | 'imperial';
+}
+
+export interface WeatherReading {
+  id: string;
+  meetId: string;
+  provider: string;
+  observedAt: Date;
+  temperatureC: number;
+  windSpeedMs: number;
+  windDirectionDeg: number;
+  humidityPct: number;
+  pressureHPa: number;
+  precipitationMm: number | null;
+  rawData: any;
+}
+
+export const insertWeatherConfigSchema = z.object({
+  meetId: z.string(),
+  provider: z.literal('openweathermap'),
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+  apiKey: z.string().min(1),
+  pollingIntervalSec: z.number().min(60).default(300), // 5 minutes
+  units: z.enum(['metric', 'imperial']).default('metric')
+});
+
+export type InsertWeatherConfig = z.infer<typeof insertWeatherConfigSchema>;
 
 // ====================
 // RELATIONS
