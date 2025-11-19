@@ -23,6 +23,10 @@ import { RecordBookManager } from "@/components/record-book-manager";
 import { SponsorManager } from "@/components/sponsor-manager";
 import { MedalTrackerPanel } from "@/components/medal-tracker-panel";
 import { CombinedEventManager } from "@/components/combined-event-manager";
+import { QRCodeGenerator } from "@/components/qr-code-generator";
+import { SocialMediaGenerator } from "@/components/social-media-generator";
+import { FinishLynxUploader } from "@/components/finishlynx-uploader";
+import { CertificateGenerator } from "@/components/certificate-generator";
 import { useMeet } from "@/contexts/MeetContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,7 +36,7 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { PlayCircle, CheckCircle2, Monitor, Upload, Database, Trophy, Users, Target, Shield, Award, UserCheck, Timer, Wind, Medal, Star } from "lucide-react";
+import { PlayCircle, CheckCircle2, Monitor, Upload, Database, Trophy, Users, Target, Shield, Award, UserCheck, Timer, Wind, Medal, Star, QrCode, Share2 } from "lucide-react";
 import { Link } from "wouter";
 
 type ImportStatistics = {
@@ -422,7 +426,7 @@ export default function Control() {
         {/* Left Column - Event Management */}
         <div className="lg:col-span-2 space-y-6">
           <Tabs defaultValue="events" className="w-full">
-            <TabsList className="grid w-full grid-cols-13">
+            <TabsList className="grid w-full grid-cols-17">
               <TabsTrigger value="events" data-testid="tab-events" className="gap-2">
                 <Trophy className="w-4 h-4" />
                 Events
@@ -474,6 +478,22 @@ export default function Control() {
               <TabsTrigger value="combined" data-testid="tab-combined" className="gap-2">
                 <Trophy className="w-4 h-4" />
                 Combined
+              </TabsTrigger>
+              <TabsTrigger value="qr" data-testid="tab-qr" className="gap-2">
+                <QrCode className="w-4 h-4" />
+                QR Codes
+              </TabsTrigger>
+              <TabsTrigger value="social" data-testid="tab-social" className="gap-2">
+                <Share2 className="w-4 h-4" />
+                Social
+              </TabsTrigger>
+              <TabsTrigger value="finishlynx" data-testid="tab-finishlynx" className="gap-2">
+                <Upload className="w-4 h-4" />
+                FinishLynx
+              </TabsTrigger>
+              <TabsTrigger value="certificates" data-testid="tab-certificates" className="gap-2">
+                <Award className="w-4 h-4" />
+                Certs
               </TabsTrigger>
             </TabsList>
 
@@ -615,6 +635,22 @@ export default function Control() {
 
             <TabsContent value="combined" className="space-y-4">
               <CombinedEventManager />
+            </TabsContent>
+
+            <TabsContent value="qr" className="space-y-4">
+              <QRCodeGenerator />
+            </TabsContent>
+
+            <TabsContent value="social" className="space-y-4">
+              <SocialMediaGenerator />
+            </TabsContent>
+
+            <TabsContent value="finishlynx" className="space-y-4">
+              <FinishLynxUploader />
+            </TabsContent>
+
+            <TabsContent value="certificates" className="space-y-4">
+              <CertificateGenerator />
             </TabsContent>
           </Tabs>
         </div>

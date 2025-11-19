@@ -20,6 +20,7 @@ import CompositeDisplayPage from "@/pages/composite-display";
 import PrintResults from "@/pages/print-results";
 import PrintMeet from "@/pages/print-meet";
 import JudgePage from "@/pages/judge";
+import Spectator from "@/pages/spectator";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -39,6 +40,7 @@ function Router() {
       <Route path="/print/events/:id" component={PrintResults} />
       <Route path="/print/meets/:id" component={PrintMeet} />
       <Route path="/judge" component={JudgePage} />
+      <Route path="/spectator" component={Spectator} />
       <Route component={NotFound} />
     </Switch>
   );

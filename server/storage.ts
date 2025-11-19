@@ -79,6 +79,8 @@ import {
   type SelectCombinedEventComponent,
   type InsertCombinedEventComponent,
   type CombinedEventStanding,
+  type QRCodeMeta,
+  type SocialMediaPost,
   events,
   athletes,
   entries,
@@ -359,9 +361,28 @@ export interface IStorage {
   // Combined event standings
   getCombinedEventStandings(combinedEventId: number): Promise<CombinedEventStanding[]>;
   updateCombinedEventTotals(combinedEventId: number): Promise<void>;
+
+  // QR code short links (in-memory)
+  getQRCode(slug: string): Promise<QRCodeMeta | null>;
+  createQRCode(meta: Omit<QRCodeMeta, 'slug' | 'createdAt'>): Promise<QRCodeMeta>;
+  getAllQRCodes(): Promise<QRCodeMeta[]>;
+
+  // Social media posts (in-memory queue)
+  getSocialMediaPosts(): Promise<SocialMediaPost[]>;
+  createSocialMediaPost(post: Omit<SocialMediaPost, 'id' | 'createdAt'>): Promise<SocialMediaPost>;
+  deleteSocialMediaPost(id: string): Promise<void>;
+
+  // FinishLynx result signatures (for deduplication)
+  hasResultSignature(signature: string): Promise<boolean>;
+  addResultSignature(signature: string): Promise<void>;
+  clearOldSignatures(olderThan: Date): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
+  private qrCodes: Map<string, QRCodeMeta> = new Map();
+  private socialMediaPosts: Map<string, SocialMediaPost> = new Map();
+  private resultSignatures: Map<string, Date> = new Map();
+
   // Events
   async getEvents(): Promise<Event[]> {
     return db.select().from(events);
@@ -2144,6 +2165,67 @@ export class DatabaseStorage implements IStorage {
     // Full IAAF scoring would be implemented here
     console.log(`Updating combined event totals for ${combinedEventId}`);
     // TODO: Implement IAAF point calculation per event
+  }
+
+  // QR code short links (in-memory)
+  async getQRCode(slug: string): Promise<QRCodeMeta | null> {
+    return this.qrCodes.get(slug) || null;
+  }
+
+  async createQRCode(meta: Omit<QRCodeMeta, 'slug' | 'createdAt'>): Promise<QRCodeMeta> {
+    // Generate short slug (8 characters)
+    const slug = Math.random().toString(36).substring(2, 10);
+    
+    const qrCode: QRCodeMeta = {
+      ...meta,
+      slug,
+      createdAt: new Date()
+    };
+    
+    this.qrCodes.set(slug, qrCode);
+    return qrCode;
+  }
+
+  async getAllQRCodes(): Promise<QRCodeMeta[]> {
+    return Array.from(this.qrCodes.values());
+  }
+
+  // Social media posts (in-memory queue)
+  async getSocialMediaPosts(): Promise<SocialMediaPost[]> {
+    return Array.from(this.socialMediaPosts.values())
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async createSocialMediaPost(post: Omit<SocialMediaPost, 'id' | 'createdAt'>): Promise<SocialMediaPost> {
+    const id = Math.random().toString(36).substring(2, 15);
+    const socialPost: SocialMediaPost = {
+      ...post,
+      id,
+      createdAt: new Date()
+    };
+    this.socialMediaPosts.set(id, socialPost);
+    return socialPost;
+  }
+
+  async deleteSocialMediaPost(id: string): Promise<void> {
+    this.socialMediaPosts.delete(id);
+  }
+
+  // FinishLynx result signatures (for deduplication)
+  async hasResultSignature(signature: string): Promise<boolean> {
+    return this.resultSignatures.has(signature);
+  }
+
+  async addResultSignature(signature: string): Promise<void> {
+    this.resultSignatures.set(signature, new Date());
+  }
+
+  async clearOldSignatures(olderThan: Date): Promise<void> {
+    for (const [sig, timestamp] of this.resultSignatures.entries()) {
+      if (timestamp < olderThan) {
+        this.resultSignatures.delete(sig);
+      }
+    }
   }
 }
 

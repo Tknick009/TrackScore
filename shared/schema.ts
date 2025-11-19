@@ -163,6 +163,38 @@ export type CheckInStatus = z.infer<typeof checkInStatusEnum>;
 export const medalTypeEnum = z.enum(['gold', 'silver', 'bronze']);
 export type MedalType = z.infer<typeof medalTypeEnum>;
 
+// QR code resource types
+export const qrResourceTypeEnum = z.enum(['meet', 'event', 'athlete', 'standings']);
+export type QRResourceType = z.infer<typeof qrResourceTypeEnum>;
+
+// QR code metadata (stored in memory)
+export type QRCodeMeta = {
+  slug: string;
+  resourceType: QRResourceType;
+  resourceId?: string; // meetId, eventId, athleteId (optional for standings)
+  url: string;
+  createdAt: Date;
+};
+
+// Social media post templates
+export const socialMediaPostTypeEnum = z.enum([
+  'event_result',
+  'record_broken',
+  'medal_count',
+  'meet_highlight'
+]);
+export type SocialMediaPostType = z.infer<typeof socialMediaPostTypeEnum>;
+
+export type SocialMediaPost = {
+  id: string;
+  type: SocialMediaPostType;
+  caption: string;
+  hashtags: string[];
+  eventId?: string;
+  athleteId?: string;
+  createdAt: Date;
+};
+
 // ====================
 // LAYOUT ENUMS (TypeScript const arrays for shared use)
 // ====================
@@ -1266,6 +1298,7 @@ export type WSMessage =
   | { type: "field_attempt_update"; meetId: string; eventId: string; entryId: string; attempt: FieldAttempt }
   | { type: "sponsor_rotation"; meetId: string; zoneName: string; sponsor: SelectSponsor }
   | { type: "combined_event_update"; meetId: string; combinedEventId: number; standings: CombinedEventStanding[] }
+  | { type: "finishlynx_update"; meetId: string; timestamp: string }
   | { type: "connection_status"; connected: boolean };
 
 // ====================

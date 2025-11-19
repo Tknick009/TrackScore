@@ -119,28 +119,26 @@ function parseCSVLine(line: string): string[] {
   return result;
 }
 
-export async function parseLIFFile(filePath: string): Promise<{
-  header: LIFEventHeader;
+export function parseLIFFileContent(fileContent: string): {
+  header: LIFEventHeader | null;
   results: NormalizedResult[];
-}> {
-  const fs = await import('fs/promises');
-  const content = await fs.readFile(filePath, 'utf-8');
-  const lines = content.trim().split('\n');
+} {
+  const lines = fileContent.trim().split('\n');
   
   if (lines.length === 0) {
-    throw new Error('Empty LIF file');
+    return { header: null, results: [] };
   }
   
   // Parse header (first line)
   const headerParts = parseCSVLine(lines[0]);
   const header: LIFEventHeader = {
-    eventNumber: parseInt(headerParts[0]),
-    roundNumber: parseInt(headerParts[1]),
-    heatNumber: parseInt(headerParts[2]),
-    eventName: headerParts[3],
+    eventNumber: parseInt(headerParts[0]) || 0,
+    roundNumber: parseInt(headerParts[1]) || 1,
+    heatNumber: parseInt(headerParts[2]) || 1,
+    eventName: headerParts[3] || '',
     wind: headerParts[4] ? parseFloat(headerParts[4]) : null,
     distance: headerParts[7] ? parseInt(headerParts[7]) : null,
-    timestamp: new Date(headerParts[8]),
+    timestamp: headerParts[8] ? new Date(headerParts[8]) : new Date(),
   };
   
   // Parse result lines
@@ -161,7 +159,7 @@ export async function parseLIFFile(filePath: string): Promise<{
     const lastName = parts[3] || '';
     const firstName = parts[4] || '';
     const team = parts[5] || null;
-    const resultTime = parseTimeToSeconds(parts[6]); // Now returns null for invalid times
+    const resultTime = parseTimeToSeconds(parts[6]);
     const splitsString = parts[10] || '';
     
     // Parse timestamp with fallback to current time
@@ -170,7 +168,7 @@ export async function parseLIFFile(filePath: string): Promise<{
     if (timestampStr) {
       timestamp = new Date(timestampStr);
       if (isNaN(timestamp.getTime())) {
-        timestamp = new Date(); // Fallback to current time
+        timestamp = new Date();
       }
     } else {
       timestamp = new Date();
@@ -202,4 +200,23 @@ export async function parseLIFFile(filePath: string): Promise<{
   }
   
   return { header, results };
+}
+
+export async function parseLIFFile(filePath: string): Promise<{
+  header: LIFEventHeader;
+  results: NormalizedResult[];
+}> {
+  const fs = await import('fs/promises');
+  const content = await fs.readFile(filePath, 'utf-8');
+  const result = parseLIFFileContent(content);
+  
+  if (!result.header) {
+    throw new Error('Empty LIF file');
+  }
+  
+  return { header: result.header, results: result.results };
+}
+
+export function generateResultSignature(result: NormalizedResult): string {
+  return `${result.eventNumber}-${result.roundNumber}-${result.heatNumber}-${result.bibNumber}-${result.mark}-${result.place}`;
 }

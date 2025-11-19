@@ -4,6 +4,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import multer from "multer";
 import { unlink } from "fs/promises";
 import { z } from "zod";
+import QRCode from "qrcode";
 import { storage } from "./storage";
 import { FileStorage } from "./file-storage";
 import {
@@ -42,6 +43,9 @@ import {
 } from "@shared/schema";
 import { importCompleteMDB } from "./import-mdb-complete";
 import { generateEventCSV, generateMeetCSV } from "./export-utils";
+import { ingestLIFResults } from "./finishlynx-ingestion";
+import { generateCertificatePDF, type CertificateData } from './certificate-generator';
+import archiver from 'archiver';
 
 // Check-in validation schemas
 const checkInSchema = z.object({
@@ -98,6 +102,162 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Initialize FileStorage for photo/logo management
   const fileStorage = new FileStorage();
+
+  // ===== PUBLIC SPECTATOR API =====
+
+  // Get current meet (public info only)
+  app.get("/api/public/current-meet", async (req, res) => {
+    try {
+      const meets = await storage.getMeets();
+      const currentMeet = meets.length > 0 ? meets[0] : null;
+      
+      if (!currentMeet) {
+        return res.status(404).json({ error: "No active meet" });
+      }
+      
+      res.json({
+        id: currentMeet.id,
+        name: currentMeet.name,
+        startDate: currentMeet.startDate,
+        endDate: currentMeet.endDate,
+        location: currentMeet.location,
+        venue: currentMeet.venue
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get events for spectator view
+  app.get("/api/public/meets/:meetId/events", async (req, res) => {
+    try {
+      const events = await storage.getEventsByMeetId(req.params.meetId);
+      
+      const publicEvents = events.map(e => ({
+        id: e.id,
+        name: e.name,
+        type: e.type,
+        gender: e.gender,
+        round: e.round,
+        heat: e.heat,
+        status: e.status,
+        scheduledTime: e.scheduledTime
+      }));
+      
+      res.json(publicEvents);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get event results (with athlete info)
+  app.get("/api/public/events/:eventId/results", async (req, res) => {
+    try {
+      const event = await storage.getEventWithEntries(req.params.eventId);
+      
+      if (!event) {
+        return res.status(404).json({ error: "Event not found" });
+      }
+      
+      const results = event.entries.map(entry => ({
+        id: entry.id,
+        athleteName: entry.athlete ? `${entry.athlete.firstName} ${entry.athlete.lastName}` : "Unknown",
+        athleteId: entry.athlete?.id,
+        teamName: entry.athlete?.team?.name,
+        bib: entry.athlete?.bib,
+        finalPlace: entry.finalPlace,
+        finalTime: entry.finalTime,
+        finalMark: entry.finalMark,
+        points: entry.points
+      })).sort((a, b) => (a.finalPlace || 999) - (b.finalPlace || 999));
+      
+      res.json({
+        event: {
+          id: event.id,
+          name: event.name,
+          type: event.type,
+          status: event.status
+        },
+        results
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get team standings
+  app.get("/api/public/meets/:meetId/team-standings", async (req, res) => {
+    try {
+      const standings = await storage.getTeamStandings(req.params.meetId);
+      res.json(standings);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get medal standings
+  app.get("/api/public/meets/:meetId/medal-standings", async (req, res) => {
+    try {
+      const standings = await storage.getMedalStandings(req.params.meetId);
+      res.json(standings);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get athletes (public info only)
+  app.get("/api/public/meets/:meetId/athletes", async (req, res) => {
+    try {
+      const athletes = await storage.getAthletesByMeetId(req.params.meetId);
+      
+      const publicAthletes = athletes.map(a => ({
+        id: a.id,
+        firstName: a.firstName,
+        lastName: a.lastName,
+        bib: a.bib,
+        teamId: a.teamId,
+        teamName: a.team?.name,
+        country: a.country
+      }));
+      
+      res.json(publicAthletes);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get single athlete details
+  app.get("/api/public/athletes/:athleteId", async (req, res) => {
+    try {
+      const athlete = await storage.getAthlete(req.params.athleteId);
+      
+      if (!athlete) {
+        return res.status(404).json({ error: "Athlete not found" });
+      }
+      
+      let photoUrl = null;
+      try {
+        const photo = await storage.getAthletePhoto(athlete.id);
+        if (photo?.publicUrl) {
+          photoUrl = photo.publicUrl;
+        }
+      } catch (e) {
+        // Photo not available
+      }
+      
+      res.json({
+        id: athlete.id,
+        firstName: athlete.firstName,
+        lastName: athlete.lastName,
+        bib: athlete.bib,
+        teamName: athlete.team?.name,
+        country: athlete.country,
+        photoUrl
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
 
   // Events
   app.get("/api/events", async (req, res) => {
@@ -2665,6 +2825,363 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
     
     res.json({ success: true, standings });
+  });
+
+  // ===== SOCIAL MEDIA CONTENT GENERATOR =====
+
+  // Generate event result post
+  app.post("/api/social-media/event-result", async (req, res) => {
+    try {
+      const { eventId } = req.body;
+      
+      const event = await storage.getEventWithEntries(eventId);
+      if (!event) {
+        return res.status(404).json({ error: "Event not found" });
+      }
+      
+      const meet = await storage.getMeet(event.meetId);
+      if (!meet) {
+        return res.status(404).json({ error: "Meet not found" });
+      }
+      
+      const results = event.entries
+        .filter(e => e.finalPlace)
+        .sort((a, b) => (a.finalPlace || 999) - (b.finalPlace || 999))
+        .slice(0, 3)
+        .map(e => ({
+          athleteName: e.athlete ? `${e.athlete.firstName} ${e.athlete.lastName}` : "Unknown",
+          teamName: e.athlete?.team?.name,
+          finalTime: e.finalTime,
+          finalMark: e.finalMark,
+          finalPlace: e.finalPlace
+        }));
+      
+      const { generateEventResultCaption } = await import('./social-media-captions');
+      const caption = generateEventResultCaption(event, results, meet.name);
+      
+      const post = await storage.createSocialMediaPost({
+        type: 'event_result',
+        caption,
+        hashtags: ['TrackAndField', event.eventType.replace(/\s+/g, '')],
+        eventId: event.id
+      });
+      
+      res.json(post);
+    } catch (error) {
+      console.error("Failed to generate event result post:", error);
+      res.status(500).json({ error: "Failed to generate post" });
+    }
+  });
+
+  // Generate medal count post
+  app.post("/api/social-media/medal-count", async (req, res) => {
+    try {
+      const { meetId } = req.body;
+      
+      const meet = await storage.getMeet(meetId);
+      if (!meet) {
+        return res.status(404).json({ error: "Meet not found" });
+      }
+      
+      const standings = await storage.getMedalStandings(meetId);
+      const { generateMedalCountCaption } = await import('./social-media-captions');
+      const caption = generateMedalCountCaption(standings, meet.name);
+      
+      const post = await storage.createSocialMediaPost({
+        type: 'medal_count',
+        caption,
+        hashtags: ['TrackAndField', 'MedalCount']
+      });
+      
+      res.json(post);
+    } catch (error) {
+      console.error("Failed to generate medal count post:", error);
+      res.status(500).json({ error: "Failed to generate post" });
+    }
+  });
+
+  // Generate meet highlight post
+  app.post("/api/social-media/meet-highlight", async (req, res) => {
+    try {
+      const { meetId } = req.body;
+      
+      const meet = await storage.getMeet(meetId);
+      if (!meet) {
+        return res.status(404).json({ error: "Meet not found" });
+      }
+      
+      const events = await storage.getEventsByMeetId(meetId);
+      const athletes = await storage.getAthletesByMeetId(meetId);
+      
+      const { generateMeetHighlightCaption } = await import('./social-media-captions');
+      const caption = generateMeetHighlightCaption(
+        meet.name,
+        meet.location || "Unknown",
+        events.length,
+        athletes.length
+      );
+      
+      const post = await storage.createSocialMediaPost({
+        type: 'meet_highlight',
+        caption,
+        hashtags: ['TrackAndField', 'Athletics', 'TrackMeet']
+      });
+      
+      res.json(post);
+    } catch (error) {
+      console.error("Failed to generate meet highlight post:", error);
+      res.status(500).json({ error: "Failed to generate post" });
+    }
+  });
+
+  // Get all social media posts
+  app.get("/api/social-media/posts", async (req, res) => {
+    const posts = await storage.getSocialMediaPosts();
+    res.json(posts);
+  });
+
+  // Delete social media post
+  app.delete("/api/social-media/posts/:id", async (req, res) => {
+    await storage.deleteSocialMediaPost(req.params.id);
+    res.status(204).send();
+  });
+
+  // ===== FINISHLYNX INTEGRATION =====
+
+  // Upload LIF file
+  app.post("/api/finishlynx/upload", upload.single("lif"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+      
+      const { meetId } = req.body;
+      if (!meetId) {
+        return res.status(400).json({ error: "meetId required" });
+      }
+      
+      const fileContent = req.file.buffer.toString('utf-8');
+      const result = await ingestLIFResults(fileContent, meetId);
+      
+      // Broadcast update to displays
+      broadcastToDisplays({
+        type: 'finishlynx_update',
+        meetId,
+        timestamp: new Date().toISOString()
+      });
+      
+      res.json(result);
+    } catch (error) {
+      console.error("FinishLynx upload error:", error);
+      res.status(500).json({ error: "Failed to process file" });
+    }
+  });
+
+  // Clear old signatures (cleanup)
+  app.post("/api/finishlynx/cleanup", async (req, res) => {
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    await storage.clearOldSignatures(oneDayAgo);
+    res.json({ success: true });
+  });
+
+  // ===== CERTIFICATE GENERATION =====
+
+  // Generate single certificate
+  app.post("/api/certificates/generate", async (req, res) => {
+    try {
+      const { eventId, athleteId } = req.body;
+      
+      const event = await storage.getEventWithEntries(eventId);
+      if (!event) {
+        return res.status(404).json({ error: "Event not found" });
+      }
+      
+      const meet = await storage.getMeet(event.meetId);
+      if (!meet) {
+        return res.status(404).json({ error: "Meet not found" });
+      }
+      
+      const entry = event.entries.find(e => e.athleteId === athleteId);
+      if (!entry || !entry.athlete) {
+        return res.status(404).json({ error: "Athlete not found" });
+      }
+      
+      if (!entry.finalPlace || entry.finalPlace > 3) {
+        return res.status(400).json({ error: "Only podium finishers (1-3) can receive certificates" });
+      }
+      
+      const certificateData: CertificateData = {
+        athleteName: `${entry.athlete.firstName} ${entry.athlete.lastName}`,
+        eventName: event.name,
+        place: entry.finalPlace,
+        performance: entry.finalTime || entry.finalMark || "N/A",
+        meetName: meet.name,
+        meetDate: meet.startDate ? new Date(meet.startDate).toLocaleDateString() : "Unknown",
+        teamName: entry.athlete.team?.name
+      };
+      
+      const pdfStream = generateCertificatePDF(certificateData);
+      
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="certificate-${entry.athlete.lastName}.pdf"`);
+      pdfStream.pipe(res);
+      
+    } catch (error) {
+      console.error("Certificate generation error:", error);
+      res.status(500).json({ error: "Failed to generate certificate" });
+    }
+  });
+
+  // Generate bulk certificates for event
+  app.post("/api/certificates/bulk-event", async (req, res) => {
+    try {
+      const { eventId } = req.body;
+      
+      const event = await storage.getEventWithEntries(eventId);
+      if (!event) {
+        return res.status(404).json({ error: "Event not found" });
+      }
+      
+      const meet = await storage.getMeet(event.meetId);
+      if (!meet) {
+        return res.status(404).json({ error: "Meet not found" });
+      }
+      
+      // Get podium finishers (1-3)
+      const podium = event.entries
+        .filter(e => e.finalPlace && e.finalPlace >= 1 && e.finalPlace <= 3 && e.athlete)
+        .sort((a, b) => (a.finalPlace || 0) - (b.finalPlace || 0));
+      
+      if (podium.length === 0) {
+        return res.status(400).json({ error: "No podium finishers found" });
+      }
+      
+      // Create ZIP archive
+      const archive = archiver('zip', { zlib: { level: 9 } });
+      
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="certificates-${event.name.replace(/\s+/g, '-')}.zip"`);
+      
+      archive.pipe(res);
+      
+      // Generate certificate for each podium finisher
+      for (const entry of podium) {
+        const certificateData: CertificateData = {
+          athleteName: `${entry.athlete!.firstName} ${entry.athlete!.lastName}`,
+          eventName: event.name,
+          place: entry.finalPlace!,
+          performance: entry.finalTime || entry.finalMark || "N/A",
+          meetName: meet.name,
+          meetDate: meet.startDate ? new Date(meet.startDate).toLocaleDateString() : "Unknown",
+          teamName: entry.athlete!.team?.name
+        };
+        
+        const pdfStream = generateCertificatePDF(certificateData);
+        const filename = `certificate-${entry.finalPlace}-${entry.athlete!.lastName}.pdf`;
+        archive.append(pdfStream, { name: filename });
+      }
+      
+      await archive.finalize();
+      
+    } catch (error) {
+      console.error("Bulk certificate generation error:", error);
+      res.status(500).json({ error: "Failed to generate certificates" });
+    }
+  });
+
+  // ===== QR CODE GENERATION =====
+
+  // Generate QR code
+  app.post("/api/qr/generate", async (req, res) => {
+    try {
+      const { resourceType, resourceId, meetId } = req.body;
+      
+      // Build spectator URL
+      let url = `${req.protocol}://${req.get('host')}/spectator`;
+      
+      if (resourceType === 'meet') {
+        url += `?meetId=${meetId || resourceId}`;
+      } else if (resourceType === 'event') {
+        url += `/events/${resourceId}?meetId=${meetId}`;
+      } else if (resourceType === 'athlete') {
+        url += `/athletes/${resourceId}?meetId=${meetId}`;
+      } else if (resourceType === 'standings') {
+        url += `/standings?meetId=${meetId}`;
+      }
+      
+      // Create short link
+      const qrMeta = await storage.createQRCode({
+        resourceType,
+        resourceId,
+        url
+      });
+      
+      res.json({
+        slug: qrMeta.slug,
+        url: qrMeta.url,
+        shortUrl: `${req.protocol}://${req.get('host')}/q/${qrMeta.slug}`
+      });
+    } catch (error) {
+      console.error("QR generation error:", error);
+      res.status(500).json({ error: "Failed to generate QR code" });
+    }
+  });
+
+  // Get QR code as SVG
+  app.get("/api/qr/:slug/svg", async (req, res) => {
+    try {
+      const qrMeta = await storage.getQRCode(req.params.slug);
+      if (!qrMeta) {
+        return res.status(404).json({ error: "QR code not found" });
+      }
+      
+      const shortUrl = `${req.protocol}://${req.get('host')}/q/${qrMeta.slug}`;
+      const svg = await QRCode.toString(shortUrl, { type: 'svg', margin: 2 });
+      
+      res.setHeader('Content-Type', 'image/svg+xml');
+      res.send(svg);
+    } catch (error) {
+      console.error("SVG generation error:", error);
+      res.status(500).json({ error: "Failed to generate SVG" });
+    }
+  });
+
+  // Get QR code as PNG
+  app.get("/api/qr/:slug/png", async (req, res) => {
+    try {
+      const qrMeta = await storage.getQRCode(req.params.slug);
+      if (!qrMeta) {
+        return res.status(404).json({ error: "QR code not found" });
+      }
+      
+      const shortUrl = `${req.protocol}://${req.get('host')}/q/${qrMeta.slug}`;
+      const buffer = await QRCode.toBuffer(shortUrl, { 
+        type: 'png',
+        margin: 2,
+        width: 512
+      });
+      
+      res.setHeader('Content-Type', 'image/png');
+      res.send(buffer);
+    } catch (error) {
+      console.error("PNG generation error:", error);
+      res.status(500).json({ error: "Failed to generate PNG" });
+    }
+  });
+
+  // Get all QR codes
+  app.get("/api/qr/all", async (req, res) => {
+    const qrCodes = await storage.getAllQRCodes();
+    res.json(qrCodes);
+  });
+
+  // Short link redirect
+  app.get("/q/:slug", async (req, res) => {
+    const qrMeta = await storage.getQRCode(req.params.slug);
+    if (!qrMeta) {
+      return res.status(404).send("QR code not found");
+    }
+    res.redirect(qrMeta.url);
   });
 
   const httpServer = createServer(app);
