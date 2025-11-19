@@ -19,6 +19,7 @@ import LayoutDesigner from "@/pages/layout-designer";
 import CompositeDisplayPage from "@/pages/composite-display";
 import PrintResults from "@/pages/print-results";
 import PrintMeet from "@/pages/print-meet";
+import JudgePage from "@/pages/judge";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -37,6 +38,7 @@ function Router() {
       <Route path="/composite-display/:layoutId" component={CompositeDisplayPage} />
       <Route path="/print/events/:id" component={PrintResults} />
       <Route path="/print/meets/:id" component={PrintMeet} />
+      <Route path="/judge" component={JudgePage} />
       <Route component={NotFound} />
     </Switch>
   );

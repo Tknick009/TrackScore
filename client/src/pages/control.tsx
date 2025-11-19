@@ -17,6 +17,8 @@ import { TeamScoringConfig } from "@/components/team-scoring-config";
 import { TeamStandingsPanel } from "@/components/team-standings-panel";
 import { AthleteCheckInPanel } from "@/components/athlete-check-in-panel";
 import { SplitRecorderPanel } from "@/components/split-recorder-panel";
+import { WindRecorderPanel } from "@/components/wind-recorder-panel";
+import { JudgeTokenManager } from "@/components/judge-token-manager";
 import { useMeet } from "@/contexts/MeetContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,7 +28,7 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { PlayCircle, CheckCircle2, Monitor, Upload, Database, Trophy, Users, Target, Shield, Award, UserCheck, Timer } from "lucide-react";
+import { PlayCircle, CheckCircle2, Monitor, Upload, Database, Trophy, Users, Target, Shield, Award, UserCheck, Timer, Wind } from "lucide-react";
 import { Link } from "wouter";
 
 type ImportStatistics = {
@@ -416,7 +418,7 @@ export default function Control() {
         {/* Left Column - Event Management */}
         <div className="lg:col-span-2 space-y-6">
           <Tabs defaultValue="events" className="w-full">
-            <TabsList className="grid w-full grid-cols-7">
+            <TabsList className="grid w-full grid-cols-9">
               <TabsTrigger value="events" data-testid="tab-events" className="gap-2">
                 <Trophy className="w-4 h-4" />
                 Events
@@ -444,6 +446,14 @@ export default function Control() {
               <TabsTrigger value="splits" data-testid="tab-splits" className="gap-2">
                 <Timer className="w-4 h-4" />
                 Splits
+              </TabsTrigger>
+              <TabsTrigger value="wind" data-testid="tab-wind" className="gap-2">
+                <Wind className="w-4 h-4" />
+                Wind
+              </TabsTrigger>
+              <TabsTrigger value="judges" data-testid="tab-judges" className="gap-2">
+                <Shield className="w-4 h-4" />
+                Judges
               </TabsTrigger>
             </TabsList>
 
@@ -561,6 +571,14 @@ export default function Control() {
 
             <TabsContent value="splits" className="space-y-4">
               <SplitRecorderPanel />
+            </TabsContent>
+
+            <TabsContent value="wind" className="space-y-4">
+              <WindRecorderPanel />
+            </TabsContent>
+
+            <TabsContent value="judges" className="space-y-4">
+              <JudgeTokenManager />
             </TabsContent>
           </Tabs>
         </div>

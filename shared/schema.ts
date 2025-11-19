@@ -57,6 +57,21 @@ export function isHeightEvent(eventType: string): boolean {
   return EVENT_TYPE_CATEGORIES.HEIGHT_EVENTS.includes(eventType as any);
 }
 
+// Wind-affected events (IAAF rules: winds >+2.0 m/s make results ineligible for records)
+export const WIND_AFFECTED_EVENT_TYPES = [
+  "100m",
+  "200m",
+  "100m_hurdles",
+  "110m_hurdles",
+  "4x100m",
+  "long_jump",
+  "triple_jump"
+] as const;
+
+export function isWindAffectedEvent(eventType: string): boolean {
+  return WIND_AFFECTED_EVENT_TYPES.includes(eventType as any);
+}
+
 // ====================
 // PERFORMANCE PARSING AND VALIDATION - SINGLE SOURCE OF TRUTH
 // ====================
@@ -908,6 +923,69 @@ export const teamScoringResults = pgTable("team_scoring_results", {
   profileTeamIdx: index("team_scoring_results_profile_team").on(table.profileId, table.teamId),
 }));
 
+// Wind Readings (IAAF rules: winds >+2.0 m/s make results ineligible for records)
+export const windReadings = pgTable("wind_readings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  heatNumber: integer("heat_number"), // For track events with heats
+  attemptId: varchar("attempt_id"), // For field events (jump attempts)
+  windSpeed: real("wind_speed").notNull(), // meters per second
+  isLegal: boolean("is_legal").notNull(), // true if windSpeed <= 2.0
+  source: varchar("source", { length: 50 }).default("manual"), // "manual", "gauge", "hytek"
+  recordedAt: timestamp("recorded_at").defaultNow(),
+  recorderId: varchar("recorder_id", { length: 100 })
+});
+
+export const insertWindReadingSchema = createInsertSchema(windReadings).omit({
+  id: true,
+  recordedAt: true,
+  isLegal: true // Calculated server-side
+});
+export type InsertWindReading = z.infer<typeof insertWindReadingSchema>;
+export type WindReading = typeof windReadings.$inferSelect;
+
+// Field attempts table - individual attempt tracking
+export const fieldAttempts = pgTable("field_attempts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  entryId: varchar("entry_id").notNull().references(() => entries.id, { onDelete: "cascade" }),
+  attemptIndex: integer("attempt_index").notNull(), // 1-6
+  status: varchar("status", { length: 20 }).notNull(), // "mark", "foul", "pass", "scratch"
+  measurement: real("measurement"), // meters (null for foul/pass/scratch)
+  measuredBy: varchar("measured_by", { length: 100 }),
+  recordedAt: timestamp("recorded_at").defaultNow(),
+  source: varchar("source", { length: 50 }).default("judge"), // "judge", "control", "import"
+  notes: text("notes")
+}, (table) => ({
+  entryAttemptUnique: unique().on(table.entryId, table.attemptIndex)
+}));
+
+export const insertFieldAttemptSchema = createInsertSchema(fieldAttempts).omit({
+  id: true,
+  recordedAt: true
+});
+export type InsertFieldAttempt = z.infer<typeof insertFieldAttemptSchema>;
+export type FieldAttempt = typeof fieldAttempts.$inferSelect;
+
+// Judge tokens for event access
+export const judgeTokens = pgTable("judge_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  meetId: varchar("meet_id").notNull().references(() => meets.id, { onDelete: "cascade" }),
+  eventId: varchar("event_id").references(() => events.id, { onDelete: "cascade" }), // null = all events
+  code: varchar("code", { length: 8 }).notNull().unique(), // e.g., "ABCD1234"
+  pin: varchar("pin", { length: 6 }), // Optional PIN
+  judgeName: varchar("judge_name", { length: 100 }),
+  isActive: boolean("is_active").default(true),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow()
+});
+
+export const insertJudgeTokenSchema = createInsertSchema(judgeTokens).omit({
+  id: true,
+  createdAt: true
+});
+export type InsertJudgeToken = z.infer<typeof insertJudgeTokenSchema>;
+export type JudgeToken = typeof judgeTokens.$inferSelect;
+
 // Zod schemas and types for scoring presets
 export const insertScoringPresetSchema = createInsertSchema(scoringPresets).omit({ id: true });
 export type InsertScoringPreset = z.infer<typeof insertScoringPresetSchema>;
@@ -1001,6 +1079,8 @@ export type WSMessage =
   | { type: "team_scoring_update"; meetId: string; standings: TeamStandingsEntry[] }
   | { type: "check_in_update"; meetId: string; eventId: string; entry: EntryWithDetails }
   | { type: "split_update"; meetId: string; eventId: string; entryId: string; splits: EntrySplit[] }
+  | { type: "wind_update"; meetId: string; eventId: string; reading: WindReading }
+  | { type: "field_attempt_update"; meetId: string; eventId: string; entryId: string; attempt: FieldAttempt }
   | { type: "connection_status"; connected: boolean };
 
 // ====================

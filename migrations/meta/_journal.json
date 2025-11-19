@@ -8,6 +8,20 @@
       "when": 1763399026904,
       "tag": "0000_calm_odin",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1763559930496,
+      "tag": "0001_white_thunderbolts",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1763560572659,
+      "tag": "0002_low_radioactive_man",
+      "breakpoints": true
     }
   ]
 }

@@ -26,9 +26,13 @@ import {
   insertMeetScoringProfileSchema,
   insertEventSplitConfigSchema,
   insertEntrySplitSchema,
+  insertWindReadingSchema,
+  insertFieldAttemptSchema,
+  insertJudgeTokenSchema,
   type DisplayBoardState,
   type WSMessage,
   type EntrySplit,
+  type FieldAttempt,
 } from "@shared/schema";
 import { importCompleteMDB } from "./import-mdb-complete";
 import { generateEventCSV, generateMeetCSV } from "./export-utils";
@@ -455,6 +459,231 @@ export async function registerRoutes(app: Express): Promise<Server> {
       splits: allSplits.get(entry.id) || []
     });
     
+    res.status(204).send();
+  });
+
+  // Wind Readings
+  app.post("/api/events/:eventId/wind-readings", async (req, res) => {
+    try {
+      const event = await storage.getEvent(req.params.eventId);
+      if (!event) {
+        return res.status(404).json({ error: "Event not found" });
+      }
+      
+      // Validate wind speed is in reasonable range
+      const validated = insertWindReadingSchema.extend({
+        windSpeed: z.number().min(-5.0).max(9.9)
+      }).parse(req.body);
+      
+      const reading = await storage.createWindReading({
+        ...validated,
+        eventId: req.params.eventId
+      });
+      
+      // Broadcast update
+      broadcastToDisplays({
+        type: 'wind_update',
+        meetId: event.meetId,
+        eventId: event.id,
+        reading
+      });
+      
+      res.json(reading);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid request", details: error.errors });
+      }
+      throw error;
+    }
+  });
+
+  app.get("/api/events/:eventId/wind-readings", async (req, res) => {
+    const readings = await storage.getWindReadings(req.params.eventId);
+    res.json(readings);
+  });
+
+  app.patch("/api/wind-readings/:id", async (req, res) => {
+    try {
+      const validated = z.object({
+        windSpeed: z.number().min(-5.0).max(9.9)
+      }).parse(req.body);
+      
+      const reading = await storage.updateWindReading(req.params.id, validated.windSpeed);
+      
+      // Get event to broadcast
+      const eventId = reading.eventId;
+      const event = await storage.getEvent(eventId);
+      if (event) {
+        broadcastToDisplays({
+          type: 'wind_update',
+          meetId: event.meetId,
+          eventId: event.id,
+          reading
+        });
+      }
+      
+      res.json(reading);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid request", details: error.errors });
+      }
+      throw error;
+    }
+  });
+
+  app.delete("/api/wind-readings/:id", async (req, res) => {
+    await storage.deleteWindReading(req.params.id);
+    res.status(204).send();
+  });
+
+  // ===== JUDGE TOKEN MANAGEMENT =====
+
+  // Create judge token
+  app.post("/api/judge-tokens", async (req, res) => {
+    try {
+      const validated = insertJudgeTokenSchema.extend({
+        code: z.string().length(8).regex(/^[A-Z0-9]+$/)
+      }).parse(req.body);
+      
+      const token = await storage.createJudgeToken(validated);
+      res.json(token);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid request", details: error.errors });
+      }
+      throw error;
+    }
+  });
+
+  // Get judge tokens for meet
+  app.get("/api/meets/:meetId/judge-tokens", async (req, res) => {
+    const tokens = await storage.getJudgeTokens(req.params.meetId);
+    res.json(tokens);
+  });
+
+  // Deactivate judge token
+  app.delete("/api/judge-tokens/:id", async (req, res) => {
+    await storage.deactivateJudgeToken(req.params.id);
+    res.status(204).send();
+  });
+
+  // Validate judge token (login)
+  app.post("/api/judge/login", async (req, res) => {
+    try {
+      const { code, pin } = z.object({
+        code: z.string(),
+        pin: z.string().optional()
+      }).parse(req.body);
+      
+      const token = await storage.getJudgeToken(code);
+      if (!token) {
+        return res.status(401).json({ error: "Invalid code" });
+      }
+      
+      if (token.pin && token.pin !== pin) {
+        return res.status(401).json({ error: "Invalid PIN" });
+      }
+      
+      res.json({ token, judgeId: token.id });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid request", details: error.errors });
+      }
+      throw error;
+    }
+  });
+
+  // ===== FIELD ATTEMPTS =====
+
+  // Create field attempt
+  app.post("/api/field-attempts", async (req, res) => {
+    try {
+      const validated = insertFieldAttemptSchema.extend({
+        attemptIndex: z.number().min(1).max(6),
+        status: z.enum(["mark", "foul", "pass", "scratch"]),
+        measurement: z.number().positive().optional()
+      }).parse(req.body);
+      
+      // Validate: mark status requires measurement
+      if (validated.status === "mark" && !validated.measurement) {
+        return res.status(400).json({ error: "Mark requires measurement" });
+      }
+      
+      // Get entry to find event
+      const entry = await storage.getEntry(validated.entryId);
+      if (!entry) {
+        return res.status(404).json({ error: "Entry not found" });
+      }
+      
+      const attempt = await storage.createFieldAttempt(validated);
+      
+      // Broadcast update
+      broadcastToDisplays({
+        type: 'field_attempt_update',
+        meetId: entry.event.meetId,
+        eventId: entry.eventId,
+        entryId: entry.id,
+        attempt
+      });
+      
+      res.json(attempt);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid request", details: error.errors });
+      }
+      throw error;
+    }
+  });
+
+  // Get attempts for entry
+  app.get("/api/entries/:entryId/field-attempts", async (req, res) => {
+    const attempts = await storage.getFieldAttempts(req.params.entryId);
+    res.json(attempts);
+  });
+
+  // Get all attempts for event
+  app.get("/api/events/:eventId/field-attempts", async (req, res) => {
+    const attempts = await storage.getEventFieldAttempts(req.params.eventId);
+    const obj: Record<string, FieldAttempt[]> = {};
+    attempts.forEach((value, key) => { obj[key] = value; });
+    res.json(obj);
+  });
+
+  // Update field attempt
+  app.patch("/api/field-attempts/:id", async (req, res) => {
+    try {
+      const validated = z.object({
+        status: z.enum(["mark", "foul", "pass", "scratch"]).optional(),
+        measurement: z.number().positive().optional(),
+        notes: z.string().optional()
+      }).parse(req.body);
+      
+      const attempt = await storage.updateFieldAttempt(req.params.id, validated);
+      
+      // Get entry to broadcast
+      const entry = await storage.getEntry(attempt.entryId);
+      if (entry) {
+        broadcastToDisplays({
+          type: 'field_attempt_update',
+          meetId: entry.event.meetId,
+          eventId: entry.eventId,
+          entryId: entry.id,
+          attempt
+        });
+      }
+      
+      res.json(attempt);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid request", details: error.errors });
+      }
+      throw error;
+    }
+  });
+
+  // Delete field attempt
+  app.delete("/api/field-attempts/:id", async (req, res) => {
+    await storage.deleteFieldAttempt(req.params.id);
     res.status(204).send();
   });
 

@@ -58,6 +58,12 @@ import {
   type InsertEventSplitConfig,
   type EntrySplit,
   type InsertEntrySplit,
+  type WindReading,
+  type InsertWindReading,
+  type FieldAttempt,
+  type InsertFieldAttempt,
+  type JudgeToken,
+  type InsertJudgeToken,
   events,
   athletes,
   entries,
@@ -85,13 +91,16 @@ import {
   meetScoringOverrides,
   meetScoringState,
   teamScoringResults,
+  windReadings,
+  fieldAttempts,
+  judgeTokens,
   isTimeEvent,
   isDistanceEvent,
   isHeightEvent,
   parsePerformanceToSeconds,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, sql, and, not, inArray, count, isNull } from "drizzle-orm";
+import { eq, sql, and, not, inArray, count, isNull, desc } from "drizzle-orm";
 
 export interface IStorage {
   // Events
@@ -265,6 +274,25 @@ export interface IStorage {
   createEntrySplit(split: InsertEntrySplit): Promise<EntrySplit>;
   createEntrySplitsBatch(splits: InsertEntrySplit[]): Promise<EntrySplit[]>;
   deleteEntrySplit(entryId: string, splitIndex: number): Promise<void>;
+
+  // Wind readings
+  createWindReading(reading: InsertWindReading): Promise<WindReading>;
+  getWindReadings(eventId: string): Promise<WindReading[]>;
+  updateWindReading(id: string, windSpeed: number): Promise<WindReading>;
+  deleteWindReading(id: string): Promise<void>;
+
+  // Field attempts
+  createFieldAttempt(attempt: InsertFieldAttempt): Promise<FieldAttempt>;
+  getFieldAttempts(entryId: string): Promise<FieldAttempt[]>;
+  getEventFieldAttempts(eventId: string): Promise<Map<string, FieldAttempt[]>>;
+  updateFieldAttempt(id: string, data: Partial<InsertFieldAttempt>): Promise<FieldAttempt>;
+  deleteFieldAttempt(id: string): Promise<void>;
+
+  // Judge tokens
+  createJudgeToken(token: InsertJudgeToken): Promise<JudgeToken>;
+  getJudgeToken(code: string): Promise<JudgeToken | null>;
+  getJudgeTokens(meetId: string): Promise<JudgeToken[]>;
+  deactivateJudgeToken(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1666,6 +1694,110 @@ export class DatabaseStorage implements IStorage {
         eq(entrySplits.entryId, entryId),
         eq(entrySplits.splitIndex, splitIndex)
       ));
+  }
+
+  // Wind readings
+  async createWindReading(reading: InsertWindReading): Promise<WindReading> {
+    const isLegal = reading.windSpeed <= 2.0;
+    const [created] = await db.insert(windReadings).values({
+      ...reading,
+      isLegal
+    }).returning();
+    return created;
+  }
+
+  async getWindReadings(eventId: string): Promise<WindReading[]> {
+    return db.select()
+      .from(windReadings)
+      .where(eq(windReadings.eventId, eventId))
+      .orderBy(desc(windReadings.recordedAt));
+  }
+
+  async updateWindReading(id: string, windSpeed: number): Promise<WindReading> {
+    const isLegal = windSpeed <= 2.0;
+    const [updated] = await db.update(windReadings)
+      .set({ windSpeed, isLegal })
+      .where(eq(windReadings.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteWindReading(id: string): Promise<void> {
+    await db.delete(windReadings).where(eq(windReadings.id, id));
+  }
+
+  // Field attempts
+  async createFieldAttempt(attempt: InsertFieldAttempt): Promise<FieldAttempt> {
+    const [created] = await db.insert(fieldAttempts).values(attempt).returning();
+    return created;
+  }
+
+  async getFieldAttempts(entryId: string): Promise<FieldAttempt[]> {
+    return db.select()
+      .from(fieldAttempts)
+      .where(eq(fieldAttempts.entryId, entryId))
+      .orderBy(fieldAttempts.attemptIndex);
+  }
+
+  async getEventFieldAttempts(eventId: string): Promise<Map<string, FieldAttempt[]>> {
+    const eventEntries = await db.select().from(entries).where(eq(entries.eventId, eventId));
+    const entryIds = eventEntries.map(e => e.id);
+    
+    if (entryIds.length === 0) return new Map();
+    
+    const attempts = await db.select()
+      .from(fieldAttempts)
+      .where(inArray(fieldAttempts.entryId, entryIds))
+      .orderBy(fieldAttempts.attemptIndex);
+    
+    const map = new Map<string, FieldAttempt[]>();
+    for (const attempt of attempts) {
+      const existing = map.get(attempt.entryId) || [];
+      existing.push(attempt);
+      map.set(attempt.entryId, existing);
+    }
+    return map;
+  }
+
+  async updateFieldAttempt(id: string, data: Partial<InsertFieldAttempt>): Promise<FieldAttempt> {
+    const [updated] = await db.update(fieldAttempts)
+      .set(data)
+      .where(eq(fieldAttempts.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteFieldAttempt(id: string): Promise<void> {
+    await db.delete(fieldAttempts).where(eq(fieldAttempts.id, id));
+  }
+
+  // Judge tokens
+  async createJudgeToken(token: InsertJudgeToken): Promise<JudgeToken> {
+    const [created] = await db.insert(judgeTokens).values(token).returning();
+    return created;
+  }
+
+  async getJudgeToken(code: string): Promise<JudgeToken | null> {
+    const [token] = await db.select()
+      .from(judgeTokens)
+      .where(and(
+        eq(judgeTokens.code, code),
+        eq(judgeTokens.isActive, true)
+      ));
+    return token || null;
+  }
+
+  async getJudgeTokens(meetId: string): Promise<JudgeToken[]> {
+    return db.select()
+      .from(judgeTokens)
+      .where(eq(judgeTokens.meetId, meetId))
+      .orderBy(desc(judgeTokens.createdAt));
+  }
+
+  async deactivateJudgeToken(id: string): Promise<void> {
+    await db.update(judgeTokens)
+      .set({ isActive: false })
+      .where(eq(judgeTokens.id, id));
   }
 }
 
