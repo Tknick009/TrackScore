@@ -382,9 +382,16 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       console.log("   ⚠️  Session table not found, using Event table only");
     }
     
+    // Track Event_ptr → Event_no mapping for building eventIdMap later
+    const ptrToNumMap = new Map<number, number>();
+    
     for (const row of eventData) {
       const eventNum = typeof row.Event_no === 'number' ? row.Event_no : Number(row.Event_no || 0);
       const eventPtr = typeof row.Event_ptr === 'number' ? row.Event_ptr : Number(row.Event_ptr || 0);
+      
+      // Track the mapping between Event_ptr and Event_no
+      ptrToNumMap.set(eventPtr, eventNum);
+      
       const distance = row.Event_dist ? Number(row.Event_dist) : null;
       const genderRaw = row.Event_sex || row.Event_gender || "M";
       const gender = String(genderRaw);
@@ -610,9 +617,19 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           }
         })
         .returning();
+      
+      // Build eventIdMap using Event_ptr as the key (not eventNumber)
+      // This is critical because Entry table references events via Event_ptr
       insertedEvents.forEach((event) => {
-        eventIdMap.set(event.eventNumber, event.id);
+        // Find the Event_ptr that corresponds to this eventNumber
+        for (const [ptr, num] of Array.from(ptrToNumMap.entries())) {
+          if (num === event.eventNumber) {
+            eventIdMap.set(ptr, event.id);  // Map by Event_ptr, not eventNumber
+            break;
+          }
+        }
       });
+      
       stats.events = insertedEvents.length;
       console.log(`   ✅ Imported ${insertedEvents.length} events`);
       console.log(`   📊 Track events: ${eventBatch.filter(e => !e.eventType.includes('jump') && !e.eventType.includes('throw')).length}`);
