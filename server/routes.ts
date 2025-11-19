@@ -29,10 +29,16 @@ import {
   insertWindReadingSchema,
   insertFieldAttemptSchema,
   insertJudgeTokenSchema,
+  insertSponsorSchema,
+  insertSponsorAssignmentSchema,
+  insertSponsorRotationProfileSchema,
+  insertCombinedEventSchema,
+  insertCombinedEventComponentSchema,
   type DisplayBoardState,
   type WSMessage,
   type EntrySplit,
   type FieldAttempt,
+  type SelectSponsor,
 } from "@shared/schema";
 import { importCompleteMDB } from "./import-mdb-complete";
 import { generateEventCSV, generateMeetCSV } from "./export-utils";
@@ -2276,6 +2282,389 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
+  });
+
+  // ===== RECORD BOOKS =====
+
+  // Get all record books
+  app.get("/api/record-books", async (req, res) => {
+    const books = await storage.getRecordBooks();
+    res.json(books);
+  });
+
+  // Get record book with records
+  app.get("/api/record-books/:id", async (req, res) => {
+    const book = await storage.getRecordBook(parseInt(req.params.id));
+    if (!book) {
+      return res.status(404).json({ error: "Record book not found" });
+    }
+    res.json(book);
+  });
+
+  // Create record book
+  app.post("/api/record-books", async (req, res) => {
+    try {
+      const validated = insertRecordBookSchema.parse(req.body);
+      const book = await storage.createRecordBook(validated);
+      res.json(book);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid request", details: error.errors });
+      }
+      throw error;
+    }
+  });
+
+  // ===== RECORDS =====
+
+  // Get records for event type
+  app.get("/api/records", async (req, res) => {
+    const { eventType, gender } = req.query;
+    if (!eventType || !gender) {
+      return res.status(400).json({ error: "eventType and gender required" });
+    }
+    const eventRecords = await storage.getRecordsByEvent(eventType as string, gender as string);
+    res.json(eventRecords);
+  });
+
+  // Create record
+  app.post("/api/records", async (req, res) => {
+    try {
+      const validated = insertRecordSchema.parse(req.body);
+      const record = await storage.createRecord(validated);
+      res.json(record);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid request", details: error.errors });
+      }
+      throw error;
+    }
+  });
+
+  // Update record
+  app.patch("/api/records/:id", async (req, res) => {
+    try {
+      const validated = insertRecordSchema.partial().parse(req.body);
+      const record = await storage.updateRecord(parseInt(req.params.id), validated);
+      res.json(record);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid request", details: error.errors });
+      }
+      throw error;
+    }
+  });
+
+  // Delete record
+  app.delete("/api/records/:id", async (req, res) => {
+    await storage.deleteRecord(parseInt(req.params.id));
+    res.status(204).send();
+  });
+
+  // Check performance against records
+  app.post("/api/records/check", async (req, res) => {
+    try {
+      const { eventType, gender, performance, windSpeed } = z.object({
+        eventType: z.string(),
+        gender: z.string(),
+        performance: z.string(),
+        windSpeed: z.number().optional()
+      }).parse(req.body);
+      
+      const checks = await storage.checkForRecords(eventType, gender, performance, windSpeed);
+      res.json(checks);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid request", details: error.errors });
+      }
+      throw error;
+    }
+  });
+
+  // ===== SPONSORS =====
+
+  // Get all sponsors
+  app.get("/api/sponsors", async (req, res) => {
+    const sponsors = await storage.getSponsors();
+    res.json(sponsors);
+  });
+
+  // Create sponsor
+  app.post("/api/sponsors", async (req, res) => {
+    try {
+      const validated = insertSponsorSchema.parse(req.body);
+      const sponsor = await storage.createSponsor(validated);
+      res.json(sponsor);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid request", details: error.errors });
+      }
+      throw error;
+    }
+  });
+
+  // Upload sponsor logo
+  app.post("/api/sponsors/:id/logo", upload.single("logo"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+      
+      const sponsor = await storage.getSponsor(parseInt(req.params.id));
+      if (!sponsor) {
+        return res.status(404).json({ error: "Sponsor not found" });
+      }
+      
+      // Delete old logo if exists
+      if (sponsor.logoStorageKey) {
+        await fileStorage.deleteSponsorLogo(sponsor.logoStorageKey);
+      }
+      
+      const { storageKey, publicUrl } = await fileStorage.saveSponsorLogo(
+        sponsor.id,
+        req.file
+      );
+      
+      const updated = await storage.updateSponsor(sponsor.id, {
+        logoStorageKey: storageKey,
+        logoUrl: publicUrl
+      });
+      
+      res.json(updated);
+    } catch (error) {
+      console.error("Failed to upload sponsor logo:", error);
+      res.status(500).json({ error: "Failed to upload logo" });
+    }
+  });
+
+  // Update sponsor
+  app.patch("/api/sponsors/:id", async (req, res) => {
+    try {
+      const validated = insertSponsorSchema.partial().parse(req.body);
+      const sponsor = await storage.updateSponsor(parseInt(req.params.id), validated);
+      res.json(sponsor);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid request", details: error.errors });
+      }
+      throw error;
+    }
+  });
+
+  // Delete sponsor
+  app.delete("/api/sponsors/:id", async (req, res) => {
+    const sponsor = await storage.getSponsor(parseInt(req.params.id));
+    if (sponsor?.logoStorageKey) {
+      await fileStorage.deleteSponsorLogo(sponsor.logoStorageKey);
+    }
+    await storage.deleteSponsor(parseInt(req.params.id));
+    res.status(204).send();
+  });
+
+  // ===== SPONSOR ASSIGNMENTS =====
+
+  // Get assignments for meet
+  app.get("/api/meets/:meetId/sponsor-assignments", async (req, res) => {
+    const assignments = await storage.getSponsorAssignments(req.params.meetId);
+    res.json(assignments);
+  });
+
+  // Create assignment
+  app.post("/api/sponsor-assignments", async (req, res) => {
+    try {
+      const validated = insertSponsorAssignmentSchema.parse(req.body);
+      const assignment = await storage.createSponsorAssignment(validated);
+      res.json(assignment);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid request", details: error.errors });
+      }
+      throw error;
+    }
+  });
+
+  // Delete assignment
+  app.delete("/api/sponsor-assignments/:id", async (req, res) => {
+    await storage.deleteSponsorAssignment(parseInt(req.params.id));
+    res.status(204).send();
+  });
+
+  // ===== ROTATION PROFILES =====
+
+  // Get rotation profile
+  app.get("/api/meets/:meetId/rotation-profiles/:zoneName", async (req, res) => {
+    const profile = await storage.getRotationProfile(req.params.meetId, req.params.zoneName);
+    res.json(profile);
+  });
+
+  // Create/update rotation profile
+  app.post("/api/rotation-profiles", async (req, res) => {
+    try {
+      const validated = insertSponsorRotationProfileSchema.parse(req.body);
+      const profile = await storage.createRotationProfile(validated);
+      res.json(profile);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid request", details: error.errors });
+      }
+      throw error;
+    }
+  });
+
+  // Get active sponsors for rotation (for display boards)
+  app.get("/api/meets/:meetId/rotation-sponsors", async (req, res) => {
+    const eventType = req.query.eventType as string | undefined;
+    const sponsors = await storage.getActiveSponsorsForRotation(req.params.meetId, eventType);
+    res.json(sponsors);
+  });
+
+  // ===== MEDAL TRACKING =====
+
+  // Get medal standings for meet
+  app.get("/api/meets/:meetId/medal-standings", async (req, res) => {
+    const standings = await storage.getMedalStandings(req.params.meetId);
+    res.json(standings);
+  });
+
+  // Get medal awards for meet
+  app.get("/api/meets/:meetId/medal-awards", async (req, res) => {
+    const awards = await storage.getMedalAwards(req.params.meetId);
+    res.json(awards);
+  });
+
+  // Get medal awards for event
+  app.get("/api/events/:eventId/medal-awards", async (req, res) => {
+    const awards = await storage.getEventMedalAwards(req.params.eventId);
+    res.json(awards);
+  });
+
+  // Recompute medals for event
+  app.post("/api/events/:eventId/medal-recompute", async (req, res) => {
+    const event = await storage.getEvent(req.params.eventId);
+    if (!event) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+    
+    await storage.recomputeMedalsForEvent(req.params.eventId);
+    
+    // Get updated standings
+    const standings = await storage.getMedalStandings(event.meetId);
+    
+    // Broadcast update
+    broadcastToDisplays({
+      type: 'medal_standings_update',
+      meetId: event.meetId,
+      standings
+    });
+    
+    res.json({ success: true, standings });
+  });
+
+  // Recompute medals for entire meet
+  app.post("/api/meets/:meetId/medal-recompute-all", async (req, res) => {
+    const meet = await storage.getMeet(req.params.meetId);
+    if (!meet) {
+      return res.status(404).json({ error: "Meet not found" });
+    }
+    
+    // Get all completed events
+    const allEvents = await storage.getEventsByMeetId(req.params.meetId);
+    const completedEvents = allEvents.filter(e => e.status === 'completed');
+    
+    // Recompute medals for each event
+    for (const event of completedEvents) {
+      await storage.recomputeMedalsForEvent(event.id);
+    }
+    
+    const standings = await storage.getMedalStandings(req.params.meetId);
+    
+    broadcastToDisplays({
+      type: 'medal_standings_update',
+      meetId: req.params.meetId,
+      standings
+    });
+    
+    res.json({ success: true, standings });
+  });
+
+  // ===== COMBINED EVENTS (Decathlon/Heptathlon) =====
+
+  // Get combined events for meet
+  app.get("/api/meets/:meetId/combined-events", async (req, res) => {
+    const events = await storage.getCombinedEvents(req.params.meetId);
+    res.json(events);
+  });
+
+  // Get combined event
+  app.get("/api/combined-events/:id", async (req, res) => {
+    const event = await storage.getCombinedEvent(parseInt(req.params.id));
+    if (!event) {
+      return res.status(404).json({ error: "Combined event not found" });
+    }
+    res.json(event);
+  });
+
+  // Create combined event
+  app.post("/api/combined-events", async (req, res) => {
+    try {
+      const validated = insertCombinedEventSchema.parse(req.body);
+      const event = await storage.createCombinedEvent(validated);
+      res.json(event);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid request", details: error.errors });
+      }
+      throw error;
+    }
+  });
+
+  // Get combined event components
+  app.get("/api/combined-events/:id/components", async (req, res) => {
+    const components = await storage.getCombinedEventComponents(parseInt(req.params.id));
+    res.json(components);
+  });
+
+  // Add component to combined event
+  app.post("/api/combined-events/:id/components", async (req, res) => {
+    try {
+      const validated = insertCombinedEventComponentSchema.parse(req.body);
+      const component = await storage.createCombinedEventComponent({
+        ...validated,
+        combinedEventId: parseInt(req.params.id)
+      });
+      res.json(component);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid request", details: error.errors });
+      }
+      throw error;
+    }
+  });
+
+  // Get combined event standings
+  app.get("/api/combined-events/:id/standings", async (req, res) => {
+    const standings = await storage.getCombinedEventStandings(parseInt(req.params.id));
+    res.json(standings);
+  });
+
+  // Recompute combined event totals
+  app.post("/api/combined-events/:id/recompute", async (req, res) => {
+    const event = await storage.getCombinedEvent(parseInt(req.params.id));
+    if (!event) {
+      return res.status(404).json({ error: "Combined event not found" });
+    }
+    
+    await storage.updateCombinedEventTotals(event.id);
+    const standings = await storage.getCombinedEventStandings(event.id);
+    
+    broadcastToDisplays({
+      type: 'combined_event_update',
+      meetId: event.meetId,
+      combinedEventId: event.id,
+      standings
+    });
+    
+    res.json({ success: true, standings });
   });
 
   const httpServer = createServer(app);

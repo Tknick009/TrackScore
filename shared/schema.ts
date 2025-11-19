@@ -159,6 +159,10 @@ export type MeetStatus = z.infer<typeof meetStatusEnum>;
 export const checkInStatusEnum = z.enum(["pending", "checked_in", "no_show"]);
 export type CheckInStatus = z.infer<typeof checkInStatusEnum>;
 
+// Medal Type
+export const medalTypeEnum = z.enum(['gold', 'silver', 'bronze']);
+export type MedalType = z.infer<typeof medalTypeEnum>;
+
 // ====================
 // LAYOUT ENUMS (TypeScript const arrays for shared use)
 // ====================
@@ -986,6 +990,184 @@ export const insertJudgeTokenSchema = createInsertSchema(judgeTokens).omit({
 export type InsertJudgeToken = z.infer<typeof insertJudgeTokenSchema>;
 export type JudgeToken = typeof judgeTokens.$inferSelect;
 
+// ====================
+// MEDAL TRACKING
+// ====================
+
+// Medal awards table - persists medal awards per event
+export const medalAwards = pgTable("medal_awards", {
+  id: serial("id").primaryKey(),
+  meetId: varchar("meet_id").references(() => meets.id, { onDelete: "cascade" }).notNull(),
+  eventId: varchar("event_id").references(() => events.id, { onDelete: "cascade" }).notNull(),
+  teamId: varchar("team_id").references(() => teams.id, { onDelete: "cascade" }).notNull(),
+  entryId: varchar("entry_id").references(() => entries.id, { onDelete: "cascade" }),
+  medalType: text("medal_type").notNull(),
+  tieRank: integer("tie_rank"),
+  awardedAt: timestamp("awarded_at").defaultNow()
+}, (table) => ({
+  meetEventTeamUnique: unique().on(table.meetId, table.eventId, table.teamId, table.medalType)
+}));
+
+export const insertMedalAwardSchema = createInsertSchema(medalAwards).omit({
+  id: true,
+  awardedAt: true
+}).extend({
+  medalType: medalTypeEnum
+});
+export type InsertMedalAward = z.infer<typeof insertMedalAwardSchema>;
+export type SelectMedalAward = typeof medalAwards.$inferSelect;
+
+// Medal standings aggregated by team
+export type MedalStanding = {
+  teamId: string;
+  teamName: string;
+  gold: number;
+  silver: number;
+  bronze: number;
+  total: number;
+};
+
+// ====================
+// COMBINED EVENTS (Decathlon, Heptathlon, Pentathlon)
+// ====================
+
+// Combined events (decathlon, heptathlon, pentathlon)
+export const combinedEvents = pgTable("combined_events", {
+  id: serial("id").primaryKey(),
+  meetId: varchar("meet_id").references(() => meets.id, { onDelete: "cascade" }).notNull(),
+  name: text("name").notNull(), // e.g., "Men's Decathlon"
+  eventType: text("event_type").notNull(), // "decathlon", "heptathlon", "pentathlon"
+  gender: text("gender").notNull(),
+  status: text("status").default("scheduled").notNull(),
+  createdAt: timestamp("created_at").defaultNow()
+});
+
+// Component events that make up combined event
+export const combinedEventComponents = pgTable("combined_event_components", {
+  id: serial("id").primaryKey(),
+  combinedEventId: integer("combined_event_id").references(() => combinedEvents.id, { onDelete: "cascade" }).notNull(),
+  eventId: varchar("event_id").references(() => events.id, { onDelete: "cascade" }).notNull(),
+  sequenceOrder: integer("sequence_order").notNull(), // 1-10 for decathlon
+  day: integer("day"), // 1 or 2
+  createdAt: timestamp("created_at").defaultNow()
+});
+
+// Athlete totals in combined events
+export const combinedEventTotals = pgTable("combined_event_totals", {
+  id: serial("id").primaryKey(),
+  combinedEventId: integer("combined_event_id").references(() => combinedEvents.id, { onDelete: "cascade" }).notNull(),
+  athleteId: varchar("athlete_id").references(() => athletes.id, { onDelete: "cascade" }).notNull(),
+  totalPoints: integer("total_points").default(0),
+  eventsCompleted: integer("events_completed").default(0),
+  eventBreakdown: jsonb("event_breakdown"), // JSON array of {eventId, points, performance}
+  updatedAt: timestamp("updated_at").defaultNow()
+}, (table) => ({
+  combinedAthleteUnique: unique().on(table.combinedEventId, table.athleteId)
+}));
+
+// Insert/Select schemas
+export const insertCombinedEventSchema = createInsertSchema(combinedEvents).omit({ 
+  id: true, 
+  createdAt: true 
+});
+export type InsertCombinedEvent = z.infer<typeof insertCombinedEventSchema>;
+export type SelectCombinedEvent = typeof combinedEvents.$inferSelect;
+
+export const insertCombinedEventComponentSchema = createInsertSchema(combinedEventComponents).omit({
+  id: true,
+  createdAt: true
+});
+export type InsertCombinedEventComponent = z.infer<typeof insertCombinedEventComponentSchema>;
+export type SelectCombinedEventComponent = typeof combinedEventComponents.$inferSelect;
+
+// Combined event standing
+export type CombinedEventStanding = {
+  rank: number;
+  athleteId: string;
+  athleteName: string;
+  teamName?: string;
+  totalPoints: number;
+  eventsCompleted: number;
+  breakdown: Array<{
+    eventName: string;
+    performance?: string;
+    points: number;
+  }>;
+};
+
+// ====================
+// SPONSOR MANAGEMENT
+// ====================
+
+// Sponsor tiers enum
+export const sponsorTierEnum = z.enum(['platinum', 'gold', 'silver', 'bronze', 'supporter']);
+export type SponsorTier = z.infer<typeof sponsorTierEnum>;
+
+// Sponsors table
+export const sponsors = pgTable("sponsors", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  tier: text("tier").notNull(), // platinum, gold, silver, bronze, supporter
+  logoStorageKey: text("logo_storage_key"), // FileStorage key
+  logoUrl: text("logo_url"), // External URL alternative
+  clickthroughUrl: text("clickthrough_url"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow()
+});
+
+// Sponsor assignments to meets/events
+export const sponsorAssignments = pgTable("sponsor_assignments", {
+  id: serial("id").primaryKey(),
+  sponsorId: integer("sponsor_id").references(() => sponsors.id, { onDelete: "cascade" }).notNull(),
+  meetId: varchar("meet_id").references(() => meets.id, { onDelete: "cascade" }),
+  eventType: text("event_type"), // Optional: show sponsor only for specific events
+  weight: integer("weight").default(1), // Higher weight = shown more often
+  startAt: timestamp("start_at"),
+  endAt: timestamp("end_at"),
+  priority: integer("priority").default(0), // For sorting
+  createdAt: timestamp("created_at").defaultNow()
+});
+
+// Sponsor rotation profiles (per layout zone)
+export const sponsorRotationProfiles = pgTable("sponsor_rotation_profiles", {
+  id: serial("id").primaryKey(),
+  meetId: varchar("meet_id").references(() => meets.id, { onDelete: "cascade" }).notNull(),
+  zoneName: text("zone_name").notNull(), // e.g., "footer", "sidebar"
+  displayMode: text("display_mode").notNull(), // "persistent", "footer", "interstitial"
+  dwellMs: integer("dwell_ms").default(5000), // 5 seconds per sponsor
+  transitionMs: integer("transition_ms").default(500), // 0.5 second transition
+  maxQueueLength: integer("max_queue_length").default(10),
+  fallbackAssetKey: text("fallback_asset_key"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow()
+}, (table) => ({
+  meetZoneUnique: unique().on(table.meetId, table.zoneName)
+}));
+
+// Insert/Select schemas
+export const insertSponsorSchema = createInsertSchema(sponsors).omit({
+  id: true,
+  createdAt: true
+}).extend({
+  tier: sponsorTierEnum
+});
+export type InsertSponsor = z.infer<typeof insertSponsorSchema>;
+export type SelectSponsor = typeof sponsors.$inferSelect;
+
+export const insertSponsorAssignmentSchema = createInsertSchema(sponsorAssignments).omit({
+  id: true,
+  createdAt: true
+});
+export type InsertSponsorAssignment = z.infer<typeof insertSponsorAssignmentSchema>;
+export type SelectSponsorAssignment = typeof sponsorAssignments.$inferSelect;
+
+export const insertSponsorRotationProfileSchema = createInsertSchema(sponsorRotationProfiles).omit({
+  id: true,
+  createdAt: true
+});
+export type InsertSponsorRotationProfile = z.infer<typeof insertSponsorRotationProfileSchema>;
+export type SelectSponsorRotationProfile = typeof sponsorRotationProfiles.$inferSelect;
+
 // Zod schemas and types for scoring presets
 export const insertScoringPresetSchema = createInsertSchema(scoringPresets).omit({ id: true });
 export type InsertScoringPreset = z.infer<typeof insertScoringPresetSchema>;
@@ -1077,10 +1259,13 @@ export type WSMessage =
   | { type: "entry_update"; data: Entry }
   | { type: "layout_update"; data: { layoutId: string; cellId?: string } }
   | { type: "team_scoring_update"; meetId: string; standings: TeamStandingsEntry[] }
+  | { type: "medal_standings_update"; meetId: string; standings: MedalStanding[] }
   | { type: "check_in_update"; meetId: string; eventId: string; entry: EntryWithDetails }
   | { type: "split_update"; meetId: string; eventId: string; entryId: string; splits: EntrySplit[] }
   | { type: "wind_update"; meetId: string; eventId: string; reading: WindReading }
   | { type: "field_attempt_update"; meetId: string; eventId: string; entryId: string; attempt: FieldAttempt }
+  | { type: "sponsor_rotation"; meetId: string; zoneName: string; sponsor: SelectSponsor }
+  | { type: "combined_event_update"; meetId: string; combinedEventId: number; standings: CombinedEventStanding[] }
   | { type: "connection_status"; connected: boolean };
 
 // ====================

@@ -164,6 +164,33 @@ export class FileStorage {
     return extensionMap[mimeType] || '.jpg';
   }
 
+  async saveSponsorLogo(
+    sponsorId: number,
+    file: Express.Multer.File
+  ): Promise<{ storageKey: string; publicUrl: string }> {
+    const extension = this.getExtensionFromMimeType(this.formatToMimeType(path.extname(file.originalname).slice(1)));
+    const storageKey = `sponsors/${sponsorId}/logo${extension}`;
+    
+    // Process image: resize to 1200x400 (3:1 aspect for banners), optimize
+    const processed = await sharp(file.path)
+      .resize(1200, 400, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .png({ quality: 90 })
+      .toBuffer();
+    
+    const fullPath = path.join(this.uploadsRoot, storageKey);
+    await this.ensureDirectoryExists(path.dirname(fullPath));
+    await fs.writeFile(fullPath, processed);
+    
+    return {
+      storageKey,
+      publicUrl: this.publicUrlForKey(storageKey)
+    };
+  }
+
+  async deleteSponsorLogo(storageKey: string): Promise<void> {
+    await this.deleteByKey(storageKey);
+  }
+
   private async ensureDirectoryExists(dirPath: string): Promise<void> {
     try {
       await fs.access(dirPath);

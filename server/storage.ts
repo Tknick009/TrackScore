@@ -64,6 +64,21 @@ import {
   type InsertFieldAttempt,
   type JudgeToken,
   type InsertJudgeToken,
+  type SelectSponsor,
+  type InsertSponsor,
+  type SelectSponsorAssignment,
+  type InsertSponsorAssignment,
+  type SelectSponsorRotationProfile,
+  type InsertSponsorRotationProfile,
+  type SelectMedalAward,
+  type InsertMedalAward,
+  type MedalStanding,
+  type MedalType,
+  type SelectCombinedEvent,
+  type InsertCombinedEvent,
+  type SelectCombinedEventComponent,
+  type InsertCombinedEventComponent,
+  type CombinedEventStanding,
   events,
   athletes,
   entries,
@@ -94,6 +109,13 @@ import {
   windReadings,
   fieldAttempts,
   judgeTokens,
+  sponsors,
+  sponsorAssignments,
+  sponsorRotationProfiles,
+  medalAwards,
+  combinedEvents,
+  combinedEventComponents,
+  combinedEventTotals,
   isTimeEvent,
   isDistanceEvent,
   isHeightEvent,
@@ -216,21 +238,22 @@ export interface IStorage {
 
   // Record Books
   getRecordBooks(): Promise<SelectRecordBook[]>;
-  getRecordBook(id: number): Promise<SelectRecordBook | undefined>;
+  getRecordBook(id: number): Promise<RecordBookWithRecords | null>;
   createRecordBook(book: InsertRecordBook): Promise<SelectRecordBook>;
   updateRecordBook(id: number, updates: Partial<InsertRecordBook>): Promise<SelectRecordBook | undefined>;
   deleteRecordBook(id: number): Promise<void>;
 
   // Records
-  getRecords(bookId?: number, eventType?: string, gender?: string): Promise<SelectRecord[]>;
+  getRecords(recordBookId: number): Promise<SelectRecord[]>;
+  getRecordsByEvent(eventType: string, gender: string): Promise<SelectRecord[]>;
   getRecord(id: number): Promise<SelectRecord | undefined>;
   getRecordForEvent(bookId: number, eventType: string, gender: string): Promise<SelectRecord | undefined>;
   createRecord(record: InsertRecord): Promise<SelectRecord>;
-  updateRecord(id: number, updates: Partial<InsertRecord>): Promise<SelectRecord | undefined>;
+  updateRecord(id: number, updates: Partial<InsertRecord>): Promise<SelectRecord>;
   deleteRecord(id: number): Promise<void>;
 
   // Record Checking
-  checkForRecords(eventType: string, gender: string, performance: string): Promise<RecordCheck[]>;
+  checkForRecords(eventType: string, gender: string, performance: string, windSpeed?: number): Promise<RecordCheck[]>;
 
   // Team Scoring - Presets
   getScoringPresets(): Promise<ScoringPreset[]>;
@@ -293,6 +316,49 @@ export interface IStorage {
   getJudgeToken(code: string): Promise<JudgeToken | null>;
   getJudgeTokens(meetId: string): Promise<JudgeToken[]>;
   deactivateJudgeToken(id: string): Promise<void>;
+
+  // Sponsors
+  getSponsors(): Promise<SelectSponsor[]>;
+  getSponsor(id: number): Promise<SelectSponsor | null>;
+  createSponsor(sponsor: InsertSponsor): Promise<SelectSponsor>;
+  updateSponsor(id: number, sponsor: Partial<InsertSponsor>): Promise<SelectSponsor>;
+  deleteSponsor(id: number): Promise<void>;
+
+  // Sponsor assignments
+  getSponsorAssignments(meetId: string): Promise<SelectSponsorAssignment[]>;
+  createSponsorAssignment(assignment: InsertSponsorAssignment): Promise<SelectSponsorAssignment>;
+  deleteSponsorAssignment(id: number): Promise<void>;
+
+  // Rotation profiles
+  getRotationProfile(meetId: string, zoneName: string): Promise<SelectSponsorRotationProfile | null>;
+  createRotationProfile(profile: InsertSponsorRotationProfile): Promise<SelectSponsorRotationProfile>;
+  updateRotationProfile(id: number, profile: Partial<InsertSponsorRotationProfile>): Promise<SelectSponsorRotationProfile>;
+
+  // Get active sponsors for rotation
+  getActiveSponsorsForRotation(meetId: string, eventType?: string): Promise<SelectSponsor[]>;
+
+  // Medal awards
+  getMedalAwards(meetId: string): Promise<SelectMedalAward[]>;
+  getEventMedalAwards(eventId: string): Promise<SelectMedalAward[]>;
+  createMedalAward(award: InsertMedalAward): Promise<SelectMedalAward>;
+  deleteMedalAwards(eventId: string): Promise<void>;
+
+  // Medal standings (aggregated)
+  getMedalStandings(meetId: string): Promise<MedalStanding[]>;
+  recomputeMedalsForEvent(eventId: string): Promise<void>;
+
+  // Combined events
+  getCombinedEvents(meetId: string): Promise<SelectCombinedEvent[]>;
+  getCombinedEvent(id: number): Promise<SelectCombinedEvent | null>;
+  createCombinedEvent(event: InsertCombinedEvent): Promise<SelectCombinedEvent>;
+
+  // Combined event components
+  getCombinedEventComponents(combinedEventId: number): Promise<SelectCombinedEventComponent[]>;
+  createCombinedEventComponent(component: InsertCombinedEventComponent): Promise<SelectCombinedEventComponent>;
+
+  // Combined event standings
+  getCombinedEventStandings(combinedEventId: number): Promise<CombinedEventStanding[]>;
+  updateCombinedEventTotals(combinedEventId: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1047,15 +1113,23 @@ export class DatabaseStorage implements IStorage {
 
   // Record Books
   async getRecordBooks(): Promise<SelectRecordBook[]> {
-    return db.select().from(recordBooks);
+    return db.select().from(recordBooks).where(eq(recordBooks.isActive, true));
   }
 
-  async getRecordBook(id: number): Promise<SelectRecordBook | undefined> {
+  async getRecordBook(id: number): Promise<RecordBookWithRecords | null> {
     const [book] = await db
       .select()
       .from(recordBooks)
       .where(eq(recordBooks.id, id));
-    return book || undefined;
+    
+    if (!book) return null;
+    
+    const bookRecords = await db
+      .select()
+      .from(records)
+      .where(eq(records.recordBookId, id));
+    
+    return { ...book, records: bookRecords };
   }
 
   async createRecordBook(book: InsertRecordBook): Promise<SelectRecordBook> {
@@ -1080,25 +1154,25 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Records
-  async getRecords(bookId?: number, eventType?: string, gender?: string): Promise<SelectRecord[]> {
-    let query = db.select().from(records);
-    
-    const conditions = [];
-    if (bookId) {
-      conditions.push(eq(records.recordBookId, bookId));
-    }
-    if (eventType) {
-      conditions.push(eq(records.eventType, eventType));
-    }
-    if (gender) {
-      conditions.push(eq(records.gender, gender));
-    }
+  async getRecords(recordBookId: number): Promise<SelectRecord[]> {
+    return db
+      .select()
+      .from(records)
+      .where(eq(records.recordBookId, recordBookId));
+  }
 
-    if (conditions.length > 0) {
-      return query.where(and(...conditions));
-    }
+  async getRecordsByEvent(eventType: string, gender: string): Promise<SelectRecord[]> {
+    const results = await db
+      .select()
+      .from(records)
+      .innerJoin(recordBooks, eq(records.recordBookId, recordBooks.id))
+      .where(and(
+        eq(records.eventType, eventType),
+        eq(records.gender, gender),
+        eq(recordBooks.isActive, true)
+      ));
     
-    return query;
+    return results.map(r => r.records);
   }
 
   async getRecord(id: number): Promise<SelectRecord | undefined> {
@@ -1131,13 +1205,13 @@ export class DatabaseStorage implements IStorage {
     return newRecord;
   }
 
-  async updateRecord(id: number, updates: Partial<InsertRecord>): Promise<SelectRecord | undefined> {
+  async updateRecord(id: number, updates: Partial<InsertRecord>): Promise<SelectRecord> {
     const [record] = await db
       .update(records)
       .set(updates)
       .where(eq(records.id, id))
       .returning();
-    return record || undefined;
+    return record;
   }
 
   async deleteRecord(id: number): Promise<void> {
@@ -1145,36 +1219,52 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Record Checking
-  async checkForRecords(eventType: string, gender: string, performance: string): Promise<RecordCheck[]> {
-    const activeBooks = await db
-      .select()
-      .from(recordBooks)
-      .where(eq(recordBooks.isActive, true));
-
-    const results: RecordCheck[] = [];
-
-    for (const book of activeBooks) {
-      const existingRecord = await this.getRecordForEvent(book.id, eventType, gender);
+  async checkForRecords(eventType: string, gender: string, performance: string, windSpeed?: number): Promise<RecordCheck[]> {
+    const newPerf = parsePerformanceToSeconds(performance);
+    if (newPerf === null) return [];
+    
+    // Check if wind-legal for track events (if windSpeed provided)
+    const isWindLegal = windSpeed === undefined || windSpeed <= 2.0;
+    if (!isWindLegal) return []; // Don't compare wind-illegal performances
+    
+    const matchingRecords = await this.getRecordsByEvent(eventType, gender);
+    const checks: RecordCheck[] = [];
+    
+    for (const record of matchingRecords) {
+      const existingPerf = parsePerformanceToSeconds(record.performance);
+      if (existingPerf === null) continue;
       
-      if (!existingRecord) {
-        continue;
-      }
-
-      const comparison = this.comparePerformances(eventType, performance, existingRecord.performance);
+      const [book] = await db
+        .select()
+        .from(recordBooks)
+        .where(eq(recordBooks.id, record.recordBookId));
       
-      results.push({
-        recordId: existingRecord.id,
-        recordBookId: book.id,
+      if (!book) continue;
+      
+      // Determine if better (lower for times, higher for distances/heights)
+      const isTimeBasedEvent = isTimeEvent(eventType);
+      const isBetter = isTimeBasedEvent ? newPerf < existingPerf : newPerf > existingPerf;
+      const isTied = Math.abs(newPerf - existingPerf) < 0.01;
+      
+      // Calculate margin
+      const diff = Math.abs(newPerf - existingPerf);
+      const margin = isTimeBasedEvent ? 
+        `-${diff.toFixed(2)}s` : 
+        `+${diff.toFixed(2)}m`;
+      
+      checks.push({
+        recordId: record.id,
+        recordBookId: record.recordBookId,
         recordBookName: book.name,
-        isRecord: comparison.isRecord,
-        isTied: comparison.isTied,
-        margin: comparison.margin,
-        existingPerformance: existingRecord.performance,
-        newPerformance: performance,
+        isRecord: isBetter && !isTied,
+        isTied,
+        margin,
+        existingPerformance: record.performance,
+        newPerformance: performance
       });
     }
-
-    return results;
+    
+    return checks;
   }
 
   private comparePerformances(eventType: string, newPerf: string, existingPerf: string): {
@@ -1798,6 +1888,262 @@ export class DatabaseStorage implements IStorage {
     await db.update(judgeTokens)
       .set({ isActive: false })
       .where(eq(judgeTokens.id, id));
+  }
+
+  // Sponsors
+  async getSponsors(): Promise<SelectSponsor[]> {
+    return db.select().from(sponsors);
+  }
+
+  async getSponsor(id: number): Promise<SelectSponsor | null> {
+    const [sponsor] = await db.select()
+      .from(sponsors)
+      .where(eq(sponsors.id, id));
+    return sponsor || null;
+  }
+
+  async createSponsor(sponsor: InsertSponsor): Promise<SelectSponsor> {
+    const [created] = await db.insert(sponsors).values(sponsor).returning();
+    return created;
+  }
+
+  async updateSponsor(id: number, sponsor: Partial<InsertSponsor>): Promise<SelectSponsor> {
+    const [updated] = await db.update(sponsors)
+      .set(sponsor)
+      .where(eq(sponsors.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteSponsor(id: number): Promise<void> {
+    await db.delete(sponsors).where(eq(sponsors.id, id));
+  }
+
+  // Sponsor assignments
+  async getSponsorAssignments(meetId: string): Promise<SelectSponsorAssignment[]> {
+    return db.select()
+      .from(sponsorAssignments)
+      .where(eq(sponsorAssignments.meetId, meetId));
+  }
+
+  async createSponsorAssignment(assignment: InsertSponsorAssignment): Promise<SelectSponsorAssignment> {
+    const [created] = await db.insert(sponsorAssignments).values(assignment).returning();
+    return created;
+  }
+
+  async deleteSponsorAssignment(id: number): Promise<void> {
+    await db.delete(sponsorAssignments).where(eq(sponsorAssignments.id, id));
+  }
+
+  // Rotation profiles
+  async getRotationProfile(meetId: string, zoneName: string): Promise<SelectSponsorRotationProfile | null> {
+    const [profile] = await db.select()
+      .from(sponsorRotationProfiles)
+      .where(and(
+        eq(sponsorRotationProfiles.meetId, meetId),
+        eq(sponsorRotationProfiles.zoneName, zoneName)
+      ));
+    return profile || null;
+  }
+
+  async createRotationProfile(profile: InsertSponsorRotationProfile): Promise<SelectSponsorRotationProfile> {
+    const [created] = await db.insert(sponsorRotationProfiles).values(profile).returning();
+    return created;
+  }
+
+  async updateRotationProfile(id: number, profile: Partial<InsertSponsorRotationProfile>): Promise<SelectSponsorRotationProfile> {
+    const [updated] = await db.update(sponsorRotationProfiles)
+      .set(profile)
+      .where(eq(sponsorRotationProfiles.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Get active sponsors for rotation
+  async getActiveSponsorsForRotation(meetId: string, eventType?: string): Promise<SelectSponsor[]> {
+    // Get all assignments for this meet
+    const assignments = await db.select()
+      .from(sponsorAssignments)
+      .where(eq(sponsorAssignments.meetId, meetId));
+    
+    // Filter by event type if provided
+    const relevantAssignments = eventType
+      ? assignments.filter(a => !a.eventType || a.eventType === eventType)
+      : assignments;
+    
+    if (relevantAssignments.length === 0) {
+      return [];
+    }
+    
+    // Get sponsor IDs
+    const sponsorIds = relevantAssignments.map(a => a.sponsorId);
+    
+    // Fetch active sponsors
+    const activeSponsors = await db.select()
+      .from(sponsors)
+      .where(and(
+        inArray(sponsors.id, sponsorIds),
+        eq(sponsors.isActive, true)
+      ));
+    
+    return activeSponsors;
+  }
+
+  // Medal awards
+  async getMedalAwards(meetId: string): Promise<SelectMedalAward[]> {
+    return db.select()
+      .from(medalAwards)
+      .where(eq(medalAwards.meetId, meetId))
+      .orderBy(desc(medalAwards.awardedAt));
+  }
+
+  async getEventMedalAwards(eventId: string): Promise<SelectMedalAward[]> {
+    return db.select()
+      .from(medalAwards)
+      .where(eq(medalAwards.eventId, eventId));
+  }
+
+  async createMedalAward(award: InsertMedalAward): Promise<SelectMedalAward> {
+    const [created] = await db.insert(medalAwards).values(award).returning();
+    return created;
+  }
+
+  async deleteMedalAwards(eventId: string): Promise<void> {
+    await db.delete(medalAwards).where(eq(medalAwards.eventId, eventId));
+  }
+
+  async getMedalStandings(meetId: string): Promise<MedalStanding[]> {
+    // Get all medal awards for the meet
+    const awards = await this.getMedalAwards(meetId);
+    
+    // Group by team and count medals
+    const teamMap = new Map<string, MedalStanding>();
+    
+    for (const award of awards) {
+      const team = await db.select().from(teams).where(eq(teams.id, award.teamId)).then(r => r[0]);
+      if (!team) continue;
+      
+      const existing = teamMap.get(award.teamId) || {
+        teamId: award.teamId,
+        teamName: team.name,
+        gold: 0,
+        silver: 0,
+        bronze: 0,
+        total: 0
+      };
+      
+      if (award.medalType === 'gold') existing.gold++;
+      else if (award.medalType === 'silver') existing.silver++;
+      else if (award.medalType === 'bronze') existing.bronze++;
+      existing.total++;
+      
+      teamMap.set(award.teamId, existing);
+    }
+    
+    // Convert to array and sort by Olympic ranking (gold > silver > bronze > total)
+    const standings = Array.from(teamMap.values()).sort((a, b) => {
+      if (a.gold !== b.gold) return b.gold - a.gold;
+      if (a.silver !== b.silver) return b.silver - a.silver;
+      if (a.bronze !== b.bronze) return b.bronze - a.bronze;
+      if (a.total !== b.total) return b.total - a.total;
+      return a.teamName.localeCompare(b.teamName);
+    });
+    
+    return standings;
+  }
+
+  async recomputeMedalsForEvent(eventId: string): Promise<void> {
+    const event = await this.getEvent(eventId);
+    if (!event || event.status !== 'completed') return;
+    
+    // Delete existing awards for this event
+    await this.deleteMedalAwards(eventId);
+    
+    // Get all entries with results for this event
+    const eventWithEntries = await this.getEventWithEntries(eventId);
+    if (!eventWithEntries || !eventWithEntries.entries.length) return;
+    
+    // Find entries with positions 1, 2, 3
+    const medalists = eventWithEntries.entries.filter(e => 
+      e.finalPlace && e.finalPlace >= 1 && e.finalPlace <= 3
+    );
+    
+    // Award medals
+    for (const entry of medalists) {
+      if (!entry.athlete?.teamId) continue;
+      
+      let medalType: MedalType;
+      if (entry.finalPlace === 1) medalType = 'gold';
+      else if (entry.finalPlace === 2) medalType = 'silver';
+      else medalType = 'bronze';
+      
+      await this.createMedalAward({
+        meetId: event.meetId,
+        eventId: event.id,
+        teamId: entry.athlete.teamId,
+        entryId: entry.id,
+        medalType
+      });
+    }
+  }
+
+  // Combined events
+  async getCombinedEvents(meetId: string): Promise<SelectCombinedEvent[]> {
+    return db.select()
+      .from(combinedEvents)
+      .where(eq(combinedEvents.meetId, meetId));
+  }
+
+  async getCombinedEvent(id: number): Promise<SelectCombinedEvent | null> {
+    const [event] = await db.select()
+      .from(combinedEvents)
+      .where(eq(combinedEvents.id, id));
+    return event || null;
+  }
+
+  async createCombinedEvent(event: InsertCombinedEvent): Promise<SelectCombinedEvent> {
+    const [created] = await db.insert(combinedEvents).values(event).returning();
+    return created;
+  }
+
+  async getCombinedEventComponents(combinedEventId: number): Promise<SelectCombinedEventComponent[]> {
+    return db.select()
+      .from(combinedEventComponents)
+      .where(eq(combinedEventComponents.combinedEventId, combinedEventId))
+      .orderBy(combinedEventComponents.sequenceOrder);
+  }
+
+  async createCombinedEventComponent(component: InsertCombinedEventComponent): Promise<SelectCombinedEventComponent> {
+    const [created] = await db.insert(combinedEventComponents).values(component).returning();
+    return created;
+  }
+
+  async getCombinedEventStandings(combinedEventId: number): Promise<CombinedEventStanding[]> {
+    const totals = await db.select()
+      .from(combinedEventTotals)
+      .leftJoin(athletes, eq(combinedEventTotals.athleteId, athletes.id))
+      .leftJoin(teams, eq(athletes.teamId, teams.id))
+      .where(eq(combinedEventTotals.combinedEventId, combinedEventId))
+      .orderBy(desc(combinedEventTotals.totalPoints));
+    
+    const standings: CombinedEventStanding[] = totals.map((row, index) => ({
+      rank: index + 1,
+      athleteId: row.combined_event_totals.athleteId,
+      athleteName: row.athletes ? `${row.athletes.firstName} ${row.athletes.lastName}` : "Unknown",
+      teamName: row.teams?.name,
+      totalPoints: row.combined_event_totals.totalPoints || 0,
+      eventsCompleted: row.combined_event_totals.eventsCompleted || 0,
+      breakdown: (row.combined_event_totals.eventBreakdown as any[]) || []
+    }));
+    
+    return standings;
+  }
+
+  async updateCombinedEventTotals(combinedEventId: number): Promise<void> {
+    // Simplified: Just aggregate points from completed component events
+    // Full IAAF scoring would be implemented here
+    console.log(`Updating combined event totals for ${combinedEventId}`);
+    // TODO: Implement IAAF point calculation per event
   }
 }
 

@@ -19,6 +19,10 @@ import { AthleteCheckInPanel } from "@/components/athlete-check-in-panel";
 import { SplitRecorderPanel } from "@/components/split-recorder-panel";
 import { WindRecorderPanel } from "@/components/wind-recorder-panel";
 import { JudgeTokenManager } from "@/components/judge-token-manager";
+import { RecordBookManager } from "@/components/record-book-manager";
+import { SponsorManager } from "@/components/sponsor-manager";
+import { MedalTrackerPanel } from "@/components/medal-tracker-panel";
+import { CombinedEventManager } from "@/components/combined-event-manager";
 import { useMeet } from "@/contexts/MeetContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,7 +32,7 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { PlayCircle, CheckCircle2, Monitor, Upload, Database, Trophy, Users, Target, Shield, Award, UserCheck, Timer, Wind } from "lucide-react";
+import { PlayCircle, CheckCircle2, Monitor, Upload, Database, Trophy, Users, Target, Shield, Award, UserCheck, Timer, Wind, Medal, Star } from "lucide-react";
 import { Link } from "wouter";
 
 type ImportStatistics = {
@@ -418,7 +422,7 @@ export default function Control() {
         {/* Left Column - Event Management */}
         <div className="lg:col-span-2 space-y-6">
           <Tabs defaultValue="events" className="w-full">
-            <TabsList className="grid w-full grid-cols-9">
+            <TabsList className="grid w-full grid-cols-13">
               <TabsTrigger value="events" data-testid="tab-events" className="gap-2">
                 <Trophy className="w-4 h-4" />
                 Events
@@ -454,6 +458,22 @@ export default function Control() {
               <TabsTrigger value="judges" data-testid="tab-judges" className="gap-2">
                 <Shield className="w-4 h-4" />
                 Judges
+              </TabsTrigger>
+              <TabsTrigger value="records" data-testid="tab-records" className="gap-2">
+                <Medal className="w-4 h-4" />
+                Records
+              </TabsTrigger>
+              <TabsTrigger value="medals" data-testid="tab-medals" className="gap-2">
+                <Medal className="w-4 h-4" />
+                Medals
+              </TabsTrigger>
+              <TabsTrigger value="sponsors" data-testid="tab-sponsors" className="gap-2">
+                <Star className="w-4 h-4" />
+                Sponsors
+              </TabsTrigger>
+              <TabsTrigger value="combined" data-testid="tab-combined" className="gap-2">
+                <Trophy className="w-4 h-4" />
+                Combined
               </TabsTrigger>
             </TabsList>
 
@@ -579,6 +599,22 @@ export default function Control() {
 
             <TabsContent value="judges" className="space-y-4">
               <JudgeTokenManager />
+            </TabsContent>
+
+            <TabsContent value="records" className="space-y-4">
+              <RecordBookManager />
+            </TabsContent>
+
+            <TabsContent value="medals" className="space-y-4">
+              <MedalTrackerPanel />
+            </TabsContent>
+
+            <TabsContent value="sponsors" className="space-y-4">
+              <SponsorManager />
+            </TabsContent>
+
+            <TabsContent value="combined" className="space-y-4">
+              <CombinedEventManager />
             </TabsContent>
           </Tabs>
         </div>
