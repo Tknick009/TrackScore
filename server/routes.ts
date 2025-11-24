@@ -873,8 +873,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Teams
   app.get("/api/teams", async (req, res) => {
-    const teams = await storage.getTeams();
-    res.json(teams);
+    try {
+      const { meetId } = req.query;
+      if (meetId) {
+        const teams = await storage.getTeamsByMeetId(meetId as string);
+        return res.json(teams);
+      }
+      const teams = await storage.getTeams();
+      res.json(teams);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
   });
 
   app.post("/api/teams", async (req, res) => {

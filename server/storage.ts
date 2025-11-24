@@ -173,6 +173,7 @@ export interface IStorage {
   // Teams
   getTeams(): Promise<Team[]>;
   getTeam(id: string): Promise<Team | undefined>;
+  getTeamsByMeetId(meetId: string): Promise<Team[]>;
   createTeam(team: InsertTeam): Promise<Team>;
 
   // Divisions
@@ -609,6 +610,10 @@ export class DatabaseStorage implements IStorage {
   async getTeam(id: string): Promise<Team | undefined> {
     const [team] = await db.select().from(teams).where(eq(teams.id, id));
     return team || undefined;
+  }
+
+  async getTeamsByMeetId(meetId: string): Promise<Team[]> {
+    return db.select().from(teams).where(eq(teams.meetId, meetId));
   }
 
   async createTeam(insertTeam: InsertTeam): Promise<Team> {

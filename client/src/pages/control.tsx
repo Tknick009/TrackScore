@@ -92,19 +92,31 @@ export default function Control() {
     return () => clearInterval(interval);
   }, []);
 
-  // Fetch events
+  // Fetch events for current meet only
   const { data: events = [], isLoading: eventsLoading } = useQuery<Event[]>({
-    queryKey: ["/api/events"],
+    queryKey: ["/api/events", currentMeetId],
+    queryFn: currentMeetId 
+      ? () => fetch(`/api/events?meetId=${currentMeetId}`).then(r => r.json())
+      : undefined,
+    enabled: !!currentMeetId,
   });
 
-  // Fetch athletes
+  // Fetch athletes for current meet only  
   const { data: athletes = [], isLoading: athletesLoading } = useQuery<Athlete[]>({
-    queryKey: ["/api/athletes"],
+    queryKey: ["/api/athletes", currentMeetId],
+    queryFn: currentMeetId
+      ? () => fetch(`/api/athletes?meetId=${currentMeetId}`).then(r => r.json())
+      : undefined,
+    enabled: !!currentMeetId,
   });
 
-  // Fetch teams
+  // Fetch teams for current meet only
   const { data: teams = [], isLoading: teamsLoading } = useQuery<Team[]>({
-    queryKey: ["/api/teams"],
+    queryKey: ["/api/teams", currentMeetId],
+    queryFn: currentMeetId
+      ? () => fetch(`/api/teams?meetId=${currentMeetId}`).then(r => r.json())
+      : undefined,
+    enabled: !!currentMeetId,
   });
 
   // Create event mutation
@@ -427,85 +439,42 @@ export default function Control() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column - Event Management */}
         <div className="lg:col-span-2 space-y-6">
-          <Tabs defaultValue="events" className="w-full">
-            <TabsList className="grid w-full grid-cols-19">
-              <TabsTrigger value="events" data-testid="tab-events" className="gap-2">
-                <Trophy className="w-4 h-4" />
-                Events
-              </TabsTrigger>
-              <TabsTrigger value="athletes" data-testid="tab-athletes" className="gap-2">
-                <Users className="w-4 h-4" />
-                Athletes
-              </TabsTrigger>
-              <TabsTrigger value="teams" data-testid="tab-teams" className="gap-2">
-                <Shield className="w-4 h-4" />
-                Teams
+          <Tabs defaultValue="manage" className="w-full">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="manage" data-testid="tab-manage" className="gap-2">
+                <Database className="w-4 h-4" />
+                Manage
               </TabsTrigger>
               <TabsTrigger value="results" data-testid="tab-results" className="gap-2">
                 <Target className="w-4 h-4" />
                 Results
               </TabsTrigger>
-              <TabsTrigger value="scoring" data-testid="tab-scoring" className="gap-2">
-                <Award className="w-4 h-4" />
-                Scoring
-              </TabsTrigger>
-              <TabsTrigger value="checkin" data-testid="tab-checkin" className="gap-2">
-                <UserCheck className="w-4 h-4" />
-                Check-In
-              </TabsTrigger>
-              <TabsTrigger value="splits" data-testid="tab-splits" className="gap-2">
-                <Timer className="w-4 h-4" />
-                Splits
-              </TabsTrigger>
-              <TabsTrigger value="wind" data-testid="tab-wind" className="gap-2">
-                <Wind className="w-4 h-4" />
-                Wind
-              </TabsTrigger>
-              <TabsTrigger value="judges" data-testid="tab-judges" className="gap-2">
+              <TabsTrigger value="officials" data-testid="tab-officials" className="gap-2">
                 <Shield className="w-4 h-4" />
-                Judges
+                Officials
               </TabsTrigger>
-              <TabsTrigger value="records" data-testid="tab-records" className="gap-2">
-                <Medal className="w-4 h-4" />
-                Records
-              </TabsTrigger>
-              <TabsTrigger value="medals" data-testid="tab-medals" className="gap-2">
-                <Medal className="w-4 h-4" />
-                Medals
-              </TabsTrigger>
-              <TabsTrigger value="sponsors" data-testid="tab-sponsors" className="gap-2">
-                <Star className="w-4 h-4" />
-                Sponsors
-              </TabsTrigger>
-              <TabsTrigger value="combined" data-testid="tab-combined" className="gap-2">
-                <Trophy className="w-4 h-4" />
-                Combined
-              </TabsTrigger>
-              <TabsTrigger value="qr" data-testid="tab-qr" className="gap-2">
-                <QrCode className="w-4 h-4" />
-                QR Codes
-              </TabsTrigger>
-              <TabsTrigger value="social" data-testid="tab-social" className="gap-2">
-                <Share2 className="w-4 h-4" />
-                Social
-              </TabsTrigger>
-              <TabsTrigger value="finishlynx" data-testid="tab-finishlynx" className="gap-2">
-                <Upload className="w-4 h-4" />
-                FinishLynx
-              </TabsTrigger>
-              <TabsTrigger value="certificates" data-testid="tab-certificates" className="gap-2">
-                <Award className="w-4 h-4" />
-                Certs
-              </TabsTrigger>
-              <TabsTrigger value="weather" data-testid="tab-weather" className="gap-2">
-                <Cloud className="w-4 h-4" />
-                Weather
-              </TabsTrigger>
-              <TabsTrigger value="overlays" data-testid="tab-overlays" className="gap-2">
+              <TabsTrigger value="tools" data-testid="tab-tools" className="gap-2">
                 <Monitor className="w-4 h-4" />
-                Overlays
+                Tools
               </TabsTrigger>
             </TabsList>
+
+            <TabsContent value="manage" className="space-y-4">
+              <Tabs defaultValue="events">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="events" data-testid="tab-events" className="gap-2">
+                    <Trophy className="w-4 h-4" />
+                    Events
+                  </TabsTrigger>
+                  <TabsTrigger value="athletes" data-testid="tab-athletes" className="gap-2">
+                    <Users className="w-4 h-4" />
+                    Athletes
+                  </TabsTrigger>
+                  <TabsTrigger value="teams" data-testid="tab-teams" className="gap-2">
+                    <Shield className="w-4 h-4" />
+                    Teams
+                  </TabsTrigger>
+                </TabsList>
 
             <TabsContent value="events" className="space-y-4">
               <EventForm
