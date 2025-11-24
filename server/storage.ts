@@ -132,6 +132,9 @@ import {
 import { db } from "./db";
 import { eq, sql, and, not, inArray, count, isNull, desc } from "drizzle-orm";
 
+// Helper type for record books with records
+export type RecordBookWithRecords = SelectRecordBook & { records: SelectRecord[] };
+
 export interface IStorage {
   // Events
   getEvents(): Promise<Event[]>;
@@ -844,7 +847,10 @@ export class DatabaseStorage implements IStorage {
       .insert(boardConfigs)
       .values(config as any)
       .returning();
-    return newConfig;
+    
+    // Transform database result to BoardConfig type
+    const { id, createdAt, updatedAt, ...boardConfig } = newConfig;
+    return boardConfig as BoardConfig;
   }
 
   async getBoardConfig(boardId: string, meetId: string): Promise<BoardConfig | null> {
@@ -855,7 +861,12 @@ export class DatabaseStorage implements IStorage {
         eq(boardConfigs.boardId, boardId),
         eq(boardConfigs.meetId, meetId)
       ));
-    return config || null;
+    
+    if (!config) return null;
+    
+    // Transform database result to BoardConfig type
+    const { id, createdAt, updatedAt, ...boardConfig } = config;
+    return boardConfig as BoardConfig;
   }
 
   async updateBoardConfig(id: string, config: Partial<InsertBoardConfig>): Promise<BoardConfig | null> {
@@ -864,7 +875,12 @@ export class DatabaseStorage implements IStorage {
       .set({ ...config, updatedAt: new Date() } as any)
       .where(eq(boardConfigs.id, id))
       .returning();
-    return updated || null;
+    
+    if (!updated) return null;
+    
+    // Transform database result to BoardConfig type
+    const { id: _, createdAt, updatedAt, ...boardConfig } = updated;
+    return boardConfig as BoardConfig;
   }
 
   async deleteBoardConfig(id: string): Promise<void> {
@@ -1462,7 +1478,7 @@ export class DatabaseStorage implements IStorage {
       // Create new profile
       const [newProfile] = await db
         .insert(meetScoringProfiles)
-        .values(profile)
+        .values([profile])
         .returning();
       return newProfile;
     }
@@ -1543,7 +1559,7 @@ export class DatabaseStorage implements IStorage {
   async createTeamScoringResult(result: InsertTeamScoringResult): Promise<TeamScoringResult> {
     const [newResult] = await db
       .insert(teamScoringResults)
-      .values(result)
+      .values([result])
       .returning();
     return newResult;
   }
@@ -1755,7 +1771,7 @@ export class DatabaseStorage implements IStorage {
     const meetSpecific = await db.select()
       .from(eventSplitConfigs)
       .where(and(
-        eq(eventSplitConfigs.eventType, event.type),
+        eq(eventSplitConfigs.eventType, event.eventType),
         eq(eventSplitConfigs.meetId, event.meetId)
       ))
       .orderBy(eventSplitConfigs.splitOrder);
@@ -1765,7 +1781,7 @@ export class DatabaseStorage implements IStorage {
     return db.select()
       .from(eventSplitConfigs)
       .where(and(
-        eq(eventSplitConfigs.eventType, event.type),
+        eq(eventSplitConfigs.eventType, event.eventType),
         isNull(eventSplitConfigs.meetId)
       ))
       .orderBy(eventSplitConfigs.splitOrder);
@@ -2242,7 +2258,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async clearOldSignatures(olderThan: Date): Promise<void> {
-    for (const [sig, timestamp] of this.resultSignatures.entries()) {
+    for (const [sig, timestamp] of Array.from(this.resultSignatures.entries())) {
       if (timestamp < olderThan) {
         this.resultSignatures.delete(sig);
       }

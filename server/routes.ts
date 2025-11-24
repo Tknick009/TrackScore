@@ -138,8 +138,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         name: currentMeet.name,
         startDate: currentMeet.startDate,
         endDate: currentMeet.endDate,
-        location: currentMeet.location,
-        venue: currentMeet.venue
+        location: currentMeet.location
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -154,12 +153,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const publicEvents = events.map(e => ({
         id: e.id,
         name: e.name,
-        type: e.type,
+        eventType: e.eventType,
         gender: e.gender,
-        round: e.round,
-        heat: e.heat,
         status: e.status,
-        scheduledTime: e.scheduledTime
+        eventTime: e.eventTime
       }));
       
       res.json(publicEvents);
@@ -181,19 +178,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         id: entry.id,
         athleteName: entry.athlete ? `${entry.athlete.firstName} ${entry.athlete.lastName}` : "Unknown",
         athleteId: entry.athlete?.id,
-        teamName: entry.athlete?.team?.name,
-        bib: entry.athlete?.bib,
+        teamName: entry.team?.name,
+        bibNumber: entry.athlete?.bibNumber,
         finalPlace: entry.finalPlace,
-        finalTime: entry.finalTime,
-        finalMark: entry.finalMark,
-        points: entry.points
+        finalMark: entry.finalMark
       })).sort((a, b) => (a.finalPlace || 999) - (b.finalPlace || 999));
       
       res.json({
         event: {
           id: event.id,
           name: event.name,
-          type: event.type,
+          eventType: event.eventType,
           status: event.status
         },
         results
@@ -228,14 +223,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const athletes = await storage.getAthletesByMeetId(req.params.meetId);
       
-      const publicAthletes = athletes.map(a => ({
-        id: a.id,
-        firstName: a.firstName,
-        lastName: a.lastName,
-        bib: a.bib,
-        teamId: a.teamId,
-        teamName: a.team?.name,
-        country: a.country
+      const publicAthletes = await Promise.all(athletes.map(async (a) => {
+        const team = a.teamId ? await storage.getTeam(a.teamId) : null;
+        return {
+          id: a.id,
+          firstName: a.firstName,
+          lastName: a.lastName,
+          bibNumber: a.bibNumber,
+          teamId: a.teamId,
+          teamName: team?.name
+        };
       }));
       
       res.json(publicAthletes);
@@ -256,20 +253,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let photoUrl = null;
       try {
         const photo = await storage.getAthletePhoto(athlete.id);
-        if (photo?.publicUrl) {
-          photoUrl = photo.publicUrl;
+        if (photo?.storageKey) {
+          photoUrl = fileStorage.publicUrlForKey(photo.storageKey);
         }
       } catch (e) {
         // Photo not available
       }
       
+      const team = athlete.teamId ? await storage.getTeam(athlete.teamId) : null;
+      
       res.json({
         id: athlete.id,
         firstName: athlete.firstName,
         lastName: athlete.lastName,
-        bib: athlete.bib,
-        teamName: athlete.team?.name,
-        country: athlete.country,
+        bibNumber: athlete.bibNumber,
+        teamName: team?.name,
         photoUrl
       });
     } catch (error: any) {
@@ -546,7 +544,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const validated = z.array(insertEventSplitConfigSchema).parse(req.body);
-      const updated = await storage.updateSplitConfigs(event.type, event.meetId, validated);
+      const updated = await storage.updateSplitConfigs(event.eventType, event.meetId, validated);
       res.json(updated);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -2928,10 +2926,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .slice(0, 3)
         .map(e => ({
           athleteName: e.athlete ? `${e.athlete.firstName} ${e.athlete.lastName}` : "Unknown",
-          teamName: e.athlete?.team?.name,
-          finalTime: e.finalTime,
-          finalMark: e.finalMark,
-          finalPlace: e.finalPlace
+          teamName: e.team?.name,
+          finalMark: e.finalMark?.toString(),
+          finalPlace: e.finalPlace || undefined
         }));
       
       const { generateEventResultCaption } = await import('./social-media-captions');
@@ -3092,10 +3089,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         athleteName: `${entry.athlete.firstName} ${entry.athlete.lastName}`,
         eventName: event.name,
         place: entry.finalPlace,
-        performance: entry.finalTime || entry.finalMark || "N/A",
+        performance: entry.finalMark?.toString() || "N/A",
         meetName: meet.name,
         meetDate: meet.startDate ? new Date(meet.startDate).toLocaleDateString() : "Unknown",
-        teamName: entry.athlete.team?.name
+        teamName: entry.team?.name
       };
       
       const pdfStream = generateCertificatePDF(certificateData);
@@ -3148,10 +3145,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           athleteName: `${entry.athlete!.firstName} ${entry.athlete!.lastName}`,
           eventName: event.name,
           place: entry.finalPlace!,
-          performance: entry.finalTime || entry.finalMark || "N/A",
+          performance: entry.finalMark?.toString() || "N/A",
           meetName: meet.name,
           meetDate: meet.startDate ? new Date(meet.startDate).toLocaleDateString() : "Unknown",
-          teamName: entry.athlete!.team?.name
+          teamName: entry.team?.name
         };
         
         const pdfStream = generateCertificatePDF(certificateData);

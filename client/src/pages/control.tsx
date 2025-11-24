@@ -58,7 +58,6 @@ export default function Control() {
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [athleteDialogOpen, setAthleteDialogOpen] = useState(false);
   const [teamDialogOpen, setTeamDialogOpen] = useState(false);
-  const [wsConnected, setWsConnected] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [importStats, setImportStats] = useState<ImportStatistics | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -67,30 +66,6 @@ export default function Control() {
   const { data: allMeets = [] } = useQuery<Meet[]>({
     queryKey: ["/api/meets"],
   });
-
-  // Check WebSocket connectivity
-  useEffect(() => {
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
-    
-    const checkConnection = () => {
-      const ws = new WebSocket(wsUrl);
-      
-      ws.onopen = () => {
-        setWsConnected(true);
-        ws.close();
-      };
-      
-      ws.onerror = () => {
-        setWsConnected(false);
-      };
-    };
-
-    checkConnection();
-    const interval = setInterval(checkConnection, 5000); // Check every 5 seconds
-
-    return () => clearInterval(interval);
-  }, []);
 
   // Fetch events for current meet only
   const { data: events = [], isLoading: eventsLoading } = useQuery<Event[]>({
@@ -292,7 +267,7 @@ export default function Control() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <ConnectionStatus connected={wsConnected} />
+          <ConnectionStatus />
           {currentMeetId && <ExportMenu meetId={currentMeetId} type="meet" />}
           <Link href="/display">
             <Button variant="outline" className="gap-2" data-testid="button-view-display">
@@ -439,42 +414,14 @@ export default function Control() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column - Event Management */}
         <div className="lg:col-span-2 space-y-6">
-          <Tabs defaultValue="manage" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="manage" data-testid="tab-manage" className="gap-2">
-                <Database className="w-4 h-4" />
-                Manage
-              </TabsTrigger>
-              <TabsTrigger value="results" data-testid="tab-results" className="gap-2">
-                <Target className="w-4 h-4" />
-                Results
-              </TabsTrigger>
-              <TabsTrigger value="officials" data-testid="tab-officials" className="gap-2">
-                <Shield className="w-4 h-4" />
-                Officials
-              </TabsTrigger>
-              <TabsTrigger value="tools" data-testid="tab-tools" className="gap-2">
-                <Monitor className="w-4 h-4" />
-                Tools
-              </TabsTrigger>
+          <Tabs defaultValue="events" className="w-full">
+            <TabsList className="grid w-full grid-cols-5">
+              <TabsTrigger value="events" data-testid="tab-events">Events</TabsTrigger>
+              <TabsTrigger value="athletes" data-testid="tab-athletes">Athletes</TabsTrigger>
+              <TabsTrigger value="teams" data-testid="tab-teams">Teams</TabsTrigger>
+              <TabsTrigger value="results" data-testid="tab-results">Results</TabsTrigger>
+              <TabsTrigger value="more" data-testid="tab-more">More</TabsTrigger>
             </TabsList>
-
-            <TabsContent value="manage" className="space-y-4">
-              <Tabs defaultValue="events">
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="events" data-testid="tab-events" className="gap-2">
-                    <Trophy className="w-4 h-4" />
-                    Events
-                  </TabsTrigger>
-                  <TabsTrigger value="athletes" data-testid="tab-athletes" className="gap-2">
-                    <Users className="w-4 h-4" />
-                    Athletes
-                  </TabsTrigger>
-                  <TabsTrigger value="teams" data-testid="tab-teams" className="gap-2">
-                    <Shield className="w-4 h-4" />
-                    Teams
-                  </TabsTrigger>
-                </TabsList>
 
             <TabsContent value="events" className="space-y-4">
               <EventForm
@@ -563,81 +510,59 @@ export default function Control() {
               )}
             </TabsContent>
 
-            <TabsContent value="scoring" className="space-y-4">
-              {!currentMeetId ? (
-                <Card>
-                  <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                    <Award className="w-12 h-12 text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">
-                      Select a Meet First
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      Choose a meet to configure team scoring
-                    </p>
-                  </CardContent>
-                </Card>
-              ) : (
-                <>
-                  <TeamScoringConfig meetId={currentMeetId} />
-                  <TeamStandingsPanel meetId={currentMeetId} />
-                </>
-              )}
-            </TabsContent>
+            <TabsContent value="more" className="space-y-4">
+              <Tabs defaultValue="scoring">
+                <TabsList className="grid w-full grid-cols-4 gap-1">
+                  <TabsTrigger value="scoring">Scoring</TabsTrigger>
+                  <TabsTrigger value="tools">Tools</TabsTrigger>
+                  <TabsTrigger value="officials">Officials</TabsTrigger>
+                  <TabsTrigger value="media">Media</TabsTrigger>
+                </TabsList>
 
-            <TabsContent value="checkin" className="space-y-4">
-              <AthleteCheckInPanel />
-            </TabsContent>
+                <TabsContent value="scoring" className="space-y-4">
+                  {!currentMeetId ? (
+                    <Card>
+                      <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                        <Award className="w-12 h-12 text-muted-foreground mb-4" />
+                        <h3 className="text-lg font-semibold mb-2">
+                          Select a Meet First
+                        </h3>
+                        <p className="text-sm text-muted-foreground">
+                          Choose a meet to configure team scoring
+                        </p>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <>
+                      <TeamScoringConfig meetId={currentMeetId} />
+                      <TeamStandingsPanel meetId={currentMeetId} />
+                      <MedalTrackerPanel />
+                    </>
+                  )}
+                </TabsContent>
 
-            <TabsContent value="splits" className="space-y-4">
-              <SplitRecorderPanel />
-            </TabsContent>
+                <TabsContent value="tools" className="space-y-4">
+                  <QRCodeGenerator />
+                  <SocialMediaGenerator />
+                  <CertificateGenerator />
+                  <WeatherWidget />
+                  <OverlayControl />
+                </TabsContent>
 
-            <TabsContent value="wind" className="space-y-4">
-              <WindRecorderPanel />
-            </TabsContent>
+                <TabsContent value="officials" className="space-y-4">
+                  <AthleteCheckInPanel />
+                  <JudgeTokenManager />
+                  <RecordBookManager />
+                </TabsContent>
 
-            <TabsContent value="judges" className="space-y-4">
-              <JudgeTokenManager />
-            </TabsContent>
-
-            <TabsContent value="records" className="space-y-4">
-              <RecordBookManager />
-            </TabsContent>
-
-            <TabsContent value="medals" className="space-y-4">
-              <MedalTrackerPanel />
-            </TabsContent>
-
-            <TabsContent value="sponsors" className="space-y-4">
-              <SponsorManager />
-            </TabsContent>
-
-            <TabsContent value="combined" className="space-y-4">
-              <CombinedEventManager />
-            </TabsContent>
-
-            <TabsContent value="qr" className="space-y-4">
-              <QRCodeGenerator />
-            </TabsContent>
-
-            <TabsContent value="social" className="space-y-4">
-              <SocialMediaGenerator />
-            </TabsContent>
-
-            <TabsContent value="finishlynx" className="space-y-4">
-              <FinishLynxUploader />
-            </TabsContent>
-
-            <TabsContent value="certificates" className="space-y-4">
-              <CertificateGenerator />
-            </TabsContent>
-
-            <TabsContent value="weather" className="space-y-4">
-              <WeatherWidget />
-            </TabsContent>
-
-            <TabsContent value="overlays" className="space-y-4">
-              <OverlayControl />
+                <TabsContent value="media" className="space-y-4">
+                  <SplitRecorderPanel />
+                  <WindRecorderPanel />
+                  <FinishLynxUploader />
+                  <SponsorManager />
+                  <CombinedEventManager />
+                </TabsContent>
+              </Tabs>
             </TabsContent>
           </Tabs>
         </div>
