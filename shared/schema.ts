@@ -286,6 +286,8 @@ export const meets = pgTable("meets", {
 
 export const insertMeetSchema = createInsertSchema(meets).omit({ id: true }).extend({
   status: meetStatusEnum.optional(),
+  startDate: z.coerce.date(),
+  endDate: z.coerce.date().optional().nullable(),
 });
 export type InsertMeet = z.infer<typeof insertMeetSchema>;
 export type Meet = typeof meets.$inferSelect;
