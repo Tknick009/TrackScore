@@ -134,14 +134,10 @@ function Router() {
       <Route path="/judge" component={JudgePage} />
       <Route path="/spectator" component={Spectator} />
       <Route path="/overlay/:type" component={OverlayPage} />
-      <Route path="/control/:meetId/:subPath*">{(params) => {
-        console.log("Route /control/:meetId/:subPath* matched with params:", params);
-        return <MeetControlRouter />;
-      }}</Route>
-      <Route path="/control/:meetId">{(params) => {
-        console.log("Route /control/:meetId matched with params:", params);
-        return <MeetControlRouter />;
-      }}</Route>
+      <Route path="/control/:meetId/events/:eventId">{() => <MeetControlRouter />}</Route>
+      <Route path="/control/:meetId/layouts/designer/:layoutId">{() => <MeetControlRouter />}</Route>
+      <Route path="/control/:meetId/:subPath">{() => <MeetControlRouter />}</Route>
+      <Route path="/control/:meetId">{() => <MeetControlRouter />}</Route>
       <Route>{() => { console.log("Router - fallback NotFound matched"); return <NotFound />; }}</Route>
     </Switch>
   );
