@@ -361,6 +361,7 @@ export const events = pgTable("events", {
   numLanes: integer("num_lanes").default(8),
   eventDate: timestamp("event_date"), // Scheduled date for this event
   eventTime: text("event_time"), // Scheduled time string (e.g., "2:30 PM")
+  sessionName: text("session_name"), // Session name from HyTek (e.g., "Thursday AM", "Friday Finals")
   hytekStatus: text("hytek_status"), // unseeded, seeded, done, scored from MDB
   isScored: boolean("is_scored").default(false), // Derived: true if hytekStatus = 'done' or 'scored'
   lastResultSource: text("last_result_source"), // port, lif, lff, manual

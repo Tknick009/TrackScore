@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar, Clock, Timer, Target, PlayCircle, RotateCcw, Eye, Loader2, ArrowUpDown } from "lucide-react";
 import { Link } from "wouter";
 
-type SortOption = 'time' | 'number' | 'name' | 'status';
+type SortOption = 'time' | 'session' | 'number' | 'name' | 'status';
 
 function getEventStatusBadge(status: string) {
   switch (status) {
@@ -64,6 +64,12 @@ export default function Schedule() {
           const timeB = b.eventTime || '';
           if (timeA !== timeB) return timeA.localeCompare(timeB);
           return (a.eventNumber || 0) - (b.eventNumber || 0);
+        case 'session':
+          // Sort by session name, then event number
+          const sessionA = (a as any).sessionName || '';
+          const sessionB = (b as any).sessionName || '';
+          if (sessionA !== sessionB) return sessionA.localeCompare(sessionB);
+          return (a.eventNumber || 0) - (b.eventNumber || 0);
         case 'number':
           return (a.eventNumber || 0) - (b.eventNumber || 0);
         case 'name':
@@ -79,17 +85,25 @@ export default function Schedule() {
     });
   }, [events, sortBy]);
 
-  // Group by date only when sorting by time
-  const eventsByDate = useMemo(() => {
-    if (sortBy !== 'time') {
-      return { 'All Events': sortedEvents };
+  // Group by date when sorting by time, or by session when sorting by session
+  const eventsByGroup = useMemo(() => {
+    if (sortBy === 'time') {
+      return sortedEvents.reduce((acc, event) => {
+        const date = event.eventDate ? String(event.eventDate) : 'Unscheduled';
+        if (!acc[date]) acc[date] = [];
+        acc[date].push(event);
+        return acc;
+      }, {} as Record<string, Event[]>);
     }
-    return sortedEvents.reduce((acc, event) => {
-      const date = event.eventDate ? String(event.eventDate) : 'Unscheduled';
-      if (!acc[date]) acc[date] = [];
-      acc[date].push(event);
-      return acc;
-    }, {} as Record<string, Event[]>);
+    if (sortBy === 'session') {
+      return sortedEvents.reduce((acc, event) => {
+        const session = (event as any).sessionName || 'No Session';
+        if (!acc[session]) acc[session] = [];
+        acc[session].push(event);
+        return acc;
+      }, {} as Record<string, Event[]>);
+    }
+    return { 'All Events': sortedEvents };
   }, [sortedEvents, sortBy]);
 
   if (!currentMeetId) {
@@ -131,6 +145,7 @@ export default function Schedule() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="time">By Time</SelectItem>
+              <SelectItem value="session">By Session</SelectItem>
               <SelectItem value="number">By Event #</SelectItem>
               <SelectItem value="name">By Name</SelectItem>
               <SelectItem value="status">By Status</SelectItem>
@@ -166,28 +181,31 @@ export default function Schedule() {
           </Card>
         ) : (
           <div className="space-y-6 max-w-4xl mx-auto">
-            {Object.entries(eventsByDate).map(([date, dateEvents]) => (
-              <div key={date}>
-                {/* Only show date headers when sorting by time */}
-                {sortBy === 'time' && (
+            {Object.entries(eventsByGroup).map(([groupKey, groupEvents]) => (
+              <div key={groupKey}>
+                {/* Show group headers when sorting by time or session */}
+                {(sortBy === 'time' || sortBy === 'session') && (
                   <div className="flex items-center gap-2 mb-3 sticky top-0 bg-background py-2 z-10">
                     <Calendar className="w-4 h-4 text-muted-foreground" />
                     <h2 className="font-semibold">
-                      {date === 'Unscheduled' 
-                        ? 'Unscheduled Events' 
-                        : new Date(date).toLocaleDateString('en-US', { 
-                            weekday: 'long', 
-                            year: 'numeric', 
-                            month: 'long', 
-                            day: 'numeric' 
-                          })
-                      }
+                      {sortBy === 'time' ? (
+                        groupKey === 'Unscheduled' 
+                          ? 'Unscheduled Events' 
+                          : new Date(groupKey).toLocaleDateString('en-US', { 
+                              weekday: 'long', 
+                              year: 'numeric', 
+                              month: 'long', 
+                              day: 'numeric' 
+                            })
+                      ) : (
+                        groupKey === 'No Session' ? 'No Session Assigned' : groupKey
+                      )}
                     </h2>
-                    <Badge variant="secondary">{dateEvents.length}</Badge>
+                    <Badge variant="secondary">{groupEvents.length}</Badge>
                   </div>
                 )}
                 <div className="space-y-2">
-                  {dateEvents.map((event) => (
+                  {groupEvents.map((event: Event) => (
                     <Card key={event.id} className="hover-elevate">
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between gap-4">

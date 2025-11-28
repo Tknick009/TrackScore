@@ -661,6 +661,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         numLanes,
         eventDate,
         eventTime,
+        sessionName: sessionInfo?.name || null, // Session name from HyTek
         hytekStatus, // NEW: HyTek status from MDB
         isScored,    // NEW: Derived lock flag
       });
@@ -680,8 +681,9 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
             numLanes: sql`excluded.num_lanes`,
             eventDate: sql`excluded.event_date`,
             eventTime: sql`excluded.event_time`,
-            hytekStatus: sql`excluded.hytek_status`, // NEW
-            isScored: sql`excluded.is_scored`,       // NEW
+            sessionName: sql`excluded.session_name`, // Session name from HyTek
+            hytekStatus: sql`excluded.hytek_status`,
+            isScored: sql`excluded.is_scored`,
           }
         })
         .returning();
