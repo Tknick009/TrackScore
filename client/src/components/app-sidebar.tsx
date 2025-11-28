@@ -1,13 +1,10 @@
 import { 
   Calendar, 
   Users, 
-  ClipboardCheck, 
   Trophy, 
   Monitor,
   Activity,
   Upload,
-  Award,
-  UserCheck,
   Palette,
   Layout,
   Building2,
@@ -95,30 +92,6 @@ export function AppSidebar() {
                   <Link href={`${basePath}/teams`} data-testid="link-teams">
                     <Building2 />
                     <span>Teams</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Officials</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === `${basePath}/checkin`}>
-                  <Link href={`${basePath}/checkin`} data-testid="link-checkin">
-                    <UserCheck />
-                    <span>Check-In</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === `${basePath}/officials`}>
-                  <Link href={`${basePath}/officials`} data-testid="link-officials-tools">
-                    <ClipboardCheck />
-                    <span>Field Officials</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
