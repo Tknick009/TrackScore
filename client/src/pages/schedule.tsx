@@ -77,9 +77,11 @@ export default function Schedule() {
           if (timeMinutesA !== timeMinutesB) return timeMinutesA - timeMinutesB;
           return (a.eventNumber || 0) - (b.eventNumber || 0);
         case 'session':
-          // Sort by session name, then event number
+          // Sort by session name (empty sessions last), then event number
           const sessionA = (a as any).sessionName || '';
           const sessionB = (b as any).sessionName || '';
+          if (sessionA && !sessionB) return -1;
+          if (!sessionA && sessionB) return 1;
           if (sessionA !== sessionB) return sessionA.localeCompare(sessionB);
           return (a.eventNumber || 0) - (b.eventNumber || 0);
         case 'number':
@@ -109,7 +111,7 @@ export default function Schedule() {
     }
     if (sortBy === 'session') {
       return sortedEvents.reduce((acc, event) => {
-        const session = (event as any).sessionName || 'No Session';
+        const session = (event as any).sessionName || 'Not In Session';
         if (!acc[session]) acc[session] = [];
         acc[session].push(event);
         return acc;
@@ -210,7 +212,7 @@ export default function Schedule() {
                               day: 'numeric' 
                             })
                       ) : (
-                        groupKey === 'No Session' ? 'No Session Assigned' : groupKey
+                        groupKey
                       )}
                     </h2>
                     <Badge variant="secondary">{groupEvents.length}</Badge>
