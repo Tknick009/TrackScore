@@ -2398,6 +2398,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // =============================
+  // LAYOUT TEMPLATES API ROUTES
+  // =============================
+
+  // Get all available layout templates
+  app.get('/api/layout-templates', async (req, res) => {
+    try {
+      const { LAYOUT_TEMPLATES, DISPLAY_TYPES } = await import('@shared/layout-templates');
+      const displayType = req.query.displayType as string | undefined;
+      const category = req.query.category as string | undefined;
+      
+      let templates = LAYOUT_TEMPLATES;
+      if (displayType) {
+        templates = templates.filter(t => t.displayType === displayType);
+      }
+      if (category) {
+        templates = templates.filter(t => t.category === category);
+      }
+      
+      res.json({ templates, displayTypes: DISPLAY_TYPES });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Apply a layout template (creates layout + zones)
+  app.post('/api/layout-templates/:templateId/apply', async (req, res) => {
+    try {
+      const { getTemplateById } = await import('@shared/layout-templates');
+      const template = getTemplateById(req.params.templateId);
+      
+      if (!template) {
+        return res.status(404).json({ error: 'Template not found' });
+      }
+      
+      // Optional custom name from request body
+      const customName = req.body.name || template.name;
+      const customDescription = req.body.description || template.description;
+      
+      // Create the layout
+      const layout = await storage.createLayout({
+        name: customName,
+        description: customDescription,
+        aspectRatio: template.aspectRatio,
+        baseTheme: 'stadium',
+      });
+      
+      // Create all zones for this layout
+      for (const zoneTemplate of template.zones) {
+        await storage.createZone({
+          layoutId: layout.id,
+          order: zoneTemplate.order,
+          xPercent: zoneTemplate.xPercent,
+          yPercent: zoneTemplate.yPercent,
+          widthPercent: zoneTemplate.widthPercent,
+          heightPercent: zoneTemplate.heightPercent,
+          boardType: zoneTemplate.boardType,
+          dataBinding: zoneTemplate.dataBinding,
+          boardConfig: zoneTemplate.boardConfig,
+          stylePreset: zoneTemplate.stylePreset,
+        });
+      }
+      
+      // Return the created layout with zones
+      const result = await storage.getLayoutWithZones(layout.id);
+      res.status(201).json(result);
+    } catch (error: any) {
+      console.error('Error applying template:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Record Books
   app.get('/api/record-books', async (req, res) => {
     try {
