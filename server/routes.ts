@@ -1042,6 +1042,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete("/api/meets/:id", async (req, res) => {
+    try {
+      const meet = await storage.getMeet(req.params.id);
+      if (!meet) {
+        return res.status(404).json({ error: "Meet not found" });
+      }
+      await storage.deleteMeet(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.get("/api/meets/:id/events", async (req, res) => {
     try {
       const events = await storage.getEventsByMeetId(req.params.id);

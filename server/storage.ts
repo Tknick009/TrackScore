@@ -172,6 +172,7 @@ export interface IStorage {
   createMeet(meet: InsertMeet): Promise<Meet>;
   updateMeet(id: string, data: Partial<InsertMeet>): Promise<Meet | null>;
   updateMeetStatus(meetId: string, status: string): Promise<Meet | undefined>;
+  deleteMeet(id: string): Promise<boolean>;
 
   // Teams
   getTeams(): Promise<Team[]>;
@@ -603,6 +604,11 @@ export class DatabaseStorage implements IStorage {
       .where(eq(meets.id, meetId))
       .returning();
     return updated || undefined;
+  }
+
+  async deleteMeet(id: string): Promise<boolean> {
+    const result = await db.delete(meets).where(eq(meets.id, id));
+    return true;
   }
 
   // Teams

@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format, isPast, isToday, isFuture } from "date-fns";
-import { Calendar as CalendarIcon, MapPin, Plus, Calendar, Settings, Monitor, Copy, Check, Search, Filter } from "lucide-react";
+import { Calendar as CalendarIcon, MapPin, Plus, Calendar, Settings, Monitor, Copy, Check, Search, Filter, Trash2, MoreVertical } from "lucide-react";
 import { Link } from "wouter";
 import { insertMeetSchema, type Meet } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -38,7 +38,19 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 // Create a schema for the form with only the required fields
 const createMeetFormSchema = insertMeetSchema
@@ -212,9 +224,30 @@ function CreateMeetDialog() {
 function MeetCard({ meet }: { meet: Meet }) {
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   
   const meetDate = new Date(meet.startDate);
   const status = isPast(meetDate) && !isToday(meetDate) ? "past" : isToday(meetDate) ? "active" : "upcoming";
+
+  const deleteMeetMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("DELETE", `/api/meets/${meet.id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/meets"] });
+      toast({
+        title: "Meet deleted",
+        description: `${meet.name} has been deleted`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
   
   const copyMeetCode = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -233,39 +266,63 @@ function MeetCard({ meet }: { meet: Meet }) {
       <CardHeader className="gap-2 space-y-0">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
-            <Link href={`/meets/${meet.id}`}>
+            <Link href={`/control/${meet.id}`}>
               <CardTitle className="truncate hover:text-primary transition-colors" data-testid={`text-meet-name-${meet.id}`}>
                 {meet.name}
               </CardTitle>
             </Link>
           </div>
-          <Badge 
-            variant={status === "active" ? "default" : status === "upcoming" ? "secondary" : "outline"}
-            data-testid={`badge-status-${meet.id}`}
-          >
-            {status}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge 
+              variant={status === "active" ? "default" : status === "upcoming" ? "secondary" : "outline"}
+              data-testid={`badge-status-${meet.id}`}
+            >
+              {status}
+            </Badge>
+            <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" data-testid={`button-meet-menu-${meet.id}`}>
+                    <MoreVertical className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={copyMeetCode}>
+                    <Copy className="w-4 h-4 mr-2" />
+                    Copy Code
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <AlertDialogTrigger asChild>
+                    <DropdownMenuItem className="text-destructive focus:text-destructive">
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete Meet
+                    </DropdownMenuItem>
+                  </AlertDialogTrigger>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete Meet</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Are you sure you want to delete "{meet.name}"? This will permanently delete all events, athletes, and results associated with this meet. This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => deleteMeetMutation.mutate()}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    data-testid={`button-confirm-delete-${meet.id}`}
+                  >
+                    {deleteMeetMutation.isPending ? "Deleting..." : "Delete"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 font-mono text-xs"
-            onClick={copyMeetCode}
-            data-testid={`button-copy-code-${meet.id}`}
-          >
-            {copied ? (
-              <>
-                <Check className="w-3 h-3 mr-1" />
-                {meet.meetCode}
-              </>
-            ) : (
-              <>
-                <Copy className="w-3 h-3 mr-1" />
-                {meet.meetCode}
-              </>
-            )}
-          </Button>
+          <span className="font-mono text-xs text-muted-foreground">{meet.meetCode}</span>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
