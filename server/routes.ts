@@ -400,11 +400,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/athletes", async (req, res) => {
     try {
       const { meetId } = req.query;
+      let athletes;
       if (meetId) {
-        const athletes = await storage.getAthletesByMeetId(meetId as string);
-        return res.json(athletes);
+        athletes = await storage.getAthletesByMeetId(meetId as string);
+        // Get teams to include team names
+        const teams = await storage.getTeamsByMeetId(meetId as string);
+        const teamMap = new Map(teams.map(t => [t.id, t.name]));
+        const athletesWithTeams = athletes.map(a => ({
+          ...a,
+          teamName: a.teamId ? teamMap.get(a.teamId) || null : null
+        }));
+        return res.json(athletesWithTeams);
       }
-      const athletes = await storage.getAthletes();
+      athletes = await storage.getAthletes();
       res.json(athletes);
     } catch (error: any) {
       res.status(500).json({ error: error.message });

@@ -1,34 +1,20 @@
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Athlete, Team } from "@shared/schema";
-import { useMeet } from "@/contexts/MeetContext";
+import { Athlete } from "@shared/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Users, School } from "lucide-react";
 
+interface AthleteWithTeam extends Athlete {
+  teamName?: string | null;
+}
+
 interface AthleteListProps {
-  athletes: Athlete[];
-  onSelectAthlete?: (athlete: Athlete) => void;
+  athletes: AthleteWithTeam[];
+  onSelectAthlete?: (athlete: AthleteWithTeam) => void;
 }
 
 export function AthleteList({ athletes, onSelectAthlete }: AthleteListProps) {
-  const { currentMeetId } = useMeet();
-
-  const { data: teams = [] } = useQuery<Team[]>({
-    queryKey: ["/api/teams", currentMeetId],
-    queryFn: currentMeetId 
-      ? () => fetch(`/api/teams?meetId=${currentMeetId}`).then(r => r.json())
-      : undefined,
-    enabled: !!currentMeetId,
-  });
-
-  const teamMap = useMemo(() => {
-    const map = new Map<string, string>();
-    teams.forEach(team => map.set(team.id, team.name));
-    return map;
-  }, [teams]);
-
   const sortedAthletes = useMemo(() => {
     return [...athletes].sort((a, b) => {
       const aNum = a.bibNumber ? parseInt(a.bibNumber, 10) : Infinity;
@@ -84,10 +70,10 @@ export function AthleteList({ athletes, onSelectAthlete }: AthleteListProps) {
                     {athlete.firstName} {athlete.lastName}
                   </p>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
-                    {athlete.teamId && teamMap.get(athlete.teamId) && (
+                    {athlete.teamName && (
                       <span className="flex items-center gap-1" data-testid={`text-team-${athlete.id}`}>
                         <School className="w-3 h-3" />
-                        {teamMap.get(athlete.teamId)}
+                        {athlete.teamName}
                       </span>
                     )}
                     {athlete.bibNumber && (
