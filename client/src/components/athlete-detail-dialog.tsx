@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
-import { Athlete, Event } from "@shared/schema";
+import { useQuery } from "@tanstack/react-query";
+import { Athlete, Event, Team } from "@shared/schema";
+import { useMeet } from "@/contexts/MeetContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -9,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
-import { Upload, Trash2, Image as ImageIcon, Loader2, Calendar, Trophy, Clock, CheckCircle2, XCircle, AlertCircle, ArrowUpDown } from "lucide-react";
+import { Upload, Trash2, Image as ImageIcon, Loader2, Calendar, Trophy, Clock, CheckCircle2, XCircle, AlertCircle, ArrowUpDown, School } from "lucide-react";
 
 interface AthleteDetailDialogProps {
   athlete: Athlete | null;
@@ -51,6 +53,7 @@ type EventSortOption = 'number' | 'time' | 'name';
 
 export function AthleteDetailDialog({ athlete, open, onOpenChange }: AthleteDetailDialogProps) {
   const { toast } = useToast();
+  const { currentMeetId } = useMeet();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -59,6 +62,20 @@ export function AthleteDetailDialog({ athlete, open, onOpenChange }: AthleteDeta
   const [events, setEvents] = useState<AthleteEventEntry[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(false);
   const [eventSort, setEventSort] = useState<EventSortOption>('time');
+
+  const { data: teams = [] } = useQuery<Team[]>({
+    queryKey: ["/api/teams", currentMeetId],
+    queryFn: currentMeetId 
+      ? () => fetch(`/api/teams?meetId=${currentMeetId}`).then(r => r.json())
+      : undefined,
+    enabled: !!currentMeetId && open,
+  });
+
+  const teamName = useMemo(() => {
+    if (!athlete?.teamId) return null;
+    const team = teams.find(t => t.id === athlete.teamId);
+    return team?.name || null;
+  }, [athlete?.teamId, teams]);
 
   // Sort events based on selected option
   const sortedEvents = useMemo(() => {
@@ -305,6 +322,15 @@ export function AthleteDetailDialog({ athlete, open, onOpenChange }: AthleteDeta
         <div className="space-y-6">
           {/* Athlete Info */}
           <div className="grid grid-cols-2 gap-4">
+            {teamName && (
+              <div className="col-span-2">
+                <p className="text-sm text-muted-foreground">School / Team</p>
+                <p className="font-medium flex items-center gap-2" data-testid="text-team-name">
+                  <School className="w-4 h-4 text-muted-foreground" />
+                  {teamName}
+                </p>
+              </div>
+            )}
             <div>
               <p className="text-sm text-muted-foreground">Athlete Number</p>
               <p className="font-medium" data-testid="text-athlete-number">

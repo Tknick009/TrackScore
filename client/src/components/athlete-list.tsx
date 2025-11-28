@@ -1,9 +1,11 @@
 import { useMemo } from "react";
-import { Athlete } from "@shared/schema";
+import { useQuery } from "@tanstack/react-query";
+import { Athlete, Team } from "@shared/schema";
+import { useMeet } from "@/contexts/MeetContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { Users } from "lucide-react";
+import { Users, School } from "lucide-react";
 
 interface AthleteListProps {
   athletes: Athlete[];
@@ -11,6 +13,22 @@ interface AthleteListProps {
 }
 
 export function AthleteList({ athletes, onSelectAthlete }: AthleteListProps) {
+  const { currentMeetId } = useMeet();
+
+  const { data: teams = [] } = useQuery<Team[]>({
+    queryKey: ["/api/teams", currentMeetId],
+    queryFn: currentMeetId 
+      ? () => fetch(`/api/teams?meetId=${currentMeetId}`).then(r => r.json())
+      : undefined,
+    enabled: !!currentMeetId,
+  });
+
+  const teamMap = useMemo(() => {
+    const map = new Map<string, string>();
+    teams.forEach(team => map.set(team.id, team.name));
+    return map;
+  }, [teams]);
+
   const sortedAthletes = useMemo(() => {
     return [...athletes].sort((a, b) => {
       const aNum = a.bibNumber ? parseInt(a.bibNumber, 10) : Infinity;
@@ -65,7 +83,13 @@ export function AthleteList({ athletes, onSelectAthlete }: AthleteListProps) {
                   <p className="font-medium" data-testid={`text-athlete-name-${athlete.id}`}>
                     {athlete.firstName} {athlete.lastName}
                   </p>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
+                    {athlete.teamId && teamMap.get(athlete.teamId) && (
+                      <span className="flex items-center gap-1" data-testid={`text-team-${athlete.id}`}>
+                        <School className="w-3 h-3" />
+                        {teamMap.get(athlete.teamId)}
+                      </span>
+                    )}
                     {athlete.bibNumber && (
                       <Badge variant="outline" data-testid={`badge-bib-${athlete.id}`}>
                         #{athlete.bibNumber}
