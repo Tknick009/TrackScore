@@ -410,6 +410,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(entries);
   });
 
+  app.get("/api/entries/event/:eventId/details", async (req, res) => {
+    const entries = await storage.getEntriesWithDetails(req.params.eventId);
+    res.json(entries);
+  });
+
   app.post("/api/entries", async (req, res) => {
     try {
       const data = insertEntrySchema.parse(req.body);

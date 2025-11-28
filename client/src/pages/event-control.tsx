@@ -1,7 +1,7 @@
-import { useEffect } from "react";
+import { useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Event, Athlete, InsertEntry } from "@shared/schema";
+import { Event, Athlete, InsertEntry, EntryWithDetails } from "@shared/schema";
 import { TrackResultForm } from "@/components/track-result-form";
 import { FieldResultForm } from "@/components/field-result-form";
 import { ConnectionStatus } from "@/components/connection-status";
@@ -59,13 +59,15 @@ export default function EventControl() {
 
   const eventBelongsToMeet = event && event.meetId === currentMeetId;
 
-  const { data: athletes = [] } = useQuery<Athlete[]>({
-    queryKey: ["/api/athletes", currentMeetId],
-    queryFn: currentMeetId
-      ? () => fetch(`/api/athletes?meetId=${currentMeetId}`).then(r => r.json())
-      : undefined,
-    enabled: !!currentMeetId,
+  const { data: eventEntries = [], isLoading: entriesLoading } = useQuery<EntryWithDetails[]>({
+    queryKey: ["/api/entries/event", eventId, "details"],
+    queryFn: () => fetch(`/api/entries/event/${eventId}/details`).then(r => r.json()),
+    enabled: !!eventId && eventBelongsToMeet,
   });
+
+  const eventAthletes = useMemo(() => {
+    return eventEntries.map(entry => entry.athlete).filter((a): a is Athlete => !!a);
+  }, [eventEntries]);
 
   const { data: allEvents = [] } = useQuery<Event[]>({
     queryKey: ["/api/events", currentMeetId],
@@ -92,7 +94,7 @@ export default function EventControl() {
   const createEntryMutation = useMutation({
     mutationFn: (data: InsertEntry) => apiRequest("POST", "/api/entries", data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/entries", currentMeetId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/entries/event", eventId, "details"] });
       toast({ title: "Result recorded", description: "The result has been saved" });
     },
     onError: (error: any) => {
@@ -233,17 +235,27 @@ export default function EventControl() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {isTrackEvent(event.eventType) ? (
+              {entriesLoading ? (
+                <div className="flex items-center justify-center p-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : eventAthletes.length === 0 ? (
+                <div className="text-center p-8 text-muted-foreground">
+                  <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p className="font-medium">No athletes entered in this event</p>
+                  <p className="text-sm mt-1">Import data from HyTek to populate entries</p>
+                </div>
+              ) : isTrackEvent(event.eventType) ? (
                 <TrackResultForm
                   eventId={event.id}
-                  athletes={athletes}
+                  athletes={eventAthletes}
                   onSubmit={(data) => createEntryMutation.mutate(data)}
                   isPending={createEntryMutation.isPending}
                 />
               ) : (
                 <FieldResultForm
                   eventId={event.id}
-                  athletes={athletes}
+                  athletes={eventAthletes}
                   onSubmit={(data) => createEntryMutation.mutate(data)}
                   isPending={createEntryMutation.isPending}
                 />
