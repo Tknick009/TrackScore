@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Athlete, Event } from "@shared/schema";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
-import { Upload, Trash2, Image as ImageIcon, Loader2, Calendar, Trophy, Clock, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { Upload, Trash2, Image as ImageIcon, Loader2, Calendar, Trophy, Clock, CheckCircle2, XCircle, AlertCircle, ArrowUpDown } from "lucide-react";
 
 interface AthleteDetailDialogProps {
   athlete: Athlete | null;
@@ -46,6 +47,8 @@ const isTrackEvent = (eventType: string): boolean => {
   return TRACK_EVENT_TYPES.some(t => eventType.toLowerCase().includes(t));
 };
 
+type EventSortOption = 'number' | 'time' | 'name';
+
 export function AthleteDetailDialog({ athlete, open, onOpenChange }: AthleteDetailDialogProps) {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -55,6 +58,32 @@ export function AthleteDetailDialog({ athlete, open, onOpenChange }: AthleteDeta
   const [loadingPhoto, setLoadingPhoto] = useState(false);
   const [events, setEvents] = useState<AthleteEventEntry[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(false);
+  const [eventSort, setEventSort] = useState<EventSortOption>('time');
+
+  // Sort events based on selected option
+  const sortedEvents = useMemo(() => {
+    if (!events.length) return events;
+    
+    return [...events].sort((a, b) => {
+      switch (eventSort) {
+        case 'number':
+          return (a.event.eventNumber || 0) - (b.event.eventNumber || 0);
+        case 'time':
+          // Sort by date first, then by time string
+          const dateA = a.event.eventDate ? new Date(a.event.eventDate).getTime() : Infinity;
+          const dateB = b.event.eventDate ? new Date(b.event.eventDate).getTime() : Infinity;
+          if (dateA !== dateB) return dateA - dateB;
+          // Parse time strings like "2:30 PM" or "14:30"
+          const timeA = a.event.eventTime || '';
+          const timeB = b.event.eventTime || '';
+          return timeA.localeCompare(timeB);
+        case 'name':
+          return (a.event.name || '').localeCompare(b.event.name || '');
+        default:
+          return 0;
+      }
+    });
+  }, [events, eventSort]);
 
   // Fetch athlete photo and events when dialog opens
   useEffect(() => {
@@ -399,11 +428,24 @@ export function AthleteDetailDialog({ athlete, open, onOpenChange }: AthleteDeta
 
           {/* Events Section */}
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
               <CardTitle className="flex items-center gap-2">
                 <Calendar className="w-5 h-5" />
                 Events ({events.length})
               </CardTitle>
+              {events.length > 1 && (
+                <Select value={eventSort} onValueChange={(v) => setEventSort(v as EventSortOption)}>
+                  <SelectTrigger className="w-[140px]" data-testid="select-event-sort">
+                    <ArrowUpDown className="w-3 h-3 mr-1" />
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="time">By Time</SelectItem>
+                    <SelectItem value="number">By Event #</SelectItem>
+                    <SelectItem value="name">By Name</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
             </CardHeader>
             <CardContent>
               {loadingEvents ? (
@@ -417,7 +459,7 @@ export function AthleteDetailDialog({ athlete, open, onOpenChange }: AthleteDeta
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {events.map(({ event, entry }) => {
+                  {sortedEvents.map(({ event, entry }) => {
                     const trackEvent = isTrackEvent(event.eventType);
                     return (
                       <div
@@ -435,6 +477,13 @@ export function AthleteDetailDialog({ athlete, open, onOpenChange }: AthleteDeta
                             </span>
                           </div>
                           <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground flex-wrap">
+                            {/* Event time */}
+                            {event.eventTime && (
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                {event.eventTime}
+                              </span>
+                            )}
                             {/* Heat/Flight and Lane/Position */}
                             {entry.heat !== null && (
                               <span>
@@ -448,8 +497,7 @@ export function AthleteDetailDialog({ athlete, open, onOpenChange }: AthleteDeta
                             )}
                             {/* Seed mark */}
                             {entry.seedMark !== null && (
-                              <span className="flex items-center gap-1">
-                                <Clock className="w-3 h-3" />
+                              <span>
                                 Seed: {formatMark(entry.seedMark, event.eventType)}
                               </span>
                             )}
