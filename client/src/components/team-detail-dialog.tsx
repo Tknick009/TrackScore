@@ -182,12 +182,6 @@ export function TeamDetailDialog({ team, open, onOpenChange }: TeamDetailDialogP
         <div className="space-y-6">
           {/* Team Info */}
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm text-muted-foreground">Team Number</p>
-              <p className="font-medium" data-testid="text-team-number">
-                {team.teamNumber}
-              </p>
-            </div>
             {team.abbreviation && (
               <div>
                 <p className="text-sm text-muted-foreground">Abbreviation</p>
