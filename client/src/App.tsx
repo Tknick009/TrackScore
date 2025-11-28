@@ -117,6 +117,9 @@ function MeetControlRouter() {
 }
 
 function Router() {
+  const [location] = useLocation();
+  console.log("Router - location:", location);
+  
   return (
     <Switch>
       <Route path="/" component={MeetsList} />
@@ -132,7 +135,7 @@ function Router() {
       <Route path="/spectator" component={Spectator} />
       <Route path="/overlay/:type" component={OverlayPage} />
       <Route path="/control/:rest*" component={MeetControlRouter} />
-      <Route component={NotFound} />
+      <Route>{() => { console.log("Router - fallback NotFound matched"); return <NotFound />; }}</Route>
     </Switch>
   );
 }
