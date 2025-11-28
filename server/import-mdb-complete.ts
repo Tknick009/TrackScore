@@ -590,24 +590,19 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         }
       }
       
-      // Priority 5: Use event name from session or generate descriptive name
-      if (sessionInfo?.name) {
-        eventName = String(sessionInfo.name);
+      // Generate event name from event data (NOT from session name)
+      const rawEventName = row.Event_name || row.Event_desc || row.Event_description || row.Name || row.Description || null;
+      // Check if raw name is meaningful (not just "Event N")
+      const isGenericName = rawEventName && /^Event\s+\d+$/i.test(String(rawEventName).trim());
+      
+      if (rawEventName && !isGenericName) {
+        eventName = String(rawEventName);
         namesFound++;
       } else {
-        const rawEventName = row.Event_name || row.Event_desc || row.Event_description || row.Name || row.Description || null;
-        // Check if raw name is meaningful (not just "Event N")
-        const isGenericName = rawEventName && /^Event\s+\d+$/i.test(String(rawEventName).trim());
-        
-        if (rawEventName && !isGenericName) {
-          eventName = String(rawEventName);
-          namesFound++;
-        } else {
-          // Generate descriptive name from event data
-          eventName = generateEventName(row);
-          generatedNamesCount++;
-          namesFound++;
-        }
+        // Generate descriptive name from event data
+        eventName = generateEventName(row);
+        generatedNamesCount++;
+        namesFound++;
       }
       
       // Priority 4: Final fallback to other Event table fields
