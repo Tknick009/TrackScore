@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Athlete } from "@shared/schema";
+import { Athlete, Event } from "@shared/schema";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
-import { Upload, Trash2, Image as ImageIcon, Loader2 } from "lucide-react";
+import { Upload, Trash2, Image as ImageIcon, Loader2, Calendar, Trophy, Clock, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 
 interface AthleteDetailDialogProps {
   athlete: Athlete | null;
@@ -24,6 +24,19 @@ interface PhotoData {
   byteSize: number;
 }
 
+interface AthleteEventEntry {
+  event: Event;
+  entry: {
+    id: string;
+    seedMark: number | null;
+    finalMark: number | null;
+    finalPlace: number | null;
+    isScratched: boolean | null;
+    isDisqualified: boolean | null;
+    checkInStatus: string | null;
+  };
+}
+
 export function AthleteDetailDialog({ athlete, open, onOpenChange }: AthleteDetailDialogProps) {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -31,13 +44,17 @@ export function AthleteDetailDialog({ athlete, open, onOpenChange }: AthleteDeta
   const [deleting, setDeleting] = useState(false);
   const [photoData, setPhotoData] = useState<PhotoData | null>(null);
   const [loadingPhoto, setLoadingPhoto] = useState(false);
+  const [events, setEvents] = useState<AthleteEventEntry[]>([]);
+  const [loadingEvents, setLoadingEvents] = useState(false);
 
-  // Fetch athlete photo when dialog opens
+  // Fetch athlete photo and events when dialog opens
   useEffect(() => {
     if (athlete && open) {
       fetchAthletePhoto();
+      fetchAthleteEvents();
     } else {
       setPhotoData(null);
+      setEvents([]);
     }
   }, [athlete?.id, open]);
 
@@ -58,6 +75,73 @@ export function AthleteDetailDialog({ athlete, open, onOpenChange }: AthleteDeta
     } finally {
       setLoadingPhoto(false);
     }
+  };
+
+  const fetchAthleteEvents = async () => {
+    if (!athlete) return;
+    
+    setLoadingEvents(true);
+    try {
+      const response = await fetch(`/api/athletes/${athlete.id}/events`);
+      if (response.ok) {
+        const data = await response.json();
+        setEvents(data);
+      } else {
+        setEvents([]);
+      }
+    } catch (error) {
+      console.error("Error fetching events:", error);
+      setEvents([]);
+    } finally {
+      setLoadingEvents(false);
+    }
+  };
+
+  const formatMark = (mark: number | null, eventType: string): string => {
+    if (mark === null) return "-";
+    
+    // Time events (track) - format as time
+    const timeEvents = ['sprint', 'distance', 'hurdles', 'relay', 'steeplechase', 'race_walk'];
+    if (timeEvents.some(t => eventType.toLowerCase().includes(t))) {
+      const minutes = Math.floor(mark / 60);
+      const seconds = (mark % 60).toFixed(2);
+      if (minutes > 0) {
+        return `${minutes}:${seconds.padStart(5, '0')}`;
+      }
+      return seconds;
+    }
+    
+    // Field events - format as distance/height
+    return `${mark.toFixed(2)}m`;
+  };
+
+  const getStatusBadge = (entry: AthleteEventEntry['entry'], eventStatus: string) => {
+    if (entry.isDisqualified) {
+      return <Badge variant="destructive" className="text-xs">DQ</Badge>;
+    }
+    if (entry.isScratched) {
+      return <Badge variant="secondary" className="text-xs">Scratched</Badge>;
+    }
+    if (entry.finalPlace !== null && entry.finalPlace !== undefined) {
+      return (
+        <Badge variant="default" className="text-xs">
+          {entry.finalPlace}{getOrdinalSuffix(entry.finalPlace)}
+        </Badge>
+      );
+    }
+    if (eventStatus === 'in_progress') {
+      return <Badge variant="outline" className="text-xs">In Progress</Badge>;
+    }
+    if (entry.checkInStatus === 'checked_in') {
+      return <Badge variant="outline" className="text-xs text-green-600">Checked In</Badge>;
+    }
+    return <Badge variant="outline" className="text-xs">Scheduled</Badge>;
+  };
+
+  const getOrdinalSuffix = (n: number): string => {
+    const s = ["th", "st", "nd", "rd"];
+    const v = n % 100;
+    return s[(v - 20) % 10] || s[v] || s[0];
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -301,6 +385,67 @@ export function AthleteDetailDialog({ athlete, open, onOpenChange }: AthleteDeta
                   </div>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Events Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="w-5 h-5" />
+                Events ({events.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingEvents ? (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : events.length === 0 ? (
+                <div className="text-center py-6 text-muted-foreground">
+                  <Calendar className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No events assigned</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {events.map(({ event, entry }) => (
+                    <div
+                      key={event.id}
+                      className="flex items-center justify-between p-3 rounded-md border"
+                      data-testid={`row-athlete-event-${event.id}`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-muted-foreground">
+                            #{event.eventNumber}
+                          </span>
+                          <span className="font-medium truncate" data-testid={`text-event-name-${event.id}`}>
+                            {event.name}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
+                          <span>{event.gender === 'M' ? 'Men' : event.gender === 'F' ? 'Women' : event.gender}</span>
+                          <span className="capitalize">{event.eventType.replace(/_/g, ' ')}</span>
+                          {entry.seedMark !== null && (
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              Seed: {formatMark(entry.seedMark, event.eventType)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {entry.finalMark !== null && (
+                          <span className="text-sm font-medium" data-testid={`text-result-${event.id}`}>
+                            {formatMark(entry.finalMark, event.eventType)}
+                          </span>
+                        )}
+                        {getStatusBadge(entry, event.status)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

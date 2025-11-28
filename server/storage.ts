@@ -158,6 +158,7 @@ export interface IStorage {
   getEntries(): Promise<Entry[]>;
   getEntry(id: string): Promise<EntryWithDetails | null>;
   getEntriesByEvent(eventId: string): Promise<Entry[]>;
+  getEntriesByAthlete(athleteId: string): Promise<EntryWithDetails[]>;
   getEntriesWithDetails(eventId: string): Promise<EntryWithDetails[]>;
   createEntry(entry: InsertEntry): Promise<Entry>;
   updateEntry(id: string, updates: Partial<InsertEntry>): Promise<Entry | undefined>;
@@ -514,6 +515,20 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(entries)
       .where(eq(entries.eventId, eventId));
+  }
+
+  async getEntriesByAthlete(athleteId: string): Promise<EntryWithDetails[]> {
+    const athleteEntries = await db.query.entries.findMany({
+      where: eq(entries.athleteId, athleteId),
+      with: {
+        athlete: true,
+        team: true,
+        event: true,
+        splits: true,
+      },
+    });
+    
+    return athleteEntries as EntryWithDetails[];
   }
 
   async getEntriesWithDetails(eventId: string): Promise<EntryWithDetails[]> {

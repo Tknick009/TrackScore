@@ -419,6 +419,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(athlete);
   });
 
+  // Get events for an athlete
+  app.get("/api/athletes/:id/events", async (req, res) => {
+    try {
+      const athlete = await storage.getAthlete(req.params.id);
+      if (!athlete) {
+        return res.status(404).json({ error: "Athlete not found" });
+      }
+      
+      const entries = await storage.getEntriesByAthlete(req.params.id);
+      
+      // Extract unique events with entry details
+      const eventsMap = new Map<string, { event: any; entry: any }>();
+      for (const entry of entries) {
+        if (entry.event && !eventsMap.has(entry.event.id)) {
+          eventsMap.set(entry.event.id, {
+            event: entry.event,
+            entry: {
+              id: entry.id,
+              seedMark: entry.seedMark,
+              finalMark: entry.finalMark,
+              finalPlace: entry.finalPlace,
+              isScratched: entry.isScratched,
+              isDisqualified: entry.isDisqualified,
+              checkInStatus: entry.checkInStatus,
+            }
+          });
+        }
+      }
+      
+      // Sort by event number
+      const events = Array.from(eventsMap.values())
+        .sort((a, b) => (a.event.eventNumber || 0) - (b.event.eventNumber || 0));
+      
+      res.json(events);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post("/api/athletes", async (req, res) => {
     try {
       const data = insertAthleteSchema.parse(req.body);
