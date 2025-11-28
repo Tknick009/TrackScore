@@ -12,6 +12,18 @@ import { Link } from "wouter";
 
 type SortOption = 'time' | 'session' | 'number' | 'name' | 'status';
 
+function parseTimeToMinutes(timeStr: string | null | undefined): number {
+  if (!timeStr) return 9999;
+  const match = timeStr.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!match) return 9999;
+  let hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2], 10);
+  const period = match[3].toUpperCase();
+  if (period === 'AM' && hours === 12) hours = 0;
+  else if (period === 'PM' && hours !== 12) hours += 12;
+  return hours * 60 + minutes;
+}
+
 function getEventStatusBadge(status: string) {
   switch (status) {
     case "in_progress":
@@ -56,13 +68,13 @@ export default function Schedule() {
 
       switch (sortBy) {
         case 'time':
-          // Sort by date first, then time, then event number
+          // Sort by date first, then time (AM before PM), then event number
           const dateA = a.eventDate ? String(a.eventDate) : '';
           const dateB = b.eventDate ? String(b.eventDate) : '';
           if (dateA !== dateB) return dateA.localeCompare(dateB);
-          const timeA = a.eventTime || '';
-          const timeB = b.eventTime || '';
-          if (timeA !== timeB) return timeA.localeCompare(timeB);
+          const timeMinutesA = parseTimeToMinutes(a.eventTime);
+          const timeMinutesB = parseTimeToMinutes(b.eventTime);
+          if (timeMinutesA !== timeMinutesB) return timeMinutesA - timeMinutesB;
           return (a.eventNumber || 0) - (b.eventNumber || 0);
         case 'session':
           // Sort by session name, then event number
