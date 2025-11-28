@@ -43,12 +43,13 @@ function MeetSyncWrapper({ meetId, children }: { meetId: string; children: React
   }, [meetId, currentMeetId, setCurrentMeetId]);
 
   useEffect(() => {
-    if (!isLoading && currentMeetId && !currentMeet) {
+    if (!isLoading && currentMeetId === meetId && !currentMeet) {
+      console.log("MeetSyncWrapper - redirecting to / because meet not found");
       setLocation("/");
     }
-  }, [isLoading, currentMeetId, currentMeet, setLocation]);
+  }, [isLoading, currentMeetId, currentMeet, meetId, setLocation]);
 
-  if (isLoading || !currentMeet) {
+  if (currentMeetId !== meetId || isLoading || !currentMeet) {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
