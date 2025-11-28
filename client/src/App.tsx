@@ -138,12 +138,16 @@ function Router() {
 
 function AppContent() {
   const [location] = useLocation();
+  console.log("AppContent - location:", location);
   const showSidebar = location.match(/^\/control\/[^/]+/);
+  console.log("AppContent - showSidebar:", showSidebar);
 
   if (!showSidebar) {
+    console.log("AppContent - rendering Router without sidebar");
     return <Router />;
   }
 
+  console.log("AppContent - rendering Router with sidebar");
   return (
     <div className="flex h-screen w-full">
       <AppSidebar />
