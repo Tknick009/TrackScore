@@ -1,24 +1,17 @@
 import { 
-  Play, 
   Calendar, 
   Users, 
   ClipboardCheck, 
   Trophy, 
-  Database, 
-  Monitor, 
-  Settings,
+  Monitor,
   Activity,
   Upload,
-  FileDown,
   Award,
   UserCheck,
-  Wind,
-  Timer,
-  Shield,
   Palette,
   Layout,
-  BookOpen,
-  Building2
+  Building2,
+  Home
 } from "lucide-react";
 import {
   Sidebar,
@@ -38,7 +31,9 @@ import { Badge } from "@/components/ui/badge";
 
 export function AppSidebar() {
   const [location] = useLocation();
-  const { currentMeet } = useMeet();
+  const { currentMeetId, currentMeet } = useMeet();
+  
+  const basePath = `/control/${currentMeetId}`;
 
   return (
     <Sidebar>
@@ -47,11 +42,11 @@ export function AppSidebar() {
           <Activity className="w-6 h-6 text-primary" />
           <div className="flex-1 min-w-0">
             <h2 className="text-base font-semibold text-sidebar-foreground truncate">
-              TrackField Control
+              {currentMeet?.name || "Meet Control"}
             </h2>
-            {currentMeet && (
+            {currentMeet?.location && (
               <p className="text-xs text-muted-foreground truncate">
-                {currentMeet.name}
+                {currentMeet.location}
               </p>
             )}
           </div>
@@ -64,24 +59,16 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/control"}>
-                  <Link href="/control" data-testid="link-run-event">
-                    <Play className="text-green-600" />
-                    <span>Run Event</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/control/schedule"}>
-                  <Link href="/control/schedule" data-testid="link-schedule">
+                <SidebarMenuButton asChild isActive={location === `${basePath}/schedule` || location.includes('/events/')}>
+                  <Link href={`${basePath}/schedule`} data-testid="link-schedule">
                     <Calendar />
                     <span>Schedule</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/control/scoring"}>
-                  <Link href="/control/scoring" data-testid="link-scoring">
+                <SidebarMenuButton asChild isActive={location === `${basePath}/scoring`}>
+                  <Link href={`${basePath}/scoring`} data-testid="link-scoring">
                     <Trophy />
                     <span>Team Scoring</span>
                   </Link>
@@ -96,16 +83,16 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/control/athletes"}>
-                  <Link href="/control/athletes" data-testid="link-athletes">
+                <SidebarMenuButton asChild isActive={location === `${basePath}/athletes`}>
+                  <Link href={`${basePath}/athletes`} data-testid="link-athletes">
                     <Users />
                     <span>Athletes</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/control/teams"}>
-                  <Link href="/control/teams" data-testid="link-teams">
+                <SidebarMenuButton asChild isActive={location === `${basePath}/teams`}>
+                  <Link href={`${basePath}/teams`} data-testid="link-teams">
                     <Building2 />
                     <span>Teams</span>
                   </Link>
@@ -120,16 +107,16 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/control/checkin"}>
-                  <Link href="/control/checkin" data-testid="link-checkin">
+                <SidebarMenuButton asChild isActive={location === `${basePath}/checkin`}>
+                  <Link href={`${basePath}/checkin`} data-testid="link-checkin">
                     <UserCheck />
                     <span>Check-In</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/control/officials"}>
-                  <Link href="/control/officials" data-testid="link-officials-tools">
+                <SidebarMenuButton asChild isActive={location === `${basePath}/officials`}>
+                  <Link href={`${basePath}/officials`} data-testid="link-officials-tools">
                     <ClipboardCheck />
                     <span>Field Officials</span>
                   </Link>
@@ -144,16 +131,16 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/control/displays/customize"}>
-                  <Link href="/control/displays/customize" data-testid="link-displays-customize">
+                <SidebarMenuButton asChild isActive={location === `${basePath}/displays/customize`}>
+                  <Link href={`${basePath}/displays/customize`} data-testid="link-displays-customize">
                     <Palette />
                     <span>Customize</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location.startsWith("/control/layouts/designer")}>
-                  <Link href="/control/layouts/designer" data-testid="link-layouts-designer">
+                <SidebarMenuButton asChild isActive={location.startsWith(`${basePath}/layouts/designer`)}>
+                  <Link href={`${basePath}/layouts/designer`} data-testid="link-layouts-designer">
                     <Layout />
                     <span>Layout Designer</span>
                   </Link>
@@ -168,26 +155,10 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/control/import"}>
-                  <Link href="/control/import" data-testid="link-import">
+                <SidebarMenuButton asChild isActive={location === `${basePath}/import`}>
+                  <Link href={`${basePath}/import`} data-testid="link-import">
                     <Upload />
                     <span>Import HyTek</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/control/seasons"}>
-                  <Link href="/control/seasons" data-testid="link-season-manager">
-                    <Database />
-                    <span>Seasons & Meets</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/control/records"}>
-                  <Link href="/control/records" data-testid="link-records">
-                    <BookOpen />
-                    <span>Record Books</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -198,6 +169,14 @@ export function AppSidebar() {
 
       <SidebarFooter className="p-2 border-t border-sidebar-border">
         <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild>
+              <Link href="/" data-testid="link-all-meets">
+                <Home />
+                <span>All Meets</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton asChild>
               <Link href="/display" target="_blank" data-testid="link-open-display">

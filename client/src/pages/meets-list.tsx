@@ -287,14 +287,8 @@ function MeetCard({ meet }: { meet: Meet }) {
         </div>
       </CardContent>
       <CardFooter className="flex gap-2 border-t pt-4">
-        <Link href={`/meets/${meet.id}`} className="flex-1">
-          <Button variant="outline" size="sm" className="w-full gap-2" data-testid={`button-view-dashboard-${meet.id}`}>
-            <Settings className="w-4 h-4" />
-            Dashboard
-          </Button>
-        </Link>
-        <Link href="/control" className="flex-1">
-          <Button variant="outline" size="sm" className="w-full gap-2" data-testid={`button-go-control-${meet.id}`}>
+        <Link href={`/control/${meet.id}`} className="flex-1">
+          <Button size="sm" className="w-full gap-2" data-testid={`button-go-control-${meet.id}`}>
             <Settings className="w-4 h-4" />
             Control
           </Button>
