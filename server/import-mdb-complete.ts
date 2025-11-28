@@ -331,17 +331,15 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
     let comm1TimesFound = 0;
     let generatedNamesCount = 0;
     
-    // Try to read Session table for scheduling information
-    const sessionMap = new Map();
+    // Step 1: Read Session table to get session metadata (Sess_ptr → session info)
+    const sessionMetaMap = new Map<number, { sessDay: number | null; name: string | null; defaultTime: string | null }>();
     try {
       console.log("\n📋 Attempting to read Session table...");
       const sessionTable = reader.getTable("Session");
       const sessionData = sessionTable.getData();
       
-      // DEBUG: Log table info
       console.log(`   📊 Session table has ${sessionData.length} rows`);
       
-      // DEBUG: If there's at least one row, show all available column names
       if (sessionData.length > 0) {
         const firstRow = sessionData[0];
         const columnNames = Object.keys(firstRow);
@@ -349,16 +347,11 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         console.log(`   📝 Sample first row data:`, JSON.stringify(firstRow, null, 2));
       }
       
-      // Create a map of event_ptr -> session data for quick lookup
+      // Build Sess_ptr → session metadata map
       sessionData.forEach((session) => {
-        // Use correct FinishLynx field names
-        const eventPtr = session.Sess_ptr;
-        if (eventPtr) {
-          const sessionInfo = {
-            sessDay: session.Sess_day ? Number(session.Sess_day) : null,
-            time: null as string | null,
-            name: session.Sess_name || null,
-          };
+        const sessPtr = session.Sess_ptr ? Number(session.Sess_ptr) : null;
+        if (sessPtr) {
+          let defaultTime: string | null = null;
           
           // Convert Sess_starttime (seconds since midnight) to readable time
           if (session.Sess_starttime != null) {
@@ -367,20 +360,95 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
             const minutes = Math.floor((totalSeconds % 3600) / 60);
             const ampm = hours >= 12 ? 'PM' : 'AM';
             const displayHours = hours % 12 || 12;
-            sessionInfo.time = `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+            defaultTime = `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
           }
           
-          // Only add to map if we found something
-          if (sessionInfo.time || sessionInfo.name || sessionInfo.sessDay) {
-            sessionMap.set(eventPtr, sessionInfo);
+          sessionMetaMap.set(sessPtr, {
+            sessDay: session.Sess_day ? Number(session.Sess_day) : null,
+            name: session.Sess_name ? String(session.Sess_name) : null,
+            defaultTime,
+          });
+        }
+      });
+      
+      console.log(`   ✅ Session table found, extracted ${sessionMetaMap.size} session records`);
+    } catch (sessionError) {
+      console.log("   ⚠️  Session table not found");
+    }
+    
+    // Step 2: Read Sessitem table to get Event_ptr → (Sess_ptr, Start_time) mapping
+    // This is the critical link between events and sessions with actual start times!
+    const eventScheduleMap = new Map<number, { sessPtr: number; startTime: string | null; sessDay: number | null; sessName: string | null }>();
+    let sessitemTimesFound = 0;
+    try {
+      console.log("\n📋 Attempting to read Sessitem table (event-to-session mapping)...");
+      const sessitemTable = reader.getTable("Sessitem");
+      const sessitemData = sessitemTable.getData();
+      
+      console.log(`   📊 Sessitem table has ${sessitemData.length} rows`);
+      
+      if (sessitemData.length > 0) {
+        const firstRow = sessitemData[0];
+        const columnNames = Object.keys(firstRow);
+        console.log(`   📝 Available columns: ${columnNames.join(', ')}`);
+        console.log(`   📝 Sample first row:`, JSON.stringify(firstRow, null, 2));
+      }
+      
+      // Build Event_ptr → schedule info map
+      sessitemData.forEach((item) => {
+        const eventPtr = item.Event_ptr ? Number(item.Event_ptr) : null;
+        const sessPtr = item.Sess_ptr ? Number(item.Sess_ptr) : null;
+        
+        if (eventPtr && sessPtr) {
+          // Get time from Sessitem (Start_time + am_pm)
+          let startTime: string | null = null;
+          if (item.Start_time) {
+            const timeStr = String(item.Start_time).trim();
+            const amPm = item.am_pm ? String(item.am_pm).trim().toUpperCase() : '';
+            if (timeStr && amPm) {
+              startTime = `${timeStr} ${amPm}`;
+              sessitemTimesFound++;
+            } else if (timeStr) {
+              startTime = timeStr;
+              sessitemTimesFound++;
+            }
+          }
+          
+          // Get session metadata
+          const sessionMeta = sessionMetaMap.get(sessPtr);
+          
+          // Only store the first (or best) entry per event
+          // If we already have this event, only update if this entry has a time and the existing one doesn't
+          const existing = eventScheduleMap.get(eventPtr);
+          if (!existing || (startTime && !existing.startTime)) {
+            eventScheduleMap.set(eventPtr, {
+              sessPtr,
+              startTime: startTime || sessionMeta?.defaultTime || null,
+              sessDay: sessionMeta?.sessDay || null,
+              sessName: sessionMeta?.name || null,
+            });
           }
         }
       });
       
-      console.log(`   ✅ Session table found, extracted ${sessionMap.size} session records`);
-    } catch (sessionError) {
-      console.log("   ⚠️  Session table not found, using Event table only");
+      console.log(`   ✅ Sessitem table found, mapped ${eventScheduleMap.size} events to sessions`);
+      console.log(`   ⏰ Events with explicit times from Sessitem: ${sessitemTimesFound}`);
+    } catch (sessitemError) {
+      console.log("   ⚠️  Sessitem table not found, falling back to Session table only");
+      
+      // Fallback: if no Sessitem, use Session table directly (less accurate)
+      // This won't work well but provides some data
     }
+    
+    // Create combined sessionMap for backward compatibility (Event_ptr → session info)
+    const sessionMap = new Map<number, { sessDay: number | null; time: string | null; name: string | null }>();
+    eventScheduleMap.forEach((schedule, eventPtr) => {
+      sessionMap.set(eventPtr, {
+        sessDay: schedule.sessDay,
+        time: schedule.startTime,
+        name: schedule.sessName,
+      });
+    });
     
     // Track Event_ptr → Event_no mapping for building eventIdMap later
     const ptrToNumMap = new Map<number, number>();
