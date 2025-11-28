@@ -125,6 +125,9 @@ function Router() {
       <Route path="/overlay/:type" component={OverlayPage} />
       <Route path="/control/:meetId/events/:eventId">{() => <MeetControlRouter />}</Route>
       <Route path="/control/:meetId/layouts/designer/:layoutId">{() => <MeetControlRouter />}</Route>
+      <Route path="/control/:meetId/layouts/designer">{() => <MeetControlRouter />}</Route>
+      <Route path="/control/:meetId/displays/control">{() => <MeetControlRouter />}</Route>
+      <Route path="/control/:meetId/displays/customize">{() => <MeetControlRouter />}</Route>
       <Route path="/control/:meetId/:subPath">{() => <MeetControlRouter />}</Route>
       <Route path="/control/:meetId">{() => <MeetControlRouter />}</Route>
       <Route component={NotFound} />
