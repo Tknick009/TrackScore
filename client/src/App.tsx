@@ -10,6 +10,13 @@ import { WebSocketProvider } from "@/contexts/WebSocketContext";
 import MeetsList from "@/pages/meets-list";
 import MeetDetail from "@/pages/meet-detail";
 import Control from "@/pages/control";
+import Schedule from "@/pages/schedule";
+import Scoring from "@/pages/scoring";
+import Athletes from "@/pages/athletes";
+import Teams from "@/pages/teams";
+import CheckIn from "@/pages/checkin";
+import Officials from "@/pages/officials";
+import Import from "@/pages/import";
 import SeasonManager from "@/pages/season-manager";
 import RecordBooks from "@/pages/record-books";
 import Display from "@/pages/display";
@@ -30,6 +37,13 @@ function Router() {
       <Route path="/" component={MeetsList} />
       <Route path="/meets/:id" component={MeetDetail} />
       <Route path="/control" component={Control} />
+      <Route path="/control/schedule" component={Schedule} />
+      <Route path="/control/scoring" component={Scoring} />
+      <Route path="/control/athletes" component={Athletes} />
+      <Route path="/control/teams" component={Teams} />
+      <Route path="/control/checkin" component={CheckIn} />
+      <Route path="/control/officials" component={Officials} />
+      <Route path="/control/import" component={Import} />
       <Route path="/control/seasons" component={SeasonManager} />
       <Route path="/control/records" component={RecordBooks} />
       <Route path="/control/displays/customize" component={DisplayCustomizePage} />
