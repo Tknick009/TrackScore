@@ -34,8 +34,17 @@ interface AthleteEventEntry {
     isScratched: boolean | null;
     isDisqualified: boolean | null;
     checkInStatus: string | null;
+    heat: number | null;
+    lane: number | null;
   };
 }
+
+// Track events use lanes, field events use flights
+const TRACK_EVENT_TYPES = ['sprint', 'distance', 'hurdles', 'relay', 'steeplechase', 'race_walk'];
+
+const isTrackEvent = (eventType: string): boolean => {
+  return TRACK_EVENT_TYPES.some(t => eventType.toLowerCase().includes(t));
+};
 
 export function AthleteDetailDialog({ athlete, open, onOpenChange }: AthleteDetailDialogProps) {
   const { toast } = useToast();
@@ -408,38 +417,55 @@ export function AthleteDetailDialog({ athlete, open, onOpenChange }: AthleteDeta
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {events.map(({ event, entry }) => (
-                    <div
-                      key={event.id}
-                      className="flex items-center justify-between p-3 rounded-md border"
-                      data-testid={`row-athlete-event-${event.id}`}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-xs shrink-0">
-                            #{event.eventNumber}
-                          </Badge>
-                          <span className="font-medium truncate" data-testid={`text-event-name-${event.id}`}>
-                            {event.name}
-                          </span>
-                        </div>
-                        {entry.seedMark !== null && (
-                          <div className="flex items-center gap-1 mt-1 text-sm text-muted-foreground">
-                            <Clock className="w-3 h-3" />
-                            <span>Seed: {formatMark(entry.seedMark, event.eventType)}</span>
+                  {events.map(({ event, entry }) => {
+                    const trackEvent = isTrackEvent(event.eventType);
+                    return (
+                      <div
+                        key={event.id}
+                        className="flex items-center justify-between p-3 rounded-md border"
+                        data-testid={`row-athlete-event-${event.id}`}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-xs shrink-0">
+                              #{event.eventNumber}
+                            </Badge>
+                            <span className="font-medium truncate" data-testid={`text-event-name-${event.id}`}>
+                              {event.name}
+                            </span>
                           </div>
-                        )}
+                          <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground flex-wrap">
+                            {/* Heat/Flight and Lane/Position */}
+                            {entry.heat !== null && (
+                              <span>
+                                {trackEvent ? 'Heat' : 'Flight'} {entry.heat}
+                              </span>
+                            )}
+                            {entry.lane !== null && (
+                              <span>
+                                {trackEvent ? 'Lane' : 'Position'} {entry.lane}
+                              </span>
+                            )}
+                            {/* Seed mark */}
+                            {entry.seedMark !== null && (
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                Seed: {formatMark(entry.seedMark, event.eventType)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {entry.finalMark !== null && (
+                            <span className="text-sm font-medium" data-testid={`text-result-${event.id}`}>
+                              {formatMark(entry.finalMark, event.eventType)}
+                            </span>
+                          )}
+                          {getStatusBadge(entry, event.status)}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {entry.finalMark !== null && (
-                          <span className="text-sm font-medium" data-testid={`text-result-${event.id}`}>
-                            {formatMark(entry.finalMark, event.eventType)}
-                          </span>
-                        )}
-                        {getStatusBadge(entry, event.status)}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>

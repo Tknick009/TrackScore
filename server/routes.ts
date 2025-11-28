@@ -443,6 +443,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
               isScratched: entry.isScratched,
               isDisqualified: entry.isDisqualified,
               checkInStatus: entry.checkInStatus,
+              // Heat/Lane assignments (use most relevant round)
+              heat: entry.finalHeat || entry.semifinalHeat || entry.quarterfinalHeat || entry.preliminaryHeat,
+              lane: entry.finalLane || entry.semifinalLane || entry.quarterfinalLane || entry.preliminaryLane,
             }
           });
         }
