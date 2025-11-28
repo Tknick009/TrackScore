@@ -1,3 +1,4 @@
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Event } from "@shared/schema";
 import { useMeet } from "@/contexts/MeetContext";
@@ -5,8 +6,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Calendar, Clock, Timer, Target, PlayCircle, RotateCcw, Eye, Loader2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Calendar, Clock, Timer, Target, PlayCircle, RotateCcw, Eye, Loader2, ArrowUpDown } from "lucide-react";
 import { Link } from "wouter";
+
+type SortOption = 'time' | 'number' | 'name' | 'status';
 
 function getEventStatusBadge(status: string) {
   switch (status) {
@@ -30,6 +34,7 @@ function isTrackEvent(eventType: string): boolean {
 
 export default function Schedule() {
   const { currentMeetId, currentMeet } = useMeet();
+  const [sortBy, setSortBy] = useState<SortOption>('time');
 
   const { data: events = [], isLoading } = useQuery<Event[]>({
     queryKey: ["/api/events", currentMeetId],
@@ -43,26 +48,49 @@ export default function Schedule() {
   const scheduledEvents = events.filter(e => e.status === "scheduled");
   const completedEvents = events.filter(e => e.status === "completed");
 
-  const sortedEvents = [...events].sort((a, b) => {
-    if (a.status === "in_progress" && b.status !== "in_progress") return -1;
-    if (b.status === "in_progress" && a.status !== "in_progress") return 1;
-    if (a.status === "scheduled" && b.status === "completed") return -1;
-    if (b.status === "scheduled" && a.status === "completed") return 1;
-    const dateA = a.eventDate ? String(a.eventDate) : '';
-    const dateB = b.eventDate ? String(b.eventDate) : '';
-    if (dateA !== dateB) return dateA.localeCompare(dateB);
-    const timeA = a.eventTime || '';
-    const timeB = b.eventTime || '';
-    if (timeA !== timeB) return timeA.localeCompare(timeB);
-    return (a.eventNumber || 0) - (b.eventNumber || 0);
-  });
+  const sortedEvents = useMemo(() => {
+    return [...events].sort((a, b) => {
+      // Always keep live events at top
+      if (a.status === "in_progress" && b.status !== "in_progress") return -1;
+      if (b.status === "in_progress" && a.status !== "in_progress") return 1;
 
-  const eventsByDate = sortedEvents.reduce((acc, event) => {
-    const date = event.eventDate ? String(event.eventDate) : 'Unscheduled';
-    if (!acc[date]) acc[date] = [];
-    acc[date].push(event);
-    return acc;
-  }, {} as Record<string, Event[]>);
+      switch (sortBy) {
+        case 'time':
+          // Sort by date first, then time, then event number
+          const dateA = a.eventDate ? String(a.eventDate) : '';
+          const dateB = b.eventDate ? String(b.eventDate) : '';
+          if (dateA !== dateB) return dateA.localeCompare(dateB);
+          const timeA = a.eventTime || '';
+          const timeB = b.eventTime || '';
+          if (timeA !== timeB) return timeA.localeCompare(timeB);
+          return (a.eventNumber || 0) - (b.eventNumber || 0);
+        case 'number':
+          return (a.eventNumber || 0) - (b.eventNumber || 0);
+        case 'name':
+          return (a.name || '').localeCompare(b.name || '');
+        case 'status':
+          // Scheduled first, then completed
+          if (a.status === "scheduled" && b.status === "completed") return -1;
+          if (b.status === "scheduled" && a.status === "completed") return 1;
+          return (a.eventNumber || 0) - (b.eventNumber || 0);
+        default:
+          return 0;
+      }
+    });
+  }, [events, sortBy]);
+
+  // Group by date only when sorting by time
+  const eventsByDate = useMemo(() => {
+    if (sortBy !== 'time') {
+      return { 'All Events': sortedEvents };
+    }
+    return sortedEvents.reduce((acc, event) => {
+      const date = event.eventDate ? String(event.eventDate) : 'Unscheduled';
+      if (!acc[date]) acc[date] = [];
+      acc[date].push(event);
+      return acc;
+    }, {} as Record<string, Event[]>);
+  }, [sortedEvents, sortBy]);
 
   if (!currentMeetId) {
     return (
@@ -95,10 +123,24 @@ export default function Schedule() {
             </Badge>
           )}
         </div>
-        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-          <span>{scheduledEvents.length} scheduled</span>
-          <span className="text-border">|</span>
-          <span>{completedEvents.length} completed</span>
+        <div className="flex items-center gap-4">
+          <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+            <SelectTrigger className="w-[160px]" data-testid="select-schedule-sort">
+              <ArrowUpDown className="w-4 h-4 mr-2" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="time">By Time</SelectItem>
+              <SelectItem value="number">By Event #</SelectItem>
+              <SelectItem value="name">By Name</SelectItem>
+              <SelectItem value="status">By Status</SelectItem>
+            </SelectContent>
+          </Select>
+          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            <span>{scheduledEvents.length} scheduled</span>
+            <span className="text-border">|</span>
+            <span>{completedEvents.length} completed</span>
+          </div>
         </div>
       </div>
 
@@ -126,21 +168,24 @@ export default function Schedule() {
           <div className="space-y-6 max-w-4xl mx-auto">
             {Object.entries(eventsByDate).map(([date, dateEvents]) => (
               <div key={date}>
-                <div className="flex items-center gap-2 mb-3 sticky top-0 bg-background py-2 z-10">
-                  <Calendar className="w-4 h-4 text-muted-foreground" />
-                  <h2 className="font-semibold">
-                    {date === 'Unscheduled' 
-                      ? 'Unscheduled Events' 
-                      : new Date(date).toLocaleDateString('en-US', { 
-                          weekday: 'long', 
-                          year: 'numeric', 
-                          month: 'long', 
-                          day: 'numeric' 
-                        })
-                    }
-                  </h2>
-                  <Badge variant="secondary">{dateEvents.length}</Badge>
-                </div>
+                {/* Only show date headers when sorting by time */}
+                {sortBy === 'time' && (
+                  <div className="flex items-center gap-2 mb-3 sticky top-0 bg-background py-2 z-10">
+                    <Calendar className="w-4 h-4 text-muted-foreground" />
+                    <h2 className="font-semibold">
+                      {date === 'Unscheduled' 
+                        ? 'Unscheduled Events' 
+                        : new Date(date).toLocaleDateString('en-US', { 
+                            weekday: 'long', 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric' 
+                          })
+                      }
+                    </h2>
+                    <Badge variant="secondary">{dateEvents.length}</Badge>
+                  </div>
+                )}
                 <div className="space-y-2">
                   {dateEvents.map((event) => (
                     <Card key={event.id} className="hover-elevate">
