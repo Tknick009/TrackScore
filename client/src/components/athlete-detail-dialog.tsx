@@ -416,25 +416,21 @@ export function AthleteDetailDialog({ athlete, open, onOpenChange }: AthleteDeta
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-muted-foreground">
+                          <Badge variant="outline" className="text-xs shrink-0">
                             #{event.eventNumber}
-                          </span>
+                          </Badge>
                           <span className="font-medium truncate" data-testid={`text-event-name-${event.id}`}>
                             {event.name}
                           </span>
                         </div>
-                        <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
-                          <span>{event.gender === 'M' ? 'Men' : event.gender === 'F' ? 'Women' : event.gender}</span>
-                          <span className="capitalize">{event.eventType.replace(/_/g, ' ')}</span>
-                          {entry.seedMark !== null && (
-                            <span className="flex items-center gap-1">
-                              <Clock className="w-3 h-3" />
-                              Seed: {formatMark(entry.seedMark, event.eventType)}
-                            </span>
-                          )}
-                        </div>
+                        {entry.seedMark !== null && (
+                          <div className="flex items-center gap-1 mt-1 text-sm text-muted-foreground">
+                            <Clock className="w-3 h-3" />
+                            <span>Seed: {formatMark(entry.seedMark, event.eventType)}</span>
+                          </div>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 shrink-0">
                         {entry.finalMark !== null && (
                           <span className="text-sm font-medium" data-testid={`text-result-${event.id}`}>
                             {formatMark(entry.finalMark, event.eventType)}
