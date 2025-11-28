@@ -80,6 +80,15 @@ const overlayHideSchema = z.object({
 // Track connected WebSocket clients
 const displayClients = new Set<WebSocket>();
 
+// Track display devices with their WebSocket connections
+interface ConnectedDisplayDevice {
+  ws: WebSocket;
+  deviceId: string;
+  deviceName: string;
+  meetId: string;
+}
+const connectedDisplayDevices = new Map<string, ConnectedDisplayDevice>();
+
 // Broadcast function
 function broadcastToDisplays(message: WSMessage) {
   const messageStr = JSON.stringify(message);
@@ -88,6 +97,27 @@ function broadcastToDisplays(message: WSMessage) {
       client.send(messageStr);
     }
   });
+}
+
+// Send targeted message to a specific display device
+function sendToDisplayDevice(deviceId: string, message: WSMessage) {
+  const device = connectedDisplayDevices.get(deviceId);
+  if (device && device.ws.readyState === WebSocket.OPEN) {
+    device.ws.send(JSON.stringify(message));
+    return true;
+  }
+  return false;
+}
+
+// Get list of connected display devices for a meet
+function getConnectedDevicesForMeet(meetId: string): string[] {
+  const devices: string[] = [];
+  connectedDisplayDevices.forEach((device, id) => {
+    if (device.meetId === meetId) {
+      devices.push(id);
+    }
+  });
+  return devices;
 }
 
 // Helper to broadcast current event state
@@ -1295,6 +1325,132 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/displays/:id/heartbeat", async (req, res) => {
     try {
       await storage.updateDisplayHeartbeat(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ===== DISPLAY DEVICES (Remote Display Control) =====
+
+  // Get all display devices for a meet
+  app.get("/api/display-devices/meet/:meetId", async (req, res) => {
+    try {
+      const devices = await storage.getDisplayDevices(req.params.meetId);
+      res.json(devices);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Register a display device (called when display connects)
+  app.post("/api/display-devices/register", async (req, res) => {
+    try {
+      const { meetId, deviceName } = req.body;
+      
+      if (!meetId || !deviceName) {
+        return res.status(400).json({ error: "meetId and deviceName are required" });
+      }
+
+      // Get client IP for tracking
+      const clientIp = req.headers['x-forwarded-for'] as string || 
+                       req.socket.remoteAddress || 
+                       'unknown';
+
+      const device = await storage.createOrUpdateDisplayDevice({
+        meetId,
+        deviceName,
+        lastIp: clientIp,
+      });
+
+      res.json(device);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Update device status (heartbeat)
+  app.post("/api/display-devices/:id/heartbeat", async (req, res) => {
+    try {
+      const clientIp = req.headers['x-forwarded-for'] as string || 
+                       req.socket.remoteAddress || 
+                       'unknown';
+
+      const device = await storage.updateDisplayDeviceStatus(req.params.id, 'online', clientIp);
+      
+      if (!device) {
+        return res.status(404).json({ error: "Display device not found" });
+      }
+
+      res.json(device);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Assign an event to a display device
+  app.patch("/api/display-devices/:id/assign-event", async (req, res) => {
+    try {
+      const { eventId } = req.body;
+      
+      const device = await storage.assignEventToDisplay(req.params.id, eventId || null);
+      
+      if (!device) {
+        return res.status(404).json({ error: "Display device not found" });
+      }
+
+      // Get the event data if an event is assigned
+      let eventData = null;
+      if (eventId) {
+        eventData = await storage.getEventWithEntries(eventId);
+      }
+
+      // Get the meet for context
+      const meets = await storage.getMeets();
+      const meet = meets.find(m => m.id === device.meetId);
+
+      // Broadcast the assignment with event data to all connected displays
+      broadcastToDisplays({
+        type: 'display_assignment',
+        data: {
+          deviceId: device.id,
+          deviceName: device.deviceName,
+          eventId: device.assignedEventId,
+          event: eventData,
+          meet: meet,
+        }
+      } as WSMessage);
+
+      res.json(device);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Set device offline
+  app.patch("/api/display-devices/:id/offline", async (req, res) => {
+    try {
+      const device = await storage.updateDisplayDeviceStatus(req.params.id, 'offline');
+      
+      if (!device) {
+        return res.status(404).json({ error: "Display device not found" });
+      }
+
+      res.json(device);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Delete a display device
+  app.delete("/api/display-devices/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deleteDisplayDevice(req.params.id);
+      
+      if (!deleted) {
+        return res.status(404).json({ error: "Display device not found" });
+      }
+
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -3342,9 +3498,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   wss.on("connection", (ws: WebSocket) => {
     console.log("WebSocket client connected");
+    let registeredDeviceId: string | null = null;
 
     // Handle incoming messages for client identification
-    ws.on('message', (message) => {
+    ws.on('message', async (message) => {
       try {
         const data = JSON.parse(message.toString());
         
@@ -3360,6 +3517,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
               connected: true,
             } as WSMessage)
           );
+        }
+        
+        // Handle display device registration
+        if (data.type === 'register_display_device') {
+          const { meetId, deviceName } = data;
+          
+          if (meetId && deviceName) {
+            console.log(`Display device registering: ${deviceName} for meet ${meetId}`);
+            
+            try {
+              // Register/update the device in the database
+              const device = await storage.createOrUpdateDisplayDevice({
+                meetId,
+                deviceName,
+              });
+              
+              registeredDeviceId = device.id;
+              
+              // Track this WebSocket connection with the device
+              connectedDisplayDevices.set(device.id, {
+                ws,
+                deviceId: device.id,
+                deviceName: device.deviceName,
+                meetId: device.meetId,
+              });
+              
+              // Send registration confirmation with assigned event
+              ws.send(JSON.stringify({
+                type: 'device_registered',
+                data: {
+                  deviceId: device.id,
+                  deviceName: device.deviceName,
+                  meetId: device.meetId,
+                  assignedEventId: device.assignedEventId,
+                  status: device.status,
+                }
+              }));
+              
+              // Notify control panel that device list has changed
+              broadcastToDisplays({
+                type: 'devices_updated',
+                data: { meetId: device.meetId }
+              } as WSMessage);
+              
+              console.log(`Display device registered: ${device.deviceName} (${device.id})`);
+            } catch (error) {
+              console.error('Failed to register display device:', error);
+              ws.send(JSON.stringify({
+                type: 'device_registration_error',
+                error: 'Failed to register device'
+              }));
+            }
+          }
+        }
+        
+        // Handle display device heartbeat via WebSocket
+        if (data.type === 'device_heartbeat' && registeredDeviceId) {
+          await storage.updateDisplayDeviceStatus(registeredDeviceId, 'online');
         }
       } catch (error) {
         // Not a control message, could be other WebSocket traffic
@@ -3381,14 +3596,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } as WSMessage)
     );
 
-    ws.on("close", () => {
+    ws.on("close", async () => {
       console.log("WebSocket client disconnected");
       displayClients.delete(ws);
+      
+      // If this was a registered display device, update its status
+      if (registeredDeviceId) {
+        connectedDisplayDevices.delete(registeredDeviceId);
+        try {
+          const device = await storage.updateDisplayDeviceStatus(registeredDeviceId, 'offline');
+          if (device) {
+            // Notify control panel that device went offline
+            broadcastToDisplays({
+              type: 'devices_updated',
+              data: { meetId: device.meetId }
+            } as WSMessage);
+            console.log(`Display device offline: ${device.deviceName}`);
+          }
+        } catch (error) {
+          console.error('Failed to update device status:', error);
+        }
+      }
     });
 
     ws.on("error", (error) => {
       console.error("WebSocket error:", error);
       displayClients.delete(ws);
+      
+      // Clean up device tracking on error
+      if (registeredDeviceId) {
+        connectedDisplayDevices.delete(registeredDeviceId);
+      }
     });
   });
 

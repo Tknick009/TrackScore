@@ -15,6 +15,9 @@ import {
   type InsertSeason,
   type EntryWithDetails,
   type EventWithEntries,
+  type DisplayDevice,
+  type InsertDisplayDevice,
+  type DisplayDeviceWithEvent,
   type DisplayComputer,
   type InsertDisplayComputer,
   type DisplayAssignment,
@@ -104,6 +107,7 @@ import {
   teamLogos,
   weatherStationConfigs,
   weatherReadings,
+  displayDevices,
   compositeLayouts,
   layoutZones,
   recordBooks,
@@ -195,6 +199,15 @@ export interface IStorage {
   getDisplayAssignment(displayId: string): Promise<DisplayAssignment | null>;
   updateDisplayHeartbeat(displayId: string): Promise<void>;
   verifyDisplayToken(displayId: string, authToken: string): Promise<boolean>;
+
+  // Display Devices (Remote Display Control)
+  getDisplayDevices(meetId: string): Promise<DisplayDeviceWithEvent[]>;
+  getDisplayDevice(id: string): Promise<DisplayDevice | undefined>;
+  getDisplayDeviceByName(meetId: string, deviceName: string): Promise<DisplayDevice | undefined>;
+  createOrUpdateDisplayDevice(device: InsertDisplayDevice & { lastIp?: string }): Promise<DisplayDevice>;
+  updateDisplayDeviceStatus(id: string, status: string, lastIp?: string): Promise<DisplayDevice | undefined>;
+  assignEventToDisplay(displayId: string, eventId: string | null): Promise<DisplayDevice | undefined>;
+  deleteDisplayDevice(id: string): Promise<boolean>;
 
   // Display Themes
   createDisplayTheme(theme: InsertDisplayTheme): Promise<DisplayTheme>;
@@ -756,6 +769,111 @@ export class DatabaseStorage implements IStorage {
     }
 
     return display.authToken === authToken;
+  }
+
+  // Display Devices (Remote Display Control)
+  async getDisplayDevices(meetId: string): Promise<DisplayDeviceWithEvent[]> {
+    const devices = await db
+      .select()
+      .from(displayDevices)
+      .where(eq(displayDevices.meetId, meetId));
+    
+    // Fetch assigned events for each device
+    const result: DisplayDeviceWithEvent[] = [];
+    for (const device of devices) {
+      let assignedEvent: Event | undefined;
+      if (device.assignedEventId) {
+        const [event] = await db.select().from(events).where(eq(events.id, device.assignedEventId));
+        assignedEvent = event;
+      }
+      result.push({ ...device, assignedEvent });
+    }
+    return result;
+  }
+
+  async getDisplayDevice(id: string): Promise<DisplayDevice | undefined> {
+    const [device] = await db
+      .select()
+      .from(displayDevices)
+      .where(eq(displayDevices.id, id));
+    return device || undefined;
+  }
+
+  async getDisplayDeviceByName(meetId: string, deviceName: string): Promise<DisplayDevice | undefined> {
+    const [device] = await db
+      .select()
+      .from(displayDevices)
+      .where(and(
+        eq(displayDevices.meetId, meetId),
+        eq(displayDevices.deviceName, deviceName)
+      ));
+    return device || undefined;
+  }
+
+  async createOrUpdateDisplayDevice(device: InsertDisplayDevice & { lastIp?: string }): Promise<DisplayDevice> {
+    // Check if device with this name already exists for this meet
+    const existing = await this.getDisplayDeviceByName(device.meetId, device.deviceName);
+    
+    if (existing) {
+      // Update existing device
+      const [updated] = await db
+        .update(displayDevices)
+        .set({
+          status: 'online',
+          lastSeenAt: new Date(),
+          lastIp: device.lastIp || existing.lastIp,
+        })
+        .where(eq(displayDevices.id, existing.id))
+        .returning();
+      return updated;
+    }
+    
+    // Create new device
+    const [newDevice] = await db
+      .insert(displayDevices)
+      .values({
+        ...device,
+        status: 'online',
+        lastSeenAt: new Date(),
+      })
+      .returning();
+    return newDevice;
+  }
+
+  async updateDisplayDeviceStatus(id: string, status: string, lastIp?: string): Promise<DisplayDevice | undefined> {
+    const updates: any = {
+      status,
+      lastSeenAt: new Date(),
+    };
+    if (lastIp) {
+      updates.lastIp = lastIp;
+    }
+    
+    const [updated] = await db
+      .update(displayDevices)
+      .set(updates)
+      .where(eq(displayDevices.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async assignEventToDisplay(displayId: string, eventId: string | null): Promise<DisplayDevice | undefined> {
+    const [updated] = await db
+      .update(displayDevices)
+      .set({
+        assignedEventId: eventId,
+      })
+      .where(eq(displayDevices.id, displayId))
+      .returning();
+    return updated || undefined;
+  }
+
+  async deleteDisplayDevice(id: string): Promise<boolean> {
+    const result = await db
+      .delete(displayDevices)
+      .where(eq(displayDevices.id, id))
+      .returning();
+    return result.length > 0;
   }
 
   // Display Themes

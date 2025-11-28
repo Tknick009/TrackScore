@@ -771,6 +771,41 @@ export type WeatherReading = typeof weatherReadings.$inferSelect;
 export type InsertWeatherReading = z.infer<typeof insertWeatherReadingSchema>;
 
 // ====================
+// DISPLAY DEVICES (Remote Display Management)
+// ====================
+
+export const displayDeviceStatusEnum = z.enum(['online', 'offline', 'idle']);
+export type DisplayDeviceStatus = z.infer<typeof displayDeviceStatusEnum>;
+
+export const displayDevices = pgTable("display_devices", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  meetId: varchar("meet_id").notNull().references(() => meets.id, { onDelete: "cascade" }),
+  deviceName: text("device_name").notNull(), // Friendly name for the display (e.g., "Finish Line Board", "Field Event 1")
+  lastIp: text("last_ip"), // Last known IP address
+  assignedEventId: varchar("assigned_event_id").references(() => events.id, { onDelete: "set null" }), // Which event to show
+  assignedLayoutId: integer("assigned_layout_id").references(() => compositeLayouts.id, { onDelete: "set null" }), // Optional: composite layout
+  status: text("status").default("offline"), // online, offline, idle
+  lastSeenAt: timestamp("last_seen_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  meetIdIdx: index("display_devices_meet_id_idx").on(table.meetId),
+  statusIdx: index("display_devices_status_idx").on(table.status),
+}));
+
+export const insertDisplayDeviceSchema = createInsertSchema(displayDevices).omit({ 
+  id: true, 
+  createdAt: true,
+  lastSeenAt: true 
+});
+export type InsertDisplayDevice = z.infer<typeof insertDisplayDeviceSchema>;
+export type DisplayDevice = typeof displayDevices.$inferSelect;
+
+// Display device with assigned event details
+export type DisplayDeviceWithEvent = DisplayDevice & {
+  assignedEvent?: Event;
+};
+
+// ====================
 // COMPOSITE LAYOUTS
 // ====================
 

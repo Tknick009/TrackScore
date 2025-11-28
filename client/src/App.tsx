@@ -22,6 +22,7 @@ import SeasonManager from "@/pages/season-manager";
 import RecordBooks from "@/pages/record-books";
 import Display from "@/pages/display";
 import DisplayCustomizePage from "@/pages/DisplayCustomizePage";
+import DisplayControlPage from "@/pages/display-control";
 import DisplayExamples from "@/pages/display-examples";
 import LayoutDesigner from "@/pages/layout-designer";
 import CompositeDisplayPage from "@/pages/composite-display";
@@ -94,6 +95,7 @@ function MeetControlRouter() {
     if (subPath === "checkin") return <CheckIn />;
     if (subPath === "officials") return <Officials />;
     if (subPath === "import") return <Import />;
+    if (subPath === "displays/control") return <DisplayControlPage />;
     if (subPath === "displays/customize") return <DisplayCustomizePage />;
     if (subPath === "layouts/designer" || subPath.startsWith("layouts/designer/")) return <LayoutDesigner />;
     return <NotFound />;

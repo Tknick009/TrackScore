@@ -8,7 +8,8 @@ import {
   Palette,
   Layout,
   Building2,
-  Home
+  Home,
+  Cast
 } from "lucide-react";
 import {
   Sidebar,
@@ -103,6 +104,14 @@ export function AppSidebar() {
           <SidebarGroupLabel>Displays</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location === `${basePath}/displays/control`}>
+                  <Link href={`${basePath}/displays/control`} data-testid="link-displays-control">
+                    <Cast />
+                    <span>Device Control</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={location === `${basePath}/displays/customize`}>
                   <Link href={`${basePath}/displays/customize`} data-testid="link-displays-customize">

@@ -57,6 +57,15 @@ Preferred communication style: Simple, everyday language.
 - Message types: `board_update` with `DisplayBoardState` payload
 - Automatic reconnection handling on client side
 
+**Remote Display Control:**
+- Display devices register themselves via WebSocket when connecting (`register_display_device` message)
+- Each display gets a unique device ID and can be assigned to show specific events
+- Control panel at `/control/{meetId}/displays/control` shows all connected display devices
+- Operators can assign different events to different displays from the control panel
+- Device status tracking: online/offline with IP address and last seen timestamp
+- Heartbeat messages every 30 seconds to maintain online status
+- Database table `display_devices` tracks: meetId, deviceName, lastIp, lastSeenAt, assignedEventId, status
+
 ### Database Schema (Drizzle ORM)
 
 **Core Tables:**
