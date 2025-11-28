@@ -92,28 +92,31 @@ export default function Control() {
   const liveEvents = events.filter(e => e.status === "in_progress");
 
   useEffect(() => {
-    if (events.length > 0 && !selectedEvent) {
+    setSelectedEvent(null);
+  }, [currentMeetId]);
+
+  useEffect(() => {
+    if (!eventsLoading && events.length > 0 && !selectedEvent) {
       const inProgressEvent = events.find(e => e.status === "in_progress");
       const scheduledEvent = events.find(e => e.status === "scheduled");
       setSelectedEvent(inProgressEvent || scheduledEvent || events[0]);
     }
+  }, [events, eventsLoading, selectedEvent]);
+
+  useEffect(() => {
     if (selectedEvent) {
       const updatedEvent = events.find(e => e.id === selectedEvent.id);
-      if (updatedEvent && updatedEvent !== selectedEvent) {
+      if (updatedEvent && (updatedEvent.status !== selectedEvent.status || updatedEvent.name !== selectedEvent.name)) {
         setSelectedEvent(updatedEvent);
       }
     }
   }, [events, selectedEvent]);
 
-  useEffect(() => {
-    setSelectedEvent(null);
-  }, [currentMeetId]);
-
   const updateEventStatusMutation = useMutation({
     mutationFn: (data: { id: string; status: string }) =>
       apiRequest("PATCH", `/api/events/${data.id}`, { status: data.status }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/events", currentMeetId] });
       toast({ title: "Event status updated" });
     },
   });
@@ -121,7 +124,7 @@ export default function Control() {
   const createEntryMutation = useMutation({
     mutationFn: (data: InsertEntry) => apiRequest("POST", "/api/entries", data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/entries", currentMeetId] });
       toast({ title: "Result recorded", description: "The result has been saved" });
     },
     onError: (error: any) => {

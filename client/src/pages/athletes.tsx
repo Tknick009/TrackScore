@@ -33,7 +33,7 @@ export default function Athletes() {
   const createAthleteMutation = useMutation({
     mutationFn: (data: InsertAthlete) => apiRequest("POST", "/api/athletes", data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/athletes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/athletes", currentMeetId] });
       toast({ title: "Athlete added", description: "The athlete has been successfully added" });
       setAddDialogOpen(false);
     },
