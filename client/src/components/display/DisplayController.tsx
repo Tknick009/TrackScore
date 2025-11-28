@@ -5,6 +5,7 @@ import {
   LiveTimeBoard,
   SingleResultBoard,
   StandingsBoard,
+  ScrollingResultsBoard,
 } from "./templates";
 import { Trophy, Medal } from "lucide-react";
 
@@ -52,6 +53,11 @@ export function DisplayController({ event, meet, mode, boardType = "live-results
         </div>
       </div>
     );
+  }
+
+  // When event is completed, use scrolling results board to cycle through all results
+  if (event.status === "completed") {
+    return <ScrollingResultsBoard event={event} meet={meet} mode="results" />;
   }
 
   const boardTemplates: Record<string, React.ComponentType<BoardTemplateProps>> = {
