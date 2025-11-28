@@ -60,7 +60,7 @@ function MeetSyncWrapper({ meetId, children }: { meetId: string; children: React
 }
 
 function MeetControlRouter() {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   
   const match = location.match(/^\/control\/([^/]+)(?:\/(.*))?$/);
   if (!match) {
@@ -70,26 +70,37 @@ function MeetControlRouter() {
   const meetId = match[1];
   const subPath = match[2] || "";
   
+  useEffect(() => {
+    if (!subPath) {
+      setLocation(`/control/${meetId}/schedule`, { replace: true });
+    }
+  }, [meetId, subPath, setLocation]);
+  
   if (!subPath) {
-    return <Redirect to={`/control/${meetId}/schedule`} />;
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
+      </div>
+    );
   }
+  
+  const getComponent = () => {
+    if (subPath === "schedule") return <Schedule />;
+    if (subPath.startsWith("events/")) return <EventControl />;
+    if (subPath === "scoring") return <Scoring />;
+    if (subPath === "athletes") return <Athletes />;
+    if (subPath === "teams") return <Teams />;
+    if (subPath === "checkin") return <CheckIn />;
+    if (subPath === "officials") return <Officials />;
+    if (subPath === "import") return <Import />;
+    if (subPath === "displays/customize") return <DisplayCustomizePage />;
+    if (subPath === "layouts/designer" || subPath.startsWith("layouts/designer/")) return <LayoutDesigner />;
+    return <NotFound />;
+  };
   
   return (
     <MeetSyncWrapper meetId={meetId}>
-      <Switch>
-        <Route path="/control/:meetId/schedule" component={Schedule} />
-        <Route path="/control/:meetId/events/:eventId" component={EventControl} />
-        <Route path="/control/:meetId/scoring" component={Scoring} />
-        <Route path="/control/:meetId/athletes" component={Athletes} />
-        <Route path="/control/:meetId/teams" component={Teams} />
-        <Route path="/control/:meetId/checkin" component={CheckIn} />
-        <Route path="/control/:meetId/officials" component={Officials} />
-        <Route path="/control/:meetId/import" component={Import} />
-        <Route path="/control/:meetId/displays/customize" component={DisplayCustomizePage} />
-        <Route path="/control/:meetId/layouts/designer" component={LayoutDesigner} />
-        <Route path="/control/:meetId/layouts/designer/:layoutId" component={LayoutDesigner} />
-        <Route component={NotFound} />
-      </Switch>
+      {getComponent()}
     </MeetSyncWrapper>
   );
 }
