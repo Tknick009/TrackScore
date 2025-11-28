@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Athlete } from "@shared/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +11,17 @@ interface AthleteListProps {
 }
 
 export function AthleteList({ athletes, onSelectAthlete }: AthleteListProps) {
+  const sortedAthletes = useMemo(() => {
+    return [...athletes].sort((a, b) => {
+      const aNum = a.bibNumber ? parseInt(a.bibNumber, 10) : Infinity;
+      const bNum = b.bibNumber ? parseInt(b.bibNumber, 10) : Infinity;
+      if (isNaN(aNum) && isNaN(bNum)) return 0;
+      if (isNaN(aNum)) return 1;
+      if (isNaN(bNum)) return -1;
+      return aNum - bNum;
+    });
+  }, [athletes]);
+
   if (athletes.length === 0) {
     return (
       <Card>
@@ -35,7 +47,7 @@ export function AthleteList({ athletes, onSelectAthlete }: AthleteListProps) {
       </CardHeader>
       <CardContent>
         <div className="space-y-2">
-          {athletes.map((athlete) => (
+          {sortedAthletes.map((athlete) => (
             <div
               key={athlete.id}
               className="flex items-center justify-between p-3 rounded-md border hover-elevate cursor-pointer"
