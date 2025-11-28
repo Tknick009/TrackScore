@@ -125,20 +125,20 @@ function buildZonePayload(formData: ZoneFormData, layoutId: number): InsertLayou
   } else if (formData.boardType === 'attempt-tracker') {
     boardConfig = {
       boardType: 'attempt-tracker',
-      size: formData.size,
+      size: formData.size as 'small' | 'medium' | 'large',
       showMarks: formData.showMarks,
     };
   } else if (formData.boardType === 'live-timer') {
     boardConfig = {
       boardType: 'live-timer',
       mode: formData.timerMode,
-      size: formData.size,
+      size: formData.size as 'small' | 'medium' | 'large',
       showMillis: formData.showMillis,
     };
   } else if (formData.boardType === 'lane-visualization') {
     boardConfig = {
       boardType: 'lane-visualization',
-      size: formData.size,
+      size: formData.size as 'compact' | 'standard' | 'expanded',
       totalLanes: formData.totalLanes,
       showProgress: formData.showProgress,
       showTimes: formData.showTimes,
@@ -392,7 +392,7 @@ export default function LayoutDesigner() {
       widthPercent: zone.widthPercent,
       heightPercent: zone.heightPercent,
       boardType: zone.boardType,
-      stylePreset: zone.stylePreset,
+      stylePreset: (zone.stylePreset || 'none') as typeof STYLE_PRESETS[number],
       
       // Data binding fields
       dataBindingType: binding?.type,
@@ -608,7 +608,7 @@ export default function LayoutDesigner() {
                               <div className="flex items-start justify-between gap-2">
                                 <div className="flex-1 min-w-0">
                                   <Badge variant="secondary" className="text-xs mb-2">
-                                    {BOARD_TYPES.find(bt => bt.value === zone.boardType)?.label}
+                                    {BOARD_TYPE_OPTIONS.find(bt => bt.value === zone.boardType)?.label}
                                   </Badge>
                                   {event && (
                                     <p className="text-xs font-medium truncate">

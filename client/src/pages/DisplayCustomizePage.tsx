@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useMeet } from "@/contexts/MeetContext";
 import type { Meet } from "@shared/schema";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -102,7 +103,7 @@ const FONT_OPTIONS = [
 ];
 
 export default function DisplayCustomizePage() {
-  const [selectedMeetId, setSelectedMeetId] = useState<string | null>(null);
+  const { currentMeetId } = useMeet();
   const [currentThemeId, setCurrentThemeId] = useState<string | null>(null);
   const [themeData, setThemeData] = useState({
     accentColor: "165 95% 50%",
@@ -125,7 +126,7 @@ export default function DisplayCustomizePage() {
   // Save theme mutation
   const saveThemeMutation = useMutation({
     mutationFn: async () => {
-      if (!selectedMeetId) throw new Error("No meet selected");
+      if (!currentMeetId) throw new Error("No meet selected");
       
       const themePayload = {
         name: "Custom Theme",
@@ -153,7 +154,7 @@ export default function DisplayCustomizePage() {
         const response = await apiRequest("PATCH", `/api/themes/${currentThemeId}`, themePayload);
         return await response.json();
       } else {
-        const response = await apiRequest("POST", `/api/meets/${selectedMeetId}/themes`, themePayload);
+        const response = await apiRequest("POST", `/api/meets/${currentMeetId}/themes`, themePayload);
         return await response.json();
       }
     },
@@ -161,7 +162,7 @@ export default function DisplayCustomizePage() {
       if (!currentThemeId && data?.id) {
         setCurrentThemeId(data.id);
       }
-      queryClient.invalidateQueries({ queryKey: [`/api/meets/${selectedMeetId}/themes/default`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/meets/${currentMeetId}/themes/default`] });
       toast({
         title: "Theme saved",
         description: "Your display theme has been saved successfully.",
@@ -220,20 +221,15 @@ export default function DisplayCustomizePage() {
     logoUrl: themeData.logoUrl || undefined,
   };
 
-  // Fetch available meets
-  const { data: meets } = useQuery<Meet[]>({
-    queryKey: ["/api/meets"],
-  });
-
   // Fetch default theme for selected meet
   const { data: defaultTheme, isLoading: themeLoading, isError: themeError } = useQuery<any>({
-    queryKey: selectedMeetId ? [`/api/meets/${selectedMeetId}/themes/default`] : [],
-    enabled: !!selectedMeetId,
+    queryKey: currentMeetId ? [`/api/meets/${currentMeetId}/themes/default`] : [],
+    enabled: !!currentMeetId,
   });
 
   // Reset state when meet changes
   useEffect(() => {
-    if (selectedMeetId) {
+    if (currentMeetId) {
       setCurrentThemeId(null);
       setThemeData({
         accentColor: "165 95% 50%",
@@ -251,7 +247,7 @@ export default function DisplayCustomizePage() {
         showSplits: true,
       });
     }
-  }, [selectedMeetId]);
+  }, [currentMeetId]);
 
   // Load theme data when it changes
   useEffect(() => {
@@ -292,7 +288,7 @@ export default function DisplayCustomizePage() {
             </Button>
             <Button 
               onClick={() => saveThemeMutation.mutate()}
-              disabled={!selectedMeetId || saveThemeMutation.isPending}
+              disabled={!currentMeetId || saveThemeMutation.isPending}
               data-testid="button-save"
             >
               {saveThemeMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
@@ -311,20 +307,9 @@ export default function DisplayCustomizePage() {
               <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
               <span className="ml-2 text-muted-foreground">Loading theme...</span>
             </div>
-          ) : !selectedMeetId ? (
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">Select a meet to customize:</p>
-              {meets?.map((meet: any) => (
-                <Card
-                  key={meet.id}
-                  className="p-4 cursor-pointer hover-elevate"
-                  onClick={() => setSelectedMeetId(meet.id)}
-                  data-testid={`card-meet-${meet.id}`}
-                >
-                  <h3 className="font-semibold">{meet.name}</h3>
-                  <p className="text-sm text-muted-foreground">{meet.location}</p>
-                </Card>
-              ))}
+          ) : !currentMeetId ? (
+            <div className="flex items-center justify-center p-8">
+              <p className="text-muted-foreground">No meet selected</p>
             </div>
           ) : (
             <Tabs defaultValue="colors" className="w-full">
@@ -611,9 +596,9 @@ export default function DisplayCustomizePage() {
 
         {/* Right panel - Live preview */}
         <div className="flex-1 bg-muted/20 overflow-y-auto p-6">
-          {!selectedMeetId ? (
+          {!currentMeetId ? (
             <div className="text-center text-muted-foreground pt-20">
-              <p>Select a meet to see preview</p>
+              <p>No meet selected</p>
             </div>
           ) : (
             <div>
