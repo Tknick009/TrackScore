@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import type { SelectCompositeLayout, SelectLayoutZone, InsertCompositeLayout, InsertLayoutZone, Event } from "@shared/schema";
 import { BOARD_TYPES, BINDING_TYPES, STYLE_PRESETS, CARD_SIZES, TIMER_MODES, LANE_SIZES, FONT_SIZES, GENERAL_SIZES, ALL_ZONE_SIZES } from "@shared/schema";
+import type { LayoutTemplate, DisplayType } from "@shared/layout-templates";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +19,8 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Save, Trash2, Edit, Layout, Eye, Loader2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Plus, Save, Trash2, Edit, Layout, Eye, Loader2, Monitor, Grid3X3 } from "lucide-react";
 
 // Helper function to convert kebab-case enum values to readable labels
 function makeOptions(values: readonly string[]) {
@@ -177,6 +179,12 @@ function buildZonePayload(formData: ZoneFormData, layoutId: number): InsertLayou
   };
 }
 
+// Templates API response type
+interface TemplatesResponse {
+  templates: LayoutTemplate[];
+  displayTypes: readonly { id: string; name: string; resolution: string; pixelPitch: string }[];
+}
+
 export default function LayoutDesigner() {
   const { toast } = useToast();
   const [selectedLayoutId, setSelectedLayoutId] = useState<number | null>(null);
@@ -184,10 +192,49 @@ export default function LayoutDesigner() {
   const [createLayoutOpen, setCreateLayoutOpen] = useState(false);
   const [zoneDialogOpen, setZoneDialogOpen] = useState(false);
   const [editingZone, setEditingZone] = useState(false);
+  const [sidebarTab, setSidebarTab] = useState<'layouts' | 'templates'>('layouts');
+  const [displayTypeFilter, setDisplayTypeFilter] = useState<string>('all');
 
   // Fetch all layouts
   const { data: layouts = [] } = useQuery<SelectCompositeLayout[]>({
     queryKey: ['/api/layouts'],
+  });
+
+  // Fetch layout templates
+  const { data: templatesData } = useQuery<TemplatesResponse>({
+    queryKey: ['/api/layout-templates'],
+  });
+
+  const templates = templatesData?.templates || [];
+  const displayTypes = templatesData?.displayTypes || [];
+
+  // Filter templates by display type
+  const filteredTemplates = displayTypeFilter === 'all' 
+    ? templates 
+    : templates.filter(t => t.displayType === displayTypeFilter);
+
+  // Apply template mutation
+  const applyTemplateMutation = useMutation({
+    mutationFn: async ({ templateId, name }: { templateId: string; name?: string }) => {
+      const response = await apiRequest('POST', `/api/layout-templates/${templateId}/apply`, { name });
+      return await response.json();
+    },
+    onSuccess: (newLayout) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/layouts'] });
+      setSelectedLayoutId(newLayout.id);
+      setSidebarTab('layouts');
+      toast({
+        title: "Template applied",
+        description: `Layout "${newLayout.name}" has been created from template.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error applying template",
+        description: error.message || "Failed to apply template.",
+        variant: "destructive",
+      });
+    },
   });
 
   // Fetch selected layout with zones
@@ -432,119 +479,215 @@ export default function LayoutDesigner() {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      {/* Left Sidebar - Layout List */}
+      {/* Left Sidebar - Layout List / Templates */}
       <div className="w-80 border-r flex flex-col overflow-hidden">
-        <div className="p-6 border-b">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold">Composite Layouts</h2>
-            <Dialog open={createLayoutOpen} onOpenChange={setCreateLayoutOpen}>
-              <DialogTrigger asChild>
-                <Button size="icon" data-testid="button-new-layout">
-                  <Plus className="w-4 h-4" />
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Create New Layout</DialogTitle>
-                  <DialogDescription>
-                    Create a new composite layout for multi-zone stadium displays
-                  </DialogDescription>
-                </DialogHeader>
-                <Form {...createLayoutForm}>
-                  <form onSubmit={createLayoutForm.handleSubmit((data) => createLayoutMutation.mutate(data))} className="space-y-4">
-                    <FormField
-                      control={createLayoutForm.control}
-                      name="name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Layout Name</FormLabel>
-                          <FormControl>
-                            <Input {...field} placeholder="Main Stadium Display" data-testid="input-layout-name" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={createLayoutForm.control}
-                      name="description"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Description (Optional)</FormLabel>
-                          <FormControl>
-                            <Textarea {...field} placeholder="Layout description..." rows={3} data-testid="textarea-description" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <DialogFooter>
-                      <Button type="button" variant="outline" onClick={() => setCreateLayoutOpen(false)}>
-                        Cancel
-                      </Button>
-                      <Button type="submit" disabled={createLayoutMutation.isPending} data-testid="button-create-layout">
-                        {createLayoutMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                        Create Layout
-                      </Button>
-                    </DialogFooter>
-                  </form>
-                </Form>
-              </DialogContent>
-            </Dialog>
+        <Tabs value={sidebarTab} onValueChange={(v) => setSidebarTab(v as 'layouts' | 'templates')} className="flex flex-col h-full">
+          <div className="p-4 border-b">
+            <TabsList className="w-full">
+              <TabsTrigger value="layouts" className="flex-1 gap-1" data-testid="tab-layouts">
+                <Layout className="w-4 h-4" />
+                Layouts
+              </TabsTrigger>
+              <TabsTrigger value="templates" className="flex-1 gap-1" data-testid="tab-templates">
+                <Grid3X3 className="w-4 h-4" />
+                Templates
+              </TabsTrigger>
+            </TabsList>
           </div>
-          <p className="text-sm text-muted-foreground">
-            Select a layout to edit or create a new one
-          </p>
-        </div>
 
-        <ScrollArea className="flex-1">
-          <div className="p-4 space-y-2">
-            {layouts.map((layout) => (
-              <Card
-                key={layout.id}
-                className={`cursor-pointer hover-elevate active-elevate-2 ${
-                  selectedLayoutId === layout.id ? 'border-primary' : ''
-                }`}
-                onClick={() => setSelectedLayoutId(layout.id)}
-                data-testid={`layout-${layout.id}`}
-              >
-                <CardHeader className="p-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1">
-                      <CardTitle className="text-base">{layout.name}</CardTitle>
-                      {layout.description && (
-                        <CardDescription className="text-xs mt-1">
-                          {layout.description}
-                        </CardDescription>
-                      )}
-                    </div>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (confirm('Delete this layout?')) {
-                          deleteLayoutMutation.mutate(layout.id);
-                        }
-                      }}
-                      data-testid={`button-delete-layout-${layout.id}`}
-                    >
-                      <Trash2 className="w-3 h-3" />
+          {/* Layouts Tab */}
+          <TabsContent value="layouts" className="flex-1 flex flex-col m-0 overflow-hidden">
+            <div className="p-4 border-b">
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-lg font-semibold">My Layouts</h2>
+                <Dialog open={createLayoutOpen} onOpenChange={setCreateLayoutOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="icon" data-testid="button-new-layout">
+                      <Plus className="w-4 h-4" />
                     </Button>
-                  </div>
-                </CardHeader>
-              </Card>
-            ))}
-
-            {layouts.length === 0 && (
-              <div className="text-center py-8 text-muted-foreground">
-                <Layout className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">No layouts yet</p>
-                <p className="text-xs">Create your first layout to get started</p>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Create New Layout</DialogTitle>
+                      <DialogDescription>
+                        Create a new composite layout for multi-zone stadium displays
+                      </DialogDescription>
+                    </DialogHeader>
+                    <Form {...createLayoutForm}>
+                      <form onSubmit={createLayoutForm.handleSubmit((data) => createLayoutMutation.mutate(data))} className="space-y-4">
+                        <FormField
+                          control={createLayoutForm.control}
+                          name="name"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Layout Name</FormLabel>
+                              <FormControl>
+                                <Input {...field} placeholder="Main Stadium Display" data-testid="input-layout-name" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={createLayoutForm.control}
+                          name="description"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Description (Optional)</FormLabel>
+                              <FormControl>
+                                <Textarea {...field} placeholder="Layout description..." rows={3} data-testid="textarea-description" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <DialogFooter>
+                          <Button type="button" variant="outline" onClick={() => setCreateLayoutOpen(false)}>
+                            Cancel
+                          </Button>
+                          <Button type="submit" disabled={createLayoutMutation.isPending} data-testid="button-create-layout">
+                            {createLayoutMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                            Create Layout
+                          </Button>
+                        </DialogFooter>
+                      </form>
+                    </Form>
+                  </DialogContent>
+                </Dialog>
               </div>
-            )}
-          </div>
-        </ScrollArea>
+              <p className="text-xs text-muted-foreground mt-1">
+                Select a layout to edit
+              </p>
+            </div>
+
+            <ScrollArea className="flex-1">
+              <div className="p-4 space-y-2">
+                {layouts.map((layout) => (
+                  <Card
+                    key={layout.id}
+                    className={`cursor-pointer hover-elevate active-elevate-2 ${
+                      selectedLayoutId === layout.id ? 'border-primary' : ''
+                    }`}
+                    onClick={() => setSelectedLayoutId(layout.id)}
+                    data-testid={`layout-${layout.id}`}
+                  >
+                    <CardHeader className="p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">
+                          <CardTitle className="text-base">{layout.name}</CardTitle>
+                          {layout.description && (
+                            <CardDescription className="text-xs mt-1">
+                              {layout.description}
+                            </CardDescription>
+                          )}
+                        </div>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm('Delete this layout?')) {
+                              deleteLayoutMutation.mutate(layout.id);
+                            }
+                          }}
+                          data-testid={`button-delete-layout-${layout.id}`}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </CardHeader>
+                  </Card>
+                ))}
+
+                {layouts.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Layout className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">No layouts yet</p>
+                    <p className="text-xs">Create your first layout or use a template</p>
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
+          </TabsContent>
+
+          {/* Templates Tab */}
+          <TabsContent value="templates" className="flex-1 flex flex-col m-0 overflow-hidden">
+            <div className="p-4 border-b space-y-3">
+              <h2 className="text-lg font-semibold">Layout Templates</h2>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="display-filter" className="text-xs whitespace-nowrap">Display:</Label>
+                <Select value={displayTypeFilter} onValueChange={setDisplayTypeFilter}>
+                  <SelectTrigger id="display-filter" className="flex-1" data-testid="select-display-filter">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all" data-testid="filter-all">All Displays</SelectItem>
+                    {displayTypes.map((dt) => (
+                      <SelectItem key={dt.id} value={dt.id} data-testid={`filter-${dt.id}`}>
+                        {dt.name} ({dt.resolution})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Click a template to create a layout
+              </p>
+            </div>
+
+            <ScrollArea className="flex-1">
+              <div className="p-4 space-y-2">
+                {filteredTemplates.map((template) => (
+                  <Card
+                    key={template.id}
+                    className="cursor-pointer hover-elevate active-elevate-2"
+                    onClick={() => {
+                      if (!applyTemplateMutation.isPending) {
+                        applyTemplateMutation.mutate({ templateId: template.id });
+                      }
+                    }}
+                    data-testid={`template-${template.id}`}
+                  >
+                    <CardHeader className="p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <CardTitle className="text-sm">{template.name}</CardTitle>
+                            <Badge variant="outline" className="text-xs">
+                              {template.displayType}
+                            </Badge>
+                          </div>
+                          <CardDescription className="text-xs">
+                            {template.description}
+                          </CardDescription>
+                          <div className="flex items-center gap-2 mt-2">
+                            <Badge variant="secondary" className="text-xs">
+                              {template.category}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {template.resolution.width}x{template.resolution.height}
+                            </span>
+                          </div>
+                        </div>
+                        {applyTemplateMutation.isPending && applyTemplateMutation.variables?.templateId === template.id && (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        )}
+                      </div>
+                    </CardHeader>
+                  </Card>
+                ))}
+
+                {filteredTemplates.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Monitor className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">No templates found</p>
+                    <p className="text-xs">Try adjusting your filter</p>
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Main Content - Canvas */}

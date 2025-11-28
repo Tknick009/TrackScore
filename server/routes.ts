@@ -2445,9 +2445,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         baseTheme: 'stadium',
       });
       
-      // Create all zones for this layout
+      // Create all zones for this layout - validate each zone through schema
       for (const zoneTemplate of template.zones) {
-        await storage.createZone({
+        const zoneData = {
           layoutId: layout.id,
           order: zoneTemplate.order,
           xPercent: zoneTemplate.xPercent,
@@ -2455,10 +2455,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           widthPercent: zoneTemplate.widthPercent,
           heightPercent: zoneTemplate.heightPercent,
           boardType: zoneTemplate.boardType,
-          dataBinding: zoneTemplate.dataBinding,
-          boardConfig: zoneTemplate.boardConfig,
-          stylePreset: zoneTemplate.stylePreset,
-        });
+          dataBinding: zoneTemplate.dataBinding as any,
+          boardConfig: zoneTemplate.boardConfig as any,
+          stylePreset: zoneTemplate.stylePreset || 'none',
+        };
+        
+        // Validate through the schema
+        const parsed = insertLayoutZoneSchema.safeParse(zoneData);
+        if (!parsed.success) {
+          console.error('Zone validation failed for template', template.id, ':', parsed.error.errors);
+          throw new Error(`Zone validation failed: ${parsed.error.errors.map(e => e.message).join(', ')}`);
+        }
+        
+        await storage.createZone(parsed.data);
       }
       
       // Return the created layout with zones
