@@ -1,9 +1,7 @@
 import { useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Event, Athlete, InsertEntry, EntryWithDetails } from "@shared/schema";
-import { TrackResultForm } from "@/components/track-result-form";
-import { FieldResultForm } from "@/components/field-result-form";
+import { Event, EntryWithDetails } from "@shared/schema";
 import { ConnectionStatus } from "@/components/connection-status";
 import { useMeet } from "@/contexts/MeetContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -20,9 +18,20 @@ import {
   Target,
   ArrowLeft,
   ChevronRight,
-  Loader2
+  Loader2,
+  Radio,
+  Eye,
+  AlertCircle
 } from "lucide-react";
-import { Link, useRoute, useLocation } from "wouter";
+import { Link, useRoute } from "wouter";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 function isTrackEvent(eventType: string): boolean {
   const trackEvents = [
@@ -44,11 +53,37 @@ function getEventStatusBadge(status: string) {
   }
 }
 
+function formatMark(mark: number | string | null | undefined, resultType: string): string {
+  if (mark === null || mark === undefined) return "—";
+  
+  // Handle string marks (already formatted)
+  if (typeof mark === "string") {
+    return mark;
+  }
+  
+  if (resultType === "time") {
+    const totalSeconds = mark;
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    if (minutes > 0) {
+      return `${minutes}:${seconds.toFixed(2).padStart(5, '0')}`;
+    }
+    return seconds.toFixed(2);
+  }
+  
+  return mark.toFixed(2) + "m";
+}
+
+function formatWind(wind: number | null | undefined): string {
+  if (wind === null || wind === undefined) return "";
+  const prefix = wind >= 0 ? "+" : "";
+  return `(${prefix}${wind.toFixed(1)})`;
+}
+
 export default function EventControl() {
   const { toast } = useToast();
   const { currentMeetId } = useMeet();
   const [, params] = useRoute("/control/:meetId/events/:eventId");
-  const [, setLocation] = useLocation();
   const eventId = params?.eventId;
 
   const { data: event, isLoading: eventLoading } = useQuery<Event>({
@@ -63,11 +98,8 @@ export default function EventControl() {
     queryKey: ["/api/entries/event", eventId, "details"],
     queryFn: () => fetch(`/api/entries/event/${eventId}/details`).then(r => r.json()),
     enabled: !!eventId && eventBelongsToMeet,
+    refetchInterval: 5000,
   });
-
-  const eventAthletes = useMemo(() => {
-    return eventEntries.map(entry => entry.athlete).filter((a): a is Athlete => !!a);
-  }, [eventEntries]);
 
   const { data: allEvents = [] } = useQuery<Event[]>({
     queryKey: ["/api/events", currentMeetId],
@@ -76,6 +108,12 @@ export default function EventControl() {
       : undefined,
     enabled: !!currentMeetId,
   });
+
+  const { data: currentBroadcastEvent } = useQuery<Event | null>({
+    queryKey: ["/api/events/current"],
+  });
+
+  const isCurrentlyBroadcasting = currentBroadcastEvent?.id === eventId;
 
   const nextScheduledEvent = allEvents
     .filter(e => e.status === "scheduled" && e.id !== eventId)
@@ -91,20 +129,38 @@ export default function EventControl() {
     },
   });
 
-  const createEntryMutation = useMutation({
-    mutationFn: (data: InsertEntry) => apiRequest("POST", "/api/entries", data),
+  const setCurrentEventMutation = useMutation({
+    mutationFn: (eventId: string) =>
+      apiRequest("POST", `/api/events/${eventId}/set-current`, {}),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/events/current"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/events", eventId] });
       queryClient.invalidateQueries({ queryKey: ["/api/entries/event", eventId, "details"] });
-      toast({ title: "Result recorded", description: "The result has been saved" });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error recording result",
-        description: error.message || "Failed to save result",
-        variant: "destructive",
-      });
+      toast({ title: "Broadcasting to displays", description: "This event is now shown on all display boards" });
     },
   });
+
+  const sortedEntries = useMemo(() => {
+    return [...eventEntries].sort((a, b) => {
+      const aPlace = a.finalPlace || a.semifinalPlace || a.quarterfinalPlace || a.preliminaryPlace || 999;
+      const bPlace = b.finalPlace || b.semifinalPlace || b.quarterfinalPlace || b.preliminaryPlace || 999;
+      if (aPlace !== bPlace) return aPlace - bPlace;
+      
+      const aMark = a.finalMark || a.semifinalMark || a.quarterfinalMark || a.preliminaryMark || 0;
+      const bMark = b.finalMark || b.semifinalMark || b.quarterfinalMark || b.preliminaryMark || 0;
+      
+      if (a.resultType === "time") {
+        return aMark - bMark;
+      }
+      return bMark - aMark;
+    });
+  }, [eventEntries]);
+
+  const hasResults = sortedEntries.some(e => 
+    e.preliminaryMark || e.quarterfinalMark || e.semifinalMark || e.finalMark
+  );
+
+  const isTrack = event ? isTrackEvent(event.eventType) : false;
 
   if (eventLoading) {
     return (
@@ -146,13 +202,19 @@ export default function EventControl() {
           </Button>
           <div className="h-6 w-px bg-border" />
           <div className="flex items-center gap-2">
-            {isTrackEvent(event.eventType) ? (
+            {isTrack ? (
               <Timer className="w-5 h-5 text-muted-foreground" />
             ) : (
               <Target className="w-5 h-5 text-muted-foreground" />
             )}
             <span className="font-semibold">{event.name}</span>
             {getEventStatusBadge(event.status)}
+            {isCurrentlyBroadcasting && (
+              <Badge className="bg-red-600 text-white animate-pulse">
+                <Radio className="w-3 h-3 mr-1" />
+                On Air
+              </Badge>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -167,123 +229,239 @@ export default function EventControl() {
       </div>
 
       <div className="flex-1 overflow-auto p-6">
-        <div className="max-w-4xl mx-auto space-y-6">
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle className="text-2xl">{event.name}</CardTitle>
-                  <CardDescription className="flex items-center gap-3 mt-1">
-                    {event.eventTime && (
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-4 h-4" />
-                        {event.eventTime}
-                      </span>
-                    )}
-                    {event.eventNumber && (
-                      <span>Event #{event.eventNumber}</span>
-                    )}
-                    <span className="capitalize">{event.gender}</span>
-                  </CardDescription>
+        <div className="max-w-5xl mx-auto space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <PlayCircle className="w-5 h-5" />
+                  Status Control
+                </CardTitle>
+                <CardDescription>
+                  Manage event status for scoring and displays
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2">
+                  {event.status !== "in_progress" && (
+                    <Button
+                      onClick={() => updateEventStatusMutation.mutate({ 
+                        id: event.id, 
+                        status: "in_progress" 
+                      })}
+                      disabled={updateEventStatusMutation.isPending}
+                      data-testid="button-start-event"
+                    >
+                      <PlayCircle className="w-4 h-4 mr-2" />
+                      {event.status === "completed" ? "Reopen Event" : "Start Event"}
+                    </Button>
+                  )}
+                  {event.status === "in_progress" && (
+                    <Button
+                      onClick={() => updateEventStatusMutation.mutate({ 
+                        id: event.id, 
+                        status: "completed" 
+                      })}
+                      disabled={updateEventStatusMutation.isPending}
+                      data-testid="button-complete-event"
+                    >
+                      <CheckCircle2 className="w-4 h-4 mr-2" />
+                      Complete Event
+                    </Button>
+                  )}
                 </div>
-                {getEventStatusBadge(event.status)}
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2">
-                {event.status !== "in_progress" && (
-                  <Button
-                    onClick={() => updateEventStatusMutation.mutate({ 
-                      id: event.id, 
-                      status: "in_progress" 
-                    })}
-                    disabled={updateEventStatusMutation.isPending}
-                    data-testid="button-start-event"
-                  >
-                    <PlayCircle className="w-4 h-4 mr-2" />
-                    {event.status === "completed" ? "Reopen Event" : "Start Event"}
-                  </Button>
-                )}
-                {event.status === "in_progress" && (
-                  <Button
-                    onClick={() => updateEventStatusMutation.mutate({ 
-                      id: event.id, 
-                      status: "completed" 
-                    })}
-                    disabled={updateEventStatusMutation.isPending}
-                    data-testid="button-complete-event"
-                  >
-                    <CheckCircle2 className="w-4 h-4 mr-2" />
-                    Complete Event
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+                <div className="mt-4 text-sm text-muted-foreground">
+                  {event.status === "scheduled" && "Event is scheduled. Start it when athletes are ready."}
+                  {event.status === "in_progress" && "Event is live. Results are being recorded."}
+                  {event.status === "completed" && "Event is finished. Results are locked for scoring."}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Monitor className="w-5 h-5" />
+                  Display Control
+                </CardTitle>
+                <CardDescription>
+                  Control what appears on the display boards
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button
+                  onClick={() => setCurrentEventMutation.mutate(event.id)}
+                  disabled={setCurrentEventMutation.isPending || isCurrentlyBroadcasting}
+                  variant={isCurrentlyBroadcasting ? "secondary" : "default"}
+                  className="w-full"
+                  data-testid="button-broadcast-event"
+                >
+                  {isCurrentlyBroadcasting ? (
+                    <>
+                      <Radio className="w-4 h-4 mr-2" />
+                      Currently Broadcasting
+                    </>
+                  ) : (
+                    <>
+                      <Radio className="w-4 h-4 mr-2" />
+                      Broadcast to Displays
+                    </>
+                  )}
+                </Button>
+                <div className="mt-4 text-sm text-muted-foreground">
+                  {isCurrentlyBroadcasting 
+                    ? "This event is currently shown on all connected display boards."
+                    : "Click to show this event on all display boards."}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="w-5 h-5" />
-                Record Results
-              </CardTitle>
-              <CardDescription>
-                {isTrackEvent(event.eventType) 
-                  ? "Enter times and positions for track events"
-                  : "Enter marks and attempts for field events"
-                }
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Eye className="w-5 h-5" />
+                    Results Verification
+                  </CardTitle>
+                  <CardDescription>
+                    {hasResults 
+                      ? "Review results as they sync from timing systems"
+                      : "Waiting for results from FinishLynx/FieldLynx"}
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Users className="w-4 h-4" />
+                  {sortedEntries.length} entries
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               {entriesLoading ? (
                 <div className="flex items-center justify-center p-8">
                   <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                 </div>
-              ) : eventAthletes.length === 0 ? (
+              ) : sortedEntries.length === 0 ? (
                 <div className="text-center p-8 text-muted-foreground">
                   <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
                   <p className="font-medium">No athletes entered in this event</p>
                   <p className="text-sm mt-1">Import data from HyTek to populate entries</p>
                 </div>
-              ) : isTrackEvent(event.eventType) ? (
-                <TrackResultForm
-                  eventId={event.id}
-                  athletes={eventAthletes}
-                  onSubmit={(data) => createEntryMutation.mutate(data)}
-                  isPending={createEntryMutation.isPending}
-                />
               ) : (
-                <FieldResultForm
-                  eventId={event.id}
-                  athletes={eventAthletes}
-                  onSubmit={(data) => createEntryMutation.mutate(data)}
-                  isPending={createEntryMutation.isPending}
-                />
+                <div className="border rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-16">Place</TableHead>
+                        {isTrack && <TableHead className="w-16">Lane</TableHead>}
+                        <TableHead>Athlete</TableHead>
+                        <TableHead>Team</TableHead>
+                        <TableHead className="text-right">
+                          {isTrack ? "Time" : "Mark"}
+                        </TableHead>
+                        {isTrack && <TableHead className="w-20">Wind</TableHead>}
+                        <TableHead className="w-24">Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {sortedEntries.map((entry) => {
+                        const place = entry.finalPlace || entry.semifinalPlace || entry.quarterfinalPlace || entry.preliminaryPlace;
+                        const mark = entry.finalMark || entry.semifinalMark || entry.quarterfinalMark || entry.preliminaryMark;
+                        const wind = entry.finalWind || entry.semifinalWind || entry.quarterfinalWind || entry.preliminaryWind;
+                        const lane = entry.finalLane || entry.semifinalLane || entry.quarterfinalLane || entry.preliminaryLane;
+                        
+                        return (
+                          <TableRow key={entry.id} data-testid={`row-entry-${entry.id}`}>
+                            <TableCell className="font-mono font-bold">
+                              {place || "—"}
+                            </TableCell>
+                            {isTrack && (
+                              <TableCell className="font-mono">
+                                {lane || "—"}
+                              </TableCell>
+                            )}
+                            <TableCell>
+                              <div className="font-medium">
+                                {entry.athlete?.firstName} {entry.athlete?.lastName}
+                              </div>
+                              {entry.athlete?.bibNumber && (
+                                <div className="text-xs text-muted-foreground">
+                                  #{entry.athlete.bibNumber}
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {entry.team?.name || "—"}
+                            </TableCell>
+                            <TableCell className="text-right font-mono">
+                              {formatMark(mark, entry.resultType)}
+                            </TableCell>
+                            {isTrack && (
+                              <TableCell className="font-mono text-muted-foreground">
+                                {formatWind(wind)}
+                              </TableCell>
+                            )}
+                            <TableCell>
+                              {entry.isDisqualified ? (
+                                <Badge variant="destructive">DQ</Badge>
+                              ) : entry.isScratched ? (
+                                <Badge variant="secondary">SCR</Badge>
+                              ) : mark ? (
+                                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                  Recorded
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-muted-foreground">
+                                  Pending
+                                </Badge>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+              
+              {!hasResults && sortedEntries.length > 0 && (
+                <div className="mt-4 p-4 bg-muted/50 rounded-lg flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-muted-foreground mt-0.5" />
+                  <div className="text-sm text-muted-foreground">
+                    <p className="font-medium">Waiting for timing data</p>
+                    <p className="mt-1">
+                      Results will appear here automatically as they sync from FinishLynx, FieldLynx, or HyTek.
+                      This view refreshes every 5 seconds.
+                    </p>
+                  </div>
+                </div>
               )}
             </CardContent>
           </Card>
 
-          {nextScheduledEvent && (
-            <Card className="bg-muted/50">
-              <CardContent className="py-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm text-muted-foreground">Next up:</span>
-                    <span className="font-medium">{nextScheduledEvent.name}</span>
-                    {nextScheduledEvent.eventNumber && (
-                      <Badge variant="outline">#{nextScheduledEvent.eventNumber}</Badge>
-                    )}
-                  </div>
-                  <Button variant="outline" size="sm" asChild>
-                    <Link href={`/control/${currentMeetId}/events/${nextScheduledEvent.id}`} data-testid="link-next-event">
-                      Go to Next
-                      <ChevronRight className="w-4 h-4 ml-1" />
-                    </Link>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+              {event.eventTime && (
+                <span className="flex items-center gap-1">
+                  <Clock className="w-4 h-4" />
+                  {event.eventTime}
+                </span>
+              )}
+              {event.eventNumber && (
+                <span>Event #{event.eventNumber}</span>
+              )}
+            </div>
+            
+            {nextScheduledEvent && (
+              <Button variant="outline" size="sm" asChild>
+                <Link href={`/control/${currentMeetId}/events/${nextScheduledEvent.id}`} data-testid="link-next-event">
+                  Next: {nextScheduledEvent.name}
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </Link>
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -44,7 +44,6 @@ function MeetSyncWrapper({ meetId, children }: { meetId: string; children: React
 
   useEffect(() => {
     if (!isLoading && currentMeetId === meetId && !currentMeet) {
-      console.log("MeetSyncWrapper - redirecting to / because meet not found");
       setLocation("/");
     }
   }, [isLoading, currentMeetId, currentMeet, meetId, setLocation]);
@@ -63,24 +62,17 @@ function MeetSyncWrapper({ meetId, children }: { meetId: string; children: React
 function MeetControlRouter() {
   const [location, setLocation] = useLocation();
   
-  console.log("MeetControlRouter - location:", location);
-  
   const match = location.match(/^\/control\/([^/]+)(?:\/(.*))?$/);
-  console.log("MeetControlRouter - match:", match);
   
   if (!match) {
-    console.log("MeetControlRouter - no match, redirecting to /");
     return <Redirect to="/" />;
   }
   
   const meetId = match[1];
   const subPath = match[2] || "";
   
-  console.log("MeetControlRouter - meetId:", meetId, "subPath:", subPath);
-  
   useEffect(() => {
     if (!subPath) {
-      console.log("MeetControlRouter - no subPath, redirecting to schedule");
       setLocation(`/control/${meetId}/schedule`, { replace: true });
     }
   }, [meetId, subPath, setLocation]);
@@ -94,7 +86,6 @@ function MeetControlRouter() {
   }
   
   const getComponent = () => {
-    console.log("MeetControlRouter - getComponent for subPath:", subPath);
     if (subPath === "schedule") return <Schedule />;
     if (subPath.startsWith("events/")) return <EventControl />;
     if (subPath === "scoring") return <Scoring />;
@@ -105,7 +96,6 @@ function MeetControlRouter() {
     if (subPath === "import") return <Import />;
     if (subPath === "displays/customize") return <DisplayCustomizePage />;
     if (subPath === "layouts/designer" || subPath.startsWith("layouts/designer/")) return <LayoutDesigner />;
-    console.log("MeetControlRouter - no match for subPath, returning NotFound");
     return <NotFound />;
   };
   
@@ -117,9 +107,6 @@ function MeetControlRouter() {
 }
 
 function Router() {
-  const [location] = useLocation();
-  console.log("Router - location:", location);
-  
   return (
     <Switch>
       <Route path="/" component={MeetsList} />
@@ -138,23 +125,19 @@ function Router() {
       <Route path="/control/:meetId/layouts/designer/:layoutId">{() => <MeetControlRouter />}</Route>
       <Route path="/control/:meetId/:subPath">{() => <MeetControlRouter />}</Route>
       <Route path="/control/:meetId">{() => <MeetControlRouter />}</Route>
-      <Route>{() => { console.log("Router - fallback NotFound matched"); return <NotFound />; }}</Route>
+      <Route component={NotFound} />
     </Switch>
   );
 }
 
 function AppContent() {
   const [location] = useLocation();
-  console.log("AppContent - location:", location);
   const showSidebar = location.match(/^\/control\/[^/]+/);
-  console.log("AppContent - showSidebar:", showSidebar);
 
   if (!showSidebar) {
-    console.log("AppContent - rendering Router without sidebar");
     return <Router />;
   }
 
-  console.log("AppContent - rendering Router with sidebar");
   return (
     <div className="flex h-screen w-full">
       <AppSidebar />
