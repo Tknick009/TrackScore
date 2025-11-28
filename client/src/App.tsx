@@ -62,16 +62,24 @@ function MeetSyncWrapper({ meetId, children }: { meetId: string; children: React
 function MeetControlRouter() {
   const [location, setLocation] = useLocation();
   
+  console.log("MeetControlRouter - location:", location);
+  
   const match = location.match(/^\/control\/([^/]+)(?:\/(.*))?$/);
+  console.log("MeetControlRouter - match:", match);
+  
   if (!match) {
+    console.log("MeetControlRouter - no match, redirecting to /");
     return <Redirect to="/" />;
   }
   
   const meetId = match[1];
   const subPath = match[2] || "";
   
+  console.log("MeetControlRouter - meetId:", meetId, "subPath:", subPath);
+  
   useEffect(() => {
     if (!subPath) {
+      console.log("MeetControlRouter - no subPath, redirecting to schedule");
       setLocation(`/control/${meetId}/schedule`, { replace: true });
     }
   }, [meetId, subPath, setLocation]);
@@ -85,6 +93,7 @@ function MeetControlRouter() {
   }
   
   const getComponent = () => {
+    console.log("MeetControlRouter - getComponent for subPath:", subPath);
     if (subPath === "schedule") return <Schedule />;
     if (subPath.startsWith("events/")) return <EventControl />;
     if (subPath === "scoring") return <Scoring />;
@@ -95,6 +104,7 @@ function MeetControlRouter() {
     if (subPath === "import") return <Import />;
     if (subPath === "displays/customize") return <DisplayCustomizePage />;
     if (subPath === "layouts/designer" || subPath.startsWith("layouts/designer/")) return <LayoutDesigner />;
+    console.log("MeetControlRouter - no match for subPath, returning NotFound");
     return <NotFound />;
   };
   
