@@ -1,4 +1,4 @@
-import { Switch, Route, useLocation, useRoute, Redirect } from "wouter";
+import { Switch, Route, useLocation, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -60,15 +60,17 @@ function MeetSyncWrapper({ meetId, children }: { meetId: string; children: React
 }
 
 function MeetControlRouter() {
-  const [, params] = useRoute("/control/:meetId/:rest*");
-  const [isControlRoot, rootParams] = useRoute("/control/:meetId");
-  const meetId = params?.meetId || rootParams?.meetId;
+  const [location] = useLocation();
   
-  if (!meetId) {
+  const match = location.match(/^\/control\/([^/]+)(?:\/(.*))?$/);
+  if (!match) {
     return <Redirect to="/" />;
   }
-
-  if (isControlRoot) {
+  
+  const meetId = match[1];
+  const subPath = match[2] || "";
+  
+  if (!subPath) {
     return <Redirect to={`/control/${meetId}/schedule`} />;
   }
   
