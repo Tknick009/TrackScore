@@ -133,6 +133,32 @@ Preferred communication style: Simple, everyday language.
 
 **UI Integration:** Athletes page detail dialog includes a "Personal Bests" section for viewing and editing PR (college) and SB (season) marks. Display boards (FieldEventBoard) show PR and SB marks alongside athlete info when available.
 
+### Data Ingestion System
+
+**Directory Watching:** Uses chokidar to monitor directories for FinishLynx LIF and FieldLynx LFF result files. Files are processed with awaitWriteFinish (500ms stability threshold) to avoid partial reads. Content hashing (SHA-256) prevents duplicate processing.
+
+**Database Schema:** `meet_ingestion_settings` table stores per-meet configuration including directory paths, enable flags, poll intervals, and last import timestamps. `processed_files` table tracks file processing history with content hashes for deduplication.
+
+**LIF Parser:** Parses FinishLynx result files extracting event number, place, lane, bib number, name, team, and time. Handles various timing formats and maps results to athletes via bib number.
+
+**LFF Parser:** Parses FieldLynx result files with support for both metric and imperial units. Extracts event number, bib, place, best mark, and individual attempts with automatic unit conversion.
+
+**HyTek MDB Polling:** Configurable polling interval (default 60 seconds) monitors MDB file for changes using content hashing. On change, triggers full database re-import of athletes, events, and entries.
+
+**API Endpoints:**
+- `GET /api/meets/:meetId/ingestion-settings` - Get ingestion settings
+- `PATCH /api/meets/:meetId/ingestion-settings` - Update settings
+- `GET /api/meets/:meetId/ingestion-status` - Get watcher/polling status
+- `POST /api/meets/:meetId/ingestion-settings/test-lynx-directory` - Validate directory
+- `POST /api/meets/:meetId/ingestion-settings/test-mdb-path` - Validate MDB file
+- `POST /api/meets/:meetId/ingestion-settings/start` - Start watchers
+- `POST /api/meets/:meetId/ingestion-settings/stop` - Stop watchers
+- `POST /api/meets/:meetId/ingestion-settings/import-mdb` - Trigger immediate import
+- `GET /api/meets/:meetId/processed-files` - List processed files
+- `DELETE /api/meets/:meetId/processed-files` - Clear processed files
+
+**UI Component:** DataIngestionPanel in control sidebar provides configuration for Lynx files directory and HyTek MDB path, with test buttons, enable toggles, and status display.
+
 ## External Dependencies
 
 ### Third-Party UI Libraries

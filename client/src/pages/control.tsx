@@ -6,6 +6,7 @@ import { TrackResultForm } from "@/components/track-result-form";
 import { FieldResultForm } from "@/components/field-result-form";
 import { ConnectionStatus } from "@/components/connection-status";
 import { LynxConfigPanel } from "@/components/lynx-config-panel";
+import { DataIngestionPanel } from "@/components/data-ingestion-panel";
 import { useMeet } from "@/contexts/MeetContext";
 import { MeetSelector } from "@/components/meet-selector";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -198,6 +199,10 @@ export default function Control() {
           
           <div className="p-3 border-b">
             <LynxConfigPanel meetId={currentMeetId} />
+          </div>
+
+          <div className="p-3 border-b">
+            <DataIngestionPanel meetId={currentMeetId} />
           </div>
 
           <ScrollArea className="flex-1">

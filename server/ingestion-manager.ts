@@ -283,22 +283,26 @@ class IngestionManager {
   }
 
   async getStatus(meetId: string): Promise<{
-    lynxFilesActive: boolean;
-    hytekMdbActive: boolean;
+    lynxFilesWatching: boolean;
+    lynxFilesDirectory: string | null;
+    hytekMdbPolling: boolean;
+    hytekMdbPath: string | null;
+    hytekMdbLastCheck: string | null;
     processedFilesCount: number;
-    lastScanAt: Date | null;
-    lastMdbImportAt: Date | null;
+    lastError: string | null;
   }> {
     const state = this.watchers.get(meetId);
     const settings = await storage.getIngestionSettings(meetId);
     const processedFiles = await storage.getProcessedFiles(meetId);
 
     return {
-      lynxFilesActive: !!state?.watcher,
-      hytekMdbActive: !!state?.mdbPollingInterval,
+      lynxFilesWatching: !!state?.watcher,
+      lynxFilesDirectory: settings?.lynxFilesDirectory || null,
+      hytekMdbPolling: !!state?.mdbPollingInterval,
+      hytekMdbPath: settings?.hytekMdbPath || null,
+      hytekMdbLastCheck: settings?.hytekMdbLastImportAt?.toISOString() || null,
       processedFilesCount: processedFiles.length,
-      lastScanAt: settings?.lynxFilesLastScanAt || null,
-      lastMdbImportAt: settings?.hytekMdbLastImportAt || null,
+      lastError: null,
     };
   }
 
