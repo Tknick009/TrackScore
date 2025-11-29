@@ -8,7 +8,7 @@ import QRCode from "qrcode";
 import { storage } from "./storage";
 import { FileStorage } from "./file-storage";
 import { lynxListener } from "./lynx-listener";
-import type { TrackDisplayMode, FieldDisplayMode, LynxPortType, MeetLiveState } from "@shared/schema";
+import type { TrackDisplayMode, FieldDisplayMode, LynxPortType, MeetLiveState, Meet } from "@shared/schema";
 import {
   insertEventSchema,
   insertAthleteSchema,
@@ -125,8 +125,20 @@ function getConnectedDevicesForMeet(meetId: string): string[] {
 // Helper to broadcast current event state
 async function broadcastCurrentEvent() {
   const currentEvent = await storage.getCurrentEvent();
-  const meets = await storage.getMeets();
-  const meet = meets[0]; // Get first meet if exists
+  
+  // Get the meet associated with the current event, or fall back to most recent active meet
+  let meet: Meet | undefined;
+  if (currentEvent?.meetId) {
+    meet = await storage.getMeet(currentEvent.meetId);
+  }
+  
+  // If no meet found from current event, get the most recent in_progress or upcoming meet
+  if (!meet) {
+    const meets = await storage.getMeets();
+    meet = meets.find(m => m.status === 'in_progress') 
+        || meets.find(m => m.status === 'upcoming')
+        || meets[0];
+  }
 
   const boardState: DisplayBoardState = {
     mode: "live",
@@ -159,7 +171,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/public/current-meet", async (req, res) => {
     try {
       const meets = await storage.getMeets();
-      const currentMeet = meets.length > 0 ? meets[0] : null;
+      // Prefer in_progress meet, then upcoming, then most recent
+      const currentMeet = meets.find(m => m.status === 'in_progress') 
+                       || meets.find(m => m.status === 'upcoming')
+                       || (meets.length > 0 ? meets[0] : null);
       
       if (!currentMeet) {
         return res.status(404).json({ error: "No active meet" });
