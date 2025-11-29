@@ -56,6 +56,22 @@ interface LynxFieldResult {
   attempts?: string;
   wind?: string;
   markConverted?: string;
+  bestMark?: string;
+  orderOfDraw?: string;
+  orderOfDrawName?: string;
+  attemptMarks?: string[];
+}
+
+interface AggregatedEvent {
+  eventNumber: number;
+  heat: number;
+  round: number;
+  distance?: string;
+  status?: string;
+  wind?: string;
+  entries: Array<LynxStartListEntry | LynxTrackResult | LynxFieldResult>;
+  lastUpdate: number;
+  type: 'S' | 'T' | 'F';
 }
 
 export class LynxListener extends EventEmitter {
@@ -67,9 +83,60 @@ export class LynxListener extends EventEmitter {
   private currentHeatNumber: number = 1;
   private isRunning: boolean = false;
   private lastClockTime: string = '0:00.00';
+  
+  private aggregatedEvents: Map<string, AggregatedEvent> = new Map();
+  private aggregationTimeout: number = 250;
 
   constructor() {
     super();
+  }
+  
+  private getAggregationKey(eventNum: number, heat: number, type: string, round: number = 1, port?: string): string {
+    return `${type}-${eventNum}-${round}-${heat}${port ? `-${port}` : ''}`;
+  }
+  
+  private scheduleAggregationEmit(key: string) {
+    const event = this.aggregatedEvents.get(key);
+    if (!event) return;
+    
+    setTimeout(() => {
+      const currentEvent = this.aggregatedEvents.get(key);
+      if (currentEvent && Date.now() - currentEvent.lastUpdate >= this.aggregationTimeout) {
+        this.emitAggregatedEvent(key, currentEvent);
+        this.aggregatedEvents.delete(key);
+      }
+    }, this.aggregationTimeout + 50);
+  }
+  
+  private emitAggregatedEvent(key: string, event: AggregatedEvent) {
+    switch (event.type) {
+      case 'S':
+        this.emit('start-list', event.eventNumber, event.heat, event.entries as LynxStartListEntry[]);
+        this.emit('track-mode-change', event.eventNumber, 'start_list', {
+          eventNumber: event.eventNumber,
+          heat: event.heat,
+          distance: event.distance,
+          entries: event.entries,
+        });
+        break;
+      case 'T':
+        if (event.entries.some(e => (e as LynxTrackResult).place && (e as LynxTrackResult).time)) {
+          this.emit('track-mode-change', event.eventNumber, 'results', {
+            eventNumber: event.eventNumber,
+            heat: event.heat,
+            wind: event.wind,
+            results: event.entries,
+          });
+        }
+        break;
+      case 'F':
+        this.emit('field-mode-change', event.eventNumber, 'results', {
+          eventNumber: event.eventNumber,
+          flight: event.heat,
+          results: event.entries,
+        });
+        break;
+    }
   }
 
   emit<K extends keyof LynxListenerEvents>(event: K, ...args: Parameters<LynxListenerEvents[K]>): boolean {
@@ -140,28 +207,117 @@ export class LynxListener extends EventEmitter {
     let buffer = this.buffers.get(socket) || '';
     buffer += data.toString();
     
-    const lines = buffer.split(/\r?\n/);
-    buffer = lines.pop() || '';
-    this.buffers.set(socket, buffer);
-
-    for (const line of lines) {
-      if (line.trim()) {
-        this.parseLine(line, config);
+    const { objects, remaining } = this.extractJsonObjects(buffer);
+    this.buffers.set(socket, remaining);
+    
+    for (const obj of objects) {
+      if (obj.trim()) {
+        this.parseLine(obj, config);
       }
     }
   }
+  
+  private extractJsonObjects(buffer: string): { objects: string[]; remaining: string } {
+    const objects: string[] = [];
+    let remaining = buffer;
+    
+    while (remaining.length > 0) {
+      const startIdx = remaining.indexOf('{');
+      if (startIdx === -1) {
+        if (remaining.includes('\n')) {
+          const lines = remaining.split(/\r?\n/).filter(l => l.trim());
+          for (const line of lines) {
+            if (!line.startsWith('{')) {
+              objects.push(line);
+            }
+          }
+          remaining = '';
+        }
+        break;
+      }
+      
+      if (startIdx > 0) {
+        const preContent = remaining.slice(0, startIdx).trim();
+        if (preContent) {
+          const lines = preContent.split(/\r?\n/).filter(l => l.trim());
+          for (const line of lines) {
+            objects.push(line);
+          }
+        }
+        remaining = remaining.slice(startIdx);
+      }
+      
+      let braceDepth = 0;
+      let endIdx = -1;
+      let inString = false;
+      let escape = false;
+      
+      for (let i = 0; i < remaining.length; i++) {
+        const char = remaining[i];
+        
+        if (escape) {
+          escape = false;
+          continue;
+        }
+        
+        if (char === '\\' && inString) {
+          escape = true;
+          continue;
+        }
+        
+        if (char === '"') {
+          inString = !inString;
+          continue;
+        }
+        
+        if (!inString) {
+          if (char === '{') {
+            braceDepth++;
+          } else if (char === '}') {
+            braceDepth--;
+            if (braceDepth === 0) {
+              endIdx = i;
+              break;
+            }
+          }
+        }
+      }
+      
+      if (endIdx !== -1) {
+        const jsonStr = remaining.slice(0, endIdx + 1);
+        objects.push(jsonStr);
+        remaining = remaining.slice(endIdx + 1).replace(/^[\r\n]+/, '');
+      } else {
+        break;
+      }
+    }
+    
+    return { objects, remaining };
+  }
 
+  private sanitizeForJson(input: string): string {
+    let result = '';
+    for (let i = 0; i < input.length; i++) {
+      const code = input.charCodeAt(i);
+      if (code === 0x09 || code === 0x0A || code === 0x0D || code >= 0x20) {
+        result += input[i];
+      }
+    }
+    return result;
+  }
+  
   private parseLine(line: string, config: PortConfig) {
+    const sanitized = this.sanitizeForJson(line);
     const packet: LynxPacket = {
       sourcePort: config.port,
       portType: config.portType,
-      raw: line,
+      raw: sanitized,
       timestamp: Date.now(),
     };
 
     try {
-      if (line.trim().startsWith('{')) {
-        this.parseJsonLine(line, packet, config);
+      if (sanitized.trim().startsWith('{')) {
+        this.parseJsonLine(sanitized, packet, config);
       } else {
         switch (config.portType) {
           case 'clock':
@@ -204,13 +360,13 @@ export class LynxListener extends EventEmitter {
 
       switch (msgType) {
         case 'S':
-          this.handleStartListMessage(msgData, packet);
+          this.handleStartListMessage(msgData, packet, config.name);
           break;
         case 'T':
-          this.handleTrackMessage(msgData, packet);
+          this.handleTrackMessage(msgData, packet, config.name);
           break;
         case 'F':
-          this.handleFieldMessage(msgData, packet);
+          this.handleFieldMessage(msgData, packet, config.name);
           break;
         default:
           console.log(`[Lynx] Unknown message type: ${msgType}`);
@@ -220,28 +376,34 @@ export class LynxListener extends EventEmitter {
     }
   }
 
-  private handleStartListMessage(data: any, packet: LynxPacket) {
+  private handleStartListMessage(data: any, packet: LynxPacket, portName?: string) {
     const eventNum = parseInt(data.EN) || this.currentEventNumber;
     const heat = parseInt(data.H) || 1;
+    const round = parseInt(data.R) || 1;
     const status = data.S || '';
+    const distance = data.DS || '';
     
     this.isRunning = false;
-    this.emit('track-mode-change', eventNum, 'start_list', { 
-      eventNumber: eventNum,
-      heat,
-      status,
-      distance: data.DS,
-    });
-
-    const entries: LynxStartListEntry[] = [];
-    for (const key in data) {
-      if (key.startsWith('P') || key === 'L' || key === 'BIB' || key === 'N' || key === 'AF') {
-        continue;
-      }
+    
+    const key = this.getAggregationKey(eventNum, heat, 'S', round, portName);
+    let aggregated = this.aggregatedEvents.get(key);
+    
+    if (!aggregated) {
+      aggregated = {
+        eventNumber: eventNum,
+        heat,
+        round,
+        distance,
+        status,
+        entries: [],
+        lastUpdate: Date.now(),
+        type: 'S',
+      };
+      this.aggregatedEvents.set(key, aggregated);
     }
     
-    if (data.P || data.L || data.N) {
-      entries.push({
+    if (data.L || data.N || data.BIB) {
+      const entry: LynxStartListEntry = {
         place: data.P,
         lane: data.L,
         bib: data.BIB,
@@ -249,16 +411,32 @@ export class LynxListener extends EventEmitter {
         affiliation: data.AF,
         firstName: data.FN,
         lastName: data.LN,
-      });
+      };
       
-      this.emit('start-list', eventNum, heat, entries);
+      const existingIdx = aggregated.entries.findIndex(
+        e => (e as LynxStartListEntry).lane === entry.lane || 
+             (e as LynxStartListEntry).bib === entry.bib
+      );
+      
+      if (existingIdx >= 0) {
+        aggregated.entries[existingIdx] = entry;
+      } else {
+        aggregated.entries.push(entry);
+      }
+      
+      aggregated.lastUpdate = Date.now();
     }
+    
+    this.scheduleAggregationEmit(key);
   }
 
-  private handleTrackMessage(data: any, packet: LynxPacket) {
+  private handleTrackMessage(data: any, packet: LynxPacket, portName?: string) {
     const eventNum = parseInt(data.EN) || this.currentEventNumber;
     const heat = parseInt(data.H) || 1;
+    const round = parseInt(data.R) || 1;
     const status = data.S || '';
+    const wind = data.W || '';
+    const distance = data.DS || '';
     const time = data.T;
     const place = data.P;
     const lane = data.L;
@@ -273,7 +451,10 @@ export class LynxListener extends EventEmitter {
     if (status === 'ARMED') {
       this.isRunning = false;
       this.emit('track-mode-change', eventNum, 'start_list', { armed: true, heat });
-    } else if (status === 'RUNNING' || (time && !place)) {
+      return;
+    }
+    
+    if (status === 'RUNNING' || (time && !place)) {
       this.isRunning = true;
       if (!wasRunning) {
         this.emit('track-mode-change', eventNum, 'running', { heat, time });
@@ -281,35 +462,84 @@ export class LynxListener extends EventEmitter {
       if (time) {
         this.emit('clock-update', eventNum, time, true);
       }
-    } else if (place && time) {
-      this.isRunning = false;
-      this.emit('track-mode-change', eventNum, 'results', { 
-        heat,
-        place: parseInt(place),
-        time,
-        lane: lane ? parseInt(lane) : undefined,
-        wind: data.W,
-      });
+      return;
+    }
+    
+    if (lane || data.N || data.BIB) {
+      const key = this.getAggregationKey(eventNum, heat, 'T', round, portName);
+      let aggregated = this.aggregatedEvents.get(key);
+      
+      if (!aggregated) {
+        aggregated = {
+          eventNumber: eventNum,
+          heat,
+          round,
+          distance,
+          status,
+          wind,
+          entries: [],
+          lastUpdate: Date.now(),
+          type: 'T',
+        };
+        this.aggregatedEvents.set(key, aggregated);
+      }
       
       const athleteName = data.N || (data.FN && data.LN ? `${data.FN} ${data.LN}` : undefined);
-      this.emit('result', 
-        eventNum, 
-        lane ? parseInt(lane) : 0, 
-        parseInt(place), 
-        time, 
-        athleteName
+      
+      const entry: LynxTrackResult = {
+        place: place,
+        lane: lane,
+        bib: data.BIB,
+        name: athleteName,
+        affiliation: data.AF,
+        time: time,
+        reactionTime: data.RT,
+        lapsToGo: data.L2G,
+        cumulativeSplit: data.CS,
+        lastSplit: data.LS,
+        firstName: data.FN,
+        lastName: data.LN,
+      };
+      
+      const existingIdx = aggregated.entries.findIndex(
+        e => (e as LynxTrackResult).lane === entry.lane || 
+             (e as LynxTrackResult).bib === entry.bib
       );
+      
+      if (existingIdx >= 0) {
+        aggregated.entries[existingIdx] = entry;
+      } else {
+        aggregated.entries.push(entry);
+      }
+      
+      aggregated.lastUpdate = Date.now();
+      
+      if (place && time) {
+        this.isRunning = false;
+        this.emit('result', 
+          eventNum, 
+          lane ? parseInt(lane) : 0, 
+          parseInt(place), 
+          time, 
+          athleteName
+        );
+      }
+      
+      this.scheduleAggregationEmit(key);
     }
   }
 
-  private handleFieldMessage(data: any, packet: LynxPacket) {
+  private handleFieldMessage(data: any, packet: LynxPacket, portName?: string) {
     const eventNum = parseInt(data.EN) || this.currentEventNumber;
     const flight = parseInt(data.F) || 1;
+    const round = parseInt(data.R) || 1;
     const place = data.P;
     const mark = data.M;
     const attemptNum = parseInt(data.AN) || 1;
     const attempts = data.A;
     const name = data.N;
+    const wind = data.W || '';
+    const officialStatus = data.U || '';
     
     packet.eventNumber = eventNum;
     if (place) packet.place = parseInt(place);
@@ -317,23 +547,74 @@ export class LynxListener extends EventEmitter {
     if (attemptNum) packet.attemptNumber = attemptNum;
     if (name) packet.athleteName = name;
     
-    this.emit('field-mode-change', eventNum, 'athlete_up', {
-      eventNumber: eventNum,
-      flight,
-      place: place ? parseInt(place) : undefined,
-      athleteName: name,
-      attemptNumber: attemptNum,
-      mark,
-      attempts,
-      wind: data.W,
-    });
-    
-    if (name) {
-      this.emit('field-athlete-up', eventNum, name, attemptNum, mark);
-    }
-    
-    if (name && place && mark) {
-      this.emit('field-result', eventNum, name, parseInt(place), mark, attemptNum, attempts);
+    if (name || data.BIB) {
+      const key = this.getAggregationKey(eventNum, flight, 'F', round, portName);
+      let aggregated = this.aggregatedEvents.get(key);
+      
+      if (!aggregated) {
+        aggregated = {
+          eventNumber: eventNum,
+          heat: flight,
+          round,
+          status: officialStatus,
+          wind,
+          entries: [],
+          lastUpdate: Date.now(),
+          type: 'F',
+        };
+        this.aggregatedEvents.set(key, aggregated);
+      }
+      
+      const attemptMarks: string[] = [];
+      for (let i = 1; i <= 6; i++) {
+        const attemptKey = `M${i}`;
+        if (data[attemptKey]) {
+          attemptMarks.push(data[attemptKey]);
+        }
+      }
+      
+      const entry: LynxFieldResult = {
+        place: place,
+        name: name,
+        affiliation: data.AF,
+        bib: data.BIB,
+        mark: mark,
+        attemptNumber: data.AN,
+        attempts: attempts,
+        wind: wind,
+        markConverted: data.MC,
+        bestMark: data.FSM,
+        orderOfDraw: data.OD,
+        orderOfDrawName: data.ODN,
+        attemptMarks: attemptMarks.length > 0 ? attemptMarks : undefined,
+      };
+      
+      const existingIdx = aggregated.entries.findIndex(
+        e => (e as LynxFieldResult).bib === entry.bib || 
+             (e as LynxFieldResult).name === entry.name
+      );
+      
+      if (existingIdx >= 0) {
+        aggregated.entries[existingIdx] = entry;
+      } else {
+        aggregated.entries.push(entry);
+      }
+      
+      aggregated.lastUpdate = Date.now();
+      
+      this.emit('field-athlete-up', eventNum, name || '', attemptNum, mark);
+      
+      if (name && mark) {
+        this.emit('field-result', eventNum, name, place ? parseInt(place) : 0, mark, attemptNum, attempts);
+      }
+      
+      this.scheduleAggregationEmit(key);
+    } else {
+      this.emit('field-mode-change', eventNum, 'athlete_up', {
+        eventNumber: eventNum,
+        flight,
+        officialStatus,
+      });
     }
   }
 
