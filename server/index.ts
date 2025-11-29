@@ -1,10 +1,14 @@
 import express, { type Request, Response, NextFunction } from "express";
+import path from "path";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { startAutoRefresh } from "./auto-refresh";
 import { storage } from "./storage";
 
 const app = express();
+
+// Serve static files from public folder (NCAA logos, etc.)
+app.use(express.static(path.join(process.cwd(), 'public')));
 
 declare module 'http' {
   interface IncomingMessage {
