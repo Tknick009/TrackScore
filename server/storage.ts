@@ -392,6 +392,10 @@ export interface IStorage {
   // Combined event standings
   getCombinedEventStandings(combinedEventId: number): Promise<CombinedEventStanding[]>;
   updateCombinedEventTotals(combinedEventId: number): Promise<void>;
+  addAthleteToCombinedEvent(combinedEventId: number, athleteId: string): Promise<void>;
+  removeAthleteFromCombinedEvent(combinedEventId: number, athleteId: string): Promise<void>;
+  deleteCombinedEvent(id: number): Promise<void>;
+  updateCombinedEventStatus(id: number, status: string): Promise<SelectCombinedEvent | null>;
 
   // QR code short links (in-memory)
   getQRCode(slug: string): Promise<QRCodeMeta | null>;
@@ -2355,10 +2359,103 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateCombinedEventTotals(combinedEventId: number): Promise<void> {
-    // Simplified: Just aggregate points from completed component events
-    // Full IAAF scoring would be implemented here
-    console.log(`Updating combined event totals for ${combinedEventId}`);
-    // TODO: Implement IAAF point calculation per event
+    const { calculateEventPoints, normalizeEventType } = await import('./combined-events-scoring');
+    
+    // Get combined event details
+    const combinedEvent = await this.getCombinedEvent(combinedEventId);
+    if (!combinedEvent) {
+      console.error(`Combined event ${combinedEventId} not found`);
+      return;
+    }
+    
+    // Determine gender from event type
+    const gender = combinedEvent.gender === 'M' || combinedEvent.gender === 'male' ? 'M' : 'F';
+    
+    // Get all component events
+    const components = await this.getCombinedEventComponents(combinedEventId);
+    
+    // Get all athletes in this combined event
+    const existingTotals = await db.select().from(combinedEventTotals)
+      .where(eq(combinedEventTotals.combinedEventId, combinedEventId));
+    
+    // For each athlete, calculate their total points
+    for (const total of existingTotals) {
+      let totalPoints = 0;
+      let eventsCompleted = 0;
+      const breakdown: Array<{ eventName: string; performance: string; points: number }> = [];
+      
+      // Get entries for each component event
+      for (const component of components) {
+        const event = await this.getEvent(component.eventId);
+        if (!event) continue;
+        
+        // Get athlete's entry for this event
+        const eventEntries = await this.getEntriesWithDetails(component.eventId);
+        const athleteEntry = eventEntries.find(e => e.athleteId === total.athleteId);
+        
+        if (athleteEntry && athleteEntry.performance) {
+          const eventType = normalizeEventType(event.eventType || '');
+          const points = calculateEventPoints(eventType, athleteEntry.performance, gender as 'M' | 'F');
+          
+          breakdown.push({
+            eventName: event.name || event.eventType || '',
+            performance: athleteEntry.performance,
+            points
+          });
+          
+          if (points > 0) {
+            totalPoints += points;
+            eventsCompleted++;
+          }
+        }
+      }
+      
+      // Update the totals
+      await db.update(combinedEventTotals)
+        .set({
+          totalPoints,
+          eventsCompleted,
+          eventBreakdown: breakdown,
+          updatedAt: new Date()
+        })
+        .where(eq(combinedEventTotals.id, total.id));
+    }
+    
+    console.log(`Updated combined event totals for ${combinedEventId}: ${existingTotals.length} athletes`);
+  }
+  
+  async addAthleteToCombinedEvent(combinedEventId: number, athleteId: string): Promise<void> {
+    await db.insert(combinedEventTotals)
+      .values({
+        combinedEventId,
+        athleteId,
+        totalPoints: 0,
+        eventsCompleted: 0,
+        eventBreakdown: []
+      })
+      .onConflictDoNothing();
+  }
+  
+  async removeAthleteFromCombinedEvent(combinedEventId: number, athleteId: string): Promise<void> {
+    await db.delete(combinedEventTotals)
+      .where(
+        and(
+          eq(combinedEventTotals.combinedEventId, combinedEventId),
+          eq(combinedEventTotals.athleteId, athleteId)
+        )
+      );
+  }
+  
+  async deleteCombinedEvent(id: number): Promise<void> {
+    await db.delete(combinedEvents).where(eq(combinedEvents.id, id));
+  }
+  
+  async updateCombinedEventStatus(id: number, status: string): Promise<SelectCombinedEvent | null> {
+    const [updated] = await db.update(combinedEvents)
+      .set({ status })
+      .where(eq(combinedEvents.id, id))
+      .returning();
+    return updated || null;
   }
 
   // QR code short links (in-memory)
