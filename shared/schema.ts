@@ -1576,3 +1576,131 @@ export const layoutCellsRelations = relations(layoutCells, ({ one }) => ({
     references: [displayLayouts.id],
   }),
 }));
+
+// ====================
+// LYNX DATA INGEST CONFIGURATION
+// ====================
+
+// Track display modes for automatic state transitions
+export const trackDisplayModeEnum = z.enum(['idle', 'start_list', 'running', 'photo_finish', 'results', 'awards']);
+export type TrackDisplayMode = z.infer<typeof trackDisplayModeEnum>;
+
+// Field display modes
+export const fieldDisplayModeEnum = z.enum(['idle', 'athlete_up', 'attempt_in_progress', 'result_posted', 'standings']);
+export type FieldDisplayMode = z.infer<typeof fieldDisplayModeEnum>;
+
+// Lynx port types
+export const lynxPortTypeEnum = z.enum(['clock', 'results', 'field', 'start_list']);
+export type LynxPortType = z.infer<typeof lynxPortTypeEnum>;
+
+// Ingest configuration - stores TCP port settings for Lynx data
+export const ingestConfig = pgTable('ingest_config', {
+  id: serial('id').primaryKey(),
+  meetId: varchar('meet_id').references(() => meets.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(), // e.g., "FinishLynx Clock", "FinishLynx Results", "FieldLynx"
+  portType: text('port_type').notNull(), // 'clock', 'results', 'field', 'start_list'
+  port: integer('port').notNull(), // TCP port number
+  host: text('host').default('0.0.0.0'), // Listen address
+  enabled: boolean('enabled').default(true),
+  lastDataAt: timestamp('last_data_at'),
+  isConnected: boolean('is_connected').default(false),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+export const insertIngestConfigSchema = createInsertSchema(ingestConfig).omit({ id: true, createdAt: true, lastDataAt: true, isConnected: true });
+export type InsertIngestConfig = z.infer<typeof insertIngestConfigSchema>;
+export type IngestConfig = typeof ingestConfig.$inferSelect;
+
+// Event Live State - tracks real-time state for each active event
+export const eventLiveState = pgTable('event_live_state', {
+  id: serial('id').primaryKey(),
+  eventId: varchar('event_id').references(() => events.id, { onDelete: 'cascade' }).notNull(),
+  
+  // Track event state
+  trackMode: text('track_mode').default('idle'), // idle, start_list, running, photo_finish, results, awards
+  isArmed: boolean('is_armed').default(false),
+  isRunning: boolean('is_running').default(false),
+  runningTime: text('running_time'), // Current clock time string
+  startTime: timestamp('start_time'), // When the gun went off
+  
+  // Field event state
+  fieldMode: text('field_mode').default('idle'), // idle, athlete_up, attempt_in_progress, result_posted, standings
+  currentAthleteId: varchar('current_athlete_id').references(() => athletes.id, { onDelete: 'set null' }),
+  currentAttemptNumber: integer('current_attempt_number'),
+  currentHeight: text('current_height'), // For height events
+  currentFlightNumber: integer('current_flight_number'),
+  
+  // Common
+  lastLynxEventNumber: integer('last_lynx_event_number'), // Event # from Lynx data
+  lastLynxHeatNumber: integer('last_lynx_heat_number'),
+  lastUpdateAt: timestamp('last_update_at').defaultNow(),
+  rawData: jsonb('raw_data'), // Last raw data received for debugging
+}, (table) => ({
+  eventIdIdx: index('event_live_state_event_id_idx').on(table.eventId),
+}));
+
+export const insertEventLiveStateSchema = createInsertSchema(eventLiveState).omit({ id: true, lastUpdateAt: true });
+export type InsertEventLiveState = z.infer<typeof insertEventLiveStateSchema>;
+export type EventLiveState = typeof eventLiveState.$inferSelect;
+
+// Field Athlete Queue - tracks order of athletes in field events
+export const fieldAthleteQueue = pgTable('field_athlete_queue', {
+  id: serial('id').primaryKey(),
+  eventId: varchar('event_id').references(() => events.id, { onDelete: 'cascade' }).notNull(),
+  athleteId: varchar('athlete_id').references(() => athletes.id, { onDelete: 'cascade' }).notNull(),
+  flightNumber: integer('flight_number').default(1),
+  orderInFlight: integer('order_in_flight').notNull(),
+  status: text('status').default('waiting'), // waiting, up, completed
+  currentAttempt: integer('current_attempt').default(0),
+}, (table) => ({
+  eventIdIdx: index('field_athlete_queue_event_id_idx').on(table.eventId),
+  statusIdx: index('field_athlete_queue_status_idx').on(table.status),
+}));
+
+export const insertFieldAthleteQueueSchema = createInsertSchema(fieldAthleteQueue).omit({ id: true });
+export type InsertFieldAthleteQueue = z.infer<typeof insertFieldAthleteQueueSchema>;
+export type FieldAthleteQueue = typeof fieldAthleteQueue.$inferSelect;
+
+// Parsed Lynx packet structure (for in-memory use)
+export interface LynxPacket {
+  sourcePort: number;
+  portType: LynxPortType;
+  raw: string;
+  eventNumber?: number;
+  heatNumber?: number;
+  laneNumber?: number;
+  athleteName?: string;
+  teamName?: string;
+  time?: string;
+  place?: number;
+  status?: string; // 'armed', 'running', 'finished', etc.
+  fieldMark?: string;
+  attemptNumber?: number;
+  attemptResult?: 'O' | 'X' | 'P' | '-'; // Pass, make, miss, skip
+  timestamp: number;
+}
+
+// Meet live state aggregate (for API responses)
+export interface MeetLiveState {
+  meetId: string;
+  activeTrackEvent?: {
+    event: Event;
+    mode: TrackDisplayMode;
+    runningTime?: string;
+    isArmed: boolean;
+    isRunning: boolean;
+  };
+  activeFieldEvents: Array<{
+    event: Event;
+    mode: FieldDisplayMode;
+    currentAthlete?: Athlete;
+    currentAttemptNumber?: number;
+    currentHeight?: string;
+  }>;
+  recentResults: Array<{
+    event: Event;
+    results: Entry[];
+  }>;
+  teamScores?: TeamScoringResult[];
+  timestamp: number;
+}

@@ -1,0 +1,73 @@
+; Copyright (c) 2014 Dipen Shah.
+; All rights reserved.
+; Redistribution or use in any form, with or without modification, is not permitted.
+; Written by Dipen Shah
+;
+
+;;ResultsHeader
+; This is sent once each time the scoreboard is updated with results. It
+; is sent before any result lines are sent.
+; Line codes:
+;  \00  No variable
+;  \01  OFFICIAL/UNOFFICIAL string
+;  \02  Event name
+;  \03  No variable
+;  \04  Event number
+;  \05  Round number
+;  \06  Flight number
+;  \07  No variable
+;  \08  No variable
+\00{
+\00"T":"F","D":{
+\00"MID":0,
+\13\04"EN":%s,
+\13\05"R":%s,
+\13\06"F":%s,
+\13\07"U":"%s",
+\13\08"C":"%s",
+\13\09"H":"%s",
+
+;;Result
+; This is sent once for each result line displayed on the scoreboard.
+; Line codes:
+;  \00  No variable
+;  \01  Place
+;  \02  Attempt
+;  \03  Id
+;  \04  Name
+;  \05  Affiliation
+;  \06  Mark
+;  \07  Wind
+;  \08  MarkConv
+; Register[0] is initialized with the index of the current result line and
+; will range from 0 through PageSize - 1.
+;Athletic.Live
+;  resultPlace: string|number = ''; // \01
+;  resultAttempt: string|number = ''; // \02
+;  resultId: string|number = ''; // \03
+;  resultName: string|number = ''; // \04
+;  resultAffiliation: string|number = ''; // \05
+;  resultMark: string|number = ''; // \06
+;  resultWind: string|number = ''; // \07
+;  resultMarkConverted: string|number = ''; // \08
+;  markOnly: string|number = ''; // \09 Mark only - no vertical attempts
+;  verticalAttempts: string|number = ''; // \0a - Only vertical mark attempts (XO, etc)
+;  firstName: string|number = ''; // \0c - First Name
+;  lastName: string|number = ''; // \0d - Last Name
+;  conversionOnly: string|number = ''; // \0e- Conversion only - no vertical attempts
+;  bestMark: string|number = ''; // \0f - Current best mark
+
+\14\04"N":"%s",
+\14\05"AF":"%s",
+\14\03"BIB":"%s",
+\14\01"P":"%s",
+\14\09"M":"%s",
+\14\02"AN":"%s",
+\14\0a"A":"%s",
+\14\07"W":"%s",
+\9a"MC":"%s",
+\14\0b"FSM":"%s",
+\14\0c"FSW":"%s",
+\14\12"OD":"%s",
+\14\13"ODN":"%s"
+\00}}\0d\0a
