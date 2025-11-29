@@ -138,6 +138,9 @@ import {
   isDistanceEvent,
   isHeightEvent,
   parsePerformanceToSeconds,
+  athleteBests,
+  type AthleteBest,
+  type InsertAthleteBest,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql, and, not, inArray, count, isNull, desc } from "drizzle-orm";
@@ -437,6 +440,16 @@ export interface IStorage {
   upsertLiveEventData(data: InsertLiveEventData): Promise<LiveEventData>;
   updateLiveEventEntries(eventNumber: number, entries: any[], meetId?: string): Promise<LiveEventData | null>;
   clearLiveEventData(meetId?: string): Promise<void>;
+
+  // Athlete Bests (College and Season PRs)
+  getAthleteBests(athleteId: string): Promise<AthleteBest[]>;
+  getAthleteBest(athleteId: string, eventType: string, bestType: 'college' | 'season', seasonId?: number | null): Promise<AthleteBest | null>;
+  getAthleteBestsByMeet(meetId: string): Promise<AthleteBest[]>;
+  createAthleteBest(best: InsertAthleteBest): Promise<AthleteBest>;
+  updateAthleteBest(id: string, updates: Partial<InsertAthleteBest>): Promise<AthleteBest | null>;
+  upsertAthleteBest(best: InsertAthleteBest): Promise<AthleteBest>;
+  deleteAthleteBest(id: string): Promise<void>;
+  bulkImportAthleteBests(bests: InsertAthleteBest[]): Promise<AthleteBest[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2808,6 +2821,84 @@ export class DatabaseStorage implements IStorage {
     } else {
       await db.delete(liveEventData);
     }
+  }
+
+  // Athlete Bests (College and Season PRs)
+  async getAthleteBests(athleteId: string): Promise<AthleteBest[]> {
+    return db.select().from(athleteBests).where(eq(athleteBests.athleteId, athleteId));
+  }
+
+  async getAthleteBest(athleteId: string, eventType: string, bestType: 'college' | 'season', seasonId?: number | null): Promise<AthleteBest | null> {
+    const conditions = [
+      eq(athleteBests.athleteId, athleteId),
+      eq(athleteBests.eventType, eventType),
+      eq(athleteBests.bestType, bestType),
+    ];
+    
+    if (bestType === 'season' && seasonId !== undefined) {
+      if (seasonId === null) {
+        conditions.push(isNull(athleteBests.seasonId));
+      } else {
+        conditions.push(eq(athleteBests.seasonId, seasonId));
+      }
+    }
+    
+    const [result] = await db.select().from(athleteBests).where(and(...conditions));
+    return result || null;
+  }
+
+  async getAthleteBestsByMeet(meetId: string): Promise<AthleteBest[]> {
+    const meetAthletes = await db.select({ id: athletes.id }).from(athletes).where(eq(athletes.meetId, meetId));
+    const athleteIds = meetAthletes.map(a => a.id);
+    
+    if (athleteIds.length === 0) return [];
+    
+    return db.select().from(athleteBests).where(inArray(athleteBests.athleteId, athleteIds));
+  }
+
+  async createAthleteBest(best: InsertAthleteBest): Promise<AthleteBest> {
+    const [result] = await db.insert(athleteBests).values(best).returning();
+    return result;
+  }
+
+  async updateAthleteBest(id: string, updates: Partial<InsertAthleteBest>): Promise<AthleteBest | null> {
+    const [result] = await db
+      .update(athleteBests)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(athleteBests.id, id))
+      .returning();
+    return result || null;
+  }
+
+  async upsertAthleteBest(best: InsertAthleteBest): Promise<AthleteBest> {
+    const existing = await this.getAthleteBest(
+      best.athleteId, 
+      best.eventType, 
+      best.bestType as 'college' | 'season',
+      best.seasonId
+    );
+    
+    if (existing) {
+      const updated = await this.updateAthleteBest(existing.id, best);
+      return updated!;
+    }
+    
+    return this.createAthleteBest(best);
+  }
+
+  async deleteAthleteBest(id: string): Promise<void> {
+    await db.delete(athleteBests).where(eq(athleteBests.id, id));
+  }
+
+  async bulkImportAthleteBests(bests: InsertAthleteBest[]): Promise<AthleteBest[]> {
+    if (bests.length === 0) return [];
+    
+    const results: AthleteBest[] = [];
+    for (const best of bests) {
+      const result = await this.upsertAthleteBest(best);
+      results.push(result);
+    }
+    return results;
   }
 }
 
