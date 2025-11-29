@@ -1,4 +1,4 @@
-import { EntryWithDetails } from "@shared/schema";
+import { EntryWithDetails, AthleteBest, isTimeEvent, isDistanceEvent, isHeightEvent } from "@shared/schema";
 import { Star } from "lucide-react";
 import { getPodiumColor, formatResult } from "../utils";
 
@@ -6,11 +6,45 @@ interface FieldAthleteCardProps {
   result: EntryWithDetails;
   isLeader: boolean;
   isPodium: boolean;
+  athleteBests?: AthleteBest[];
 }
 
-export function FieldAthleteCard({ result, isLeader, isPodium }: FieldAthleteCardProps) {
+const formatBestMark = (mark: number, eventType: string): string => {
+  const eventTypeLower = eventType.toLowerCase();
+  
+  if (isTimeEvent(eventType)) {
+    const minutes = Math.floor(mark / 60);
+    const seconds = (mark % 60).toFixed(2);
+    return minutes > 0 ? `${minutes}:${seconds.padStart(5, '0')}` : seconds;
+  }
+  
+  if (isDistanceEvent(eventType) || isHeightEvent(eventType)) {
+    return `${mark.toFixed(2)}m`;
+  }
+  
+  const isFieldEvent = eventTypeLower.includes('jump') || 
+    eventTypeLower.includes('throw') || 
+    eventTypeLower.includes('put') ||
+    eventTypeLower.includes('vault') ||
+    eventTypeLower.includes('javelin') ||
+    eventTypeLower.includes('discus') ||
+    eventTypeLower.includes('hammer');
+  
+  if (isFieldEvent) {
+    return `${mark.toFixed(2)}m`;
+  }
+  
+  const minutes = Math.floor(mark / 60);
+  const seconds = (mark % 60).toFixed(2);
+  return minutes > 0 ? `${minutes}:${seconds.padStart(5, '0')}` : seconds;
+};
+
+export function FieldAthleteCard({ result, isLeader, isPodium, athleteBests }: FieldAthleteCardProps) {
   const position = result.finalPlace ?? 0;
   const athleteName = `${result.athlete.firstName} ${result.athlete.lastName}`;
+  
+  const collegeBest = athleteBests?.find(b => b.bestType === 'college');
+  const seasonBest = athleteBests?.find(b => b.bestType === 'season');
   
   return (
     <div className="flex items-center gap-6">
@@ -54,6 +88,21 @@ export function FieldAthleteCard({ result, isLeader, isPodium }: FieldAthleteCar
           <p className="text-[40px] text-[hsl(var(--display-muted))] leading-none mb-1">
             {result.team.name}
           </p>
+        )}
+        {/* Personal Bests */}
+        {(collegeBest || seasonBest) && (
+          <div className="flex gap-4 mt-1">
+            {collegeBest && (
+              <span className="text-[28px] text-[hsl(var(--display-accent))]">
+                PR: {formatBestMark(collegeBest.mark, collegeBest.eventType)}
+              </span>
+            )}
+            {seasonBest && (
+              <span className="text-[28px] text-[hsl(var(--display-muted))]">
+                SB: {formatBestMark(seasonBest.mark, seasonBest.eventType)}
+              </span>
+            )}
+          </div>
         )}
         {/* Best mark */}
         <div className="flex items-center gap-3 mt-4">

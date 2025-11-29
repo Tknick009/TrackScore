@@ -91,6 +91,20 @@ Preferred communication style: Simple, everyday language.
 - `GET /api/lynx/saved-configs` - Get saved Lynx port configurations
 - `POST /api/lynx/config` - Configure and save Lynx ports (auto-saves to database)
 
+### Athlete Bests (Personal Records)
+
+**Database Schema:** `athlete_bests` table stores college and season personal records per athlete and event type. Fields include `athleteId`, `eventType`, `bestType` (college or season), `mark` (in base units: seconds for track, meters for field), `seasonId`, `achievedAt`, `meetName`, and `source` (manual, import, calculated).
+
+**API Endpoints:**
+- `GET /api/athletes/:athleteId/bests` - Get all bests for an athlete
+- `GET /api/meets/:meetId/athlete-bests` - Get all bests for athletes in a meet
+- `POST /api/athlete-bests` - Create or update an athlete best
+- `PATCH /api/athlete-bests/:id` - Update a best
+- `DELETE /api/athlete-bests/:id` - Delete a best
+- `POST /api/meets/:meetId/athlete-bests/import` - Bulk import bests from CSV data
+
+**UI Integration:** Athletes page detail dialog includes a "Personal Bests" section for viewing and editing PR (college) and SB (season) marks. Display boards (FieldEventBoard) show PR and SB marks alongside athlete info when available.
+
 ## External Dependencies
 
 ### Third-Party UI Libraries
