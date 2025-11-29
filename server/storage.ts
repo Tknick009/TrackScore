@@ -396,6 +396,8 @@ export interface IStorage {
   removeAthleteFromCombinedEvent(combinedEventId: number, athleteId: string): Promise<void>;
   deleteCombinedEvent(id: number): Promise<void>;
   updateCombinedEventStatus(id: number, status: string): Promise<SelectCombinedEvent | null>;
+  getCombinedEventsByComponentEvent(eventId: string): Promise<SelectCombinedEvent[]>;
+  getCombinedEventsByLynxEventNumber(lynxEventNumber: number): Promise<SelectCombinedEvent[]>;
 
   // QR code short links (in-memory)
   getQRCode(slug: string): Promise<QRCodeMeta | null>;
@@ -2456,6 +2458,49 @@ export class DatabaseStorage implements IStorage {
       .where(eq(combinedEvents.id, id))
       .returning();
     return updated || null;
+  }
+  
+  async getCombinedEventsByComponentEvent(eventId: string): Promise<SelectCombinedEvent[]> {
+    const components = await db.select()
+      .from(combinedEventComponents)
+      .where(eq(combinedEventComponents.eventId, eventId));
+    
+    if (components.length === 0) return [];
+    
+    const combinedEventIds = [...new Set(components.map(c => c.combinedEventId))];
+    const eventsResult = await db.select()
+      .from(combinedEvents)
+      .where(sql`${combinedEvents.id} IN (${sql.join(combinedEventIds.map(id => sql`${id}`), sql`, `)})`);
+    
+    return eventsResult;
+  }
+  
+  async getCombinedEventsByLynxEventNumber(lynxEventNumber: number): Promise<SelectCombinedEvent[]> {
+    const lynxNumStr = String(lynxEventNumber);
+    
+    const allEvents = await db.select().from(events).where(sql`${events.lynxEventNumber} IS NOT NULL`);
+    
+    const matchingEvents = allEvents.filter(e => {
+      if (!e.lynxEventNumber) return false;
+      const stored = String(e.lynxEventNumber).trim();
+      const numPart = stored.replace(/^0+/, '').split(/[-\s]/)[0];
+      return numPart === lynxNumStr || stored === lynxNumStr || parseInt(numPart, 10) === lynxEventNumber;
+    });
+    
+    if (matchingEvents.length === 0) return [];
+    
+    const allCombinedEvents: SelectCombinedEvent[] = [];
+    for (const event of matchingEvents) {
+      const ce = await this.getCombinedEventsByComponentEvent(event.id);
+      allCombinedEvents.push(...ce);
+    }
+    
+    const uniqueIds = new Set<number>();
+    return allCombinedEvents.filter(ce => {
+      if (uniqueIds.has(ce.id)) return false;
+      uniqueIds.add(ce.id);
+      return true;
+    });
   }
 
   // QR code short links (in-memory)

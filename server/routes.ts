@@ -4417,6 +4417,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         entries,
         isRunning: false,
       });
+      
+      // Update combined events if this is a component event
+      const combinedEventsToUpdate = await storage.getCombinedEventsByLynxEventNumber(eventNumber);
+      for (const ce of combinedEventsToUpdate) {
+        await storage.updateCombinedEventTotals(ce.id);
+        const standings = await storage.getCombinedEventStandings(ce.id);
+        broadcastToDisplays({
+          type: 'combined_event_update',
+          meetId: ce.meetId,
+          combinedEventId: ce.id,
+          standings
+        });
+        console.log(`[Lynx] Updated combined event ${ce.id} standings after track result`);
+      }
     } catch (error) {
       console.error('[Lynx] Error storing result:', error);
     }
@@ -4506,6 +4520,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         flight: existing?.flight || 1,
         entries,
       });
+      
+      // Update combined events if this is a component event
+      const combinedEventsToUpdate = await storage.getCombinedEventsByLynxEventNumber(eventNumber);
+      for (const ce of combinedEventsToUpdate) {
+        await storage.updateCombinedEventTotals(ce.id);
+        const standings = await storage.getCombinedEventStandings(ce.id);
+        broadcastToDisplays({
+          type: 'combined_event_update',
+          meetId: ce.meetId,
+          combinedEventId: ce.id,
+          standings
+        });
+        console.log(`[Lynx] Updated combined event ${ce.id} standings after field result`);
+      }
     } catch (error) {
       console.error('[Lynx] Error storing field result:', error);
     }
