@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from "react";
-import { Athlete, Event } from "@shared/schema";
+import { Athlete, Event, AthleteBest } from "@shared/schema";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -8,8 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { queryClient } from "@/lib/queryClient";
-import { Upload, Trash2, Image as ImageIcon, Loader2, Calendar, Trophy, Clock, CheckCircle2, XCircle, AlertCircle, ArrowUpDown } from "lucide-react";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { Upload, Trash2, Image as ImageIcon, Loader2, Calendar, Trophy, Clock, CheckCircle2, XCircle, AlertCircle, ArrowUpDown, Medal, Plus, Edit2, Save, X } from "lucide-react";
 
 interface AthleteWithTeam extends Athlete {
   teamName?: string | null;
@@ -64,6 +64,15 @@ export function AthleteDetailDialog({ athlete, open, onOpenChange }: AthleteDeta
   const [loadingEvents, setLoadingEvents] = useState(false);
   const [eventSort, setEventSort] = useState<EventSortOption>('time');
   const [ncaaLogoUrl, setNcaaLogoUrl] = useState<string | null>(null);
+  const [athleteBests, setAthleteBests] = useState<AthleteBest[]>([]);
+  const [loadingBests, setLoadingBests] = useState(false);
+  const [editingBestId, setEditingBestId] = useState<string | null>(null);
+  const [editBestValue, setEditBestValue] = useState("");
+  const [addingBest, setAddingBest] = useState(false);
+  const [newBestEventType, setNewBestEventType] = useState("");
+  const [newBestType, setNewBestType] = useState<"college" | "season">("college");
+  const [newBestMark, setNewBestMark] = useState("");
+  const [savingBest, setSavingBest] = useState(false);
 
   // Sort events based on selected option
   const sortedEvents = useMemo(() => {
@@ -90,16 +99,20 @@ export function AthleteDetailDialog({ athlete, open, onOpenChange }: AthleteDeta
     });
   }, [events, eventSort]);
 
-  // Fetch athlete photo, events, and NCAA logo when dialog opens
+  // Fetch athlete photo, events, bests, and NCAA logo when dialog opens
   useEffect(() => {
     if (athlete && open) {
       fetchAthletePhoto();
       fetchAthleteEvents();
       fetchNcaaLogo();
+      fetchAthleteBests();
     } else {
       setPhotoData(null);
       setEvents([]);
       setNcaaLogoUrl(null);
+      setAthleteBests([]);
+      setAddingBest(false);
+      setEditingBestId(null);
     }
   }, [athlete?.id, open]);
 
@@ -160,6 +173,98 @@ export function AthleteDetailDialog({ athlete, open, onOpenChange }: AthleteDeta
     } finally {
       setLoadingEvents(false);
     }
+  };
+
+  const fetchAthleteBests = async () => {
+    if (!athlete) return;
+    
+    setLoadingBests(true);
+    try {
+      const response = await fetch(`/api/athletes/${athlete.id}/bests`);
+      if (response.ok) {
+        const data = await response.json();
+        setAthleteBests(data);
+      } else {
+        setAthleteBests([]);
+      }
+    } catch (error) {
+      console.error("Error fetching bests:", error);
+      setAthleteBests([]);
+    } finally {
+      setLoadingBests(false);
+    }
+  };
+
+  const handleSaveBest = async (id: string, mark: string) => {
+    setSavingBest(true);
+    try {
+      await apiRequest("PATCH", `/api/athlete-bests/${id}`, { mark: parseFloat(mark) });
+      toast({ title: "Best updated", description: "Personal best has been saved" });
+      fetchAthleteBests();
+      setEditingBestId(null);
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to update best", variant: "destructive" });
+    } finally {
+      setSavingBest(false);
+    }
+  };
+
+  const handleDeleteBest = async (id: string) => {
+    setSavingBest(true);
+    try {
+      await apiRequest("DELETE", `/api/athlete-bests/${id}`);
+      toast({ title: "Best deleted", description: "Personal best has been removed" });
+      fetchAthleteBests();
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to delete best", variant: "destructive" });
+    } finally {
+      setSavingBest(false);
+    }
+  };
+
+  const handleAddBest = async () => {
+    if (!athlete || !newBestEventType || !newBestMark) {
+      toast({ title: "Missing fields", description: "Please fill in all fields", variant: "destructive" });
+      return;
+    }
+
+    setSavingBest(true);
+    try {
+      await apiRequest("POST", "/api/athlete-bests", {
+        athleteId: athlete.id,
+        eventType: newBestEventType,
+        bestType: newBestType,
+        mark: newBestMark,
+      });
+      toast({ title: "Best added", description: "Personal best has been added" });
+      fetchAthleteBests();
+      setAddingBest(false);
+      setNewBestEventType("");
+      setNewBestMark("");
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to add best", variant: "destructive" });
+    } finally {
+      setSavingBest(false);
+    }
+  };
+
+  const formatBestMark = (mark: number, eventType: string): string => {
+    const isTimeEvent = eventType.toLowerCase().includes('m') && 
+      !eventType.toLowerCase().includes('jump') && 
+      !eventType.toLowerCase().includes('throw') && 
+      !eventType.toLowerCase().includes('put') &&
+      !eventType.toLowerCase().includes('vault') &&
+      !eventType.toLowerCase().includes('high');
+    
+    if (isTimeEvent) {
+      const minutes = Math.floor(mark / 60);
+      const seconds = (mark % 60).toFixed(2);
+      if (minutes > 0) {
+        return `${minutes}:${seconds.padStart(5, '0')}`;
+      }
+      return seconds;
+    }
+    return `${mark.toFixed(2)}m`;
   };
 
   const formatMark = (mark: number | null, eventType: string): string => {
@@ -549,6 +654,165 @@ export function AthleteDetailDialog({ athlete, open, onOpenChange }: AthleteDeta
                       </div>
                     );
                   })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Personal Bests Section */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+              <CardTitle className="flex items-center gap-2">
+                <Medal className="w-5 h-5" />
+                Personal Bests
+              </CardTitle>
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={() => setAddingBest(true)}
+                disabled={addingBest}
+                data-testid="button-add-best"
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                Add
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {loadingBests ? (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {/* Add new best form */}
+                  {addingBest && (
+                    <div className="p-3 rounded-md border border-primary/50 bg-primary/5 space-y-2">
+                      <div className="flex gap-2 flex-wrap">
+                        <Input
+                          placeholder="Event type (e.g., 100m, long_jump)"
+                          value={newBestEventType}
+                          onChange={(e) => setNewBestEventType(e.target.value)}
+                          className="flex-1 min-w-[150px]"
+                          data-testid="input-new-best-event"
+                        />
+                        <Select value={newBestType} onValueChange={(v) => setNewBestType(v as "college" | "season")}>
+                          <SelectTrigger className="w-[120px]" data-testid="select-new-best-type">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="college">College</SelectItem>
+                            <SelectItem value="season">Season</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          placeholder="Mark (seconds or meters)"
+                          value={newBestMark}
+                          onChange={(e) => setNewBestMark(e.target.value)}
+                          className="w-[130px]"
+                          data-testid="input-new-best-mark"
+                        />
+                      </div>
+                      <div className="flex gap-2 justify-end">
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          onClick={() => setAddingBest(false)}
+                          disabled={savingBest}
+                        >
+                          <X className="w-4 h-4 mr-1" />
+                          Cancel
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          onClick={handleAddBest}
+                          disabled={savingBest || !newBestEventType || !newBestMark}
+                          data-testid="button-save-new-best"
+                        >
+                          {savingBest ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Save className="w-4 h-4 mr-1" />}
+                          Save
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Existing bests */}
+                  {athleteBests.length === 0 && !addingBest ? (
+                    <div className="text-center py-6 text-muted-foreground">
+                      <Medal className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">No personal bests recorded</p>
+                    </div>
+                  ) : (
+                    athleteBests.map((best) => (
+                      <div
+                        key={best.id}
+                        className="flex items-center justify-between p-3 rounded-md border"
+                        data-testid={`row-athlete-best-${best.id}`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Badge 
+                            variant={best.bestType === 'college' ? 'default' : 'secondary'} 
+                            className="text-xs"
+                          >
+                            {best.bestType === 'college' ? 'PR' : 'SB'}
+                          </Badge>
+                          <span className="font-medium">{best.eventType}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {editingBestId === best.id ? (
+                            <>
+                              <Input
+                                value={editBestValue}
+                                onChange={(e) => setEditBestValue(e.target.value)}
+                                className="w-[100px] h-8"
+                                data-testid={`input-edit-best-${best.id}`}
+                              />
+                              <Button 
+                                size="icon" 
+                                variant="ghost"
+                                onClick={() => handleSaveBest(best.id, editBestValue)}
+                                disabled={savingBest}
+                              >
+                                <Save className="w-4 h-4" />
+                              </Button>
+                              <Button 
+                                size="icon" 
+                                variant="ghost"
+                                onClick={() => setEditingBestId(null)}
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <span className="font-mono text-sm" data-testid={`text-best-mark-${best.id}`}>
+                                {formatBestMark(best.mark, best.eventType)}
+                              </span>
+                              <Button 
+                                size="icon" 
+                                variant="ghost"
+                                onClick={() => {
+                                  setEditingBestId(best.id);
+                                  setEditBestValue(String(best.mark));
+                                }}
+                                data-testid={`button-edit-best-${best.id}`}
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </Button>
+                              <Button 
+                                size="icon" 
+                                variant="ghost"
+                                onClick={() => handleDeleteBest(best.id)}
+                                disabled={savingBest}
+                                data-testid={`button-delete-best-${best.id}`}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               )}
             </CardContent>
