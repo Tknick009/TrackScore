@@ -1455,10 +1455,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Assign an event to a display device
+  // Assign an event to a display device (only for field mode displays)
   app.patch("/api/display-devices/:id/assign-event", async (req, res) => {
     try {
       const { eventId } = req.body;
+      
+      // Get current device to check mode
+      const existingDevice = await storage.getDisplayDevice(req.params.id);
+      if (!existingDevice) {
+        return res.status(404).json({ error: "Display device not found" });
+      }
+      
+      // Only field mode displays can have events manually assigned
+      if (existingDevice.displayMode === 'track') {
+        return res.status(400).json({ 
+          error: "Track displays cannot be manually assigned to events. They automatically show data from Lynx." 
+        });
+      }
       
       const device = await storage.assignEventToDisplay(req.params.id, eventId || null);
       
@@ -1485,6 +1498,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
           eventId: device.assignedEventId,
           event: eventData,
           meet: meet,
+        }
+      } as WSMessage);
+
+      res.json(device);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Set display mode (track = auto from Lynx, field = manual assignment)
+  app.patch("/api/display-devices/:id/mode", async (req, res) => {
+    try {
+      const { displayMode } = req.body;
+      
+      if (!displayMode || !['track', 'field'].includes(displayMode)) {
+        return res.status(400).json({ error: "displayMode must be 'track' or 'field'" });
+      }
+      
+      const device = await storage.updateDisplayDeviceMode(req.params.id, displayMode);
+      
+      if (!device) {
+        return res.status(404).json({ error: "Display device not found" });
+      }
+
+      // Broadcast the mode change
+      broadcastToDisplays({
+        type: 'display_mode_change',
+        data: {
+          deviceId: device.id,
+          deviceName: device.deviceName,
+          displayMode: device.displayMode,
         }
       } as WSMessage);
 
