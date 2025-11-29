@@ -3945,6 +3945,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     activeFieldEvents: new Map<number, { mode: FieldDisplayMode; athleteName?: string; attemptNumber?: number; mark?: string }>(),
   };
 
+  // Get Lynx connection status (used by UI)
+  app.get("/api/lynx/status", async (req, res) => {
+    try {
+      const status = lynxListener.getStatus();
+      res.json({
+        ports: status.map(p => ({
+          portType: p.portType,
+          port: p.port,
+          connected: p.connected,
+          lastDataAt: p.lastDataAt,
+        })),
+        currentEventNumber: lynxListener.getCurrentEventNumber(),
+        currentHeatNumber: lynxListener.getCurrentHeatNumber(),
+        isClockRunning: lynxListener.isClockRunning(),
+        lastClockTime: lynxListener.getLastClockTime(),
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Get Lynx port configuration
   app.get("/api/lynx/config", async (req, res) => {
     try {
@@ -4003,6 +4024,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       lynxListener.stop();
       res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get Lynx config for a specific meet
+  app.get("/api/lynx/config/:meetId", async (req, res) => {
+    try {
+      // Return current configuration based on listener status
+      const status = lynxListener.getStatus();
+      const clockPort = status.find(p => p.portType === 'clock')?.port || 4000;
+      const resultsPort = status.find(p => p.portType === 'results')?.port || 4001;
+      const startListPort = status.find(p => p.portType === 'start_list')?.port || 4002;
+      const fieldPort = status.find(p => p.portType === 'field')?.port || 4003;
+      const enabled = status.some(p => p.connected);
+      
+      res.json({
+        meetId: req.params.meetId,
+        clockPort,
+        resultsPort,
+        startListPort,
+        fieldPort,
+        enabled,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Update Lynx config for a specific meet
+  app.post("/api/lynx/config/:meetId", async (req, res) => {
+    try {
+      const { clockPort, resultsPort, startListPort, fieldPort, enabled } = req.body;
+      
+      // Reconfigure the listener with new ports
+      const ports = [
+        { port: clockPort || 4000, portType: 'clock' as const, name: 'Clock' },
+        { port: resultsPort || 4001, portType: 'results' as const, name: 'Results' },
+        { port: startListPort || 4002, portType: 'start_list' as const, name: 'Start List' },
+        { port: fieldPort || 4003, portType: 'field' as const, name: 'Field' },
+      ];
+      
+      lynxListener.stop();
+      lynxListener.configure(ports);
+      
+      if (enabled) {
+        lynxListener.start();
+      }
+      
+      res.json({ success: true, status: lynxListener.getStatus() });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Reconnect Lynx listeners
+  app.post("/api/lynx/reconnect/:meetId", async (req, res) => {
+    try {
+      lynxListener.stop();
+      lynxListener.start();
+      res.json({ success: true, status: lynxListener.getStatus() });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

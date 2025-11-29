@@ -14,9 +14,48 @@ interface LynxListenerEvents {
   'field-mode-change': (eventNumber: number, mode: FieldDisplayMode, data: any) => void;
   'clock-update': (eventNumber: number, time: string, isRunning: boolean) => void;
   'result': (eventNumber: number, lane: number, place: number, time: string, athleteName?: string) => void;
+  'field-result': (eventNumber: number, athleteName: string, place: number, mark: string, attemptNumber: number, attempts?: string) => void;
   'field-athlete-up': (eventNumber: number, athleteName: string, attemptNumber: number, mark?: string) => void;
+  'start-list': (eventNumber: number, heat: number, entries: LynxStartListEntry[]) => void;
   'connection': (portType: LynxPortType, connected: boolean) => void;
   'error': (error: Error, portType: LynxPortType) => void;
+}
+
+interface LynxStartListEntry {
+  place?: string;
+  lane?: string;
+  bib?: string;
+  name?: string;
+  affiliation?: string;
+  firstName?: string;
+  lastName?: string;
+}
+
+interface LynxTrackResult {
+  place?: string;
+  lane?: string;
+  bib?: string;
+  name?: string;
+  affiliation?: string;
+  time?: string;
+  reactionTime?: string;
+  lapsToGo?: string;
+  cumulativeSplit?: string;
+  lastSplit?: string;
+  firstName?: string;
+  lastName?: string;
+}
+
+interface LynxFieldResult {
+  place?: string;
+  name?: string;
+  affiliation?: string;
+  bib?: string;
+  mark?: string;
+  attemptNumber?: string;
+  attempts?: string;
+  wind?: string;
+  markConverted?: string;
 }
 
 export class LynxListener extends EventEmitter {
@@ -121,24 +160,180 @@ export class LynxListener extends EventEmitter {
     };
 
     try {
-      switch (config.portType) {
-        case 'clock':
-          this.parseClockLine(line, packet);
-          break;
-        case 'results':
-          this.parseResultsLine(line, packet);
-          break;
-        case 'field':
-          this.parseFieldLine(line, packet);
-          break;
-        case 'start_list':
-          this.parseStartListLine(line, packet);
-          break;
+      if (line.trim().startsWith('{')) {
+        this.parseJsonLine(line, packet, config);
+      } else {
+        switch (config.portType) {
+          case 'clock':
+            this.parseClockLine(line, packet);
+            break;
+          case 'results':
+            this.parseLegacyResultsLine(line, packet);
+            break;
+          case 'field':
+            this.parseLegacyFieldLine(line, packet);
+            break;
+          case 'start_list':
+            this.parseStartListLine(line, packet);
+            break;
+        }
       }
 
       this.emit('packet', packet);
     } catch (err) {
       console.error(`[Lynx] Parse error for line: ${line}`, err);
+    }
+  }
+
+  private parseJsonLine(line: string, packet: LynxPacket, config: PortConfig) {
+    try {
+      const data = JSON.parse(line);
+      const msgType = data.T;
+      const msgData = data.D || data;
+      
+      if (msgData.EN) {
+        const eventNum = parseInt(msgData.EN);
+        if (!isNaN(eventNum) && eventNum > 0) {
+          packet.eventNumber = eventNum;
+          if (eventNum !== this.currentEventNumber) {
+            this.currentEventNumber = eventNum;
+            this.currentHeatNumber = parseInt(msgData.H) || 1;
+          }
+        }
+      }
+
+      switch (msgType) {
+        case 'S':
+          this.handleStartListMessage(msgData, packet);
+          break;
+        case 'T':
+          this.handleTrackMessage(msgData, packet);
+          break;
+        case 'F':
+          this.handleFieldMessage(msgData, packet);
+          break;
+        default:
+          console.log(`[Lynx] Unknown message type: ${msgType}`);
+      }
+    } catch (err) {
+      console.error(`[Lynx] JSON parse error:`, err);
+    }
+  }
+
+  private handleStartListMessage(data: any, packet: LynxPacket) {
+    const eventNum = parseInt(data.EN) || this.currentEventNumber;
+    const heat = parseInt(data.H) || 1;
+    const status = data.S || '';
+    
+    this.isRunning = false;
+    this.emit('track-mode-change', eventNum, 'start_list', { 
+      eventNumber: eventNum,
+      heat,
+      status,
+      distance: data.DS,
+    });
+
+    const entries: LynxStartListEntry[] = [];
+    for (const key in data) {
+      if (key.startsWith('P') || key === 'L' || key === 'BIB' || key === 'N' || key === 'AF') {
+        continue;
+      }
+    }
+    
+    if (data.P || data.L || data.N) {
+      entries.push({
+        place: data.P,
+        lane: data.L,
+        bib: data.BIB,
+        name: data.N,
+        affiliation: data.AF,
+        firstName: data.FN,
+        lastName: data.LN,
+      });
+      
+      this.emit('start-list', eventNum, heat, entries);
+    }
+  }
+
+  private handleTrackMessage(data: any, packet: LynxPacket) {
+    const eventNum = parseInt(data.EN) || this.currentEventNumber;
+    const heat = parseInt(data.H) || 1;
+    const status = data.S || '';
+    const time = data.T;
+    const place = data.P;
+    const lane = data.L;
+    
+    packet.eventNumber = eventNum;
+    if (time) packet.time = time;
+    if (place) packet.place = parseInt(place);
+    if (lane) packet.laneNumber = parseInt(lane);
+    
+    const wasRunning = this.isRunning;
+    
+    if (status === 'ARMED') {
+      this.isRunning = false;
+      this.emit('track-mode-change', eventNum, 'start_list', { armed: true, heat });
+    } else if (status === 'RUNNING' || (time && !place)) {
+      this.isRunning = true;
+      if (!wasRunning) {
+        this.emit('track-mode-change', eventNum, 'running', { heat, time });
+      }
+      if (time) {
+        this.emit('clock-update', eventNum, time, true);
+      }
+    } else if (place && time) {
+      this.isRunning = false;
+      this.emit('track-mode-change', eventNum, 'results', { 
+        heat,
+        place: parseInt(place),
+        time,
+        lane: lane ? parseInt(lane) : undefined,
+        wind: data.W,
+      });
+      
+      const athleteName = data.N || (data.FN && data.LN ? `${data.FN} ${data.LN}` : undefined);
+      this.emit('result', 
+        eventNum, 
+        lane ? parseInt(lane) : 0, 
+        parseInt(place), 
+        time, 
+        athleteName
+      );
+    }
+  }
+
+  private handleFieldMessage(data: any, packet: LynxPacket) {
+    const eventNum = parseInt(data.EN) || this.currentEventNumber;
+    const flight = parseInt(data.F) || 1;
+    const place = data.P;
+    const mark = data.M;
+    const attemptNum = parseInt(data.AN) || 1;
+    const attempts = data.A;
+    const name = data.N;
+    
+    packet.eventNumber = eventNum;
+    if (place) packet.place = parseInt(place);
+    if (mark) packet.fieldMark = mark;
+    if (attemptNum) packet.attemptNumber = attemptNum;
+    if (name) packet.athleteName = name;
+    
+    this.emit('field-mode-change', eventNum, 'athlete_up', {
+      eventNumber: eventNum,
+      flight,
+      place: place ? parseInt(place) : undefined,
+      athleteName: name,
+      attemptNumber: attemptNum,
+      mark,
+      attempts,
+      wind: data.W,
+    });
+    
+    if (name) {
+      this.emit('field-athlete-up', eventNum, name, attemptNum, mark);
+    }
+    
+    if (name && place && mark) {
+      this.emit('field-result', eventNum, name, parseInt(place), mark, attemptNum, attempts);
     }
   }
 
@@ -151,6 +346,7 @@ export class LynxListener extends EventEmitter {
         packet.eventNumber = eventNum;
         if (eventNum !== this.currentEventNumber) {
           this.currentEventNumber = eventNum;
+          this.isRunning = false;
           this.emit('track-mode-change', eventNum, 'start_list', { eventNumber: eventNum });
         }
       }
@@ -159,19 +355,22 @@ export class LynxListener extends EventEmitter {
     const timeMatch = line.match(/(\d{1,2}:)?\d{1,2}\.\d{2,3}/);
     if (timeMatch) {
       packet.time = timeMatch[0];
-      this.lastClockTime = packet.time;
-      
-      const isZero = packet.time === '0:00.00' || packet.time === '0.00' || packet.time === '00.00';
+      const previousTime = this.lastClockTime;
       const wasRunning = this.isRunning;
       
-      if (!isZero && packet.time !== this.lastClockTime) {
+      const isZero = packet.time === '0:00.00' || packet.time === '0.00' || packet.time === '00.00';
+      
+      if (!isZero && packet.time !== previousTime) {
         this.isRunning = true;
+      } else if (isZero) {
+        this.isRunning = false;
       }
       
       if (this.isRunning && !wasRunning) {
         this.emit('track-mode-change', this.currentEventNumber, 'running', { time: packet.time });
       }
       
+      this.lastClockTime = packet.time;
       this.emit('clock-update', this.currentEventNumber, packet.time, this.isRunning);
     }
 
@@ -187,7 +386,7 @@ export class LynxListener extends EventEmitter {
     }
   }
 
-  private parseResultsLine(line: string, packet: LynxPacket) {
+  private parseLegacyResultsLine(line: string, packet: LynxPacket) {
     const parts = line.split(/\s+/).filter(Boolean);
     
     if (parts.length >= 1) {
@@ -238,7 +437,7 @@ export class LynxListener extends EventEmitter {
     }
   }
 
-  private parseFieldLine(line: string, packet: LynxPacket) {
+  private parseLegacyFieldLine(line: string, packet: LynxPacket) {
     const parts = line.split(/\s+/).filter(Boolean);
     
     if (parts.length >= 1) {
@@ -247,6 +446,7 @@ export class LynxListener extends EventEmitter {
         packet.eventNumber = eventNum;
         if (eventNum !== this.currentEventNumber) {
           this.currentEventNumber = eventNum;
+          this.emit('field-mode-change', eventNum, 'athlete_up', { eventNumber: eventNum });
         }
       }
     }
