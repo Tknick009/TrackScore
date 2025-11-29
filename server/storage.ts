@@ -150,6 +150,7 @@ export interface IStorage {
   getEvents(): Promise<Event[]>;
   getEvent(id: string): Promise<Event | undefined>;
   getEventsByMeetId(meetId: string): Promise<Event[]>;
+  getEventsByLynxEventNumber(lynxEventNumber: number): Promise<Event[]>;
   getCurrentEvent(): Promise<EventWithEntries | undefined>;
   createEvent(event: InsertEvent): Promise<Event>;
   updateEventStatus(id: string, status: string): Promise<Event | undefined>;
@@ -454,6 +455,19 @@ export class DatabaseStorage implements IStorage {
 
   async getEventsByMeetId(meetId: string): Promise<Event[]> {
     return db.select().from(events).where(eq(events.meetId, meetId));
+  }
+
+  async getEventsByLynxEventNumber(lynxEventNumber: number): Promise<Event[]> {
+    const lynxNumStr = String(lynxEventNumber);
+    
+    const allEvents = await db.select().from(events).where(sql`${events.lynxEventNumber} IS NOT NULL`);
+    
+    return allEvents.filter(e => {
+      if (!e.lynxEventNumber) return false;
+      const stored = String(e.lynxEventNumber).trim();
+      const numPart = stored.replace(/^0+/, '').split(/[-\s]/)[0];
+      return numPart === lynxNumStr || stored === lynxNumStr || parseInt(numPart, 10) === lynxEventNumber;
+    });
   }
 
   async getCurrentEvent(): Promise<EventWithEntries | undefined> {

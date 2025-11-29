@@ -4331,6 +4331,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     liveState.isArmed = data.armed || false;
     
     try {
+      // Auto-activate event when data arrives (set to in_progress if scheduled)
+      const matchingEvents = await storage.getEventsByLynxEventNumber(eventNumber);
+      for (const event of matchingEvents) {
+        if (event.status === 'scheduled') {
+          await storage.updateEventStatus(event.id, 'in_progress');
+          console.log(`[Lynx] Auto-activated event ${event.name} (${event.id}) to in_progress`);
+          await broadcastCurrentEvent();
+        }
+      }
+      
       // Store live event data to database
       await storage.upsertLiveEventData({
         eventNumber,
@@ -4474,6 +4484,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
     
     try {
+      // Auto-activate event when data arrives (set to in_progress if scheduled)
+      const matchingEvents = await storage.getEventsByLynxEventNumber(eventNumber);
+      for (const event of matchingEvents) {
+        if (event.status === 'scheduled') {
+          await storage.updateEventStatus(event.id, 'in_progress');
+          console.log(`[Lynx] Auto-activated field event ${event.name} (${event.id}) to in_progress`);
+          await broadcastCurrentEvent();
+        }
+      }
+      
       // Store field event data to database
       await storage.upsertLiveEventData({
         eventNumber,
