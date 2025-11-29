@@ -35,6 +35,7 @@ import MasterDisplayPage from "@/pages/master-display";
 import VisualLayoutDesigner from "@/pages/visual-layout-designer";
 import SceneEditor from "@/pages/scene-editor";
 import SceneDisplay from "@/pages/scene-display";
+import DisplayLauncher from "@/pages/display-launcher";
 import NotFound from "@/pages/not-found";
 
 function MeetSyncWrapper({ meetId, children }: { meetId: string; children: React.ReactNode }) {
@@ -103,6 +104,7 @@ function MeetControlRouter() {
     if (subPath === "displays/customize") return <DisplayCustomizePage />;
     if (subPath === "layouts/designer" || subPath.startsWith("layouts/designer/")) return <LayoutDesigner />;
     if (subPath === "scene-editor") return <SceneEditor />;
+    if (subPath === "displays/launcher") return <DisplayLauncher />;
     return <NotFound />;
   };
   

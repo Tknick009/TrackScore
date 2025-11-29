@@ -105,6 +105,14 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location === `${basePath}/displays/launcher`}>
+                  <Link href={`${basePath}/displays/launcher`} data-testid="link-displays-launcher">
+                    <Monitor />
+                    <span>Display Launcher</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={location === `${basePath}/displays/control`}>
                   <Link href={`${basePath}/displays/control`} data-testid="link-displays-control">
                     <Cast />
