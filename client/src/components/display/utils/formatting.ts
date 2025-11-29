@@ -72,37 +72,22 @@ export function formatAttemptHeaderLabel(key: string): string {
 }
 
 export function generateAttemptHeaders(entries: EntryWithDetails[]): string[] {
-  const attemptKeys = new Set<string>();
+  const attemptIndices = new Set<number>();
   
   entries.forEach(entry => {
     entry.splits?.forEach(split => {
-      const key = `${split.round || 'default'}-${split.splitNumber}`;
-      attemptKeys.add(key);
+      attemptIndices.add(split.splitIndex);
     });
   });
   
-  if (attemptKeys.size === 0) {
+  if (attemptIndices.size === 0) {
     const maxAttempts = Math.max(...entries.map(e => e.splits?.length || 0), 3);
     return Array.from({ length: maxAttempts }, (_, i) => `default-${i + 1}`);
   }
   
-  const roundPriority: Record<string, number> = {
-    'preliminary': 1,
-    'qualifying': 2,
-    'quarterfinal': 3,
-    'semifinal': 4,
-    'final': 5,
-    'default': 99
-  };
-  
-  return Array.from(attemptKeys).sort((a, b) => {
-    const [roundA, numA] = a.split('-');
-    const [roundB, numB] = b.split('-');
-    const priorityA = roundPriority[roundA] || 99;
-    const priorityB = roundPriority[roundB] || 99;
-    if (priorityA !== priorityB) return priorityA - priorityB;
-    return parseInt(numA) - parseInt(numB);
-  });
+  return Array.from(attemptIndices)
+    .sort((a, b) => a - b)
+    .map(idx => `default-${idx}`);
 }
 
 export function formatSplitTime(seconds: number | null | undefined): string {
