@@ -71,16 +71,22 @@ export function TeamList({ teams, onSelectTeam }: TeamListProps) {
               data-testid={`row-team-${team.id}`}
             >
               <div className="flex items-center gap-3">
-                <Avatar className="h-10 w-10">
-                  <AvatarImage 
-                    src={ncaaLogos[team.name] || ""} 
-                    alt={team.name}
-                    className="object-contain p-0.5"
-                  />
-                  <AvatarFallback data-testid={`avatar-fallback-${team.id}`}>
-                    {team.name.substring(0, 2).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
+                {ncaaLogos[team.name] ? (
+                  <div className="h-10 w-10 flex items-center justify-center">
+                    <img 
+                      src={ncaaLogos[team.name]} 
+                      alt={team.name}
+                      className="max-h-10 max-w-10 object-contain"
+                      data-testid={`img-team-logo-${team.id}`}
+                    />
+                  </div>
+                ) : (
+                  <Avatar className="h-10 w-10">
+                    <AvatarFallback data-testid={`avatar-fallback-${team.id}`}>
+                      {team.name.substring(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                )}
                 <div>
                   <p className="font-medium" data-testid={`text-team-name-${team.id}`}>
                     {team.name}
