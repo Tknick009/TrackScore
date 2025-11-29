@@ -2079,3 +2079,65 @@ export interface MeetLiveState {
   teamScores?: TeamScoringResult[];
   timestamp: number;
 }
+
+// ====================
+// FILE INGESTION SETTINGS
+// ====================
+
+// Meet ingestion settings - stores file paths for auto-import
+export const meetIngestionSettings = pgTable('meet_ingestion_settings', {
+  id: serial('id').primaryKey(),
+  meetId: varchar('meet_id').references(() => meets.id, { onDelete: 'cascade' }).notNull().unique(),
+  
+  // Lynx Files settings
+  lynxFilesDirectory: text('lynx_files_directory'), // Directory containing LIF/LFF files
+  lynxFilesEnabled: boolean('lynx_files_enabled').default(false),
+  lynxFilesLastScanAt: timestamp('lynx_files_last_scan_at'),
+  lynxFilesProcessedCount: integer('lynx_files_processed_count').default(0),
+  
+  // HyTek MDB settings
+  hytekMdbPath: text('hytek_mdb_path'), // Path to HyTek .mdb file
+  hytekMdbEnabled: boolean('hytek_mdb_enabled').default(false),
+  hytekMdbLastImportAt: timestamp('hytek_mdb_last_import_at'),
+  hytekMdbLastHash: text('hytek_mdb_last_hash'), // File hash for change detection
+  hytekMdbPollIntervalSec: integer('hytek_mdb_poll_interval_sec').default(60),
+  
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+export const insertMeetIngestionSettingsSchema = createInsertSchema(meetIngestionSettings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  lynxFilesLastScanAt: true,
+  lynxFilesProcessedCount: true,
+  hytekMdbLastImportAt: true,
+  hytekMdbLastHash: true,
+});
+
+export type InsertMeetIngestionSettings = z.infer<typeof insertMeetIngestionSettingsSchema>;
+export type MeetIngestionSettings = typeof meetIngestionSettings.$inferSelect;
+
+// Processed files tracking - prevents re-processing the same files
+export const processedIngestionFiles = pgTable('processed_ingestion_files', {
+  id: serial('id').primaryKey(),
+  meetId: varchar('meet_id').references(() => meets.id, { onDelete: 'cascade' }).notNull(),
+  filePath: text('file_path').notNull(),
+  fileType: text('file_type').notNull(), // 'lif', 'lff', 'mdb'
+  fileHash: text('file_hash').notNull(), // SHA256 hash of file content
+  processedAt: timestamp('processed_at').defaultNow(),
+  recordsProcessed: integer('records_processed').default(0),
+}, (table) => ({
+  meetFileIdx: index('processed_files_meet_idx').on(table.meetId),
+  filePathIdx: index('processed_files_path_idx').on(table.filePath),
+  meetFileUnique: unique('processed_files_meet_file_unique').on(table.meetId, table.filePath),
+}));
+
+export const insertProcessedFileSchema = createInsertSchema(processedIngestionFiles).omit({
+  id: true,
+  processedAt: true,
+});
+
+export type InsertProcessedFile = z.infer<typeof insertProcessedFileSchema>;
+export type ProcessedFile = typeof processedIngestionFiles.$inferSelect;
