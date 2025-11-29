@@ -470,6 +470,20 @@ export default function SceneEditor() {
             <Eye className="w-4 h-4 mr-1" />
             Preview
           </Button>
+          {selectedSceneId && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                const url = `/scene-display/${selectedSceneId}?meetId=${currentMeet?.id || ''}`;
+                window.open(url, '_blank');
+              }}
+              data-testid="button-open-display"
+            >
+              <Maximize2 className="w-4 h-4 mr-1" />
+              Open Display
+            </Button>
+          )}
           <Separator orientation="vertical" className="h-6" />
           <Button
             variant="outline"

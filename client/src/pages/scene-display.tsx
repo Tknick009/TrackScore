@@ -1,0 +1,641 @@
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useParams, useLocation } from "wouter";
+import { queryClient } from "@/lib/queryClient";
+import type { 
+  SelectLayoutScene, 
+  SelectLayoutObject, 
+  EventWithEntries, 
+  Meet,
+  SceneDataBinding,
+  SceneObjectConfig,
+  SceneObjectStyle
+} from "@shared/schema";
+import { 
+  LiveResultsBoard, 
+  LiveTimeBoard, 
+  FieldEventBoard, 
+  StandingsBoard,
+  ScrollingResultsBoard 
+} from "@/components/display/templates";
+import { Trophy, Clock, Users, User, Image, Type, Award, Loader2 } from "lucide-react";
+
+interface SceneDisplayProps {
+  sceneId?: string;
+}
+
+interface ObjectData {
+  event?: EventWithEntries;
+  meet?: Meet;
+  liveData?: any;
+  standings?: any[];
+  isLoading?: boolean;
+  error?: any;
+}
+
+function useSceneObjects(sceneId: string | undefined) {
+  return useQuery<SelectLayoutObject[]>({
+    queryKey: ["/api/layout-objects", { sceneId }],
+    queryFn: async () => {
+      if (!sceneId) return [];
+      const res = await fetch(`/api/layout-objects?sceneId=${sceneId}`);
+      if (!res.ok) throw new Error("Failed to load objects");
+      return res.json();
+    },
+    enabled: !!sceneId,
+    staleTime: 5000,
+  });
+}
+
+function useScene(sceneId: string | undefined) {
+  return useQuery<SelectLayoutScene>({
+    queryKey: ["/api/layout-scenes", sceneId],
+    queryFn: async () => {
+      if (!sceneId) throw new Error("No scene ID");
+      const res = await fetch(`/api/layout-scenes/${sceneId}`);
+      if (!res.ok) throw new Error("Failed to load scene");
+      return res.json();
+    },
+    enabled: !!sceneId,
+    staleTime: 10000,
+  });
+}
+
+function useEventWithEntries(eventId: string | null | undefined) {
+  return useQuery<EventWithEntries>({
+    queryKey: [`/api/events/${eventId}/entries`],
+    enabled: !!eventId,
+    staleTime: 2000,
+    retry: 2,
+  });
+}
+
+function useMeet(meetId: string | null | undefined) {
+  return useQuery<Meet>({
+    queryKey: [`/api/meets/${meetId}`],
+    enabled: !!meetId,
+    staleTime: 60000,
+  });
+}
+
+function useLiveEventData(eventNumber: string | number | null | undefined) {
+  return useQuery({
+    queryKey: ["/api/live-events", eventNumber],
+    queryFn: async () => {
+      if (!eventNumber) return null;
+      const res = await fetch(`/api/live-events/${eventNumber}`);
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!eventNumber,
+    staleTime: 500,
+    refetchInterval: 1000,
+  });
+}
+
+function useTeamStandings(meetId: string | null | undefined) {
+  return useQuery({
+    queryKey: [`/api/meets/${meetId}/scoring/standings`],
+    enabled: !!meetId,
+    staleTime: 5000,
+  });
+}
+
+function SceneObjectRenderer({ 
+  object, 
+  meetId,
+  canvasWidth,
+  canvasHeight
+}: { 
+  object: SelectLayoutObject; 
+  meetId?: string;
+  canvasWidth: number;
+  canvasHeight: number;
+}) {
+  const dataBinding: SceneDataBinding = object.dataBinding || { sourceType: 'static' };
+  const componentConfig: SceneObjectConfig = object.config || {};
+  const styleConfig: SceneObjectStyle = object.style || {};
+  
+  const eventIds = dataBinding.eventIds;
+  const eventId = eventIds?.[0];
+  const lynxPort = dataBinding.lynxPort;
+  
+  const { data: event, isLoading: eventLoading } = useEventWithEntries(
+    dataBinding.sourceType === "events" ? eventId : null
+  );
+  const { data: meet } = useMeet(meetId);
+  const { data: liveData } = useLiveEventData(
+    dataBinding.sourceType === "live-data" ? lynxPort : null
+  );
+  const { data: standings } = useTeamStandings(
+    dataBinding.sourceType === "standings" ? meetId : null
+  );
+  
+  const left = (object.x / 100) * canvasWidth;
+  const top = (object.y / 100) * canvasHeight;
+  const width = (object.width / 100) * canvasWidth;
+  const height = (object.height / 100) * canvasHeight;
+  
+  const objectStyle: React.CSSProperties = {
+    position: "absolute",
+    left: `${left}px`,
+    top: `${top}px`,
+    width: `${width}px`,
+    height: `${height}px`,
+    zIndex: object.zIndex,
+    overflow: "hidden",
+    backgroundColor: styleConfig.backgroundColor || "transparent",
+    borderRadius: styleConfig.borderRadius || "0px",
+    opacity: styleConfig.opacity ?? 1,
+  };
+  
+  const renderContent = () => {
+    switch (object.objectType) {
+      case "results-table":
+        if (eventLoading) {
+          return (
+            <div className="flex items-center justify-center h-full bg-[hsl(var(--display-bg))]">
+              <Loader2 className="w-12 h-12 animate-spin text-[hsl(var(--display-accent))]" />
+            </div>
+          );
+        }
+        if (!event) {
+          return (
+            <div className="flex items-center justify-center h-full bg-[hsl(var(--display-bg))]">
+              <div className="text-center text-[hsl(var(--display-muted))]">
+                <Trophy className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                <p className="text-lg">No event data</p>
+              </div>
+            </div>
+          );
+        }
+        const boardType = componentConfig.boardType || "live-results";
+        if (event.status === "completed" && componentConfig.scrollOnComplete !== false) {
+          return <ScrollingResultsBoard event={event} meet={meet} mode="results" />;
+        }
+        if (boardType === "field-event") {
+          return <FieldEventBoard event={event} meet={meet} mode="live" />;
+        }
+        if (boardType === "live-time") {
+          return <LiveTimeBoard event={event} meet={meet} mode="live" />;
+        }
+        if (boardType === "standings") {
+          return <StandingsBoard event={event} meet={meet} mode="live" />;
+        }
+        return <LiveResultsBoard event={event} meet={meet} mode="live" />;
+        
+      case "timer":
+        return (
+          <div 
+            className="flex items-center justify-center h-full bg-[hsl(var(--display-bg))]"
+            style={{ fontSize: componentConfig.fontSize === 'xlarge' ? '96px' : componentConfig.fontSize === 'large' ? '72px' : componentConfig.fontSize === 'medium' ? '48px' : '36px' }}
+          >
+            <div className="font-stadium-numbers font-[900] text-[hsl(var(--display-fg))]">
+              {liveData?.runningTime || "00:00.00"}
+            </div>
+          </div>
+        );
+        
+      case "event-header":
+        return (
+          <div className="flex flex-col justify-center h-full p-4 bg-[hsl(var(--display-bg))]">
+            <h1 
+              className="font-stadium font-[900] text-[hsl(var(--display-fg))] uppercase truncate"
+              style={{ fontSize: componentConfig.fontSize === 'xlarge' ? '64px' : componentConfig.fontSize === 'large' ? '48px' : componentConfig.fontSize === 'medium' ? '36px' : '24px' }}
+            >
+              {event?.name || componentConfig.staticText || componentConfig.textContent || "Event Name"}
+            </h1>
+            {componentConfig.showStatus && event?.status && (
+              <p className="text-[hsl(var(--display-accent))] font-stadium text-lg uppercase">
+                {event.status}
+              </p>
+            )}
+          </div>
+        );
+        
+      case "logo":
+        const logoUrl = componentConfig.logoType === "meet" 
+          ? meet?.logoUrl 
+          : (componentConfig.logoUrl || componentConfig.imageUrl);
+        if (!logoUrl) {
+          return (
+            <div className="flex items-center justify-center h-full">
+              <Image className="w-12 h-12 text-[hsl(var(--display-muted))] opacity-30" />
+            </div>
+          );
+        }
+        return (
+          <div className="flex items-center justify-center h-full p-2">
+            <img 
+              src={logoUrl} 
+              alt="Logo" 
+              className="max-w-full max-h-full object-contain"
+              style={{ objectFit: componentConfig.objectFit || componentConfig.imageFit || "contain" }}
+            />
+          </div>
+        );
+        
+      case "text":
+        return (
+          <div 
+            className="flex items-center justify-center h-full p-2"
+            style={{
+              fontSize: componentConfig.fontSize === 'xlarge' ? '48px' : componentConfig.fontSize === 'large' ? '36px' : componentConfig.fontSize === 'medium' ? '24px' : '18px',
+              fontWeight: componentConfig.fontWeight || "normal",
+              color: componentConfig.textColor || styleConfig.textColor || "hsl(var(--display-fg))",
+              textAlign: componentConfig.textAlign || "center",
+            }}
+          >
+            {componentConfig.text || componentConfig.textContent || "Label"}
+          </div>
+        );
+        
+      case "team-standings":
+        if (!standings || !Array.isArray(standings)) {
+          return (
+            <div className="flex items-center justify-center h-full bg-[hsl(var(--display-bg))]">
+              <div className="text-center text-[hsl(var(--display-muted))]">
+                <Award className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                <p className="text-lg">No standings data</p>
+              </div>
+            </div>
+          );
+        }
+        const maxTeams = componentConfig.maxTeams || componentConfig.maxRows || 10;
+        const displayStandings = standings.slice(0, maxTeams);
+        return (
+          <div className="h-full bg-[hsl(var(--display-bg))] p-4 overflow-hidden">
+            <div className="flex items-center gap-2 mb-4">
+              <Award className="w-8 h-8 text-[hsl(var(--display-accent))]" />
+              <h2 className="font-stadium text-2xl font-[700] text-[hsl(var(--display-fg))]">
+                Team Standings
+              </h2>
+            </div>
+            <div className="space-y-2">
+              {displayStandings.map((team: any, index: number) => (
+                <div 
+                  key={team.teamId || index}
+                  className="flex items-center justify-between p-2 rounded bg-[hsl(var(--display-bg-elevated))]"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="font-stadium-numbers text-xl font-[700] text-[hsl(var(--display-accent))] w-8">
+                      {index + 1}
+                    </span>
+                    <span className="font-stadium text-lg text-[hsl(var(--display-fg))]">
+                      {team.teamName}
+                    </span>
+                  </div>
+                  <span className="font-stadium-numbers text-xl font-[700] text-[hsl(var(--display-fg))]">
+                    {team.totalPoints}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+        
+      case "athlete-grid":
+        if (eventLoading) {
+          return (
+            <div className="flex items-center justify-center h-full bg-[hsl(var(--display-bg))]">
+              <Loader2 className="w-12 h-12 animate-spin text-[hsl(var(--display-accent))]" />
+            </div>
+          );
+        }
+        if (!event?.entries?.length) {
+          return (
+            <div className="flex items-center justify-center h-full bg-[hsl(var(--display-bg))]">
+              <div className="text-center text-[hsl(var(--display-muted))]">
+                <Users className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                <p className="text-lg">No athletes</p>
+              </div>
+            </div>
+          );
+        }
+        const maxAthletes = componentConfig.maxRows || 8;
+        const columns = componentConfig.columns || 2;
+        const sortedEntries = [...event.entries].sort((a, b) => 
+          (a.finalLane ?? 999) - (b.finalLane ?? 999)
+        );
+        return (
+          <div className="h-full bg-[hsl(var(--display-bg))] p-4 overflow-hidden">
+            <div 
+              className="grid gap-2 h-full"
+              style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}
+            >
+              {sortedEntries.slice(0, maxAthletes).map((entry) => (
+                <div 
+                  key={entry.id}
+                  className="flex items-center gap-3 p-2 rounded bg-[hsl(var(--display-bg-elevated))]"
+                >
+                  <span className="font-stadium-numbers text-xl font-[700] text-[hsl(var(--display-accent))] w-8">
+                    {entry.finalLane || "-"}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <span className="font-stadium text-lg text-[hsl(var(--display-fg))] truncate block">
+                      {entry.athlete.firstName} {entry.athlete.lastName}
+                    </span>
+                    {entry.team && (
+                      <span className="text-sm text-[hsl(var(--display-muted))] truncate block">
+                        {entry.team.name}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      
+      case "clock":
+        const now = new Date();
+        const timeString = now.toLocaleTimeString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          second: componentConfig.showMilliseconds ? '2-digit' : undefined,
+          hour12: true 
+        });
+        return (
+          <div 
+            className="flex items-center justify-center h-full bg-[hsl(var(--display-bg))]"
+            style={{ fontSize: componentConfig.fontSize === 'xlarge' ? '72px' : componentConfig.fontSize === 'large' ? '56px' : componentConfig.fontSize === 'medium' ? '40px' : '28px' }}
+          >
+            <div className="font-stadium-numbers font-[700] text-[hsl(var(--display-fg))]">
+              {timeString}
+            </div>
+          </div>
+        );
+        
+      case "wind-reading":
+        const windValue = liveData?.wind || event?.entries?.[0]?.finalWind;
+        return (
+          <div 
+            className="flex items-center justify-center h-full bg-[hsl(var(--display-bg))] gap-2"
+            style={{ fontSize: componentConfig.fontSize === 'xlarge' ? '48px' : componentConfig.fontSize === 'large' ? '36px' : componentConfig.fontSize === 'medium' ? '28px' : '20px' }}
+          >
+            <span className="text-[hsl(var(--display-muted))]">Wind:</span>
+            <span className="font-stadium-numbers font-[700] text-[hsl(var(--display-fg))]">
+              {windValue !== undefined && windValue !== null ? `${windValue > 0 ? '+' : ''}${windValue.toFixed(1)}` : '--.-'} m/s
+            </span>
+          </div>
+        );
+        
+      case "athlete-card":
+        const athlete = event?.entries?.[0];
+        if (!athlete) {
+          return (
+            <div className="flex items-center justify-center h-full bg-[hsl(var(--display-bg))]">
+              <User className="w-16 h-16 text-[hsl(var(--display-muted))] opacity-50" />
+            </div>
+          );
+        }
+        return (
+          <div className="h-full bg-[hsl(var(--display-bg))] p-4 flex flex-col items-center justify-center">
+            <div className="w-24 h-24 rounded-full bg-[hsl(var(--display-bg-elevated))] flex items-center justify-center mb-4">
+              <User className="w-12 h-12 text-[hsl(var(--display-muted))]" />
+            </div>
+            <h3 className="font-stadium text-2xl font-[700] text-[hsl(var(--display-fg))] text-center">
+              {athlete.athlete.firstName} {athlete.athlete.lastName}
+            </h3>
+            {athlete.team && (
+              <p className="text-lg text-[hsl(var(--display-muted))]">{athlete.team.name}</p>
+            )}
+            {athlete.finalPlace && (
+              <div className="mt-2 px-4 py-1 rounded-full bg-[hsl(var(--display-accent))]">
+                <span className="font-stadium-numbers text-xl font-[900] text-[hsl(var(--display-bg))]">
+                  #{athlete.finalPlace}
+                </span>
+              </div>
+            )}
+          </div>
+        );
+        
+      case "lane-graphic":
+        const laneCount = componentConfig.totalLanes || 8;
+        const laneEntries = event?.entries || [];
+        return (
+          <div className="h-full bg-[hsl(var(--display-bg))] p-4">
+            <div className="flex h-full gap-1">
+              {Array.from({ length: laneCount }, (_, i) => {
+                const laneNum = i + 1;
+                const entry = laneEntries.find(e => e.finalLane === laneNum);
+                return (
+                  <div 
+                    key={laneNum}
+                    className="flex-1 flex flex-col items-center justify-end bg-[hsl(var(--display-bg-elevated))] rounded-t p-2"
+                  >
+                    <span className="font-stadium text-sm text-[hsl(var(--display-fg))] truncate max-w-full">
+                      {entry ? `${entry.athlete.firstName.charAt(0)}. ${entry.athlete.lastName}` : '-'}
+                    </span>
+                    <span className="font-stadium-numbers text-lg font-[700] text-[hsl(var(--display-accent))]">
+                      {laneNum}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+        
+      case "attempt-tracker":
+      case "split-times":
+      case "record-indicator":
+        return (
+          <div className="flex items-center justify-center h-full bg-[hsl(var(--display-bg))] border border-dashed border-[hsl(var(--display-border))]">
+            <div className="text-center text-[hsl(var(--display-muted))]">
+              <p className="text-lg capitalize">{object.objectType.replace('-', ' ')}</p>
+              <p className="text-sm">Coming soon</p>
+            </div>
+          </div>
+        );
+        
+      default:
+        return (
+          <div className="flex items-center justify-center h-full bg-[hsl(var(--display-bg))] border border-dashed border-[hsl(var(--display-muted))]">
+            <p className="text-[hsl(var(--display-muted))]">
+              Unknown object type: {object.objectType}
+            </p>
+          </div>
+        );
+    }
+  };
+  
+  return (
+    <div style={objectStyle} data-testid={`scene-object-${object.id}`}>
+      {renderContent()}
+    </div>
+  );
+}
+
+export default function SceneDisplay() {
+  const params = useParams();
+  const [location] = useLocation();
+  
+  const urlParams = new URLSearchParams(location.split("?")[1] || "");
+  const sceneId = params.sceneId || urlParams.get("sceneId") || undefined;
+  const meetId = urlParams.get("meetId") || undefined;
+  
+  const [dimensions, setDimensions] = useState({ width: 1920, height: 1080 });
+  
+  const { data: scene, isLoading: sceneLoading, error: sceneError } = useScene(sceneId);
+  const { data: objects = [], isLoading: objectsLoading } = useSceneObjects(sceneId);
+  
+  const sortedObjects = useMemo(() => {
+    return [...objects].sort((a, b) => a.zIndex - b.zIndex);
+  }, [objects]);
+  
+  useEffect(() => {
+    const updateDimensions = () => {
+      setDimensions({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+    };
+    
+    updateDimensions();
+    window.addEventListener("resize", updateDimensions);
+    return () => window.removeEventListener("resize", updateDimensions);
+  }, []);
+  
+  useEffect(() => {
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    
+    const websocket = new WebSocket(wsUrl);
+    
+    websocket.onopen = () => {
+      console.log("Scene display WebSocket connected");
+    };
+    
+    websocket.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        
+        switch (message.type) {
+          case "event_update":
+          case "board_update":
+          case "entry_update":
+            if (message.data?.id || message.data?.eventId) {
+              const eventId = message.data.id || message.data.eventId || message.data?.currentEvent?.id;
+              if (eventId) {
+                queryClient.invalidateQueries({
+                  queryKey: [`/api/events/${eventId}/entries`],
+                });
+              }
+            }
+            break;
+            
+          case "live_data_update":
+            if (message.data?.eventNumber) {
+              queryClient.invalidateQueries({
+                queryKey: ["/api/live-events", message.data.eventNumber],
+              });
+            }
+            break;
+            
+          case "standings_update":
+            if (meetId) {
+              queryClient.invalidateQueries({
+                queryKey: [`/api/meets/${meetId}/scoring/standings`],
+              });
+            }
+            break;
+            
+          case "scene_update":
+            if (sceneId) {
+              queryClient.invalidateQueries({
+                queryKey: ["/api/layout-scenes", sceneId],
+              });
+              queryClient.invalidateQueries({
+                queryKey: ["/api/layout-objects", { sceneId }],
+              });
+            }
+            break;
+        }
+      } catch (error) {
+        console.error("WebSocket message parse error:", error);
+      }
+    };
+    
+    websocket.onerror = (error) => {
+      console.error("Scene display WebSocket error:", error);
+    };
+    
+    websocket.onclose = () => {
+      console.log("Scene display WebSocket disconnected");
+    };
+    
+    return () => {
+      if (websocket.readyState === WebSocket.OPEN) {
+        websocket.close();
+      }
+    };
+  }, [sceneId, meetId]);
+  
+  if (sceneLoading || objectsLoading) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-[hsl(var(--display-bg))]">
+        <div className="text-center">
+          <Loader2 className="w-24 h-24 animate-spin text-[hsl(var(--display-accent))] mx-auto mb-4" />
+          <p className="text-2xl font-stadium text-[hsl(var(--display-muted))]">
+            Loading scene...
+          </p>
+        </div>
+      </div>
+    );
+  }
+  
+  if (sceneError || !scene) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-[hsl(var(--display-bg))]">
+        <div className="text-center">
+          <Trophy className="w-24 h-24 text-[hsl(var(--display-warning))] mx-auto mb-4" />
+          <p className="text-2xl font-stadium text-[hsl(var(--display-fg))] mb-2">
+            Scene Not Found
+          </p>
+          <p className="text-lg text-[hsl(var(--display-muted))]">
+            The requested scene could not be loaded
+          </p>
+        </div>
+      </div>
+    );
+  }
+  
+  const backgroundColor = scene.backgroundColor || "hsl(var(--display-bg))";
+  
+  return (
+    <div 
+      className="fixed inset-0 overflow-hidden"
+      style={{ backgroundColor }}
+      data-testid="scene-display"
+    >
+      <div 
+        className="relative w-full h-full"
+        style={{ 
+          width: dimensions.width, 
+          height: dimensions.height,
+        }}
+      >
+        {sortedObjects.map((obj) => (
+          <SceneObjectRenderer 
+            key={obj.id} 
+            object={obj} 
+            meetId={meetId}
+            canvasWidth={dimensions.width}
+            canvasHeight={dimensions.height}
+          />
+        ))}
+        
+        {sortedObjects.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center text-[hsl(var(--display-muted))]">
+              <Trophy className="w-32 h-32 mx-auto mb-8 opacity-30" />
+              <p className="text-4xl font-stadium">Empty Scene</p>
+              <p className="text-xl mt-4">Add objects in the Scene Editor</p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

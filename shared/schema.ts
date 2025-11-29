@@ -1044,10 +1044,27 @@ export type SceneObjectConfig = {
   // Text options
   textContent?: string;
   textAlign?: 'left' | 'center' | 'right';
+  text?: string;
+  fontWeight?: string;
+  textColor?: string;
   
   // Logo options
   imageUrl?: string;
   imageFit?: 'contain' | 'cover' | 'fill';
+  logoType?: 'meet' | 'custom';
+  logoUrl?: string;
+  objectFit?: 'contain' | 'cover' | 'fill';
+  
+  // Results table options
+  boardType?: 'live-results' | 'live-time' | 'field-event' | 'standings' | 'scrolling';
+  scrollOnComplete?: boolean;
+  
+  // Event header options
+  staticText?: string;
+  showStatus?: boolean;
+  
+  // Standings options
+  maxTeams?: number;
 };
 
 // Scene Object Style - visual styling

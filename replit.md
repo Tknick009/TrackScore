@@ -34,6 +34,34 @@ Preferred communication style: Simple, everyday language.
 
 **Layout Template System:** Pre-built layout templates for LED displays (P10, P6) including Start List, Running Time, Results, Field Results, Field Standings, and Meet Logo. Templates use percentage-based positioning for resolution independence. API endpoints for listing and applying templates.
 
+### Scene-Based Layout System (ResulTV-Style)
+
+**Database Schema:** `layout_scenes` table defines display canvases with dimensions, background color/image, and template flags. `layout_objects` table contains individual display components within scenes, with percentage-based positioning (x, y, width, height), z-index layering, and JSONB fields for data bindings, component config, and styling.
+
+**Object Type Registry:** 14 object types including results-table, timer, event-header, athlete-card, athlete-grid, team-standings, lane-graphic, attempt-tracker, logo, text, clock, wind-reading, split-times, and record-indicator. Each type categorized for palette organization.
+
+**Data Binding System:** Objects support multiple data source types: 'static', 'events', 'current-track', 'current-field', 'live-data', and 'standings'. Bindings include eventIds, lynxPort, divisionId, heatNumber, and limit options for flexible data mapping.
+
+**Scene Editor UI:** Visual canvas editor at `/control/:meetId/scene-editor` with:
+- Scene list sidebar for managing multiple scenes per meet
+- Drag-and-drop canvas with grid overlay for precise positioning
+- Object palette organized by category (data display, timing, athletes, etc.)
+- Property inspector for configuring data bindings and styling
+- Preview mode and full-screen display launch
+
+**Scene Display Runtime:** `/scene-display/:sceneId` renders scenes with live data by:
+- Loading scene and objects from API
+- Subscribing each object to its configured data sources via WebSocket
+- Rendering appropriate display components based on object type
+- Responding to real-time updates for events, live data, and standings
+
+**API Endpoints:**
+- `GET/POST /api/layout-scenes` - List/create scenes
+- `GET/PATCH/DELETE /api/layout-scenes/:id` - Scene CRUD operations
+- `GET/POST /api/layout-objects` - List/create objects for a scene
+- `GET/PATCH/DELETE /api/layout-objects/:id` - Object CRUD operations
+- `POST /api/layout-objects/reorder` - Reorder objects within scene
+
 ### Database Schema (Drizzle ORM)
 
 **Core Tables:** `athletes`, `events`, `track_results`, `field_results`, `meets`.
