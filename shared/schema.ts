@@ -1399,7 +1399,15 @@ export type WSMessage =
   | { type: "overlay_show"; overlayType: string; config: Record<string, any> }
   | { type: "overlay_hide"; overlayType: string }
   | { type: "overlay_update"; overlayType: string; data: Record<string, any> }
-  | { type: "weather_update"; meetId: string; reading: WeatherReading };
+  | { type: "weather_update"; meetId: string; reading: WeatherReading }
+  | { type: "devices_updated"; data: { meetId: string } }
+  | { type: "display_assignment"; data: { deviceId: string; deviceName: string; eventId: string | null; event: any; meet: any } }
+  | { type: "track_mode_change"; data: { eventNumber: number; mode: TrackDisplayMode; eventId?: string; [key: string]: any } }
+  | { type: "clock_update"; data: { eventNumber: number; time: string; isRunning: boolean } }
+  | { type: "result_received"; data: { eventNumber: number; lane: number; place: number; time: string; athleteName?: string } }
+  | { type: "field_mode_change"; data: { eventNumber: number; mode: FieldDisplayMode; [key: string]: any } }
+  | { type: "field_athlete_up"; data: { eventNumber: number; athleteName: string; attemptNumber: number; mark?: string } }
+  | { type: "lynx_connection"; data: { portType: LynxPortType; connected: boolean } };
 
 export type OverlayType = 'lower-third' | 'scorebug' | 'athlete-spotlight' | 'team-standings';
 
