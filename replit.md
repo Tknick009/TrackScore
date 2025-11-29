@@ -74,6 +74,23 @@ Preferred communication style: Simple, everyday language.
 
 **Event Name Generation:** Generates comprehensive event names based on gender codes, event types (track, field, multi-events), and session names where applicable.
 
+### Lynx Protocol Integration
+
+**Protocol Parser:** JSON-based Lynx protocol parser with streaming assembly and control character sanitization. Handles three message types: "S" (start list), "T" (track/timing), "F" (field) with structured data extraction.
+
+**Auto-Start on Boot:** Lynx listeners automatically start on server boot by loading saved configurations from the `lynx_configs` database table. Falls back to environment variables (`LYNX_CLOCK_PORT`, `LYNX_RESULTS_PORT`, `LYNX_FIELD_PORT`) if no saved configs exist.
+
+**Live Event Data Storage:** Incoming track and field results are stored to the `live_event_data` table indexed by event number, enabling support for concurrent events. Data includes mode, status, wind readings, entries, running time, and attempt details.
+
+**Aggregation System:** 250ms timeout aggregates multiple athlete entries per event/heat/round before storage, using composite keys (event number, heat, flight, round, port type) to prevent collisions.
+
+**API Endpoints:**
+- `GET /api/live-events/:eventNumber` - Get live data for specific event
+- `GET /api/live-events` - Get all live events (optionally filtered by meet)
+- `DELETE /api/live-events` - Clear live event data
+- `GET /api/lynx/saved-configs` - Get saved Lynx port configurations
+- `POST /api/lynx/config` - Configure and save Lynx ports (auto-saves to database)
+
 ## External Dependencies
 
 ### Third-Party UI Libraries

@@ -88,6 +88,10 @@ import {
   type InsertWeatherConfig,
   type WeatherReading,
   type InsertWeatherReading,
+  type LynxConfig,
+  type InsertLynxConfig,
+  type LiveEventData,
+  type InsertLiveEventData,
   events,
   athletes,
   entries,
@@ -128,6 +132,8 @@ import {
   combinedEvents,
   combinedEventComponents,
   combinedEventTotals,
+  lynxConfigs,
+  liveEventData,
   isTimeEvent,
   isDistanceEvent,
   isHeightEvent,
@@ -411,6 +417,18 @@ export interface IStorage {
   addWeatherReading(reading: InsertWeatherReading): Promise<WeatherReading>;
   getLatestWeatherReading(meetId: string): Promise<WeatherReading | null>;
   getWeatherHistory(meetId: string, hoursBack: number): Promise<WeatherReading[]>;
+
+  // Lynx Configuration
+  getLynxConfigs(meetId?: string): Promise<LynxConfig[]>;
+  saveLynxConfig(config: InsertLynxConfig): Promise<LynxConfig>;
+  deleteLynxConfigs(meetId?: string): Promise<void>;
+
+  // Live Event Data (from Lynx)
+  getLiveEventData(eventNumber: number, meetId?: string): Promise<LiveEventData | null>;
+  getLiveEventsByMeet(meetId?: string): Promise<LiveEventData[]>;
+  upsertLiveEventData(data: InsertLiveEventData): Promise<LiveEventData>;
+  updateLiveEventEntries(eventNumber: number, entries: any[], meetId?: string): Promise<LiveEventData | null>;
+  clearLiveEventData(meetId?: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2517,6 +2535,106 @@ export class DatabaseStorage implements IStorage {
         )
       )
       .orderBy(sql`${weatherReadings.observedAt} ASC`);
+  }
+
+  // Lynx Configuration
+  async getLynxConfigs(meetId?: string): Promise<LynxConfig[]> {
+    if (meetId) {
+      return db.select().from(lynxConfigs).where(eq(lynxConfigs.meetId, meetId));
+    }
+    return db.select().from(lynxConfigs);
+  }
+
+  async saveLynxConfig(config: InsertLynxConfig): Promise<LynxConfig> {
+    const [result] = await db
+      .insert(lynxConfigs)
+      .values(config)
+      .returning();
+    return result;
+  }
+
+  async deleteLynxConfigs(meetId?: string): Promise<void> {
+    if (meetId) {
+      await db.delete(lynxConfigs).where(eq(lynxConfigs.meetId, meetId));
+    } else {
+      await db.delete(lynxConfigs).where(isNull(lynxConfigs.meetId));
+    }
+  }
+
+  // Live Event Data (from Lynx)
+  async getLiveEventData(eventNumber: number, meetId?: string): Promise<LiveEventData | null> {
+    const conditions = [eq(liveEventData.eventNumber, eventNumber)];
+    if (meetId) {
+      conditions.push(eq(liveEventData.meetId, meetId));
+    }
+    
+    const [result] = await db
+      .select()
+      .from(liveEventData)
+      .where(and(...conditions))
+      .orderBy(desc(liveEventData.lastUpdateAt))
+      .limit(1);
+    
+    return result || null;
+  }
+
+  async getLiveEventsByMeet(meetId?: string): Promise<LiveEventData[]> {
+    if (meetId) {
+      return db.select().from(liveEventData).where(eq(liveEventData.meetId, meetId));
+    }
+    return db.select().from(liveEventData);
+  }
+
+  async upsertLiveEventData(data: InsertLiveEventData): Promise<LiveEventData> {
+    const [result] = await db
+      .insert(liveEventData)
+      .values({
+        ...data,
+        lastUpdateAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: [liveEventData.eventNumber, liveEventData.heat, liveEventData.round, liveEventData.flight, liveEventData.eventType, liveEventData.meetId],
+        set: {
+          mode: data.mode,
+          status: data.status,
+          wind: data.wind,
+          distance: data.distance,
+          entries: data.entries,
+          runningTime: data.runningTime,
+          isArmed: data.isArmed,
+          isRunning: data.isRunning,
+          lastUpdateAt: new Date(),
+        },
+      })
+      .returning();
+    
+    return result;
+  }
+
+  async updateLiveEventEntries(eventNumber: number, entries: any[], meetId?: string): Promise<LiveEventData | null> {
+    const conditions = [eq(liveEventData.eventNumber, eventNumber)];
+    if (meetId) {
+      conditions.push(eq(liveEventData.meetId, meetId));
+    }
+    
+    const [result] = await db
+      .update(liveEventData)
+      .set({
+        entries: entries,
+        lastUpdateAt: new Date(),
+      })
+      .where(and(...conditions))
+      .returning();
+    
+    return result || null;
+  }
+
+  async clearLiveEventData(meetId?: string): Promise<void> {
+    if (meetId) {
+      await db.delete(liveEventData).where(eq(liveEventData.meetId, meetId));
+    } else {
+      await db.delete(liveEventData);
+    }
   }
 }
 

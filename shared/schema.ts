@@ -1688,6 +1688,90 @@ export interface LynxPacket {
   timestamp: number;
 }
 
+// ====================
+// LYNX CONFIGURATION (per-meet port settings)
+// ====================
+
+export const lynxConfigs = pgTable('lynx_configs', {
+  id: serial('id').primaryKey(),
+  meetId: varchar('meet_id').references(() => meets.id, { onDelete: 'cascade' }),
+  portType: text('port_type').notNull(), // clock, results, field, start_list
+  port: integer('port').notNull(),
+  name: text('name').notNull(),
+  enabled: boolean('enabled').default(true),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  meetIdIdx: index('lynx_configs_meet_id_idx').on(table.meetId),
+}));
+
+export const insertLynxConfigSchema = createInsertSchema(lynxConfigs).omit({ id: true, createdAt: true });
+export type InsertLynxConfig = z.infer<typeof insertLynxConfigSchema>;
+export type LynxConfig = typeof lynxConfigs.$inferSelect;
+
+// ====================
+// LIVE EVENT DATA (real-time results from Lynx)
+// ====================
+
+export const liveEventData = pgTable('live_event_data', {
+  id: serial('id').primaryKey(),
+  eventNumber: integer('event_number').notNull(),
+  meetId: varchar('meet_id').references(() => meets.id, { onDelete: 'cascade' }),
+  eventType: text('event_type').notNull(), // track, field
+  mode: text('mode').notNull(), // start_list, running, results, athlete_up
+  heat: integer('heat').default(1),
+  round: integer('round').default(1),
+  flight: integer('flight').default(1),
+  wind: text('wind'),
+  status: text('status'), // ARMED, RUNNING, OFFICIAL, etc.
+  distance: text('distance'),
+  entries: jsonb('entries').default([]), // Array of athletes with results
+  runningTime: text('running_time'),
+  isArmed: boolean('is_armed').default(false),
+  isRunning: boolean('is_running').default(false),
+  lastUpdateAt: timestamp('last_update_at').defaultNow(),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  eventNumberIdx: index('live_event_data_event_number_idx').on(table.eventNumber),
+  meetIdIdx: index('live_event_data_meet_id_idx').on(table.meetId),
+  eventTypeIdx: index('live_event_data_event_type_idx').on(table.eventType),
+  uniqueEventHeat: unique('live_event_data_unique').on(table.eventNumber, table.heat, table.round, table.flight, table.eventType, table.meetId),
+}));
+
+export const insertLiveEventDataSchema = createInsertSchema(liveEventData).omit({ id: true, lastUpdateAt: true, createdAt: true });
+export type InsertLiveEventData = z.infer<typeof insertLiveEventDataSchema>;
+export type LiveEventData = typeof liveEventData.$inferSelect;
+
+// Live track result entry structure
+export interface LiveTrackEntry {
+  place?: string;
+  lane?: string;
+  bib?: string;
+  name?: string;
+  affiliation?: string;
+  time?: string;
+  reactionTime?: string;
+  lapsToGo?: string;
+  cumulativeSplit?: string;
+  lastSplit?: string;
+  firstName?: string;
+  lastName?: string;
+}
+
+// Live field result entry structure
+export interface LiveFieldEntry {
+  place?: string;
+  name?: string;
+  affiliation?: string;
+  bib?: string;
+  mark?: string;
+  attemptNumber?: string;
+  attempts?: string; // XO, XXO, etc.
+  wind?: string;
+  markConverted?: string;
+  bestMark?: string;
+  attemptMarks?: string[];
+}
+
 // Meet live state aggregate (for API responses)
 export interface MeetLiveState {
   meetId: string;

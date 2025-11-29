@@ -3991,10 +3991,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           port: z.number().min(1024).max(65535),
           portType: z.enum(['clock', 'results', 'field', 'start_list']),
           name: z.string(),
-        }))
+          host: z.string().optional(),
+        })),
+        meetId: z.string().optional(),
+        saveToDatabase: z.boolean().optional(),
       });
       
-      const { ports } = configSchema.parse(req.body);
+      const { ports, meetId, saveToDatabase } = configSchema.parse(req.body);
       
       // Stop existing listeners
       lynxListener.stop();
@@ -4002,6 +4005,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Configure and start new listeners
       lynxListener.configure(ports);
       lynxListener.start();
+      
+      // Save config to database for auto-start on boot
+      if (saveToDatabase !== false) {
+        // Clear existing configs for this meet
+        await storage.deleteLynxConfigs(meetId);
+        
+        // Save new configs
+        for (const port of ports) {
+          await storage.saveLynxConfig({
+            port: port.port,
+            portType: port.portType,
+            name: port.name,
+            host: port.host || null,
+            meetId: meetId || null,
+            enabled: true,
+          });
+        }
+        console.log(`[Lynx] Saved ${ports.length} port configs to database`);
+      }
       
       res.json({ success: true, ports: lynxListener.getStatus() });
     } catch (error: any) {
@@ -4056,14 +4078,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update Lynx config for a specific meet
   app.post("/api/lynx/config/:meetId", async (req, res) => {
     try {
-      const { clockPort, resultsPort, startListPort, fieldPort, enabled } = req.body;
+      const { meetId } = req.params;
+      const { clockPort, resultsPort, startListPort, fieldPort, enabled, host } = req.body;
       
       // Reconfigure the listener with new ports
       const ports = [
-        { port: clockPort || 4000, portType: 'clock' as const, name: 'Clock' },
-        { port: resultsPort || 4001, portType: 'results' as const, name: 'Results' },
-        { port: startListPort || 4002, portType: 'start_list' as const, name: 'Start List' },
-        { port: fieldPort || 4003, portType: 'field' as const, name: 'Field' },
+        { port: clockPort || 4000, portType: 'clock' as const, name: 'Clock', host },
+        { port: resultsPort || 4001, portType: 'results' as const, name: 'Results', host },
+        { port: startListPort || 4002, portType: 'start_list' as const, name: 'Start List', host },
+        { port: fieldPort || 4003, portType: 'field' as const, name: 'Field', host },
       ];
       
       lynxListener.stop();
@@ -4072,6 +4095,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (enabled) {
         lynxListener.start();
       }
+      
+      // Save config to database for auto-start on boot
+      await storage.deleteLynxConfigs(meetId);
+      for (const port of ports) {
+        await storage.saveLynxConfig({
+          port: port.port,
+          portType: port.portType,
+          name: port.name,
+          host: port.host || null,
+          meetId: meetId,
+          enabled: enabled !== false,
+        });
+      }
+      console.log(`[Lynx] Saved ${ports.length} port configs for meet ${meetId}`);
       
       res.json({ success: true, status: lynxListener.getStatus() });
     } catch (error: any) {
@@ -4085,6 +4122,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
       lynxListener.stop();
       lynxListener.start();
       res.json({ success: true, status: lynxListener.getStatus() });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get live event data by event number
+  app.get("/api/live-events/:eventNumber", async (req, res) => {
+    try {
+      const eventNumber = parseInt(req.params.eventNumber);
+      const meetId = req.query.meetId as string | undefined;
+      
+      const data = await storage.getLiveEventData(eventNumber, meetId);
+      if (!data) {
+        return res.status(404).json({ error: "No live data for this event" });
+      }
+      
+      res.json(data);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get all live events for a meet
+  app.get("/api/live-events", async (req, res) => {
+    try {
+      const meetId = req.query.meetId as string | undefined;
+      const events = await storage.getLiveEventsByMeet(meetId);
+      res.json(events);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Clear live event data
+  app.delete("/api/live-events", async (req, res) => {
+    try {
+      const meetId = req.query.meetId as string | undefined;
+      await storage.clearLiveEventData(meetId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get saved Lynx configs
+  app.get("/api/lynx/saved-configs", async (req, res) => {
+    try {
+      const meetId = req.query.meetId as string | undefined;
+      const configs = await storage.getLynxConfigs(meetId);
+      res.json(configs);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -4140,31 +4227,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Set up Lynx listener event handlers
+  // Set up Lynx listener event handlers - store data by event number
   lynxListener.on('track-mode-change', async (eventNumber, mode, data) => {
     console.log(`[Lynx] Track mode change: Event ${eventNumber} → ${mode}`, data);
     liveState.trackMode = mode;
     liveState.currentEventNumber = eventNumber;
     liveState.isArmed = data.armed || false;
     
-    // Find event by event number and broadcast update
     try {
-      const meets = await storage.getMeets();
-      if (meets.length > 0) {
-        const events = await storage.getEventsByMeetId(meets[0].id);
-        const event = events.find(e => e.eventNumber === eventNumber);
-        
-        // Broadcast display mode change
-        broadcastToDisplays({
-          type: 'track_mode_change',
-          data: {
-            eventNumber,
-            mode,
-            eventId: event?.id,
-            ...data,
-          }
-        });
-      }
+      // Store live event data to database
+      await storage.upsertLiveEventData({
+        eventNumber,
+        eventType: 'track',
+        mode,
+        heat: data.heat || 1,
+        round: data.round || 1,
+        flight: 1,
+        wind: data.wind,
+        status: data.status,
+        distance: data.distance,
+        entries: data.entries || data.results || [],
+        runningTime: data.time,
+        isArmed: data.armed || false,
+        isRunning: mode === 'running',
+      });
+
+      // Broadcast display mode change
+      broadcastToDisplays({
+        type: 'track_mode_change',
+        data: {
+          eventNumber,
+          mode,
+          ...data,
+        }
+      });
     } catch (error) {
       console.error('[Lynx] Error handling track mode change:', error);
     }
@@ -4174,7 +4270,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     liveState.runningTime = time;
     liveState.isRunning = isRunning;
     
-    // Broadcast clock update (throttled to avoid flooding)
+    try {
+      // Update live event data with running time
+      const existing = await storage.getLiveEventData(eventNumber);
+      if (existing) {
+        await storage.upsertLiveEventData({
+          eventNumber,
+          eventType: 'track',
+          mode: 'running',
+          heat: existing.heat || 1,
+          round: existing.round || 1,
+          flight: 1,
+          runningTime: time,
+          isRunning,
+          entries: existing.entries || [],
+        });
+      }
+    } catch (error) {
+      console.error('[Lynx] Error updating clock:', error);
+    }
+    
+    // Broadcast clock update
     broadcastToDisplays({
       type: 'clock_update',
       data: {
@@ -4187,6 +4303,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   lynxListener.on('result', async (eventNumber, lane, place, time, athleteName) => {
     console.log(`[Lynx] Result: Event ${eventNumber}, Lane ${lane}, Place ${place}, Time ${time}`);
+    
+    try {
+      // Get existing entries and merge new result
+      const existing = await storage.getLiveEventData(eventNumber);
+      const entries = (existing?.entries as any[]) || [];
+      
+      // Find or add entry for this lane
+      const laneStr = String(lane);
+      const existingIdx = entries.findIndex((e: any) => e.lane === laneStr);
+      const newEntry = {
+        lane: laneStr,
+        place: String(place),
+        time,
+        name: athleteName,
+      };
+      
+      if (existingIdx >= 0) {
+        entries[existingIdx] = { ...entries[existingIdx], ...newEntry };
+      } else {
+        entries.push(newEntry);
+      }
+      
+      // Store updated entries
+      await storage.upsertLiveEventData({
+        eventNumber,
+        eventType: 'track',
+        mode: 'results',
+        heat: existing?.heat || 1,
+        round: existing?.round || 1,
+        flight: 1,
+        entries,
+        isRunning: false,
+      });
+    } catch (error) {
+      console.error('[Lynx] Error storing result:', error);
+    }
     
     // Broadcast result
     broadcastToDisplays({
@@ -4206,10 +4358,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     liveState.activeFieldEvents.set(eventNumber, {
       mode,
-      athleteName: data.athlete,
-      attemptNumber: data.attempt,
+      athleteName: data.athleteName,
+      attemptNumber: data.attemptNumber,
       mark: data.mark,
     });
+    
+    try {
+      // Store field event data to database
+      await storage.upsertLiveEventData({
+        eventNumber,
+        eventType: 'field',
+        mode,
+        heat: 1,
+        round: data.round || 1,
+        flight: data.flight || 1,
+        wind: data.wind,
+        status: data.officialStatus,
+        entries: data.results || [],
+      });
+    } catch (error) {
+      console.error('[Lynx] Error storing field mode change:', error);
+    }
     
     // Broadcast field event update
     broadcastToDisplays({
@@ -4218,6 +4387,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
         eventNumber,
         mode,
         ...data,
+      }
+    } as WSMessage);
+  });
+
+  lynxListener.on('field-result', async (eventNumber, athleteName, place, mark, attemptNumber, attempts) => {
+    console.log(`[Lynx] Field result: Event ${eventNumber}, ${athleteName}, Place ${place}, Mark ${mark}`);
+    
+    try {
+      // Get existing entries and merge new result
+      const existing = await storage.getLiveEventData(eventNumber);
+      const entries = (existing?.entries as any[]) || [];
+      
+      // Find or add entry for this athlete
+      const existingIdx = entries.findIndex((e: any) => e.name === athleteName);
+      const newEntry = {
+        name: athleteName,
+        place: String(place),
+        mark,
+        attemptNumber: String(attemptNumber),
+        attempts,
+      };
+      
+      if (existingIdx >= 0) {
+        entries[existingIdx] = { ...entries[existingIdx], ...newEntry };
+      } else {
+        entries.push(newEntry);
+      }
+      
+      // Store updated entries
+      await storage.upsertLiveEventData({
+        eventNumber,
+        eventType: 'field',
+        mode: 'results',
+        heat: 1,
+        round: existing?.round || 1,
+        flight: existing?.flight || 1,
+        entries,
+      });
+    } catch (error) {
+      console.error('[Lynx] Error storing field result:', error);
+    }
+    
+    // Broadcast field result
+    broadcastToDisplays({
+      type: 'field_result',
+      data: {
+        eventNumber,
+        athleteName,
+        place,
+        mark,
+        attemptNumber,
+        attempts,
       }
     } as WSMessage);
   });
@@ -4233,6 +4454,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
         athleteName,
         attemptNumber,
         mark,
+      }
+    } as WSMessage);
+  });
+  
+  lynxListener.on('start-list', async (eventNumber, heat, entries) => {
+    console.log(`[Lynx] Start list: Event ${eventNumber}, Heat ${heat}, ${entries.length} entries`);
+    
+    try {
+      // Store start list to database
+      await storage.upsertLiveEventData({
+        eventNumber,
+        eventType: 'track',
+        mode: 'start_list',
+        heat,
+        round: 1,
+        flight: 1,
+        entries,
+        isArmed: true,
+        isRunning: false,
+      });
+    } catch (error) {
+      console.error('[Lynx] Error storing start list:', error);
+    }
+    
+    // Broadcast start list
+    broadcastToDisplays({
+      type: 'start_list',
+      data: {
+        eventNumber,
+        heat,
+        entries,
       }
     } as WSMessage);
   });
@@ -4253,23 +4505,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.error(`[Lynx] Error on ${portType}:`, error.message);
   });
 
-  // Auto-configure Lynx listeners with default ports if env vars set
-  const defaultLynxConfig = [];
-  if (process.env.LYNX_CLOCK_PORT) {
-    defaultLynxConfig.push({ port: parseInt(process.env.LYNX_CLOCK_PORT), portType: 'clock' as LynxPortType, name: 'FinishLynx Clock' });
-  }
-  if (process.env.LYNX_RESULTS_PORT) {
-    defaultLynxConfig.push({ port: parseInt(process.env.LYNX_RESULTS_PORT), portType: 'results' as LynxPortType, name: 'FinishLynx Results' });
-  }
-  if (process.env.LYNX_FIELD_PORT) {
-    defaultLynxConfig.push({ port: parseInt(process.env.LYNX_FIELD_PORT), portType: 'field' as LynxPortType, name: 'FieldLynx' });
-  }
-  
-  if (defaultLynxConfig.length > 0) {
-    lynxListener.configure(defaultLynxConfig);
-    lynxListener.start();
-    console.log(`✅ Lynx listeners started with ${defaultLynxConfig.length} ports`);
-  }
+  // Auto-start Lynx listeners from saved configs or environment variables
+  (async () => {
+    try {
+      // First try to load saved configs from database
+      const savedConfigs = await storage.getLynxConfigs();
+      
+      if (savedConfigs.length > 0) {
+        // Use saved database configs
+        const lynxPortConfigs = savedConfigs.map(cfg => ({
+          port: cfg.port,
+          portType: cfg.portType as LynxPortType,
+          name: cfg.name || `Lynx ${cfg.portType}`,
+          host: cfg.host || undefined,
+        }));
+        
+        lynxListener.configure(lynxPortConfigs);
+        lynxListener.start();
+        console.log(`✅ Lynx listeners auto-started from saved config with ${lynxPortConfigs.length} ports`);
+        lynxPortConfigs.forEach(cfg => {
+          console.log(`   - ${cfg.name}: port ${cfg.port} (${cfg.portType})`);
+        });
+      } else {
+        // Fall back to environment variables
+        const defaultLynxConfig = [];
+        if (process.env.LYNX_CLOCK_PORT) {
+          defaultLynxConfig.push({ port: parseInt(process.env.LYNX_CLOCK_PORT), portType: 'clock' as LynxPortType, name: 'FinishLynx Clock' });
+        }
+        if (process.env.LYNX_RESULTS_PORT) {
+          defaultLynxConfig.push({ port: parseInt(process.env.LYNX_RESULTS_PORT), portType: 'results' as LynxPortType, name: 'FinishLynx Results' });
+        }
+        if (process.env.LYNX_FIELD_PORT) {
+          defaultLynxConfig.push({ port: parseInt(process.env.LYNX_FIELD_PORT), portType: 'field' as LynxPortType, name: 'FieldLynx' });
+        }
+        
+        if (defaultLynxConfig.length > 0) {
+          lynxListener.configure(defaultLynxConfig);
+          lynxListener.start();
+          console.log(`✅ Lynx listeners started from env vars with ${defaultLynxConfig.length} ports`);
+        } else {
+          console.log('ℹ️ No Lynx configs found - waiting for configuration');
+        }
+      }
+    } catch (error) {
+      console.error('[Lynx] Error during auto-start:', error);
+      
+      // Fall back to environment variables on database error
+      const defaultLynxConfig = [];
+      if (process.env.LYNX_CLOCK_PORT) {
+        defaultLynxConfig.push({ port: parseInt(process.env.LYNX_CLOCK_PORT), portType: 'clock' as LynxPortType, name: 'FinishLynx Clock' });
+      }
+      if (process.env.LYNX_RESULTS_PORT) {
+        defaultLynxConfig.push({ port: parseInt(process.env.LYNX_RESULTS_PORT), portType: 'results' as LynxPortType, name: 'FinishLynx Results' });
+      }
+      if (process.env.LYNX_FIELD_PORT) {
+        defaultLynxConfig.push({ port: parseInt(process.env.LYNX_FIELD_PORT), portType: 'field' as LynxPortType, name: 'FieldLynx' });
+      }
+      
+      if (defaultLynxConfig.length > 0) {
+        lynxListener.configure(defaultLynxConfig);
+        lynxListener.start();
+        console.log(`✅ Lynx listeners started from env vars with ${defaultLynxConfig.length} ports`);
+      }
+    }
+  })();
 
   return httpServer;
 }
