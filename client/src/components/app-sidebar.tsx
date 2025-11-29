@@ -128,6 +128,14 @@ export function AppSidebar() {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location === `${basePath}/scene-editor`}>
+                  <Link href={`${basePath}/scene-editor`} data-testid="link-scene-editor">
+                    <Palette />
+                    <span>Scene Editor</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

@@ -33,6 +33,7 @@ import Spectator from "@/pages/spectator";
 import OverlayPage from "@/pages/overlay";
 import MasterDisplayPage from "@/pages/master-display";
 import VisualLayoutDesigner from "@/pages/visual-layout-designer";
+import SceneEditor from "@/pages/scene-editor";
 import NotFound from "@/pages/not-found";
 
 function MeetSyncWrapper({ meetId, children }: { meetId: string; children: React.ReactNode }) {
@@ -100,6 +101,7 @@ function MeetControlRouter() {
     if (subPath === "displays/control") return <DisplayControlPage />;
     if (subPath === "displays/customize") return <DisplayCustomizePage />;
     if (subPath === "layouts/designer" || subPath.startsWith("layouts/designer/")) return <LayoutDesigner />;
+    if (subPath === "scene-editor") return <SceneEditor />;
     return <NotFound />;
   };
   
@@ -127,6 +129,7 @@ function Router() {
       <Route path="/overlay/:type" component={OverlayPage} />
       <Route path="/master-display" component={MasterDisplayPage} />
       <Route path="/visual-designer" component={VisualLayoutDesigner} />
+      <Route path="/control/:meetId/scene-editor">{() => <MeetControlRouter />}</Route>
       <Route path="/control/:meetId/events/:eventId">{() => <MeetControlRouter />}</Route>
       <Route path="/control/:meetId/layouts/designer/:layoutId">{() => <MeetControlRouter />}</Route>
       <Route path="/control/:meetId/layouts/designer">{() => <MeetControlRouter />}</Route>
