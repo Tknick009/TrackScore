@@ -449,17 +449,18 @@ function SceneObjectRenderer({
         
       case "attempt-tracker":
         const attempts = liveData?.attempts || event?.entries?.[0]?.attempts || [];
+        const maxAttemptCount = componentConfig.maxAttempts || 6;
         return (
           <div className="h-full bg-[hsl(var(--display-bg))] p-4 flex flex-col justify-center">
             <h3 className="font-stadium text-lg font-[700] text-[hsl(var(--display-fg))] mb-3 text-center">
               Attempts
             </h3>
-            <div className="flex justify-center gap-3">
+            <div className="flex justify-center gap-2 flex-wrap">
               {attempts.length === 0 ? (
-                Array.from({ length: componentConfig.maxAttempts || 6 }, (_, i) => (
+                Array.from({ length: maxAttemptCount }, (_, i) => (
                   <div 
                     key={i}
-                    className="w-10 h-10 rounded-full border-2 border-[hsl(var(--display-border))] flex items-center justify-center"
+                    className="min-w-12 h-12 px-2 rounded border-2 border-[hsl(var(--display-border))] flex items-center justify-center"
                   >
                     <span className="font-stadium-numbers text-lg text-[hsl(var(--display-muted))]">
                       {i + 1}
@@ -467,52 +468,70 @@ function SceneObjectRenderer({
                   </div>
                 ))
               ) : (
-                attempts.map((attempt: any, i: number) => (
-                  <div 
-                    key={i}
-                    className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                      attempt.valid === true ? 'bg-green-600' : 
-                      attempt.valid === false ? 'bg-red-600' : 
-                      'border-2 border-[hsl(var(--display-border))]'
-                    }`}
-                  >
-                    <span className={`font-stadium-numbers text-lg ${
-                      attempt.valid !== undefined ? 'text-white' : 'text-[hsl(var(--display-muted))]'
-                    }`}>
-                      {attempt.mark || (i + 1)}
-                    </span>
-                  </div>
-                ))
+                attempts.slice(0, maxAttemptCount).map((attempt: any, i: number) => {
+                  const isValid = attempt.valid === true || attempt.status === 'valid' || attempt.status === 'O';
+                  const isFoul = attempt.valid === false || attempt.status === 'foul' || attempt.status === 'X';
+                  const isPass = attempt.status === 'pass' || attempt.status === 'P';
+                  return (
+                    <div 
+                      key={i}
+                      className={`min-w-12 h-12 px-2 rounded flex items-center justify-center ${
+                        isValid ? 'bg-[hsl(var(--display-accent))]' : 
+                        isFoul ? 'bg-[hsl(var(--display-muted))]' : 
+                        isPass ? 'bg-[hsl(var(--display-bg-elevated))]' :
+                        'border-2 border-[hsl(var(--display-border))]'
+                      }`}
+                    >
+                      <span className={`font-stadium-numbers text-sm font-[700] ${
+                        isValid ? 'text-[hsl(var(--display-bg))]' : 
+                        isFoul ? 'text-[hsl(var(--display-bg))]' :
+                        'text-[hsl(var(--display-fg))]'
+                      }`}>
+                        {isValid && attempt.mark ? attempt.mark : 
+                         isFoul ? 'X' : 
+                         isPass ? 'P' : 
+                         (i + 1)}
+                      </span>
+                    </div>
+                  );
+                })
               )}
             </div>
           </div>
         );
         
       case "split-times":
-        const splits = liveData?.splits || [];
+        const splitTimes = liveData?.splitTimes || liveData?.splits || [];
         return (
           <div className="h-full bg-[hsl(var(--display-bg))] p-4 overflow-hidden">
             <h3 className="font-stadium text-lg font-[700] text-[hsl(var(--display-fg))] mb-2">
               Split Times
             </h3>
-            {splits.length === 0 ? (
+            {splitTimes.length === 0 ? (
               <div className="text-center text-[hsl(var(--display-muted))] py-4">
                 <Clock className="w-8 h-8 mx-auto mb-2 opacity-50" />
                 <p>No splits available</p>
               </div>
             ) : (
               <div className="space-y-1">
-                {splits.map((split: any, i: number) => (
+                {splitTimes.map((split: any, i: number) => (
                   <div 
                     key={i}
                     className="flex justify-between items-center p-2 rounded bg-[hsl(var(--display-bg-elevated))]"
                   >
                     <span className="font-stadium text-sm text-[hsl(var(--display-muted))]">
-                      {split.distance || `${(i + 1) * 100}m`}
+                      {split.splitName || split.distance || `Split ${i + 1}`}
                     </span>
-                    <span className="font-stadium-numbers text-lg font-[700] text-[hsl(var(--display-fg))]">
-                      {split.time}
-                    </span>
+                    <div className="flex gap-4">
+                      <span className="font-stadium-numbers text-lg font-[700] text-[hsl(var(--display-fg))]">
+                        {split.cumulative || split.time || '--:--.--'}
+                      </span>
+                      {split.lap && (
+                        <span className="font-stadium-numbers text-sm text-[hsl(var(--display-accent))]">
+                          ({split.lap})
+                        </span>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -521,17 +540,41 @@ function SceneObjectRenderer({
         );
         
       case "record-indicator":
-        const records = liveData?.records || componentConfig.records || [];
-        const hasRecord = records.length > 0 || componentConfig.showPlaceholder;
+        const recordsList = liveData?.records || componentConfig.records || [];
+        const recordPriority: Record<string, number> = { 'WR': 1, 'AR': 2, 'NR': 3, 'CR': 4, 'MR': 5, 'PR': 6, 'SB': 7 };
+        const sortedRecords = [...recordsList].sort((a: any, b: any) => 
+          (recordPriority[a.type] || 99) - (recordPriority[b.type] || 99)
+        );
+        const topRecord = sortedRecords[0];
+        const hasRecords = sortedRecords.length > 0;
         return (
-          <div className="h-full bg-[hsl(var(--display-bg))] p-3 flex items-center justify-center">
-            {hasRecord ? (
-              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-[hsl(var(--display-accent))]">
-                <Trophy className="w-5 h-5 text-[hsl(var(--display-bg))]" />
-                <span className="font-stadium text-lg font-[700] text-[hsl(var(--display-bg))]">
-                  {records[0]?.type || componentConfig.recordType || "RECORD"}
-                </span>
-              </div>
+          <div className="h-full bg-[hsl(var(--display-bg))] p-3 flex flex-col items-center justify-center gap-2">
+            {hasRecords ? (
+              <>
+                <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-[hsl(var(--display-accent))]">
+                  <Trophy className="w-5 h-5 text-[hsl(var(--display-bg))]" />
+                  <span className="font-stadium text-lg font-[700] text-[hsl(var(--display-bg))]">
+                    {topRecord.type || "RECORD"}
+                  </span>
+                </div>
+                {topRecord.mark && (
+                  <span className="font-stadium-numbers text-xl font-[700] text-[hsl(var(--display-fg))]">
+                    {topRecord.mark}
+                  </span>
+                )}
+                {sortedRecords.length > 1 && (
+                  <div className="flex gap-2 mt-1">
+                    {sortedRecords.slice(1, 3).map((record: any, i: number) => (
+                      <span 
+                        key={i}
+                        className="px-2 py-1 text-xs rounded bg-[hsl(var(--display-bg-elevated))] text-[hsl(var(--display-muted))]"
+                      >
+                        {record.type}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </>
             ) : (
               <div className="text-[hsl(var(--display-muted))] text-center">
                 <Trophy className="w-8 h-8 mx-auto mb-1 opacity-30" />
