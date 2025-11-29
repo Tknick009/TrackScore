@@ -2,12 +2,13 @@ import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
 import { format, formatDistanceToNow } from "date-fns";
-import { Calendar, MapPin, Settings, Monitor, ArrowLeft, Hash, Upload, RefreshCw, Users, Trophy, PlayCircle, CheckCircle2, Clock, TrendingUp, Activity } from "lucide-react";
+import { Calendar, MapPin, Settings, Monitor, ArrowLeft, Hash, Upload, RefreshCw, Users, Trophy, PlayCircle, CheckCircle2, Clock, TrendingUp, Activity, Trash2, AlertTriangle } from "lucide-react";
 import type { Meet, Event, Athlete } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -718,7 +719,126 @@ export default function MeetDetail() {
 
         {/* Auto-Refresh Settings */}
         {meetId && <AutoRefreshSettings meet={meet} meetId={meetId} />}
+
+        {/* Danger Zone */}
+        {meetId && <DangerZone meetId={meetId} />}
       </div>
     </div>
+  );
+}
+
+interface DangerZoneProps {
+  meetId: string;
+}
+
+function DangerZone({ meetId }: DangerZoneProps) {
+  const [open, setOpen] = useState(false);
+  const { toast } = useToast();
+
+  const resetMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", `/api/meets/${meetId}/reset`);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/meets", meetId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/meets", meetId, "events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/athletes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/teams"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/divisions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/live-events"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/meets/${meetId}/scoring`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/meets/${meetId}/scoring/standings`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/meets/${meetId}/themes`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/layout-scenes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/display-devices"] });
+      
+      toast({
+        title: "Meet Reset Successfully",
+        description: (
+          <div className="space-y-1 mt-2">
+            <div>Deleted {data.eventsDeleted} events</div>
+            <div>Deleted {data.athletesDeleted} athletes</div>
+            <div>Deleted {data.teamsDeleted} teams</div>
+            <div>Deleted {data.divisionsDeleted} divisions</div>
+          </div>
+        ),
+      });
+      setOpen(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Reset Failed",
+        description: error.message || "Failed to reset meet data",
+        variant: "destructive",
+      });
+    },
+  });
+
+  return (
+    <Card className="border-destructive/30" data-testid="card-danger-zone">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-destructive">
+          <AlertTriangle className="w-5 h-5" />
+          Danger Zone
+        </CardTitle>
+        <CardDescription>
+          Destructive actions that cannot be undone
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center justify-between p-4 rounded-lg border border-destructive/30 bg-destructive/5">
+          <div className="space-y-1">
+            <div className="font-medium">Reset Meet Data</div>
+            <p className="text-sm text-muted-foreground">
+              Delete all teams, athletes, events, and results from this meet. The meet itself will be preserved.
+            </p>
+          </div>
+          <AlertDialog open={open} onOpenChange={setOpen}>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" data-testid="button-reset-meet">
+                <Trash2 className="w-4 h-4 mr-2" />
+                Reset Meet
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle className="flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-destructive" />
+                  Are you absolutely sure?
+                </AlertDialogTitle>
+                <AlertDialogDescription className="space-y-3">
+                  <p>
+                    This action cannot be undone. This will permanently delete:
+                  </p>
+                  <ul className="list-disc list-inside space-y-1 text-sm">
+                    <li>All teams and team logos</li>
+                    <li>All athletes and athlete photos</li>
+                    <li>All events and their entries</li>
+                    <li>All results and scoring data</li>
+                    <li>All divisions</li>
+                  </ul>
+                  <p className="font-medium">
+                    The meet settings and configuration will be preserved.
+                  </p>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel data-testid="button-cancel-reset">Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => resetMutation.mutate()}
+                  disabled={resetMutation.isPending}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  data-testid="button-confirm-reset"
+                >
+                  {resetMutation.isPending ? "Resetting..." : "Yes, Reset Meet"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

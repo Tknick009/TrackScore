@@ -715,10 +715,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async resetMeet(id: string): Promise<{ teamsDeleted: number; athletesDeleted: number; eventsDeleted: number; divisionsDeleted: number }> {
+    // Get counts before deleting
+    const [teamsCount] = await db.select({ count: count() }).from(teams).where(eq(teams.meetId, id));
+    const [athletesCount] = await db.select({ count: count() }).from(athletes).where(eq(athletes.meetId, id));
+    const [eventsCount] = await db.select({ count: count() }).from(events).where(eq(events.meetId, id));
+    const [divisionsCount] = await db.select({ count: count() }).from(divisions).where(eq(divisions.meetId, id));
+    
     // Delete live event data for this meet
     await db.delete(liveEventData).where(eq(liveEventData.meetId, id));
     
-    // Delete meet scoring data
+    // Delete meet scoring data (order matters due to FK constraints)
     await db.delete(teamScoringResults).where(eq(teamScoringResults.meetId, id));
     await db.delete(meetScoringState).where(
       inArray(meetScoringState.profileId, 
@@ -732,13 +738,64 @@ export class DatabaseStorage implements IStorage {
     );
     await db.delete(meetScoringProfiles).where(eq(meetScoringProfiles.meetId, id));
     
-    // Get counts before deleting
-    const [teamsCount] = await db.select({ count: count() }).from(teams).where(eq(teams.meetId, id));
-    const [athletesCount] = await db.select({ count: count() }).from(athletes).where(eq(athletes.meetId, id));
-    const [eventsCount] = await db.select({ count: count() }).from(events).where(eq(events.meetId, id));
-    const [divisionsCount] = await db.select({ count: count() }).from(divisions).where(eq(divisions.meetId, id));
+    // Delete display-related data (order matters)
+    await db.delete(layoutObjects).where(
+      inArray(layoutObjects.sceneId,
+        db.select({ id: layoutScenes.id }).from(layoutScenes).where(eq(layoutScenes.meetId, id))
+      )
+    );
+    await db.delete(layoutScenes).where(eq(layoutScenes.meetId, id));
+    await db.delete(layoutCells).where(
+      inArray(layoutCells.layoutId,
+        db.select({ id: displayLayouts.id }).from(displayLayouts).where(eq(displayLayouts.meetId, id))
+      )
+    );
+    await db.delete(displayLayouts).where(eq(displayLayouts.meetId, id));
+    await db.delete(boardConfigs).where(eq(boardConfigs.meetId, id));
+    await db.delete(displayAssignments).where(eq(displayAssignments.meetId, id));
+    await db.delete(displayDevices).where(eq(displayDevices.meetId, id));
+    await db.delete(displayComputers).where(eq(displayComputers.meetId, id));
+    await db.delete(displayThemes).where(eq(displayThemes.meetId, id));
     
-    // Delete events first (cascades to entries, event splits, field attempts, etc.)
+    // Delete sponsor data
+    await db.delete(sponsorRotationProfiles).where(eq(sponsorRotationProfiles.meetId, id));
+    await db.delete(sponsorAssignments).where(eq(sponsorAssignments.meetId, id));
+    
+    // Delete combined events data
+    await db.delete(combinedEventTotals).where(
+      inArray(combinedEventTotals.combinedEventId,
+        db.select({ id: combinedEvents.id }).from(combinedEvents).where(eq(combinedEvents.meetId, id))
+      )
+    );
+    await db.delete(combinedEventComponents).where(
+      inArray(combinedEventComponents.combinedEventId,
+        db.select({ id: combinedEvents.id }).from(combinedEvents).where(eq(combinedEvents.meetId, id))
+      )
+    );
+    await db.delete(combinedEvents).where(eq(combinedEvents.meetId, id));
+    
+    // Delete composite layouts (layoutZones cascade from compositeLayouts)
+    await db.delete(layoutZones).where(
+      inArray(layoutZones.layoutId,
+        db.select({ id: compositeLayouts.id }).from(compositeLayouts).where(eq(compositeLayouts.meetId, id))
+      )
+    );
+    await db.delete(compositeLayouts).where(eq(compositeLayouts.meetId, id));
+    
+    // Delete weather data
+    await db.delete(weatherReadings).where(eq(weatherReadings.meetId, id));
+    await db.delete(weatherStationConfigs).where(eq(weatherStationConfigs.meetId, id));
+    
+    // Delete medal awards
+    await db.delete(medalAwards).where(eq(medalAwards.meetId, id));
+    
+    // Delete judge tokens
+    await db.delete(judgeTokens).where(eq(judgeTokens.meetId, id));
+    
+    // Delete Lynx configs for this meet (keep global ones with null meetId)
+    await db.delete(lynxConfigs).where(eq(lynxConfigs.meetId, id));
+    
+    // Delete events (cascades to entries, event splits, field attempts, wind readings, etc.)
     await db.delete(events).where(eq(events.meetId, id));
     
     // Delete athletes (cascades to athlete photos, athlete bests)
