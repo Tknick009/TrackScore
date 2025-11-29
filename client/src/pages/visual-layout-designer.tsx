@@ -337,7 +337,70 @@ export default function VisualLayoutDesigner() {
   const [previewMode, setPreviewMode] = useState(false);
   const [propertyPanelOpen, setPropertyPanelOpen] = useState(false);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [loadDialogOpen, setLoadDialogOpen] = useState(false);
   const [layoutName, setLayoutName] = useState('');
+  const [savedLayouts, setSavedLayouts] = useState<LayoutConfig[]>([]);
+  
+  // Load saved layouts from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('visualLayouts');
+    if (saved) {
+      try {
+        setSavedLayouts(JSON.parse(saved));
+      } catch (e) {
+        console.error('Failed to load saved layouts:', e);
+      }
+    }
+  }, []);
+  
+  // Save layout to localStorage
+  const saveLayout = useCallback(() => {
+    const layoutToSave = { ...layout, id: layout.id === 'new' ? `layout-${Date.now()}` : layout.id, name: layoutName || layout.name };
+    
+    setSavedLayouts(prev => {
+      const existing = prev.findIndex(l => l.id === layoutToSave.id);
+      let updated: LayoutConfig[];
+      if (existing >= 0) {
+        updated = [...prev];
+        updated[existing] = layoutToSave;
+      } else {
+        updated = [...prev, layoutToSave];
+      }
+      localStorage.setItem('visualLayouts', JSON.stringify(updated));
+      return updated;
+    });
+    
+    setLayout(layoutToSave);
+    setSaveDialogOpen(false);
+    toast({
+      title: "Layout saved",
+      description: `"${layoutToSave.name}" has been saved.`,
+    });
+  }, [layout, layoutName, toast]);
+  
+  // Load a saved layout
+  const loadLayout = useCallback((savedLayout: LayoutConfig) => {
+    setLayout(savedLayout);
+    setLoadDialogOpen(false);
+    setSelectedElement(null);
+    toast({
+      title: "Layout loaded",
+      description: `"${savedLayout.name}" has been loaded.`,
+    });
+  }, [toast]);
+  
+  // Delete a saved layout
+  const deleteSavedLayout = useCallback((layoutId: string) => {
+    setSavedLayouts(prev => {
+      const updated = prev.filter(l => l.id !== layoutId);
+      localStorage.setItem('visualLayouts', JSON.stringify(updated));
+      return updated;
+    });
+    toast({
+      title: "Layout deleted",
+      description: "The layout has been removed.",
+    });
+  }, [toast]);
   
   // Fetch events for live data
   const { data: events = [] } = useQuery<Event[]>({
@@ -534,6 +597,15 @@ export default function VisualLayoutDesigner() {
           </div>
           
           <div className="flex items-center gap-2">
+            <Button 
+              size="sm" 
+              variant="outline"
+              onClick={() => setLoadDialogOpen(true)}
+              data-testid="button-load"
+            >
+              <Layers className="w-4 h-4 mr-1" />
+              Load
+            </Button>
             <Button 
               size="sm" 
               variant="outline"
@@ -889,18 +961,59 @@ export default function VisualLayoutDesigner() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setSaveDialogOpen(false)}>Cancel</Button>
             <Button 
-              onClick={() => {
-                setLayout(prev => ({ ...prev, name: layoutName }));
-                setSaveDialogOpen(false);
-                toast({
-                  title: "Layout saved",
-                  description: `"${layoutName}" has been saved.`,
-                });
-              }}
+              onClick={saveLayout}
               data-testid="button-confirm-save"
             >
               Save Layout
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Load Dialog */}
+      <Dialog open={loadDialogOpen} onOpenChange={setLoadDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Load Layout</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {savedLayouts.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Layers className="w-12 h-12 mx-auto mb-2 opacity-30" />
+                <p className="text-sm">No saved layouts</p>
+                <p className="text-xs">Create and save a layout to see it here</p>
+              </div>
+            ) : (
+              savedLayouts.map(saved => (
+                <div 
+                  key={saved.id}
+                  className="flex items-center justify-between p-3 rounded-lg border hover-elevate cursor-pointer"
+                  onClick={() => loadLayout(saved)}
+                  data-testid={`load-layout-${saved.id}`}
+                >
+                  <div>
+                    <p className="font-medium">{saved.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {saved.elements.length} elements • {saved.gridCols}x{saved.gridRows} grid
+                    </p>
+                  </div>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteSavedLayout(saved.id);
+                    }}
+                    data-testid={`delete-layout-${saved.id}`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLoadDialogOpen(false)}>Cancel</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
