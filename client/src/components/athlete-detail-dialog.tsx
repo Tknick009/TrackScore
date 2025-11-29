@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
-import { Upload, Trash2, Image as ImageIcon, Loader2, Calendar, Trophy, Clock, CheckCircle2, XCircle, AlertCircle, ArrowUpDown, School } from "lucide-react";
+import { Upload, Trash2, Image as ImageIcon, Loader2, Calendar, Trophy, Clock, CheckCircle2, XCircle, AlertCircle, ArrowUpDown } from "lucide-react";
 
 interface AthleteWithTeam extends Athlete {
   teamName?: string | null;
@@ -336,16 +336,12 @@ export function AthleteDetailDialog({ athlete, open, onOpenChange }: AthleteDeta
               <div className="col-span-2">
                 <p className="text-sm text-muted-foreground">School / Team</p>
                 <div className="font-medium flex items-center gap-3" data-testid="text-team-name">
-                  {ncaaLogoUrl ? (
-                    <img 
-                      src={ncaaLogoUrl} 
-                      alt={athlete.teamName}
-                      className="w-8 h-8 object-contain"
-                      data-testid="img-ncaa-logo"
-                    />
-                  ) : (
-                    <School className="w-5 h-5 text-muted-foreground" />
-                  )}
+                  <img 
+                    src={ncaaLogoUrl || "/logos/NCAA/0.png"} 
+                    alt={athlete.teamName}
+                    className="w-8 h-8 object-contain"
+                    data-testid="img-ncaa-logo"
+                  />
                   <span>{athlete.teamName}</span>
                 </div>
               </div>

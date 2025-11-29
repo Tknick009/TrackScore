@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { Team } from "@shared/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Shield } from "lucide-react";
 
 interface TeamListProps {
@@ -71,22 +70,14 @@ export function TeamList({ teams, onSelectTeam }: TeamListProps) {
               data-testid={`row-team-${team.id}`}
             >
               <div className="flex items-center gap-3">
-                {ncaaLogos[team.name] ? (
-                  <div className="h-10 w-10 flex items-center justify-center">
-                    <img 
-                      src={ncaaLogos[team.name]} 
-                      alt={team.name}
-                      className="max-h-10 max-w-10 object-contain"
-                      data-testid={`img-team-logo-${team.id}`}
-                    />
-                  </div>
-                ) : (
-                  <Avatar className="h-10 w-10">
-                    <AvatarFallback data-testid={`avatar-fallback-${team.id}`}>
-                      {team.name.substring(0, 2).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                )}
+                <div className="h-10 w-10 flex items-center justify-center">
+                  <img 
+                    src={ncaaLogos[team.name] || "/logos/NCAA/0.png"} 
+                    alt={team.name}
+                    className="max-h-10 max-w-10 object-contain"
+                    data-testid={`img-team-logo-${team.id}`}
+                  />
+                </div>
                 <div>
                   <p className="font-medium" data-testid={`text-team-name-${team.id}`}>
                     {team.name}
