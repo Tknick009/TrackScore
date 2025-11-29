@@ -3361,6 +3361,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     res.json({ success: true, standings });
   });
+  
+  // Add athlete to combined event
+  app.post("/api/combined-events/:id/athletes", async (req, res) => {
+    try {
+      const { athleteId } = req.body;
+      const combinedEventId = parseInt(req.params.id);
+      
+      const event = await storage.getCombinedEvent(combinedEventId);
+      if (!event) {
+        return res.status(404).json({ error: "Combined event not found" });
+      }
+      
+      await storage.addAthleteToCombinedEvent(combinedEventId, athleteId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Failed to add athlete to combined event:", error);
+      res.status(500).json({ error: "Failed to add athlete" });
+    }
+  });
+  
+  // Remove athlete from combined event
+  app.delete("/api/combined-events/:id/athletes/:athleteId", async (req, res) => {
+    try {
+      const combinedEventId = parseInt(req.params.id);
+      const { athleteId } = req.params;
+      
+      await storage.removeAthleteFromCombinedEvent(combinedEventId, athleteId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Failed to remove athlete from combined event:", error);
+      res.status(500).json({ error: "Failed to remove athlete" });
+    }
+  });
+  
+  // Delete combined event
+  app.delete("/api/combined-events/:id", async (req, res) => {
+    try {
+      await storage.deleteCombinedEvent(parseInt(req.params.id));
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Failed to delete combined event:", error);
+      res.status(500).json({ error: "Failed to delete combined event" });
+    }
+  });
+  
+  // Update combined event status
+  app.patch("/api/combined-events/:id/status", async (req, res) => {
+    try {
+      const { status } = req.body;
+      const updated = await storage.updateCombinedEventStatus(parseInt(req.params.id), status);
+      if (!updated) {
+        return res.status(404).json({ error: "Combined event not found" });
+      }
+      res.json(updated);
+    } catch (error) {
+      console.error("Failed to update combined event status:", error);
+      res.status(500).json({ error: "Failed to update status" });
+    }
+  });
+  
+  // Get scoring coefficients for reference
+  app.get("/api/combined-events/scoring-tables", async (req, res) => {
+    const { SCORING_TABLES, COMBINED_EVENT_DEFINITIONS } = await import('./combined-events-scoring');
+    res.json({ scoringTables: SCORING_TABLES, eventDefinitions: COMBINED_EVENT_DEFINITIONS });
+  });
+  
+  // Calculate points for a single performance
+  app.post("/api/combined-events/calculate-points", async (req, res) => {
+    try {
+      const { eventType, performance, gender } = req.body;
+      const { calculateEventPoints, normalizeEventType } = await import('./combined-events-scoring');
+      
+      const normalizedEvent = normalizeEventType(eventType);
+      const points = calculateEventPoints(normalizedEvent, performance, gender);
+      
+      res.json({ eventType: normalizedEvent, performance, gender, points });
+    } catch (error) {
+      console.error("Failed to calculate points:", error);
+      res.status(500).json({ error: "Failed to calculate points" });
+    }
+  });
 
   // ===== SOCIAL MEDIA CONTENT GENERATOR =====
 
