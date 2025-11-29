@@ -4306,6 +4306,147 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==================== Athlete Bests API ====================
+
+  // Get all bests for an athlete
+  app.get("/api/athletes/:athleteId/bests", async (req, res) => {
+    try {
+      const { athleteId } = req.params;
+      const bests = await storage.getAthleteBests(athleteId);
+      res.json(bests);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get all bests for athletes in a meet
+  app.get("/api/meets/:meetId/athlete-bests", async (req, res) => {
+    try {
+      const { meetId } = req.params;
+      const bests = await storage.getAthleteBestsByMeet(meetId);
+      res.json(bests);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Create or update an athlete best
+  app.post("/api/athlete-bests", async (req, res) => {
+    try {
+      const data = req.body;
+      
+      // Validate required fields
+      if (!data.athleteId || !data.eventType || !data.bestType || data.mark === undefined) {
+        return res.status(400).json({ error: "Missing required fields: athleteId, eventType, bestType, mark" });
+      }
+      
+      // Validate bestType
+      if (!['college', 'season'].includes(data.bestType)) {
+        return res.status(400).json({ error: "bestType must be 'college' or 'season'" });
+      }
+      
+      const best = await storage.upsertAthleteBest({
+        athleteId: data.athleteId,
+        eventType: data.eventType,
+        bestType: data.bestType,
+        mark: parseFloat(data.mark),
+        seasonId: data.seasonId || null,
+        achievedAt: data.achievedAt ? new Date(data.achievedAt) : null,
+        meetName: data.meetName || null,
+        source: data.source || 'manual',
+      });
+      
+      res.status(201).json(best);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Update an athlete best
+  app.patch("/api/athlete-bests/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+      
+      const best = await storage.updateAthleteBest(id, updates);
+      if (!best) {
+        return res.status(404).json({ error: "Athlete best not found" });
+      }
+      
+      res.json(best);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Delete an athlete best
+  app.delete("/api/athlete-bests/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteAthleteBest(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Bulk import athlete bests from CSV
+  app.post("/api/meets/:meetId/athlete-bests/import", async (req, res) => {
+    try {
+      const { meetId } = req.params;
+      const { bests } = req.body; // Array of { athleteNumber, eventType, bestType, mark, meetName?, achievedAt? }
+      
+      if (!Array.isArray(bests)) {
+        return res.status(400).json({ error: "bests must be an array" });
+      }
+      
+      // Get all athletes in the meet for lookup by number
+      const athletes = await storage.getAthletesByMeetId(meetId);
+      const athletesByNumber = new Map(athletes.map(a => [String(a.athleteNumber), a]));
+      
+      // Get current season for the meet
+      const meet = await storage.getMeet(meetId);
+      const seasonId = meet?.seasonId || null;
+      
+      const results: { success: number; failed: number; errors: string[] } = {
+        success: 0,
+        failed: 0,
+        errors: [],
+      };
+      
+      for (const item of bests) {
+        try {
+          const athlete = athletesByNumber.get(String(item.athleteNumber));
+          if (!athlete) {
+            results.failed++;
+            results.errors.push(`Athlete ${item.athleteNumber} not found`);
+            continue;
+          }
+          
+          await storage.upsertAthleteBest({
+            athleteId: athlete.id,
+            eventType: item.eventType,
+            bestType: item.bestType,
+            mark: parseFloat(item.mark),
+            seasonId: item.bestType === 'season' ? seasonId : null,
+            achievedAt: item.achievedAt ? new Date(item.achievedAt) : null,
+            meetName: item.meetName || null,
+            source: 'import',
+          });
+          
+          results.success++;
+        } catch (err: any) {
+          results.failed++;
+          results.errors.push(`Error for athlete ${item.athleteNumber}: ${err.message}`);
+        }
+      }
+      
+      res.json(results);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Get saved Lynx configs
   app.get("/api/lynx/saved-configs", async (req, res) => {
     try {
