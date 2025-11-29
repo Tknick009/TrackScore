@@ -195,6 +195,7 @@ export interface IStorage {
   updateMeet(id: string, data: Partial<InsertMeet>): Promise<Meet | null>;
   updateMeetStatus(meetId: string, status: string): Promise<Meet | undefined>;
   deleteMeet(id: string): Promise<boolean>;
+  resetMeet(id: string): Promise<{ teamsDeleted: number; athletesDeleted: number; eventsDeleted: number; divisionsDeleted: number }>;
 
   // Teams
   getTeams(): Promise<Team[]>;
@@ -711,6 +712,53 @@ export class DatabaseStorage implements IStorage {
   async deleteMeet(id: string): Promise<boolean> {
     const result = await db.delete(meets).where(eq(meets.id, id));
     return true;
+  }
+
+  async resetMeet(id: string): Promise<{ teamsDeleted: number; athletesDeleted: number; eventsDeleted: number; divisionsDeleted: number }> {
+    // Delete live event data for this meet
+    await db.delete(liveEventData).where(eq(liveEventData.meetId, id));
+    
+    // Delete meet scoring data
+    await db.delete(teamScoringResults).where(eq(teamScoringResults.meetId, id));
+    await db.delete(meetScoringState).where(
+      inArray(meetScoringState.profileId, 
+        db.select({ id: meetScoringProfiles.id }).from(meetScoringProfiles).where(eq(meetScoringProfiles.meetId, id))
+      )
+    );
+    await db.delete(meetScoringOverrides).where(
+      inArray(meetScoringOverrides.profileId, 
+        db.select({ id: meetScoringProfiles.id }).from(meetScoringProfiles).where(eq(meetScoringProfiles.meetId, id))
+      )
+    );
+    await db.delete(meetScoringProfiles).where(eq(meetScoringProfiles.meetId, id));
+    
+    // Get counts before deleting
+    const [teamsCount] = await db.select({ count: count() }).from(teams).where(eq(teams.meetId, id));
+    const [athletesCount] = await db.select({ count: count() }).from(athletes).where(eq(athletes.meetId, id));
+    const [eventsCount] = await db.select({ count: count() }).from(events).where(eq(events.meetId, id));
+    const [divisionsCount] = await db.select({ count: count() }).from(divisions).where(eq(divisions.meetId, id));
+    
+    // Delete events first (cascades to entries, event splits, field attempts, etc.)
+    await db.delete(events).where(eq(events.meetId, id));
+    
+    // Delete athletes (cascades to athlete photos, athlete bests)
+    await db.delete(athletes).where(eq(athletes.meetId, id));
+    
+    // Delete teams (cascades to team logos)
+    await db.delete(teams).where(eq(teams.meetId, id));
+    
+    // Delete divisions
+    await db.delete(divisions).where(eq(divisions.meetId, id));
+    
+    // Clear lastImportAt timestamp
+    await db.update(meets).set({ lastImportAt: null }).where(eq(meets.id, id));
+    
+    return {
+      teamsDeleted: teamsCount?.count || 0,
+      athletesDeleted: athletesCount?.count || 0,
+      eventsDeleted: eventsCount?.count || 0,
+      divisionsDeleted: divisionsCount?.count || 0,
+    };
   }
 
   // Teams
