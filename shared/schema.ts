@@ -11,12 +11,14 @@ import { z } from "zod";
 export const eventTypeEnum = z.enum([
   // Sprints
   "100m", "200m", "400m",
+  // Indoor Sprints
+  "60m",
   // Middle Distance
-  "800m", "1500m", "3000m",
+  "800m", "1000m", "1500m", "3000m",
   // Distance
   "5000m", "10000m",
   // Hurdles
-  "110m_hurdles", "400m_hurdles",
+  "60m_hurdles", "100m_hurdles", "110m_hurdles", "400m_hurdles",
   // Relays
   "4x100m", "4x400m",
   // Field - Jumps
@@ -32,8 +34,8 @@ export type EventType = z.infer<typeof eventTypeEnum>;
 
 export const EVENT_TYPE_CATEGORIES = {
   TIME_EVENTS: [
-    '100m', '200m', '400m', '800m', '1500m', '3000m', '5000m', '10000m',
-    '110m_hurdles', '400m_hurdles',
+    '60m', '100m', '200m', '400m', '800m', '1000m', '1500m', '3000m', '5000m', '10000m',
+    '60m_hurdles', '100m_hurdles', '110m_hurdles', '400m_hurdles',
     '4x100m', '4x400m',
   ] as const,
   DISTANCE_EVENTS: [
@@ -59,8 +61,10 @@ export function isHeightEvent(eventType: string): boolean {
 
 // Wind-affected events (IAAF rules: winds >+2.0 m/s make results ineligible for records)
 export const WIND_AFFECTED_EVENT_TYPES = [
+  "60m",
   "100m",
   "200m",
+  "60m_hurdles",
   "100m_hurdles",
   "110m_hurdles",
   "4x100m",
