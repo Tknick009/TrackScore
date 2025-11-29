@@ -148,6 +148,12 @@ import {
   type SelectLayoutScene,
   type SelectLayoutObject,
   type LayoutSceneWithObjects,
+  meetIngestionSettings,
+  processedIngestionFiles,
+  type MeetIngestionSettings,
+  type InsertMeetIngestionSettings,
+  type ProcessedFile,
+  type InsertProcessedFile,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql, and, not, inArray, count, isNull, desc } from "drizzle-orm";
@@ -473,6 +479,19 @@ export interface IStorage {
   updateLayoutObject(id: number, object: Partial<InsertLayoutObject>): Promise<SelectLayoutObject | null>;
   deleteLayoutObject(id: number): Promise<boolean>;
   reorderObjects(sceneId: number, objectIds: number[]): Promise<SelectLayoutObject[]>;
+
+  // Meet Ingestion Settings
+  getIngestionSettings(meetId: string): Promise<MeetIngestionSettings | null>;
+  upsertIngestionSettings(settings: InsertMeetIngestionSettings): Promise<MeetIngestionSettings>;
+  updateIngestionSettings(meetId: string, updates: Partial<InsertMeetIngestionSettings>): Promise<MeetIngestionSettings | null>;
+  deleteIngestionSettings(meetId: string): Promise<void>;
+
+  // Processed Ingestion Files
+  getProcessedFiles(meetId: string): Promise<ProcessedFile[]>;
+  hasProcessedFile(meetId: string, filePath: string): Promise<boolean>;
+  isFileHashProcessed(meetId: string, filePath: string, fileHash: string): Promise<boolean>;
+  addProcessedFile(file: InsertProcessedFile): Promise<ProcessedFile>;
+  clearProcessedFiles(meetId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -3144,6 +3163,102 @@ export class DatabaseStorage implements IStorage {
     }
     
     return results;
+  }
+
+  // Meet Ingestion Settings
+  async getIngestionSettings(meetId: string): Promise<MeetIngestionSettings | null> {
+    const [settings] = await db
+      .select()
+      .from(meetIngestionSettings)
+      .where(eq(meetIngestionSettings.meetId, meetId));
+    return settings || null;
+  }
+
+  async upsertIngestionSettings(settings: InsertMeetIngestionSettings): Promise<MeetIngestionSettings> {
+    const existing = await this.getIngestionSettings(settings.meetId);
+    
+    if (existing) {
+      const [updated] = await db
+        .update(meetIngestionSettings)
+        .set({ ...settings, updatedAt: new Date() })
+        .where(eq(meetIngestionSettings.meetId, settings.meetId))
+        .returning();
+      return updated;
+    }
+    
+    const [created] = await db
+      .insert(meetIngestionSettings)
+      .values(settings)
+      .returning();
+    return created;
+  }
+
+  async updateIngestionSettings(meetId: string, updates: Partial<InsertMeetIngestionSettings>): Promise<MeetIngestionSettings | null> {
+    const [updated] = await db
+      .update(meetIngestionSettings)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(meetIngestionSettings.meetId, meetId))
+      .returning();
+    return updated || null;
+  }
+
+  async deleteIngestionSettings(meetId: string): Promise<void> {
+    await db
+      .delete(meetIngestionSettings)
+      .where(eq(meetIngestionSettings.meetId, meetId));
+  }
+
+  // Processed Ingestion Files
+  async getProcessedFiles(meetId: string): Promise<ProcessedFile[]> {
+    return db
+      .select()
+      .from(processedIngestionFiles)
+      .where(eq(processedIngestionFiles.meetId, meetId));
+  }
+
+  async hasProcessedFile(meetId: string, filePath: string): Promise<boolean> {
+    const [existing] = await db
+      .select()
+      .from(processedIngestionFiles)
+      .where(and(
+        eq(processedIngestionFiles.meetId, meetId),
+        eq(processedIngestionFiles.filePath, filePath)
+      ));
+    return !!existing;
+  }
+
+  async isFileHashProcessed(meetId: string, filePath: string, fileHash: string): Promise<boolean> {
+    const [existing] = await db
+      .select()
+      .from(processedIngestionFiles)
+      .where(and(
+        eq(processedIngestionFiles.meetId, meetId),
+        eq(processedIngestionFiles.filePath, filePath),
+        eq(processedIngestionFiles.fileHash, fileHash)
+      ));
+    return !!existing;
+  }
+
+  async addProcessedFile(file: InsertProcessedFile): Promise<ProcessedFile> {
+    const [created] = await db
+      .insert(processedIngestionFiles)
+      .values(file)
+      .onConflictDoUpdate({
+        target: [processedIngestionFiles.meetId, processedIngestionFiles.filePath],
+        set: { 
+          fileHash: file.fileHash, 
+          recordsProcessed: file.recordsProcessed,
+          processedAt: new Date() 
+        }
+      })
+      .returning();
+    return created;
+  }
+
+  async clearProcessedFiles(meetId: string): Promise<void> {
+    await db
+      .delete(processedIngestionFiles)
+      .where(eq(processedIngestionFiles.meetId, meetId));
   }
 }
 
