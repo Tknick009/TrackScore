@@ -116,6 +116,17 @@ function SceneObjectRenderer({
   const componentConfig: SceneObjectConfig = object.config || {};
   const styleConfig: SceneObjectStyle = object.style || {};
   
+  const [currentTime, setCurrentTime] = useState<Date>(new Date());
+  
+  useEffect(() => {
+    if (object.objectType === 'clock') {
+      const interval = setInterval(() => {
+        setCurrentTime(new Date());
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [object.objectType]);
+  
   const eventIds = dataBinding.eventIds;
   const eventId = eventIds?.[0];
   const lynxPort = dataBinding.lynxPort;
@@ -348,11 +359,10 @@ function SceneObjectRenderer({
         );
       
       case "clock":
-        const now = new Date();
-        const timeString = now.toLocaleTimeString('en-US', { 
+        const timeString = currentTime.toLocaleTimeString('en-US', { 
           hour: '2-digit', 
           minute: '2-digit',
-          second: componentConfig.showMilliseconds ? '2-digit' : undefined,
+          second: '2-digit',
           hour12: true 
         });
         return (
@@ -438,14 +448,96 @@ function SceneObjectRenderer({
         );
         
       case "attempt-tracker":
-      case "split-times":
-      case "record-indicator":
+        const attempts = liveData?.attempts || event?.entries?.[0]?.attempts || [];
         return (
-          <div className="flex items-center justify-center h-full bg-[hsl(var(--display-bg))] border border-dashed border-[hsl(var(--display-border))]">
-            <div className="text-center text-[hsl(var(--display-muted))]">
-              <p className="text-lg capitalize">{object.objectType.replace('-', ' ')}</p>
-              <p className="text-sm">Coming soon</p>
+          <div className="h-full bg-[hsl(var(--display-bg))] p-4 flex flex-col justify-center">
+            <h3 className="font-stadium text-lg font-[700] text-[hsl(var(--display-fg))] mb-3 text-center">
+              Attempts
+            </h3>
+            <div className="flex justify-center gap-3">
+              {attempts.length === 0 ? (
+                Array.from({ length: componentConfig.maxAttempts || 6 }, (_, i) => (
+                  <div 
+                    key={i}
+                    className="w-10 h-10 rounded-full border-2 border-[hsl(var(--display-border))] flex items-center justify-center"
+                  >
+                    <span className="font-stadium-numbers text-lg text-[hsl(var(--display-muted))]">
+                      {i + 1}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                attempts.map((attempt: any, i: number) => (
+                  <div 
+                    key={i}
+                    className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                      attempt.valid === true ? 'bg-green-600' : 
+                      attempt.valid === false ? 'bg-red-600' : 
+                      'border-2 border-[hsl(var(--display-border))]'
+                    }`}
+                  >
+                    <span className={`font-stadium-numbers text-lg ${
+                      attempt.valid !== undefined ? 'text-white' : 'text-[hsl(var(--display-muted))]'
+                    }`}>
+                      {attempt.mark || (i + 1)}
+                    </span>
+                  </div>
+                ))
+              )}
             </div>
+          </div>
+        );
+        
+      case "split-times":
+        const splits = liveData?.splits || [];
+        return (
+          <div className="h-full bg-[hsl(var(--display-bg))] p-4 overflow-hidden">
+            <h3 className="font-stadium text-lg font-[700] text-[hsl(var(--display-fg))] mb-2">
+              Split Times
+            </h3>
+            {splits.length === 0 ? (
+              <div className="text-center text-[hsl(var(--display-muted))] py-4">
+                <Clock className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p>No splits available</p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {splits.map((split: any, i: number) => (
+                  <div 
+                    key={i}
+                    className="flex justify-between items-center p-2 rounded bg-[hsl(var(--display-bg-elevated))]"
+                  >
+                    <span className="font-stadium text-sm text-[hsl(var(--display-muted))]">
+                      {split.distance || `${(i + 1) * 100}m`}
+                    </span>
+                    <span className="font-stadium-numbers text-lg font-[700] text-[hsl(var(--display-fg))]">
+                      {split.time}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+        
+      case "record-indicator":
+        const records = liveData?.records || componentConfig.records || [];
+        const hasRecord = records.length > 0 || componentConfig.showPlaceholder;
+        return (
+          <div className="h-full bg-[hsl(var(--display-bg))] p-3 flex items-center justify-center">
+            {hasRecord ? (
+              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-[hsl(var(--display-accent))]">
+                <Trophy className="w-5 h-5 text-[hsl(var(--display-bg))]" />
+                <span className="font-stadium text-lg font-[700] text-[hsl(var(--display-bg))]">
+                  {records[0]?.type || componentConfig.recordType || "RECORD"}
+                </span>
+              </div>
+            ) : (
+              <div className="text-[hsl(var(--display-muted))] text-center">
+                <Trophy className="w-8 h-8 mx-auto mb-1 opacity-30" />
+                <p className="text-sm">No records</p>
+              </div>
+            )}
           </div>
         );
         
