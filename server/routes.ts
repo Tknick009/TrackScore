@@ -2198,6 +2198,158 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===== NCAA LOGO LOOKUP =====
+
+  // Get NCAA logo URL for a team name (matches team name to pre-loaded NCAA logos)
+  // Test with: GET /api/ncaa-logo?name=Bucknell
+  app.get("/api/ncaa-logo", async (req, res) => {
+    try {
+      const teamName = req.query.name as string;
+      
+      if (!teamName) {
+        return res.status(400).json({ error: "Team name is required" });
+      }
+
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      const logosDir = path.join(process.cwd(), 'public', 'logos', 'NCAA');
+      
+      // Try to find matching logo file
+      let logoPath: string | null = null;
+      
+      try {
+        const files = await fs.readdir(logosDir);
+        
+        // Try exact match first (case-insensitive)
+        const exactMatch = files.find(f => 
+          f.toLowerCase() === `${teamName.toLowerCase()}.png`
+        );
+        
+        if (exactMatch) {
+          logoPath = `/logos/NCAA/${exactMatch}`;
+        } else {
+          // Normalize function for consistent matching
+          const normalize = (s: string) => s.toLowerCase()
+            .replace(/\./g, '')  // Remove periods
+            .replace(/\s+/g, ' ') // Normalize spaces
+            .trim();
+          
+          const normalizedName = normalize(teamName);
+          
+          const normalizedMatch = files.find(f => {
+            const fileName = normalize(f.replace('.png', ''));
+            return fileName === normalizedName;
+          });
+          
+          if (normalizedMatch) {
+            logoPath = `/logos/NCAA/${normalizedMatch}`;
+          }
+        }
+      } catch (dirError) {
+        // Directory doesn't exist
+        console.warn("NCAA logos directory not found");
+      }
+
+      if (logoPath) {
+        res.json({ url: logoPath, teamName });
+      } else {
+        res.status(404).json({ error: "Logo not found", teamName });
+      }
+    } catch (error: any) {
+      console.error("Error looking up NCAA logo:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get NCAA logos for multiple teams at once
+  // Test with: GET /api/ncaa-logos/bulk?names=Bucknell,Lehigh,Lafayette
+  app.get("/api/ncaa-logos/bulk", async (req, res) => {
+    try {
+      const namesParam = req.query.names as string;
+      
+      if (!namesParam) {
+        return res.json([]);
+      }
+
+      const teamNames = namesParam.split(',').map(n => n.trim()).filter(Boolean);
+      
+      if (teamNames.length === 0) {
+        return res.json([]);
+      }
+
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      const logosDir = path.join(process.cwd(), 'public', 'logos', 'NCAA');
+      
+      let files: string[] = [];
+      try {
+        files = await fs.readdir(logosDir);
+      } catch (dirError) {
+        return res.json([]);
+      }
+
+      // Normalize function for consistent matching
+      const normalize = (s: string) => s.toLowerCase()
+        .replace(/\./g, '')  // Remove periods
+        .replace(/\s+/g, ' ') // Normalize spaces
+        .trim();
+
+      const results = teamNames.map(teamName => {
+        // Try exact match first (case-insensitive)
+        const exactMatch = files.find(f => 
+          f.toLowerCase() === `${teamName.toLowerCase()}.png`
+        );
+        
+        if (exactMatch) {
+          return { teamName, url: `/logos/NCAA/${exactMatch}` };
+        }
+        
+        // Try normalized matching
+        const normalizedName = normalize(teamName);
+        
+        const normalizedMatch = files.find(f => {
+          const fileName = normalize(f.replace('.png', ''));
+          return fileName === normalizedName;
+        });
+        
+        if (normalizedMatch) {
+          return { teamName, url: `/logos/NCAA/${normalizedMatch}` };
+        }
+        
+        return { teamName, url: null };
+      });
+
+      res.json(results);
+    } catch (error: any) {
+      console.error("Error looking up bulk NCAA logos:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // List all available NCAA logos
+  // Test with: GET /api/ncaa-logos
+  app.get("/api/ncaa-logos", async (req, res) => {
+    try {
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      const logosDir = path.join(process.cwd(), 'public', 'logos', 'NCAA');
+      
+      const files = await fs.readdir(logosDir);
+      const logos = files
+        .filter(f => f.endsWith('.png') && f !== '0.png')
+        .map(f => ({
+          name: f.replace('.png', ''),
+          url: `/logos/NCAA/${f}`
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      res.json({ count: logos.length, logos });
+    } catch (error: any) {
+      console.error("Error listing NCAA logos:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // MDB File Import
   app.post("/api/import/mdb", upload.single("mdbFile"), async (req, res) => {
     try {
