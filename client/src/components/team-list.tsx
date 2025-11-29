@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Team } from "@shared/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -8,7 +9,35 @@ interface TeamListProps {
   onSelectTeam?: (team: Team) => void;
 }
 
+interface NcaaLogoResult {
+  teamName: string;
+  url: string | null;
+}
+
 export function TeamList({ teams, onSelectTeam }: TeamListProps) {
+  const [ncaaLogos, setNcaaLogos] = useState<Record<string, string>>({});
+
+  // Fetch NCAA logos for all teams
+  useEffect(() => {
+    if (teams.length === 0) return;
+    
+    const teamNames = teams.map(t => t.name).filter(n => n !== 'Unattached');
+    if (teamNames.length === 0) return;
+
+    fetch(`/api/ncaa-logos/bulk?names=${encodeURIComponent(teamNames.join(','))}`)
+      .then(r => r.json())
+      .then((results: NcaaLogoResult[]) => {
+        const logoMap: Record<string, string> = {};
+        results.forEach(r => {
+          if (r.url) {
+            logoMap[r.teamName] = r.url;
+          }
+        });
+        setNcaaLogos(logoMap);
+      })
+      .catch(console.error);
+  }, [teams]);
+
   if (teams.length === 0) {
     return (
       <Card>
@@ -43,7 +72,11 @@ export function TeamList({ teams, onSelectTeam }: TeamListProps) {
             >
               <div className="flex items-center gap-3">
                 <Avatar className="h-10 w-10">
-                  <AvatarImage src="" alt={team.name} />
+                  <AvatarImage 
+                    src={ncaaLogos[team.name] || ""} 
+                    alt={team.name}
+                    className="object-contain p-0.5"
+                  />
                   <AvatarFallback data-testid={`avatar-fallback-${team.id}`}>
                     {team.name.substring(0, 2).toUpperCase()}
                   </AvatarFallback>
