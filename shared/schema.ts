@@ -351,6 +351,37 @@ export const insertAthleteSchema = createInsertSchema(athletes).omit({ id: true 
 export type InsertAthlete = z.infer<typeof insertAthleteSchema>;
 export type Athlete = typeof athletes.$inferSelect;
 
+// Athlete Personal Bests (College and Season)
+export const bestTypeEnum = z.enum(["college", "season"]);
+export type BestType = z.infer<typeof bestTypeEnum>;
+
+export const athleteBests = pgTable("athlete_bests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  athleteId: varchar("athlete_id").notNull().references(() => athletes.id, { onDelete: "cascade" }),
+  eventType: text("event_type").notNull(), // e.g., "100m", "long_jump", "shot_put"
+  bestType: text("best_type").notNull(), // "college" or "season"
+  mark: real("mark").notNull(), // Stored in base units (seconds for track, meters for field)
+  seasonId: integer("season_id").references(() => seasons.id, { onDelete: "set null" }), // For season bests
+  achievedAt: timestamp("achieved_at"), // When the best was achieved
+  meetName: text("meet_name"), // Name of the meet where it was achieved
+  source: text("source").default("manual"), // "manual", "import", "calculated"
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  athleteEventBestUnique: unique("athlete_bests_unique").on(table.athleteId, table.eventType, table.bestType, table.seasonId),
+  athleteIdx: index("athlete_bests_athlete_idx").on(table.athleteId),
+}));
+
+export const insertAthleteBestSchema = createInsertSchema(athleteBests).omit({ 
+  id: true, 
+  createdAt: true, 
+  updatedAt: true 
+}).extend({
+  bestType: bestTypeEnum,
+});
+export type InsertAthleteBest = z.infer<typeof insertAthleteBestSchema>;
+export type AthleteBest = typeof athleteBests.$inferSelect;
+
 // Events
 export const events = pgTable("events", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -1471,6 +1502,18 @@ export const athletesRelations = relations(athletes, ({ one, many }) => ({
     references: [divisions.id],
   }),
   entries: many(entries),
+  bests: many(athleteBests),
+}));
+
+export const athleteBestsRelations = relations(athleteBests, ({ one }) => ({
+  athlete: one(athletes, {
+    fields: [athleteBests.athleteId],
+    references: [athletes.id],
+  }),
+  season: one(seasons, {
+    fields: [athleteBests.seasonId],
+    references: [seasons.id],
+  }),
 }));
 
 export const entriesRelations = relations(entries, ({ one, many }) => ({
