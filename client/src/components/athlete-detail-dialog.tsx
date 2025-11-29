@@ -63,6 +63,7 @@ export function AthleteDetailDialog({ athlete, open, onOpenChange }: AthleteDeta
   const [events, setEvents] = useState<AthleteEventEntry[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(false);
   const [eventSort, setEventSort] = useState<EventSortOption>('time');
+  const [ncaaLogoUrl, setNcaaLogoUrl] = useState<string | null>(null);
 
   // Sort events based on selected option
   const sortedEvents = useMemo(() => {
@@ -89,16 +90,38 @@ export function AthleteDetailDialog({ athlete, open, onOpenChange }: AthleteDeta
     });
   }, [events, eventSort]);
 
-  // Fetch athlete photo and events when dialog opens
+  // Fetch athlete photo, events, and NCAA logo when dialog opens
   useEffect(() => {
     if (athlete && open) {
       fetchAthletePhoto();
       fetchAthleteEvents();
+      fetchNcaaLogo();
     } else {
       setPhotoData(null);
       setEvents([]);
+      setNcaaLogoUrl(null);
     }
   }, [athlete?.id, open]);
+
+  const fetchNcaaLogo = async () => {
+    if (!athlete?.teamName || athlete.teamName === 'Unattached') {
+      setNcaaLogoUrl(null);
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/api/ncaa-logo?name=${encodeURIComponent(athlete.teamName)}`);
+      if (response.ok) {
+        const data = await response.json();
+        setNcaaLogoUrl(data.url);
+      } else {
+        setNcaaLogoUrl(null);
+      }
+    } catch (error) {
+      console.error("Error fetching NCAA logo:", error);
+      setNcaaLogoUrl(null);
+    }
+  };
 
   const fetchAthletePhoto = async () => {
     if (!athlete) return;
@@ -312,10 +335,19 @@ export function AthleteDetailDialog({ athlete, open, onOpenChange }: AthleteDeta
             {athlete.teamName && (
               <div className="col-span-2">
                 <p className="text-sm text-muted-foreground">School / Team</p>
-                <p className="font-medium flex items-center gap-2" data-testid="text-team-name">
-                  <School className="w-4 h-4 text-muted-foreground" />
-                  {athlete.teamName}
-                </p>
+                <div className="font-medium flex items-center gap-3" data-testid="text-team-name">
+                  {ncaaLogoUrl ? (
+                    <img 
+                      src={ncaaLogoUrl} 
+                      alt={athlete.teamName}
+                      className="w-8 h-8 object-contain"
+                      data-testid="img-ncaa-logo"
+                    />
+                  ) : (
+                    <School className="w-5 h-5 text-muted-foreground" />
+                  )}
+                  <span>{athlete.teamName}</span>
+                </div>
               </div>
             )}
             <div>

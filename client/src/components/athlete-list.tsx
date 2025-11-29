@@ -1,9 +1,9 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo } from "react";
 import { Athlete } from "@shared/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { Users } from "lucide-react";
+import { Users, School } from "lucide-react";
 
 interface AthleteWithTeam extends Athlete {
   teamName?: string | null;
@@ -14,43 +14,7 @@ interface AthleteListProps {
   onSelectAthlete?: (athlete: AthleteWithTeam) => void;
 }
 
-interface NcaaLogoResult {
-  teamName: string;
-  url: string | null;
-}
-
 export function AthleteList({ athletes, onSelectAthlete }: AthleteListProps) {
-  const [ncaaLogos, setNcaaLogos] = useState<Record<string, string>>({});
-
-  // Get unique team names from athletes
-  const uniqueTeamNames = useMemo(() => {
-    const names = new Set<string>();
-    athletes.forEach(a => {
-      if (a.teamName && a.teamName !== 'Unattached') {
-        names.add(a.teamName);
-      }
-    });
-    return Array.from(names);
-  }, [athletes]);
-
-  // Fetch NCAA logos for all teams
-  useEffect(() => {
-    if (uniqueTeamNames.length === 0) return;
-
-    fetch(`/api/ncaa-logos/bulk?names=${encodeURIComponent(uniqueTeamNames.join(','))}`)
-      .then(r => r.json())
-      .then((results: NcaaLogoResult[]) => {
-        const logoMap: Record<string, string> = {};
-        results.forEach(r => {
-          if (r.url) {
-            logoMap[r.teamName] = r.url;
-          }
-        });
-        setNcaaLogos(logoMap);
-      })
-      .catch(console.error);
-  }, [uniqueTeamNames]);
-
   const sortedAthletes = useMemo(() => {
     return [...athletes].sort((a, b) => {
       const aNum = a.bibNumber ? parseInt(a.bibNumber, 10) : Infinity;
