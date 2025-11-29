@@ -346,12 +346,6 @@ export function AthleteDetailDialog({ athlete, open, onOpenChange }: AthleteDeta
                 </div>
               </div>
             )}
-            <div>
-              <p className="text-sm text-muted-foreground">Athlete Number</p>
-              <p className="font-medium" data-testid="text-athlete-number">
-                {athlete.athleteNumber}
-              </p>
-            </div>
             {athlete.bibNumber && (
               <div>
                 <p className="text-sm text-muted-foreground">Bib Number</p>
