@@ -949,6 +949,221 @@ export type SelectCompositeLayout = typeof compositeLayouts.$inferSelect;
 export type SelectLayoutZone = typeof layoutZones.$inferSelect;
 
 // ====================
+// SCENE-BASED LAYOUTS (ResulTV-style object system)
+// ====================
+
+// Object types available for insertion
+export const LAYOUT_OBJECT_TYPES = [
+  'results-table',      // Results/standings table for one or more events
+  'timer',              // Live timer/clock display
+  'event-header',       // Event name and info header
+  'athlete-card',       // Single athlete display with photo
+  'athlete-grid',       // Grid of multiple athletes
+  'team-standings',     // Team score standings
+  'lane-graphic',       // Lane assignment visualization
+  'attempt-tracker',    // Field event attempt display
+  'logo',               // Image/logo display
+  'text',               // Custom text block
+  'clock',              // Time of day
+  'wind-reading',       // Wind speed display
+  'split-times',        // Split times display
+  'record-indicator',   // Meet/facility record indicator
+] as const;
+export type LayoutObjectType = typeof LAYOUT_OBJECT_TYPES[number];
+
+// Data source types for binding objects to data
+export const DATA_SOURCE_TYPES = [
+  'events',             // Specific event ID(s)
+  'current-track',      // Current track event from Lynx port 5055
+  'current-field',      // Current field event from a port
+  'live-data',          // Live timing data from specific port
+  'standings',          // Team or individual standings
+  'static',             // No dynamic data (logos, text, etc.)
+] as const;
+export type DataSourceType = typeof DATA_SOURCE_TYPES[number];
+
+// Layout Scenes - Container for a collection of objects
+export const layoutScenes = pgTable('layout_scenes', {
+  id: serial('id').primaryKey(),
+  meetId: varchar('meet_id').references(() => meets.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  description: text('description'),
+  
+  // Canvas dimensions (reference size, objects use percentages)
+  canvasWidth: integer('canvas_width').notNull().default(1920),
+  canvasHeight: integer('canvas_height').notNull().default(1080),
+  aspectRatio: varchar('aspect_ratio', { length: 20 }).default('16:9'),
+  
+  // Scene styling
+  backgroundColor: varchar('background_color', { length: 50 }).default('#000000'),
+  backgroundImage: text('background_image'),
+  
+  // Template/reuse flags
+  isTemplate: boolean('is_template').default(false),
+  
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  meetIdIdx: index('layout_scenes_meet_id_idx').on(table.meetId),
+}));
+
+// Scene Data Binding - defines what data source(s) an object uses
+export type SceneDataBinding = {
+  sourceType: DataSourceType;
+  eventIds?: string[];        // For 'events' type - specific event IDs
+  lynxPort?: number;          // For 'live-data' or 'current-field' - which Lynx port
+  divisionId?: string;        // For 'standings' - filter by division
+  limit?: number;             // Max number of results to show
+  heatNumber?: number;        // For specific heat display
+  showAllHeats?: boolean;     // Show combined results from all heats
+};
+
+// Scene Object Config - type-specific configuration
+export type SceneObjectConfig = {
+  // Common options
+  fontSize?: 'small' | 'medium' | 'large' | 'xlarge';
+  showPhotos?: boolean;
+  showTeamLogos?: boolean;
+  showFlags?: boolean;
+  maxRows?: number;
+  columns?: number;
+  
+  // Timer options
+  timerMode?: 'stopwatch' | 'countdown' | 'time-of-day';
+  showMilliseconds?: boolean;
+  
+  // Lane visualization options
+  totalLanes?: number;
+  showProgress?: boolean;
+  showTimes?: boolean;
+  
+  // Attempt tracker options
+  showMarks?: boolean;
+  highlightBest?: boolean;
+  
+  // Text options
+  textContent?: string;
+  textAlign?: 'left' | 'center' | 'right';
+  
+  // Logo options
+  imageUrl?: string;
+  imageFit?: 'contain' | 'cover' | 'fill';
+};
+
+// Scene Object Style - visual styling
+export type SceneObjectStyle = {
+  backgroundColor?: string;
+  textColor?: string;
+  borderColor?: string;
+  borderWidth?: number;
+  borderRadius?: number;
+  opacity?: number;
+  padding?: number;
+  fontFamily?: string;
+  boxShadow?: string;
+};
+
+// Layout Objects - Individual objects within a scene
+export const layoutObjects = pgTable('layout_objects', {
+  id: serial('id').primaryKey(),
+  sceneId: integer('scene_id').references(() => layoutScenes.id, { onDelete: 'cascade' }).notNull(),
+  
+  // Object identity
+  name: varchar('name', { length: 255 }),
+  objectType: varchar('object_type', { length: 50 }).notNull(),
+  
+  // Positioning (percentage-based for resolution independence)
+  x: real('x').notNull(),           // Left position (0-100%)
+  y: real('y').notNull(),           // Top position (0-100%)
+  width: real('width').notNull(),   // Width (0-100%)
+  height: real('height').notNull(), // Height (0-100%)
+  
+  // Layering and transform
+  zIndex: integer('z_index').notNull().default(0),
+  rotation: real('rotation').default(0),
+  
+  // Data binding - supports multiple event sources
+  dataBinding: jsonb('data_binding').$type<SceneDataBinding>(),
+  
+  // Component-specific configuration
+  config: jsonb('config').$type<SceneObjectConfig>(),
+  
+  // Visual styling
+  style: jsonb('style').$type<SceneObjectStyle>(),
+  
+  // State
+  visible: boolean('visible').default(true),
+  locked: boolean('locked').default(false),
+  
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  sceneIdIdx: index('layout_objects_scene_id_idx').on(table.sceneId),
+}));
+
+// Zod validation schemas for scene data
+export const sceneDataBindingSchema = z.object({
+  sourceType: z.enum(DATA_SOURCE_TYPES),
+  eventIds: z.array(z.string()).optional(),
+  lynxPort: z.number().optional(),
+  divisionId: z.string().optional(),
+  limit: z.number().optional(),
+  heatNumber: z.number().optional(),
+  showAllHeats: z.boolean().optional(),
+});
+
+export const sceneObjectConfigSchema = z.object({
+  fontSize: z.enum(['small', 'medium', 'large', 'xlarge']).optional(),
+  showPhotos: z.boolean().optional(),
+  showTeamLogos: z.boolean().optional(),
+  showFlags: z.boolean().optional(),
+  maxRows: z.number().optional(),
+  columns: z.number().optional(),
+  timerMode: z.enum(['stopwatch', 'countdown', 'time-of-day']).optional(),
+  showMilliseconds: z.boolean().optional(),
+  totalLanes: z.number().optional(),
+  showProgress: z.boolean().optional(),
+  showTimes: z.boolean().optional(),
+  showMarks: z.boolean().optional(),
+  highlightBest: z.boolean().optional(),
+  textContent: z.string().optional(),
+  textAlign: z.enum(['left', 'center', 'right']).optional(),
+  imageUrl: z.string().optional(),
+  imageFit: z.enum(['contain', 'cover', 'fill']).optional(),
+}).passthrough();
+
+export const sceneObjectStyleSchema = z.object({
+  backgroundColor: z.string().optional(),
+  textColor: z.string().optional(),
+  borderColor: z.string().optional(),
+  borderWidth: z.number().optional(),
+  borderRadius: z.number().optional(),
+  opacity: z.number().optional(),
+  padding: z.number().optional(),
+  fontFamily: z.string().optional(),
+  boxShadow: z.string().optional(),
+}).passthrough();
+
+// Insert/Select schemas
+export const insertLayoutSceneSchema = createInsertSchema(layoutScenes).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertLayoutObjectSchema = createInsertSchema(layoutObjects)
+  .omit({ id: true, createdAt: true })
+  .extend({
+    dataBinding: sceneDataBindingSchema.optional(),
+    config: sceneObjectConfigSchema.optional(),
+    style: sceneObjectStyleSchema.optional(),
+  });
+
+export type InsertLayoutScene = z.infer<typeof insertLayoutSceneSchema>;
+export type InsertLayoutObject = z.infer<typeof insertLayoutObjectSchema>;
+export type SelectLayoutScene = typeof layoutScenes.$inferSelect;
+export type SelectLayoutObject = typeof layoutObjects.$inferSelect;
+
+// Scene with all its objects
+export type LayoutSceneWithObjects = SelectLayoutScene & {
+  objects: SelectLayoutObject[];
+};
+
+// ====================
 // RECORDS SYSTEM
 // ====================
 
