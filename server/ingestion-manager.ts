@@ -1,4 +1,4 @@
-import chokidar from 'chokidar';
+import chokidar, { type FSWatcher } from 'chokidar';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
@@ -10,7 +10,7 @@ import type { MeetIngestionSettings } from '@shared/schema';
 
 interface WatcherState {
   meetId: string;
-  watcher: chokidar.FSWatcher | null;
+  watcher: FSWatcher | null;
   mdbPollingInterval: NodeJS.Timeout | null;
 }
 
@@ -92,12 +92,13 @@ class IngestionManager {
 
   async stopAllWatchers(): Promise<void> {
     this.isShuttingDown = true;
-    for (const meetId of this.watchers.keys()) {
+    const meetIds = Array.from(this.watchers.keys());
+    for (const meetId of meetIds) {
       await this.stopWatchersForMeet(meetId);
     }
   }
 
-  private createLynxFileWatcher(meetId: string, directory: string): chokidar.FSWatcher {
+  private createLynxFileWatcher(meetId: string, directory: string): FSWatcher {
     const watcher = chokidar.watch(directory, {
       persistent: true,
       ignoreInitial: true,
@@ -219,19 +220,23 @@ class IngestionManager {
           continue;
         }
 
-        let entry = eventWithEntries.entries.find(e => e.athleteId === athlete.id);
+        const existingEntry = eventWithEntries.entries.find(e => e.athleteId === athlete.id);
+        let entryId: string;
 
-        if (!entry) {
-          entry = await storage.createEntry({
+        if (!existingEntry) {
+          const newEntry = await storage.createEntry({
             eventId: event.id,
             athleteId: athlete.id,
             resultType: 'distance',
           });
+          entryId = newEntry.id;
+        } else {
+          entryId = existingEntry.id;
         }
 
-        await storage.updateEntry(entry.id, {
-          finalPlace: result.place || undefined,
-          finalMark: result.bestMark?.toString() || undefined,
+        await storage.updateEntry(entryId, {
+          finalPlace: result.place !== null ? result.place : undefined,
+          finalMark: result.bestMark !== null ? result.bestMark : undefined,
         });
 
         processed++;

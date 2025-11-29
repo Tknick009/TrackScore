@@ -4635,6 +4635,154 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===============================
+  // INGESTION SETTINGS ROUTES
+  // ===============================
+
+  // Get ingestion settings for a meet
+  app.get("/api/meets/:meetId/ingestion-settings", async (req, res) => {
+    try {
+      const { meetId } = req.params;
+      const settings = await storage.getIngestionSettings(meetId);
+      res.json(settings || {
+        meetId,
+        lynxFilesDirectory: null,
+        lynxFilesEnabled: false,
+        hytekMdbPath: null,
+        hytekMdbEnabled: false,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Update ingestion settings for a meet
+  app.patch("/api/meets/:meetId/ingestion-settings", async (req, res) => {
+    try {
+      const { meetId } = req.params;
+      const settings = await storage.upsertIngestionSettings({
+        meetId,
+        ...req.body,
+      });
+      
+      // Restart watchers if enabled
+      const { ingestionManager } = await import('./ingestion-manager');
+      if (settings.lynxFilesEnabled || settings.hytekMdbEnabled) {
+        await ingestionManager.startWatchersForMeet(meetId);
+      } else {
+        await ingestionManager.stopWatchersForMeet(meetId);
+      }
+      
+      res.json(settings);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get ingestion status for a meet
+  app.get("/api/meets/:meetId/ingestion-status", async (req, res) => {
+    try {
+      const { meetId } = req.params;
+      const { ingestionManager } = await import('./ingestion-manager');
+      const status = await ingestionManager.getStatus(meetId);
+      res.json(status);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Test Lynx files directory
+  app.post("/api/meets/:meetId/ingestion-settings/test-lynx-directory", async (req, res) => {
+    try {
+      const { directory } = req.body;
+      const { ingestionManager } = await import('./ingestion-manager');
+      const result = await ingestionManager.testLynxDirectory(directory);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Test HyTek MDB file path
+  app.post("/api/meets/:meetId/ingestion-settings/test-mdb-path", async (req, res) => {
+    try {
+      const { path } = req.body;
+      const { ingestionManager } = await import('./ingestion-manager');
+      const result = await ingestionManager.testMdbPath(path);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Start ingestion for a meet
+  app.post("/api/meets/:meetId/ingestion-settings/start", async (req, res) => {
+    try {
+      const { meetId } = req.params;
+      const { ingestionManager } = await import('./ingestion-manager');
+      const result = await ingestionManager.startWatchersForMeet(meetId);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Stop ingestion for a meet
+  app.post("/api/meets/:meetId/ingestion-settings/stop", async (req, res) => {
+    try {
+      const { meetId } = req.params;
+      const { ingestionManager } = await import('./ingestion-manager');
+      await ingestionManager.stopWatchersForMeet(meetId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get processed files for a meet
+  app.get("/api/meets/:meetId/processed-files", async (req, res) => {
+    try {
+      const { meetId } = req.params;
+      const files = await storage.getProcessedFiles(meetId);
+      res.json(files);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Clear processed files for a meet
+  app.delete("/api/meets/:meetId/processed-files", async (req, res) => {
+    try {
+      const { meetId } = req.params;
+      await storage.clearProcessedFiles(meetId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Trigger immediate MDB import
+  app.post("/api/meets/:meetId/ingestion-settings/import-mdb", async (req, res) => {
+    try {
+      const { meetId } = req.params;
+      const settings = await storage.getIngestionSettings(meetId);
+      
+      if (!settings?.hytekMdbPath) {
+        return res.status(400).json({ error: 'No MDB path configured' });
+      }
+      
+      const stats = await importCompleteMDB(settings.hytekMdbPath, meetId);
+      
+      await storage.updateIngestionSettings(meetId, {
+        hytekMdbLastImportAt: new Date(),
+      } as any);
+      
+      res.json({ success: true, stats });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Get live meet state (aggregated)
   app.get("/api/meets/:meetId/live", async (req, res) => {
     try {
