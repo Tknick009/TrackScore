@@ -141,6 +141,13 @@ import {
   athleteBests,
   type AthleteBest,
   type InsertAthleteBest,
+  layoutScenes,
+  layoutObjects,
+  type InsertLayoutScene,
+  type InsertLayoutObject,
+  type SelectLayoutScene,
+  type SelectLayoutObject,
+  type LayoutSceneWithObjects,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql, and, not, inArray, count, isNull, desc } from "drizzle-orm";
@@ -450,6 +457,21 @@ export interface IStorage {
   upsertAthleteBest(best: InsertAthleteBest): Promise<AthleteBest>;
   deleteAthleteBest(id: string): Promise<void>;
   bulkImportAthleteBests(bests: InsertAthleteBest[]): Promise<AthleteBest[]>;
+
+  // Layout Scenes (Scene-based layout system)
+  getLayoutScenes(meetId?: string): Promise<SelectLayoutScene[]>;
+  getLayoutScene(id: number): Promise<LayoutSceneWithObjects | null>;
+  createLayoutScene(scene: InsertLayoutScene): Promise<SelectLayoutScene>;
+  updateLayoutScene(id: number, scene: Partial<InsertLayoutScene>): Promise<SelectLayoutScene | null>;
+  deleteLayoutScene(id: number): Promise<boolean>;
+
+  // Layout Objects (Objects within scenes)
+  getLayoutObjects(sceneId: number): Promise<SelectLayoutObject[]>;
+  getLayoutObject(id: number): Promise<SelectLayoutObject | null>;
+  createLayoutObject(object: InsertLayoutObject): Promise<SelectLayoutObject>;
+  updateLayoutObject(id: number, object: Partial<InsertLayoutObject>): Promise<SelectLayoutObject | null>;
+  deleteLayoutObject(id: number): Promise<boolean>;
+  reorderObjects(sceneId: number, objectIds: number[]): Promise<SelectLayoutObject[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2898,6 +2920,124 @@ export class DatabaseStorage implements IStorage {
       const result = await this.upsertAthleteBest(best);
       results.push(result);
     }
+    return results;
+  }
+
+  // Layout Scenes (Scene-based layout system)
+  async getLayoutScenes(meetId?: string): Promise<SelectLayoutScene[]> {
+    if (meetId) {
+      return db
+        .select()
+        .from(layoutScenes)
+        .where(eq(layoutScenes.meetId, meetId));
+    }
+    return db.select().from(layoutScenes);
+  }
+
+  async getLayoutScene(id: number): Promise<LayoutSceneWithObjects | null> {
+    const [scene] = await db
+      .select()
+      .from(layoutScenes)
+      .where(eq(layoutScenes.id, id));
+    
+    if (!scene) {
+      return null;
+    }
+
+    const objects = await this.getLayoutObjects(id);
+    return { ...scene, objects };
+  }
+
+  async createLayoutScene(scene: InsertLayoutScene): Promise<SelectLayoutScene> {
+    const [newScene] = await db
+      .insert(layoutScenes)
+      .values({
+        ...scene,
+        updatedAt: new Date(),
+      } as any)
+      .returning();
+    return newScene;
+  }
+
+  async updateLayoutScene(id: number, scene: Partial<InsertLayoutScene>): Promise<SelectLayoutScene | null> {
+    const [updated] = await db
+      .update(layoutScenes)
+      .set({
+        ...scene,
+        updatedAt: new Date(),
+      } as any)
+      .where(eq(layoutScenes.id, id))
+      .returning();
+    return updated || null;
+  }
+
+  async deleteLayoutScene(id: number): Promise<boolean> {
+    const result = await db
+      .delete(layoutScenes)
+      .where(eq(layoutScenes.id, id))
+      .returning();
+    return result.length > 0;
+  }
+
+  // Layout Objects (Objects within scenes)
+  async getLayoutObjects(sceneId: number): Promise<SelectLayoutObject[]> {
+    return db
+      .select()
+      .from(layoutObjects)
+      .where(eq(layoutObjects.sceneId, sceneId));
+  }
+
+  async getLayoutObject(id: number): Promise<SelectLayoutObject | null> {
+    const [object] = await db
+      .select()
+      .from(layoutObjects)
+      .where(eq(layoutObjects.id, id));
+    return object || null;
+  }
+
+  async createLayoutObject(object: InsertLayoutObject): Promise<SelectLayoutObject> {
+    const [newObject] = await db
+      .insert(layoutObjects)
+      .values(object as any)
+      .returning();
+    return newObject;
+  }
+
+  async updateLayoutObject(id: number, object: Partial<InsertLayoutObject>): Promise<SelectLayoutObject | null> {
+    const [updated] = await db
+      .update(layoutObjects)
+      .set(object as any)
+      .where(eq(layoutObjects.id, id))
+      .returning();
+    return updated || null;
+  }
+
+  async deleteLayoutObject(id: number): Promise<boolean> {
+    const result = await db
+      .delete(layoutObjects)
+      .where(eq(layoutObjects.id, id))
+      .returning();
+    return result.length > 0;
+  }
+
+  async reorderObjects(sceneId: number, objectIds: number[]): Promise<SelectLayoutObject[]> {
+    const results: SelectLayoutObject[] = [];
+    
+    for (let i = 0; i < objectIds.length; i++) {
+      const [updated] = await db
+        .update(layoutObjects)
+        .set({ zIndex: i })
+        .where(and(
+          eq(layoutObjects.id, objectIds[i]),
+          eq(layoutObjects.sceneId, sceneId)
+        ))
+        .returning();
+      
+      if (updated) {
+        results.push(updated);
+      }
+    }
+    
     return results;
   }
 }

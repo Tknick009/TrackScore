@@ -24,6 +24,8 @@ import {
   insertCompositeLayoutSchema,
   insertLayoutZoneSchema,
   updateLayoutZoneSchema,
+  insertLayoutSceneSchema,
+  insertLayoutObjectSchema,
   insertRecordBookSchema,
   insertRecordSchema,
   insertMeetScoringProfileSchema,
@@ -2738,6 +2740,163 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(result);
     } catch (error: any) {
       console.error('Error applying template:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ===== LAYOUT SCENES API ROUTES =====
+
+  // Get all scenes (optional ?meetId= filter)
+  app.get('/api/layout-scenes', async (req, res) => {
+    try {
+      const meetId = req.query.meetId as string | undefined;
+      const scenes = await storage.getLayoutScenes(meetId);
+      res.json(scenes);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get single scene with all objects
+  app.get('/api/layout-scenes/:id', async (req, res) => {
+    try {
+      const scene = await storage.getLayoutScene(parseInt(req.params.id));
+      if (!scene) {
+        return res.status(404).json({ error: 'Scene not found' });
+      }
+      res.json(scene);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Create new scene
+  app.post('/api/layout-scenes', async (req, res) => {
+    try {
+      const parsed = insertLayoutSceneSchema.parse(req.body);
+      const scene = await storage.createLayoutScene(parsed);
+      res.status(201).json(scene);
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Invalid scene data', details: error.errors });
+      }
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Update scene
+  app.patch('/api/layout-scenes/:id', async (req, res) => {
+    try {
+      const parsed = insertLayoutSceneSchema.partial().parse(req.body);
+      const scene = await storage.updateLayoutScene(parseInt(req.params.id), parsed);
+      if (!scene) {
+        return res.status(404).json({ error: 'Scene not found' });
+      }
+      res.json(scene);
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Invalid scene data', details: error.errors });
+      }
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Delete scene
+  app.delete('/api/layout-scenes/:id', async (req, res) => {
+    try {
+      const success = await storage.deleteLayoutScene(parseInt(req.params.id));
+      if (!success) {
+        return res.status(404).json({ error: 'Scene not found' });
+      }
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ===== LAYOUT OBJECTS API ROUTES =====
+
+  // Get all objects in a scene
+  app.get('/api/layout-scenes/:sceneId/objects', async (req, res) => {
+    try {
+      const objects = await storage.getLayoutObjects(parseInt(req.params.sceneId));
+      res.json(objects);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get single object
+  app.get('/api/layout-objects/:id', async (req, res) => {
+    try {
+      const object = await storage.getLayoutObject(parseInt(req.params.id));
+      if (!object) {
+        return res.status(404).json({ error: 'Object not found' });
+      }
+      res.json(object);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Create new object in scene
+  app.post('/api/layout-scenes/:sceneId/objects', async (req, res) => {
+    try {
+      const sceneId = parseInt(req.params.sceneId);
+      const parsed = insertLayoutObjectSchema.parse({ ...req.body, sceneId });
+      const object = await storage.createLayoutObject(parsed);
+      res.status(201).json(object);
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Invalid object data', details: error.errors });
+      }
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Update object
+  app.patch('/api/layout-objects/:id', async (req, res) => {
+    try {
+      const parsed = insertLayoutObjectSchema.partial().parse(req.body);
+      const object = await storage.updateLayoutObject(parseInt(req.params.id), parsed);
+      if (!object) {
+        return res.status(404).json({ error: 'Object not found' });
+      }
+      res.json(object);
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Invalid object data', details: error.errors });
+      }
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Delete object
+  app.delete('/api/layout-objects/:id', async (req, res) => {
+    try {
+      const success = await storage.deleteLayoutObject(parseInt(req.params.id));
+      if (!success) {
+        return res.status(404).json({ error: 'Object not found' });
+      }
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Reorder objects in a scene
+  app.post('/api/layout-scenes/:sceneId/objects/reorder', async (req, res) => {
+    try {
+      const sceneId = parseInt(req.params.sceneId);
+      const { objectIds } = req.body;
+      
+      if (!Array.isArray(objectIds) || !objectIds.every(id => typeof id === 'number')) {
+        return res.status(400).json({ error: 'objectIds must be an array of numbers' });
+      }
+      
+      const objects = await storage.reorderObjects(sceneId, objectIds);
+      res.json(objects);
+    } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
