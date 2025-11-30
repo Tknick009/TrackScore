@@ -820,7 +820,9 @@ export const displayDevices = pgTable("display_devices", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   meetId: varchar("meet_id").notNull().references(() => meets.id, { onDelete: "cascade" }),
   deviceName: text("device_name").notNull(), // Friendly name for the display (e.g., "Finish Line Board", "Field Event 1")
+  displayType: text("display_type").default("P10"), // P10, P6, or BigBoard - the physical display hardware type
   displayMode: text("display_mode").default("track"), // "track" = auto-show from Lynx port 5055, "field" = manual event assignment
+  currentTemplate: text("current_template"), // The template/preset currently being shown (e.g., "p10-results", "meet-logo")
   lastIp: text("last_ip"), // Last known IP address
   assignedEventId: varchar("assigned_event_id").references(() => events.id, { onDelete: "set null" }), // Which event to show (only used for field mode)
   assignedLayoutId: integer("assigned_layout_id").references(() => compositeLayouts.id, { onDelete: "set null" }), // Optional: composite layout

@@ -233,6 +233,7 @@ export interface IStorage {
   updateDisplayDeviceStatus(id: string, status: string, lastIp?: string): Promise<DisplayDevice | undefined>;
   updateDisplayDeviceMode(id: string, displayMode: 'track' | 'field'): Promise<DisplayDevice | undefined>;
   assignEventToDisplay(displayId: string, eventId: string | null): Promise<DisplayDevice | undefined>;
+  updateDisplayTemplate(displayId: string, template: string | null): Promise<DisplayDevice | undefined>;
   deleteDisplayDevice(id: string): Promise<boolean>;
 
   // Display Themes
@@ -1023,19 +1024,23 @@ export class DatabaseStorage implements IStorage {
     return device || undefined;
   }
 
-  async createOrUpdateDisplayDevice(device: InsertDisplayDevice & { lastIp?: string }): Promise<DisplayDevice> {
+  async createOrUpdateDisplayDevice(device: InsertDisplayDevice & { lastIp?: string; displayType?: string }): Promise<DisplayDevice> {
     // Check if device with this name already exists for this meet
     const existing = await this.getDisplayDeviceByName(device.meetId, device.deviceName);
     
     if (existing) {
-      // Update existing device
+      // Update existing device - also update displayType if provided
+      const updateData: any = {
+        status: 'online',
+        lastSeenAt: new Date(),
+        lastIp: device.lastIp || existing.lastIp,
+      };
+      if (device.displayType) {
+        updateData.displayType = device.displayType;
+      }
       const [updated] = await db
         .update(displayDevices)
-        .set({
-          status: 'online',
-          lastSeenAt: new Date(),
-          lastIp: device.lastIp || existing.lastIp,
-        })
+        .set(updateData)
         .where(eq(displayDevices.id, existing.id))
         .returning();
       return updated;
@@ -1046,6 +1051,7 @@ export class DatabaseStorage implements IStorage {
       .insert(displayDevices)
       .values({
         ...device,
+        displayType: device.displayType || 'P10',
         status: 'online',
         lastSeenAt: new Date(),
       })
@@ -1091,6 +1097,17 @@ export class DatabaseStorage implements IStorage {
       .update(displayDevices)
       .set({
         assignedEventId: eventId,
+      })
+      .where(eq(displayDevices.id, displayId))
+      .returning();
+    return updated || undefined;
+  }
+
+  async updateDisplayTemplate(displayId: string, template: string | null): Promise<DisplayDevice | undefined> {
+    const [updated] = await db
+      .update(displayDevices)
+      .set({
+        currentTemplate: template,
       })
       .where(eq(displayDevices.id, displayId))
       .returning();

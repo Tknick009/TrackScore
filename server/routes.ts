@@ -1588,6 +1588,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Send command to a display device (push template/content)
+  app.post("/api/display-devices/:id/command", async (req, res) => {
+    try {
+      const { template, eventId } = req.body;
+      const deviceId = req.params.id;
+      
+      // Get the device
+      const device = await storage.getDisplayDevice(deviceId);
+      if (!device) {
+        return res.status(404).json({ error: "Display device not found" });
+      }
+      
+      // Update the template in database
+      if (template !== undefined) {
+        await storage.updateDisplayTemplate(deviceId, template);
+      }
+      
+      // If setting an event, update that too
+      if (eventId !== undefined) {
+        await storage.assignEventToDisplay(deviceId, eventId);
+      }
+      
+      // Find the connected WebSocket for this device
+      const connectedDevice = connectedDisplayDevices.get(deviceId);
+      if (connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {
+        // Send command to the display device
+        connectedDevice.ws.send(JSON.stringify({
+          type: 'display_command',
+          template,
+          eventId,
+        }));
+        
+        res.json({ success: true, delivered: true });
+      } else {
+        // Device not connected, but command saved to database
+        res.json({ success: true, delivered: false, message: "Device offline - command saved for when it reconnects" });
+      }
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // ===== DISPLAY THEMES =====
 
   // Get all themes for a meet
@@ -4123,26 +4165,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Handle display device registration
         if (data.type === 'register_display_device') {
-          const { meetId, deviceName } = data;
+          const { meetId, deviceName, displayType } = data;
           
           if (meetId && deviceName) {
-            console.log(`Display device registering: ${deviceName} for meet ${meetId}`);
+            console.log(`Display device registering: ${deviceName} (${displayType}) for meet ${meetId}`);
             
             try {
-              // Register/update the device in the database
+              // Register/update the device in the database with displayType
               const device = await storage.createOrUpdateDisplayDevice({
                 meetId,
                 deviceName,
+                displayType: displayType || 'P10',
               });
               
               registeredDeviceId = device.id;
               
-              // Track this WebSocket connection with the device
+              // Track this WebSocket connection with the device (including displayType)
               connectedDisplayDevices.set(device.id, {
                 ws,
                 deviceId: device.id,
                 deviceName: device.deviceName,
                 meetId: device.meetId,
+                displayType: displayType || 'P10',
               });
               
               // Send registration confirmation with assigned event
@@ -4154,6 +4198,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   meetId: device.meetId,
                   assignedEventId: device.assignedEventId,
                   status: device.status,
+                  displayType: displayType || 'P10',
                 }
               }));
               

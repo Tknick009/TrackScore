@@ -38,6 +38,7 @@ import SceneDisplay from "@/pages/scene-display";
 import DisplayLauncher from "@/pages/display-launcher";
 import DisplayHub from "@/pages/display-hub";
 import PresetDisplay from "@/pages/preset-display";
+import DisplayDevice from "@/pages/display-device";
 import NotFound from "@/pages/not-found";
 
 function MeetSyncWrapper({ meetId, children }: { meetId: string; children: React.ReactNode }) {
@@ -138,6 +139,7 @@ function Router() {
       <Route path="/scene-display/:sceneId" component={SceneDisplay} />
       <Route path="/scene-display" component={SceneDisplay} />
       <Route path="/preset-display/:templateId" component={PresetDisplay} />
+      <Route path="/display" component={DisplayDevice} />
       <Route path="/control/:meetId/scene-editor">{() => <MeetControlRouter />}</Route>
       <Route path="/control/:meetId/events/:eventId">{() => <MeetControlRouter />}</Route>
       <Route path="/control/:meetId/layouts/designer/:layoutId">{() => <MeetControlRouter />}</Route>
