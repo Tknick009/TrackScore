@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
 import { format, formatDistanceToNow } from "date-fns";
-import { Calendar, MapPin, Settings, Monitor, ArrowLeft, Hash, Upload, RefreshCw, Users, Trophy, PlayCircle, CheckCircle2, Clock, TrendingUp, Activity, Trash2, AlertTriangle } from "lucide-react";
+import { Calendar, MapPin, Settings, Monitor, ArrowLeft, Hash, Upload, RefreshCw, Users, Trophy, PlayCircle, CheckCircle2, Clock, TrendingUp, Activity, Trash2, AlertTriangle, Image, X } from "lucide-react";
 import type { Meet, Event, Athlete } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -255,6 +255,185 @@ function EventsTable({ events }: { events: Event[] }) {
       {renderEventsTable(trackEvents, "Track Events")}
       {renderEventsTable(fieldEvents, "Field Events")}
     </div>
+  );
+}
+
+interface MeetLogoUploadProps {
+  meet: Meet;
+  meetId: string;
+}
+
+function MeetLogoUpload({ meet, meetId }: MeetLogoUploadProps) {
+  const { toast } = useToast();
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  const uploadMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append("logo", file);
+      
+      const response = await fetch(`/api/meets/${meetId}/logo`, {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+      
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || response.statusText);
+      }
+      
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/meets", meetId] });
+      toast({ title: "Logo uploaded successfully" });
+      setSelectedFile(null);
+      setPreviewUrl(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to upload logo",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch(`/api/meets/${meetId}/logo`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      
+      if (!response.ok) {
+        throw new Error("Failed to delete logo");
+      }
+      
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/meets", meetId] });
+      toast({ title: "Logo removed" });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to remove logo",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const validTypes = ['image/jpeg', 'image/png', 'image/gif'];
+      if (!validTypes.includes(file.type)) {
+        toast({
+          title: "Invalid file type",
+          description: "Please select a JPEG, PNG, or GIF image",
+          variant: "destructive",
+        });
+        return;
+      }
+      setSelectedFile(file);
+      setPreviewUrl(URL.createObjectURL(file));
+    }
+  };
+
+  const handleUpload = () => {
+    if (selectedFile) {
+      uploadMutation.mutate(selectedFile);
+    }
+  };
+
+  const handleRemove = () => {
+    deleteMutation.mutate();
+  };
+
+  return (
+    <Card data-testid="card-meet-logo">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Image className="w-5 h-5" />
+          Meet Logo
+        </CardTitle>
+        <CardDescription>
+          Upload a logo that will appear on display boards
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {meet.logoUrl ? (
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <img 
+                src={meet.logoUrl} 
+                alt="Meet logo" 
+                className="h-20 object-contain bg-muted rounded-md p-2"
+                data-testid="img-meet-logo"
+              />
+              <Button 
+                variant="destructive" 
+                size="sm"
+                onClick={handleRemove}
+                disabled={deleteMutation.isPending}
+                data-testid="button-remove-logo"
+              >
+                <X className="w-4 h-4 mr-2" />
+                Remove
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {previewUrl ? (
+              <div className="flex items-center gap-4">
+                <img 
+                  src={previewUrl} 
+                  alt="Preview" 
+                  className="h-20 object-contain bg-muted rounded-md p-2"
+                />
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={handleUpload}
+                    disabled={uploadMutation.isPending}
+                    data-testid="button-confirm-upload"
+                  >
+                    {uploadMutation.isPending ? "Uploading..." : "Upload"}
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    onClick={() => {
+                      setSelectedFile(null);
+                      setPreviewUrl(null);
+                    }}
+                    data-testid="button-cancel-upload"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <Input
+                  type="file"
+                  accept="image/jpeg,image/png,image/gif"
+                  onChange={handleFileChange}
+                  className="cursor-pointer"
+                  data-testid="input-logo-file"
+                />
+                <p className="text-sm text-muted-foreground mt-2">
+                  Accepted formats: JPEG, PNG, GIF
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -716,6 +895,9 @@ export default function MeetDetail() {
             )}
           </CardContent>
         </Card>
+
+        {/* Meet Logo */}
+        {meetId && <MeetLogoUpload meet={meet} meetId={meetId} />}
 
         {/* Auto-Refresh Settings */}
         {meetId && <AutoRefreshSettings meet={meet} meetId={meetId} />}

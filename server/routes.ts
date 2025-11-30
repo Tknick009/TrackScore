@@ -1141,6 +1141,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Upload meet logo
+  app.post("/api/meets/:id/logo", upload.single("logo"), async (req, res) => {
+    try {
+      const meetId = req.params.id;
+      const meet = await storage.getMeet(meetId);
+      
+      if (!meet) {
+        return res.status(404).json({ error: "Meet not found" });
+      }
+      
+      if (!req.file) {
+        return res.status(400).json({ error: "No logo file uploaded" });
+      }
+      
+      const result = await fileStorage.saveMeetLogo(
+        req.file.buffer,
+        meetId,
+        req.file.originalname
+      );
+      
+      const logoUrl = fileStorage.publicUrlForKey(result.storageKey);
+      
+      // Update meet with logo URL
+      const updatedMeet = await storage.updateMeet(meetId, { logoUrl });
+      
+      res.json({ 
+        success: true, 
+        logoUrl,
+        meet: updatedMeet
+      });
+    } catch (error: any) {
+      console.error("Error uploading meet logo:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Delete meet logo
+  app.delete("/api/meets/:id/logo", async (req, res) => {
+    try {
+      const meetId = req.params.id;
+      const meet = await storage.getMeet(meetId);
+      
+      if (!meet) {
+        return res.status(404).json({ error: "Meet not found" });
+      }
+      
+      // Clear logo URL from meet
+      const updatedMeet = await storage.updateMeet(meetId, { logoUrl: null });
+      
+      res.json({ 
+        success: true,
+        meet: updatedMeet
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.delete("/api/meets/:id", async (req, res) => {
     try {
       const meet = await storage.getMeet(req.params.id);

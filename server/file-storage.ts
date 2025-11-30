@@ -70,6 +70,34 @@ export class FileStorage {
     };
   }
 
+  async saveMeetLogo(
+    buffer: Buffer,
+    meetId: string,
+    originalName: string
+  ): Promise<{
+    storageKey: string;
+    width: number;
+    height: number;
+    byteSize: number;
+    contentType: string;
+  }> {
+    const processedImage = await this.processImage(buffer);
+    const extension = this.getExtensionFromMimeType(processedImage.contentType);
+    const storageKey = `meets/${meetId}/logo${extension}`;
+    const fullPath = path.join(this.uploadsRoot, storageKey);
+
+    await this.ensureDirectoryExists(path.dirname(fullPath));
+    await fs.writeFile(fullPath, processedImage.buffer);
+
+    return {
+      storageKey,
+      width: processedImage.width,
+      height: processedImage.height,
+      byteSize: processedImage.byteSize,
+      contentType: processedImage.contentType,
+    };
+  }
+
   async deleteByKey(storageKey: string): Promise<void> {
     const fullPath = path.join(this.uploadsRoot, storageKey);
     
