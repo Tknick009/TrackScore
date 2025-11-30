@@ -1,208 +1,113 @@
 # Track and Field Scoreboard Application
 
 ## Overview
-
-A real-time track and field scoreboard system designed to centralize event management, athlete result recording, and live data broadcasting. The application supports multi-display output via WebSocket connections, providing a comprehensive solution for meet organizers. It is built as a full-stack TypeScript application, utilizing React for the frontend and Express for the backend. The project aims to deliver a robust, scalable, and user-friendly platform for athletic events, enhancing the experience for both organizers and spectators.
+This project is a real-time track and field scoreboard system designed to centralize event management, athlete result recording, and live data broadcasting. It supports multi-display output via WebSocket connections, providing a comprehensive solution for meet organizers. Built as a full-stack TypeScript application with React for the frontend and Express for the backend, the system aims to be robust, scalable, and user-friendly, enhancing the experience for both organizers and spectators at athletic events. The business vision includes providing a reliable platform for athletic events, with market potential in various athletic organizations and event management companies seeking advanced, real-time scoring and display solutions.
 
 ## User Preferences
-
 Preferred communication style: Simple, everyday language.
 
 ## System Architecture
 
-### Frontend
+### UI/UX Decisions
+The frontend uses React with shadcn/ui on Radix UI and Tailwind CSS for styling, adhering to Material Design principles for control interfaces and high-visibility design for displays. Typography utilizes Inter/Roboto for control panels and Roboto Condensed for display boards. The architecture separates a control dashboard (`/control`) from various display boards (`/display`, `/scene-display`).
 
-**Framework & Build System:** React 18 with TypeScript, Vite for fast development, Wouter for routing.
+### Technical Implementations
+**Frontend:**
+- **Framework:** React 18 with TypeScript, Vite, Wouter for routing.
+- **State Management:** TanStack Query for server state, real-time updates via WebSocket with a 5-second polling fallback.
+- **Form Management:** React Hook Form with Zod for validation.
 
-**UI Framework:** shadcn/ui on Radix UI, Tailwind CSS for styling, Material Design for control, high-visibility design for displays. Typography uses Inter/Roboto for control and Roboto Condensed for displays.
+**Backend:**
+- **Server Framework:** Express.js with TypeScript and `ws` for WebSockets.
+- **API Design:** RESTful endpoints (`/api`) and a WebSocket endpoint (`/ws`) for real-time updates.
+- **Data Storage:** In-memory storage (`MemStorage`) with an `IStorage` abstraction, designed for future PostgreSQL migration via Drizzle ORM.
+- **WebSocket Broadcasting:** Manages connected display clients, broadcasting event state updates triggered by control dashboard actions.
+- **Remote Display Control:** Allows operators to assign specific events to different registered display devices.
 
-**State Management:** TanStack Query for server state, real-time updates via WebSocket, with a 5-second polling fallback.
+### Feature Specifications
+**Scene-Based Layout System (ResulTV-Style):**
+- **Database Schema:** `layout_scenes` for canvases and `layout_objects` for display components with percentage-based positioning, z-index, and JSONB fields for data bindings and styling.
+- **Object Type Registry:** 14 distinct object types (e.g., results-table, timer, athlete-card) with specific data binding capabilities (e.g., 'static', 'events', 'live-data').
+- **Scene Editor UI:** A visual canvas editor at `/control/:meetId/scene-editor` for managing scenes, dragging and dropping objects, and configuring properties.
+- **Scene Display Runtime:** `/scene-display/:sceneId` renders scenes with live data by subscribing objects to configured data sources via WebSockets.
 
-**Key Frontend Patterns:** Separation of control dashboard (`/control`) and display board (`/display`) interfaces, React Hook Form with Zod for validation, component composition, real-time connection monitoring.
+**Asset Management System:**
+- Manages athlete photos and team logos with metadata storage and `FileStorage` for image processing (resize, optimize).
+- API endpoints for CRUD operations on assets.
 
-### Backend
+**HyTek MDB Import System:**
+- Parses HyTek MDB files for event scheduling and generating comprehensive event names.
 
-**Server Framework:** Express.js with TypeScript, `ws` library for WebSocket support.
+**Lynx Protocol Integration:**
+- JSON-based parser for "S", "T", "F" message types from Lynx systems (FinishLynx, FieldLynx).
+- Auto-starts Lynx listeners from saved configurations.
+- Stores live event data in `live_event_data` table.
+- Aggregates multiple athlete entries before storage.
+- HTTP Forward Endpoint (`/api/lynx/forward`) for receiving forwarded TCP data from remote networks.
+- TCP Forwarder Scripts are provided for cross-network connectivity.
 
-**API Design:** RESTful endpoints (`/api`), WebSocket endpoint (`/ws`) for real-time updates. Control dashboard actions trigger WebSocket broadcasts to all connected displays.
+**Athlete Bests (Personal Records):**
+- `athlete_bests` table stores college and season personal records per athlete and event type.
+- API endpoints for managing athlete bests and UI integration for viewing/editing.
 
-**Data Storage Strategy:** In-memory storage (`MemStorage`) with an `IStorage` abstraction, designed for future PostgreSQL migration via Drizzle ORM.
+**Data Ingestion System:**
+- Uses `chokidar` to monitor directories for FinishLynx LIF and FieldLynx LFF files.
+- Parses LIF and LFF files, mapping results to athletes.
+- Configurable polling for HyTek MDB file changes, triggering full database re-import.
+- UI component for configuring ingestion settings.
 
-**WebSocket Broadcasting:** Server manages connected display clients, broadcasting event state updates (`board_update` messages) triggered by control dashboard actions.
+### System Design Choices
+**Database Schema (Drizzle ORM):**
+- Core tables: `athletes`, `events`, `track_results`, `field_results`, `meets`.
+- Uses Drizzle Kit for PostgreSQL schema management.
 
-**Remote Display Control:** Display devices register via WebSocket, receiving unique IDs. A control panel allows operators to assign specific events to different displays. Devices track status (online/offline) and send heartbeats.
+**Data Flow Patterns:**
+- **Control Dashboard:** User interaction -> Frontend REST API -> Backend updates storage -> Backend broadcasts via WebSocket to displays.
+- **Display Board:** WebSocket connection -> Listens for `board_update` -> Falls back to polling API -> Renders UI.
 
-**Layout Template System:** Pre-built layout templates for LED displays (P10, P6) including Start List, Running Time, Results, Field Results, Field Standings, and Meet Logo. Templates use percentage-based positioning for resolution independence. API endpoints for listing and applying templates.
+**Styling & Design System:**
+- CSS custom properties, Tailwind CSS, custom design tokens, elevation system.
+- Mobile-first responsive design.
 
-### Scene-Based Layout System (ResulTV-Style)
-
-**Database Schema:** `layout_scenes` table defines display canvases with dimensions, background color/image, and template flags. `layout_objects` table contains individual display components within scenes, with percentage-based positioning (x, y, width, height), z-index layering, and JSONB fields for data bindings, component config, and styling.
-
-**Object Type Registry:** 14 object types including results-table, timer, event-header, athlete-card, athlete-grid, team-standings, lane-graphic, attempt-tracker, logo, text, clock, wind-reading, split-times, and record-indicator. Each type categorized for palette organization.
-
-**Data Binding System:** Objects support multiple data source types: 'static', 'events', 'current-track', 'current-field', 'live-data', and 'standings'. Bindings include eventIds, lynxPort, divisionId, heatNumber, and limit options for flexible data mapping.
-
-**Scene Editor UI:** Visual canvas editor at `/control/:meetId/scene-editor` with:
-- Scene list sidebar for managing multiple scenes per meet
-- Drag-and-drop canvas with grid overlay for precise positioning
-- Object palette organized by category (data display, timing, athletes, etc.)
-- Property inspector for configuring data bindings and styling
-- Preview mode and full-screen display launch
-
-**Scene Display Runtime:** `/scene-display/:sceneId` renders scenes with live data by:
-- Loading scene and objects from API
-- Subscribing each object to its configured data sources via WebSocket
-- Rendering appropriate display components based on object type
-- Responding to real-time updates for events, live data, and standings
-
-**API Endpoints:**
-- `GET/POST /api/layout-scenes` - List/create scenes
-- `GET/PATCH/DELETE /api/layout-scenes/:id` - Scene CRUD operations
-- `GET/POST /api/layout-objects` - List/create objects for a scene
-- `GET/PATCH/DELETE /api/layout-objects/:id` - Object CRUD operations
-- `POST /api/layout-objects/reorder` - Reorder objects within scene
-
-### Database Schema (Drizzle ORM)
-
-**Core Tables:** `athletes`, `events`, `track_results`, `field_results`, `meets`.
-
-**Schema Design Decisions:** Event types as enum, separate result tables for track/field, event status tracking (`scheduled`, `in_progress`, `completed`), support for heats and rounds.
-
-**Migration Strategy:** Drizzle Kit for PostgreSQL, schema in `shared/schema.ts`.
-
-### Data Flow Patterns
-
-**Control Dashboard Flow:** User interaction -> Frontend REST API call -> Backend updates in-memory storage -> Backend broadcasts updated state via WebSocket to display boards.
-
-**Display Board Flow:** WebSocket connection -> Listens for `board_update` messages -> Falls back to polling `/api/events/current` -> Renders UI with current event data.
-
-### Styling & Design System
-
-**CSS Architecture:** CSS custom properties for theming, Tailwind utility classes, custom design tokens, elevation system.
-
-**Responsive Design:** Mobile-first approach with breakpoint at 768px, sidebar layout for control dashboard, full viewport display boards, touch-friendly controls.
-
-**Typography System:** Inter/Roboto for control, Roboto Condensed for display boards; monospace for timing data.
-
-### Asset Management System
-
-**Database Schema:** `athletePhotos` and `teamLogos` tables store metadata (storageKey, filename, size, dimensions). Unique constraints ensure one-to-one relationships.
-
-**File Storage Infrastructure:** `FileStorage` class handles image processing (resize, optimize), format support (JPEG, PNG, GIF), and organized directory structure for uploads.
-
-**Upload Workflow:** Multer handles uploads, Sharp processes images, `FileStorage` saves, and database upserts metadata.
-
-**API Endpoints:** Dedicated REST endpoints for `POST`, `GET`, `DELETE` operations for athlete photos and team logos, with validation for file type, size, and entity existence.
-
-**Storage Layer Interface:** `IStorage` extensions for `get`, `create`, `delete`, and `bulkGet` operations on athlete photos and team logos.
-
-### HyTek MDB Import System
-
-**Event Scheduling Implementation:** Extracts event dates and times from HyTek MDB files using `Meet_start`, `Session` data, `Comm_1` field parsing, and `CCracestart` fields. A fallback hierarchy ensures all events receive a date, with times parsed where available.
-
-**Event Name Generation:** Generates comprehensive event names based on gender codes, event types (track, field, multi-events), and session names where applicable.
-
-### Lynx Protocol Integration
-
-**Protocol Parser:** JSON-based Lynx protocol parser with streaming assembly and control character sanitization. Handles three message types: "S" (start list), "T" (track/timing), "F" (field) with structured data extraction.
-
-**Auto-Start on Boot:** Lynx listeners automatically start on server boot by loading saved configurations from the `lynx_configs` database table. Falls back to environment variables (`LYNX_CLOCK_PORT`, `LYNX_RESULTS_PORT`, `LYNX_FIELD_PORT`) if no saved configs exist.
-
-**Live Event Data Storage:** Incoming track and field results are stored to the `live_event_data` table indexed by event number, enabling support for concurrent events. Data includes mode, status, wind readings, entries, running time, and attempt details.
-
-**Aggregation System:** 250ms timeout aggregates multiple athlete entries per event/heat/round before storage, using composite keys (event number, heat, flight, round, port type) to prevent collisions.
-
-**HTTP Forward Endpoint:** `POST /api/lynx/forward` receives TCP data forwarded via HTTP from remote networks. Accepts `{data, portType, portName}` payload and processes through standard Lynx parser.
-
-**TCP Forwarder Scripts:** Located in `tools/tcp-forwarders/` for running on the same network as FinishLynx/FieldLynx. The forwarder listens on TCP ports (5055, 5056, 5057) and forwards data via HTTP to the Replit server, enabling cross-network connectivity.
-
-**API Endpoints:**
-- `GET /api/live-events/:eventNumber` - Get live data for specific event
-- `GET /api/live-events` - Get all live events (optionally filtered by meet)
-- `DELETE /api/live-events` - Clear live event data
-- `GET /api/lynx/saved-configs` - Get saved Lynx port configurations
-- `POST /api/lynx/config` - Configure and save Lynx ports (auto-saves to database)
-- `POST /api/lynx/forward` - Receive forwarded Lynx data via HTTP
-
-### Athlete Bests (Personal Records)
-
-**Database Schema:** `athlete_bests` table stores college and season personal records per athlete and event type. Fields include `athleteId`, `eventType`, `bestType` (college or season), `mark` (in base units: seconds for track, meters for field), `seasonId`, `achievedAt`, `meetName`, and `source` (manual, import, calculated).
-
-**API Endpoints:**
-- `GET /api/athletes/:athleteId/bests` - Get all bests for an athlete
-- `GET /api/meets/:meetId/athlete-bests` - Get all bests for athletes in a meet
-- `POST /api/athlete-bests` - Create or update an athlete best
-- `PATCH /api/athlete-bests/:id` - Update a best
-- `DELETE /api/athlete-bests/:id` - Delete a best
-- `POST /api/meets/:meetId/athlete-bests/import` - Bulk import bests from CSV data
-
-**UI Integration:** Athletes page detail dialog includes a "Personal Bests" section for viewing and editing PR (college) and SB (season) marks. Display boards (FieldEventBoard) show PR and SB marks alongside athlete info when available.
-
-### Data Ingestion System
-
-**Directory Watching:** Uses chokidar to monitor directories for FinishLynx LIF and FieldLynx LFF result files. Files are processed with awaitWriteFinish (500ms stability threshold) to avoid partial reads. Content hashing (SHA-256) prevents duplicate processing.
-
-**Database Schema:** `meet_ingestion_settings` table stores per-meet configuration including directory paths, enable flags, poll intervals, and last import timestamps. `processed_files` table tracks file processing history with content hashes for deduplication.
-
-**LIF Parser:** Parses FinishLynx result files extracting event number, place, lane, bib number, name, team, and time. Handles various timing formats and maps results to athletes via bib number.
-
-**LFF Parser:** Parses FieldLynx result files with support for both metric and imperial units. Extracts event number, bib, place, best mark, and individual attempts with automatic unit conversion.
-
-**HyTek MDB Polling:** Configurable polling interval (default 60 seconds) monitors MDB file for changes using content hashing. On change, triggers full database re-import of athletes, events, and entries.
-
-**API Endpoints:**
-- `GET /api/meets/:meetId/ingestion-settings` - Get ingestion settings
-- `PATCH /api/meets/:meetId/ingestion-settings` - Update settings
-- `GET /api/meets/:meetId/ingestion-status` - Get watcher/polling status
-- `POST /api/meets/:meetId/ingestion-settings/test-lynx-directory` - Validate directory
-- `POST /api/meets/:meetId/ingestion-settings/test-mdb-path` - Validate MDB file
-- `POST /api/meets/:meetId/ingestion-settings/start` - Start watchers
-- `POST /api/meets/:meetId/ingestion-settings/stop` - Stop watchers
-- `POST /api/meets/:meetId/ingestion-settings/import-mdb` - Trigger immediate import
-- `GET /api/meets/:meetId/processed-files` - List processed files
-- `DELETE /api/meets/:meetId/processed-files` - Clear processed files
-
-**UI Component:** DataIngestionPanel in control sidebar provides configuration for Lynx files directory and HyTek MDB path, with test buttons, enable toggles, and status display.
+**Local-First Architecture (Edge Mode):**
+- Supports both **Cloud Mode** (Replit server, PostgreSQL) and **Edge Mode** (local server, SQLite).
+- A storage factory detects the operating mode via `EDGE_MODE` environment variable.
+- **SQLite Storage Adapter:** Implements `IStorage` for local operations with a sync journal.
+- **Sync System:** Bidirectional sync (local ↔ cloud) with conflict resolution (last-writer-wins) and exponential backoff.
+- **Electron Desktop App:** Provides a standalone desktop application with an embedded Node.js server for edge operations.
+- **Edge Setup CLI:** Command-line tools for configuring local edge servers.
 
 ## External Dependencies
 
 ### Third-Party UI Libraries
-- **Radix UI**: Accessible component primitives.
-- **shadcn/ui**: Component library based on Radix.
-- **Lucide React**: Icon set.
-
-### Development Tools
-- **Vite**: Build tool and development server.
-- **Replit Plugins**: Runtime error overlay, cartographer, dev banner.
+- **Radix UI:** Accessible component primitives.
+- **shadcn/ui:** Component library based on Radix.
+- **Lucide React:** Icon set.
 
 ### Database & ORM
-- **Drizzle ORM**: Type-safe database toolkit.
-- **Drizzle Zod**: Schema-to-Zod validator generation.
-- **@neondatabase/serverless**: PostgreSQL driver (configured).
-- **connect-pg-simple**: PostgreSQL session store (configured).
+- **Drizzle ORM:** Type-safe database toolkit.
+- **Drizzle Zod:** Schema-to-Zod validator generation.
+- **@neondatabase/serverless:** PostgreSQL driver.
+- **connect-pg-simple:** PostgreSQL session store.
+- **better-sqlite3:** SQLite driver for edge/local operation.
 
 ### Form Management
-- **React Hook Form**: Form state and validation.
-- **@hookform/resolvers**: Zod integration.
-- **Zod**: Runtime type validation.
+- **React Hook Form:** Form state and validation.
+- **@hookform/resolvers:** Zod integration.
+- **Zod:** Runtime type validation.
 
 ### Real-Time Communication
-- **ws**: Server-side WebSocket implementation.
+- **ws:** Server-side WebSocket implementation.
 - Native browser WebSocket API.
 
 ### Utilities
-- **date-fns**: Date manipulation.
-- **clsx & tailwind-merge**: Conditional className utilities.
-- **class-variance-authority**: Variant-based component styling.
-- **nanoid**: Unique ID generation.
-
-### Build & Runtime
-- **TypeScript**: Static typing.
-- **tsx**: TypeScript execution for development.
-- **esbuild**: Fast bundling.
-- **PostCSS & Autoprefixer**: CSS processing.
-- **mdb-reader**: HyTek/FinishLynx .mdb database file parser.
+- **date-fns:** Date manipulation.
+- **clsx & tailwind-merge:** Conditional className utilities.
+- **class-variance-authority:** Variant-based component styling.
+- **nanoid:** Unique ID generation.
+- **chokidar:** Directory watcher for file ingestion.
+- **mdb-reader:** HyTek/FinishLynx .mdb database file parser.
 
 ### Image Processing
-- **Sharp**: High-performance image processing.
-- **Multer**: Multipart/form-data handling.
+- **Sharp:** High-performance image processing.
+- **Multer:** Multipart/form-data handling.

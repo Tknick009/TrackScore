@@ -53,6 +53,7 @@ import { ingestLIFResults } from "./finishlynx-ingestion";
 import { generateCertificatePDF, type CertificateData } from './certificate-generator';
 import { startWeatherPolling, stopWeatherPolling } from './weather-poller';
 import archiver from 'archiver';
+import syncRouter from './sync/routes';
 
 // Check-in validation schemas
 const checkInSchema = z.object({
@@ -182,6 +183,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Initialize FileStorage for photo/logo management
   const fileStorage = new FileStorage();
+
+  // Register sync routes for edge-cloud synchronization
+  app.use('/api/sync', syncRouter);
 
   // ===== PUBLIC SPECTATOR API =====
 

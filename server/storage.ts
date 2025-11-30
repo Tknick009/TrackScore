@@ -3304,4 +3304,29 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-export const storage = new DatabaseStorage();
+// Storage factory - creates the appropriate storage based on environment
+import { SQLiteStorage } from './storage/sqlite-adapter';
+
+export type StorageMode = 'cloud' | 'edge';
+
+export function getStorageMode(): StorageMode {
+  return process.env.EDGE_MODE === 'true' ? 'edge' : 'cloud';
+}
+
+function createStorage(): IStorage {
+  const mode = getStorageMode();
+  
+  if (mode === 'edge') {
+    const dbPath = process.env.SQLITE_DB_PATH || './data/scoreboard.db';
+    console.log(`🔄 Running in EDGE mode with SQLite database: ${dbPath}`);
+    return new SQLiteStorage(dbPath);
+  }
+  
+  console.log('☁️ Running in CLOUD mode with PostgreSQL database');
+  return new DatabaseStorage();
+}
+
+export const storage = createStorage();
+
+// Export the SQLite storage class for direct use in sync operations
+export { SQLiteStorage };
