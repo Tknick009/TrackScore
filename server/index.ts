@@ -10,6 +10,9 @@ const app = express();
 // Serve static files from public folder (NCAA logos, etc.)
 app.use(express.static(path.join(process.cwd(), 'public')));
 
+// Serve uploaded files (meet logos, athlete photos, team logos)
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+
 declare module 'http' {
   interface IncomingMessage {
     rawBody: unknown
