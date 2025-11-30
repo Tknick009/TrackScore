@@ -42,75 +42,115 @@ export default function DisplayDevice() {
   });
 
   const activeMeet = meets?.find(m => m.status === 'active') || meets?.[0];
+  const activeMeetIdRef = useRef<string | null>(null);
+  const isConnectingRef = useRef(false);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Update meetId ref when activeMeet changes (without triggering WebSocket reconnect)
   useEffect(() => {
-    if (state.displayType && activeMeet?.id) {
+    if (activeMeet?.id) {
+      activeMeetIdRef.current = activeMeet.id;
       setState(prev => ({ ...prev, meetId: activeMeet.id }));
+    }
+  }, [activeMeet?.id]);
+
+  // WebSocket connection - only depends on displayType (runs once per display type selection)
+  useEffect(() => {
+    if (!state.displayType) return;
+    
+    // Wait for meetId to be available
+    if (!activeMeetIdRef.current && !activeMeet?.id) return;
+    
+    const meetId = activeMeetIdRef.current || activeMeet?.id;
+    if (!meetId) return;
+    
+    // Prevent multiple simultaneous connections
+    if (isConnectingRef.current) return;
+    isConnectingRef.current = true;
+    
+    const displayType = state.displayType;
+    let isCleaningUp = false;
+    
+    const connectWebSocket = () => {
+      if (isCleaningUp) return;
       
-      const meetId = activeMeet.id;
-      const displayType = state.displayType;
+      // Clear any pending reconnect
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
       
-      const connectWebSocket = () => {
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${protocol}//${window.location.host}/ws`;
-        
-        const ws = new WebSocket(wsUrl);
-        wsRef.current = ws;
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/ws`;
+      
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
 
-        ws.onopen = () => {
-          console.log('Display device connected to WebSocket');
-          setState(prev => ({ ...prev, isConnected: true }));
-          const displayName = `${displayType} Display - ${deviceId.slice(-6)}`;
-          console.log(`Registering device: ${displayName} for meet ${meetId}`);
-          ws.send(JSON.stringify({
-            type: 'register_display_device',
-            meetId: meetId,
-            deviceName: displayName,
-            displayType: displayType,
-          }));
-        };
-
-        ws.onmessage = (event) => {
-          try {
-            const message = JSON.parse(event.data);
-            console.log('WebSocket message received:', message.type);
-            
-            if (message.type === 'device_registered') {
-              console.log('Device successfully registered:', message.data);
-            }
-            
-            if (message.type === 'display_command') {
-              setState(prev => ({
-                ...prev,
-                currentTemplate: message.template || prev.currentTemplate,
-                currentEventId: message.eventId || prev.currentEventId,
-              }));
-            }
-          } catch (e) {
-            console.error('Error parsing WebSocket message:', e);
-          }
-        };
-
-        ws.onclose = () => {
-          console.log('WebSocket closed, reconnecting in 3s...');
-          setState(prev => ({ ...prev, isConnected: false }));
-          setTimeout(connectWebSocket, 3000);
-        };
-
-        ws.onerror = (error) => {
-          console.error('WebSocket error:', error);
-        };
+      ws.onopen = () => {
+        if (isCleaningUp) {
+          ws.close();
+          return;
+        }
+        console.log('Display device connected to WebSocket');
+        setState(prev => ({ ...prev, isConnected: true }));
+        const displayName = `${displayType} Display - ${deviceId.slice(-6)}`;
+        const currentMeetId = activeMeetIdRef.current || meetId;
+        console.log(`Registering device: ${displayName} for meet ${currentMeetId}`);
+        ws.send(JSON.stringify({
+          type: 'register_display_device',
+          meetId: currentMeetId,
+          deviceName: displayName,
+          displayType: displayType,
+        }));
       };
 
-      connectWebSocket();
-
-      return () => {
-        if (wsRef.current) {
-          wsRef.current.close();
+      ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          console.log('WebSocket message received:', message.type);
+          
+          if (message.type === 'device_registered') {
+            console.log('Device successfully registered:', message.data);
+          }
+          
+          if (message.type === 'display_command') {
+            setState(prev => ({
+              ...prev,
+              currentTemplate: message.template || prev.currentTemplate,
+              currentEventId: message.eventId || prev.currentEventId,
+            }));
+          }
+        } catch (e) {
+          console.error('Error parsing WebSocket message:', e);
         }
       };
-    }
-  }, [state.displayType, activeMeet?.id, deviceId]);
+
+      ws.onclose = () => {
+        if (isCleaningUp) return;
+        console.log('WebSocket closed, reconnecting in 3s...');
+        setState(prev => ({ ...prev, isConnected: false }));
+        reconnectTimeoutRef.current = setTimeout(connectWebSocket, 3000);
+      };
+
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+      };
+    };
+
+    connectWebSocket();
+
+    return () => {
+      isCleaningUp = true;
+      isConnectingRef.current = false;
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+    };
+  }, [state.displayType, deviceId]);
 
   const selectDisplayType = (type: DisplayType) => {
     setState(prev => ({ ...prev, displayType: type }));
