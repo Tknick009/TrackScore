@@ -28,33 +28,39 @@ interface DisplayDeviceState {
   setupComplete: boolean;
 }
 
-// Storage helpers for device identity
-const DEVICE_STORAGE_KEY = 'display_device_id';
+// Storage helpers for device identity - each display type gets its own key
+function getDeviceStorageKey(displayType: DisplayType): string {
+  return `display_device_id_${displayType}`;
+}
 
-function getStoredDeviceId(): string | null {
+function getStoredDeviceId(displayType: DisplayType): string | null {
+  const storageKey = getDeviceStorageKey(displayType);
+  
   // Try localStorage first
   try {
-    const fromLocalStorage = localStorage.getItem(DEVICE_STORAGE_KEY);
+    const fromLocalStorage = localStorage.getItem(storageKey);
     if (fromLocalStorage) return fromLocalStorage;
   } catch (e) {}
   
   // Try cookie as fallback
-  const cookieMatch = document.cookie.match(new RegExp(`${DEVICE_STORAGE_KEY}=([^;]+)`));
+  const cookieMatch = document.cookie.match(new RegExp(`${storageKey}=([^;]+)`));
   if (cookieMatch) return cookieMatch[1];
   
   return null;
 }
 
-function saveDeviceId(deviceId: string): void {
+function saveDeviceId(displayType: DisplayType, deviceId: string): void {
+  const storageKey = getDeviceStorageKey(displayType);
+  
   // Save to localStorage
   try {
-    localStorage.setItem(DEVICE_STORAGE_KEY, deviceId);
+    localStorage.setItem(storageKey, deviceId);
   } catch (e) {}
   
   // Save to cookie with 1 year expiry
   const expires = new Date();
   expires.setFullYear(expires.getFullYear() + 1);
-  document.cookie = `${DEVICE_STORAGE_KEY}=${deviceId};expires=${expires.toUTCString()};path=/;SameSite=Lax`;
+  document.cookie = `${storageKey}=${deviceId};expires=${expires.toUTCString()};path=/;SameSite=Lax`;
 }
 
 export default function DisplayDevice() {
@@ -67,7 +73,7 @@ export default function DisplayDevice() {
     setupComplete: false,
   });
   const [selectedMeetId, setSelectedMeetId] = useState<string | null>(null);
-  const [registeredDeviceId, setRegisteredDeviceId] = useState<string | null>(() => getStoredDeviceId());
+  const [registeredDeviceId, setRegisteredDeviceId] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
   const { data: meets } = useQuery<Meet[]>({
@@ -121,8 +127,8 @@ export default function DisplayDevice() {
         console.log('Display device connected to WebSocket');
         setState(prev => ({ ...prev, isConnected: true }));
         
-        // Use stored device ID if available, otherwise server will create a new one
-        const storedId = getStoredDeviceId();
+        // Use stored device ID if available (per display type), otherwise server will create a new one
+        const storedId = getStoredDeviceId(displayType);
         const displayName = `${displayType} Display`;
         console.log(`Registering device: ${displayName} (stored ID: ${storedId || 'new'}) for meet ${meetId}`);
         ws.send(JSON.stringify({
@@ -141,9 +147,9 @@ export default function DisplayDevice() {
           
           if (message.type === 'device_registered') {
             console.log('Device successfully registered:', message.data);
-            // Save the server-issued device ID for future reconnections
+            // Save the server-issued device ID for future reconnections (per display type)
             if (message.data?.deviceId) {
-              saveDeviceId(message.data.deviceId);
+              saveDeviceId(displayType, message.data.deviceId);
               setRegisteredDeviceId(message.data.deviceId);
               console.log('Saved device ID for reconnection:', message.data.deviceId);
             }

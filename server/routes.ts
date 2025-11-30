@@ -4312,11 +4312,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
               if (clientDeviceId) {
                 const existingDevice = await storage.getDisplayDevice(clientDeviceId);
                 if (existingDevice && existingDevice.meetId === meetId) {
-                  // Update existing device
+                  // Update existing device status
                   device = await storage.updateDisplayDeviceStatus(clientDeviceId, 'online');
-                  if (device && displayType) {
-                    device = await storage.updateDisplayDeviceMode(clientDeviceId, displayType === 'field' ? 'field' : 'track') || device;
+                  
+                  // Update displayType and deviceName if they changed
+                  if (device && displayType && (displayType !== existingDevice.displayType || deviceName !== existingDevice.deviceName)) {
+                    device = await storage.updateDisplayDeviceType(clientDeviceId, displayType, deviceName) || device;
+                    console.log(`Updated device type: ${deviceName} (${displayType})`);
                   }
+                  
                   console.log(`Reconnected existing device: ${device?.deviceName} (${clientDeviceId})`);
                 }
               }

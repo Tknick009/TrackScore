@@ -232,6 +232,7 @@ export interface IStorage {
   createOrUpdateDisplayDevice(device: InsertDisplayDevice & { lastIp?: string }): Promise<DisplayDevice>;
   updateDisplayDeviceStatus(id: string, status: string, lastIp?: string): Promise<DisplayDevice | undefined>;
   updateDisplayDeviceMode(id: string, displayMode: 'track' | 'field'): Promise<DisplayDevice | undefined>;
+  updateDisplayDeviceType(id: string, displayType: string, deviceName?: string): Promise<DisplayDevice | undefined>;
   assignEventToDisplay(displayId: string, eventId: string | null): Promise<DisplayDevice | undefined>;
   updateDisplayTemplate(displayId: string, template: string | null): Promise<DisplayDevice | undefined>;
   deleteDisplayDevice(id: string): Promise<boolean>;
@@ -1082,6 +1083,24 @@ export class DatabaseStorage implements IStorage {
     // When switching to track mode, clear the assigned event since track displays auto-show from Lynx
     if (displayMode === 'track') {
       updateData.assignedEventId = null;
+    }
+    
+    const [updated] = await db
+      .update(displayDevices)
+      .set(updateData)
+      .where(eq(displayDevices.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async updateDisplayDeviceType(id: string, displayType: string, deviceName?: string): Promise<DisplayDevice | undefined> {
+    const updateData: any = { 
+      displayType,
+      lastSeenAt: new Date(),
+    };
+    
+    if (deviceName) {
+      updateData.deviceName = deviceName;
     }
     
     const [updated] = await db
