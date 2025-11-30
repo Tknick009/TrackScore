@@ -20,7 +20,6 @@ import Officials from "@/pages/officials";
 import Import from "@/pages/import";
 import SeasonManager from "@/pages/season-manager";
 import RecordBooks from "@/pages/record-books";
-import Display from "@/pages/display";
 import DisplayCustomizePage from "@/pages/DisplayCustomizePage";
 import DisplayControlPage from "@/pages/display-control";
 import DisplayExamples from "@/pages/display-examples";
@@ -126,7 +125,6 @@ function Router() {
       <Route path="/meets/:id" component={MeetDetail} />
       <Route path="/seasons" component={SeasonManager} />
       <Route path="/records" component={RecordBooks} />
-      <Route path="/display" component={Display} />
       <Route path="/display-examples" component={DisplayExamples} />
       <Route path="/composite-display/:layoutId" component={CompositeDisplayPage} />
       <Route path="/print/events/:id" component={PrintResults} />
