@@ -28,6 +28,17 @@ interface DisplayDeviceState {
   setupComplete: boolean;
 }
 
+// Generate or retrieve a persistent device ID
+function getOrCreateDeviceId(): string {
+  const storageKey = 'display_device_id';
+  let deviceId = localStorage.getItem(storageKey);
+  if (!deviceId) {
+    deviceId = `display-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    localStorage.setItem(storageKey, deviceId);
+  }
+  return deviceId;
+}
+
 export default function DisplayDevice() {
   const [state, setState] = useState<DisplayDeviceState>({
     displayType: null,
@@ -38,7 +49,7 @@ export default function DisplayDevice() {
     setupComplete: false,
   });
   const [selectedMeetId, setSelectedMeetId] = useState<string | null>(null);
-  const [deviceId] = useState(() => `display-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
+  const [deviceId] = useState(() => getOrCreateDeviceId());
   const wsRef = useRef<WebSocket | null>(null);
 
   const { data: meets } = useQuery<Meet[]>({
