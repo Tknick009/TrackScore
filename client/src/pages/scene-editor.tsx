@@ -32,8 +32,13 @@ import {
   Type, Clock, User, Users, Trophy, Image, 
   Settings, ChevronLeft, ChevronRight, Layers,
   MousePointer, Grid3X3, Maximize2, Copy, Wind,
-  Timer, BarChart3, Flag, Award
+  Timer, BarChart3, Flag, Award, 
+  AlignLeft, AlignCenter, AlignRight, AlignVerticalJustifyStart,
+  AlignVerticalJustifyCenter, AlignVerticalJustifyEnd,
+  AlignHorizontalSpaceAround, AlignVerticalSpaceAround,
+  LayoutTemplate
 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 
 // Object type definitions with icons and categories
 const OBJECT_TYPE_INFO: Record<LayoutObjectType, { name: string; icon: typeof Type; category: string; description: string }> = {
@@ -81,6 +86,90 @@ const DEFAULT_OBJECT_SIZES: Record<LayoutObjectType, { width: number; height: nu
   'wind-reading': { width: 15, height: 8 },
   'split-times': { width: 40, height: 30 },
   'record-indicator': { width: 20, height: 8 },
+};
+
+// Field code presets for data binding
+const FIELD_PRESETS = {
+  'track-result': {
+    name: 'Track Result Row',
+    codes: '{place}. {name} ({affiliation}) - {time}',
+    fields: ['place', 'lane', 'name', 'affiliation', 'time', 'reaction'],
+  },
+  'field-result': {
+    name: 'Field Result Row',
+    codes: '{place}. {name} ({affiliation}) - {mark}',
+    fields: ['place', 'name', 'affiliation', 'mark', 'best_mark', 'attempts', 'wind'],
+  },
+  'athlete-name': {
+    name: 'Athlete Name',
+    codes: '{name}',
+    fields: ['name', 'first_name', 'last_name'],
+  },
+  'time-result': {
+    name: 'Time + Place',
+    codes: '{place} - {time}',
+    fields: ['place', 'time'],
+  },
+  'field-mark': {
+    name: 'Mark + Wind',
+    codes: '{mark} ({wind})',
+    fields: ['mark', 'wind'],
+  },
+};
+
+// Layout templates with pre-positioned objects
+const LAYOUT_TEMPLATES = {
+  'track-8lane': {
+    name: '8-Lane Track Results',
+    description: 'Standard 8-lane running event results board',
+    objects: [
+      { name: 'Event Header', objectType: 'event-header' as LayoutObjectType, x: 5, y: 2, width: 90, height: 8, zIndex: 1 },
+      { name: 'Timer', objectType: 'timer' as LayoutObjectType, x: 70, y: 12, width: 25, height: 10, zIndex: 2 },
+      { name: 'Lane 1', objectType: 'text' as LayoutObjectType, x: 5, y: 22, width: 60, height: 8, zIndex: 3, config: { dynamicText: '{place}. {name} ({affiliation})' } },
+      { name: 'Time 1', objectType: 'text' as LayoutObjectType, x: 67, y: 22, width: 28, height: 8, zIndex: 3, config: { dynamicText: '{time}' } },
+      { name: 'Lane 2', objectType: 'text' as LayoutObjectType, x: 5, y: 31, width: 60, height: 8, zIndex: 3, config: { dynamicText: '{place}. {name} ({affiliation})' } },
+      { name: 'Time 2', objectType: 'text' as LayoutObjectType, x: 67, y: 31, width: 28, height: 8, zIndex: 3, config: { dynamicText: '{time}' } },
+      { name: 'Lane 3', objectType: 'text' as LayoutObjectType, x: 5, y: 40, width: 60, height: 8, zIndex: 3, config: { dynamicText: '{place}. {name} ({affiliation})' } },
+      { name: 'Time 3', objectType: 'text' as LayoutObjectType, x: 67, y: 40, width: 28, height: 8, zIndex: 3, config: { dynamicText: '{time}' } },
+      { name: 'Lane 4', objectType: 'text' as LayoutObjectType, x: 5, y: 49, width: 60, height: 8, zIndex: 3, config: { dynamicText: '{place}. {name} ({affiliation})' } },
+      { name: 'Time 4', objectType: 'text' as LayoutObjectType, x: 67, y: 49, width: 28, height: 8, zIndex: 3, config: { dynamicText: '{time}' } },
+      { name: 'Lane 5', objectType: 'text' as LayoutObjectType, x: 5, y: 58, width: 60, height: 8, zIndex: 3, config: { dynamicText: '{place}. {name} ({affiliation})' } },
+      { name: 'Time 5', objectType: 'text' as LayoutObjectType, x: 67, y: 58, width: 28, height: 8, zIndex: 3, config: { dynamicText: '{time}' } },
+      { name: 'Lane 6', objectType: 'text' as LayoutObjectType, x: 5, y: 67, width: 60, height: 8, zIndex: 3, config: { dynamicText: '{place}. {name} ({affiliation})' } },
+      { name: 'Time 6', objectType: 'text' as LayoutObjectType, x: 67, y: 67, width: 28, height: 8, zIndex: 3, config: { dynamicText: '{time}' } },
+      { name: 'Lane 7', objectType: 'text' as LayoutObjectType, x: 5, y: 76, width: 60, height: 8, zIndex: 3, config: { dynamicText: '{place}. {name} ({affiliation})' } },
+      { name: 'Time 7', objectType: 'text' as LayoutObjectType, x: 67, y: 76, width: 28, height: 8, zIndex: 3, config: { dynamicText: '{time}' } },
+      { name: 'Lane 8', objectType: 'text' as LayoutObjectType, x: 5, y: 85, width: 60, height: 8, zIndex: 3, config: { dynamicText: '{place}. {name} ({affiliation})' } },
+      { name: 'Time 8', objectType: 'text' as LayoutObjectType, x: 67, y: 85, width: 28, height: 8, zIndex: 3, config: { dynamicText: '{time}' } },
+    ],
+  },
+  'field-standings': {
+    name: 'Field Event Standings',
+    description: 'Field event results with attempt tracker',
+    objects: [
+      { name: 'Event Header', objectType: 'event-header' as LayoutObjectType, x: 5, y: 2, width: 90, height: 8, zIndex: 1 },
+      { name: 'Wind Reading', objectType: 'wind-reading' as LayoutObjectType, x: 80, y: 12, width: 15, height: 6, zIndex: 2 },
+      { name: 'Results Table', objectType: 'results-table' as LayoutObjectType, x: 5, y: 18, width: 55, height: 75, zIndex: 3 },
+      { name: 'Attempt Tracker', objectType: 'attempt-tracker' as LayoutObjectType, x: 62, y: 18, width: 33, height: 75, zIndex: 3 },
+    ],
+  },
+  'running-time': {
+    name: 'Running Time with Event Header',
+    description: 'Large timer display with event information',
+    objects: [
+      { name: 'Event Header', objectType: 'event-header' as LayoutObjectType, x: 5, y: 5, width: 90, height: 12, zIndex: 1 },
+      { name: 'Timer', objectType: 'timer' as LayoutObjectType, x: 15, y: 30, width: 70, height: 40, zIndex: 2 },
+      { name: 'Status Text', objectType: 'text' as LayoutObjectType, x: 25, y: 75, width: 50, height: 10, zIndex: 3, config: { dynamicText: 'IN PROGRESS' } },
+    ],
+  },
+  'team-standings': {
+    name: 'Team Standings',
+    description: 'Team scoring display with standings',
+    objects: [
+      { name: 'Header', objectType: 'text' as LayoutObjectType, x: 5, y: 2, width: 90, height: 10, zIndex: 1, config: { dynamicText: 'TEAM STANDINGS' } },
+      { name: 'Team Standings', objectType: 'team-standings' as LayoutObjectType, x: 5, y: 15, width: 90, height: 80, zIndex: 2 },
+    ],
+  },
 };
 
 interface DragState {
@@ -268,6 +357,12 @@ export default function SceneEditor() {
     });
   }, [previewMode]);
   
+  // Snap value to grid (5% increments)
+  const snapToGrid = useCallback((value: number): number => {
+    const SNAP_INCREMENT = 5;
+    return Math.round(value / SNAP_INCREMENT) * SNAP_INCREMENT;
+  }, []);
+
   // Handle mouse move (for dragging)
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!dragState || !canvasRef.current) return;
@@ -278,8 +373,14 @@ export default function SceneEditor() {
     const deltaY = ((e.clientY - dragState.startY) / rect.height) * 100;
     
     if (dragState.type === 'move') {
-      const newX = Math.max(0, Math.min(100 - dragState.startObjWidth, dragState.startObjX + deltaX));
-      const newY = Math.max(0, Math.min(100 - dragState.startObjHeight, dragState.startObjY + deltaY));
+      let newX = Math.max(0, Math.min(100 - dragState.startObjWidth, dragState.startObjX + deltaX));
+      let newY = Math.max(0, Math.min(100 - dragState.startObjHeight, dragState.startObjY + deltaY));
+      
+      // Snap to grid when grid is visible
+      if (showGrid) {
+        newX = snapToGrid(newX);
+        newY = snapToGrid(newY);
+      }
       
       updateObjectMutation.mutate({
         id: dragState.objectId,
@@ -328,12 +429,20 @@ export default function SceneEditor() {
           break;
       }
       
+      // Snap to grid when grid is visible
+      if (showGrid) {
+        newX = snapToGrid(newX);
+        newY = snapToGrid(newY);
+        newWidth = snapToGrid(newWidth);
+        newHeight = snapToGrid(newHeight);
+      }
+      
       updateObjectMutation.mutate({
         id: dragState.objectId,
         data: { x: newX, y: newY, width: newWidth, height: newHeight },
       });
     }
-  }, [dragState, updateObjectMutation]);
+  }, [dragState, updateObjectMutation, showGrid, snapToGrid]);
   
   // Handle mouse up (end drag)
   const handleMouseUp = useCallback(() => {
@@ -435,6 +544,134 @@ export default function SceneEditor() {
     );
   };
   
+  // Get selected objects (for alignment)
+  const selectedObjects = currentScene?.objects.filter(o => o.id === selectedObjectId) || [];
+  
+  // Alignment handlers
+  const handleAlignLeft = useCallback(() => {
+    if (!selectedObject) return;
+    updateObjectMutation.mutate({
+      id: selectedObject.id,
+      data: { x: 0 },
+    });
+  }, [selectedObject, updateObjectMutation]);
+
+  const handleAlignCenter = useCallback(() => {
+    if (!selectedObject) return;
+    const newX = (100 - selectedObject.width) / 2;
+    updateObjectMutation.mutate({
+      id: selectedObject.id,
+      data: { x: showGrid ? snapToGrid(newX) : newX },
+    });
+  }, [selectedObject, updateObjectMutation, showGrid, snapToGrid]);
+
+  const handleAlignRight = useCallback(() => {
+    if (!selectedObject) return;
+    updateObjectMutation.mutate({
+      id: selectedObject.id,
+      data: { x: 100 - selectedObject.width },
+    });
+  }, [selectedObject, updateObjectMutation]);
+
+  const handleAlignTop = useCallback(() => {
+    if (!selectedObject) return;
+    updateObjectMutation.mutate({
+      id: selectedObject.id,
+      data: { y: 0 },
+    });
+  }, [selectedObject, updateObjectMutation]);
+
+  const handleAlignMiddle = useCallback(() => {
+    if (!selectedObject) return;
+    const newY = (100 - selectedObject.height) / 2;
+    updateObjectMutation.mutate({
+      id: selectedObject.id,
+      data: { y: showGrid ? snapToGrid(newY) : newY },
+    });
+  }, [selectedObject, updateObjectMutation, showGrid, snapToGrid]);
+
+  const handleAlignBottom = useCallback(() => {
+    if (!selectedObject) return;
+    updateObjectMutation.mutate({
+      id: selectedObject.id,
+      data: { y: 100 - selectedObject.height },
+    });
+  }, [selectedObject, updateObjectMutation]);
+
+  const handleDistributeHorizontally = useCallback(() => {
+    if (!currentScene || currentScene.objects.length < 2) return;
+    const objects = [...currentScene.objects].sort((a, b) => a.x - b.x);
+    const totalWidth = objects.reduce((sum, o) => sum + o.width, 0);
+    const availableSpace = 100 - totalWidth;
+    const spacing = availableSpace / (objects.length + 1);
+    
+    let currentX = spacing;
+    objects.forEach((obj) => {
+      updateObjectMutation.mutate({
+        id: obj.id,
+        data: { x: showGrid ? snapToGrid(currentX) : currentX },
+      });
+      currentX += obj.width + spacing;
+    });
+  }, [currentScene, updateObjectMutation, showGrid, snapToGrid]);
+
+  const handleDistributeVertically = useCallback(() => {
+    if (!currentScene || currentScene.objects.length < 2) return;
+    const objects = [...currentScene.objects].sort((a, b) => a.y - b.y);
+    const totalHeight = objects.reduce((sum, o) => sum + o.height, 0);
+    const availableSpace = 100 - totalHeight;
+    const spacing = availableSpace / (objects.length + 1);
+    
+    let currentY = spacing;
+    objects.forEach((obj) => {
+      updateObjectMutation.mutate({
+        id: obj.id,
+        data: { y: showGrid ? snapToGrid(currentY) : currentY },
+      });
+      currentY += obj.height + spacing;
+    });
+  }, [currentScene, updateObjectMutation, showGrid, snapToGrid]);
+
+  // Create scene from template
+  const handleCreateFromTemplate = useCallback(async (templateKey: keyof typeof LAYOUT_TEMPLATES) => {
+    if (!currentMeet?.id) return;
+    
+    const template = LAYOUT_TEMPLATES[templateKey];
+    
+    // First create the scene
+    const sceneRes = await apiRequest('POST', '/api/layout-scenes', {
+      meetId: currentMeet.id,
+      name: template.name,
+      canvasWidth: 1920,
+      canvasHeight: 1080,
+      aspectRatio: '16:9',
+      backgroundColor: '#000000',
+    });
+    const newScene = await sceneRes.json();
+    
+    // Then add all the objects
+    for (const objTemplate of template.objects) {
+      await apiRequest('POST', `/api/layout-scenes/${newScene.id}/objects`, {
+        name: objTemplate.name,
+        objectType: objTemplate.objectType,
+        x: objTemplate.x,
+        y: objTemplate.y,
+        width: objTemplate.width,
+        height: objTemplate.height,
+        zIndex: objTemplate.zIndex,
+        config: objTemplate.config || {},
+        dataBinding: { sourceType: 'static' },
+        style: {},
+        visible: true,
+        locked: false,
+      });
+    }
+    
+    queryClient.invalidateQueries({ queryKey: ['/api/layout-scenes'] });
+    setSelectedSceneId(newScene.id);
+    toast({ title: `Created "${template.name}" scene` });
+  }, [currentMeet, toast]);
+
   // Filter objects by category
   const filteredObjectTypes = Object.entries(OBJECT_TYPE_INFO).filter(([_, info]) => 
     objectPaletteCategory === 'all' || info.category === objectPaletteCategory
@@ -499,31 +736,62 @@ export default function SceneEditor() {
       
       {/* Main content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left sidebar - Scene list */}
+        {/* Left sidebar - Scene list & Templates */}
         <div className="w-56 border-r flex flex-col">
-          <div className="p-2 border-b">
-            <h3 className="font-medium text-sm">Scenes</h3>
-          </div>
-          <ScrollArea className="flex-1">
-            <div className="p-2 space-y-1">
-              {scenes.map((scene) => (
-                <Button
-                  key={scene.id}
-                  variant={selectedSceneId === scene.id ? "secondary" : "ghost"}
-                  size="sm"
-                  className="w-full justify-start"
-                  onClick={() => setSelectedSceneId(scene.id)}
-                  data-testid={`scene-item-${scene.id}`}
-                >
-                  <Monitor className="w-4 h-4 mr-2" />
-                  <span className="truncate">{scene.name}</span>
-                </Button>
-              ))}
-              {scenes.length === 0 && !loadingScenes && (
-                <p className="text-sm text-muted-foreground p-2">No scenes yet</p>
-              )}
-            </div>
-          </ScrollArea>
+          <Tabs defaultValue="scenes" className="flex-1 flex flex-col">
+            <TabsList className="mx-2 mt-2">
+              <TabsTrigger value="scenes" className="flex-1" data-testid="tab-scenes">Scenes</TabsTrigger>
+              <TabsTrigger value="templates" className="flex-1" data-testid="tab-templates">Templates</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="scenes" className="flex-1 flex flex-col m-0 overflow-hidden">
+              <ScrollArea className="flex-1">
+                <div className="p-2 space-y-1">
+                  {scenes.map((scene) => (
+                    <Button
+                      key={scene.id}
+                      variant={selectedSceneId === scene.id ? "secondary" : "ghost"}
+                      size="sm"
+                      className="w-full justify-start"
+                      onClick={() => setSelectedSceneId(scene.id)}
+                      data-testid={`scene-item-${scene.id}`}
+                    >
+                      <Monitor className="w-4 h-4 mr-2" />
+                      <span className="truncate">{scene.name}</span>
+                    </Button>
+                  ))}
+                  {scenes.length === 0 && !loadingScenes && (
+                    <p className="text-sm text-muted-foreground p-2">No scenes yet</p>
+                  )}
+                </div>
+              </ScrollArea>
+            </TabsContent>
+            
+            <TabsContent value="templates" className="flex-1 flex flex-col m-0 overflow-hidden">
+              <ScrollArea className="flex-1">
+                <div className="p-2 space-y-2">
+                  <p className="text-xs text-muted-foreground px-1">Click to create a new scene from template</p>
+                  {Object.entries(LAYOUT_TEMPLATES).map(([key, template]) => (
+                    <Button
+                      key={key}
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-start h-auto py-2 flex-col items-start gap-0.5"
+                      onClick={() => handleCreateFromTemplate(key as keyof typeof LAYOUT_TEMPLATES)}
+                      disabled={!currentMeet?.id}
+                      data-testid={`button-template-${key}`}
+                    >
+                      <div className="flex items-center gap-2 w-full">
+                        <LayoutTemplate className="w-4 h-4 shrink-0" />
+                        <span className="truncate text-left">{template.name}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground pl-6 text-left line-clamp-2">{template.description}</span>
+                    </Button>
+                  ))}
+                </div>
+              </ScrollArea>
+            </TabsContent>
+          </Tabs>
         </div>
         
         {/* Center - Canvas */}
@@ -553,6 +821,102 @@ export default function SceneEditor() {
                 </div>
               </div>
               
+              {/* Alignment toolbar */}
+              <div className="flex items-center gap-1 p-2 bg-neutral-850 border-b border-neutral-700 flex-wrap">
+                <span className="text-xs text-neutral-400 mr-2">Align:</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-neutral-400 hover:text-white"
+                  onClick={handleAlignLeft}
+                  disabled={!selectedObject}
+                  title="Align Left"
+                  data-testid="button-align-left"
+                >
+                  <AlignLeft className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-neutral-400 hover:text-white"
+                  onClick={handleAlignCenter}
+                  disabled={!selectedObject}
+                  title="Align Center"
+                  data-testid="button-align-center"
+                >
+                  <AlignCenter className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-neutral-400 hover:text-white"
+                  onClick={handleAlignRight}
+                  disabled={!selectedObject}
+                  title="Align Right"
+                  data-testid="button-align-right"
+                >
+                  <AlignRight className="w-4 h-4" />
+                </Button>
+                <Separator orientation="vertical" className="h-5 mx-1 bg-neutral-600" />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-neutral-400 hover:text-white"
+                  onClick={handleAlignTop}
+                  disabled={!selectedObject}
+                  title="Align Top"
+                  data-testid="button-align-top"
+                >
+                  <AlignVerticalJustifyStart className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-neutral-400 hover:text-white"
+                  onClick={handleAlignMiddle}
+                  disabled={!selectedObject}
+                  title="Align Middle"
+                  data-testid="button-align-middle"
+                >
+                  <AlignVerticalJustifyCenter className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-neutral-400 hover:text-white"
+                  onClick={handleAlignBottom}
+                  disabled={!selectedObject}
+                  title="Align Bottom"
+                  data-testid="button-align-bottom"
+                >
+                  <AlignVerticalJustifyEnd className="w-4 h-4" />
+                </Button>
+                <Separator orientation="vertical" className="h-5 mx-1 bg-neutral-600" />
+                <span className="text-xs text-neutral-400 mx-1">Distribute:</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-neutral-400 hover:text-white"
+                  onClick={handleDistributeHorizontally}
+                  disabled={!currentScene || currentScene.objects.length < 2}
+                  title="Distribute Horizontally"
+                  data-testid="button-distribute-horizontal"
+                >
+                  <AlignHorizontalSpaceAround className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-neutral-400 hover:text-white"
+                  onClick={handleDistributeVertically}
+                  disabled={!currentScene || currentScene.objects.length < 2}
+                  title="Distribute Vertically"
+                  data-testid="button-distribute-vertical"
+                >
+                  <AlignVerticalSpaceAround className="w-4 h-4" />
+                </Button>
+              </div>
+              
               {/* Canvas area */}
               <div className="flex-1 flex items-center justify-center p-4 overflow-auto">
                 <div
@@ -575,7 +939,7 @@ export default function SceneEditor() {
                       className="absolute inset-0 pointer-events-none"
                       style={{
                         backgroundImage: 'linear-gradient(rgba(100,100,100,0.2) 1px, transparent 1px), linear-gradient(90deg, rgba(100,100,100,0.2) 1px, transparent 1px)',
-                        backgroundSize: '10% 10%',
+                        backgroundSize: '5% 5%',
                       }}
                     />
                   )}
@@ -825,6 +1189,121 @@ export default function SceneEditor() {
                               <SelectItem value="5057">5057 - Field Results</SelectItem>
                             </SelectContent>
                           </Select>
+                        </div>
+                      )}
+                      
+                      {/* Enhanced text field binding for text objects */}
+                      {selectedObject.objectType === 'text' && (selectedObject.dataBinding as SceneDataBinding)?.sourceType !== 'static' && (
+                        <div className="space-y-3 mt-4 p-3 bg-muted/50 rounded-md">
+                          <h5 className="font-medium text-xs text-muted-foreground">Field Binding (Text Objects)</h5>
+                          
+                          {/* Field preset dropdown */}
+                          <div className="space-y-2">
+                            <Label className="text-xs">Field Presets</Label>
+                            <Select
+                              value=""
+                              onValueChange={(value) => {
+                                const preset = FIELD_PRESETS.find(p => p.id === value);
+                                if (preset) {
+                                  updateObjectMutation.mutate({
+                                    id: selectedObject.id,
+                                    data: {
+                                      dataBinding: {
+                                        ...(selectedObject.dataBinding as SceneDataBinding || {}),
+                                        fieldCode: preset.template,
+                                      },
+                                    },
+                                  });
+                                }
+                              }}
+                            >
+                              <SelectTrigger data-testid="select-field-preset">
+                                <SelectValue placeholder="Choose a field preset..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {FIELD_PRESETS.map((preset) => (
+                                  <SelectItem key={preset.id} value={preset.id}>
+                                    <div className="flex flex-col">
+                                      <span>{preset.name}</span>
+                                      <span className="text-xs text-muted-foreground">{preset.template}</span>
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          
+                          {/* Dynamic field code input */}
+                          <div className="space-y-2">
+                            <Label className="text-xs">Field Code</Label>
+                            <Input
+                              value={(selectedObject.dataBinding as SceneDataBinding)?.fieldCode || ''}
+                              onChange={(e) => updateObjectMutation.mutate({
+                                id: selectedObject.id,
+                                data: {
+                                  dataBinding: {
+                                    ...(selectedObject.dataBinding as SceneDataBinding || {}),
+                                    fieldCode: e.target.value,
+                                  },
+                                },
+                              })}
+                              placeholder="{place}. {name} - {time}"
+                              data-testid="input-field-code"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Use field codes like: {'{place}'}, {'{name}'}, {'{affiliation}'}, {'{time}'}, {'{mark}'}, {'{wind}'}
+                            </p>
+                          </div>
+                          
+                          {/* Preview */}
+                          {(selectedObject.dataBinding as SceneDataBinding)?.fieldCode && (
+                            <div className="space-y-2">
+                              <Label className="text-xs">Preview</Label>
+                              <div className="p-2 bg-black/20 rounded text-sm font-mono" data-testid="text-field-preview">
+                                {(selectedObject.dataBinding as SceneDataBinding)?.fieldCode
+                                  ?.replace('{place}', '1')
+                                  .replace('{lane}', '4')
+                                  .replace('{name}', 'John Smith')
+                                  .replace('{affiliation}', 'Track Club')
+                                  .replace('{time}', '10.54')
+                                  .replace('{reaction}', '0.142')
+                                  .replace('{mark}', '7.82m')
+                                  .replace('{best_mark}', '7.95m')
+                                  .replace('{attempts}', 'X P 7.82')
+                                  .replace('{wind}', '+1.2')
+                                }
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Available field codes */}
+                          <div className="space-y-1">
+                            <Label className="text-xs">Available Fields</Label>
+                            <div className="flex flex-wrap gap-1">
+                              {['{place}', '{lane}', '{name}', '{affiliation}', '{time}', '{reaction}', '{mark}', '{best_mark}', '{attempts}', '{wind}'].map((code) => (
+                                <Badge
+                                  key={code}
+                                  variant="outline"
+                                  className="text-xs cursor-pointer hover:bg-accent"
+                                  onClick={() => {
+                                    const currentCode = (selectedObject.dataBinding as SceneDataBinding)?.fieldCode || '';
+                                    updateObjectMutation.mutate({
+                                      id: selectedObject.id,
+                                      data: {
+                                        dataBinding: {
+                                          ...(selectedObject.dataBinding as SceneDataBinding || {}),
+                                          fieldCode: currentCode + code,
+                                        },
+                                      },
+                                    });
+                                  }}
+                                  data-testid={`badge-field-${code.replace(/[{}]/g, '')}`}
+                                >
+                                  {code}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
                         </div>
                       )}
                     </div>
