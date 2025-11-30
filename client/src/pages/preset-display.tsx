@@ -5,10 +5,11 @@ import { getTemplateById, type LayoutTemplate } from '@shared/layout-templates';
 import type { EventWithEntries, Meet } from '@shared/schema';
 import { useWebSocket, useWebSocketConnection } from '@/contexts/WebSocketContext';
 import { 
-  LiveResultsBoard, 
-  LiveTimeBoard, 
-  FieldEventBoard, 
-  StandingsBoard 
+  BigBoard,
+  CompiledResults,
+  RunningTime,
+  RunningResults,
+  FieldSideBySide
 } from '@/components/display/templates';
 import { Loader2 } from 'lucide-react';
 
@@ -103,13 +104,15 @@ export default function PresetDisplay() {
 
   const renderDisplay = () => {
     const templateId = template.id;
-    const isTrackResults = templateId.includes('results') && !templateId.includes('field');
+    
+    const isLiveResults = templateId.includes('results') && !templateId.includes('field');
     const isFieldResults = templateId.includes('field-results');
     const isFieldStandings = templateId.includes('field-standings');
-    const isRunningTime = templateId.includes('running-time');
+    const isRunningTimeTemplate = templateId.includes('running-time');
     const isStartList = templateId.includes('start-list');
     const isTeamScores = templateId.includes('team-scores');
     const isMeetLogo = templateId.includes('meet-logo');
+    const isBigBoard = templateId.includes('bigboard') || templateId.startsWith('p10-') || templateId.startsWith('p6-');
 
     const waitingState = (
       <div className="h-screen w-screen bg-black flex items-center justify-center">
@@ -128,7 +131,9 @@ export default function PresetDisplay() {
             {meet?.logoUrl ? (
               <img src={meet.logoUrl} alt={meet.name} className="max-h-[60vh] mx-auto mb-6" />
             ) : null}
-            <h1 className="text-6xl font-bold mb-4">{meet?.name || 'Track Meet'}</h1>
+            <h1 className="text-6xl font-bold mb-4" style={{ fontFamily: "'Barlow Semi Condensed', sans-serif" }}>
+              {meet?.name || 'Track Meet'}
+            </h1>
             {meet?.location && <p className="text-2xl text-gray-300">{meet.location}</p>}
             {meet?.startDate && <p className="text-xl text-gray-400 mt-2">{new Date(meet.startDate).toLocaleDateString()}</p>}
           </div>
@@ -142,28 +147,41 @@ export default function PresetDisplay() {
         return (
           <div className="h-screen w-screen bg-black flex items-center justify-center">
             <div className="text-white text-center">
-              <h1 className="text-4xl font-bold mb-4">Team Standings</h1>
+              <h1 className="text-4xl font-bold mb-4" style={{ fontFamily: "'Barlow Semi Condensed', sans-serif" }}>
+                Team Standings
+              </h1>
               <p className="text-xl text-gray-400">No scoring data available</p>
             </div>
           </div>
         );
       }
       return (
-        <div className="h-screen w-screen bg-black overflow-hidden p-8">
-          <h1 className="text-4xl font-bold text-white text-center mb-8">
+        <div className="h-screen w-screen bg-black overflow-hidden p-8" style={{ fontFamily: "'Barlow Semi Condensed', sans-serif" }}>
+          <h1 className="text-5xl font-bold text-white text-center mb-8">
             {meet?.name || 'Team Standings'}
           </h1>
           <div className="max-w-4xl mx-auto">
             {standings.slice(0, 10).map((team: any, index: number) => (
               <div 
                 key={team.teamId || index}
-                className="flex items-center justify-between py-4 px-6 mb-2 bg-gray-900 rounded text-white"
+                className="flex items-center justify-between py-5 px-8 mb-3 rounded text-white"
+                style={{
+                  background: `linear-gradient(90deg, 
+                    rgba(0, 140, 220, 0.65) 0%, 
+                    rgba(0, 160, 255, 0.45) 40%, 
+                    rgba(0, 140, 220, 0.25) 80%,
+                    transparent 100%
+                  )`,
+                }}
               >
-                <div className="flex items-center gap-4">
-                  <span className="text-3xl font-bold w-12">{index + 1}</span>
-                  <span className="text-2xl">{team.teamName || team.name}</span>
+                <div className="flex items-center gap-6">
+                  <span className="text-5xl font-black w-16" style={{ fontWeight: 900 }}>{index + 1}</span>
+                  {team.teamLogo && (
+                    <img src={team.teamLogo} alt="" className="h-12 w-12 object-contain" />
+                  )}
+                  <span className="text-3xl font-bold">{team.teamName || team.name}</span>
                 </div>
-                <span className="text-3xl font-bold text-yellow-400">
+                <span className="text-5xl font-black text-yellow-400" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
                   {team.totalPoints || team.points || 0}
                 </span>
               </div>
@@ -173,40 +191,20 @@ export default function PresetDisplay() {
       );
     }
 
-    if (isRunningTime && currentEvent) {
-      return (
-        <div className="h-screen w-screen bg-black flex items-center justify-center overflow-hidden">
-          <LiveTimeBoard
-            event={currentEvent}
-            meet={meet}
-            mode="running"
-          />
-        </div>
-      );
+    if (isRunningTimeTemplate) {
+      if (!currentEvent) return waitingState;
+      return <RunningTime event={currentEvent} meet={meet} liveTime={runningTime} />;
     }
 
-    if ((isTrackResults || isStartList) && currentEvent) {
-      return (
-        <div className="h-screen w-screen bg-black flex items-center justify-center overflow-hidden">
-          <LiveResultsBoard
-            event={currentEvent}
-            meet={meet}
-            mode={isStartList ? 'start-list' : 'results'}
-          />
-        </div>
-      );
+    if (isFieldResults || isFieldStandings) {
+      if (!currentEvent) return waitingState;
+      return <FieldSideBySide event={currentEvent} meet={meet} />;
     }
 
-    if ((isFieldResults || isFieldStandings) && currentEvent) {
-      return (
-        <div className="h-screen w-screen bg-black flex items-center justify-center overflow-hidden">
-          <FieldEventBoard
-            event={currentEvent}
-            meet={meet}
-            mode={isFieldResults ? 'attempts' : 'standings'}
-          />
-        </div>
-      );
+    if (isLiveResults || isStartList || isBigBoard) {
+      if (!currentEvent) return waitingState;
+      const showSplits = templateId.includes('splits');
+      return <BigBoard event={currentEvent} meet={meet} showSplits={showSplits} liveTime={runningTime} />;
     }
 
     return waitingState;

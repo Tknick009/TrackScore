@@ -4,10 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Monitor, Tv, LayoutGrid } from "lucide-react";
 import type { Meet, Event } from "@shared/schema";
-import { LiveResultsBoard } from "@/components/display/templates/LiveResultsBoard";
-import { LiveTimeBoard } from "@/components/display/templates/LiveTimeBoard";
-import { FieldEventBoard } from "@/components/display/templates/FieldEventBoard";
-import { StandingsBoard } from "@/components/display/templates/StandingsBoard";
+import { 
+  BigBoard,
+  RunningTime,
+  FieldSideBySide
+} from "@/components/display/templates";
 
 type DisplayType = 'P10' | 'P6' | 'BigBoard';
 
@@ -215,15 +216,16 @@ function DisplayRenderer({ displayType, meetId, template, eventId, deviceId }: D
     const isTrackResults = templateId.includes('results') && !templateId.includes('field');
     const isFieldResults = templateId.includes('field-results');
     const isFieldStandings = templateId.includes('field-standings');
-    const isRunningTime = templateId.includes('running-time');
+    const isRunningTimeTemplate = templateId.includes('running-time');
     const isStartList = templateId.includes('start-list');
     const isTeamScores = templateId === 'team-scores' || templateId.includes('team-scores');
     const isMeetLogo = templateId === 'meet-logo' || templateId.includes('meet-logo') || !template;
+    const isBigBoard = templateId.includes('live-results') || templateId.includes('start-list');
 
     if (isMeetLogo) {
       return (
         <div className="h-screen w-screen bg-black flex items-center justify-center overflow-hidden">
-          <div className="text-white text-center p-8">
+          <div className="text-white text-center p-8" style={{ fontFamily: "'Barlow Semi Condensed', sans-serif" }}>
             {meet?.logoUrl ? (
               <img src={meet.logoUrl} alt={meet.name} className="max-h-[60vh] mx-auto mb-6" />
             ) : null}
@@ -248,7 +250,7 @@ function DisplayRenderer({ displayType, meetId, template, eventId, deviceId }: D
       if (!standings || standings.length === 0) {
         return (
           <div className="h-screen w-screen bg-black flex items-center justify-center">
-            <div className="text-white text-center">
+            <div className="text-white text-center" style={{ fontFamily: "'Barlow Semi Condensed', sans-serif" }}>
               <h1 className="text-4xl font-bold mb-4">Team Standings</h1>
               <p className="text-xl text-gray-400">No scoring data available</p>
             </div>
@@ -256,21 +258,32 @@ function DisplayRenderer({ displayType, meetId, template, eventId, deviceId }: D
         );
       }
       return (
-        <div className="h-screen w-screen bg-black overflow-hidden p-8">
-          <h1 className="text-4xl font-bold text-white text-center mb-8">
+        <div className="h-screen w-screen bg-black overflow-hidden p-8" style={{ fontFamily: "'Barlow Semi Condensed', sans-serif" }}>
+          <h1 className="text-5xl font-bold text-white text-center mb-8">
             {meet?.name || 'Team Standings'}
           </h1>
           <div className="max-w-4xl mx-auto">
             {standings.slice(0, 10).map((team: any, index: number) => (
               <div 
                 key={team.teamId || index}
-                className="flex items-center justify-between py-4 px-6 mb-2 bg-gray-900 rounded text-white"
+                className="flex items-center justify-between py-5 px-8 mb-3 rounded text-white"
+                style={{
+                  background: `linear-gradient(90deg, 
+                    rgba(0, 140, 220, 0.65) 0%, 
+                    rgba(0, 160, 255, 0.45) 40%, 
+                    rgba(0, 140, 220, 0.25) 80%,
+                    transparent 100%
+                  )`,
+                }}
               >
-                <div className="flex items-center gap-4">
-                  <span className="text-3xl font-bold w-12">{index + 1}</span>
-                  <span className="text-2xl">{team.teamName || team.name}</span>
+                <div className="flex items-center gap-6">
+                  <span className="text-5xl font-black w-16" style={{ fontWeight: 900 }}>{index + 1}</span>
+                  {team.teamLogo && (
+                    <img src={team.teamLogo} alt="" className="h-12 w-12 object-contain" />
+                  )}
+                  <span className="text-3xl font-bold">{team.teamName || team.name}</span>
                 </div>
-                <span className="text-3xl font-bold text-yellow-400">
+                <span className="text-5xl font-black text-yellow-400" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
                   {team.totalPoints || team.points || 0}
                 </span>
               </div>
@@ -282,7 +295,7 @@ function DisplayRenderer({ displayType, meetId, template, eventId, deviceId }: D
 
     const waitingState = (
       <div className="h-screen w-screen bg-black flex items-center justify-center">
-        <div className="text-white text-center">
+        <div className="text-white text-center" style={{ fontFamily: "'Barlow Semi Condensed', sans-serif" }}>
           <p className="text-xl">Display Ready</p>
           <p className="text-sm text-gray-400 mt-2">{template}</p>
           <p className="text-xs text-gray-500 mt-1">Waiting for event data...</p>
@@ -290,49 +303,26 @@ function DisplayRenderer({ displayType, meetId, template, eventId, deviceId }: D
       </div>
     );
 
-    if (isRunningTime && currentEvent) {
-      return (
-        <div className="h-screen w-screen bg-black flex items-center justify-center overflow-hidden">
-          <LiveTimeBoard
-            event={currentEvent}
-            meet={meet}
-            mode="running"
-          />
-        </div>
-      );
-    }
-
-    if ((isTrackResults || isStartList) && currentEvent) {
-      return (
-        <div className="h-screen w-screen bg-black flex items-center justify-center overflow-hidden">
-          <LiveResultsBoard
-            event={currentEvent}
-            meet={meet}
-            mode={isStartList ? 'start-list' : 'results'}
-          />
-        </div>
-      );
+    if (isRunningTimeTemplate && currentEvent) {
+      return <RunningTime event={currentEvent as any} meet={meet} />;
     }
 
     if ((isFieldResults || isFieldStandings) && currentEvent) {
-      return (
-        <div className="h-screen w-screen bg-black flex items-center justify-center overflow-hidden">
-          <FieldEventBoard
-            event={currentEvent}
-            meet={meet}
-            mode={isFieldResults ? 'attempts' : 'standings'}
-          />
-        </div>
-      );
+      return <FieldSideBySide event={currentEvent as any} meet={meet} />;
     }
 
-    if (currentEvent && (isTrackResults || isFieldResults || isRunningTime || isStartList || isFieldStandings)) {
+    if ((isTrackResults || isStartList || isBigBoard) && currentEvent) {
+      const showSplits = templateId.includes('splits');
+      return <BigBoard event={currentEvent as any} meet={meet} showSplits={showSplits} />;
+    }
+
+    if (!currentEvent && (isTrackResults || isFieldResults || isRunningTimeTemplate || isStartList || isFieldStandings)) {
       return waitingState;
     }
 
     return (
       <div className="h-screen w-screen bg-black flex items-center justify-center overflow-hidden">
-        <div className="text-white text-center p-8">
+        <div className="text-white text-center p-8" style={{ fontFamily: "'Barlow Semi Condensed', sans-serif" }}>
           {meet?.logoUrl ? (
             <img src={meet.logoUrl} alt={meet.name} className="max-h-[60vh] mx-auto mb-6" />
           ) : null}

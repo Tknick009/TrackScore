@@ -5,3 +5,8 @@ export * from './SingleResultBoard';
 export * from './StandingsBoard';
 export * from './ScrollingResultsBoard';
 export * from './CombinedEventBoard';
+export * from './BigBoard';
+export * from './CompiledResults';
+export * from './RunningTime';
+export * from './RunningResults';
+export * from './FieldSideBySide';
