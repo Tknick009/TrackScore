@@ -393,6 +393,27 @@ function DisplayRenderer({ displayType, meetId, template, eventId, deviceId, isC
     const isBigBoard = templateId.includes('live-results') || templateId.includes('BigBoard');
 
     if (isMeetLogo || !template) {
+      // For P10/P6, show a compact status display
+      if (isSingleAthleteDisplay) {
+        return (
+          <div 
+            className="bg-black flex items-center justify-center"
+            style={{ 
+              width: `${capability.resolution.width}px`, 
+              height: `${capability.resolution.height}px`,
+              fontFamily: "'Barlow Semi Condensed', sans-serif"
+            }}
+          >
+            <div className="text-white text-center">
+              <p className="text-lg font-bold">{displayType}</p>
+              <p className="text-xs text-gray-400">{capability.resolution.width}x{capability.resolution.height}</p>
+              <div className={`mt-2 w-2 h-2 rounded-full mx-auto ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-yellow-400'}`}></div>
+            </div>
+          </div>
+        );
+      }
+      
+      // BigBoard uses full screen
       return (
         <div className="h-screen w-screen bg-black flex items-center justify-center overflow-hidden">
           <div className="text-white text-center p-8" style={{ fontFamily: "'Barlow Semi Condensed', sans-serif" }}>
@@ -469,7 +490,21 @@ function DisplayRenderer({ displayType, meetId, template, eventId, deviceId, isC
       );
     }
 
-    const waitingState = (
+    const waitingState = isSingleAthleteDisplay ? (
+      <div 
+        className="bg-black flex items-center justify-center"
+        style={{ 
+          width: `${capability.resolution.width}px`, 
+          height: `${capability.resolution.height}px`,
+          fontFamily: "'Barlow Semi Condensed', sans-serif"
+        }}
+      >
+        <div className="text-white text-center">
+          <p className="text-sm font-bold">Waiting...</p>
+          <div className={`mt-2 w-2 h-2 rounded-full mx-auto ${isConnected ? 'bg-blue-400 animate-pulse' : 'bg-yellow-400'}`}></div>
+        </div>
+      </div>
+    ) : (
       <div className="h-screen w-screen bg-black flex items-center justify-center">
         <div className="text-white text-center" style={{ fontFamily: "'Barlow Semi Condensed', sans-serif" }}>
           <h2 className="text-3xl font-bold mb-4">{meet?.name || 'Track Meet'}</h2>
@@ -533,6 +568,32 @@ function DisplayRenderer({ displayType, meetId, template, eventId, deviceId, isC
     );
   };
 
+  // Get fixed dimensions for P10/P6 displays
+  const resolution = DISPLAY_CAPABILITIES[displayType].resolution;
+  const isFixedSizeDisplay = displayType === 'P10' || displayType === 'P6';
+
+  if (isFixedSizeDisplay) {
+    // P10 and P6 use exact pixel dimensions at position 0,0
+    return (
+      <div className="bg-black min-h-screen">
+        <div 
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: `${resolution.width}px`,
+            height: `${resolution.height}px`,
+            overflow: 'hidden',
+            backgroundColor: '#000',
+          }}
+        >
+          {renderContent()}
+        </div>
+      </div>
+    );
+  }
+
+  // BigBoard uses full screen
   return (
     <div className="h-screen w-screen bg-black overflow-hidden">
       {renderContent()}
