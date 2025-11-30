@@ -10,7 +10,7 @@ import { insertMeetSchema, type Meet } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -221,7 +221,7 @@ function CreateMeetDialog() {
   );
 }
 
-function MeetCard({ meet }: { meet: Meet }) {
+function MeetRow({ meet }: { meet: Meet }) {
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -262,116 +262,119 @@ function MeetCard({ meet }: { meet: Meet }) {
   };
 
   return (
-    <Card className="hover-elevate group overflow-visible" data-testid={`card-meet-${meet.id}`}>
-      <CardHeader className="gap-2 space-y-0">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1 min-w-0">
-            <Link href={`/control/${meet.id}`}>
-              <CardTitle className="truncate hover:text-primary transition-colors" data-testid={`text-meet-name-${meet.id}`}>
-                {meet.name}
-              </CardTitle>
-            </Link>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge 
-              variant={status === "active" ? "default" : status === "upcoming" ? "secondary" : "outline"}
-              data-testid={`badge-status-${meet.id}`}
-            >
-              {status}
-            </Badge>
-            <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" data-testid={`button-meet-menu-${meet.id}`}>
-                    <MoreVertical className="w-4 h-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={copyMeetCode}>
-                    <Copy className="w-4 h-4 mr-2" />
-                    Copy Code
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <AlertDialogTrigger asChild>
-                    <DropdownMenuItem className="text-destructive focus:text-destructive">
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Delete Meet
-                    </DropdownMenuItem>
-                  </AlertDialogTrigger>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete Meet</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Are you sure you want to delete "{meet.name}"? This will permanently delete all events, athletes, and results associated with this meet. This action cannot be undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={() => deleteMeetMutation.mutate()}
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    data-testid={`button-confirm-delete-${meet.id}`}
-                  >
-                    {deleteMeetMutation.isPending ? "Deleting..." : "Delete"}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="font-mono text-xs text-muted-foreground">{meet.meetCode}</span>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="space-y-2 text-sm">
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Calendar className="w-4 h-4" />
-            <span data-testid={`text-meet-date-${meet.id}`}>
-              {format(meetDate, "EEEE, MMMM d, yyyy")}
+    <div 
+      className="flex items-center gap-4 px-4 py-3 hover-elevate rounded-md border-b last:border-b-0" 
+      data-testid={`row-meet-${meet.id}`}
+    >
+      {/* Date column */}
+      <div className="flex-shrink-0 w-20 text-center">
+        <div className="text-lg font-semibold text-foreground">{format(meetDate, "MMM d")}</div>
+        <div className="text-xs text-muted-foreground">{format(meetDate, "yyyy")}</div>
+      </div>
+      
+      {/* Main info */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Link href={`/control/${meet.id}`}>
+            <span className="font-medium text-foreground hover:text-primary transition-colors cursor-pointer" data-testid={`text-meet-name-${meet.id}`}>
+              {meet.name}
             </span>
-          </div>
+          </Link>
+          <Badge 
+            variant={status === "active" ? "default" : status === "upcoming" ? "secondary" : "outline"}
+            className="text-xs"
+            data-testid={`badge-status-${meet.id}`}
+          >
+            {status}
+          </Badge>
+        </div>
+        <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
+          <span className="font-mono text-xs">{meet.meetCode}</span>
           {meet.location && (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <MapPin className="w-4 h-4" />
-              <span data-testid={`text-meet-location-${meet.id}`}>
-                {meet.location}
-              </span>
-            </div>
+            <span className="flex items-center gap-1">
+              <MapPin className="w-3 h-3" />
+              {meet.location}
+            </span>
           )}
         </div>
-      </CardContent>
-      <CardFooter className="flex gap-2 border-t pt-4">
-        <Link href={`/control/${meet.id}`} className="flex-1">
-          <Button size="sm" className="w-full gap-2" data-testid={`button-go-control-${meet.id}`}>
-            <Settings className="w-4 h-4" />
+      </div>
+      
+      {/* Actions */}
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <Link href={`/control/${meet.id}`}>
+          <Button size="sm" className="gap-1.5" data-testid={`button-go-control-${meet.id}`}>
+            <Settings className="w-3.5 h-3.5" />
             Control
           </Button>
         </Link>
-        <Link href="/display" className="flex-1">
-          <Button variant="outline" size="sm" className="w-full gap-2" data-testid={`button-view-display-${meet.id}`}>
-            <Monitor className="w-4 h-4" />
+        <Link href="/display">
+          <Button variant="outline" size="sm" className="gap-1.5" data-testid={`button-view-display-${meet.id}`}>
+            <Monitor className="w-3.5 h-3.5" />
             Display
           </Button>
         </Link>
-      </CardFooter>
-    </Card>
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8" data-testid={`button-meet-menu-${meet.id}`}>
+                <MoreVertical className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={copyMeetCode}>
+                <Copy className="w-4 h-4 mr-2" />
+                Copy Code
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <AlertDialogTrigger asChild>
+                <DropdownMenuItem className="text-destructive focus:text-destructive">
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete Meet
+                </DropdownMenuItem>
+              </AlertDialogTrigger>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Meet</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete "{meet.name}"? This will permanently delete all events, athletes, and results associated with this meet. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => deleteMeetMutation.mutate()}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                data-testid={`button-confirm-delete-${meet.id}`}
+              >
+                {deleteMeetMutation.isPending ? "Deleting..." : "Delete"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    </div>
   );
 }
 
-function MeetCardSkeleton() {
+function MeetRowSkeleton() {
   return (
-    <Card>
-      <CardHeader>
-        <Skeleton className="h-6 w-3/4" />
-      </CardHeader>
-      <CardContent className="space-y-2">
-        <Skeleton className="h-4 w-1/2" />
-        <Skeleton className="h-4 w-2/3" />
-      </CardContent>
-    </Card>
+    <div className="flex items-center gap-4 px-4 py-3 border-b last:border-b-0">
+      <div className="flex-shrink-0 w-20 text-center">
+        <Skeleton className="h-6 w-12 mx-auto" />
+        <Skeleton className="h-3 w-8 mx-auto mt-1" />
+      </div>
+      <div className="flex-1 min-w-0 space-y-2">
+        <Skeleton className="h-5 w-48" />
+        <Skeleton className="h-3 w-32" />
+      </div>
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <Skeleton className="h-8 w-20" />
+        <Skeleton className="h-8 w-20" />
+        <Skeleton className="h-8 w-8" />
+      </div>
+    </div>
   );
 }
 
@@ -549,20 +552,24 @@ export default function MeetsList() {
           )}
         </div>
 
-        {/* Meets Grid */}
+        {/* Meets List */}
         {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[...Array(6)].map((_, i) => (
-              <MeetCardSkeleton key={i} />
-            ))}
-          </div>
-        ) : meets && meets.length > 0 ? (
-          filteredMeets.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" data-testid="grid-meets">
-              {filteredMeets.map((meet) => (
-                <MeetCard key={meet.id} meet={meet} />
+          <Card>
+            <div className="divide-y">
+              {[...Array(6)].map((_, i) => (
+                <MeetRowSkeleton key={i} />
               ))}
             </div>
+          </Card>
+        ) : meets && meets.length > 0 ? (
+          filteredMeets.length > 0 ? (
+            <Card data-testid="list-meets">
+              <div className="divide-y">
+                {filteredMeets.map((meet) => (
+                  <MeetRow key={meet.id} meet={meet} />
+                ))}
+              </div>
+            </Card>
           ) : (
             <Card className="border-dashed">
               <CardContent className="flex flex-col items-center justify-center py-12 text-center">
