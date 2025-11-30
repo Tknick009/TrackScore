@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Monitor, Tv, LayoutGrid, Calendar, CheckCircle2 } from "lucide-react";
-import { format } from "date-fns";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Monitor, Tv, LayoutGrid, Calendar } from "lucide-react";
 import type { Meet, Event } from "@shared/schema";
 import { 
   BigBoard,
@@ -222,130 +222,89 @@ export default function DisplayDevice() {
             Select a meet and display type
           </p>
           
-          {/* Meet Selector - Scrollable List sorted by latest date */}
+          {/* Meet Selector */}
           <div className="mb-10">
             <label className="block text-gray-300 text-sm font-medium mb-3 text-center">
               Select Meet
             </label>
-            <div className="max-w-lg mx-auto">
-              <ScrollArea className="h-64 rounded-lg border border-gray-700 bg-gray-900/50">
-                <div className="p-2 space-y-1">
-                  {meets && meets.length > 0 ? (
-                    [...meets]
-                      .sort((a, b) => {
-                        const dateA = a.startDate ? new Date(a.startDate).getTime() : 0;
-                        const dateB = b.startDate ? new Date(b.startDate).getTime() : 0;
-                        return dateB - dateA;
-                      })
-                      .map(meet => (
-                        <button
-                          key={meet.id}
-                          onClick={() => setSelectedMeetId(meet.id)}
-                          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-left transition-all ${
-                            selectedMeetId === meet.id
-                              ? 'bg-blue-600 text-white'
-                              : 'text-gray-300 hover:bg-gray-800'
-                          }`}
-                          data-testid={`select-meet-${meet.id}`}
-                        >
-                          <Calendar className={`w-4 h-4 flex-shrink-0 ${
-                            selectedMeetId === meet.id ? 'text-white' : 'text-gray-500'
-                          }`} />
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium truncate">{meet.name}</div>
-                            <div className={`text-xs ${selectedMeetId === meet.id ? 'text-blue-200' : 'text-gray-500'}`}>
-                              {meet.startDate 
-                                ? format(new Date(meet.startDate), 'MMM d, yyyy')
-                                : 'No date set'}
-                            </div>
-                          </div>
-                          {meet.status === 'active' && (
-                            <span className={`text-xs px-2 py-0.5 rounded flex-shrink-0 ${
-                              selectedMeetId === meet.id 
-                                ? 'bg-green-500 text-white' 
-                                : 'bg-green-600/20 text-green-400'
-                            }`}>
-                              Active
-                            </span>
-                          )}
-                          {selectedMeetId === meet.id && (
-                            <CheckCircle2 className="w-4 h-4 text-white flex-shrink-0" />
-                          )}
-                        </button>
-                      ))
-                  ) : (
-                    <div className="text-center text-gray-500 py-8">
-                      No meets available
-                    </div>
-                  )}
-                </div>
-              </ScrollArea>
+            <div className="max-w-md mx-auto">
+              <Select value={selectedMeetId || ''} onValueChange={setSelectedMeetId}>
+                <SelectTrigger className="w-full bg-gray-900 border-gray-700 text-white h-14 text-lg" data-testid="select-meet">
+                  <SelectValue placeholder="Choose a meet..." />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-900 border-gray-700">
+                  {meets?.map(meet => (
+                    <SelectItem 
+                      key={meet.id} 
+                      value={meet.id}
+                      className="text-white hover:bg-gray-800"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4" />
+                        {meet.name}
+                        {meet.status === 'active' && (
+                          <span className="text-xs bg-green-600 px-2 py-0.5 rounded ml-2">Active</span>
+                        )}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           
           {/* Display Type Selection */}
-          <div className="mb-10">
-            <label className="block text-gray-300 text-sm font-medium mb-3 text-center">
-              Select Display Type
-            </label>
-            <div className="max-w-md mx-auto space-y-2">
-              <button
-                className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg border transition-all ${
-                  state.displayType === 'P10' 
-                    ? 'border-blue-500 bg-blue-500/10 text-white' 
-                    : 'border-gray-700 bg-gray-900 text-gray-300 hover:border-gray-500 hover:bg-gray-800'
-                }`}
-                onClick={() => selectDisplayType('P10')}
-                data-testid="select-p10"
-              >
-                <Monitor className={`w-5 h-5 ${state.displayType === 'P10' ? 'text-blue-400' : 'text-gray-500'}`} />
-                <div className="flex-1 text-left">
-                  <div className="font-medium">P10 Display</div>
-                  <div className="text-sm text-gray-500">192 × 96 pixels</div>
-                </div>
-                {state.displayType === 'P10' && (
-                  <div className="w-2 h-2 rounded-full bg-blue-500" />
-                )}
-              </button>
+          <label className="block text-gray-300 text-sm font-medium mb-3 text-center">
+            Select Display Type
+          </label>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+            <Card 
+              className={`bg-gray-900 border-2 cursor-pointer transition-all hover:bg-gray-800 ${
+                state.displayType === 'P10' ? 'border-blue-500 bg-gray-800' : 'border-gray-700 hover:border-blue-500'
+              }`}
+              onClick={() => selectDisplayType('P10')}
+              data-testid="select-p10"
+            >
+              <CardHeader className="text-center">
+                <Monitor className={`w-12 h-12 mx-auto mb-2 ${state.displayType === 'P10' ? 'text-blue-400' : 'text-gray-400'}`} />
+                <CardTitle className="text-white text-xl">P10 Display</CardTitle>
+                <CardDescription className="text-gray-400">
+                  192 x 96 pixels
+                </CardDescription>
+              </CardHeader>
+            </Card>
 
-              <button
-                className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg border transition-all ${
-                  state.displayType === 'P6' 
-                    ? 'border-green-500 bg-green-500/10 text-white' 
-                    : 'border-gray-700 bg-gray-900 text-gray-300 hover:border-gray-500 hover:bg-gray-800'
-                }`}
-                onClick={() => selectDisplayType('P6')}
-                data-testid="select-p6"
-              >
-                <Tv className={`w-5 h-5 ${state.displayType === 'P6' ? 'text-green-400' : 'text-gray-500'}`} />
-                <div className="flex-1 text-left">
-                  <div className="font-medium">P6 Display</div>
-                  <div className="text-sm text-gray-500">288 × 144 pixels</div>
-                </div>
-                {state.displayType === 'P6' && (
-                  <div className="w-2 h-2 rounded-full bg-green-500" />
-                )}
-              </button>
+            <Card 
+              className={`bg-gray-900 border-2 cursor-pointer transition-all hover:bg-gray-800 ${
+                state.displayType === 'P6' ? 'border-green-500 bg-gray-800' : 'border-gray-700 hover:border-green-500'
+              }`}
+              onClick={() => selectDisplayType('P6')}
+              data-testid="select-p6"
+            >
+              <CardHeader className="text-center">
+                <Tv className={`w-12 h-12 mx-auto mb-2 ${state.displayType === 'P6' ? 'text-green-400' : 'text-gray-400'}`} />
+                <CardTitle className="text-white text-xl">P6 Display</CardTitle>
+                <CardDescription className="text-gray-400">
+                  288 x 144 pixels
+                </CardDescription>
+              </CardHeader>
+            </Card>
 
-              <button
-                className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg border transition-all ${
-                  state.displayType === 'BigBoard' 
-                    ? 'border-purple-500 bg-purple-500/10 text-white' 
-                    : 'border-gray-700 bg-gray-900 text-gray-300 hover:border-gray-500 hover:bg-gray-800'
-                }`}
-                onClick={() => selectDisplayType('BigBoard')}
-                data-testid="select-bigboard"
-              >
-                <LayoutGrid className={`w-5 h-5 ${state.displayType === 'BigBoard' ? 'text-purple-400' : 'text-gray-500'}`} />
-                <div className="flex-1 text-left">
-                  <div className="font-medium">Big Board</div>
-                  <div className="text-sm text-gray-500">1920 × 1080 pixels</div>
-                </div>
-                {state.displayType === 'BigBoard' && (
-                  <div className="w-2 h-2 rounded-full bg-purple-500" />
-                )}
-              </button>
-            </div>
+            <Card 
+              className={`bg-gray-900 border-2 cursor-pointer transition-all hover:bg-gray-800 ${
+                state.displayType === 'BigBoard' ? 'border-purple-500 bg-gray-800' : 'border-gray-700 hover:border-purple-500'
+              }`}
+              onClick={() => selectDisplayType('BigBoard')}
+              data-testid="select-bigboard"
+            >
+              <CardHeader className="text-center">
+                <LayoutGrid className={`w-12 h-12 mx-auto mb-2 ${state.displayType === 'BigBoard' ? 'text-purple-400' : 'text-gray-400'}`} />
+                <CardTitle className="text-white text-xl">Big Board</CardTitle>
+                <CardDescription className="text-gray-400">
+                  1920 x 1080 pixels
+                </CardDescription>
+              </CardHeader>
+            </Card>
           </div>
           
           {/* Start Button */}
