@@ -228,8 +228,43 @@ export class FileStorage {
   }
 
   /**
+   * Default colors for when extraction fails or produces invalid results
+   */
+  private defaultColors = {
+    primaryColor: "#0066CC",
+    secondaryColor: "#003366",
+    accentColor: "#FFD700",
+    textColor: "#FFFFFF",
+  };
+
+  /**
+   * Clamp a number between 0 and 255
+   */
+  private clamp(value: number): number {
+    return Math.max(0, Math.min(255, Math.round(value)));
+  }
+
+  /**
+   * Convert RGB values to valid #RRGGBB hex string
+   */
+  private rgbToHex(r: number, g: number, b: number): string {
+    const cr = this.clamp(r);
+    const cg = this.clamp(g);
+    const cb = this.clamp(b);
+    return `#${cr.toString(16).padStart(2, '0').toUpperCase()}${cg.toString(16).padStart(2, '0').toUpperCase()}${cb.toString(16).padStart(2, '0').toUpperCase()}`;
+  }
+
+  /**
+   * Validate that a string is a valid #RRGGBB hex color
+   */
+  private isValidHexColor(color: string): boolean {
+    return /^#[0-9A-F]{6}$/i.test(color);
+  }
+
+  /**
    * Extract dominant colors from an image buffer to generate a color scheme
-   * Returns primary, secondary, accent, and text colors
+   * Uses sharp's stats() method for reliable color extraction
+   * Returns primary, secondary, accent, and text colors - always valid #RRGGBB format
    */
   async extractColorsFromImage(buffer: Buffer): Promise<{
     primaryColor: string;
@@ -240,96 +275,113 @@ export class FileStorage {
     try {
       const image = sharp(buffer);
       
-      // Resize to small size for faster color analysis
-      const resized = await image.resize(100, 100, { fit: 'cover' }).raw().toBuffer({ resolveWithObject: true });
+      // Get image statistics which includes dominant channel values
+      const stats = await image.stats();
       
-      const { data, info } = resized;
-      const pixelCount = info.width * info.height;
-      const channels = info.channels;
+      // Get RGB channels (handle different channel counts)
+      const rChannel = stats.channels[0];
+      const gChannel = stats.channels[1] || stats.channels[0];
+      const bChannel = stats.channels[2] || stats.channels[0];
       
-      // Collect color samples
-      const colors: { r: number; g: number; b: number; count: number }[] = [];
-      const colorMap = new Map<string, { r: number; g: number; b: number; count: number }>();
-      
-      for (let i = 0; i < data.length; i += channels) {
-        const r = data[i];
-        const g = data[i + 1];
-        const b = data[i + 2];
-        
-        // Quantize colors to reduce variations (group similar colors)
-        const qr = Math.round(r / 32) * 32;
-        const qg = Math.round(g / 32) * 32;
-        const qb = Math.round(b / 32) * 32;
-        
-        const key = `${qr},${qg},${qb}`;
-        const existing = colorMap.get(key);
-        
-        if (existing) {
-          existing.count++;
-          // Average the actual colors
-          existing.r = Math.round((existing.r * (existing.count - 1) + r) / existing.count);
-          existing.g = Math.round((existing.g * (existing.count - 1) + g) / existing.count);
-          existing.b = Math.round((existing.b * (existing.count - 1) + b) / existing.count);
-        } else {
-          colorMap.set(key, { r, g, b, count: 1 });
-        }
+      if (!rChannel || !gChannel || !bChannel) {
+        console.warn("Could not extract color channels, using defaults");
+        return this.defaultColors;
       }
       
-      // Sort by frequency
-      const sortedColors = Array.from(colorMap.values())
-        .filter(c => {
-          // Filter out very dark (near black) and very light (near white) colors
-          const brightness = (c.r + c.g + c.b) / 3;
-          return brightness > 30 && brightness < 225;
-        })
-        .sort((a, b) => b.count - a.count);
+      // Use the mean values as the primary color base
+      const meanR = rChannel.mean;
+      const meanG = gChannel.mean;
+      const meanB = bChannel.mean;
       
-      // Get vibrant/saturated colors for accent
-      const vibrantColors = sortedColors.filter(c => {
-        const max = Math.max(c.r, c.g, c.b);
-        const min = Math.min(c.r, c.g, c.b);
-        const saturation = max === 0 ? 0 : (max - min) / max;
-        return saturation > 0.3;
-      });
+      // Calculate saturation and brightness of the mean color
+      const max = Math.max(meanR, meanG, meanB);
+      const min = Math.min(meanR, meanG, meanB);
+      const brightness = (meanR + meanG + meanB) / 3;
+      const saturation = max === 0 ? 0 : (max - min) / max;
       
-      // Helper to convert RGB to hex
-      const toHex = (r: number, g: number, b: number) => 
-        `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`.toUpperCase();
+      let primaryR: number, primaryG: number, primaryB: number;
       
-      // Helper to darken a color
-      const darken = (r: number, g: number, b: number, factor: number) => ({
-        r: Math.max(0, Math.round(r * factor)),
-        g: Math.max(0, Math.round(g * factor)),
-        b: Math.max(0, Math.round(b * factor)),
-      });
+      // If the mean color is too neutral (low saturation), try to enhance it
+      if (saturation < 0.15 && brightness > 40 && brightness < 200) {
+        // Use the channel with highest deviation as the "feature" color
+        const deviations = [
+          { channel: 'r', dev: rChannel.stdev, mean: meanR },
+          { channel: 'g', dev: gChannel.stdev, mean: meanG },
+          { channel: 'b', dev: bChannel.stdev, mean: meanB },
+        ].sort((a, b) => b.dev - a.dev);
+        
+        // Boost the most varying channel
+        const boost = 1.3;
+        primaryR = deviations[0].channel === 'r' ? meanR * boost : meanR * 0.8;
+        primaryG = deviations[0].channel === 'g' ? meanG * boost : meanG * 0.8;
+        primaryB = deviations[0].channel === 'b' ? meanB * boost : meanB * 0.8;
+      } else {
+        primaryR = meanR;
+        primaryG = meanG;
+        primaryB = meanB;
+      }
       
-      // Primary: Most frequent non-neutral color
-      const primary = sortedColors[0] || { r: 0, g: 102, b: 204 };
+      // If color is too dark or too light, adjust it
+      const primaryBrightness = (primaryR + primaryG + primaryB) / 3;
+      if (primaryBrightness < 50) {
+        // Too dark - brighten
+        const factor = 50 / Math.max(primaryBrightness, 1);
+        primaryR = Math.min(255, primaryR * factor);
+        primaryG = Math.min(255, primaryG * factor);
+        primaryB = Math.min(255, primaryB * factor);
+      } else if (primaryBrightness > 200) {
+        // Too light - darken
+        const factor = 180 / primaryBrightness;
+        primaryR *= factor;
+        primaryG *= factor;
+        primaryB *= factor;
+      }
       
-      // Secondary: Darker version of primary for gradients
-      const secondaryRgb = darken(primary.r, primary.g, primary.b, 0.5);
+      // Create secondary color (darker version for gradients)
+      const secondaryR = primaryR * 0.4;
+      const secondaryG = primaryG * 0.4;
+      const secondaryB = primaryB * 0.4;
       
-      // Accent: Most vibrant color, or gold if none found
-      const accent = vibrantColors[0] || { r: 255, g: 215, b: 0 };
+      // Create accent color - try to find a contrasting vibrant color
+      // Use the channel with max variance, boosted
+      let accentR: number, accentG: number, accentB: number;
       
-      // Text: White works best on dark backgrounds
-      const textColor = "#FFFFFF";
+      if (rChannel.stdev > gChannel.stdev && rChannel.stdev > bChannel.stdev) {
+        // Red is most varied - use warm accent
+        accentR = 255;
+        accentG = 180;
+        accentB = 50;
+      } else if (gChannel.stdev > bChannel.stdev) {
+        // Green is most varied - use complementary
+        accentR = 50;
+        accentG = 200;
+        accentB = 100;
+      } else {
+        // Blue or neutral - use gold for contrast
+        accentR = 255;
+        accentG = 215;
+        accentB = 0;
+      }
       
-      return {
-        primaryColor: toHex(primary.r, primary.g, primary.b),
-        secondaryColor: toHex(secondaryRgb.r, secondaryRgb.g, secondaryRgb.b),
-        accentColor: toHex(accent.r, accent.g, accent.b),
-        textColor,
+      // Generate hex colors with validation
+      const primaryColor = this.rgbToHex(primaryR, primaryG, primaryB);
+      const secondaryColor = this.rgbToHex(secondaryR, secondaryG, secondaryB);
+      const accentColor = this.rgbToHex(accentR, accentG, accentB);
+      const textColor = "#FFFFFF"; // White text for dark display backgrounds
+      
+      // Final validation - ensure all colors are valid hex
+      const result = {
+        primaryColor: this.isValidHexColor(primaryColor) ? primaryColor : this.defaultColors.primaryColor,
+        secondaryColor: this.isValidHexColor(secondaryColor) ? secondaryColor : this.defaultColors.secondaryColor,
+        accentColor: this.isValidHexColor(accentColor) ? accentColor : this.defaultColors.accentColor,
+        textColor: this.isValidHexColor(textColor) ? textColor : this.defaultColors.textColor,
       };
+      
+      console.log("Extracted colors:", result);
+      return result;
     } catch (error) {
       console.error("Error extracting colors from image:", error);
-      // Return default colors if extraction fails
-      return {
-        primaryColor: "#0066CC",
-        secondaryColor: "#003366",
-        accentColor: "#FFD700",
-        textColor: "#FFFFFF",
-      };
+      return this.defaultColors;
     }
   }
 }

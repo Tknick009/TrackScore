@@ -393,8 +393,42 @@ function DisplayRenderer({ displayType, meetId, template, eventId, deviceId, isC
     const isBigBoard = templateId.includes('live-results') || templateId.includes('BigBoard');
 
     if (isMeetLogo || !template) {
+      // Get color scheme from meet or use defaults
+      const primaryColor = meet?.primaryColor || '#0066CC';
+      const secondaryColor = meet?.secondaryColor || '#003366';
+      const hasLogo = !!meet?.logoUrl;
+      
+      // Create radial gradient background using meet colors
+      const gradientBackground = `radial-gradient(ellipse at center, ${primaryColor}40 0%, ${secondaryColor}20 50%, #000000 100%)`;
+      
       // For P10/P6, show a compact status display
       if (isSingleAthleteDisplay) {
+        // If logo exists, show logo with color scheme gradient
+        if (hasLogo) {
+          return (
+            <div 
+              className="flex items-center justify-center overflow-hidden"
+              style={{ 
+                width: `${capability.resolution.width}px`, 
+                height: `${capability.resolution.height}px`,
+                background: gradientBackground,
+                fontFamily: "'Barlow Semi Condensed', sans-serif"
+              }}
+            >
+              <img 
+                src={meet.logoUrl!} 
+                alt={meet?.name || 'Meet Logo'} 
+                style={{
+                  maxWidth: '85%',
+                  maxHeight: '85%',
+                  objectFit: 'contain',
+                }}
+              />
+            </div>
+          );
+        }
+        
+        // No logo - show black screen with green dot and display name
         return (
           <div 
             className="bg-black flex items-center justify-center"
@@ -405,38 +439,50 @@ function DisplayRenderer({ displayType, meetId, template, eventId, deviceId, isC
             }}
           >
             <div className="text-white text-center">
-              <p className="text-lg font-bold">{displayType}</p>
-              <p className="text-xs text-gray-400">{capability.resolution.width}x{capability.resolution.height}</p>
-              <div className={`mt-2 w-2 h-2 rounded-full mx-auto ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-yellow-400'}`}></div>
+              <div className={`w-3 h-3 rounded-full mx-auto mb-2 ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`}></div>
+              <p className="text-sm font-bold" style={{ color: meet?.textColor || '#FFFFFF' }}>{displayType}</p>
             </div>
           </div>
         );
       }
       
       // BigBoard uses full screen
-      return (
-        <div className="h-screen w-screen bg-black flex items-center justify-center overflow-hidden">
-          <div className="text-white text-center p-8" style={{ fontFamily: "'Barlow Semi Condensed', sans-serif" }}>
-            {meet?.logoUrl ? (
-              <img src={meet.logoUrl} alt={meet.name} className="max-h-[50vh] mx-auto mb-6" />
-            ) : null}
-            <h1 className="text-5xl font-bold mb-4">{meet?.name || 'Track Meet'}</h1>
-            {meet?.location && <p className="text-2xl text-gray-300">{meet.location}</p>}
-            {meet?.startDate && (
-              <p className="text-xl text-gray-400 mt-2">
-                {new Date(meet.startDate).toLocaleDateString()}
-              </p>
-            )}
-            <div className="mt-12 text-sm">
-              <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full ${isConnected ? 'bg-green-900/50 text-green-400' : 'bg-yellow-900/50 text-yellow-400'}`}>
-                <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-yellow-400'}`}></span>
-                {isConnected ? 'Connected - Ready for Commands' : 'Connecting...'}
-              </div>
-              <div className="mt-4 text-gray-600 text-xs">
-                <p>{displayType} Display</p>
-                <p>ID: {deviceId.slice(-8)}</p>
+      // If logo exists, show logo with color scheme gradient
+      if (hasLogo) {
+        return (
+          <div 
+            className="h-screen w-screen flex items-center justify-center overflow-hidden"
+            style={{ 
+              background: gradientBackground,
+              fontFamily: "'Barlow Semi Condensed', sans-serif" 
+            }}
+          >
+            <div className="text-center">
+              <img 
+                src={meet.logoUrl!} 
+                alt={meet?.name || 'Meet Logo'} 
+                className="max-h-[60vh] max-w-[80vw] mx-auto object-contain"
+              />
+              <div className="mt-8">
+                <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full ${isConnected ? 'bg-green-900/50 text-green-400' : 'bg-yellow-900/50 text-yellow-400'}`}>
+                  <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-yellow-400'}`}></span>
+                  {isConnected ? 'Ready' : 'Connecting...'}
+                </div>
               </div>
             </div>
+          </div>
+        );
+      }
+      
+      // No logo - show black screen with green dot and display name
+      return (
+        <div className="h-screen w-screen bg-black flex items-center justify-center overflow-hidden">
+          <div className="text-white text-center" style={{ fontFamily: "'Barlow Semi Condensed', sans-serif" }}>
+            <div className={`w-6 h-6 rounded-full mx-auto mb-4 ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`}></div>
+            <p className="text-3xl font-bold" style={{ color: meet?.textColor || '#FFFFFF' }}>
+              {displayType === 'BigBoard' ? 'Big Board' : displayType}
+            </p>
+            <p className="text-sm text-gray-500 mt-2">{capability.resolution.width}x{capability.resolution.height}</p>
           </div>
         </div>
       );
@@ -490,31 +536,80 @@ function DisplayRenderer({ displayType, meetId, template, eventId, deviceId, isC
       );
     }
 
+    // Get color scheme from meet for waiting states
+    const waitingPrimaryColor = meet?.primaryColor || '#0066CC';
+    const waitingSecondaryColor = meet?.secondaryColor || '#003366';
+    const waitingHasLogo = !!meet?.logoUrl;
+    const waitingGradient = `radial-gradient(ellipse at center, ${waitingPrimaryColor}40 0%, ${waitingSecondaryColor}20 50%, #000000 100%)`;
+    
     const waitingState = isSingleAthleteDisplay ? (
-      <div 
-        className="bg-black flex items-center justify-center"
-        style={{ 
-          width: `${capability.resolution.width}px`, 
-          height: `${capability.resolution.height}px`,
-          fontFamily: "'Barlow Semi Condensed', sans-serif"
-        }}
-      >
-        <div className="text-white text-center">
-          <p className="text-sm font-bold">Waiting...</p>
-          <div className={`mt-2 w-2 h-2 rounded-full mx-auto ${isConnected ? 'bg-blue-400 animate-pulse' : 'bg-yellow-400'}`}></div>
+      waitingHasLogo ? (
+        <div 
+          className="flex items-center justify-center overflow-hidden"
+          style={{ 
+            width: `${capability.resolution.width}px`, 
+            height: `${capability.resolution.height}px`,
+            background: waitingGradient,
+            fontFamily: "'Barlow Semi Condensed', sans-serif"
+          }}
+        >
+          <img 
+            src={meet!.logoUrl!} 
+            alt={meet?.name || 'Meet Logo'} 
+            style={{
+              maxWidth: '85%',
+              maxHeight: '85%',
+              objectFit: 'contain',
+            }}
+          />
         </div>
-      </div>
-    ) : (
-      <div className="h-screen w-screen bg-black flex items-center justify-center">
-        <div className="text-white text-center" style={{ fontFamily: "'Barlow Semi Condensed', sans-serif" }}>
-          <h2 className="text-3xl font-bold mb-4">{meet?.name || 'Track Meet'}</h2>
-          <p className="text-xl mb-2">{template}</p>
-          <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full ${isConnected ? 'bg-blue-900/50 text-blue-400' : 'bg-yellow-900/50 text-yellow-400'}`}>
-            <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-blue-400 animate-pulse' : 'bg-yellow-400'}`}></span>
-            Waiting for event data...
+      ) : (
+        <div 
+          className="bg-black flex items-center justify-center"
+          style={{ 
+            width: `${capability.resolution.width}px`, 
+            height: `${capability.resolution.height}px`,
+            fontFamily: "'Barlow Semi Condensed', sans-serif"
+          }}
+        >
+          <div className="text-white text-center">
+            <div className={`w-3 h-3 rounded-full mx-auto mb-2 ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`}></div>
+            <p className="text-sm font-bold">{displayType}</p>
           </div>
         </div>
-      </div>
+      )
+    ) : (
+      waitingHasLogo ? (
+        <div 
+          className="h-screen w-screen flex items-center justify-center overflow-hidden"
+          style={{ 
+            background: waitingGradient,
+            fontFamily: "'Barlow Semi Condensed', sans-serif" 
+          }}
+        >
+          <div className="text-center">
+            <img 
+              src={meet!.logoUrl!} 
+              alt={meet?.name || 'Meet Logo'} 
+              className="max-h-[60vh] max-w-[80vw] mx-auto object-contain"
+            />
+            <div className="mt-8">
+              <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full ${isConnected ? 'bg-blue-900/50 text-blue-400' : 'bg-yellow-900/50 text-yellow-400'}`}>
+                <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-blue-400 animate-pulse' : 'bg-yellow-400'}`}></span>
+                Waiting for event...
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="h-screen w-screen bg-black flex items-center justify-center">
+          <div className="text-white text-center" style={{ fontFamily: "'Barlow Semi Condensed', sans-serif" }}>
+            <div className={`w-6 h-6 rounded-full mx-auto mb-4 ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`}></div>
+            <p className="text-3xl font-bold">{displayType === 'BigBoard' ? 'Big Board' : displayType}</p>
+            <p className="text-sm text-gray-500 mt-2">Waiting for event...</p>
+          </div>
+        </div>
+      )
     );
 
     if (isSingleAthleteDisplay && currentEvent) {
@@ -545,24 +640,44 @@ function DisplayRenderer({ displayType, meetId, template, eventId, deviceId, isC
       return waitingState;
     }
 
-    return (
-      <div className="h-screen w-screen bg-black flex items-center justify-center overflow-hidden">
-        <div className="text-white text-center p-8" style={{ fontFamily: "'Barlow Semi Condensed', sans-serif" }}>
-          {meet?.logoUrl ? (
-            <img src={meet.logoUrl} alt={meet.name} className="max-h-[50vh] mx-auto mb-6" />
-          ) : null}
-          <h1 className="text-5xl font-bold mb-4">{meet?.name || 'Track Meet'}</h1>
-          {meet?.location && <p className="text-2xl text-gray-300">{meet.location}</p>}
-          <div className="mt-12 text-sm">
-            <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full ${isConnected ? 'bg-green-900/50 text-green-400' : 'bg-yellow-900/50 text-yellow-400'}`}>
-              <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-yellow-400'}`}></span>
-              {isConnected ? 'Connected - Ready for Commands' : 'Connecting...'}
-            </div>
-            <div className="mt-4 text-gray-600 text-xs">
-              <p>{displayType} Display</p>
-              <p>ID: {deviceId.slice(-8)}</p>
+    // Default fallback - show logo with color scheme or black screen with green dot
+    const fallbackPrimaryColor = meet?.primaryColor || '#0066CC';
+    const fallbackSecondaryColor = meet?.secondaryColor || '#003366';
+    const fallbackHasLogo = !!meet?.logoUrl;
+    const fallbackGradient = `radial-gradient(ellipse at center, ${fallbackPrimaryColor}40 0%, ${fallbackSecondaryColor}20 50%, #000000 100%)`;
+    
+    if (fallbackHasLogo) {
+      return (
+        <div 
+          className="h-screen w-screen flex items-center justify-center overflow-hidden"
+          style={{ 
+            background: fallbackGradient,
+            fontFamily: "'Barlow Semi Condensed', sans-serif" 
+          }}
+        >
+          <div className="text-center">
+            <img 
+              src={meet!.logoUrl!} 
+              alt={meet?.name || 'Meet Logo'} 
+              className="max-h-[60vh] max-w-[80vw] mx-auto object-contain"
+            />
+            <div className="mt-8">
+              <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full ${isConnected ? 'bg-green-900/50 text-green-400' : 'bg-yellow-900/50 text-yellow-400'}`}>
+                <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-yellow-400'}`}></span>
+                {isConnected ? 'Ready' : 'Connecting...'}
+              </div>
             </div>
           </div>
+        </div>
+      );
+    }
+    
+    return (
+      <div className="h-screen w-screen bg-black flex items-center justify-center overflow-hidden">
+        <div className="text-white text-center" style={{ fontFamily: "'Barlow Semi Condensed', sans-serif" }}>
+          <div className={`w-6 h-6 rounded-full mx-auto mb-4 ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`}></div>
+          <p className="text-3xl font-bold">{displayType === 'BigBoard' ? 'Big Board' : displayType}</p>
+          <p className="text-sm text-gray-500 mt-2">{capability.resolution.width}x{capability.resolution.height}</p>
         </div>
       </div>
     );
