@@ -156,11 +156,27 @@ async function broadcastCurrentEvent() {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Configure multer for file uploads
+  // Configure multer for file uploads (disk storage for large files like MDB)
   const upload = multer({
     dest: "uploads/",
     limits: {
       fileSize: 50 * 1024 * 1024, // 50MB limit
+    },
+  });
+
+  // Configure multer for image uploads (memory storage for processing)
+  const imageUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 10 * 1024 * 1024, // 10MB limit for images
+    },
+    fileFilter: (req, file, cb) => {
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
+      if (allowedTypes.includes(file.mimetype)) {
+        cb(null, true);
+      } else {
+        cb(new Error('Invalid file type. Only JPEG, PNG, and GIF are allowed.'));
+      }
     },
   });
 
@@ -1142,7 +1158,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Upload meet logo
-  app.post("/api/meets/:id/logo", upload.single("logo"), async (req, res) => {
+  app.post("/api/meets/:id/logo", imageUpload.single("logo"), async (req, res) => {
     try {
       const meetId = req.params.id;
       const meet = await storage.getMeet(meetId);
@@ -2058,7 +2074,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Upload athlete photo
   // Test with: POST /api/athletes/{athleteId}/photo with multipart/form-data photo field
-  app.post("/api/athletes/:id/photo", upload.single("photo"), async (req, res) => {
+  app.post("/api/athletes/:id/photo", imageUpload.single("photo"), async (req, res) => {
     let photoData: {
       storageKey: string;
       width: number;
@@ -2285,7 +2301,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Upload team logo
   // Test with: POST /api/teams/{teamId}/logo with multipart/form-data logo field
-  app.post("/api/teams/:id/logo", upload.single("logo"), async (req, res) => {
+  app.post("/api/teams/:id/logo", imageUpload.single("logo"), async (req, res) => {
     let logoData: {
       storageKey: string;
       width: number;
@@ -3484,7 +3500,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Upload sponsor logo
-  app.post("/api/sponsors/:id/logo", upload.single("logo"), async (req, res) => {
+  app.post("/api/sponsors/:id/logo", imageUpload.single("logo"), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
