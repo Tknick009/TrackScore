@@ -392,6 +392,25 @@ export default function SceneEditor() {
     },
   });
   
+  // Batch update objects mutation (for alignment/distribute operations)
+  const batchUpdateObjectsMutation = useMutation({
+    mutationFn: async (updates: Array<{ id: number; data: { x?: number; y?: number; width?: number; height?: number } }>) => {
+      const res = await apiRequest('POST', '/api/layout-objects/batch-update', { updates });
+      const result = await res.json();
+      // Check for partial failures (207 Multi-Status)
+      if (result.failedIds && result.failedIds.length > 0) {
+        throw new Error(`${result.failedIds.length} objects failed to update`);
+      }
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/layout-scenes', selectedSceneId] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Update failed", description: error.message, variant: "destructive" });
+    },
+  });
+  
   // Delete object mutation
   const deleteObjectMutation = useMutation({
     mutationFn: async (id: number) => {
@@ -975,15 +994,23 @@ export default function SceneEditor() {
     const availableSpace = 100 - totalWidth;
     const spacing = availableSpace / (objects.length + 1);
     
+    // Build batch updates for objects that actually need to move
+    const updates: Array<{ id: number; data: { x: number } }> = [];
     let currentX = spacing;
     objects.forEach((obj) => {
-      updateObjectMutation.mutate({
-        id: obj.id,
-        data: { x: showGrid ? snapToGrid(currentX) : currentX },
-      });
+      const newX = showGrid ? snapToGrid(currentX) : currentX;
+      // Only add update if position actually changed (avoid no-op updates)
+      if (Math.abs(newX - obj.x) > 0.01) {
+        updates.push({ id: obj.id, data: { x: newX } });
+      }
       currentX += obj.width + spacing;
     });
-  }, [currentScene, updateObjectMutation, showGrid, snapToGrid]);
+    
+    // Only call API if there are actual position changes
+    if (updates.length > 0) {
+      batchUpdateObjectsMutation.mutate(updates);
+    }
+  }, [currentScene, batchUpdateObjectsMutation, showGrid, snapToGrid]);
 
   const handleDistributeVertically = useCallback(() => {
     if (!currentScene || currentScene.objects.length < 2) return;
@@ -992,15 +1019,23 @@ export default function SceneEditor() {
     const availableSpace = 100 - totalHeight;
     const spacing = availableSpace / (objects.length + 1);
     
+    // Build batch updates for objects that actually need to move
+    const updates: Array<{ id: number; data: { y: number } }> = [];
     let currentY = spacing;
     objects.forEach((obj) => {
-      updateObjectMutation.mutate({
-        id: obj.id,
-        data: { y: showGrid ? snapToGrid(currentY) : currentY },
-      });
+      const newY = showGrid ? snapToGrid(currentY) : currentY;
+      // Only add update if position actually changed (avoid no-op updates)
+      if (Math.abs(newY - obj.y) > 0.01) {
+        updates.push({ id: obj.id, data: { y: newY } });
+      }
       currentY += obj.height + spacing;
     });
-  }, [currentScene, updateObjectMutation, showGrid, snapToGrid]);
+    
+    // Only call API if there are actual position changes
+    if (updates.length > 0) {
+      batchUpdateObjectsMutation.mutate(updates);
+    }
+  }, [currentScene, batchUpdateObjectsMutation, showGrid, snapToGrid]);
 
   // Create scene from template
   const handleCreateFromTemplate = useCallback(async (templateKey: keyof typeof LAYOUT_TEMPLATES) => {

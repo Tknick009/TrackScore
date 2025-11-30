@@ -3115,6 +3115,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: error.message });
     }
   });
+  
+  // Batch update objects positions (for alignment/distribute operations)
+  app.post('/api/layout-objects/batch-update', async (req, res) => {
+    try {
+      const { updates } = req.body as { updates: Array<{ id: number; data: { x?: number; y?: number; width?: number; height?: number } }> };
+      
+      if (!Array.isArray(updates) || updates.length === 0) {
+        return res.status(400).json({ error: 'updates must be a non-empty array' });
+      }
+      
+      // Validate each update
+      for (const update of updates) {
+        if (typeof update.id !== 'number' || !update.data) {
+          return res.status(400).json({ error: 'Each update must have id (number) and data' });
+        }
+      }
+      
+      // Process all updates and track results
+      const results: Array<{ id: number; success: boolean; object?: any; error?: string }> = [];
+      
+      for (const { id, data } of updates) {
+        try {
+          const parsed = insertLayoutObjectSchema.partial().parse(data);
+          const object = await storage.updateLayoutObject(id, parsed);
+          if (object) {
+            results.push({ id, success: true, object });
+          } else {
+            results.push({ id, success: false, error: 'Object not found' });
+          }
+        } catch (err: any) {
+          results.push({ id, success: false, error: err.message || 'Update failed' });
+        }
+      }
+      
+      // Check if any updates failed
+      const failures = results.filter(r => !r.success);
+      if (failures.length > 0) {
+        return res.status(207).json({
+          message: `${failures.length} of ${updates.length} updates failed`,
+          results,
+          failedIds: failures.map(f => f.id),
+        });
+      }
+      
+      res.json({ success: true, results });
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Invalid object data', details: error.errors });
+      }
+      res.status(500).json({ error: error.message });
+    }
+  });
 
   // Record Books
   app.get('/api/record-books', async (req, res) => {
