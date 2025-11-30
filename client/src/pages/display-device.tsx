@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Monitor, Tv, LayoutGrid, Calendar } from "lucide-react";
 import type { Meet, Event } from "@shared/schema";
@@ -254,57 +253,68 @@ export default function DisplayDevice() {
           </div>
           
           {/* Display Type Selection */}
-          <label className="block text-gray-300 text-sm font-medium mb-3 text-center">
-            Select Display Type
-          </label>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-            <Card 
-              className={`bg-gray-900 border-2 cursor-pointer transition-all hover:bg-gray-800 ${
-                state.displayType === 'P10' ? 'border-blue-500 bg-gray-800' : 'border-gray-700 hover:border-blue-500'
-              }`}
-              onClick={() => selectDisplayType('P10')}
-              data-testid="select-p10"
-            >
-              <CardHeader className="text-center">
-                <Monitor className={`w-12 h-12 mx-auto mb-2 ${state.displayType === 'P10' ? 'text-blue-400' : 'text-gray-400'}`} />
-                <CardTitle className="text-white text-xl">P10 Display</CardTitle>
-                <CardDescription className="text-gray-400">
-                  192 x 96 pixels
-                </CardDescription>
-              </CardHeader>
-            </Card>
+          <div className="mb-10">
+            <label className="block text-gray-300 text-sm font-medium mb-3 text-center">
+              Select Display Type
+            </label>
+            <div className="max-w-md mx-auto space-y-2">
+              <button
+                className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg border transition-all ${
+                  state.displayType === 'P10' 
+                    ? 'border-blue-500 bg-blue-500/10 text-white' 
+                    : 'border-gray-700 bg-gray-900 text-gray-300 hover:border-gray-500 hover:bg-gray-800'
+                }`}
+                onClick={() => selectDisplayType('P10')}
+                data-testid="select-p10"
+              >
+                <Monitor className={`w-5 h-5 ${state.displayType === 'P10' ? 'text-blue-400' : 'text-gray-500'}`} />
+                <div className="flex-1 text-left">
+                  <div className="font-medium">P10 Display</div>
+                  <div className="text-sm text-gray-500">192 × 96 pixels</div>
+                </div>
+                {state.displayType === 'P10' && (
+                  <div className="w-2 h-2 rounded-full bg-blue-500" />
+                )}
+              </button>
 
-            <Card 
-              className={`bg-gray-900 border-2 cursor-pointer transition-all hover:bg-gray-800 ${
-                state.displayType === 'P6' ? 'border-green-500 bg-gray-800' : 'border-gray-700 hover:border-green-500'
-              }`}
-              onClick={() => selectDisplayType('P6')}
-              data-testid="select-p6"
-            >
-              <CardHeader className="text-center">
-                <Tv className={`w-12 h-12 mx-auto mb-2 ${state.displayType === 'P6' ? 'text-green-400' : 'text-gray-400'}`} />
-                <CardTitle className="text-white text-xl">P6 Display</CardTitle>
-                <CardDescription className="text-gray-400">
-                  288 x 144 pixels
-                </CardDescription>
-              </CardHeader>
-            </Card>
+              <button
+                className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg border transition-all ${
+                  state.displayType === 'P6' 
+                    ? 'border-green-500 bg-green-500/10 text-white' 
+                    : 'border-gray-700 bg-gray-900 text-gray-300 hover:border-gray-500 hover:bg-gray-800'
+                }`}
+                onClick={() => selectDisplayType('P6')}
+                data-testid="select-p6"
+              >
+                <Tv className={`w-5 h-5 ${state.displayType === 'P6' ? 'text-green-400' : 'text-gray-500'}`} />
+                <div className="flex-1 text-left">
+                  <div className="font-medium">P6 Display</div>
+                  <div className="text-sm text-gray-500">288 × 144 pixels</div>
+                </div>
+                {state.displayType === 'P6' && (
+                  <div className="w-2 h-2 rounded-full bg-green-500" />
+                )}
+              </button>
 
-            <Card 
-              className={`bg-gray-900 border-2 cursor-pointer transition-all hover:bg-gray-800 ${
-                state.displayType === 'BigBoard' ? 'border-purple-500 bg-gray-800' : 'border-gray-700 hover:border-purple-500'
-              }`}
-              onClick={() => selectDisplayType('BigBoard')}
-              data-testid="select-bigboard"
-            >
-              <CardHeader className="text-center">
-                <LayoutGrid className={`w-12 h-12 mx-auto mb-2 ${state.displayType === 'BigBoard' ? 'text-purple-400' : 'text-gray-400'}`} />
-                <CardTitle className="text-white text-xl">Big Board</CardTitle>
-                <CardDescription className="text-gray-400">
-                  1920 x 1080 pixels
-                </CardDescription>
-              </CardHeader>
-            </Card>
+              <button
+                className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg border transition-all ${
+                  state.displayType === 'BigBoard' 
+                    ? 'border-purple-500 bg-purple-500/10 text-white' 
+                    : 'border-gray-700 bg-gray-900 text-gray-300 hover:border-gray-500 hover:bg-gray-800'
+                }`}
+                onClick={() => selectDisplayType('BigBoard')}
+                data-testid="select-bigboard"
+              >
+                <LayoutGrid className={`w-5 h-5 ${state.displayType === 'BigBoard' ? 'text-purple-400' : 'text-gray-500'}`} />
+                <div className="flex-1 text-left">
+                  <div className="font-medium">Big Board</div>
+                  <div className="text-sm text-gray-500">1920 × 1080 pixels</div>
+                </div>
+                {state.displayType === 'BigBoard' && (
+                  <div className="w-2 h-2 rounded-full bg-purple-500" />
+                )}
+              </button>
+            </div>
           </div>
           
           {/* Start Button */}
