@@ -172,6 +172,84 @@ const LAYOUT_TEMPLATES = {
   },
 };
 
+// Sample data for preview mode
+const SAMPLE_TRACK_RESULTS = [
+  { place: 1, lane: 4, name: 'John Smith', affiliation: 'Jefferson HS', time: '10.24', reaction: '0.142' },
+  { place: 2, lane: 6, name: 'Emma Williams', affiliation: 'Central University', time: '10.31', reaction: '0.156' },
+  { place: 3, lane: 5, name: 'Michael Johnson', affiliation: 'Lincoln TC', time: '10.45', reaction: '0.138' },
+  { place: 4, lane: 3, name: 'Sarah Davis', affiliation: 'Westside Academy', time: '10.52', reaction: '0.149' },
+  { place: 5, lane: 7, name: 'James Wilson', affiliation: 'State University', time: '10.58', reaction: '0.161' },
+  { place: 6, lane: 2, name: 'Ashley Brown', affiliation: 'Metro Track Club', time: '10.67', reaction: '0.144' },
+  { place: 7, lane: 8, name: 'David Martinez', affiliation: 'Riverside HS', time: '10.74', reaction: '0.152' },
+  { place: 8, lane: 1, name: 'Jennifer Taylor', affiliation: 'Northern College', time: '10.89', reaction: '0.165' },
+];
+
+const SAMPLE_FIELD_RESULTS = [
+  { place: 1, name: 'Marcus Thompson', affiliation: 'State University', mark: '8.12m', best_mark: '8.12m', attempts: 'X 7.95 8.12', wind: '+1.2' },
+  { place: 2, name: 'Lisa Anderson', affiliation: 'Jefferson HS', mark: '7.89m', best_mark: '7.89m', attempts: '7.45 7.89 X', wind: '+0.8' },
+  { place: 3, name: 'Kevin Chen', affiliation: 'Central University', mark: '7.72m', best_mark: '7.72m', attempts: '7.72 X 7.65', wind: '+1.5' },
+  { place: 4, name: 'Maria Garcia', affiliation: 'Lincoln TC', mark: '7.58m', best_mark: '7.58m', attempts: 'P 7.58 7.42', wind: '+0.3' },
+  { place: 5, name: 'Robert Lee', affiliation: 'Westside Academy', mark: '7.45m', best_mark: '7.45m', attempts: '7.45 7.38 X', wind: '+1.1' },
+  { place: 6, name: 'Amanda White', affiliation: 'Metro Track Club', mark: '7.32m', best_mark: '7.32m', attempts: '7.15 7.32 7.28', wind: '+0.6' },
+  { place: 7, name: 'Christopher Harris', affiliation: 'Riverside HS', mark: '7.18m', best_mark: '7.18m', attempts: 'X 7.18 7.05', wind: '+0.9' },
+  { place: 8, name: 'Jessica Moore', affiliation: 'Northern College', mark: '6.95m', best_mark: '6.95m', attempts: '6.95 6.82 X', wind: '+1.4' },
+];
+
+const SAMPLE_TIMER_DATA = {
+  runningTime: '12:34.56',
+  countdown: '3:45',
+  eventName: 'Men\'s 100m Final',
+  status: 'IN PROGRESS',
+};
+
+const SAMPLE_TEAM_STANDINGS = [
+  { rank: 1, name: 'Jefferson High School', score: 87.5 },
+  { rank: 2, name: 'Central University', score: 72.0 },
+  { rank: 3, name: 'Lincoln Track Club', score: 65.5 },
+  { rank: 4, name: 'Westside Academy', score: 58.0 },
+  { rank: 5, name: 'State University', score: 52.5 },
+  { rank: 6, name: 'Metro Track Club', score: 45.0 },
+  { rank: 7, name: 'Riverside High School', score: 38.5 },
+  { rank: 8, name: 'Northern College', score: 32.0 },
+  { rank: 9, name: 'Eastside Academy', score: 25.5 },
+  { rank: 10, name: 'Southern University', score: 18.0 },
+];
+
+// Utility function to replace field codes with sample data
+const replaceFieldCodes = (text: string, athleteIndex: number = 0, isFieldEvent: boolean = false): string => {
+  const results = isFieldEvent ? SAMPLE_FIELD_RESULTS : SAMPLE_TRACK_RESULTS;
+  const athlete = results[athleteIndex % results.length];
+  
+  let result = text
+    .replace(/\{place\}/g, String(athlete.place))
+    .replace(/\{name\}/g, athlete.name)
+    .replace(/\{affiliation\}/g, athlete.affiliation);
+  
+  if (isFieldEvent && 'mark' in athlete) {
+    result = result
+      .replace(/\{mark\}/g, athlete.mark)
+      .replace(/\{best_mark\}/g, athlete.best_mark)
+      .replace(/\{attempts\}/g, athlete.attempts)
+      .replace(/\{wind\}/g, athlete.wind);
+  } else if ('time' in athlete) {
+    result = result
+      .replace(/\{lane\}/g, String(athlete.lane))
+      .replace(/\{time\}/g, athlete.time)
+      .replace(/\{reaction\}/g, athlete.reaction);
+  }
+  
+  return result;
+};
+
+// Get athlete index from object name (e.g., "Lane 3" -> 2)
+const getAthleteIndexFromName = (name: string): number => {
+  const match = name.match(/(\d+)/);
+  if (match) {
+    return Math.max(0, parseInt(match[1], 10) - 1);
+  }
+  return 0;
+};
+
 interface DragState {
   type: 'move' | 'resize';
   objectId: number;
@@ -477,6 +555,251 @@ export default function SceneEditor() {
     }
   }, [dragState, handleMouseMove, handleMouseUp]);
   
+  // Render preview content for an object type
+  const renderPreviewContent = (object: SelectLayoutObject) => {
+    const objectType = object.objectType as LayoutObjectType;
+    const config = object.config as SceneObjectConfig;
+    const dataBinding = object.dataBinding as SceneDataBinding;
+    const style = object.style as SceneObjectStyle;
+    
+    const fontSize = style?.fontSize || 14;
+    const textAlign = style?.textAlign || 'center';
+    
+    // Determine if this is a field event based on data source
+    const isFieldEvent = dataBinding?.sourceType === 'current-field' || 
+                         (dataBinding?.sourceType === 'events' && dataBinding?.eventIds?.some(id => id?.includes('field')));
+    
+    // Get athlete index from object name
+    const athleteIndex = getAthleteIndexFromName(object.name || '');
+    
+    switch (objectType) {
+      case 'text': {
+        // Check for field codes in config or dataBinding
+        const textTemplate = dataBinding?.fieldCode || config?.dynamicText || config?.text || object.name || '';
+        const hasFieldCodes = /\{[a-z_]+\}/.test(textTemplate);
+        
+        if (hasFieldCodes) {
+          const previewText = replaceFieldCodes(textTemplate, athleteIndex, isFieldEvent);
+          return (
+            <div 
+              className="w-full h-full flex items-center overflow-hidden px-2"
+              style={{ fontSize: `${Math.max(10, Math.min(fontSize, 48))}px`, textAlign }}
+            >
+              <span className="w-full text-white font-semibold" style={{ textAlign }}>
+                {previewText}
+              </span>
+            </div>
+          );
+        }
+        
+        // Static text
+        return (
+          <div 
+            className="w-full h-full flex items-center overflow-hidden px-2"
+            style={{ fontSize: `${Math.max(10, Math.min(fontSize, 48))}px`, textAlign }}
+          >
+            <span className="w-full text-white" style={{ textAlign }}>
+              {textTemplate || 'Text'}
+            </span>
+          </div>
+        );
+      }
+      
+      case 'timer': {
+        return (
+          <div className="w-full h-full flex flex-col items-center justify-center p-2" data-testid="preview-timer">
+            <span className="text-4xl font-bold text-white font-mono tracking-wider">
+              {SAMPLE_TIMER_DATA.runningTime}
+            </span>
+            <span className="text-xs text-white/70 mt-1">
+              {SAMPLE_TIMER_DATA.status}
+            </span>
+          </div>
+        );
+      }
+      
+      case 'clock': {
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        return (
+          <div className="w-full h-full flex items-center justify-center p-2" data-testid="preview-clock">
+            <span className="text-2xl font-bold text-white font-mono">
+              {timeStr}
+            </span>
+          </div>
+        );
+      }
+      
+      case 'event-header': {
+        return (
+          <div className="w-full h-full flex flex-col justify-center px-3 py-2" data-testid="preview-event-header">
+            <span className="text-xl font-bold text-white">
+              {SAMPLE_TIMER_DATA.eventName}
+            </span>
+            <span className="text-sm text-white/70">
+              Heat 1 of 3
+            </span>
+          </div>
+        );
+      }
+      
+      case 'results-table': {
+        const results = isFieldEvent ? SAMPLE_FIELD_RESULTS : SAMPLE_TRACK_RESULTS;
+        const maxToShow = Math.min(results.length, Math.floor((object.height * 10) / 4));
+        return (
+          <div className="w-full h-full flex flex-col p-1 overflow-hidden" data-testid="preview-results-table">
+            <div className="text-xs font-semibold text-white/70 border-b border-white/20 pb-1 mb-1 flex">
+              <span className="w-8">PL</span>
+              <span className="flex-1">ATHLETE</span>
+              <span className="w-16 text-right">{isFieldEvent ? 'MARK' : 'TIME'}</span>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              {results.slice(0, maxToShow).map((r, i) => (
+                <div key={i} className="flex text-xs text-white py-0.5">
+                  <span className="w-8 font-bold">{r.place}</span>
+                  <span className="flex-1 truncate">{r.name}</span>
+                  <span className="w-16 text-right font-mono">
+                    {'time' in r ? r.time : r.mark}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      }
+      
+      case 'team-standings': {
+        const maxToShow = Math.min(SAMPLE_TEAM_STANDINGS.length, Math.floor((object.height * 10) / 4));
+        return (
+          <div className="w-full h-full flex flex-col p-1 overflow-hidden" data-testid="preview-team-standings">
+            <div className="text-xs font-semibold text-white/70 border-b border-white/20 pb-1 mb-1 flex">
+              <span className="w-8">RK</span>
+              <span className="flex-1">TEAM</span>
+              <span className="w-12 text-right">PTS</span>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              {SAMPLE_TEAM_STANDINGS.slice(0, maxToShow).map((team, i) => (
+                <div key={i} className="flex text-xs text-white py-0.5">
+                  <span className="w-8 font-bold">{team.rank}</span>
+                  <span className="flex-1 truncate">{team.name}</span>
+                  <span className="w-12 text-right font-semibold">{team.score}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      }
+      
+      case 'wind-reading': {
+        return (
+          <div className="w-full h-full flex items-center justify-center p-1" data-testid="preview-wind-reading">
+            <Wind className="w-4 h-4 mr-1 text-white/70" />
+            <span className="text-lg font-mono text-white">+1.2</span>
+          </div>
+        );
+      }
+      
+      case 'athlete-card': {
+        const athlete = SAMPLE_TRACK_RESULTS[athleteIndex % SAMPLE_TRACK_RESULTS.length];
+        return (
+          <div className="w-full h-full flex flex-col items-center justify-center p-2" data-testid="preview-athlete-card">
+            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center mb-1">
+              <User className="w-6 h-6 text-white/70" />
+            </div>
+            <span className="text-sm font-bold text-white text-center">{athlete.name}</span>
+            <span className="text-xs text-white/70">{athlete.affiliation}</span>
+          </div>
+        );
+      }
+      
+      case 'athlete-grid': {
+        return (
+          <div className="w-full h-full grid grid-cols-4 gap-1 p-1 overflow-hidden" data-testid="preview-athlete-grid">
+            {SAMPLE_TRACK_RESULTS.slice(0, 8).map((athlete, i) => (
+              <div key={i} className="flex flex-col items-center justify-center bg-white/5 rounded p-1">
+                <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center mb-0.5">
+                  <User className="w-3 h-3 text-white/60" />
+                </div>
+                <span className="text-[8px] text-white text-center truncate w-full">{athlete.name}</span>
+              </div>
+            ))}
+          </div>
+        );
+      }
+      
+      case 'lane-graphic': {
+        return (
+          <div className="w-full h-full flex flex-col gap-0.5 p-1 overflow-hidden" data-testid="preview-lane-graphic">
+            {SAMPLE_TRACK_RESULTS.map((r, i) => (
+              <div 
+                key={i} 
+                className="flex-1 flex items-center bg-white/10 rounded px-2"
+                style={{ minHeight: '12px' }}
+              >
+                <span className="w-5 text-xs font-bold text-white">{r.lane}</span>
+                <span className="flex-1 text-xs text-white truncate">{r.name}</span>
+                <span className="text-xs text-white/70">{r.affiliation}</span>
+              </div>
+            ))}
+          </div>
+        );
+      }
+      
+      case 'attempt-tracker': {
+        return (
+          <div className="w-full h-full flex flex-col p-1 overflow-hidden" data-testid="preview-attempt-tracker">
+            <div className="text-xs font-semibold text-white/70 border-b border-white/20 pb-1 mb-1 flex">
+              <span className="flex-1">ATHLETE</span>
+              <span className="w-24 text-center">ATTEMPTS</span>
+            </div>
+            {SAMPLE_FIELD_RESULTS.slice(0, 4).map((r, i) => (
+              <div key={i} className="flex text-xs text-white py-0.5">
+                <span className="flex-1 truncate">{r.name}</span>
+                <span className="w-24 text-center font-mono text-[10px]">{r.attempts}</span>
+              </div>
+            ))}
+          </div>
+        );
+      }
+      
+      case 'split-times': {
+        return (
+          <div className="w-full h-full flex flex-col p-1 overflow-hidden" data-testid="preview-split-times">
+            <div className="text-xs font-semibold text-white mb-1">Split Times</div>
+            <div className="flex-1 grid grid-cols-2 gap-1 text-xs">
+              <div className="flex justify-between"><span>200m:</span><span className="font-mono">21.45</span></div>
+              <div className="flex justify-between"><span>400m:</span><span className="font-mono">45.78</span></div>
+              <div className="flex justify-between"><span>600m:</span><span className="font-mono">1:12.34</span></div>
+              <div className="flex justify-between"><span>800m:</span><span className="font-mono">1:45.92</span></div>
+            </div>
+          </div>
+        );
+      }
+      
+      case 'record-indicator': {
+        return (
+          <div className="w-full h-full flex items-center justify-center p-1 bg-yellow-500/20" data-testid="preview-record-indicator">
+            <Award className="w-4 h-4 mr-1 text-yellow-400" />
+            <span className="text-sm font-bold text-yellow-400">MEET RECORD</span>
+          </div>
+        );
+      }
+      
+      case 'logo': {
+        return (
+          <div className="w-full h-full flex items-center justify-center p-2" data-testid="preview-logo">
+            <div className="w-full h-full bg-white/10 rounded flex items-center justify-center">
+              <Image className="w-8 h-8 text-white/40" />
+            </div>
+          </div>
+        );
+      }
+      
+      default:
+        return null;
+    }
+  };
+  
   // Render an object on the canvas
   const renderObject = (object: SelectLayoutObject) => {
     const isSelected = selectedObjectId === object.id;
@@ -488,7 +811,7 @@ export default function SceneEditor() {
         key={object.id}
         className={`absolute transition-shadow ${
           isSelected && !previewMode ? 'ring-2 ring-yellow-400 ring-offset-1 ring-offset-black' : ''
-        } ${object.locked ? 'opacity-75' : 'cursor-move'} ${
+        } ${object.locked ? 'opacity-75' : previewMode ? '' : 'cursor-move'} ${
           !object.visible ? 'opacity-40' : ''
         }`}
         style={{
@@ -507,17 +830,23 @@ export default function SceneEditor() {
         onMouseDown={(e) => handleObjectMouseDown(e, object)}
         onClick={(e) => {
           e.stopPropagation();
-          setSelectedObjectId(object.id);
+          if (!previewMode) {
+            setSelectedObjectId(object.id);
+          }
         }}
         data-testid={`layout-object-${object.id}`}
       >
-        {/* Object content preview */}
-        <div className="w-full h-full flex flex-col items-center justify-center text-white p-2 overflow-hidden">
-          <Icon className="w-6 h-6 mb-1 opacity-60" />
-          <span className="text-xs text-center opacity-80 truncate w-full">
-            {object.name || info?.name || object.objectType}
-          </span>
-        </div>
+        {/* Object content - show preview content or editor placeholder */}
+        {previewMode ? (
+          renderPreviewContent(object)
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center text-white p-2 overflow-hidden">
+            <Icon className="w-6 h-6 mb-1 opacity-60" />
+            <span className="text-xs text-center opacity-80 truncate w-full">
+              {object.name || info?.name || object.objectType}
+            </span>
+          </div>
+        )}
         
         {/* Resize handles (only when selected and not in preview) */}
         {isSelected && !previewMode && !object.locked && (
@@ -1048,35 +1377,44 @@ export default function SceneEditor() {
               
               {/* Canvas area */}
               <div className="flex-1 flex items-center justify-center p-4 overflow-auto">
-                <div
-                  ref={canvasRef}
-                  className="relative bg-black"
-                  style={{
-                    width: '100%',
-                    maxWidth: '1200px',
-                    aspectRatio: currentScene.aspectRatio || '16/9',
-                    backgroundColor: currentScene.backgroundColor || '#000000',
-                    backgroundImage: currentScene.backgroundImage ? `url(${currentScene.backgroundImage})` : undefined,
-                    backgroundSize: 'cover',
-                  }}
-                  onClick={() => setSelectedObjectId(null)}
-                  data-testid="scene-canvas"
-                >
-                  {/* Grid overlay */}
-                  {showGrid && !previewMode && (
-                    <div
-                      className="absolute inset-0 pointer-events-none"
-                      style={{
-                        backgroundImage: 'linear-gradient(rgba(100,100,100,0.2) 1px, transparent 1px), linear-gradient(90deg, rgba(100,100,100,0.2) 1px, transparent 1px)',
-                        backgroundSize: '5% 5%',
-                      }}
-                    />
+                <div className="relative">
+                  {/* Preview mode indicator */}
+                  {previewMode && (
+                    <div className="absolute -top-8 left-0 right-0 flex items-center justify-center gap-2 text-green-400 text-sm font-medium" data-testid="preview-mode-indicator">
+                      <Eye className="w-4 h-4" />
+                      <span>PREVIEW MODE</span>
+                    </div>
                   )}
-                  
-                  {/* Objects */}
-                  {currentScene.objects
-                    .sort((a, b) => a.zIndex - b.zIndex)
-                    .map(renderObject)}
+                  <div
+                    ref={canvasRef}
+                    className={`relative bg-black transition-all ${previewMode ? 'ring-2 ring-green-500 ring-offset-2 ring-offset-neutral-900' : ''}`}
+                    style={{
+                      width: '100%',
+                      maxWidth: '1200px',
+                      aspectRatio: currentScene.aspectRatio || '16/9',
+                      backgroundColor: currentScene.backgroundColor || '#000000',
+                      backgroundImage: currentScene.backgroundImage ? `url(${currentScene.backgroundImage})` : undefined,
+                      backgroundSize: 'cover',
+                    }}
+                    onClick={() => !previewMode && setSelectedObjectId(null)}
+                    data-testid="scene-canvas"
+                  >
+                    {/* Grid overlay */}
+                    {showGrid && !previewMode && (
+                      <div
+                        className="absolute inset-0 pointer-events-none"
+                        style={{
+                          backgroundImage: 'linear-gradient(rgba(100,100,100,0.2) 1px, transparent 1px), linear-gradient(90deg, rgba(100,100,100,0.2) 1px, transparent 1px)',
+                          backgroundSize: '5% 5%',
+                        }}
+                      />
+                    )}
+                    
+                    {/* Objects */}
+                    {currentScene.objects
+                      .sort((a, b) => a.zIndex - b.zIndex)
+                      .map(renderObject)}
+                  </div>
                 </div>
               </div>
             </>
