@@ -283,6 +283,11 @@ export const meets = pgTable("meets", {
   autoRefresh: boolean("auto_refresh").default(false), // Whether to poll .mdb file
   refreshInterval: integer("refresh_interval").default(30), // Seconds between polls
   lastImportAt: timestamp("last_import_at"), // When last import completed
+  // Color scheme for display layouts
+  primaryColor: text("primary_color").default("#0066CC"), // Main brand color
+  secondaryColor: text("secondary_color").default("#003366"), // Secondary/gradient color
+  accentColor: text("accent_color").default("#FFD700"), // Highlight/accent color (times, places)
+  textColor: text("text_color").default("#FFFFFF"), // Primary text color
 }, (table) => ({
   meetCodeIdx: index("meet_code_idx").on(table.meetCode),
   seasonIdIdx: index("meets_season_id_idx").on(table.seasonId),
