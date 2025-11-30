@@ -38,6 +38,7 @@ import DisplayLauncher from "@/pages/display-launcher";
 import DisplayHub from "@/pages/display-hub";
 import PresetDisplay from "@/pages/preset-display";
 import DisplayDevice from "@/pages/display-device";
+import MeetSetup from "@/pages/meet-setup";
 import NotFound from "@/pages/not-found";
 
 function MeetSyncWrapper({ meetId, children }: { meetId: string; children: React.ReactNode }) {
@@ -108,6 +109,7 @@ function MeetControlRouter() {
     if (subPath === "scene-editor") return <SceneEditor />;
     if (subPath === "displays/launcher") return <DisplayLauncher />;
     if (subPath === "displays") return <DisplayHub />;
+    if (subPath === "setup") return <MeetSetup />;
     return <NotFound />;
   };
   

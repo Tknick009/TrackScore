@@ -6,7 +6,8 @@ import {
   Activity,
   Upload,
   Building2,
-  Home
+  Home,
+  Settings
 } from "lucide-react";
 import {
   Sidebar,
@@ -122,6 +123,22 @@ export function AppSidebar() {
                   <Link href={`${basePath}/import`} data-testid="link-import">
                     <Upload />
                     <span>Import HyTek</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Configuration</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location === `${basePath}/setup`}>
+                  <Link href={`${basePath}/setup`} data-testid="link-setup">
+                    <Settings />
+                    <span>Meet Setup</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
