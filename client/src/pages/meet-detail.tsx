@@ -645,30 +645,44 @@ export default function MeetDetail() {
         </div>
 
         {/* Meet Title Section */}
-        <div>
-          <h1 className="text-4xl font-bold text-foreground mb-2" data-testid="heading-meet-name">
-            {meet.name}
-          </h1>
-          <div className="flex flex-wrap items-center gap-4 text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4" />
-              <span data-testid="text-meet-date">
-                {format(new Date(meet.startDate), "EEEE, MMMM d, yyyy")}
-              </span>
+        <div className="flex items-start gap-6">
+          {/* Meet Logo */}
+          {meet.logoUrl && (
+            <div className="flex-shrink-0">
+              <img 
+                src={meet.logoUrl} 
+                alt={`${meet.name} logo`}
+                className="w-20 h-20 object-contain rounded-lg border bg-white"
+                data-testid="img-meet-logo-header"
+              />
             </div>
-            {meet.location && (
-              <>
-                <Separator orientation="vertical" className="h-4" />
-                <div className="flex items-center gap-2">
-                  <MapPin className="w-4 h-4" />
-                  <span data-testid="text-meet-location">{meet.location}</span>
-                </div>
-              </>
-            )}
-            <Separator orientation="vertical" className="h-4" />
-            <div className="flex items-center gap-2">
-              <Hash className="w-4 h-4" />
-              <span className="font-mono" data-testid="text-meet-code">{meet.meetCode}</span>
+          )}
+          
+          <div className="flex-1">
+            <h1 className="text-4xl font-bold text-foreground mb-2" data-testid="heading-meet-name">
+              {meet.name}
+            </h1>
+            <div className="flex flex-wrap items-center gap-4 text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4" />
+                <span data-testid="text-meet-date">
+                  {format(new Date(meet.startDate), "EEEE, MMMM d, yyyy")}
+                </span>
+              </div>
+              {meet.location && (
+                <>
+                  <Separator orientation="vertical" className="h-4" />
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4" />
+                    <span data-testid="text-meet-location">{meet.location}</span>
+                  </div>
+                </>
+              )}
+              <Separator orientation="vertical" className="h-4" />
+              <div className="flex items-center gap-2">
+                <Hash className="w-4 h-4" />
+                <span className="font-mono" data-testid="text-meet-code">{meet.meetCode}</span>
+              </div>
             </div>
           </div>
         </div>
