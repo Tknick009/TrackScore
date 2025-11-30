@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute } from "wouter";
-import { Settings, Image, X, Save, MapPin, Calendar as CalendarIcon } from "lucide-react";
+import { Settings, Image, X, Save, MapPin, Calendar as CalendarIcon, Palette, RotateCcw } from "lucide-react";
 import { format } from "date-fns";
 import type { Meet } from "@shared/schema";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,57 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
+
+const DEFAULT_COLORS = {
+  primaryColor: "#0066CC",
+  secondaryColor: "#003366",
+  accentColor: "#FFD700",
+  textColor: "#FFFFFF",
+};
+
+function ColorPickerField({ 
+  label, 
+  value, 
+  onChange, 
+  description,
+  testId
+}: { 
+  label: string; 
+  value: string; 
+  onChange: (color: string) => void;
+  description?: string;
+  testId: string;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+      <div className="flex items-center gap-3">
+        <div 
+          className="relative w-12 h-10 rounded-md border-2 border-border overflow-hidden cursor-pointer"
+          style={{ backgroundColor: value }}
+        >
+          <input
+            type="color"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            data-testid={testId}
+          />
+        </div>
+        <Input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="#000000"
+          className="w-28 font-mono uppercase"
+          maxLength={7}
+        />
+        {description && (
+          <span className="text-sm text-muted-foreground">{description}</span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function MeetSetupSkeleton() {
   return (
@@ -48,14 +99,27 @@ export default function MeetSetup() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
+  
+  // Color scheme state
+  const [primaryColor, setPrimaryColor] = useState(DEFAULT_COLORS.primaryColor);
+  const [secondaryColor, setSecondaryColor] = useState(DEFAULT_COLORS.secondaryColor);
+  const [accentColor, setAccentColor] = useState(DEFAULT_COLORS.accentColor);
+  const [textColor, setTextColor] = useState(DEFAULT_COLORS.textColor);
+  const [hasColorChanges, setHasColorChanges] = useState(false);
 
-  useState(() => {
+  // Initialize form values when meet data loads
+  useEffect(() => {
     if (meet) {
       setName(meet.name);
       setLocation(meet.location || "");
       setStartDate(new Date(meet.startDate));
+      // Initialize colors from meet data
+      setPrimaryColor(meet.primaryColor || DEFAULT_COLORS.primaryColor);
+      setSecondaryColor(meet.secondaryColor || DEFAULT_COLORS.secondaryColor);
+      setAccentColor(meet.accentColor || DEFAULT_COLORS.accentColor);
+      setTextColor(meet.textColor || DEFAULT_COLORS.textColor);
     }
-  });
+  }, [meet]);
 
   const updateMeetMutation = useMutation({
     mutationFn: async (data: { name?: string; location?: string; startDate?: Date }) => {
@@ -134,6 +198,57 @@ export default function MeetSetup() {
       });
     },
   });
+
+  const updateColorsMutation = useMutation({
+    mutationFn: async (colors: { 
+      primaryColor: string; 
+      secondaryColor: string; 
+      accentColor: string; 
+      textColor: string;
+    }) => {
+      return await apiRequest("PATCH", `/api/meets/${meetId}`, colors);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/meets", meetId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/meets"] });
+      toast({ title: "Color scheme updated successfully" });
+      setHasColorChanges(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to update color scheme",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleColorChange = (colorType: 'primary' | 'secondary' | 'accent' | 'text', value: string) => {
+    setHasColorChanges(true);
+    switch (colorType) {
+      case 'primary': setPrimaryColor(value); break;
+      case 'secondary': setSecondaryColor(value); break;
+      case 'accent': setAccentColor(value); break;
+      case 'text': setTextColor(value); break;
+    }
+  };
+
+  const handleSaveColors = () => {
+    updateColorsMutation.mutate({
+      primaryColor,
+      secondaryColor,
+      accentColor,
+      textColor,
+    });
+  };
+
+  const handleResetColors = () => {
+    setPrimaryColor(DEFAULT_COLORS.primaryColor);
+    setSecondaryColor(DEFAULT_COLORS.secondaryColor);
+    setAccentColor(DEFAULT_COLORS.accentColor);
+    setTextColor(DEFAULT_COLORS.textColor);
+    setHasColorChanges(true);
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -350,6 +465,98 @@ export default function MeetSetup() {
             >
               <Save className="w-4 h-4 mr-2" />
               {updateMeetMutation.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card data-testid="card-color-scheme">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Palette className="w-5 h-5" />
+            Color Scheme
+          </CardTitle>
+          <CardDescription>
+            Customize the colors used in display layouts. Choose colors that match your event branding.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <ColorPickerField
+              label="Primary Color"
+              value={primaryColor}
+              onChange={(v) => handleColorChange('primary', v)}
+              description="Main brand color"
+              testId="input-primary-color"
+            />
+            <ColorPickerField
+              label="Secondary Color"
+              value={secondaryColor}
+              onChange={(v) => handleColorChange('secondary', v)}
+              description="Gradient/background"
+              testId="input-secondary-color"
+            />
+            <ColorPickerField
+              label="Accent Color"
+              value={accentColor}
+              onChange={(v) => handleColorChange('accent', v)}
+              description="Times & highlights"
+              testId="input-accent-color"
+            />
+            <ColorPickerField
+              label="Text Color"
+              value={textColor}
+              onChange={(v) => handleColorChange('text', v)}
+              description="Primary text"
+              testId="input-text-color"
+            />
+          </div>
+
+          <div className="border rounded-lg p-4 space-y-3">
+            <Label className="text-sm font-medium">Preview</Label>
+            <div 
+              className="rounded-lg p-4 flex items-center justify-between"
+              style={{ 
+                background: `linear-gradient(135deg, ${secondaryColor} 0%, ${primaryColor} 100%)`,
+              }}
+            >
+              <div className="flex items-center gap-3">
+                <div 
+                  className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg"
+                  style={{ backgroundColor: primaryColor, color: textColor }}
+                >
+                  1
+                </div>
+                <div style={{ color: textColor }}>
+                  <div className="font-semibold">Athlete Name</div>
+                  <div className="text-sm opacity-80">Team Name</div>
+                </div>
+              </div>
+              <div 
+                className="text-2xl font-bold font-mono"
+                style={{ color: accentColor }}
+              >
+                10.52
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <Button 
+              onClick={handleSaveColors}
+              disabled={!hasColorChanges || updateColorsMutation.isPending}
+              data-testid="button-save-colors"
+            >
+              <Save className="w-4 h-4 mr-2" />
+              {updateColorsMutation.isPending ? "Saving..." : "Save Colors"}
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={handleResetColors}
+              data-testid="button-reset-colors"
+            >
+              <RotateCcw className="w-4 h-4 mr-2" />
+              Reset to Defaults
             </Button>
           </div>
         </CardContent>
