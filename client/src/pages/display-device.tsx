@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Monitor, Tv, LayoutGrid } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Monitor, Tv, LayoutGrid, Calendar } from "lucide-react";
 import type { Meet, Event } from "@shared/schema";
 import { 
   BigBoard,
@@ -24,6 +25,7 @@ interface DisplayDeviceState {
   currentTemplate: string | null;
   currentEventId: number | null;
   isConnected: boolean;
+  setupComplete: boolean;
 }
 
 export default function DisplayDevice() {
@@ -33,7 +35,9 @@ export default function DisplayDevice() {
     currentTemplate: null,
     currentEventId: null,
     isConnected: false,
+    setupComplete: false,
   });
+  const [selectedMeetId, setSelectedMeetId] = useState<string | null>(null);
   const [deviceId] = useState(() => `display-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -41,28 +45,22 @@ export default function DisplayDevice() {
     queryKey: ['/api/meets'],
   });
 
-  const activeMeet = meets?.find(m => m.status === 'active') || meets?.[0];
-  const activeMeetIdRef = useRef<string | null>(null);
+  const selectedMeetIdRef = useRef<string | null>(null);
   const isConnectingRef = useRef(false);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Update meetId ref when activeMeet changes (without triggering WebSocket reconnect)
+  // Update meetId ref when selected meet changes
   useEffect(() => {
-    if (activeMeet?.id) {
-      activeMeetIdRef.current = activeMeet.id;
-      setState(prev => ({ ...prev, meetId: activeMeet.id }));
+    if (selectedMeetId) {
+      selectedMeetIdRef.current = selectedMeetId;
     }
-  }, [activeMeet?.id]);
+  }, [selectedMeetId]);
 
-  // WebSocket connection - only depends on displayType (runs once per display type selection)
+  // WebSocket connection - runs when setup is complete
   useEffect(() => {
-    if (!state.displayType) return;
+    if (!state.setupComplete || !state.displayType || !state.meetId) return;
     
-    // Wait for meetId to be available
-    if (!activeMeetIdRef.current && !activeMeet?.id) return;
-    
-    const meetId = activeMeetIdRef.current || activeMeet?.id;
-    if (!meetId) return;
+    const meetId = state.meetId;
     
     // Prevent multiple simultaneous connections
     if (isConnectingRef.current) return;
@@ -94,11 +92,10 @@ export default function DisplayDevice() {
         console.log('Display device connected to WebSocket');
         setState(prev => ({ ...prev, isConnected: true }));
         const displayName = `${displayType} Display - ${deviceId.slice(-6)}`;
-        const currentMeetId = activeMeetIdRef.current || meetId;
-        console.log(`Registering device: ${displayName} for meet ${currentMeetId}`);
+        console.log(`Registering device: ${displayName} for meet ${meetId}`);
         ws.send(JSON.stringify({
           type: 'register_display_device',
-          meetId: currentMeetId,
+          meetId: meetId,
           deviceName: displayName,
           displayType: displayType,
         }));
@@ -150,89 +147,150 @@ export default function DisplayDevice() {
         wsRef.current = null;
       }
     };
-  }, [state.displayType, deviceId]);
+  }, [state.setupComplete, state.displayType, state.meetId, deviceId]);
 
   const selectDisplayType = (type: DisplayType) => {
     setState(prev => ({ ...prev, displayType: type }));
   };
 
-  if (!state.displayType) {
+  const startDisplay = () => {
+    if (selectedMeetId && state.displayType) {
+      setState(prev => ({ 
+        ...prev, 
+        meetId: selectedMeetId,
+        setupComplete: true 
+      }));
+    }
+  };
+
+  // Show setup screen if not complete
+  if (!state.setupComplete) {
+    const canStart = selectedMeetId && state.displayType;
+    
     return (
       <div className="min-h-screen bg-black flex items-center justify-center p-8">
         <div className="max-w-4xl w-full">
           <h1 className="text-4xl font-bold text-white text-center mb-2">
             Display Device Setup
           </h1>
-          <p className="text-gray-400 text-center mb-12">
-            Select the type of display connected to this computer
+          <p className="text-gray-400 text-center mb-8">
+            Select a meet and display type
           </p>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Meet Selector */}
+          <div className="mb-10">
+            <label className="block text-gray-300 text-sm font-medium mb-3 text-center">
+              Select Meet
+            </label>
+            <div className="max-w-md mx-auto">
+              <Select value={selectedMeetId || ''} onValueChange={setSelectedMeetId}>
+                <SelectTrigger className="w-full bg-gray-900 border-gray-700 text-white h-14 text-lg" data-testid="select-meet">
+                  <SelectValue placeholder="Choose a meet..." />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-900 border-gray-700">
+                  {meets?.map(meet => (
+                    <SelectItem 
+                      key={meet.id} 
+                      value={meet.id}
+                      className="text-white hover:bg-gray-800"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4" />
+                        {meet.name}
+                        {meet.status === 'active' && (
+                          <span className="text-xs bg-green-600 px-2 py-0.5 rounded ml-2">Active</span>
+                        )}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          
+          {/* Display Type Selection */}
+          <label className="block text-gray-300 text-sm font-medium mb-3 text-center">
+            Select Display Type
+          </label>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
             <Card 
-              className="bg-gray-900 border-gray-700 cursor-pointer transition-all hover:border-blue-500 hover:bg-gray-800"
+              className={`bg-gray-900 border-2 cursor-pointer transition-all hover:bg-gray-800 ${
+                state.displayType === 'P10' ? 'border-blue-500 bg-gray-800' : 'border-gray-700 hover:border-blue-500'
+              }`}
               onClick={() => selectDisplayType('P10')}
               data-testid="select-p10"
             >
               <CardHeader className="text-center">
-                <Monitor className="w-16 h-16 mx-auto text-blue-400 mb-4" />
-                <CardTitle className="text-white text-2xl">P10 Display</CardTitle>
+                <Monitor className={`w-12 h-12 mx-auto mb-2 ${state.displayType === 'P10' ? 'text-blue-400' : 'text-gray-400'}`} />
+                <CardTitle className="text-white text-xl">P10 Display</CardTitle>
                 <CardDescription className="text-gray-400">
                   192 x 96 pixels
                 </CardDescription>
               </CardHeader>
-              <CardContent className="text-center">
-                <p className="text-sm text-gray-500">
-                  Small LED matrix display for basic timing and results
-                </p>
-              </CardContent>
             </Card>
 
             <Card 
-              className="bg-gray-900 border-gray-700 cursor-pointer transition-all hover:border-green-500 hover:bg-gray-800"
+              className={`bg-gray-900 border-2 cursor-pointer transition-all hover:bg-gray-800 ${
+                state.displayType === 'P6' ? 'border-green-500 bg-gray-800' : 'border-gray-700 hover:border-green-500'
+              }`}
               onClick={() => selectDisplayType('P6')}
               data-testid="select-p6"
             >
               <CardHeader className="text-center">
-                <Tv className="w-16 h-16 mx-auto text-green-400 mb-4" />
-                <CardTitle className="text-white text-2xl">P6 Display</CardTitle>
+                <Tv className={`w-12 h-12 mx-auto mb-2 ${state.displayType === 'P6' ? 'text-green-400' : 'text-gray-400'}`} />
+                <CardTitle className="text-white text-xl">P6 Display</CardTitle>
                 <CardDescription className="text-gray-400">
                   288 x 144 pixels
                 </CardDescription>
               </CardHeader>
-              <CardContent className="text-center">
-                <p className="text-sm text-gray-500">
-                  Medium LED display with more detail and rows
-                </p>
-              </CardContent>
             </Card>
 
             <Card 
-              className="bg-gray-900 border-gray-700 cursor-pointer transition-all hover:border-purple-500 hover:bg-gray-800"
+              className={`bg-gray-900 border-2 cursor-pointer transition-all hover:bg-gray-800 ${
+                state.displayType === 'BigBoard' ? 'border-purple-500 bg-gray-800' : 'border-gray-700 hover:border-purple-500'
+              }`}
               onClick={() => selectDisplayType('BigBoard')}
               data-testid="select-bigboard"
             >
               <CardHeader className="text-center">
-                <LayoutGrid className="w-16 h-16 mx-auto text-purple-400 mb-4" />
-                <CardTitle className="text-white text-2xl">Big Board</CardTitle>
+                <LayoutGrid className={`w-12 h-12 mx-auto mb-2 ${state.displayType === 'BigBoard' ? 'text-purple-400' : 'text-gray-400'}`} />
+                <CardTitle className="text-white text-xl">Big Board</CardTitle>
                 <CardDescription className="text-gray-400">
                   1920 x 1080 pixels
                 </CardDescription>
               </CardHeader>
-              <CardContent className="text-center">
-                <p className="text-sm text-gray-500">
-                  Full HD stadium display with maximum detail
-                </p>
-              </CardContent>
             </Card>
+          </div>
+          
+          {/* Start Button */}
+          <div className="text-center">
+            <button
+              onClick={startDisplay}
+              disabled={!canStart}
+              className={`px-8 py-4 text-xl font-bold rounded-lg transition-all ${
+                canStart 
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer' 
+                  : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+              }`}
+              data-testid="button-start-display"
+            >
+              Start Display
+            </button>
+            {!canStart && (
+              <p className="text-gray-500 text-sm mt-3">
+                Please select both a meet and display type
+              </p>
+            )}
           </div>
         </div>
       </div>
     );
   }
 
+  // At this point, setupComplete is true, so displayType and meetId are guaranteed to be set
   return (
     <DisplayRenderer
-      displayType={state.displayType}
+      displayType={state.displayType!}
       meetId={state.meetId}
       template={state.currentTemplate}
       eventId={state.currentEventId}
