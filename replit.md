@@ -112,12 +112,17 @@ Preferred communication style: Simple, everyday language.
 
 **Aggregation System:** 250ms timeout aggregates multiple athlete entries per event/heat/round before storage, using composite keys (event number, heat, flight, round, port type) to prevent collisions.
 
+**HTTP Forward Endpoint:** `POST /api/lynx/forward` receives TCP data forwarded via HTTP from remote networks. Accepts `{data, portType, portName}` payload and processes through standard Lynx parser.
+
+**TCP Forwarder Scripts:** Located in `tools/tcp-forwarders/` for running on the same network as FinishLynx/FieldLynx. The forwarder listens on TCP ports (5055, 5056, 5057) and forwards data via HTTP to the Replit server, enabling cross-network connectivity.
+
 **API Endpoints:**
 - `GET /api/live-events/:eventNumber` - Get live data for specific event
 - `GET /api/live-events` - Get all live events (optionally filtered by meet)
 - `DELETE /api/live-events` - Clear live event data
 - `GET /api/lynx/saved-configs` - Get saved Lynx port configurations
 - `POST /api/lynx/config` - Configure and save Lynx ports (auto-saves to database)
+- `POST /api/lynx/forward` - Receive forwarded Lynx data via HTTP
 
 ### Athlete Bests (Personal Records)
 

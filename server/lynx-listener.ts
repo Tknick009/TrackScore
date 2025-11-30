@@ -130,7 +130,7 @@ export class LynxListener extends EventEmitter {
         }
         break;
       case 'F':
-        this.emit('field-mode-change', event.eventNumber, 'results', {
+        this.emit('field-mode-change', event.eventNumber, 'standings', {
           eventNumber: event.eventNumber,
           flight: event.heat,
           results: event.entries,
@@ -149,6 +149,25 @@ export class LynxListener extends EventEmitter {
 
   configure(configs: PortConfig[]) {
     this.configs = configs;
+  }
+
+  /**
+   * Process data that was forwarded via HTTP from a remote TCP forwarder.
+   * This allows the Lynx listener to work when FinishLynx/FieldLynx are on
+   * a different network and can't connect directly via TCP.
+   */
+  processForwardedData(data: string, portType: LynxPortType, portName: string = 'HTTP Forward') {
+    const config: PortConfig = {
+      port: 0,
+      portType,
+      name: portName,
+    };
+    
+    // Process each line of data
+    const lines = data.split(/\r?\n/).filter(l => l.trim());
+    for (const line of lines) {
+      this.parseLine(line, config);
+    }
   }
 
   start() {

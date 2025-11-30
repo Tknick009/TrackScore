@@ -4444,6 +4444,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Receive forwarded Lynx data from remote TCP forwarders
+  // This endpoint allows FinishLynx/FieldLynx data to be sent via HTTP
+  // when direct TCP connection isn't possible (e.g., different networks)
+  app.post("/api/lynx/forward", async (req, res) => {
+    try {
+      const { data, portType, portName } = req.body;
+      
+      if (!data || typeof data !== 'string') {
+        return res.status(400).json({ error: 'Missing or invalid data' });
+      }
+      
+      const validPortTypes = ['clock', 'results', 'field', 'start_list'];
+      if (!portType || !validPortTypes.includes(portType)) {
+        return res.status(400).json({ error: 'Invalid portType. Must be one of: clock, results, field, start_list' });
+      }
+      
+      // Process the forwarded data through the Lynx listener
+      lynxListener.processForwardedData(data, portType as LynxPortType, portName || 'HTTP Forward');
+      
+      res.json({ success: true, processed: data.length });
+    } catch (error: any) {
+      console.error('[Lynx Forward] Error:', error.message);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Get live event data by event number
   app.get("/api/live-events/:eventNumber", async (req, res) => {
     try {
