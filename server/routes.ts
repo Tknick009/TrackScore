@@ -1600,6 +1600,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Display device not found" });
       }
       
+      // Validate template compatibility with device display type
+      // Display type capabilities:
+      // - P10 (192x96): 1 athlete max
+      // - P6 (288x144): 1 athlete max  
+      // - BigBoard (1920x1080): 8 athletes max
+      const displayType = device.displayType || 'P10';
+      const isSingleAthleteDisplay = displayType === 'P10' || displayType === 'P6';
+      
+      if (template && isSingleAthleteDisplay) {
+        // Use the shared layout templates registry to validate compatibility
+        const { getTemplateById } = await import('@shared/layout-templates');
+        const templateInfo = getTemplateById(template);
+        
+        // Check if template exists in registry and has display type metadata
+        if (templateInfo) {
+          // Template found in registry - check if its displayType matches device
+          if (templateInfo.displayType === 'BigBoard') {
+            return res.status(400).json({ 
+              error: `Template '${template}' is a BigBoard template and not compatible with ${displayType} displays. P10/P6 displays can only show one athlete at a time.`,
+              suggestion: template.includes('field') 
+                ? `${displayType.toLowerCase()}-field-results`
+                : `${displayType.toLowerCase()}-results`,
+              displayType: displayType,
+              maxAthletes: 1
+            });
+          }
+        } else {
+          // Template not in registry - check by prefix/name patterns
+          const templateLower = template.toLowerCase();
+          
+          // Explicitly incompatible: BigBoard templates and multi-athlete components
+          const isExplicitlyIncompatible = 
+            templateLower.startsWith('bigboard-') ||
+            templateLower === 'bigboard' ||
+            ['compiledresults', 'runningresults', 'fieldsidebyside'].includes(templateLower.replace(/-/g, ''));
+          
+          if (isExplicitlyIncompatible) {
+            return res.status(400).json({ 
+              error: `Template '${template}' is not compatible with ${displayType} displays. P10/P6 displays can only show one athlete at a time.`,
+              suggestion: templateLower.includes('field') 
+                ? `${displayType.toLowerCase()}-field-results`
+                : `${displayType.toLowerCase()}-results`,
+              displayType: displayType,
+              maxAthletes: 1
+            });
+          }
+        }
+      }
+      
       // Update the template in database
       if (template !== undefined) {
         await storage.updateDisplayTemplate(deviceId, template);

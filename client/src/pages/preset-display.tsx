@@ -9,7 +9,9 @@ import {
   CompiledResults,
   RunningTime,
   RunningResults,
-  FieldSideBySide
+  FieldSideBySide,
+  SingleAthleteTrack,
+  SingleAthleteField,
 } from '@/components/display/templates';
 import { Loader2 } from 'lucide-react';
 
@@ -104,15 +106,16 @@ export default function PresetDisplay() {
 
   const renderDisplay = () => {
     const templateId = template.id;
+    const isSingleAthleteDisplay = template.displayType === 'P10' || template.displayType === 'P6';
     
     const isLiveResults = templateId.includes('results') && !templateId.includes('field');
-    const isFieldResults = templateId.includes('field-results');
+    const isFieldResults = templateId.includes('field-results') || templateId.includes('field');
     const isFieldStandings = templateId.includes('field-standings');
     const isRunningTimeTemplate = templateId.includes('running-time');
     const isStartList = templateId.includes('start-list');
     const isTeamScores = templateId.includes('team-scores');
     const isMeetLogo = templateId.includes('meet-logo');
-    const isBigBoard = templateId.includes('bigboard') || templateId.startsWith('p10-') || templateId.startsWith('p6-');
+    const isBigBoard = template.displayType === 'BigBoard';
 
     const waitingState = (
       <div className="h-screen w-screen bg-black flex items-center justify-center">
@@ -189,6 +192,17 @@ export default function PresetDisplay() {
           </div>
         </div>
       );
+    }
+
+    if (isSingleAthleteDisplay && currentEvent) {
+      if (isFieldResults || isFieldStandings) {
+        return <SingleAthleteField event={currentEvent} meet={meet} focusIndex={0} />;
+      }
+      return <SingleAthleteTrack event={currentEvent} meet={meet} liveTime={runningTime} focusIndex={0} />;
+    }
+
+    if (isSingleAthleteDisplay && !currentEvent) {
+      return waitingState;
     }
 
     if (isRunningTimeTemplate) {

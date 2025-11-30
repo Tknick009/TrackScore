@@ -70,7 +70,7 @@ export function SingleAthleteTrack({ event, meet, liveTime, focusIndex = 0 }: Si
     ? `${athlete.athlete.lastName?.toUpperCase() || ''}`
     : 'ATHLETE';
   
-  const teamName = athlete.athlete?.teamName || athlete.athlete?.team?.name || '';
+  const teamName = (athlete.athlete as any)?.teamName || (athlete.athlete as any)?.team?.name || '';
 
   return (
     <div 

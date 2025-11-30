@@ -1,16 +1,22 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Monitor, Tv, LayoutGrid } from "lucide-react";
 import type { Meet, Event } from "@shared/schema";
 import { 
   BigBoard,
   RunningTime,
-  FieldSideBySide
+  RunningResults,
+  CompiledResults,
+  FieldSideBySide,
+  SingleAthleteTrack,
+  SingleAthleteField,
 } from "@/components/display/templates";
-
-type DisplayType = 'P10' | 'P6' | 'BigBoard';
+import { 
+  type DisplayType, 
+  DISPLAY_CAPABILITIES,
+  isTemplateCompatible,
+} from "@/lib/displayCapabilities";
 
 interface DisplayDeviceState {
   displayType: DisplayType | null;
@@ -230,14 +236,18 @@ function DisplayRenderer({ displayType, meetId, template, eventId, deviceId }: D
 
   const renderContent = () => {
     const templateId = template || '';
+    const capability = DISPLAY_CAPABILITIES[displayType];
+    const maxAthletes = capability.maxAthletes;
+    const isSingleAthleteDisplay = maxAthletes === 1;
+
     const isTrackResults = templateId.includes('results') && !templateId.includes('field');
-    const isFieldResults = templateId.includes('field-results');
+    const isFieldResults = templateId.includes('field-results') || templateId.includes('field');
     const isFieldStandings = templateId.includes('field-standings');
     const isRunningTimeTemplate = templateId.includes('running-time');
     const isStartList = templateId.includes('start-list');
     const isTeamScores = templateId === 'team-scores' || templateId.includes('team-scores');
     const isMeetLogo = templateId === 'meet-logo' || templateId.includes('meet-logo') || !template;
-    const isBigBoard = templateId.includes('live-results') || templateId.includes('start-list');
+    const isBigBoard = templateId.includes('live-results') || templateId.includes('BigBoard');
 
     if (isMeetLogo) {
       return (
@@ -320,6 +330,13 @@ function DisplayRenderer({ displayType, meetId, template, eventId, deviceId }: D
       </div>
     );
 
+    if (isSingleAthleteDisplay && currentEvent) {
+      if (isFieldResults || isFieldStandings) {
+        return <SingleAthleteField event={currentEvent as any} meet={meet} focusIndex={0} />;
+      }
+      return <SingleAthleteTrack event={currentEvent as any} meet={meet} focusIndex={0} />;
+    }
+
     if (isRunningTimeTemplate && currentEvent) {
       return <RunningTime event={currentEvent as any} meet={meet} />;
     }
@@ -334,6 +351,10 @@ function DisplayRenderer({ displayType, meetId, template, eventId, deviceId }: D
     }
 
     if (!currentEvent && (isTrackResults || isFieldResults || isRunningTimeTemplate || isStartList || isFieldStandings)) {
+      return waitingState;
+    }
+
+    if (isSingleAthleteDisplay && !currentEvent) {
       return waitingState;
     }
 

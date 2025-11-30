@@ -26,7 +26,7 @@ export function SingleAthleteField({ event, meet, focusIndex = 0 }: SingleAthlet
     if (a.finalPlace && b.finalPlace) return a.finalPlace - b.finalPlace;
     if (a.finalPlace) return -1;
     if (b.finalPlace) return 1;
-    return (a.order || 0) - (b.order || 0);
+    return ((a as any).order || 0) - ((b as any).order || 0);
   });
 
   const athlete = sortedEntries[focusIndex];
@@ -71,8 +71,8 @@ export function SingleAthleteField({ event, meet, focusIndex = 0 }: SingleAthlet
     ? `${athlete.athlete.lastName?.toUpperCase() || ''}`
     : 'ATHLETE';
   
-  const teamName = athlete.athlete?.teamName || athlete.athlete?.team?.name || '';
-  const attempts = athlete.attempts || [];
+  const teamName = (athlete.athlete as any)?.teamName || (athlete.athlete as any)?.team?.name || '';
+  const attempts = (athlete as any).attempts || [];
   const currentAttempt = attempts.length;
   const maxAttempts = 6;
 
