@@ -4032,6 +4032,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ success: true });
   });
 
+  // ===== RTV FILE IMPORT =====
+
+  // Configure multer for RTV binary uploads (memory storage for buffer access)
+  const rtvUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 20 * 1024 * 1024, // 20MB limit for RTV files
+    },
+    fileFilter: (req, file, cb) => {
+      const ext = file.originalname.toLowerCase();
+      if (ext.endsWith('.rtv') || ext.endsWith('.bin') || file.mimetype === 'application/octet-stream') {
+        cb(null, true);
+      } else {
+        cb(new Error('Invalid file type. Only .rtv files are allowed.'));
+      }
+    },
+  });
+
+  // Import RTV file and parse text objects
+  app.post("/api/import-rtv", rtvUpload.single("rtv"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const { parseRtvFile } = await import('./rtv-parser');
+      const result = parseRtvFile(req.file.buffer);
+
+      if (!result.success && result.objects.length === 0) {
+        return res.status(400).json({
+          error: "Failed to parse RTV file",
+          warnings: result.warnings,
+        });
+      }
+
+      res.json({
+        success: result.success,
+        objects: result.objects,
+        warnings: result.warnings,
+        fileVersion: result.fileVersion,
+        fileName: req.file.originalname,
+      });
+    } catch (error: any) {
+      console.error("RTV import error:", error);
+      res.status(500).json({ error: "Failed to process RTV file", details: error.message });
+    }
+  });
+
   // ===== CERTIFICATE GENERATION =====
 
   // Generate single certificate

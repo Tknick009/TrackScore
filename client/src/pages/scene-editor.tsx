@@ -36,7 +36,7 @@ import {
   AlignLeft, AlignCenter, AlignRight, AlignVerticalJustifyStart,
   AlignVerticalJustifyCenter, AlignVerticalJustifyEnd,
   AlignHorizontalSpaceAround, AlignVerticalSpaceAround,
-  LayoutTemplate
+  LayoutTemplate, Upload, AlertCircle, Check
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -198,6 +198,22 @@ export default function SceneEditor() {
   const [previewMode, setPreviewMode] = useState(false);
   const [showGrid, setShowGrid] = useState(true);
   const [objectPaletteCategory, setObjectPaletteCategory] = useState<string>('all');
+  
+  // RTV Import state
+  const [showRtvImportDialog, setShowRtvImportDialog] = useState(false);
+  const [rtvImportLoading, setRtvImportLoading] = useState(false);
+  const [rtvParsedObjects, setRtvParsedObjects] = useState<Array<{
+    name: string;
+    textContent: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    suggestedFieldCode: string | null;
+    selected: boolean;
+    editedFieldCode: string;
+  }>>([]);
+  const [rtvImportWarnings, setRtvImportWarnings] = useState<string[]>([]);
   
   // Fetch scenes for current meet
   const { data: scenes = [], isLoading: loadingScenes } = useQuery<SelectLayoutScene[]>({
@@ -672,6 +688,108 @@ export default function SceneEditor() {
     toast({ title: `Created "${template.name}" scene` });
   }, [currentMeet, toast]);
 
+  // Handle RTV file upload
+  const handleRtvFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    
+    setRtvImportLoading(true);
+    setRtvParsedObjects([]);
+    setRtvImportWarnings([]);
+    
+    try {
+      const formData = new FormData();
+      formData.append('rtv', file);
+      
+      const res = await fetch('/api/import-rtv', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to parse RTV file');
+      }
+      
+      const data = await res.json();
+      
+      if (data.objects && data.objects.length > 0) {
+        setRtvParsedObjects(data.objects.map((obj: any) => ({
+          ...obj,
+          selected: true,
+          editedFieldCode: obj.suggestedFieldCode || obj.textContent.replace('%s', '{value}'),
+        })));
+      }
+      
+      if (data.warnings && data.warnings.length > 0) {
+        setRtvImportWarnings(data.warnings);
+      }
+      
+      toast({ title: `Parsed ${data.objects?.length || 0} objects from RTV file` });
+    } catch (error: any) {
+      toast({ title: 'RTV Import Error', description: error.message, variant: 'destructive' });
+    } finally {
+      setRtvImportLoading(false);
+    }
+  }, [toast]);
+
+  // Handle importing selected RTV objects into the scene
+  const handleImportRtvObjects = useCallback(async () => {
+    if (!selectedSceneId) return;
+    
+    const selectedObjects = rtvParsedObjects.filter(obj => obj.selected);
+    if (selectedObjects.length === 0) {
+      toast({ title: 'No objects selected', variant: 'destructive' });
+      return;
+    }
+    
+    try {
+      for (const obj of selectedObjects) {
+        await apiRequest('POST', `/api/layout-scenes/${selectedSceneId}/objects`, {
+          name: obj.name,
+          objectType: 'text',
+          x: obj.x,
+          y: obj.y,
+          width: Math.max(10, obj.width),
+          height: Math.max(5, obj.height),
+          zIndex: (currentScene?.objects.length || 0) + 1,
+          dataBinding: {
+            sourceType: 'live-data',
+            fieldCode: obj.editedFieldCode,
+          },
+          config: {
+            textContent: obj.editedFieldCode,
+          },
+          style: {},
+          visible: true,
+          locked: false,
+        });
+      }
+      
+      queryClient.invalidateQueries({ queryKey: ['/api/layout-scenes', selectedSceneId] });
+      setShowRtvImportDialog(false);
+      setRtvParsedObjects([]);
+      setRtvImportWarnings([]);
+      toast({ title: `Imported ${selectedObjects.length} objects` });
+    } catch (error: any) {
+      toast({ title: 'Import failed', description: error.message, variant: 'destructive' });
+    }
+  }, [selectedSceneId, rtvParsedObjects, currentScene, toast]);
+
+  // Toggle RTV object selection
+  const toggleRtvObjectSelection = useCallback((index: number) => {
+    setRtvParsedObjects(prev => prev.map((obj, i) => 
+      i === index ? { ...obj, selected: !obj.selected } : obj
+    ));
+  }, []);
+
+  // Update RTV object field code
+  const updateRtvObjectFieldCode = useCallback((index: number, fieldCode: string) => {
+    setRtvParsedObjects(prev => prev.map((obj, i) => 
+      i === index ? { ...obj, editedFieldCode: fieldCode } : obj
+    ));
+  }, []);
+
   // Filter objects by category
   const filteredObjectTypes = Object.entries(OBJECT_TYPE_INFO).filter(([_, info]) => 
     objectPaletteCategory === 'all' || info.category === objectPaletteCategory
@@ -802,6 +920,17 @@ export default function SceneEditor() {
               <div className="flex items-center justify-between p-2 bg-neutral-800 border-b border-neutral-700">
                 <span className="text-sm text-white">{currentScene.name}</span>
                 <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-neutral-300 hover:text-white hover:bg-neutral-700"
+                    onClick={() => setShowRtvImportDialog(true)}
+                    data-testid="button-import-rtv"
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    Import RTV
+                  </Button>
+                  <Separator orientation="vertical" className="h-5 bg-neutral-600" />
                   <span className="text-xs text-neutral-400">
                     {currentScene.canvasWidth} x {currentScene.canvasHeight}
                   </span>
@@ -1401,6 +1530,175 @@ export default function SceneEditor() {
               data-testid="button-create-scene"
             >
               Create Scene
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* RTV Import Dialog */}
+      <Dialog open={showRtvImportDialog} onOpenChange={(open) => {
+        setShowRtvImportDialog(open);
+        if (!open) {
+          setRtvParsedObjects([]);
+          setRtvImportWarnings([]);
+        }
+      }}>
+        <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Import RTV File</DialogTitle>
+            <DialogDescription>
+              Import text objects from a ResulTV (.rtv) file into the current scene.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex-1 overflow-hidden flex flex-col gap-4 py-4">
+            {/* File upload area */}
+            <div className="space-y-2">
+              <Label>Select RTV File</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="file"
+                  accept=".rtv,.bin"
+                  onChange={handleRtvFileUpload}
+                  disabled={rtvImportLoading}
+                  className="flex-1"
+                  data-testid="input-rtv-file"
+                />
+                {rtvImportLoading && (
+                  <span className="text-sm text-muted-foreground">Parsing...</span>
+                )}
+              </div>
+            </div>
+
+            {/* Warnings */}
+            {rtvImportWarnings.length > 0 && (
+              <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-md space-y-1">
+                <div className="flex items-center gap-2 text-yellow-600 dark:text-yellow-400">
+                  <AlertCircle className="w-4 h-4" />
+                  <span className="text-sm font-medium">Warnings</span>
+                </div>
+                <ul className="text-xs text-muted-foreground space-y-0.5 ml-6">
+                  {rtvImportWarnings.map((warning, i) => (
+                    <li key={i} data-testid={`text-rtv-warning-${i}`}>{warning}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Parsed objects list */}
+            {rtvParsedObjects.length > 0 && (
+              <div className="flex-1 overflow-hidden flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <Label>Parsed Objects ({rtvParsedObjects.filter(o => o.selected).length} selected)</Label>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setRtvParsedObjects(prev => prev.map(o => ({ ...o, selected: true })))}
+                      data-testid="button-rtv-select-all"
+                    >
+                      Select All
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setRtvParsedObjects(prev => prev.map(o => ({ ...o, selected: false })))}
+                      data-testid="button-rtv-select-none"
+                    >
+                      Select None
+                    </Button>
+                  </div>
+                </div>
+                
+                <ScrollArea className="flex-1 border rounded-md">
+                  <div className="p-2 space-y-2">
+                    {rtvParsedObjects.map((obj, index) => (
+                      <div
+                        key={index}
+                        className={`p-3 rounded-md border ${obj.selected ? 'bg-primary/5 border-primary/30' : 'bg-muted/30'}`}
+                        data-testid={`rtv-object-row-${index}`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <button
+                            onClick={() => toggleRtvObjectSelection(index)}
+                            className={`mt-1 w-5 h-5 rounded border flex items-center justify-center ${
+                              obj.selected ? 'bg-primary border-primary text-primary-foreground' : 'border-muted-foreground'
+                            }`}
+                            data-testid={`checkbox-rtv-object-${index}`}
+                          >
+                            {obj.selected && <Check className="w-3 h-3" />}
+                          </button>
+                          
+                          <div className="flex-1 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium text-sm" data-testid={`text-rtv-object-name-${index}`}>
+                                {obj.name}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                Pos: ({obj.x.toFixed(1)}%, {obj.y.toFixed(1)}%) Size: ({obj.width.toFixed(1)}% x {obj.height.toFixed(1)}%)
+                              </span>
+                            </div>
+                            
+                            <div className="text-xs text-muted-foreground bg-black/10 dark:bg-white/5 rounded px-2 py-1 font-mono" data-testid={`text-rtv-object-content-${index}`}>
+                              {obj.textContent}
+                            </div>
+                            
+                            <div className="flex items-center gap-2">
+                              <Label className="text-xs whitespace-nowrap">Field Code:</Label>
+                              <Input
+                                value={obj.editedFieldCode}
+                                onChange={(e) => updateRtvObjectFieldCode(index, e.target.value)}
+                                placeholder="{field_code}"
+                                className="h-7 text-xs font-mono"
+                                disabled={!obj.selected}
+                                data-testid={`input-rtv-field-code-${index}`}
+                              />
+                              {obj.suggestedFieldCode && obj.editedFieldCode === obj.suggestedFieldCode && (
+                                <Badge variant="secondary" className="text-xs">Auto-mapped</Badge>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
+            )}
+
+            {/* Empty state */}
+            {!rtvImportLoading && rtvParsedObjects.length === 0 && (
+              <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border-2 border-dashed rounded-lg">
+                <Upload className="w-12 h-12 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">
+                  Upload an RTV file to parse text objects
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Supports ResulTV (.rtv) binary files
+                </p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowRtvImportDialog(false);
+                setRtvParsedObjects([]);
+                setRtvImportWarnings([]);
+              }}
+              data-testid="button-rtv-cancel"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleImportRtvObjects}
+              disabled={rtvParsedObjects.filter(o => o.selected).length === 0}
+              data-testid="button-rtv-import"
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              Import {rtvParsedObjects.filter(o => o.selected).length} Objects
             </Button>
           </DialogFooter>
         </DialogContent>
