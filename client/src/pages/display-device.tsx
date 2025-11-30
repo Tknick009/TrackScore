@@ -23,6 +23,7 @@ interface DisplayDeviceState {
   meetId: string | null;
   currentTemplate: string | null;
   currentEventId: number | null;
+  isConnected: boolean;
 }
 
 export default function DisplayDevice() {
@@ -31,6 +32,7 @@ export default function DisplayDevice() {
     meetId: null,
     currentTemplate: null,
     currentEventId: null,
+    isConnected: false,
   });
   const [deviceId] = useState(() => `display-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
   const wsRef = useRef<WebSocket | null>(null);
@@ -57,6 +59,7 @@ export default function DisplayDevice() {
 
         ws.onopen = () => {
           console.log('Display device connected to WebSocket');
+          setState(prev => ({ ...prev, isConnected: true }));
           const displayName = `${displayType} Display - ${deviceId.slice(-6)}`;
           console.log(`Registering device: ${displayName} for meet ${meetId}`);
           ws.send(JSON.stringify({
@@ -90,6 +93,7 @@ export default function DisplayDevice() {
 
         ws.onclose = () => {
           console.log('WebSocket closed, reconnecting in 3s...');
+          setState(prev => ({ ...prev, isConnected: false }));
           setTimeout(connectWebSocket, 3000);
         };
 
@@ -193,6 +197,7 @@ export default function DisplayDevice() {
       template={state.currentTemplate}
       eventId={state.currentEventId}
       deviceId={deviceId}
+      isConnected={state.isConnected}
     />
   );
 }
@@ -203,13 +208,14 @@ interface DisplayRendererProps {
   template: string | null;
   eventId: number | null;
   deviceId: string;
+  isConnected: boolean;
 }
 
 interface EventWithEntries extends Event {
   entries: any[];
 }
 
-function DisplayRenderer({ displayType, meetId, template, eventId, deviceId }: DisplayRendererProps) {
+function DisplayRenderer({ displayType, meetId, template, eventId, deviceId, isConnected }: DisplayRendererProps) {
   const { data: meet } = useQuery<Meet>({
     queryKey: ['/api/meets', meetId],
     enabled: !!meetId,
@@ -249,23 +255,29 @@ function DisplayRenderer({ displayType, meetId, template, eventId, deviceId }: D
     const isMeetLogo = templateId === 'meet-logo' || templateId.includes('meet-logo') || !template;
     const isBigBoard = templateId.includes('live-results') || templateId.includes('BigBoard');
 
-    if (isMeetLogo) {
+    if (isMeetLogo || !template) {
       return (
         <div className="h-screen w-screen bg-black flex items-center justify-center overflow-hidden">
           <div className="text-white text-center p-8" style={{ fontFamily: "'Barlow Semi Condensed', sans-serif" }}>
             {meet?.logoUrl ? (
-              <img src={meet.logoUrl} alt={meet.name} className="max-h-[60vh] mx-auto mb-6" />
+              <img src={meet.logoUrl} alt={meet.name} className="max-h-[50vh] mx-auto mb-6" />
             ) : null}
-            <h1 className="text-6xl font-bold mb-4">{meet?.name || 'Track Meet'}</h1>
+            <h1 className="text-5xl font-bold mb-4">{meet?.name || 'Track Meet'}</h1>
             {meet?.location && <p className="text-2xl text-gray-300">{meet.location}</p>}
             {meet?.startDate && (
               <p className="text-xl text-gray-400 mt-2">
                 {new Date(meet.startDate).toLocaleDateString()}
               </p>
             )}
-            <div className="mt-8 text-sm text-gray-600">
-              <p>Display: {displayType}</p>
-              <p>Device ID: {deviceId.slice(-8)}</p>
+            <div className="mt-12 text-sm">
+              <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full ${isConnected ? 'bg-green-900/50 text-green-400' : 'bg-yellow-900/50 text-yellow-400'}`}>
+                <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-yellow-400'}`}></span>
+                {isConnected ? 'Connected - Ready for Commands' : 'Connecting...'}
+              </div>
+              <div className="mt-4 text-gray-600 text-xs">
+                <p>{displayType} Display</p>
+                <p>ID: {deviceId.slice(-8)}</p>
+              </div>
             </div>
           </div>
         </div>
@@ -323,9 +335,12 @@ function DisplayRenderer({ displayType, meetId, template, eventId, deviceId }: D
     const waitingState = (
       <div className="h-screen w-screen bg-black flex items-center justify-center">
         <div className="text-white text-center" style={{ fontFamily: "'Barlow Semi Condensed', sans-serif" }}>
-          <p className="text-xl">Display Ready</p>
-          <p className="text-sm text-gray-400 mt-2">{template}</p>
-          <p className="text-xs text-gray-500 mt-1">Waiting for event data...</p>
+          <h2 className="text-3xl font-bold mb-4">{meet?.name || 'Track Meet'}</h2>
+          <p className="text-xl mb-2">{template}</p>
+          <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full ${isConnected ? 'bg-blue-900/50 text-blue-400' : 'bg-yellow-900/50 text-yellow-400'}`}>
+            <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-blue-400 animate-pulse' : 'bg-yellow-400'}`}></span>
+            Waiting for event data...
+          </div>
         </div>
       </div>
     );
@@ -362,13 +377,19 @@ function DisplayRenderer({ displayType, meetId, template, eventId, deviceId }: D
       <div className="h-screen w-screen bg-black flex items-center justify-center overflow-hidden">
         <div className="text-white text-center p-8" style={{ fontFamily: "'Barlow Semi Condensed', sans-serif" }}>
           {meet?.logoUrl ? (
-            <img src={meet.logoUrl} alt={meet.name} className="max-h-[60vh] mx-auto mb-6" />
+            <img src={meet.logoUrl} alt={meet.name} className="max-h-[50vh] mx-auto mb-6" />
           ) : null}
-          <h1 className="text-6xl font-bold mb-4">{meet?.name || 'Track Meet'}</h1>
+          <h1 className="text-5xl font-bold mb-4">{meet?.name || 'Track Meet'}</h1>
           {meet?.location && <p className="text-2xl text-gray-300">{meet.location}</p>}
-          <div className="mt-8 text-sm text-gray-600">
-            <p>Display: {displayType}</p>
-            <p>Device ID: {deviceId.slice(-8)}</p>
+          <div className="mt-12 text-sm">
+            <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full ${isConnected ? 'bg-green-900/50 text-green-400' : 'bg-yellow-900/50 text-yellow-400'}`}>
+              <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-yellow-400'}`}></span>
+              {isConnected ? 'Connected - Ready for Commands' : 'Connecting...'}
+            </div>
+            <div className="mt-4 text-gray-600 text-xs">
+              <p>{displayType} Display</p>
+              <p>ID: {deviceId.slice(-8)}</p>
+            </div>
           </div>
         </div>
       </div>
