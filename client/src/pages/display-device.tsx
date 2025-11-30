@@ -36,54 +36,71 @@ export default function DisplayDevice() {
   const activeMeet = meets?.find(m => m.status === 'active') || meets?.[0];
 
   useEffect(() => {
-    if (state.displayType && activeMeet) {
+    if (state.displayType && activeMeet?.id) {
       setState(prev => ({ ...prev, meetId: activeMeet.id }));
-      connectWebSocket();
-    }
-  }, [state.displayType, activeMeet?.id]);
+      
+      const meetId = activeMeet.id;
+      const displayType = state.displayType;
+      
+      const connectWebSocket = () => {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws`;
+        
+        const ws = new WebSocket(wsUrl);
+        wsRef.current = ws;
 
-  const connectWebSocket = () => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
-    
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      console.log('Display device connected');
-      const displayName = `${state.displayType} Display - ${deviceId.slice(-6)}`;
-      ws.send(JSON.stringify({
-        type: 'register_display_device',
-        meetId: activeMeet?.id,
-        deviceName: displayName,
-        displayType: state.displayType,
-      }));
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data);
-        if (message.type === 'display_command') {
-          setState(prev => ({
-            ...prev,
-            currentTemplate: message.template || prev.currentTemplate,
-            currentEventId: message.eventId || prev.currentEventId,
+        ws.onopen = () => {
+          console.log('Display device connected to WebSocket');
+          const displayName = `${displayType} Display - ${deviceId.slice(-6)}`;
+          console.log(`Registering device: ${displayName} for meet ${meetId}`);
+          ws.send(JSON.stringify({
+            type: 'register_display_device',
+            meetId: meetId,
+            deviceName: displayName,
+            displayType: displayType,
           }));
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const message = JSON.parse(event.data);
+            console.log('WebSocket message received:', message.type);
+            
+            if (message.type === 'device_registered') {
+              console.log('Device successfully registered:', message.data);
+            }
+            
+            if (message.type === 'display_command') {
+              setState(prev => ({
+                ...prev,
+                currentTemplate: message.template || prev.currentTemplate,
+                currentEventId: message.eventId || prev.currentEventId,
+              }));
+            }
+          } catch (e) {
+            console.error('Error parsing WebSocket message:', e);
+          }
+        };
+
+        ws.onclose = () => {
+          console.log('WebSocket closed, reconnecting in 3s...');
+          setTimeout(connectWebSocket, 3000);
+        };
+
+        ws.onerror = (error) => {
+          console.error('WebSocket error:', error);
+        };
+      };
+
+      connectWebSocket();
+
+      return () => {
+        if (wsRef.current) {
+          wsRef.current.close();
         }
-      } catch (e) {
-        console.error('Error parsing WebSocket message:', e);
-      }
-    };
-
-    ws.onclose = () => {
-      console.log('WebSocket closed, reconnecting in 3s...');
-      setTimeout(connectWebSocket, 3000);
-    };
-
-    return () => {
-      ws.close();
-    };
-  };
+      };
+    }
+  }, [state.displayType, activeMeet?.id, deviceId]);
 
   const selectDisplayType = (type: DisplayType) => {
     setState(prev => ({ ...prev, displayType: type }));
