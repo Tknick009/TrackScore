@@ -1120,11 +1120,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/meets/:id", async (req, res) => {
     try {
-      const updateSchema = insertMeetSchema.partial().pick({
-        autoRefresh: true,
-        refreshInterval: true,
-      }).extend({
+      const updateSchema = z.object({
+        name: z.string().optional(),
+        location: z.string().optional(),
+        startDate: z.coerce.date().optional(),
+        autoRefresh: z.boolean().optional(),
         refreshInterval: z.number().min(5).max(300).optional(),
+        primaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+        secondaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+        accentColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+        textColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
       });
 
       const data = updateSchema.parse(req.body);
