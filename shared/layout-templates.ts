@@ -1,9 +1,9 @@
-// Layout Templates for P10 (192x96) and P6 (288x144) LED Displays
+// Layout Templates for P10 (192x96), P6 (288x144), and Big Board (1920x1080) LED Displays
 // These are predefined zone configurations optimized for each display resolution
 
 import type { InsertLayoutZone } from './schema';
 
-export type DisplayType = 'P10' | 'P6';
+export type DisplayType = 'P10' | 'P6' | 'BigBoard';
 
 export interface LayoutTemplate {
   id: string;
@@ -398,8 +398,221 @@ const P6_TEMPLATES: LayoutTemplate[] = [
   },
 ];
 
+// Big Board Display Templates (1920x1080 pixels - 16:9 aspect ratio)
+const BIGBOARD_TEMPLATES: LayoutTemplate[] = [
+  {
+    id: 'bigboard-start-list',
+    name: 'Big Board Start List',
+    description: 'Shows athlete lineup for upcoming event on Big Board',
+    displayType: 'BigBoard',
+    resolution: { width: 1920, height: 1080 },
+    aspectRatio: '16:9',
+    category: 'track',
+    zones: [
+      {
+        order: 0,
+        xPercent: 0,
+        yPercent: 0,
+        widthPercent: 100,
+        heightPercent: 12,
+        boardType: 'event-info',
+        dataBinding: { type: 'current-event' },
+        boardConfig: { boardType: 'event-info', fontSize: 'large' },
+        stylePreset: 'none',
+      },
+      {
+        order: 1,
+        xPercent: 0,
+        yPercent: 12,
+        widthPercent: 100,
+        heightPercent: 88,
+        boardType: 'lane-visualization',
+        dataBinding: { type: 'current-event' },
+        boardConfig: { boardType: 'lane-visualization', size: 'expanded', totalLanes: 8, showProgress: false, showTimes: false },
+        stylePreset: 'none',
+      },
+    ],
+  },
+  {
+    id: 'bigboard-running-time',
+    name: 'Big Board Running Time',
+    description: 'Live race timer display for Big Board',
+    displayType: 'BigBoard',
+    resolution: { width: 1920, height: 1080 },
+    aspectRatio: '16:9',
+    category: 'track',
+    zones: [
+      {
+        order: 0,
+        xPercent: 0,
+        yPercent: 0,
+        widthPercent: 100,
+        heightPercent: 15,
+        boardType: 'event-info',
+        dataBinding: { type: 'current-event' },
+        boardConfig: { boardType: 'event-info', fontSize: 'large' },
+        stylePreset: 'none',
+      },
+      {
+        order: 1,
+        xPercent: 0,
+        yPercent: 15,
+        widthPercent: 100,
+        heightPercent: 85,
+        boardType: 'live-timer',
+        dataBinding: { type: 'current-event' },
+        boardConfig: { boardType: 'live-timer', mode: 'stopwatch', size: 'large', showMillis: true },
+        stylePreset: 'none',
+      },
+    ],
+  },
+  {
+    id: 'bigboard-results',
+    name: 'Big Board Track Results',
+    description: 'Final results display for track events on Big Board',
+    displayType: 'BigBoard',
+    resolution: { width: 1920, height: 1080 },
+    aspectRatio: '16:9',
+    category: 'track',
+    zones: [
+      {
+        order: 0,
+        xPercent: 0,
+        yPercent: 0,
+        widthPercent: 100,
+        heightPercent: 10,
+        boardType: 'event-info',
+        dataBinding: { type: 'current-event' },
+        boardConfig: { boardType: 'event-info', fontSize: 'large' },
+        stylePreset: 'none',
+      },
+      {
+        order: 1,
+        xPercent: 0,
+        yPercent: 10,
+        widthPercent: 100,
+        heightPercent: 90,
+        boardType: 'standings-table',
+        dataBinding: { type: 'current-event' },
+        boardConfig: { boardType: 'standings-table', maxRows: 12, showPhotos: true },
+        stylePreset: 'none',
+      },
+    ],
+  },
+  {
+    id: 'bigboard-field-results',
+    name: 'Big Board Field Results',
+    description: 'Field event results with attempt tracker on Big Board',
+    displayType: 'BigBoard',
+    resolution: { width: 1920, height: 1080 },
+    aspectRatio: '16:9',
+    category: 'field',
+    zones: [
+      {
+        order: 0,
+        xPercent: 0,
+        yPercent: 0,
+        widthPercent: 100,
+        heightPercent: 12,
+        boardType: 'event-info',
+        dataBinding: { type: 'current-event' },
+        boardConfig: { boardType: 'event-info', fontSize: 'large' },
+        stylePreset: 'none',
+      },
+      {
+        order: 1,
+        xPercent: 0,
+        yPercent: 12,
+        widthPercent: 100,
+        heightPercent: 88,
+        boardType: 'attempt-tracker',
+        dataBinding: { type: 'current-event' },
+        boardConfig: { boardType: 'attempt-tracker', size: 'large', showMarks: true },
+        stylePreset: 'none',
+      },
+    ],
+  },
+  {
+    id: 'bigboard-field-standings',
+    name: 'Big Board Field Standings',
+    description: 'Field event standings/leaderboard on Big Board',
+    displayType: 'BigBoard',
+    resolution: { width: 1920, height: 1080 },
+    aspectRatio: '16:9',
+    category: 'field',
+    zones: [
+      {
+        order: 0,
+        xPercent: 0,
+        yPercent: 0,
+        widthPercent: 100,
+        heightPercent: 10,
+        boardType: 'event-info',
+        dataBinding: { type: 'current-event' },
+        boardConfig: { boardType: 'event-info', fontSize: 'large' },
+        stylePreset: 'none',
+      },
+      {
+        order: 1,
+        xPercent: 0,
+        yPercent: 10,
+        widthPercent: 100,
+        heightPercent: 90,
+        boardType: 'standings-table',
+        dataBinding: { type: 'standings' },
+        boardConfig: { boardType: 'standings-table', maxRows: 12, showPhotos: true },
+        stylePreset: 'none',
+      },
+    ],
+  },
+  {
+    id: 'bigboard-team-scores',
+    name: 'Big Board Team Scores',
+    description: 'Team scoring display on Big Board',
+    displayType: 'BigBoard',
+    resolution: { width: 1920, height: 1080 },
+    aspectRatio: '16:9',
+    category: 'general',
+    zones: [
+      {
+        order: 0,
+        xPercent: 0,
+        yPercent: 0,
+        widthPercent: 100,
+        heightPercent: 100,
+        boardType: 'standings-table',
+        dataBinding: { type: 'standings' },
+        boardConfig: { boardType: 'standings-table', maxRows: 10, showPhotos: false },
+        stylePreset: 'none',
+      },
+    ],
+  },
+  {
+    id: 'bigboard-meet-logo',
+    name: 'Big Board Meet Logo',
+    description: 'Meet branding/logo display for Big Board',
+    displayType: 'BigBoard',
+    resolution: { width: 1920, height: 1080 },
+    aspectRatio: '16:9',
+    category: 'general',
+    zones: [
+      {
+        order: 0,
+        xPercent: 0,
+        yPercent: 0,
+        widthPercent: 100,
+        heightPercent: 100,
+        boardType: 'logo-banner',
+        dataBinding: { type: 'static', content: 'meet-logo' },
+        boardConfig: { boardType: 'logo-banner', height: 1080 },
+        stylePreset: 'none',
+      },
+    ],
+  },
+];
+
 // All templates combined
-export const LAYOUT_TEMPLATES: LayoutTemplate[] = [...P10_TEMPLATES, ...P6_TEMPLATES];
+export const LAYOUT_TEMPLATES: LayoutTemplate[] = [...P10_TEMPLATES, ...P6_TEMPLATES, ...BIGBOARD_TEMPLATES];
 
 // Helper functions
 export function getTemplatesByDisplayType(displayType: DisplayType): LayoutTemplate[] {
@@ -416,6 +629,20 @@ export function getTemplateById(id: string): LayoutTemplate | undefined {
 
 // Display type definitions for UI
 export const DISPLAY_TYPES = [
-  { id: 'P10', name: 'P10 Display', resolution: '192x96', pixelPitch: '10mm' },
-  { id: 'P6', name: 'P6 Display', resolution: '288x144', pixelPitch: '6mm' },
+  { id: 'P10', name: 'P10 Display', resolution: '192x96', pixelPitch: '10mm', description: 'Low-res LED board' },
+  { id: 'P6', name: 'P6 Display', resolution: '288x144', pixelPitch: '6mm', description: 'Medium-res LED board' },
+  { id: 'BigBoard', name: 'Big Board', resolution: '1920x1080', pixelPitch: 'HD', description: 'High-res video display' },
 ] as const;
+
+// Content types for quick launch
+export const DISPLAY_CONTENT_TYPES = [
+  { id: 'start-list', name: 'Start List', icon: 'users', description: 'Athlete lineup before race' },
+  { id: 'running-time', name: 'Running Time', icon: 'clock', description: 'Live race clock' },
+  { id: 'results', name: 'Track Results', icon: 'trophy', description: 'Race results with times' },
+  { id: 'field-results', name: 'Field Results', icon: 'target', description: 'Field event attempts' },
+  { id: 'field-standings', name: 'Field Standings', icon: 'list', description: 'Field event leaderboard' },
+  { id: 'team-scores', name: 'Team Scores', icon: 'award', description: 'Team scoring standings' },
+  { id: 'meet-logo', name: 'Meet Logo', icon: 'image', description: 'Meet branding display' },
+] as const;
+
+export type DisplayContentType = typeof DISPLAY_CONTENT_TYPES[number]['id'];

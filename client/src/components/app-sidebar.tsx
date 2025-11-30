@@ -5,11 +5,8 @@ import {
   Monitor,
   Activity,
   Upload,
-  Palette,
-  Layout,
   Building2,
-  Home,
-  Cast
+  Home
 } from "lucide-react";
 import {
   Sidebar,
@@ -105,42 +102,10 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === `${basePath}/displays/launcher`}>
-                  <Link href={`${basePath}/displays/launcher`} data-testid="link-displays-launcher">
+                <SidebarMenuButton asChild isActive={location === `${basePath}/displays` || location.startsWith(`${basePath}/displays/`)}>
+                  <Link href={`${basePath}/displays`} data-testid="link-display-hub">
                     <Monitor />
-                    <span>Display Launcher</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === `${basePath}/displays/control`}>
-                  <Link href={`${basePath}/displays/control`} data-testid="link-displays-control">
-                    <Cast />
-                    <span>Device Control</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === `${basePath}/displays/customize`}>
-                  <Link href={`${basePath}/displays/customize`} data-testid="link-displays-customize">
-                    <Palette />
-                    <span>Customize</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location.startsWith(`${basePath}/layouts/designer`)}>
-                  <Link href={`${basePath}/layouts/designer`} data-testid="link-layouts-designer">
-                    <Layout />
-                    <span>Layout Designer</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === `${basePath}/scene-editor`}>
-                  <Link href={`${basePath}/scene-editor`} data-testid="link-scene-editor">
-                    <Palette />
-                    <span>Scene Editor</span>
+                    <span>Display Hub</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
