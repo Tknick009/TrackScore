@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Monitor, Tv, LayoutGrid, Calendar } from "lucide-react";
+import { Monitor, Tv, LayoutGrid, Calendar, CheckCircle2 } from "lucide-react";
+import { format } from "date-fns";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Meet, Event } from "@shared/schema";
 import { 
   BigBoard,
@@ -221,34 +222,64 @@ export default function DisplayDevice() {
             Select a meet and display type
           </p>
           
-          {/* Meet Selector */}
+          {/* Meet Selector - Scrollable List sorted by latest date */}
           <div className="mb-10">
             <label className="block text-gray-300 text-sm font-medium mb-3 text-center">
               Select Meet
             </label>
-            <div className="max-w-md mx-auto">
-              <Select value={selectedMeetId || ''} onValueChange={setSelectedMeetId}>
-                <SelectTrigger className="w-full bg-gray-900 border-gray-700 text-white h-14 text-lg" data-testid="select-meet">
-                  <SelectValue placeholder="Choose a meet..." />
-                </SelectTrigger>
-                <SelectContent className="bg-gray-900 border-gray-700">
-                  {meets?.map(meet => (
-                    <SelectItem 
-                      key={meet.id} 
-                      value={meet.id}
-                      className="text-white hover:bg-gray-800"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4" />
-                        {meet.name}
-                        {meet.status === 'active' && (
-                          <span className="text-xs bg-green-600 px-2 py-0.5 rounded ml-2">Active</span>
-                        )}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="max-w-lg mx-auto">
+              <ScrollArea className="h-64 rounded-lg border border-gray-700 bg-gray-900/50">
+                <div className="p-2 space-y-1">
+                  {meets && meets.length > 0 ? (
+                    [...meets]
+                      .sort((a, b) => {
+                        const dateA = a.startDate ? new Date(a.startDate).getTime() : 0;
+                        const dateB = b.startDate ? new Date(b.startDate).getTime() : 0;
+                        return dateB - dateA;
+                      })
+                      .map(meet => (
+                        <button
+                          key={meet.id}
+                          onClick={() => setSelectedMeetId(meet.id)}
+                          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-left transition-all ${
+                            selectedMeetId === meet.id
+                              ? 'bg-blue-600 text-white'
+                              : 'text-gray-300 hover:bg-gray-800'
+                          }`}
+                          data-testid={`select-meet-${meet.id}`}
+                        >
+                          <Calendar className={`w-4 h-4 flex-shrink-0 ${
+                            selectedMeetId === meet.id ? 'text-white' : 'text-gray-500'
+                          }`} />
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium truncate">{meet.name}</div>
+                            <div className={`text-xs ${selectedMeetId === meet.id ? 'text-blue-200' : 'text-gray-500'}`}>
+                              {meet.startDate 
+                                ? format(new Date(meet.startDate), 'MMM d, yyyy')
+                                : 'No date set'}
+                            </div>
+                          </div>
+                          {meet.status === 'active' && (
+                            <span className={`text-xs px-2 py-0.5 rounded flex-shrink-0 ${
+                              selectedMeetId === meet.id 
+                                ? 'bg-green-500 text-white' 
+                                : 'bg-green-600/20 text-green-400'
+                            }`}>
+                              Active
+                            </span>
+                          )}
+                          {selectedMeetId === meet.id && (
+                            <CheckCircle2 className="w-4 h-4 text-white flex-shrink-0" />
+                          )}
+                        </button>
+                      ))
+                  ) : (
+                    <div className="text-center text-gray-500 py-8">
+                      No meets available
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
             </div>
           </div>
           
