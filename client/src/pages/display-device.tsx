@@ -398,8 +398,9 @@ function DisplayRenderer({ displayType, meetId, template, eventId, deviceId, isC
       const secondaryColor = meet?.secondaryColor || '#003366';
       const hasLogo = !!meet?.logoUrl;
       
-      // Create radial gradient background using meet colors
-      const gradientBackground = `radial-gradient(ellipse at center, ${primaryColor}40 0%, ${secondaryColor}20 50%, #000000 100%)`;
+      // Create radial gradient background using meet colors - more prominent colors
+      // Center spotlight with primary color, fading to secondary, with dark edges
+      const gradientBackground = `radial-gradient(ellipse 80% 60% at center, ${primaryColor} 0%, ${secondaryColor} 50%, #0a0a0a 100%)`;
       
       // For P10/P6, show a compact status display
       if (isSingleAthleteDisplay) {
@@ -540,7 +541,7 @@ function DisplayRenderer({ displayType, meetId, template, eventId, deviceId, isC
     const waitingPrimaryColor = meet?.primaryColor || '#0066CC';
     const waitingSecondaryColor = meet?.secondaryColor || '#003366';
     const waitingHasLogo = !!meet?.logoUrl;
-    const waitingGradient = `radial-gradient(ellipse at center, ${waitingPrimaryColor}40 0%, ${waitingSecondaryColor}20 50%, #000000 100%)`;
+    const waitingGradient = `radial-gradient(ellipse 80% 60% at center, ${waitingPrimaryColor} 0%, ${waitingSecondaryColor} 50%, #0a0a0a 100%)`;
     
     const waitingState = isSingleAthleteDisplay ? (
       waitingHasLogo ? (
@@ -644,7 +645,7 @@ function DisplayRenderer({ displayType, meetId, template, eventId, deviceId, isC
     const fallbackPrimaryColor = meet?.primaryColor || '#0066CC';
     const fallbackSecondaryColor = meet?.secondaryColor || '#003366';
     const fallbackHasLogo = !!meet?.logoUrl;
-    const fallbackGradient = `radial-gradient(ellipse at center, ${fallbackPrimaryColor}40 0%, ${fallbackSecondaryColor}20 50%, #000000 100%)`;
+    const fallbackGradient = `radial-gradient(ellipse 80% 60% at center, ${fallbackPrimaryColor} 0%, ${fallbackSecondaryColor} 50%, #0a0a0a 100%)`;
     
     if (fallbackHasLogo) {
       return (
