@@ -267,6 +267,10 @@ export default function SceneEditor() {
   const { currentMeet } = useMeet();
   const canvasRef = useRef<HTMLDivElement>(null);
   
+  // Local drag position state (for smooth visual updates without API calls)
+  const dragPositionRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
+  const [localDragPosition, setLocalDragPosition] = useState<{ objectId: number; x: number; y: number; width: number; height: number } | null>(null);
+  
   // State
   const [selectedSceneId, setSelectedSceneId] = useState<number | null>(null);
   const [selectedObjectId, setSelectedObjectId] = useState<number | null>(null);
@@ -457,7 +461,7 @@ export default function SceneEditor() {
     return Math.round(value / SNAP_INCREMENT) * SNAP_INCREMENT;
   }, []);
 
-  // Handle mouse move (for dragging)
+  // Handle mouse move (for dragging) - update local state only, no API calls
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!dragState || !canvasRef.current) return;
     
@@ -476,10 +480,10 @@ export default function SceneEditor() {
         newY = snapToGrid(newY);
       }
       
-      updateObjectMutation.mutate({
-        id: dragState.objectId,
-        data: { x: newX, y: newY },
-      });
+      // Update local state only (no API call during drag)
+      const pos = { objectId: dragState.objectId, x: newX, y: newY, width: dragState.startObjWidth, height: dragState.startObjHeight };
+      dragPositionRef.current = pos;
+      setLocalDragPosition(pos);
     } else if (dragState.type === 'resize' && dragState.resizeHandle) {
       let newX = dragState.startObjX;
       let newY = dragState.startObjY;
@@ -531,17 +535,31 @@ export default function SceneEditor() {
         newHeight = snapToGrid(newHeight);
       }
       
+      // Update local state only (no API call during drag)
+      const pos = { objectId: dragState.objectId, x: newX, y: newY, width: newWidth, height: newHeight };
+      dragPositionRef.current = pos;
+      setLocalDragPosition(pos);
+    }
+  }, [dragState, showGrid, snapToGrid]);
+  
+  // Handle mouse up (end drag) - persist to API only on mouse up
+  const handleMouseUp = useCallback(() => {
+    if (dragState && dragPositionRef.current) {
+      // Persist the final position to the API
       updateObjectMutation.mutate({
         id: dragState.objectId,
-        data: { x: newX, y: newY, width: newWidth, height: newHeight },
+        data: { 
+          x: dragPositionRef.current.x, 
+          y: dragPositionRef.current.y,
+          width: dragPositionRef.current.width,
+          height: dragPositionRef.current.height
+        },
       });
     }
-  }, [dragState, updateObjectMutation, showGrid, snapToGrid]);
-  
-  // Handle mouse up (end drag)
-  const handleMouseUp = useCallback(() => {
+    dragPositionRef.current = null;
+    setLocalDragPosition(null);
     setDragState(null);
-  }, []);
+  }, [dragState, updateObjectMutation]);
   
   // Attach global mouse listeners
   useEffect(() => {
@@ -806,19 +824,26 @@ export default function SceneEditor() {
     const info = OBJECT_TYPE_INFO[object.objectType as LayoutObjectType];
     const Icon = info?.icon || Type;
     
+    // Use local drag position if this object is being dragged
+    const isDragging = localDragPosition?.objectId === object.id;
+    const displayX = isDragging ? localDragPosition.x : object.x;
+    const displayY = isDragging ? localDragPosition.y : object.y;
+    const displayWidth = isDragging ? localDragPosition.width : object.width;
+    const displayHeight = isDragging ? localDragPosition.height : object.height;
+    
     return (
       <div
         key={object.id}
-        className={`absolute transition-shadow ${
+        className={`absolute ${isDragging ? '' : 'transition-shadow'} ${
           isSelected && !previewMode ? 'ring-2 ring-yellow-400 ring-offset-1 ring-offset-black' : ''
         } ${object.locked ? 'opacity-75' : previewMode ? '' : 'cursor-move'} ${
           !object.visible ? 'opacity-40' : ''
         }`}
         style={{
-          left: `${object.x}%`,
-          top: `${object.y}%`,
-          width: `${object.width}%`,
-          height: `${object.height}%`,
+          left: `${displayX}%`,
+          top: `${displayY}%`,
+          width: `${displayWidth}%`,
+          height: `${displayHeight}%`,
           zIndex: object.zIndex,
           transform: object.rotation ? `rotate(${object.rotation}deg)` : undefined,
           backgroundColor: (object.style as SceneObjectStyle)?.backgroundColor || 'rgba(30, 30, 40, 0.9)',

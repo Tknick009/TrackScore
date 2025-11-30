@@ -31,6 +31,15 @@ The frontend uses React with shadcn/ui on Radix UI and Tailwind CSS for styling,
 - **Scene Editor UI:** A visual canvas editor at `/control/:meetId/scene-editor` for managing scenes, dragging and dropping objects, and configuring properties.
 - **Scene Display Runtime:** `/scene-display/:sceneId` renders scenes with live data by subscribing objects to configured data sources via WebSockets.
 
+**Enhanced Layout Editor Tools:**
+- **Snap-to-Grid:** Objects snap to 5% grid positions when grid is enabled, ensuring precise alignment.
+- **Alignment Toolbar:** 8 alignment buttons (align left/center/right, top/middle/bottom, distribute horizontally/vertically) for multi-object layouts.
+- **Field Code System:** Dynamic placeholders using curly brace syntax: `{place}`, `{name}`, `{affiliation}`, `{time}`, `{mark}`, `{best_mark}`, `{attempts}`, `{wind}`, `{lane}`, `{reaction}`.
+- **Field Presets:** 8 pre-built field combinations for common track/field result formats (Track Result Line, Field Result Line, Athlete Name, Place with Time, etc.).
+- **Layout Templates:** 4 pre-built scene templates (8-Lane Track Results, Field Event Standings, Running Time with Header, Team Standings) for quick setup.
+- **Live Preview Mode:** Shows sample data in the editor with realistic athlete names, times, marks, and team scores. Visual indicator shows when preview is active.
+- **RTV File Import:** Best-effort parser for ResulTV .rtv binary files with automatic field mapping. Imports text objects with positions and suggested field code conversions.
+
 **Asset Management System:**
 - Manages athlete photos and team logos with metadata storage and `FileStorage` for image processing (resize, optimize).
 - API endpoints for CRUD operations on assets.
