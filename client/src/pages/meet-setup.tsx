@@ -158,11 +158,16 @@ export default function MeetSetup() {
       
       return await response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/meets", meetId] });
-      toast({ title: "Logo uploaded successfully" });
+      toast({ 
+        title: "Logo uploaded successfully",
+        description: "Color scheme has been generated from your logo"
+      });
       setSelectedFile(null);
       setPreviewUrl(null);
+      // Reset color changes flag since we just got new colors from the logo
+      setHasColorChanges(false);
     },
     onError: (error: Error) => {
       toast({

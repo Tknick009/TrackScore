@@ -1184,12 +1184,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const logoUrl = fileStorage.publicUrlForKey(result.storageKey);
       
-      // Update meet with logo URL
-      const updatedMeet = await storage.updateMeet(meetId, { logoUrl });
+      // Extract color scheme from logo
+      const colorScheme = await fileStorage.extractColorsFromImage(req.file.buffer);
+      console.log(`Extracted color scheme from logo:`, colorScheme);
+      
+      // Update meet with logo URL and extracted color scheme
+      const updatedMeet = await storage.updateMeet(meetId, { 
+        logoUrl,
+        ...colorScheme 
+      });
       
       res.json({ 
         success: true, 
         logoUrl,
+        colorScheme,
         meet: updatedMeet
       });
     } catch (error: any) {

@@ -226,4 +226,110 @@ export class FileStorage {
       await fs.mkdir(dirPath, { recursive: true });
     }
   }
+
+  /**
+   * Extract dominant colors from an image buffer to generate a color scheme
+   * Returns primary, secondary, accent, and text colors
+   */
+  async extractColorsFromImage(buffer: Buffer): Promise<{
+    primaryColor: string;
+    secondaryColor: string;
+    accentColor: string;
+    textColor: string;
+  }> {
+    try {
+      const image = sharp(buffer);
+      
+      // Resize to small size for faster color analysis
+      const resized = await image.resize(100, 100, { fit: 'cover' }).raw().toBuffer({ resolveWithObject: true });
+      
+      const { data, info } = resized;
+      const pixelCount = info.width * info.height;
+      const channels = info.channels;
+      
+      // Collect color samples
+      const colors: { r: number; g: number; b: number; count: number }[] = [];
+      const colorMap = new Map<string, { r: number; g: number; b: number; count: number }>();
+      
+      for (let i = 0; i < data.length; i += channels) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        
+        // Quantize colors to reduce variations (group similar colors)
+        const qr = Math.round(r / 32) * 32;
+        const qg = Math.round(g / 32) * 32;
+        const qb = Math.round(b / 32) * 32;
+        
+        const key = `${qr},${qg},${qb}`;
+        const existing = colorMap.get(key);
+        
+        if (existing) {
+          existing.count++;
+          // Average the actual colors
+          existing.r = Math.round((existing.r * (existing.count - 1) + r) / existing.count);
+          existing.g = Math.round((existing.g * (existing.count - 1) + g) / existing.count);
+          existing.b = Math.round((existing.b * (existing.count - 1) + b) / existing.count);
+        } else {
+          colorMap.set(key, { r, g, b, count: 1 });
+        }
+      }
+      
+      // Sort by frequency
+      const sortedColors = Array.from(colorMap.values())
+        .filter(c => {
+          // Filter out very dark (near black) and very light (near white) colors
+          const brightness = (c.r + c.g + c.b) / 3;
+          return brightness > 30 && brightness < 225;
+        })
+        .sort((a, b) => b.count - a.count);
+      
+      // Get vibrant/saturated colors for accent
+      const vibrantColors = sortedColors.filter(c => {
+        const max = Math.max(c.r, c.g, c.b);
+        const min = Math.min(c.r, c.g, c.b);
+        const saturation = max === 0 ? 0 : (max - min) / max;
+        return saturation > 0.3;
+      });
+      
+      // Helper to convert RGB to hex
+      const toHex = (r: number, g: number, b: number) => 
+        `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`.toUpperCase();
+      
+      // Helper to darken a color
+      const darken = (r: number, g: number, b: number, factor: number) => ({
+        r: Math.max(0, Math.round(r * factor)),
+        g: Math.max(0, Math.round(g * factor)),
+        b: Math.max(0, Math.round(b * factor)),
+      });
+      
+      // Primary: Most frequent non-neutral color
+      const primary = sortedColors[0] || { r: 0, g: 102, b: 204 };
+      
+      // Secondary: Darker version of primary for gradients
+      const secondaryRgb = darken(primary.r, primary.g, primary.b, 0.5);
+      
+      // Accent: Most vibrant color, or gold if none found
+      const accent = vibrantColors[0] || { r: 255, g: 215, b: 0 };
+      
+      // Text: White works best on dark backgrounds
+      const textColor = "#FFFFFF";
+      
+      return {
+        primaryColor: toHex(primary.r, primary.g, primary.b),
+        secondaryColor: toHex(secondaryRgb.r, secondaryRgb.g, secondaryRgb.b),
+        accentColor: toHex(accent.r, accent.g, accent.b),
+        textColor,
+      };
+    } catch (error) {
+      console.error("Error extracting colors from image:", error);
+      // Return default colors if extraction fails
+      return {
+        primaryColor: "#0066CC",
+        secondaryColor: "#003366",
+        accentColor: "#FFD700",
+        textColor: "#FFFFFF",
+      };
+    }
+  }
 }
