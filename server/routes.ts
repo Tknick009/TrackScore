@@ -4288,18 +4288,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Handle display device registration
         if (data.type === 'register_display_device') {
-          const { meetId, deviceName, displayType } = data;
+          const { meetId, deviceName, displayType, deviceId: clientDeviceId } = data;
           
           if (meetId && deviceName) {
-            console.log(`Display device registering: ${deviceName} (${displayType}) for meet ${meetId}`);
+            console.log(`Display device registering: ${deviceName} (${displayType}) for meet ${meetId}, clientDeviceId: ${clientDeviceId || 'new'}`);
             
             try {
-              // Register/update the device in the database with displayType
-              const device = await storage.createOrUpdateDisplayDevice({
-                meetId,
-                deviceName,
-                displayType: displayType || 'P10',
-              });
+              // If client provides a deviceId, try to find and update that device
+              let device;
+              if (clientDeviceId) {
+                const existingDevice = await storage.getDisplayDevice(clientDeviceId);
+                if (existingDevice && existingDevice.meetId === meetId) {
+                  // Update existing device
+                  device = await storage.updateDisplayDeviceStatus(clientDeviceId, 'online');
+                  if (device && displayType) {
+                    device = await storage.updateDisplayDeviceMode(clientDeviceId, displayType === 'field' ? 'field' : 'track') || device;
+                  }
+                  console.log(`Reconnected existing device: ${device?.deviceName} (${clientDeviceId})`);
+                }
+              }
+              
+              // If no existing device found, create a new one
+              if (!device) {
+                device = await storage.createOrUpdateDisplayDevice({
+                  meetId,
+                  deviceName,
+                  displayType: displayType || 'P10',
+                });
+                console.log(`Created new device: ${device.deviceName} (${device.id})`);
+              }
               
               registeredDeviceId = device.id;
               
