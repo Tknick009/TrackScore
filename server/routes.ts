@@ -1099,6 +1099,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Lookup meet by code - used for "Join Meet" functionality
+  // This must come BEFORE /api/meets/:id to avoid "code" being matched as an ID
+  app.get("/api/meets/code/:code", async (req, res) => {
+    try {
+      const meetCode = req.params.code.toUpperCase();
+      const meet = await storage.getMeetByCode(meetCode);
+      if (!meet) {
+        return res.status(404).json({ message: "No meet found with that code. Please check the code and try again." });
+      }
+      res.json(meet);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   app.get("/api/meets/:id", async (req, res) => {
     const meet = await storage.getMeet(req.params.id);
     if (!meet) {

@@ -196,6 +196,7 @@ export interface IStorage {
   // Meets
   getMeets(): Promise<Meet[]>;
   getMeet(id: string): Promise<Meet | undefined>;
+  getMeetByCode(meetCode: string): Promise<Meet | undefined>;
   getMeetsBySeason(seasonId: number): Promise<Meet[]>;
   createMeet(meet: InsertMeet): Promise<Meet>;
   updateMeet(id: string, data: Partial<InsertMeet>): Promise<Meet | null>;
@@ -697,6 +698,11 @@ export class DatabaseStorage implements IStorage {
 
   async getMeet(id: string): Promise<Meet | undefined> {
     const [meet] = await db.select().from(meets).where(eq(meets.id, id));
+    return meet || undefined;
+  }
+
+  async getMeetByCode(meetCode: string): Promise<Meet | undefined> {
+    const [meet] = await db.select().from(meets).where(eq(meets.meetCode, meetCode));
     return meet || undefined;
   }
 
