@@ -1,9 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
@@ -14,34 +13,16 @@ import {
   Monitor, 
   ExternalLink, 
   QrCode,
-  Users,
-  Clock,
-  Trophy,
-  Target,
-  ListOrdered,
-  Award,
-  Image,
   Wifi,
   WifiOff,
   Copy,
-  Maximize,
   Send,
   Trash2,
   RefreshCw
 } from 'lucide-react';
-import { DISPLAY_TYPES, DISPLAY_CONTENT_TYPES, type DisplayType } from '@shared/layout-templates';
+import { DISPLAY_CONTENT_TYPES } from '@shared/layout-templates';
 import type { DisplayDevice } from '@shared/schema';
 import QRCode from 'qrcode';
-
-const CONTENT_ICONS: Record<string, any> = {
-  'users': Users,
-  'clock': Clock,
-  'trophy': Trophy,
-  'target': Target,
-  'list': ListOrdered,
-  'award': Award,
-  'image': Image,
-};
 
 export default function DisplayHub() {
   const { currentMeetId, currentMeet } = useMeet();
@@ -54,7 +35,7 @@ export default function DisplayHub() {
     ? `${window.location.protocol}//${window.location.host}` 
     : '';
 
-  const { data: devices = [], isLoading: devicesLoading, refetch: refetchDevices } = useQuery<DisplayDevice[]>({
+  const { data: devices = [], refetch: refetchDevices } = useQuery<DisplayDevice[]>({
     queryKey: ['/api/display-devices/meet', currentMeetId],
     enabled: !!currentMeetId,
     refetchInterval: 5000,
@@ -83,12 +64,7 @@ export default function DisplayHub() {
     }
   });
 
-  const getDisplayUrl = (displayType: DisplayType, contentType: string) => {
-    const templateId = `${displayType.toLowerCase()}-${contentType}`;
-    return `${baseUrl}/preset-display/${templateId}?meetId=${currentMeetId}`;
-  };
-
-  const getDeviceSetupUrl = () => `${baseUrl}/display`;
+  const getDisplayUrl = () => `${baseUrl}/display`;
 
   const copyToClipboard = async (url: string, label: string) => {
     try {
@@ -99,50 +75,23 @@ export default function DisplayHub() {
     }
   };
 
-  const launchDisplay = (displayType: DisplayType, contentType: string) => {
-    const url = getDisplayUrl(displayType, contentType);
-    window.open(url, '_blank');
+  const launchDisplay = () => {
+    window.open(getDisplayUrl(), '_blank');
   };
 
-  const showQRCode = async (displayType: DisplayType, contentType: string) => {
-    const url = getDisplayUrl(displayType, contentType);
-    const contentInfo = DISPLAY_CONTENT_TYPES.find(c => c.id === contentType);
-    const displayInfo = DISPLAY_TYPES.find(d => d.id === displayType);
-    
+  const showDisplayQR = async () => {
+    const url = getDisplayUrl();
     try {
       const dataUrl = await QRCode.toDataURL(url, { width: 300, margin: 2 });
       setQrCodeDataUrl(dataUrl);
       setQrDialog({ 
         open: true, 
         url, 
-        title: `${displayInfo?.name} - ${contentInfo?.name}` 
+        title: 'Launch Display' 
       });
     } catch (error) {
       console.error('Failed to generate QR code:', error);
     }
-  };
-
-  const showDeviceSetupQR = async () => {
-    const url = getDeviceSetupUrl();
-    try {
-      const dataUrl = await QRCode.toDataURL(url, { width: 300, margin: 2 });
-      setQrCodeDataUrl(dataUrl);
-      setQrDialog({ 
-        open: true, 
-        url, 
-        title: 'Display Device Setup' 
-      });
-    } catch (error) {
-      console.error('Failed to generate QR code:', error);
-    }
-  };
-
-  const getContentForDisplayType = (displayType: DisplayType) => {
-    const contentTypes = DISPLAY_CONTENT_TYPES.filter(content => {
-      if (displayType === 'P10' && content.id === 'team-scores') return false;
-      return true;
-    });
-    return contentTypes;
   };
 
   const sendCommand = (device: DisplayDevice, template: string) => {
@@ -277,51 +226,44 @@ export default function DisplayHub() {
         <div className="space-y-4">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Add New Display</CardTitle>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Monitor className="w-5 h-5" />
+                Launch Display
+              </CardTitle>
+              <CardDescription>
+                Open a new display window - you'll choose P10, P6, or Big Board after launch
+              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                On each display computer, visit:
-              </p>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 p-2 bg-muted rounded text-sm break-all">
-                  {getDeviceSetupUrl()}
-                </code>
-                <Button size="sm" variant="outline" onClick={() => copyToClipboard(getDeviceSetupUrl(), 'Setup')}>
-                  <Copy className="w-4 h-4" />
+            <CardContent className="space-y-4">
+              <Button 
+                className="w-full" 
+                size="lg"
+                onClick={launchDisplay}
+                data-testid="button-launch-display"
+              >
+                <ExternalLink className="w-4 h-4 mr-2" />
+                Launch Display
+              </Button>
+              
+              <Separator />
+              
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  For remote displays, have them visit:
+                </p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 p-2 bg-muted rounded text-sm break-all">
+                    {getDisplayUrl()}
+                  </code>
+                  <Button size="sm" variant="outline" onClick={() => copyToClipboard(getDisplayUrl(), 'Display URL')}>
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                </div>
+                <Button className="w-full" variant="outline" onClick={showDisplayQR} data-testid="button-show-qr">
+                  <QrCode className="w-4 h-4 mr-2" />
+                  Show QR Code
                 </Button>
               </div>
-              <Button className="w-full" variant="outline" onClick={showDeviceSetupQR} data-testid="button-show-setup-qr">
-                <QrCode className="w-4 h-4 mr-2" />
-                Show QR Code
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Quick Launch</CardTitle>
-              <CardDescription>Open displays directly in new tabs</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {DISPLAY_TYPES.map(dt => (
-                <div key={dt.id} className="space-y-1">
-                  <p className="text-sm font-medium">{dt.name}</p>
-                  <div className="flex flex-wrap gap-1">
-                    {getContentForDisplayType(dt.id as DisplayType).slice(0, 3).map(content => (
-                      <Button 
-                        key={content.id}
-                        size="sm" 
-                        variant="outline"
-                        onClick={() => launchDisplay(dt.id as DisplayType, content.id)}
-                        className="text-xs"
-                      >
-                        {content.name}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              ))}
             </CardContent>
           </Card>
         </div>
