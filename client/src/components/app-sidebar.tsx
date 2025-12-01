@@ -7,7 +7,8 @@ import {
   Upload,
   Building2,
   Home,
-  Settings
+  Settings,
+  LayoutTemplate
 } from "lucide-react";
 import {
   Sidebar,
@@ -107,6 +108,14 @@ export function AppSidebar() {
                   <Link href={`${basePath}/displays`} data-testid="link-display-hub">
                     <Monitor />
                     <span>Display Hub</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location === `${basePath}/scene-editor`}>
+                  <Link href={`${basePath}/scene-editor`} data-testid="link-scene-editor">
+                    <LayoutTemplate />
+                    <span>Layout Designer</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
