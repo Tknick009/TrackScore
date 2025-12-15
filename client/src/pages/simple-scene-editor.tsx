@@ -547,6 +547,7 @@ export default function SimpleSceneEditor() {
       'last-split': '5.12',
       'cumulative-split': '5.12',
       'reaction-time': '0.142',
+      'running-time': '0:12.34',
       'bib': '247',
       'static-text': selectedBox?.staticText || 'Static Text',
     };

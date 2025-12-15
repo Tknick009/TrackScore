@@ -124,6 +124,14 @@ export const FIELD_BINDINGS: Record<string, FieldBinding> = {
     dataKey: 'reactionTime',
     category: 'timing',
   },
+  'running-time': {
+    key: 'running-time',
+    label: 'Running Time',
+    type: 'text',
+    description: 'Live race clock / running time',
+    dataKey: 'runningTime',
+    category: 'timing',
+  },
   'bib': {
     key: 'bib',
     label: 'Bib Number',

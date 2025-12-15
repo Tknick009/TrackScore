@@ -252,6 +252,36 @@ function SceneObjectRenderer({
         );
         
       case "text":
+        // Resolve field binding to actual value from live data
+        const fieldKey = dataBinding.fieldKey as string | undefined;
+        let textContent = componentConfig.text || componentConfig.textContent || componentConfig.dynamicText;
+        
+        if (fieldKey && liveData) {
+          // Map fieldKey to live data value
+          const fieldMap: Record<string, any> = {
+            'event-name': liveData.eventName,
+            'heat-number': liveData.heat,
+            'round': liveData.round,
+            'wind': liveData.wind,
+            'lane': liveData.entries?.[0]?.lane,
+            'place': liveData.entries?.[0]?.place,
+            'name': liveData.entries?.[0]?.name,
+            'first-name': liveData.entries?.[0]?.firstName,
+            'last-name': liveData.entries?.[0]?.lastName,
+            'school': liveData.entries?.[0]?.affiliation || liveData.entries?.[0]?.team,
+            'time': liveData.entries?.[0]?.time || liveData.entries?.[0]?.mark,
+            'last-split': liveData.entries?.[0]?.lastSplit,
+            'cumulative-split': liveData.entries?.[0]?.cumulativeSplit,
+            'reaction-time': liveData.entries?.[0]?.reactionTime,
+            'running-time': liveData.runningTime,
+            'bib': liveData.entries?.[0]?.bib,
+          };
+          const resolvedValue = fieldMap[fieldKey];
+          if (resolvedValue !== undefined && resolvedValue !== null) {
+            textContent = String(resolvedValue);
+          }
+        }
+        
         return (
           <div 
             className="flex items-center justify-center h-full p-2"
@@ -262,7 +292,7 @@ function SceneObjectRenderer({
               textAlign: componentConfig.textAlign || "center",
             }}
           >
-            {componentConfig.text || componentConfig.textContent || "Label"}
+            {textContent || "Label"}
           </div>
         );
         
