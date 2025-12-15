@@ -108,7 +108,7 @@ export default function SimpleSceneEditor() {
   
   // Fetch existing scenes
   const { data: scenes = [] } = useQuery<LayoutSceneWithObjects[]>({
-    queryKey: ['/api/layout-scenes', currentMeet?.id],
+    queryKey: [`/api/layout-scenes?meetId=${currentMeet?.id}`],
     enabled: !!currentMeet?.id,
   });
   
@@ -135,7 +135,7 @@ export default function SimpleSceneEditor() {
     },
     onSuccess: (result) => {
       toast({ title: 'Scene saved successfully' });
-      queryClient.invalidateQueries({ queryKey: ['/api/layout-scenes'] });
+      queryClient.invalidateQueries({ queryKey: [`/api/layout-scenes?meetId=${currentMeet?.id}`] });
       // Update currentScene with the server-assigned ID so future saves update instead of create
       if (result?.isNew && result.id && currentScene) {
         setCurrentScene({ ...currentScene, id: result.id });
