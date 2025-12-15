@@ -19,6 +19,18 @@ import {
   isTemplateCompatible,
 } from "@/lib/displayCapabilities";
 
+interface LiveEventData {
+  eventNumber: number;
+  eventName: string;
+  heat?: number;
+  round?: number;
+  entries?: any[];
+  wind?: string;
+  distance?: string;
+  status?: string;
+  mode?: string;
+}
+
 interface DisplayDeviceState {
   displayType: DisplayType | null;
   meetId: string | null;
@@ -27,6 +39,7 @@ interface DisplayDeviceState {
   isConnected: boolean;
   setupComplete: boolean;
   liveClockTime: string | null;
+  liveEventData: LiveEventData | null;
 }
 
 // Storage helpers for device identity - each display type gets its own key
@@ -73,6 +86,7 @@ export default function DisplayDevice() {
     isConnected: false,
     setupComplete: false,
     liveClockTime: null,
+    liveEventData: null,
   });
   const [selectedMeetId, setSelectedMeetId] = useState<string | null>(null);
   const [registeredDeviceId, setRegisteredDeviceId] = useState<string | null>(null);
@@ -162,6 +176,7 @@ export default function DisplayDevice() {
               ...prev,
               currentTemplate: message.template || prev.currentTemplate,
               currentEventId: message.eventId || prev.currentEventId,
+              liveEventData: message.liveEventData || prev.liveEventData,
             }));
           }
           
@@ -351,6 +366,7 @@ export default function DisplayDevice() {
       deviceId={registeredDeviceId || 'pending'}
       isConnected={state.isConnected}
       liveClockTime={state.liveClockTime}
+      liveEventData={state.liveEventData}
     />
   );
 }
@@ -363,13 +379,14 @@ interface DisplayRendererProps {
   deviceId: string;
   isConnected: boolean;
   liveClockTime: string | null;
+  liveEventData: LiveEventData | null;
 }
 
 interface EventWithEntries extends Event {
   entries: any[];
 }
 
-function DisplayRenderer({ displayType, meetId, template, eventId, deviceId, isConnected, liveClockTime }: DisplayRendererProps) {
+function DisplayRenderer({ displayType, meetId, template, eventId, deviceId, isConnected, liveClockTime, liveEventData }: DisplayRendererProps) {
   const { data: meet } = useQuery<Meet>({
     queryKey: ['/api/meets', meetId],
     enabled: !!meetId,
@@ -649,8 +666,35 @@ function DisplayRenderer({ displayType, meetId, template, eventId, deviceId, isC
       const showSplits = templateId.includes('splits');
       return <BigBoard event={currentEvent as any} meet={meet} showSplits={showSplits} />;
     }
+    
+    // Use live event data from Lynx when no configured event exists
+    if ((isTrackResults || isStartList || isBigBoard) && !currentEvent && liveEventData) {
+      const showSplits = templateId.includes('splits');
+      // Create a synthetic event from live Lynx data
+      const syntheticEvent = {
+        id: 0,
+        name: liveEventData.eventName || `Event ${liveEventData.eventNumber}`,
+        eventType: 'track',
+        status: liveEventData.mode === 'results' ? 'completed' : 'in_progress',
+        entries: (liveEventData.entries || []).map((entry: any, idx: number) => ({
+          id: idx,
+          lane: entry.lane || idx + 1,
+          place: entry.place,
+          time: entry.time,
+          athlete: {
+            firstName: entry.name?.split(' ')[0] || '',
+            lastName: entry.name?.split(' ').slice(1).join(' ') || entry.name || `Lane ${entry.lane || idx + 1}`,
+            team: entry.team || entry.affiliation || '',
+          },
+        })),
+        wind: liveEventData.wind,
+        heat: liveEventData.heat,
+        round: liveEventData.round,
+      };
+      return <BigBoard event={syntheticEvent as any} meet={meet} showSplits={showSplits} />;
+    }
 
-    if (!currentEvent && (isTrackResults || isFieldResults || isStartList || isFieldStandings)) {
+    if (!currentEvent && !liveEventData && (isTrackResults || isFieldResults || isStartList || isFieldStandings)) {
       return waitingState;
     }
 

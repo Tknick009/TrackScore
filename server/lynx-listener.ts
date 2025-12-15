@@ -165,6 +165,10 @@ export class LynxListener extends EventEmitter {
     
     // Process each line of data
     const lines = data.split(/\r?\n/).filter(l => l.trim());
+    // Log non-clock data for debugging (skip frequent clock updates)
+    if (lines.length > 0 && !data.includes('"t":') && !data.includes('"time":')) {
+      console.log(`[Lynx:Forward] ${portType}: ${lines[0].substring(0, 150)}`);
+    }
     for (const line of lines) {
       this.parseLine(line, config);
     }
@@ -385,11 +389,25 @@ export class LynxListener extends EventEmitter {
         if (command === 'armed') {
           this.isRunning = false;
           this.lastClockTime = '0:00.00';
+          this.emit('track-mode-change', this.currentEventNumber, 'start_list', { armed: true });
           this.emit('clock-update', this.currentEventNumber, '0:00.00', false);
         } else if (timeValue) {
-          this.isRunning = true;
+          const wasRunning = this.isRunning;
+          const isZero = timeValue === '0:00.00' || timeValue === '0.00' || timeValue === '00.00';
+          
+          if (!isZero && timeValue !== this.lastClockTime) {
+            this.isRunning = true;
+          } else if (isZero) {
+            this.isRunning = false;
+          }
+          
+          // Emit track-mode-change when transitioning to running
+          if (this.isRunning && !wasRunning) {
+            this.emit('track-mode-change', this.currentEventNumber, 'running', { time: timeValue });
+          }
+          
           this.lastClockTime = timeValue;
-          this.emit('clock-update', this.currentEventNumber, timeValue, true);
+          this.emit('clock-update', this.currentEventNumber, timeValue, this.isRunning);
         }
         return;
       }

@@ -54,6 +54,15 @@ The frontend uses React with shadcn/ui on Radix UI and Tailwind CSS for styling,
 - Aggregates multiple athlete entries before storage.
 - HTTP Forward Endpoint (`/api/lynx/forward`) for receiving forwarded TCP data from remote networks.
 - TCP Forwarder Scripts are provided for cross-network connectivity.
+- **JSON Clock Handler Enhancement:** Clock data in JSON format (e.g., `{"t":"0:12.34"}`) now properly emits `track-mode-change` events, enabling auto-mode switching from running clocks.
+
+**Auto-Mode Track Display System:**
+- **Zero-Configuration Operation:** Displays with auto-mode enabled automatically switch templates based on live Lynx timing data without requiring pre-configured events.
+- **Persistence:** Auto-mode state is stored in `display_devices.auto_mode` column and persists across reconnections.
+- **State Machine:** Four auto states: `idle` (logo), `armed` (start list), `running` (running time), `results` (results display).
+- **Live Data Passthrough:** When no matching event is configured, `liveEventData` is included in WebSocket `display_command` messages for displays to render directly from live timing data.
+- **Template Mapping:** Each auto state maps to appropriate display templates per display type (P10, P6, BigBoard).
+- **Broadcast Logic:** If matching events exist, broadcasts to that meet's displays; otherwise broadcasts to ALL auto-mode enabled displays.
 
 **Athlete Bests (Personal Records):**
 - `athlete_bests` table stores college and season personal records per athlete and event type.

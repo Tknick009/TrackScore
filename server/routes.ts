@@ -117,7 +117,7 @@ function getTemplateForAutoState(state: TrackAutoState, displayType: string): st
 }
 
 // Send auto-mode template update to a device
-function sendAutoModeUpdate(deviceId: string, state: TrackAutoState) {
+async function sendAutoModeUpdate(deviceId: string, state: TrackAutoState, liveData?: any) {
   const device = connectedDisplayDevices.get(deviceId);
   if (device && device.autoMode && device.ws.readyState === WebSocket.OPEN) {
     const template = getTemplateForAutoState(state, device.displayType);
@@ -127,16 +127,17 @@ function sendAutoModeUpdate(deviceId: string, state: TrackAutoState) {
       template,
       eventId: null,
       autoMode: true,
+      liveEventData: liveData || null,
     }));
     console.log(`[Auto-Mode] ${device.deviceName}: ${state} -> ${template}`);
   }
 }
 
 // Broadcast auto-mode update to all devices in a meet with auto-mode enabled
-function broadcastAutoModeUpdate(meetId: string, state: TrackAutoState) {
+function broadcastAutoModeUpdate(meetId: string, state: TrackAutoState, liveData?: any) {
   connectedDisplayDevices.forEach((device, deviceId) => {
     if (device.meetId === meetId && device.autoMode) {
-      sendAutoModeUpdate(deviceId, state);
+      sendAutoModeUpdate(deviceId, state, liveData);
     }
   });
 }
@@ -5346,16 +5347,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         autoState = 'results';
       }
       
+      // Build live event data for displays
+      const liveEventData = {
+        eventNumber,
+        eventName: `Event ${eventNumber}`,
+        heat: data.heat || 1,
+        round: data.round || 1,
+        entries: data.entries || data.results || [],
+        wind: data.wind,
+        distance: data.distance,
+        status: data.status,
+        mode,
+      };
+      
       // Broadcast to matching meet if events exist, otherwise broadcast to ALL auto-mode displays
       if (matchingEvents.length > 0) {
         const meetId = matchingEvents[0].meetId;
-        broadcastAutoModeUpdate(meetId, autoState);
+        // Include event name from configured event
+        liveEventData.eventName = matchingEvents[0].name;
+        broadcastAutoModeUpdate(meetId, autoState, liveEventData);
       } else {
         // No matching events configured - broadcast to all auto-mode enabled displays
         console.log(`[Auto-Mode] No event config for event #${eventNumber}, broadcasting to all auto-mode displays: ${autoState}`);
         connectedDisplayDevices.forEach((device, deviceId) => {
           if (device.autoMode) {
-            sendAutoModeUpdate(deviceId, autoState);
+            sendAutoModeUpdate(deviceId, autoState, liveEventData);
           }
         });
       }
