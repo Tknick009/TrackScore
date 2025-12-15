@@ -116,20 +116,64 @@ function getTemplateForAutoState(state: TrackAutoState, displayType: string): st
   }
 }
 
+// Map auto-mode states to scene display modes (for custom scene lookup)
+function getSceneDisplayModeForAutoState(state: TrackAutoState): string | null {
+  switch (state) {
+    case 'armed':
+      return 'start_list';
+    case 'running':
+      return 'running_time';
+    case 'results':
+      return 'track_results';
+    case 'time_of_day':
+    case 'idle':
+      return 'meet_logo';
+    default:
+      return null;
+  }
+}
+
 // Send auto-mode template update to a device
 async function sendAutoModeUpdate(deviceId: string, state: TrackAutoState, liveData?: any) {
   const device = connectedDisplayDevices.get(deviceId);
   if (device && device.autoMode && device.ws.readyState === WebSocket.OPEN) {
-    const template = getTemplateForAutoState(state, device.displayType);
+    const defaultTemplate = getTemplateForAutoState(state, device.displayType);
     autoModeDeviceStates.set(deviceId, state);
+    
+    // Check for custom scene mapping
+    let sceneId: number | null = null;
+    const sceneDisplayMode = getSceneDisplayModeForAutoState(state);
+    
+    if (sceneDisplayMode) {
+      try {
+        const mapping = await storage.getSceneTemplateMappingByTypeAndMode(
+          device.meetId, 
+          device.displayType, 
+          sceneDisplayMode
+        );
+        if (mapping) {
+          sceneId = mapping.sceneId;
+          console.log(`[Auto-Mode] ${device.deviceName}: Using custom scene ${sceneId} for ${sceneDisplayMode}`);
+        }
+      } catch (err) {
+        console.error(`[Auto-Mode] Error looking up scene mapping:`, err);
+      }
+    }
+    
     device.ws.send(JSON.stringify({
       type: 'display_command',
-      template,
+      template: sceneId ? null : defaultTemplate, // Use template only if no custom scene
+      sceneId: sceneId, // Custom scene ID (if mapped)
       eventId: null,
       autoMode: true,
       liveEventData: liveData || null,
     }));
-    console.log(`[Auto-Mode] ${device.deviceName}: ${state} -> ${template}`);
+    
+    if (sceneId) {
+      console.log(`[Auto-Mode] ${device.deviceName}: ${state} -> scene:${sceneId}`);
+    } else {
+      console.log(`[Auto-Mode] ${device.deviceName}: ${state} -> ${defaultTemplate}`);
+    }
   }
 }
 

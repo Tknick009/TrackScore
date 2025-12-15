@@ -37,6 +37,7 @@ interface DisplayDeviceState {
   displayType: DisplayType | null;
   meetId: string | null;
   currentTemplate: string | null;
+  currentSceneId: number | null;
   currentEventId: number | null;
   isConnected: boolean;
   setupComplete: boolean;
@@ -104,6 +105,7 @@ export default function DisplayDevice() {
     displayType: null,
     meetId: null,
     currentTemplate: null,
+    currentSceneId: null,
     currentEventId: null,
     isConnected: false,
     setupComplete: false,
@@ -198,7 +200,8 @@ export default function DisplayDevice() {
           if (message.type === 'display_command') {
             setState(prev => ({
               ...prev,
-              currentTemplate: message.template || prev.currentTemplate,
+              currentTemplate: message.template || (message.sceneId ? null : prev.currentTemplate),
+              currentSceneId: message.sceneId || null, // Custom scene ID from auto-mode mapping
               currentEventId: message.eventId || prev.currentEventId,
               liveEventData: message.liveEventData || prev.liveEventData,
             }));
@@ -414,6 +417,7 @@ export default function DisplayDevice() {
       displayType={state.displayType!}
       meetId={state.meetId}
       template={state.currentTemplate}
+      sceneId={state.currentSceneId}
       eventId={state.currentEventId}
       deviceId={registeredDeviceId || 'pending'}
       isConnected={state.isConnected}
@@ -427,6 +431,7 @@ interface DisplayRendererProps {
   displayType: DisplayType;
   meetId: string | null;
   template: string | null;
+  sceneId: number | null;
   eventId: number | null;
   deviceId: string;
   isConnected: boolean;
@@ -438,7 +443,7 @@ interface EventWithEntries extends Event {
   entries: any[];
 }
 
-function DisplayRenderer({ displayType, meetId, template, eventId, deviceId, isConnected, liveClockTime, liveEventData }: DisplayRendererProps) {
+function DisplayRenderer({ displayType, meetId, template, sceneId, eventId, deviceId, isConnected, liveClockTime, liveEventData }: DisplayRendererProps) {
   const { data: meet } = useQuery<Meet>({
     queryKey: ['/api/meets', meetId],
     enabled: !!meetId,
@@ -464,6 +469,37 @@ function DisplayRenderer({ displayType, meetId, template, eventId, deviceId, isC
   const currentEvent = specificEvent || currentEventData;
 
   const renderContent = () => {
+    // If a custom scene is assigned, render it via iframe
+    if (sceneId) {
+      const capability = DISPLAY_CAPABILITIES[displayType];
+      const isSingleAthleteDisplay = capability.maxAthletes === 1;
+      
+      // Use full viewport for BigBoard, fixed dimensions for P10/P6
+      if (isSingleAthleteDisplay) {
+        return (
+          <iframe
+            src={`/scene-display/${sceneId}`}
+            style={{
+              width: `${capability.resolution.width}px`,
+              height: `${capability.resolution.height}px`,
+              border: 'none',
+              overflow: 'hidden',
+            }}
+            title="Custom Scene Display"
+          />
+        );
+      }
+      
+      return (
+        <iframe
+          src={`/scene-display/${sceneId}`}
+          className="w-screen h-screen"
+          style={{ border: 'none', overflow: 'hidden' }}
+          title="Custom Scene Display"
+        />
+      );
+    }
+    
     const templateId = template || '';
     const capability = DISPLAY_CAPABILITIES[displayType];
     const maxAthletes = capability.maxAthletes;
