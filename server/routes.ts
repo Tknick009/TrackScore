@@ -5335,20 +5335,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       // Auto-mode: Switch display templates based on track mode
-      // Get the meet ID from matching events
+      // Determine the auto state from the incoming data
+      let autoState: TrackAutoState = 'idle';
+      
+      if (mode === 'start_list') {
+        autoState = 'armed'; // Start list = armed state
+      } else if (mode === 'running') {
+        autoState = 'running';
+      } else if (mode === 'results') {
+        autoState = 'results';
+      }
+      
+      // Broadcast to matching meet if events exist, otherwise broadcast to ALL auto-mode displays
       if (matchingEvents.length > 0) {
         const meetId = matchingEvents[0].meetId;
-        let autoState: TrackAutoState = 'idle';
-        
-        if (mode === 'start_list') {
-          autoState = data.armed ? 'armed' : 'armed'; // Start list = armed state
-        } else if (mode === 'running') {
-          autoState = 'running';
-        } else if (mode === 'results') {
-          autoState = 'results';
-        }
-        
         broadcastAutoModeUpdate(meetId, autoState);
+      } else {
+        // No matching events configured - broadcast to all auto-mode enabled displays
+        console.log(`[Auto-Mode] No event config for event #${eventNumber}, broadcasting to all auto-mode displays: ${autoState}`);
+        connectedDisplayDevices.forEach((device, deviceId) => {
+          if (device.autoMode) {
+            sendAutoModeUpdate(deviceId, autoState);
+          }
+        });
       }
     } catch (error) {
       console.error('[Lynx] Error handling track mode change:', error);
