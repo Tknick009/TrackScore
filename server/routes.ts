@@ -91,8 +91,55 @@ interface ConnectedDisplayDevice {
   deviceId: string;
   deviceName: string;
   meetId: string;
+  displayType: string;
+  autoMode: boolean; // Auto-switching based on Lynx timing data
 }
 const connectedDisplayDevices = new Map<string, ConnectedDisplayDevice>();
+
+// Auto-mode state tracking - maps device states based on Lynx events
+type TrackAutoState = 'idle' | 'armed' | 'running' | 'results' | 'time_of_day';
+const autoModeDeviceStates = new Map<string, TrackAutoState>();
+
+// Template mapping for auto-mode states
+function getTemplateForAutoState(state: TrackAutoState, displayType: string): string {
+  switch (state) {
+    case 'armed':
+      return 'start-list';
+    case 'running':
+      return 'running-time';
+    case 'results':
+      return displayType === 'BigBoard' ? 'live-results' : 'results';
+    case 'time_of_day':
+    case 'idle':
+    default:
+      return 'meet-logo';
+  }
+}
+
+// Send auto-mode template update to a device
+function sendAutoModeUpdate(deviceId: string, state: TrackAutoState) {
+  const device = connectedDisplayDevices.get(deviceId);
+  if (device && device.autoMode && device.ws.readyState === WebSocket.OPEN) {
+    const template = getTemplateForAutoState(state, device.displayType);
+    autoModeDeviceStates.set(deviceId, state);
+    device.ws.send(JSON.stringify({
+      type: 'display_command',
+      template,
+      eventId: null,
+      autoMode: true,
+    }));
+    console.log(`[Auto-Mode] ${device.deviceName}: ${state} -> ${template}`);
+  }
+}
+
+// Broadcast auto-mode update to all devices in a meet with auto-mode enabled
+function broadcastAutoModeUpdate(meetId: string, state: TrackAutoState) {
+  connectedDisplayDevices.forEach((device, deviceId) => {
+    if (device.meetId === meetId && device.autoMode) {
+      sendAutoModeUpdate(deviceId, state);
+    }
+  });
+}
 
 // Broadcast function
 function broadcastToDisplays(message: WSMessage) {
@@ -1780,6 +1827,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Device not connected, but command saved to database
         res.json({ success: true, delivered: false, message: "Device offline - command saved for when it reconnects" });
       }
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Toggle auto-mode for a display device
+  app.post("/api/display-devices/:id/auto-mode", async (req, res) => {
+    try {
+      const { enabled } = req.body;
+      const deviceId = req.params.id;
+      
+      const connectedDevice = connectedDisplayDevices.get(deviceId);
+      if (!connectedDevice) {
+        return res.status(404).json({ error: "Device not connected" });
+      }
+      
+      // Update auto-mode setting
+      connectedDevice.autoMode = enabled !== false; // Default to true if not specified
+      
+      // Notify the device of auto-mode status
+      if (connectedDevice.ws.readyState === WebSocket.OPEN) {
+        connectedDevice.ws.send(JSON.stringify({
+          type: 'auto_mode_update',
+          autoMode: connectedDevice.autoMode,
+        }));
+      }
+      
+      console.log(`[Auto-Mode] ${connectedDevice.deviceName}: ${connectedDevice.autoMode ? 'ENABLED' : 'DISABLED'}`);
+      
+      res.json({ success: true, autoMode: connectedDevice.autoMode });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Get auto-mode status for a display device
+  app.get("/api/display-devices/:id/auto-mode", async (req, res) => {
+    try {
+      const deviceId = req.params.id;
+      const connectedDevice = connectedDisplayDevices.get(deviceId);
+      
+      if (!connectedDevice) {
+        return res.json({ connected: false, autoMode: false });
+      }
+      
+      res.json({ connected: true, autoMode: connectedDevice.autoMode });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -4457,12 +4550,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
               registeredDeviceId = device.id;
               
               // Track this WebSocket connection with the device (including displayType)
+              // Auto-mode starts enabled for track displays
+              const isAutoMode = device.displayMode === 'track';
               connectedDisplayDevices.set(device.id, {
                 ws,
                 deviceId: device.id,
                 deviceName: device.deviceName,
                 meetId: device.meetId,
                 displayType: displayType || 'P10',
+                autoMode: isAutoMode,
               });
               
               // Send registration confirmation with assigned event
@@ -5224,6 +5320,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ...data,
         }
       });
+      
+      // Auto-mode: Switch display templates based on track mode
+      // Get the meet ID from matching events
+      if (matchingEvents.length > 0) {
+        const meetId = matchingEvents[0].meetId;
+        let autoState: TrackAutoState = 'idle';
+        
+        if (mode === 'start_list') {
+          autoState = data.armed ? 'armed' : 'armed'; // Start list = armed state
+        } else if (mode === 'running') {
+          autoState = 'running';
+        } else if (mode === 'results') {
+          autoState = 'results';
+        }
+        
+        broadcastAutoModeUpdate(meetId, autoState);
+      }
     } catch (error) {
       console.error('[Lynx] Error handling track mode change:', error);
     }
@@ -5262,6 +5375,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isRunning,
       }
     } as WSMessage);
+    
+    // Auto-mode: Detect time-of-day vs running time
+    // Time of day format: HH:MM:SS (or longer), Running time format: M:SS.hh
+    // If time has exactly 2 colons or is very long, it's likely time-of-day
+    const isTimeOfDay = time.split(':').length >= 3 || time.length > 10;
+    
+    if (isTimeOfDay) {
+      // Time of day shown - switch to logo for all meets
+      connectedDisplayDevices.forEach((device, deviceId) => {
+        if (device.autoMode) {
+          const currentState = autoModeDeviceStates.get(deviceId);
+          if (currentState !== 'time_of_day') {
+            sendAutoModeUpdate(deviceId, 'time_of_day');
+          }
+        }
+      });
+    } else if (isRunning) {
+      // Clock is running - switch to running time for related meets
+      const matchingEvents = await storage.getEventsByLynxEventNumber(eventNumber);
+      if (matchingEvents.length > 0) {
+        const meetId = matchingEvents[0].meetId;
+        connectedDisplayDevices.forEach((device, deviceId) => {
+          if (device.meetId === meetId && device.autoMode) {
+            const currentState = autoModeDeviceStates.get(deviceId);
+            if (currentState !== 'running') {
+              sendAutoModeUpdate(deviceId, 'running');
+            }
+          }
+        });
+      }
+    }
   });
 
   lynxListener.on('result', async (eventNumber, lane, place, time, athleteName) => {
