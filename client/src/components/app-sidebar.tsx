@@ -8,8 +8,7 @@ import {
   Building2,
   Home,
   Settings,
-  LayoutTemplate,
-  Sliders
+  LayoutTemplate
 } from "lucide-react";
 import {
   Sidebar,
@@ -105,10 +104,10 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === `${basePath}/displays` || location.startsWith(`${basePath}/displays/`)}>
-                  <Link href={`${basePath}/displays`} data-testid="link-display-hub">
+                <SidebarMenuButton asChild isActive={location === `${basePath}/displays/control` || location.startsWith(`${basePath}/displays/`)}>
+                  <Link href={`${basePath}/displays/control`} data-testid="link-display-control">
                     <Monitor />
-                    <span>Display Hub</span>
+                    <span>Display Control</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -117,14 +116,6 @@ export function AppSidebar() {
                   <Link href={`${basePath}/scene-editor`} data-testid="link-scene-editor">
                     <LayoutTemplate />
                     <span>Layout Designer</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === `${basePath}/displays/control`}>
-                  <Link href={`${basePath}/displays/control`} data-testid="link-display-control">
-                    <Sliders />
-                    <span>Display Control</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
