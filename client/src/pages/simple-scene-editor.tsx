@@ -121,6 +121,7 @@ export default function SimpleSceneEditor() {
           ...sceneData.scene,
           objects: sceneData.objects 
         });
+        return { id: currentScene.id, isNew: false };
       } else {
         // Create new scene
         const response = await apiRequest('POST', '/api/layout-scenes', sceneData.scene);
@@ -129,12 +130,16 @@ export default function SimpleSceneEditor() {
         for (const obj of sceneData.objects) {
           await apiRequest('POST', '/api/layout-objects', { ...obj, sceneId: newScene.id });
         }
-        return newScene;
+        return { id: newScene.id, isNew: true };
       }
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       toast({ title: 'Scene saved successfully' });
       queryClient.invalidateQueries({ queryKey: ['/api/layout-scenes'] });
+      // Update currentScene with the server-assigned ID so future saves update instead of create
+      if (result?.isNew && result.id && currentScene) {
+        setCurrentScene({ ...currentScene, id: result.id });
+      }
     },
     onError: (error) => {
       toast({ title: 'Failed to save scene', description: String(error), variant: 'destructive' });
@@ -142,20 +147,28 @@ export default function SimpleSceneEditor() {
   });
   
   // Convert LayoutBox to InsertLayoutObject format
-  const boxToLayoutObject = (box: LayoutBox): Partial<InsertLayoutObject> => ({
-    name: `Box ${box.id.slice(-4)}`,
-    objectType: box.type === 'image' ? 'logo' : 'text',
-    x: box.x,
-    y: box.y,
-    width: box.width,
-    height: box.height,
-    zIndex: box.zIndex,
-    dataBinding: box.fieldKey ? { sourceType: 'static' as const, fieldKey: box.fieldKey } : { sourceType: 'static' as const },
-    config: {
-      dynamicText: box.staticText,
-    },
-    style: box.style as any,
-  });
+  const boxToLayoutObject = (box: LayoutBox): Partial<InsertLayoutObject> => {
+    // Determine sourceType based on the field binding
+    // 'static-text' and 'static-image' are truly static, others are live data
+    const isStatic = !box.fieldKey || box.fieldKey === 'static-text' || box.fieldKey === 'static-image';
+    const sourceType = isStatic ? 'static' as const : 'live-data' as const;
+    
+    return {
+      name: `Box ${box.id.slice(-4)}`,
+      objectType: box.type === 'image' ? 'logo' : 'text',
+      x: box.x,
+      y: box.y,
+      width: box.width,
+      height: box.height,
+      zIndex: box.zIndex,
+      dataBinding: { sourceType, fieldKey: box.fieldKey || undefined },
+      config: {
+        dynamicText: box.staticText,
+        staticImageUrl: box.staticImageUrl,
+      },
+      style: box.style as any,
+    };
+  };
   
   // Convert SelectLayoutObject to LayoutBox
   const layoutObjectToBox = (obj: SelectLayoutObject): LayoutBox => ({
@@ -167,6 +180,7 @@ export default function SimpleSceneEditor() {
     type: obj.objectType === 'logo' ? 'image' : 'text',
     fieldKey: (obj.dataBinding as any)?.fieldKey || null,
     staticText: (obj.config as any)?.dynamicText,
+    staticImageUrl: (obj.config as any)?.staticImageUrl,
     zIndex: obj.zIndex,
     style: obj.style as any,
   });

@@ -31,7 +31,17 @@ The frontend uses React with shadcn/ui on Radix UI and Tailwind CSS for styling,
 - **Scene Editor UI:** A visual canvas editor at `/control/:meetId/scene-editor` for managing scenes, dragging and dropping objects, and configuring properties.
 - **Scene Display Runtime:** `/scene-display/:sceneId` renders scenes with live data by subscribing objects to configured data sources via WebSockets.
 
-**Enhanced Layout Editor Tools:**
+**Simplified Scene Editor (Draw-Box Workflow):**
+- **Size-First Creation:** Select screen dimensions from presets (P10 192×96, P6 288×144, BigBoard 1920×1080, etc.) or enter custom dimensions before designing.
+- **Draw-to-Create Boxes:** Use the Draw tool to click-and-drag rectangles on the canvas. Boxes default to text type.
+- **Field Binding Inspector:** Right panel allows mapping boxes to data fields: Event Name, Heat Number, Wind, Lane, Place, Name, School/Team, Time, Splits, Reaction Time, Athlete Photo, School Logo.
+- **Text vs Image Boxes:** Switch box types between text fields and image fields (for athlete photos, school logos).
+- **Copy/Paste/Duplicate:** Ctrl+C/V/D keyboard shortcuts for box operations.
+- **Resizable Boxes:** Corner handles for resizing selected boxes.
+- **Grid Snap:** 5% grid snap with toggle. Preview mode shows sample data.
+- **Field Bindings Registry:** `client/src/lib/fieldBindings.ts` contains all field definitions with labels, data keys, and types.
+
+**Enhanced Layout Editor Tools (Advanced):**
 - **Snap-to-Grid:** Objects snap to 5% grid positions when grid is enabled, ensuring precise alignment.
 - **Alignment Toolbar:** 8 alignment buttons (align left/center/right, top/middle/bottom, distribute horizontally/vertically) for multi-object layouts.
 - **Field Code System:** Dynamic placeholders using curly brace syntax: `{place}`, `{name}`, `{affiliation}`, `{time}`, `{mark}`, `{best_mark}`, `{attempts}`, `{wind}`, `{lane}`, `{reaction}`.
