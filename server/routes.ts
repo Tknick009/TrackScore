@@ -1899,7 +1899,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (displayMode === 'start_list' || displayMode === 'running_time' || displayMode === 'track_results') {
             try {
               // Get the most recent live event data
-              const liveData = await storage.getAllLiveEventData();
+              const liveData = await storage.getLiveEventsByMeet();
               if (liveData && liveData.length > 0) {
                 // Use the most recent entry
                 const latestLive = liveData[0];
@@ -1963,6 +1963,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
             type: 'auto_mode_update',
             autoMode: connectedDevice.autoMode,
           }));
+          
+          // If auto-mode is being enabled, immediately send current state
+          if (autoModeValue) {
+            // Get the current auto-mode state from the global state
+            const currentState = autoModeDeviceStates.get(deviceId) || 'idle';
+            
+            // Get live event data if available
+            let liveData: any = null;
+            try {
+              const allLiveData = await storage.getLiveEventsByMeet();
+              if (allLiveData.length > 0) {
+                const latestEntry = allLiveData[0];
+                liveData = {
+                  eventNumber: latestEntry.eventNumber,
+                  eventType: latestEntry.eventType,
+                  mode: latestEntry.mode,
+                  heat: latestEntry.heat,
+                  runningTime: latestEntry.runningTime,
+                  entries: latestEntry.entries,
+                };
+              }
+            } catch (err) {
+              console.error('[Auto-Mode] Error fetching live data:', err);
+            }
+            
+            // Send the initial display command
+            sendAutoModeUpdate(deviceId, currentState as TrackAutoState, liveData);
+            console.log(`[Auto-Mode] ${updatedDevice.deviceName}: Sent initial state -> ${currentState}`);
+          }
         }
       }
       
