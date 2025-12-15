@@ -1025,6 +1025,7 @@ export type SceneDataBinding = {
   heatNumber?: number;        // For specific heat display
   showAllHeats?: boolean;     // Show combined results from all heats
   fieldCode?: string;         // For text objects - dynamic field code like {place}, {name}, etc.
+  fieldKey?: string;          // For simple field boxes - key from FIELD_BINDINGS registry
 };
 
 // Scene Object Config - type-specific configuration
@@ -1138,6 +1139,8 @@ export const sceneDataBindingSchema = z.object({
   limit: z.number().optional(),
   heatNumber: z.number().optional(),
   showAllHeats: z.boolean().optional(),
+  fieldCode: z.string().optional(),
+  fieldKey: z.string().optional(),
 });
 
 export const sceneObjectConfigSchema = z.object({

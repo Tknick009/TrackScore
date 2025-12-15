@@ -599,7 +599,7 @@ export default function SceneEditor() {
     const dataBinding = object.dataBinding as SceneDataBinding;
     const style = object.style as SceneObjectStyle;
     
-    const fontSize = style?.fontSize || 14;
+    const fontSize = typeof style?.fontSize === 'number' ? style.fontSize : parseInt(String(style?.fontSize || 14), 10);
     const textAlign = style?.textAlign || 'center';
     
     // Determine if this is a field event based on data source
@@ -1064,7 +1064,7 @@ export default function SceneEditor() {
         width: objTemplate.width,
         height: objTemplate.height,
         zIndex: objTemplate.zIndex,
-        config: objTemplate.config || {},
+        config: ('config' in objTemplate ? objTemplate.config : {}) || {},
         dataBinding: { sourceType: 'static' },
         style: {},
         visible: true,
@@ -1730,14 +1730,14 @@ export default function SceneEditor() {
                             <Select
                               value=""
                               onValueChange={(value) => {
-                                const preset = FIELD_PRESETS.find(p => p.id === value);
+                                const preset = Object.entries(FIELD_PRESETS).find(([key]) => key === value);
                                 if (preset) {
                                   updateObjectMutation.mutate({
                                     id: selectedObject.id,
                                     data: {
                                       dataBinding: {
                                         ...(selectedObject.dataBinding as SceneDataBinding || {}),
-                                        fieldCode: preset.template,
+                                        fieldCode: preset[1].codes,
                                       },
                                     },
                                   });
@@ -1748,11 +1748,11 @@ export default function SceneEditor() {
                                 <SelectValue placeholder="Choose a field preset..." />
                               </SelectTrigger>
                               <SelectContent>
-                                {FIELD_PRESETS.map((preset) => (
-                                  <SelectItem key={preset.id} value={preset.id}>
+                                {Object.entries(FIELD_PRESETS).map(([key, preset]) => (
+                                  <SelectItem key={key} value={key}>
                                     <div className="flex flex-col">
                                       <span>{preset.name}</span>
-                                      <span className="text-xs text-muted-foreground">{preset.template}</span>
+                                      <span className="text-xs text-muted-foreground">{preset.codes}</span>
                                     </div>
                                   </SelectItem>
                                 ))}
