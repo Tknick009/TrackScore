@@ -3275,6 +3275,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Scene Template Mappings - assign custom scenes to display types and modes
+  app.get('/api/scene-template-mappings/:meetId', async (req, res) => {
+    try {
+      const mappings = await storage.getSceneTemplateMappings(req.params.meetId);
+      res.json(mappings);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get('/api/scene-template-mappings/:meetId/:displayType/:displayMode', async (req, res) => {
+    try {
+      const { meetId, displayType, displayMode } = req.params;
+      const mapping = await storage.getSceneTemplateMappingByTypeAndMode(meetId, displayType, displayMode);
+      if (!mapping) {
+        return res.status(404).json({ error: 'Mapping not found' });
+      }
+      res.json(mapping);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post('/api/scene-template-mappings', async (req, res) => {
+    try {
+      const { meetId, displayType, displayMode, sceneId } = req.body;
+      
+      if (!meetId || !displayType || !displayMode || !sceneId) {
+        return res.status(400).json({ error: 'Missing required fields: meetId, displayType, displayMode, sceneId' });
+      }
+      
+      const mapping = await storage.setSceneTemplateMapping({
+        meetId,
+        displayType,
+        displayMode,
+        sceneId: parseInt(sceneId),
+      });
+      res.json(mapping);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete('/api/scene-template-mappings/:id', async (req, res) => {
+    try {
+      const success = await storage.deleteSceneTemplateMapping(parseInt(req.params.id));
+      if (!success) {
+        return res.status(404).json({ error: 'Mapping not found' });
+      }
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Record Books
   app.get('/api/record-books', async (req, res) => {
     try {

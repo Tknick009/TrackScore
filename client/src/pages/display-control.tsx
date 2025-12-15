@@ -19,9 +19,16 @@ import {
   Trash2,
   Clock,
   MapPin,
-  Zap
+  Zap,
+  Layout
 } from 'lucide-react';
-import type { Event } from '@shared/schema';
+import { 
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
+import type { Event, SelectLayoutScene, SelectSceneTemplateMapping } from '@shared/schema';
 
 interface DisplayDevice {
   id: string;
@@ -117,6 +124,80 @@ export default function DisplayControlPage() {
       });
     },
   });
+
+  // Scene Template Mappings - for assigning custom scenes to display types/modes
+  const { data: sceneMappings = [] } = useQuery<SelectSceneTemplateMapping[]>({
+    queryKey: ['/api/scene-template-mappings', currentMeetId],
+    enabled: !!currentMeetId,
+  });
+
+  const { data: layoutScenes = [] } = useQuery<SelectLayoutScene[]>({
+    queryKey: ['/api/layout-scenes'],
+    enabled: !!currentMeetId,
+  });
+
+  const setMappingMutation = useMutation({
+    mutationFn: async ({ displayType, displayMode, sceneId }: { displayType: string; displayMode: string; sceneId: number }) => {
+      return apiRequest('POST', '/api/scene-template-mappings', {
+        meetId: currentMeetId,
+        displayType,
+        displayMode,
+        sceneId,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/scene-template-mappings', currentMeetId] });
+      toast({
+        title: 'Scene mapping saved',
+        description: 'The custom scene has been assigned.',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Failed to save mapping',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const deleteMappingMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return apiRequest('DELETE', `/api/scene-template-mappings/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/scene-template-mappings', currentMeetId] });
+      toast({
+        title: 'Scene mapping removed',
+        description: 'The custom scene assignment has been cleared.',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Failed to remove mapping',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Display types and modes for the grid
+  const displayTypes = ['P10', 'P6', 'BigBoard'] as const;
+  const displayModes = ['start_list', 'running_time', 'track_results', 'field_results', 'field_standings', 'team_scores'] as const;
+  
+  const displayModeLabels: Record<string, string> = {
+    start_list: 'Start List',
+    running_time: 'Running Time',
+    track_results: 'Track Results',
+    field_results: 'Field Results',
+    field_standings: 'Field Standings',
+    team_scores: 'Team Scores',
+  };
+
+  // Helper to find mapping for a specific cell
+  const getMappingForCell = (displayType: string, displayMode: string) => {
+    return sceneMappings.find(m => m.displayType === displayType && m.displayMode === displayMode);
+  };
 
   useEffect(() => {
     const handleWebSocketMessage = (event: MessageEvent) => {
@@ -420,6 +501,109 @@ export default function DisplayControlPage() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Scene Layout Mappings Section */}
+      <div className="border-t p-6">
+        <Accordion type="single" collapsible className="w-full">
+          <AccordionItem value="scene-mappings" className="border-none">
+            <AccordionTrigger className="py-4" data-testid="accordion-scene-mappings">
+              <div className="flex items-center gap-2">
+                <Layout className="w-5 h-5" />
+                <span className="text-lg font-semibold">Scene Layout Mappings</span>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent>
+              <div className="pt-4">
+                <p className="text-sm text-muted-foreground mb-4">
+                  Assign custom scenes to display types and modes. When a display shows a specific mode, 
+                  it will use your custom scene instead of the default template.
+                </p>
+                
+                {layoutScenes.length === 0 ? (
+                  <div className="text-center py-8 bg-muted/50 rounded-lg">
+                    <Layout className="w-12 h-12 mx-auto text-muted-foreground/30 mb-3" />
+                    <p className="text-sm text-muted-foreground">
+                      No custom scenes available
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Create scenes in the Scene Editor to use them here
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr>
+                          <th className="text-left p-2 border-b text-sm font-medium text-muted-foreground">
+                            Display Mode
+                          </th>
+                          {displayTypes.map(type => (
+                            <th key={type} className="text-left p-2 border-b text-sm font-medium">
+                              {type}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {displayModes.map(mode => (
+                          <tr key={mode} className="border-b last:border-b-0">
+                            <td className="p-2 text-sm font-medium">
+                              {displayModeLabels[mode]}
+                            </td>
+                            {displayTypes.map(type => {
+                              const mapping = getMappingForCell(type, mode);
+                              const selectedScene = mapping ? layoutScenes.find(s => s.id === mapping.sceneId) : null;
+                              
+                              return (
+                                <td key={`${type}-${mode}`} className="p-2">
+                                  <Select
+                                    value={mapping ? String(mapping.sceneId) : 'default'}
+                                    onValueChange={(value) => {
+                                      if (value === 'default') {
+                                        if (mapping) {
+                                          deleteMappingMutation.mutate(mapping.id);
+                                        }
+                                      } else {
+                                        setMappingMutation.mutate({
+                                          displayType: type,
+                                          displayMode: mode,
+                                          sceneId: parseInt(value),
+                                        });
+                                      }
+                                    }}
+                                    disabled={setMappingMutation.isPending || deleteMappingMutation.isPending}
+                                  >
+                                    <SelectTrigger 
+                                      className="w-[160px]"
+                                      data-testid={`select-mapping-${type}-${mode}`}
+                                    >
+                                      <SelectValue>
+                                        {selectedScene ? selectedScene.name : 'Default'}
+                                      </SelectValue>
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="default">Default</SelectItem>
+                                      {layoutScenes.map(scene => (
+                                        <SelectItem key={scene.id} value={String(scene.id)}>
+                                          {scene.name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
       </div>
     </div>
   );

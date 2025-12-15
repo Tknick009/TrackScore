@@ -154,6 +154,9 @@ import {
   type InsertMeetIngestionSettings,
   type ProcessedFile,
   type InsertProcessedFile,
+  sceneTemplateMappings,
+  type SelectSceneTemplateMapping,
+  type InsertSceneTemplateMapping,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql, and, not, inArray, count, isNull, isNotNull, desc } from "drizzle-orm";
@@ -483,6 +486,12 @@ export interface IStorage {
   updateLayoutObject(id: number, object: Partial<InsertLayoutObject>): Promise<SelectLayoutObject | null>;
   deleteLayoutObject(id: number): Promise<boolean>;
   reorderObjects(sceneId: number, objectIds: number[]): Promise<SelectLayoutObject[]>;
+
+  // Scene Template Mappings
+  getSceneTemplateMappings(meetId: string): Promise<SelectSceneTemplateMapping[]>;
+  getSceneTemplateMappingByTypeAndMode(meetId: string, displayType: string, displayMode: string): Promise<SelectSceneTemplateMapping | undefined>;
+  setSceneTemplateMapping(mapping: InsertSceneTemplateMapping): Promise<SelectSceneTemplateMapping>;
+  deleteSceneTemplateMapping(id: number): Promise<boolean>;
 
   // Meet Ingestion Settings
   getIngestionSettings(meetId: string): Promise<MeetIngestionSettings | null>;
@@ -3219,6 +3228,69 @@ export class DatabaseStorage implements IStorage {
     }
     
     return results;
+  }
+
+  // Scene Template Mappings
+  async getSceneTemplateMappings(meetId: string): Promise<SelectSceneTemplateMapping[]> {
+    return db
+      .select()
+      .from(sceneTemplateMappings)
+      .where(eq(sceneTemplateMappings.meetId, meetId));
+  }
+
+  async getSceneTemplateMappingByTypeAndMode(
+    meetId: string,
+    displayType: string,
+    displayMode: string
+  ): Promise<SelectSceneTemplateMapping | undefined> {
+    const [mapping] = await db
+      .select()
+      .from(sceneTemplateMappings)
+      .where(
+        and(
+          eq(sceneTemplateMappings.meetId, meetId),
+          eq(sceneTemplateMappings.displayType, displayType),
+          eq(sceneTemplateMappings.displayMode, displayMode)
+        )
+      );
+    return mapping || undefined;
+  }
+
+  async setSceneTemplateMapping(mapping: InsertSceneTemplateMapping): Promise<SelectSceneTemplateMapping> {
+    const existing = await this.getSceneTemplateMappingByTypeAndMode(
+      mapping.meetId!,
+      mapping.displayType,
+      mapping.displayMode
+    );
+
+    if (existing) {
+      const [updated] = await db
+        .update(sceneTemplateMappings)
+        .set({
+          sceneId: mapping.sceneId,
+          updatedAt: new Date(),
+        })
+        .where(eq(sceneTemplateMappings.id, existing.id))
+        .returning();
+      return updated;
+    }
+
+    const [created] = await db
+      .insert(sceneTemplateMappings)
+      .values({
+        ...mapping,
+        updatedAt: new Date(),
+      } as any)
+      .returning();
+    return created;
+  }
+
+  async deleteSceneTemplateMapping(id: number): Promise<boolean> {
+    const result = await db
+      .delete(sceneTemplateMappings)
+      .where(eq(sceneTemplateMappings.id, id))
+      .returning();
+    return result.length > 0;
   }
 
   // Meet Ingestion Settings

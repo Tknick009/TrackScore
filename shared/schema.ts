@@ -1196,6 +1196,44 @@ export type LayoutSceneWithObjects = SelectLayoutScene & {
 };
 
 // ====================
+// SCENE TEMPLATE MAPPINGS
+// ====================
+
+// Display modes that can be mapped to custom scenes
+export const SCENE_DISPLAY_MODES = [
+  'meet_logo',
+  'team_scores', 
+  'start_list',
+  'running_time',
+  'track_results',
+  'field_results',
+  'field_standings',
+] as const;
+export type SceneDisplayMode = typeof SCENE_DISPLAY_MODES[number];
+
+// Display types that can have scene mappings
+export const SCENE_DISPLAY_TYPES = ['P10', 'P6', 'BigBoard'] as const;
+export type SceneDisplayType = typeof SCENE_DISPLAY_TYPES[number];
+
+// Scene Template Mappings - Links custom scenes to display types and modes
+export const sceneTemplateMappings = pgTable('scene_template_mappings', {
+  id: serial('id').primaryKey(),
+  meetId: varchar('meet_id').references(() => meets.id, { onDelete: 'cascade' }),
+  displayType: varchar('display_type', { length: 20 }).notNull(), // P10, P6, BigBoard
+  displayMode: varchar('display_mode', { length: 50 }).notNull(), // start_list, running_time, etc.
+  sceneId: integer('scene_id').references(() => layoutScenes.id, { onDelete: 'cascade' }).notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  meetIdIdx: index('scene_template_mappings_meet_id_idx').on(table.meetId),
+  uniqueMapping: unique('unique_display_mapping').on(table.meetId, table.displayType, table.displayMode),
+}));
+
+export const insertSceneTemplateMappingSchema = createInsertSchema(sceneTemplateMappings).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertSceneTemplateMapping = z.infer<typeof insertSceneTemplateMappingSchema>;
+export type SelectSceneTemplateMapping = typeof sceneTemplateMappings.$inferSelect;
+
+// ====================
 // RECORDS SYSTEM
 // ====================
 
