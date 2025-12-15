@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import type { EventWithEntries, Meet } from "@shared/schema";
 
 interface RunningTimeProps {
-  event: EventWithEntries;
+  event?: EventWithEntries | null;
   meet?: Meet | null;
   liveTime?: string;
 }
@@ -31,7 +31,8 @@ export function RunningTime({ event, meet, liveTime }: RunningTimeProps) {
   }, [liveTime]);
 
   const displayTime = liveTime || elapsedTime;
-  const status = event.status === 'completed' ? 'FINAL' : event.status === 'in_progress' ? 'IN PROGRESS' : 'SCHEDULED';
+  const eventName = event?.name || event?.eventName || (event ? `${event.gender === 'M' ? 'Men' : 'Women'} ${event.eventType}` : 'Running Time');
+  const status = event?.status === 'completed' ? 'FINAL' : event?.status === 'in_progress' ? 'IN PROGRESS' : liveTime ? 'IN PROGRESS' : 'SCHEDULED';
 
   return (
     <div 
@@ -65,7 +66,7 @@ export function RunningTime({ event, meet, liveTime }: RunningTimeProps) {
               className="text-white font-bold leading-none uppercase"
               style={{ fontSize: '64px', fontWeight: 700 }}
             >
-              {event.name || event.eventName || `${event.gender === 'M' ? 'Men' : 'Women'} ${event.eventType}`}
+              {eventName}
             </h1>
           </div>
           

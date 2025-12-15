@@ -377,6 +377,23 @@ export class LynxListener extends EventEmitter {
         }
       }
 
+      // Handle clock data without a type field (e.g., {t: "0:12.34"} or {time: "0:12.34"})
+      if (!msgType && config.portType === 'clock') {
+        const timeValue = data.t || data.time;
+        const command = data.c;
+        
+        if (command === 'armed') {
+          this.isRunning = false;
+          this.lastClockTime = '0:00.00';
+          this.emit('clock-update', this.currentEventNumber, '0:00.00', false);
+        } else if (timeValue) {
+          this.isRunning = true;
+          this.lastClockTime = timeValue;
+          this.emit('clock-update', this.currentEventNumber, timeValue, true);
+        }
+        return;
+      }
+
       switch (msgType) {
         case 'S':
           this.handleStartListMessage(msgData, packet, config.name);
@@ -388,7 +405,9 @@ export class LynxListener extends EventEmitter {
           this.handleFieldMessage(msgData, packet, config.name);
           break;
         default:
-          console.log(`[Lynx] Unknown message type: ${msgType}`);
+          if (msgType) {
+            console.log(`[Lynx] Unknown message type: ${msgType}`);
+          }
       }
     } catch (err) {
       console.error(`[Lynx] JSON parse error:`, err);

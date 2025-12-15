@@ -26,6 +26,7 @@ interface DisplayDeviceState {
   currentEventId: number | null;
   isConnected: boolean;
   setupComplete: boolean;
+  liveClockTime: string | null;
 }
 
 // Storage helpers for device identity - each display type gets its own key
@@ -71,6 +72,7 @@ export default function DisplayDevice() {
     currentEventId: null,
     isConnected: false,
     setupComplete: false,
+    liveClockTime: null,
   });
   const [selectedMeetId, setSelectedMeetId] = useState<string | null>(null);
   const [registeredDeviceId, setRegisteredDeviceId] = useState<string | null>(null);
@@ -160,6 +162,13 @@ export default function DisplayDevice() {
               ...prev,
               currentTemplate: message.template || prev.currentTemplate,
               currentEventId: message.eventId || prev.currentEventId,
+            }));
+          }
+          
+          if (message.type === 'clock_update') {
+            setState(prev => ({
+              ...prev,
+              liveClockTime: message.data?.time || prev.liveClockTime,
             }));
           }
         } catch (e) {
@@ -341,6 +350,7 @@ export default function DisplayDevice() {
       eventId={state.currentEventId}
       deviceId={registeredDeviceId || 'pending'}
       isConnected={state.isConnected}
+      liveClockTime={state.liveClockTime}
     />
   );
 }
@@ -352,13 +362,14 @@ interface DisplayRendererProps {
   eventId: number | null;
   deviceId: string;
   isConnected: boolean;
+  liveClockTime: string | null;
 }
 
 interface EventWithEntries extends Event {
   entries: any[];
 }
 
-function DisplayRenderer({ displayType, meetId, template, eventId, deviceId, isConnected }: DisplayRendererProps) {
+function DisplayRenderer({ displayType, meetId, template, eventId, deviceId, isConnected, liveClockTime }: DisplayRendererProps) {
   const { data: meet } = useQuery<Meet>({
     queryKey: ['/api/meets', meetId],
     enabled: !!meetId,
@@ -626,8 +637,8 @@ function DisplayRenderer({ displayType, meetId, template, eventId, deviceId, isC
       return <SingleAthleteTrack event={currentEvent as any} meet={meet} focusIndex={0} />;
     }
 
-    if (isRunningTimeTemplate && currentEvent) {
-      return <RunningTime event={currentEvent as any} meet={meet} />;
+    if (isRunningTimeTemplate) {
+      return <RunningTime event={currentEvent as any} meet={meet} liveTime={liveClockTime || undefined} />;
     }
 
     if ((isFieldResults || isFieldStandings) && currentEvent) {
@@ -639,7 +650,7 @@ function DisplayRenderer({ displayType, meetId, template, eventId, deviceId, isC
       return <BigBoard event={currentEvent as any} meet={meet} showSplits={showSplits} />;
     }
 
-    if (!currentEvent && (isTrackResults || isFieldResults || isRunningTimeTemplate || isStartList || isFieldStandings)) {
+    if (!currentEvent && (isTrackResults || isFieldResults || isStartList || isFieldStandings)) {
       return waitingState;
     }
 
