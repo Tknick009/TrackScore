@@ -3150,15 +3150,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Update scene
+  // Update scene (with objects)
   app.patch('/api/layout-scenes/:id', async (req, res) => {
     try {
-      const parsed = insertLayoutSceneSchema.partial().parse(req.body);
-      const scene = await storage.updateLayoutScene(parseInt(req.params.id), parsed);
+      const sceneId = parseInt(req.params.id);
+      const { objects, ...sceneData } = req.body;
+      
+      // Update scene metadata
+      const parsed = insertLayoutSceneSchema.partial().parse(sceneData);
+      const scene = await storage.updateLayoutScene(sceneId, parsed);
       if (!scene) {
         return res.status(404).json({ error: 'Scene not found' });
       }
-      res.json(scene);
+      
+      // If objects array is provided, replace all objects
+      if (Array.isArray(objects)) {
+        // Delete existing objects for this scene
+        const existingObjects = await storage.getLayoutObjects(sceneId);
+        for (const obj of existingObjects) {
+          await storage.deleteLayoutObject(obj.id);
+        }
+        
+        // Create new objects
+        for (const obj of objects) {
+          await storage.createLayoutObject({ ...obj, sceneId });
+        }
+      }
+      
+      // Return updated scene with objects
+      const updatedScene = await storage.getLayoutScene(sceneId);
+      res.json(updatedScene);
     } catch (error: any) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: 'Invalid scene data', details: error.errors });
