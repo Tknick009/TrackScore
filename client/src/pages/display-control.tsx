@@ -20,8 +20,15 @@ import {
   Clock,
   MapPin,
   Zap,
-  Layout
+  Layout,
+  Send,
+  ExternalLink,
+  QrCode,
+  Copy
 } from 'lucide-react';
+import { DISPLAY_CONTENT_TYPES } from '@shared/layout-templates';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import QRCode from 'qrcode';
 import { 
   Accordion,
   AccordionContent,
@@ -34,6 +41,8 @@ interface DisplayDevice {
   id: string;
   meetId: string;
   deviceName: string;
+  displayType: string | null;
+  currentTemplate: string | null;
   lastIp: string | null;
   lastSeenAt: string | null;
   assignedEventId: string | null;
@@ -42,9 +51,16 @@ interface DisplayDevice {
 }
 
 export default function DisplayControlPage() {
-  const { currentMeetId } = useMeet();
+  const { currentMeetId, currentMeet } = useMeet();
   const { toast } = useToast();
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<Record<string, string>>({});
+  const [qrDialog, setQrDialog] = useState<{ open: boolean; url: string; title: string }>({ open: false, url: '', title: '' });
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
+
+  const baseUrl = typeof window !== 'undefined' 
+    ? `${window.location.protocol}//${window.location.host}` 
+    : '';
 
   const { data: devices = [], isLoading: devicesLoading, refetch: refetchDevices } = useQuery<DisplayDevice[]>({
     queryKey: ['/api/display-devices/meet', currentMeetId],
@@ -95,6 +111,19 @@ export default function DisplayControlPage() {
         variant: 'destructive',
       });
     },
+  });
+
+  const sendCommandMutation = useMutation({
+    mutationFn: async ({ deviceId, template }: { deviceId: string; template: string }) => {
+      return apiRequest('POST', `/api/display-devices/${deviceId}/command`, { template });
+    },
+    onSuccess: (_, variables) => {
+      toast({ title: 'Command sent', description: `Display updated to ${variables.template}` });
+      refetchDevices();
+    },
+    onError: () => {
+      toast({ title: 'Failed to send command', variant: 'destructive' });
+    }
   });
 
   // Auto-mode: Query status for selected device
@@ -197,6 +226,51 @@ export default function DisplayControlPage() {
   // Helper to find mapping for a specific cell
   const getMappingForCell = (displayType: string, displayMode: string) => {
     return sceneMappings.find(m => m.displayType === displayType && m.displayMode === displayMode);
+  };
+
+  // Template selection helpers
+  const getTemplatesForDevice = (displayType: string | null) => {
+    const type = (displayType || 'P10').toLowerCase();
+    return DISPLAY_CONTENT_TYPES.map(c => ({
+      id: `${type}-${c.id}`,
+      name: c.name
+    }));
+  };
+
+  const sendCommand = (device: DisplayDevice, template: string) => {
+    if (template === 'auto-mode') {
+      toggleAutoModeMutation.mutate({ deviceId: device.id, enabled: true });
+    } else {
+      toggleAutoModeMutation.mutate({ deviceId: device.id, enabled: false });
+      sendCommandMutation.mutate({ deviceId: device.id, template });
+    }
+  };
+
+  // Display launch helpers
+  const getDisplayUrl = () => `${baseUrl}/display`;
+
+  const copyToClipboard = async (url: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast({ title: 'Copied!', description: `${label} URL copied to clipboard` });
+    } catch {
+      toast({ title: 'Copy failed', variant: 'destructive' });
+    }
+  };
+
+  const launchDisplay = () => {
+    window.open(getDisplayUrl(), '_blank');
+  };
+
+  const showDisplayQR = async () => {
+    const url = getDisplayUrl();
+    try {
+      const dataUrl = await QRCode.toDataURL(url, { width: 300, margin: 2 });
+      setQrCodeDataUrl(dataUrl);
+      setQrDialog({ open: true, url, title: 'Launch Display' });
+    } catch (error) {
+      console.error('Failed to generate QR code:', error);
+    }
   };
 
   useEffect(() => {
@@ -383,6 +457,53 @@ export default function DisplayControlPage() {
 
               <Card>
                 <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Send className="w-5 h-5" />
+                    Display Content
+                  </CardTitle>
+                  <CardDescription>
+                    Select what content to show on this display
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {selectedDevice.status !== 'online' ? (
+                    <div className="p-3 rounded-lg bg-muted text-muted-foreground text-sm">
+                      Device must be online to send commands
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Select 
+                        value={selectedTemplate[selectedDevice.id] || ''} 
+                        onValueChange={(v) => setSelectedTemplate(prev => ({ ...prev, [selectedDevice.id]: v }))}
+                      >
+                        <SelectTrigger className="flex-1" data-testid="select-template">
+                          <SelectValue placeholder="Select content type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="auto-mode">Auto Mode (Track)</SelectItem>
+                          <Separator className="my-1" />
+                          <SelectItem value="meet-logo">Meet Logo</SelectItem>
+                          <SelectItem value="team-scores">Team Scores</SelectItem>
+                          {getTemplatesForDevice(selectedDevice.displayType).map(t => (
+                            <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button 
+                        onClick={() => sendCommand(selectedDevice, selectedTemplate[selectedDevice.id] || 'meet-logo')}
+                        disabled={sendCommandMutation.isPending || !selectedTemplate[selectedDevice.id]}
+                        data-testid="button-send-command"
+                      >
+                        <Send className="w-4 h-4 mr-2" />
+                        Send
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
                   <CardTitle className="text-lg">Assigned Event</CardTitle>
                   <CardDescription>
                     Select which event this display should show
@@ -497,11 +618,55 @@ export default function DisplayControlPage() {
                 <p className="text-sm text-muted-foreground mt-1">
                   Choose a display device from the list to configure it
                 </p>
+                
+                <Separator className="my-6 mx-auto w-48" />
+                
+                <h4 className="font-medium text-sm mb-3">Or Launch a New Display</h4>
+                <div className="flex items-center justify-center gap-2">
+                  <Button onClick={launchDisplay} data-testid="button-launch-display">
+                    <ExternalLink className="w-4 h-4 mr-2" />
+                    Launch Display
+                  </Button>
+                  <Button variant="outline" size="icon" onClick={showDisplayQR} data-testid="button-show-qr">
+                    <QrCode className="w-4 h-4" />
+                  </Button>
+                  <Button variant="outline" size="icon" onClick={() => copyToClipboard(getDisplayUrl(), 'Display')} data-testid="button-copy-url">
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {/* QR Code Dialog */}
+      <Dialog open={qrDialog.open} onOpenChange={(open) => setQrDialog(prev => ({ ...prev, open }))}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{qrDialog.title}</DialogTitle>
+            <DialogDescription>
+              Scan this QR code on a display device to open the display
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-4 py-4">
+            {qrCodeDataUrl && (
+              <img src={qrCodeDataUrl} alt="QR Code" className="w-64 h-64" />
+            )}
+            <code className="text-xs bg-muted px-2 py-1 rounded break-all">
+              {qrDialog.url}
+            </code>
+            <Button 
+              variant="outline" 
+              onClick={() => copyToClipboard(qrDialog.url, 'Display')}
+              className="w-full"
+            >
+              <Copy className="w-4 h-4 mr-2" />
+              Copy URL
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Scene Layout Mappings Section */}
       <div className="border-t p-6">
