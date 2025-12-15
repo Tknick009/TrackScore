@@ -32,7 +32,7 @@ import {
   Plus, Save, Trash2, Eye, Monitor, 
   MousePointer, Square, Copy, Clipboard,
   Type, Image, ChevronLeft, Upload,
-  Grid3X3, ZoomIn, ZoomOut, Undo2
+  Grid3X3, ZoomIn, ZoomOut, Undo2, Pencil
 } from "lucide-react";
 
 type BoxType = 'text' | 'image';
@@ -94,7 +94,6 @@ export default function SimpleSceneEditor() {
   
   // Dialogs
   const [showNewSceneDialog, setShowNewSceneDialog] = useState(false);
-  const [showSceneListDialog, setShowSceneListDialog] = useState(false);
   const [newSceneName, setNewSceneName] = useState('');
   const [selectedPreset, setSelectedPreset] = useState<typeof SCREEN_PRESETS[number] | null>(null);
   const [customWidth, setCustomWidth] = useState(1920);
@@ -143,6 +142,72 @@ export default function SimpleSceneEditor() {
     },
     onError: (error) => {
       toast({ title: 'Failed to save scene', description: String(error), variant: 'destructive' });
+    },
+  });
+  
+  // Delete scene mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (sceneId: number) => {
+      await apiRequest('DELETE', `/api/layout-scenes/${sceneId}`);
+    },
+    onSuccess: () => {
+      toast({ title: 'Scene deleted' });
+      queryClient.invalidateQueries({ queryKey: [`/api/layout-scenes?meetId=${currentMeet?.id}`] });
+    },
+    onError: (error) => {
+      toast({ title: 'Failed to delete scene', description: String(error), variant: 'destructive' });
+    },
+  });
+  
+  // Copy scene mutation
+  const copyMutation = useMutation({
+    mutationFn: async (scene: LayoutSceneWithObjects) => {
+      // Create a copy of the scene with a new name
+      const response = await apiRequest('POST', '/api/layout-scenes', {
+        meetId: currentMeet?.id,
+        name: `${scene.name} (Copy)`,
+        canvasWidth: scene.canvasWidth,
+        canvasHeight: scene.canvasHeight,
+        backgroundColor: scene.backgroundColor || '#000000',
+      });
+      const newScene = await response.json();
+      
+      // Copy all objects to the new scene
+      const objects = scene.objects || [];
+      for (const obj of objects) {
+        await apiRequest('POST', '/api/layout-objects', {
+          sceneId: newScene.id,
+          name: obj.name,
+          objectType: obj.objectType,
+          x: obj.x,
+          y: obj.y,
+          width: obj.width,
+          height: obj.height,
+          zIndex: obj.zIndex,
+          dataBinding: obj.dataBinding,
+          config: obj.config,
+          style: obj.style,
+        });
+      }
+      
+      return newScene;
+    },
+    onSuccess: (newScene) => {
+      toast({ title: 'Scene copied' });
+      queryClient.invalidateQueries({ queryKey: [`/api/layout-scenes?meetId=${currentMeet?.id}`] });
+      // Load the copied scene for editing
+      setCurrentScene(newScene);
+      setCanvasWidth(newScene.canvasWidth);
+      setCanvasHeight(newScene.canvasHeight);
+      // Fetch and load the objects
+      fetch(`/api/layout-scenes/${newScene.id}/objects`)
+        .then(res => res.json())
+        .then((objects: SelectLayoutObject[]) => {
+          setBoxes(objects.map(layoutObjectToBox));
+        });
+    },
+    onError: (error) => {
+      toast({ title: 'Failed to copy scene', description: String(error), variant: 'destructive' });
     },
   });
   
@@ -223,7 +288,6 @@ export default function SimpleSceneEditor() {
     setCanvasWidth(scene.canvasWidth);
     setCanvasHeight(scene.canvasHeight);
     setBoxes((scene.objects || []).map(layoutObjectToBox));
-    setShowSceneListDialog(false);
   };
   
   // Handle saving the scene
@@ -507,7 +571,7 @@ export default function SimpleSceneEditor() {
             </p>
           </div>
           
-          <div className="grid gap-4">
+          <div className="space-y-4">
             <Card 
               className="cursor-pointer hover-elevate"
               onClick={() => setShowNewSceneDialog(true)}
@@ -525,21 +589,68 @@ export default function SimpleSceneEditor() {
             </Card>
             
             {scenes.length > 0 && (
-              <Card 
-                className="cursor-pointer hover-elevate"
-                onClick={() => setShowSceneListDialog(true)}
-                data-testid="card-open-scene"
-              >
-                <CardContent className="flex items-center gap-4 p-6">
-                  <div className="p-3 rounded-lg bg-secondary">
-                    <Monitor className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold">Open Existing Scene</h3>
-                    <p className="text-sm text-muted-foreground">{scenes.length} scene{scenes.length !== 1 ? 's' : ''} available</p>
-                  </div>
-                </CardContent>
-              </Card>
+              <div className="space-y-3">
+                <h3 className="font-semibold text-lg">Your Scenes</h3>
+                <div className="space-y-2">
+                  {scenes.map((scene) => (
+                    <Card key={scene.id} className="hover-elevate" data-testid={`card-scene-${scene.id}`}>
+                      <CardContent className="flex items-center justify-between p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-lg bg-secondary">
+                            <Monitor className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="font-medium">{scene.name}</div>
+                            <div className="text-sm text-muted-foreground">
+                              {scene.canvasWidth}×{scene.canvasHeight} • {(scene.objects || []).length} objects
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleLoadScene(scene)}
+                            title="Edit"
+                            data-testid={`button-edit-scene-${scene.id}`}
+                          >
+                            <Pencil className="w-4 h-4 mr-1" />
+                            Edit
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              copyMutation.mutate(scene);
+                            }}
+                            disabled={copyMutation.isPending}
+                            title="Copy"
+                            data-testid={`button-copy-scene-${scene.id}`}
+                          >
+                            <Copy className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm(`Delete "${scene.name}"? This cannot be undone.`)) {
+                                deleteMutation.mutate(scene.id);
+                              }
+                            }}
+                            disabled={deleteMutation.isPending}
+                            title="Delete"
+                            data-testid={`button-delete-scene-${scene.id}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
         </div>
@@ -628,39 +739,6 @@ export default function SimpleSceneEditor() {
                 Create Scene
               </Button>
             </DialogFooter>
-          </DialogContent>
-        </Dialog>
-        
-        {/* Scene List Dialog */}
-        <Dialog open={showSceneListDialog} onOpenChange={setShowSceneListDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Open Scene</DialogTitle>
-            </DialogHeader>
-            <ScrollArea className="max-h-[400px]">
-              <div className="space-y-2">
-                {scenes.map((scene) => (
-                  <Card
-                    key={scene.id}
-                    className="cursor-pointer hover-elevate"
-                    onClick={() => handleLoadScene(scene)}
-                    data-testid={`card-scene-${scene.id}`}
-                  >
-                    <CardContent className="flex items-center justify-between p-4">
-                      <div>
-                        <div className="font-medium">{scene.name}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {scene.canvasWidth}×{scene.canvasHeight} • {(scene.objects || []).length} objects
-                        </div>
-                      </div>
-                      <Badge variant="secondary">
-                        {(scene.objects || []).length} items
-                      </Badge>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </ScrollArea>
           </DialogContent>
         </Dialog>
       </div>
