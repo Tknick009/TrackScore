@@ -93,6 +93,20 @@ function useLiveEventData(eventNumber: string | number | null | undefined) {
   });
 }
 
+function useLatestLiveEventData() {
+  return useQuery({
+    queryKey: ["/api/live-events/latest"],
+    queryFn: async () => {
+      const res = await fetch(`/api/live-events`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return Array.isArray(data) && data.length > 0 ? data[0] : null;
+    },
+    staleTime: 500,
+    refetchInterval: 1000,
+  });
+}
+
 function useTeamStandings(meetId: string | null | undefined) {
   return useQuery({
     queryKey: [`/api/meets/${meetId}/scoring/standings`],
@@ -140,9 +154,20 @@ function SceneObjectRenderer({
     dataBinding.sourceType === "events" ? eventId : null
   );
   const { data: meet } = useMeet(meetId);
-  const { data: liveData } = useLiveEventData(
-    dataBinding.sourceType === "live-data" ? liveEventKey : null
+  
+  // Fetch specific live event data if we have an event key
+  const { data: specificLiveData } = useLiveEventData(
+    dataBinding.sourceType === "live-data" && liveEventKey ? liveEventKey : null
   );
+  
+  // Fallback: fetch latest live event data if no specific event is provided
+  const { data: latestLiveData } = useLatestLiveEventData();
+  
+  // Use specific data if available, otherwise fall back to latest
+  const liveData = dataBinding.sourceType === "live-data" 
+    ? (specificLiveData || latestLiveData) 
+    : null;
+  
   const { data: standings } = useTeamStandings(
     dataBinding.sourceType === "standings" ? meetId : null
   );
