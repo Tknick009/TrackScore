@@ -1838,25 +1838,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { enabled } = req.body;
       const deviceId = req.params.id;
       
+      // Persist to database
+      const autoModeValue = enabled !== false;
+      const updatedDevice = await storage.updateDisplayAutoMode(deviceId, autoModeValue);
+      
+      if (!updatedDevice) {
+        return res.status(404).json({ error: "Device not found" });
+      }
+      
+      // Update in-memory state if device is connected
       const connectedDevice = connectedDisplayDevices.get(deviceId);
-      if (!connectedDevice) {
-        return res.status(404).json({ error: "Device not connected" });
+      if (connectedDevice) {
+        connectedDevice.autoMode = autoModeValue;
+        
+        // Notify the device of auto-mode status
+        if (connectedDevice.ws.readyState === WebSocket.OPEN) {
+          connectedDevice.ws.send(JSON.stringify({
+            type: 'auto_mode_update',
+            autoMode: connectedDevice.autoMode,
+          }));
+        }
       }
       
-      // Update auto-mode setting
-      connectedDevice.autoMode = enabled !== false; // Default to true if not specified
+      console.log(`[Auto-Mode] ${updatedDevice.deviceName}: ${autoModeValue ? 'ENABLED' : 'DISABLED'}`);
       
-      // Notify the device of auto-mode status
-      if (connectedDevice.ws.readyState === WebSocket.OPEN) {
-        connectedDevice.ws.send(JSON.stringify({
-          type: 'auto_mode_update',
-          autoMode: connectedDevice.autoMode,
-        }));
-      }
-      
-      console.log(`[Auto-Mode] ${connectedDevice.deviceName}: ${connectedDevice.autoMode ? 'ENABLED' : 'DISABLED'}`);
-      
-      res.json({ success: true, autoMode: connectedDevice.autoMode });
+      res.json({ success: true, autoMode: autoModeValue });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -1866,13 +1872,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/display-devices/:id/auto-mode", async (req, res) => {
     try {
       const deviceId = req.params.id;
-      const connectedDevice = connectedDisplayDevices.get(deviceId);
       
-      if (!connectedDevice) {
-        return res.json({ connected: false, autoMode: false });
+      // Get persisted value from database
+      const device = await storage.getDisplayDevice(deviceId);
+      if (!device) {
+        return res.status(404).json({ error: "Device not found" });
       }
       
-      res.json({ connected: true, autoMode: connectedDevice.autoMode });
+      const connectedDevice = connectedDisplayDevices.get(deviceId);
+      const isConnected = !!connectedDevice;
+      
+      res.json({ 
+        connected: isConnected, 
+        autoMode: device.autoMode ?? true // Default to true
+      });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -4550,15 +4563,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
               registeredDeviceId = device.id;
               
               // Track this WebSocket connection with the device (including displayType)
-              // Auto-mode starts enabled for track displays
-              const isAutoMode = device.displayMode === 'track';
+              // Load persisted autoMode from database, default to true for track displays
+              const deviceAutoMode = device.autoMode ?? (device.displayMode === 'track');
               connectedDisplayDevices.set(device.id, {
                 ws,
                 deviceId: device.id,
                 deviceName: device.deviceName,
                 meetId: device.meetId,
                 displayType: displayType || 'P10',
-                autoMode: isAutoMode,
+                autoMode: deviceAutoMode,
               });
               
               // Send registration confirmation with assigned event

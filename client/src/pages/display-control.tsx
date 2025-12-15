@@ -9,6 +9,8 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { useMeet } from '@/contexts/MeetContext';
 import { apiRequest, queryClient } from '@/lib/queryClient';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { 
   Monitor, 
   Wifi, 
@@ -16,7 +18,8 @@ import {
   RefreshCw, 
   Trash2,
   Clock,
-  MapPin
+  MapPin,
+  Zap
 } from 'lucide-react';
 import type { Event } from '@shared/schema';
 
@@ -81,6 +84,34 @@ export default function DisplayControlPage() {
     onError: (error: Error) => {
       toast({
         title: 'Delete failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Auto-mode: Query status for selected device
+  const { data: autoModeStatus } = useQuery<{ connected: boolean; autoMode: boolean }>({
+    queryKey: ['/api/display-devices', selectedDeviceId, 'auto-mode'],
+    enabled: !!selectedDeviceId,
+    refetchInterval: 5000, // Poll every 5 seconds to keep status updated
+  });
+
+  // Auto-mode: Toggle mutation
+  const toggleAutoModeMutation = useMutation({
+    mutationFn: async ({ deviceId, enabled }: { deviceId: string; enabled: boolean }) => {
+      return apiRequest('POST', `/api/display-devices/${deviceId}/auto-mode`, { enabled });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/display-devices', selectedDeviceId, 'auto-mode'] });
+      toast({
+        title: 'Auto-mode updated',
+        description: 'Display auto-switching has been updated.',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Auto-mode toggle failed',
         description: error.message,
         variant: 'destructive',
       });
@@ -307,6 +338,70 @@ export default function DisplayControlPage() {
                         Status: {selectedDevice.assignedEvent.status}
                       </div>
                     </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Zap className="w-5 h-5" />
+                    Auto-Switching Mode
+                  </CardTitle>
+                  <CardDescription>
+                    Automatically switch display templates based on race state
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {selectedDevice.status !== 'online' ? (
+                    <div className="p-3 rounded-lg bg-muted text-muted-foreground text-sm">
+                      Device must be online to configure auto-switching
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="space-y-1">
+                          <Label htmlFor="auto-mode-toggle" className="font-medium">
+                            Enable Auto-Switching
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            When enabled, display will automatically switch between templates based on timing system data
+                          </p>
+                        </div>
+                        <Switch
+                          id="auto-mode-toggle"
+                          checked={autoModeStatus?.autoMode ?? false}
+                          onCheckedChange={(checked) => {
+                            toggleAutoModeMutation.mutate({
+                              deviceId: selectedDevice.id,
+                              enabled: checked,
+                            });
+                          }}
+                          disabled={toggleAutoModeMutation.isPending || !autoModeStatus?.connected}
+                          data-testid="switch-auto-mode"
+                        />
+                      </div>
+
+                      {autoModeStatus?.autoMode && (
+                        <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+                          <div className="flex items-start gap-2">
+                            <Zap className="w-4 h-4 text-green-500 mt-0.5" />
+                            <div>
+                              <div className="text-sm font-medium text-green-700 dark:text-green-400">
+                                Auto-switching active
+                              </div>
+                              <div className="text-xs text-green-600 dark:text-green-500 mt-1">
+                                Display will automatically show:<br/>
+                                • Start list when race is armed<br/>
+                                • Running time during race<br/>
+                                • Results when race finishes<br/>
+                                • Meet logo when idle
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
                 </CardContent>
               </Card>

@@ -156,7 +156,7 @@ import {
   type InsertProcessedFile,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, sql, and, not, inArray, count, isNull, desc } from "drizzle-orm";
+import { eq, sql, and, not, inArray, count, isNull, isNotNull, desc } from "drizzle-orm";
 
 // Helper type for record books with records
 export type RecordBookWithRecords = SelectRecordBook & { records: SelectRecord[] };
@@ -234,6 +234,7 @@ export interface IStorage {
   updateDisplayDeviceStatus(id: string, status: string, lastIp?: string): Promise<DisplayDevice | undefined>;
   updateDisplayDeviceMode(id: string, displayMode: 'track' | 'field'): Promise<DisplayDevice | undefined>;
   updateDisplayDeviceType(id: string, displayType: string, deviceName?: string): Promise<DisplayDevice | undefined>;
+  updateDisplayAutoMode(id: string, autoMode: boolean): Promise<DisplayDevice | undefined>;
   assignEventToDisplay(displayId: string, eventId: string | null): Promise<DisplayDevice | undefined>;
   updateDisplayTemplate(displayId: string, template: string | null): Promise<DisplayDevice | undefined>;
   deleteDisplayDevice(id: string): Promise<boolean>;
@@ -519,7 +520,9 @@ export class DatabaseStorage implements IStorage {
   async getEventsByLynxEventNumber(lynxEventNumber: number): Promise<Event[]> {
     const lynxNumStr = String(lynxEventNumber);
     
-    const allEvents = await db.select().from(events).where(sql`${events.lynxEventNumber} IS NOT NULL`);
+    // Get all events and filter by lynxEventNumber in JavaScript
+    // This avoids SQL syntax issues with the isNotNull function
+    const allEvents = await db.select().from(events);
     
     return allEvents.filter(e => {
       if (!e.lynxEventNumber) return false;
@@ -1037,6 +1040,7 @@ export class DatabaseStorage implements IStorage {
     
     if (existing) {
       // Update existing device - also update displayType if provided
+      // Preserve existing autoMode setting
       const updateData: any = {
         status: 'online',
         lastSeenAt: new Date(),
@@ -1053,12 +1057,13 @@ export class DatabaseStorage implements IStorage {
       return updated;
     }
     
-    // Create new device
+    // Create new device with autoMode=true by default
     const [newDevice] = await db
       .insert(displayDevices)
       .values({
         ...device,
         displayType: device.displayType || 'P10',
+        autoMode: true, // New devices start with auto-mode enabled
         status: 'online',
         lastSeenAt: new Date(),
       })
@@ -1112,6 +1117,15 @@ export class DatabaseStorage implements IStorage {
     const [updated] = await db
       .update(displayDevices)
       .set(updateData)
+      .where(eq(displayDevices.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async updateDisplayAutoMode(id: string, autoMode: boolean): Promise<DisplayDevice | undefined> {
+    const [updated] = await db
+      .update(displayDevices)
+      .set({ autoMode })
       .where(eq(displayDevices.id, id))
       .returning();
     return updated || undefined;
