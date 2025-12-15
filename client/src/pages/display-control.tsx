@@ -127,12 +127,12 @@ export default function DisplayControlPage() {
 
   // Scene Template Mappings - for assigning custom scenes to display types/modes
   const { data: sceneMappings = [] } = useQuery<SelectSceneTemplateMapping[]>({
-    queryKey: ['/api/scene-template-mappings', currentMeetId],
+    queryKey: [`/api/scene-template-mappings/${currentMeetId}`],
     enabled: !!currentMeetId,
   });
 
   const { data: layoutScenes = [] } = useQuery<SelectLayoutScene[]>({
-    queryKey: ['/api/layout-scenes'],
+    queryKey: [`/api/layout-scenes?meetId=${currentMeetId}`],
     enabled: !!currentMeetId,
   });
 
