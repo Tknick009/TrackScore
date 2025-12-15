@@ -474,11 +474,17 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, eventId, devi
       const capability = DISPLAY_CAPABILITIES[displayType];
       const isSingleAthleteDisplay = capability.maxAthletes === 1;
       
+      // Build scene URL with event number for live data
+      const eventNum = liveEventData?.eventNumber;
+      const sceneUrl = eventNum 
+        ? `/scene-display/${sceneId}?eventNumber=${eventNum}` 
+        : `/scene-display/${sceneId}`;
+      
       // Use full viewport for BigBoard, fixed dimensions for P10/P6
       if (isSingleAthleteDisplay) {
         return (
           <iframe
-            src={`/scene-display/${sceneId}`}
+            src={sceneUrl}
             style={{
               width: `${capability.resolution.width}px`,
               height: `${capability.resolution.height}px`,
@@ -492,7 +498,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, eventId, devi
       
       return (
         <iframe
-          src={`/scene-display/${sceneId}`}
+          src={sceneUrl}
           className="w-screen h-screen"
           style={{ border: 'none', overflow: 'hidden' }}
           title="Custom Scene Display"

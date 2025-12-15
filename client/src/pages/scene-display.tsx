@@ -105,12 +105,14 @@ function SceneObjectRenderer({
   object, 
   meetId,
   canvasWidth,
-  canvasHeight
+  canvasHeight,
+  eventNumber
 }: { 
   object: SelectLayoutObject; 
   meetId?: string;
   canvasWidth: number;
   canvasHeight: number;
+  eventNumber?: string;
 }) {
   const dataBinding: SceneDataBinding = object.dataBinding || { sourceType: 'static' };
   const componentConfig: SceneObjectConfig = object.config || {};
@@ -131,12 +133,15 @@ function SceneObjectRenderer({
   const eventId = eventIds?.[0];
   const lynxPort = dataBinding.lynxPort;
   
+  // Use lynxPort from dataBinding, or fallback to eventNumber from URL for auto-mode
+  const liveEventKey = lynxPort || eventNumber;
+  
   const { data: event, isLoading: eventLoading } = useEventWithEntries(
     dataBinding.sourceType === "events" ? eventId : null
   );
   const { data: meet } = useMeet(meetId);
   const { data: liveData } = useLiveEventData(
-    dataBinding.sourceType === "live-data" ? lynxPort : null
+    dataBinding.sourceType === "live-data" ? liveEventKey : null
   );
   const { data: standings } = useTeamStandings(
     dataBinding.sourceType === "standings" ? meetId : null
@@ -609,6 +614,7 @@ export default function SceneDisplay() {
   const urlParams = new URLSearchParams(location.split("?")[1] || "");
   const sceneId = params.sceneId || urlParams.get("sceneId") || undefined;
   const meetId = urlParams.get("meetId") || undefined;
+  const eventNumber = urlParams.get("eventNumber") || undefined;
   
   const [dimensions, setDimensions] = useState({ width: 1920, height: 1080 });
   const [showHint, setShowHint] = useState(true);
@@ -782,6 +788,7 @@ export default function SceneDisplay() {
             meetId={meetId}
             canvasWidth={dimensions.width}
             canvasHeight={dimensions.height}
+            eventNumber={eventNumber}
           />
         ))}
         

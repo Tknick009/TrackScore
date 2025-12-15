@@ -473,7 +473,7 @@ export interface IStorage {
   bulkImportAthleteBests(bests: InsertAthleteBest[]): Promise<AthleteBest[]>;
 
   // Layout Scenes (Scene-based layout system)
-  getLayoutScenes(meetId?: string): Promise<SelectLayoutScene[]>;
+  getLayoutScenes(meetId?: string): Promise<LayoutSceneWithObjects[]>;
   getLayoutScene(id: number): Promise<LayoutSceneWithObjects | null>;
   createLayoutScene(scene: InsertLayoutScene): Promise<SelectLayoutScene>;
   updateLayoutScene(id: number, scene: Partial<InsertLayoutScene>): Promise<SelectLayoutScene | null>;
@@ -3113,14 +3113,26 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Layout Scenes (Scene-based layout system)
-  async getLayoutScenes(meetId?: string): Promise<SelectLayoutScene[]> {
+  async getLayoutScenes(meetId?: string): Promise<LayoutSceneWithObjects[]> {
+    let scenes: SelectLayoutScene[];
     if (meetId) {
-      return db
+      scenes = await db
         .select()
         .from(layoutScenes)
         .where(eq(layoutScenes.meetId, meetId));
+    } else {
+      scenes = await db.select().from(layoutScenes);
     }
-    return db.select().from(layoutScenes);
+    
+    // Fetch objects for each scene
+    const scenesWithObjects = await Promise.all(
+      scenes.map(async (scene) => {
+        const objects = await this.getLayoutObjects(scene.id);
+        return { ...scene, objects };
+      })
+    );
+    
+    return scenesWithObjects;
   }
 
   async getLayoutScene(id: number): Promise<LayoutSceneWithObjects | null> {
