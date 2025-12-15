@@ -647,12 +647,6 @@ export default function SceneDisplay() {
   const eventNumber = urlParams.get("eventNumber") || undefined;
   
   const [dimensions, setDimensions] = useState({ width: 1920, height: 1080 });
-  const [showHint, setShowHint] = useState(true);
-  
-  useEffect(() => {
-    const timer = setTimeout(() => setShowHint(false), 5000);
-    return () => clearTimeout(timer);
-  }, []);
   
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -832,14 +826,6 @@ export default function SceneDisplay() {
           </div>
         )}
         
-        {showHint && (
-          <div 
-            className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-lg bg-black/70 text-white text-sm animate-pulse cursor-pointer"
-            onClick={toggleFullscreen}
-          >
-            Press <kbd className="px-2 py-0.5 mx-1 rounded bg-white/20 font-mono">F</kbd> or <kbd className="px-2 py-0.5 mx-1 rounded bg-white/20 font-mono">F11</kbd> for fullscreen
-          </div>
-        )}
       </div>
     </div>
   );
