@@ -1024,6 +1024,7 @@ export type SceneDataBinding = {
   limit?: number;             // Max number of results to show
   heatNumber?: number;        // For specific heat display
   showAllHeats?: boolean;     // Show combined results from all heats
+  fieldCode?: string;         // For text objects - dynamic field code like {place}, {name}, etc.
 };
 
 // Scene Object Config - type-specific configuration
@@ -1055,6 +1056,7 @@ export type SceneObjectConfig = {
   text?: string;
   fontWeight?: string;
   textColor?: string;
+  dynamicText?: string;
   
   // Logo options
   imageUrl?: string;
@@ -1086,6 +1088,8 @@ export type SceneObjectStyle = {
   padding?: number;
   fontFamily?: string;
   boxShadow?: string;
+  fontSize?: string;
+  textAlign?: 'left' | 'center' | 'right';
 };
 
 // Layout Objects - Individual objects within a scene
