@@ -175,8 +175,7 @@ export default function SimpleSceneEditor() {
       // Copy all objects to the new scene
       const objects = scene.objects || [];
       for (const obj of objects) {
-        await apiRequest('POST', '/api/layout-objects', {
-          sceneId: newScene.id,
+        await apiRequest('POST', `/api/layout-scenes/${newScene.id}/objects`, {
           name: obj.name,
           objectType: obj.objectType,
           x: obj.x,
