@@ -54,6 +54,24 @@ export default function DisplayHub() {
     }
   });
 
+  const toggleAutoModeMutation = useMutation({
+    mutationFn: async ({ deviceId, enabled }: { deviceId: string; enabled: boolean }) => {
+      return apiRequest('POST', `/api/display-devices/${deviceId}/auto-mode`, { enabled });
+    },
+    onSuccess: (_, variables) => {
+      toast({ 
+        title: 'Auto Mode ' + (variables.enabled ? 'Enabled' : 'Disabled'),
+        description: variables.enabled 
+          ? 'Display will automatically switch based on race state' 
+          : 'Display will stay on manual control'
+      });
+      refetchDevices();
+    },
+    onError: () => {
+      toast({ title: 'Failed to toggle auto mode', variant: 'destructive' });
+    }
+  });
+
   const deleteDeviceMutation = useMutation({
     mutationFn: async (deviceId: string) => {
       return apiRequest('DELETE', `/api/display-devices/${deviceId}`);
@@ -95,7 +113,13 @@ export default function DisplayHub() {
   };
 
   const sendCommand = (device: DisplayDevice, template: string) => {
-    sendCommandMutation.mutate({ deviceId: device.id, template });
+    if (template === 'auto-mode') {
+      toggleAutoModeMutation.mutate({ deviceId: device.id, enabled: true });
+    } else {
+      // Disable auto-mode when manually selecting a template
+      toggleAutoModeMutation.mutate({ deviceId: device.id, enabled: false });
+      sendCommandMutation.mutate({ deviceId: device.id, template });
+    }
   };
 
   const getTemplatesForDevice = (displayType: string | null) => {
@@ -163,6 +187,8 @@ export default function DisplayHub() {
                             <SelectValue placeholder="Select content" />
                           </SelectTrigger>
                           <SelectContent>
+                            <SelectItem value="auto-mode">Auto Mode (Track)</SelectItem>
+                            <Separator className="my-1" />
                             <SelectItem value="meet-logo">Meet Logo</SelectItem>
                             <SelectItem value="team-scores">Team Scores</SelectItem>
                             {getTemplatesForDevice(device.displayType).map(t => (
