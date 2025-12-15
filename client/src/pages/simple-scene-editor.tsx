@@ -282,12 +282,21 @@ export default function SimpleSceneEditor() {
     setSelectedPreset(null);
   };
   
-  // Handle loading an existing scene
-  const handleLoadScene = (scene: LayoutSceneWithObjects) => {
-    setCurrentScene(scene);
-    setCanvasWidth(scene.canvasWidth);
-    setCanvasHeight(scene.canvasHeight);
-    setBoxes((scene.objects || []).map(layoutObjectToBox));
+  // Handle loading an existing scene - fetch full data with objects
+  const handleLoadScene = async (scene: LayoutSceneWithObjects) => {
+    try {
+      // Fetch the full scene with objects
+      const response = await fetch(`/api/layout-scenes/${scene.id}`);
+      if (!response.ok) throw new Error('Failed to load scene');
+      const fullScene: LayoutSceneWithObjects = await response.json();
+      
+      setCurrentScene(fullScene);
+      setCanvasWidth(fullScene.canvasWidth);
+      setCanvasHeight(fullScene.canvasHeight);
+      setBoxes((fullScene.objects || []).map(layoutObjectToBox));
+    } catch (error) {
+      toast({ title: 'Failed to load scene', description: String(error), variant: 'destructive' });
+    }
   };
   
   // Handle saving the scene
@@ -833,7 +842,13 @@ export default function SimpleSceneEditor() {
         {/* Top Bar */}
         <div className="h-12 border-b flex items-center justify-between px-4 gap-4">
           <div className="flex items-center gap-2">
-            <span className="font-medium">{currentScene.name}</span>
+            <Input
+              value={currentScene.name}
+              onChange={(e) => setCurrentScene({ ...currentScene, name: e.target.value })}
+              className="w-48 h-8 font-medium"
+              placeholder="Scene name"
+              data-testid="input-scene-name-edit"
+            />
             <Badge variant="outline">{canvasWidth}×{canvasHeight}</Badge>
           </div>
           
