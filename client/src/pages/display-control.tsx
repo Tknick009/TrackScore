@@ -474,7 +474,13 @@ export default function DisplayControlPage() {
                     <div className="flex items-center gap-2">
                       <Select 
                         value={selectedTemplate[selectedDevice.id] || ''} 
-                        onValueChange={(v) => setSelectedTemplate(prev => ({ ...prev, [selectedDevice.id]: v }))}
+                        onValueChange={(v) => {
+                          setSelectedTemplate(prev => ({ ...prev, [selectedDevice.id]: v }));
+                          // Auto-mode triggers immediately when selected
+                          if (v === 'auto-mode') {
+                            toggleAutoModeMutation.mutate({ deviceId: selectedDevice.id, enabled: true });
+                          }
+                        }}
                       >
                         <SelectTrigger className="flex-1" data-testid="select-template">
                           <SelectValue placeholder="Select content type" />
@@ -491,7 +497,7 @@ export default function DisplayControlPage() {
                       </Select>
                       <Button 
                         onClick={() => sendCommand(selectedDevice, selectedTemplate[selectedDevice.id] || 'meet-logo')}
-                        disabled={sendCommandMutation.isPending || !selectedTemplate[selectedDevice.id]}
+                        disabled={sendCommandMutation.isPending || !selectedTemplate[selectedDevice.id] || selectedTemplate[selectedDevice.id] === 'auto-mode'}
                         data-testid="button-send-command"
                       >
                         <Send className="w-4 h-4 mr-2" />
