@@ -3293,7 +3293,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== LAYOUT OBJECTS API ROUTES =====
 
-  // Get all objects in a scene
+  // Get all objects in a scene (via query parameter)
+  app.get('/api/layout-objects', async (req, res) => {
+    try {
+      const sceneIdParam = req.query.sceneId;
+      if (!sceneIdParam) {
+        return res.json([]);
+      }
+      const sceneId = parseInt(sceneIdParam as string);
+      if (isNaN(sceneId)) {
+        return res.status(400).json({ error: 'Invalid sceneId' });
+      }
+      const objects = await storage.getLayoutObjects(sceneId);
+      res.json(objects);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get all objects in a scene (via path parameter)
   app.get('/api/layout-scenes/:sceneId/objects', async (req, res) => {
     try {
       const objects = await storage.getLayoutObjects(parseInt(req.params.sceneId));
