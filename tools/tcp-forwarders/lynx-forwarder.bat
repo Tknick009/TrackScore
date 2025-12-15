@@ -11,9 +11,9 @@ echo This script forwards FinishLynx/FieldLynx TCP data
 echo to your online scoring system via HTTP.
 echo.
 echo PORTS:
-echo   Clock:   5056 (FinishLynx running time)
-echo   Results: 5055 (FinishLynx timing results)
-echo   Field:   5057 (FieldLynx field results)
+echo   Results: 5555 (FinishLynx timing results)
+echo   Clock:   5556 (FinishLynx running time)
+echo   Field:   5557 (FieldLynx field results)
 echo.
 echo ================================================
 echo.
