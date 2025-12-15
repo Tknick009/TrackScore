@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Monitor, Tv, LayoutGrid, Calendar } from "lucide-react";
 import type { Meet, Event } from "@shared/schema";
 import { 
@@ -47,6 +49,10 @@ function getDeviceStorageKey(displayType: DisplayType): string {
   return `display_device_id_${displayType}`;
 }
 
+function getDeviceNameStorageKey(displayType: DisplayType): string {
+  return `display_device_name_${displayType}`;
+}
+
 function getStoredDeviceId(displayType: DisplayType): string | null {
   const storageKey = getDeviceStorageKey(displayType);
   
@@ -63,6 +69,15 @@ function getStoredDeviceId(displayType: DisplayType): string | null {
   return null;
 }
 
+function getStoredDeviceName(displayType: DisplayType): string {
+  const storageKey = getDeviceNameStorageKey(displayType);
+  try {
+    return localStorage.getItem(storageKey) || '';
+  } catch (e) {
+    return '';
+  }
+}
+
 function saveDeviceId(displayType: DisplayType, deviceId: string): void {
   const storageKey = getDeviceStorageKey(displayType);
   
@@ -77,6 +92,13 @@ function saveDeviceId(displayType: DisplayType, deviceId: string): void {
   document.cookie = `${storageKey}=${deviceId};expires=${expires.toUTCString()};path=/;SameSite=Lax`;
 }
 
+function saveDeviceName(displayType: DisplayType, deviceName: string): void {
+  const storageKey = getDeviceNameStorageKey(displayType);
+  try {
+    localStorage.setItem(storageKey, deviceName);
+  } catch (e) {}
+}
+
 export default function DisplayDevice() {
   const [state, setState] = useState<DisplayDeviceState>({
     displayType: null,
@@ -89,8 +111,10 @@ export default function DisplayDevice() {
     liveEventData: null,
   });
   const [selectedMeetId, setSelectedMeetId] = useState<string | null>(null);
+  const [deviceName, setDeviceName] = useState<string>('');
   const [registeredDeviceId, setRegisteredDeviceId] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const deviceNameRef = useRef<string>('');
 
   const { data: meets } = useQuery<Meet[]>({
     queryKey: ['/api/meets'],
@@ -145,7 +169,7 @@ export default function DisplayDevice() {
         
         // Use stored device ID if available (per display type), otherwise server will create a new one
         const storedId = getStoredDeviceId(displayType);
-        const displayName = `${displayType} Display`;
+        const displayName = deviceNameRef.current || `${displayType} Display`;
         console.log(`Registering device: ${displayName} (stored ID: ${storedId || 'new'}) for meet ${meetId}`);
         ws.send(JSON.stringify({
           type: 'register_display_device',
@@ -220,10 +244,18 @@ export default function DisplayDevice() {
 
   const selectDisplayType = (type: DisplayType) => {
     setState(prev => ({ ...prev, displayType: type }));
+    // Load stored device name for this display type
+    const storedName = getStoredDeviceName(type);
+    if (storedName) {
+      setDeviceName(storedName);
+    }
   };
 
   const startDisplay = () => {
-    if (selectedMeetId && state.displayType) {
+    if (selectedMeetId && state.displayType && deviceName.trim()) {
+      // Save the device name for future use
+      saveDeviceName(state.displayType, deviceName.trim());
+      deviceNameRef.current = deviceName.trim();
       setState(prev => ({ 
         ...prev, 
         meetId: selectedMeetId,
@@ -234,7 +266,7 @@ export default function DisplayDevice() {
 
   // Show setup screen if not complete
   if (!state.setupComplete) {
-    const canStart = selectedMeetId && state.displayType;
+    const canStart = selectedMeetId && state.displayType && deviceName.trim();
     
     return (
       <div className="min-h-screen bg-black flex items-center justify-center p-8">
@@ -331,6 +363,26 @@ export default function DisplayDevice() {
             </Card>
           </div>
           
+          {/* Device Name Input */}
+          <div className="mb-10">
+            <Label className="block text-gray-300 text-sm font-medium mb-3 text-center">
+              Device Name <span className="text-red-400">*</span>
+            </Label>
+            <div className="max-w-md mx-auto">
+              <Input
+                type="text"
+                value={deviceName}
+                onChange={(e) => setDeviceName(e.target.value)}
+                placeholder="e.g., Finish Line P10, Home Stretch Board..."
+                className="w-full bg-gray-900 border-gray-700 text-white h-14 text-lg placeholder:text-gray-500"
+                data-testid="input-device-name"
+              />
+              <p className="text-gray-500 text-xs mt-2 text-center">
+                This name will identify this display in the control panel
+              </p>
+            </div>
+          </div>
+          
           {/* Start Button */}
           <div className="text-center">
             <button
@@ -347,7 +399,7 @@ export default function DisplayDevice() {
             </button>
             {!canStart && (
               <p className="text-gray-500 text-sm mt-3">
-                Please select both a meet and display type
+                Please enter a device name, select a meet, and choose a display type
               </p>
             )}
           </div>
