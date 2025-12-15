@@ -222,7 +222,7 @@ export default function SimpleSceneEditor() {
     setCurrentScene(scene);
     setCanvasWidth(scene.canvasWidth);
     setCanvasHeight(scene.canvasHeight);
-    setBoxes(scene.objects.map(layoutObjectToBox));
+    setBoxes((scene.objects || []).map(layoutObjectToBox));
     setShowSceneListDialog(false);
   };
   
@@ -650,11 +650,11 @@ export default function SimpleSceneEditor() {
                       <div>
                         <div className="font-medium">{scene.name}</div>
                         <div className="text-sm text-muted-foreground">
-                          {scene.canvasWidth}×{scene.canvasHeight} • {scene.objects.length} objects
+                          {scene.canvasWidth}×{scene.canvasHeight} • {(scene.objects || []).length} objects
                         </div>
                       </div>
                       <Badge variant="secondary">
-                        {scene.objects.length} items
+                        {(scene.objects || []).length} items
                       </Badge>
                     </CardContent>
                   </Card>
