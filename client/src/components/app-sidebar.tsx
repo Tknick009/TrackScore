@@ -8,7 +8,8 @@ import {
   Building2,
   Home,
   Settings,
-  LayoutTemplate
+  LayoutTemplate,
+  Sliders
 } from "lucide-react";
 import {
   Sidebar,
@@ -116,6 +117,14 @@ export function AppSidebar() {
                   <Link href={`${basePath}/scene-editor`} data-testid="link-scene-editor">
                     <LayoutTemplate />
                     <span>Layout Designer</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location === `${basePath}/displays/control`}>
+                  <Link href={`${basePath}/displays/control`} data-testid="link-display-control">
+                    <Sliders />
+                    <span>Display Control</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
