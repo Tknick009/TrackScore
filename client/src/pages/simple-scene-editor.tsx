@@ -243,6 +243,24 @@ export default function SimpleSceneEditor() {
     return Math.round(value / 5) * 5;
   };
   
+  // Check if point is on resize handle
+  const getResizeHandle = (pos: { x: number; y: number }, box: LayoutBox): string | null => {
+    const handleSize = 2; // % of canvas
+    const handles = {
+      'nw': { x: box.x, y: box.y },
+      'ne': { x: box.x + box.width, y: box.y },
+      'sw': { x: box.x, y: box.y + box.height },
+      'se': { x: box.x + box.width, y: box.y + box.height },
+    };
+    
+    for (const [handle, handlePos] of Object.entries(handles)) {
+      if (Math.abs(pos.x - handlePos.x) < handleSize && Math.abs(pos.y - handlePos.y) < handleSize) {
+        return handle;
+      }
+    }
+    return null;
+  };
+  
   // Handle mouse down on canvas
   const handleCanvasMouseDown = (e: React.MouseEvent) => {
     const pos = getCanvasPosition(e);
@@ -253,6 +271,17 @@ export default function SimpleSceneEditor() {
       setDrawCurrent(pos);
       setSelectedBoxId(null);
     } else {
+      // Check if clicking on a resize handle of selected box
+      if (selectedBox) {
+        const handle = getResizeHandle(pos, selectedBox);
+        if (handle) {
+          setIsResizing(true);
+          setResizeHandle(handle);
+          setDragStart({ x: pos.x, y: pos.y, boxX: selectedBox.x, boxY: selectedBox.y });
+          return;
+        }
+      }
+      
       // Check if clicking on a box
       const clickedBox = [...boxes].reverse().find(box => 
         pos.x >= box.x && pos.x <= box.x + box.width &&
@@ -275,6 +304,34 @@ export default function SimpleSceneEditor() {
     
     if (isDrawing && drawStart) {
       setDrawCurrent(pos);
+    } else if (isResizing && resizeHandle && dragStart && selectedBox) {
+      // Handle resizing
+      const dx = pos.x - dragStart.x;
+      const dy = pos.y - dragStart.y;
+      
+      let newX = selectedBox.x;
+      let newY = selectedBox.y;
+      let newWidth = selectedBox.width;
+      let newHeight = selectedBox.height;
+      
+      if (resizeHandle.includes('w')) {
+        newX = snapToGrid(Math.max(0, Math.min(selectedBox.x + selectedBox.width - 5, dragStart.boxX + dx)));
+        newWidth = snapToGrid(selectedBox.x + selectedBox.width - newX);
+      }
+      if (resizeHandle.includes('e')) {
+        newWidth = snapToGrid(Math.max(5, selectedBox.width + dx));
+      }
+      if (resizeHandle.includes('n')) {
+        newY = snapToGrid(Math.max(0, Math.min(selectedBox.y + selectedBox.height - 5, dragStart.boxY + dy)));
+        newHeight = snapToGrid(selectedBox.y + selectedBox.height - newY);
+      }
+      if (resizeHandle.includes('s')) {
+        newHeight = snapToGrid(Math.max(5, selectedBox.height + dy));
+      }
+      
+      setBoxes(prev => prev.map(box => 
+        box.id === selectedBoxId ? { ...box, x: newX, y: newY, width: newWidth, height: newHeight } : box
+      ));
     } else if (isDragging && dragStart && selectedBoxId) {
       const dx = pos.x - dragStart.x;
       const dy = pos.y - dragStart.y;
@@ -324,6 +381,8 @@ export default function SimpleSceneEditor() {
     setDrawCurrent(null);
     setIsDragging(false);
     setDragStart(null);
+    setIsResizing(false);
+    setResizeHandle(null);
   };
   
   // Handle keyboard shortcuts
