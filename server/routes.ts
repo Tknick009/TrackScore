@@ -133,6 +133,19 @@ function getSceneDisplayModeForAutoState(state: TrackAutoState): string | null {
   }
 }
 
+// Map template names to display modes (for manual mode scene lookup)
+function getDisplayModeFromTemplate(template: string): string | null {
+  const templateLower = template.toLowerCase().replace(/-/g, '_');
+  if (templateLower.includes('start_list')) return 'start_list';
+  if (templateLower.includes('running_time')) return 'running_time';
+  if (templateLower.includes('track_results') || (templateLower.includes('results') && !templateLower.includes('field'))) return 'track_results';
+  if (templateLower.includes('field_results')) return 'field_results';
+  if (templateLower.includes('field_standings')) return 'field_standings';
+  if (templateLower.includes('team_scores')) return 'team_scores';
+  if (templateLower.includes('meet_logo')) return 'meet_logo';
+  return null;
+}
+
 // Send auto-mode template update to a device
 async function sendAutoModeUpdate(deviceId: string, state: TrackAutoState, liveData?: any) {
   const device = connectedDisplayDevices.get(deviceId);
@@ -1860,14 +1873,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Find the connected WebSocket for this device
       const connectedDevice = connectedDisplayDevices.get(deviceId);
       if (connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {
+        // Look up custom scene mapping if template is provided
+        let sceneId: number | null = null;
+        let liveEventData: any = null;
+        
+        if (template && device.meetId) {
+          const displayMode = getDisplayModeFromTemplate(template);
+          if (displayMode) {
+            try {
+              const mapping = await storage.getSceneTemplateMappingByTypeAndMode(
+                device.meetId,
+                displayType,
+                displayMode
+              );
+              if (mapping) {
+                sceneId = mapping.sceneId;
+                console.log(`[Manual Command] ${device.deviceName}: Using custom scene ${sceneId} for ${displayMode}`);
+              }
+            } catch (err) {
+              console.error(`[Manual Command] Error looking up scene mapping:`, err);
+            }
+          }
+          
+          // Get latest live event data for modes that need it
+          if (displayMode === 'start_list' || displayMode === 'running_time' || displayMode === 'track_results') {
+            try {
+              // Get the most recent live event data
+              const liveData = await storage.getAllLiveEventData();
+              if (liveData && liveData.length > 0) {
+                // Use the most recent entry
+                const latestLive = liveData[0];
+                liveEventData = {
+                  eventNumber: latestLive.eventNumber,
+                  eventName: latestLive.eventName,
+                  mode: latestLive.mode,
+                  heat: latestLive.heat,
+                  round: latestLive.round,
+                  entries: latestLive.entries,
+                  wind: latestLive.wind,
+                };
+              }
+            } catch (err) {
+              console.error(`[Manual Command] Error getting live data:`, err);
+            }
+          }
+        }
+        
         // Send command to the display device
         connectedDevice.ws.send(JSON.stringify({
           type: 'display_command',
-          template,
+          template: sceneId ? null : template, // Use template only if no custom scene
+          sceneId: sceneId, // Custom scene ID (if mapped)
           eventId,
+          liveEventData,
         }));
         
-        res.json({ success: true, delivered: true });
+        res.json({ success: true, delivered: true, sceneId });
       } else {
         // Device not connected, but command saved to database
         res.json({ success: true, delivered: false, message: "Device offline - command saved for when it reconnects" });
