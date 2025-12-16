@@ -528,18 +528,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getEventsByLynxEventNumber(lynxEventNumber: number): Promise<Event[]> {
-    const lynxNumStr = String(lynxEventNumber);
-    
-    // Get all events and filter by lynxEventNumber in JavaScript
-    // This avoids SQL syntax issues with the isNotNull function
-    const allEvents = await db.select().from(events);
-    
-    return allEvents.filter(e => {
-      if (!e.lynxEventNumber) return false;
-      const stored = String(e.lynxEventNumber).trim();
-      const numPart = stored.replace(/^0+/, '').split(/[-\s]/)[0];
-      return numPart === lynxNumStr || stored === lynxNumStr || parseInt(numPart, 10) === lynxEventNumber;
-    });
+    // Match Lynx event number to database events using the eventNumber column
+    return db.select().from(events).where(eq(events.eventNumber, lynxEventNumber));
   }
 
   async getCurrentEvent(): Promise<EventWithEntries | undefined> {
@@ -2741,16 +2731,8 @@ export class DatabaseStorage implements IStorage {
   }
   
   async getCombinedEventsByLynxEventNumber(lynxEventNumber: number): Promise<SelectCombinedEvent[]> {
-    const lynxNumStr = String(lynxEventNumber);
-    
-    const allEvents = await db.select().from(events).where(isNotNull(events.lynxEventNumber));
-    
-    const matchingEvents = allEvents.filter(e => {
-      if (!e.lynxEventNumber) return false;
-      const stored = String(e.lynxEventNumber).trim();
-      const numPart = stored.replace(/^0+/, '').split(/[-\s]/)[0];
-      return numPart === lynxNumStr || stored === lynxNumStr || parseInt(numPart, 10) === lynxEventNumber;
-    });
+    // Match Lynx event number to database events using the eventNumber column
+    const matchingEvents = await db.select().from(events).where(eq(events.eventNumber, lynxEventNumber));
     
     if (matchingEvents.length === 0) return [];
     

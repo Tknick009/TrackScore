@@ -124,6 +124,7 @@ export interface SceneCanvasProps {
   meetId?: string;
   eventNumber?: string;
   liveEventData?: any;
+  liveClockTime?: string | null;
   pagingSize?: number;
   pagingInterval?: number;
   // For fixed-size displays (P10/P6): target display resolution
@@ -193,7 +194,8 @@ export function SceneObjectRenderer({
   eventNumber,
   pageIndex = 0,
   pageSize = 8,
-  sharedLatestLiveData
+  sharedLatestLiveData,
+  liveClockTime
 }: { 
   object: SelectLayoutObject; 
   meetId?: string;
@@ -203,6 +205,7 @@ export function SceneObjectRenderer({
   pageIndex?: number;
   pageSize?: number;
   sharedLatestLiveData?: any;
+  liveClockTime?: string | null;
 }) {
   const dataBinding: SceneDataBinding = object.dataBinding || { sourceType: 'static' };
   const componentConfig: SceneObjectConfig = object.config || {};
@@ -407,7 +410,9 @@ export function SceneObjectRenderer({
         let textContent = componentConfig.text || componentConfig.textContent || componentConfig.dynamicText;
         
         // Special case: running-time uses smooth clock for jitter-free updates
-        if (fieldKey === 'running-time' && liveData) {
+        // Use liveData.runningTime if available, otherwise fall back to liveClockTime from WebSocket
+        const clockTime = liveData?.runningTime || liveClockTime;
+        if (fieldKey === 'running-time' && clockTime) {
           // Use numeric fontSize from style, or fall back to componentConfig string mapping
           const numericFontSize = styleConfig.fontSize || componentConfig.fontSize;
           const textFontSize = typeof numericFontSize === 'number' 
@@ -421,7 +426,7 @@ export function SceneObjectRenderer({
               style={{ justifyContent }}
             >
               <SmoothRunningClock 
-                serverTime={liveData.runningTime}
+                serverTime={clockTime}
                 fontSize={textFontSize}
                 color={componentConfig.textColor || styleConfig.textColor || "hsl(var(--display-fg))"}
               />
@@ -878,6 +883,7 @@ export function SceneCanvas({
   meetId,
   eventNumber,
   liveEventData: propLiveEventData,
+  liveClockTime,
   pagingSize = 8,
   pagingInterval = 5,
   displayWidth,
@@ -1010,6 +1016,7 @@ export function SceneCanvas({
             pageIndex={currentPageIndex}
             pageSize={pagingSize}
             sharedLatestLiveData={latestLiveEventData}
+            liveClockTime={liveClockTime}
           />
         ))}
         
@@ -1069,6 +1076,7 @@ export function SceneCanvas({
             pageIndex={currentPageIndex}
             pageSize={pagingSize}
             sharedLatestLiveData={latestLiveEventData}
+            liveClockTime={liveClockTime}
           />
         ))}
         

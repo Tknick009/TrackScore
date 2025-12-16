@@ -544,6 +544,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             objects={currentSceneData?.objects}
             meetId={meetId || undefined}
             liveEventData={liveEventData}
+            liveClockTime={liveClockTime}
             pagingSize={pagingSize}
             pagingInterval={pagingInterval}
             displayWidth={capability.resolution.width}
@@ -560,6 +561,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
           objects={currentSceneData?.objects}
           meetId={meetId || undefined}
           liveEventData={liveEventData}
+          liveClockTime={liveClockTime}
           pagingSize={pagingSize}
           pagingInterval={pagingInterval}
         />
