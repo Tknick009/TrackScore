@@ -1098,7 +1098,8 @@ export type SceneObjectStyle = {
   padding?: number;
   fontFamily?: string;
   boxShadow?: string;
-  fontSize?: string;
+  fontSize?: string | number;
+  fontWeight?: string | number;
   textAlign?: 'left' | 'center' | 'right';
 };
 
@@ -1150,6 +1151,7 @@ export const sceneDataBindingSchema = z.object({
   showAllHeats: z.boolean().optional(),
   fieldCode: z.string().optional(),
   fieldKey: z.string().optional(),
+  athleteIndex: z.number().optional(),
 });
 
 export const sceneObjectConfigSchema = z.object({
