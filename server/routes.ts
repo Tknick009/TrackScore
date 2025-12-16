@@ -102,6 +102,10 @@ const connectedDisplayDevices = new Map<string, ConnectedDisplayDevice>();
 type TrackAutoState = 'idle' | 'armed' | 'running' | 'results' | 'time_of_day';
 const autoModeDeviceStates = new Map<string, TrackAutoState>();
 
+// Simulated running clock timer (for testing without FinishLynx)
+let simulatedClockTimer: ReturnType<typeof setInterval> | null = null;
+let simulatedClockStartTime: number = 0;
+
 // Template mapping for auto-mode states
 function getTemplateForAutoState(state: TrackAutoState, displayType: string): string {
   switch (state) {
@@ -5289,13 +5293,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       if (mode === 'clock') {
-        // Send a running time
-        const elapsed = req.body.elapsed || 12340;
-        const minutes = Math.floor(elapsed / 60000);
-        const seconds = ((elapsed % 60000) / 1000).toFixed(2);
-        const timeStr = minutes > 0 ? `${minutes}:${seconds.padStart(5, '0')}` : seconds;
-        const message = JSON.stringify({ t: timeStr });
-        lynxListener.processForwardedData(message, 'clock', 'Simulator');
+        // Start a running clock from 0.0 counting up by tenths (like FinishLynx)
+        // Stop any existing clock first
+        if (simulatedClockTimer) {
+          clearInterval(simulatedClockTimer);
+          simulatedClockTimer = null;
+        }
+        
+        simulatedClockStartTime = Date.now();
+        console.log('[Simulator] Starting running clock from 0.0');
+        
+        // Send clock updates every 100ms (tenths of a second)
+        simulatedClockTimer = setInterval(() => {
+          const elapsed = Date.now() - simulatedClockStartTime;
+          const totalSeconds = elapsed / 1000;
+          const minutes = Math.floor(totalSeconds / 60);
+          const seconds = (totalSeconds % 60).toFixed(1);
+          const timeStr = minutes > 0 ? `${minutes}:${seconds.padStart(4, '0')}` : seconds;
+          const message = JSON.stringify({ t: timeStr });
+          lynxListener.processForwardedData(message, 'clock', 'Simulator');
+        }, 100);
+      }
+      
+      if (mode === 'stop_clock') {
+        // Stop the running clock
+        if (simulatedClockTimer) {
+          clearInterval(simulatedClockTimer);
+          simulatedClockTimer = null;
+          console.log('[Simulator] Stopped running clock');
+        }
       }
       
       res.json({ 

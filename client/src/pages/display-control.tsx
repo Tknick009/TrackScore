@@ -395,6 +395,15 @@ export default function DisplayControlPage() {
             <Button 
               variant="outline" 
               size="sm" 
+              onClick={() => simulateMutation.mutate("stop_clock")}
+              disabled={simulateMutation.isPending}
+              data-testid="button-stop-clock"
+            >
+              Stop Clock
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
               onClick={() => simulateMutation.mutate("results")}
               disabled={simulateMutation.isPending}
               data-testid="button-show-results"
