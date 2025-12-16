@@ -5224,7 +5224,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Simulate test race with NCAA schools (for testing displays)
   app.post("/api/lynx/simulate", async (req, res) => {
     try {
-      const { eventNumber = 1, heat = 1, distance = "100", mode = "results", eventName = "Men's 100m Dash" } = req.body;
+      const { eventNumber = 1, heat = 1, distance = "100", mode = "results", eventName = "Mens 100M Dash" } = req.body;
+      
+      // Clear old live event data for this event before starting simulation
+      // This ensures fresh data and proper eventName display
+      await storage.clearLiveEventData();
+      console.log('[Simulator] Cleared old live event data before simulation');
       
       // NCAA schools with matching logos in /logos/NCAA/ folder
       const testAthletes = [

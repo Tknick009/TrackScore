@@ -2070,6 +2070,7 @@ export const liveEventData = pgTable('live_event_data', {
   wind: text('wind'),
   status: text('status'), // ARMED, RUNNING, OFFICIAL, etc.
   distance: text('distance'),
+  eventName: text('event_name'), // Full event name for display (e.g., "100 Meters Finals")
   entries: jsonb('entries').default([]), // Array of athletes with results
   runningTime: text('running_time'),
   isArmed: boolean('is_armed').default(false),

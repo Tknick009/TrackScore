@@ -3006,6 +3006,7 @@ export class DatabaseStorage implements IStorage {
           status: data.status,
           wind: data.wind,
           distance: data.distance,
+          eventName: data.eventName,
           entries: data.entries,
           runningTime: data.runningTime,
           isArmed: data.isArmed,
