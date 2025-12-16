@@ -1081,9 +1081,11 @@ export type SceneObjectConfig = {
 // Scene Object Style - visual styling
 export type SceneObjectStyle = {
   backgroundColor?: string;
+  backgroundStyle?: 'solid' | 'transparent';
   textColor?: string;
   borderColor?: string;
   borderWidth?: number;
+  borderSides?: ('all' | 'top' | 'right' | 'bottom' | 'left')[];
   borderRadius?: number;
   opacity?: number;
   padding?: number;

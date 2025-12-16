@@ -28,11 +28,13 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 import { 
   Plus, Save, Trash2, Eye, Monitor, 
   MousePointer, Square, Copy, Clipboard,
   Type, Image, ChevronLeft, Upload,
-  Grid3X3, ZoomIn, ZoomOut, Undo2, Pencil
+  Grid3X3, ZoomIn, ZoomOut, Undo2, Pencil,
+  BorderAll, Minus
 } from "lucide-react";
 
 type BoxType = 'text' | 'image';
@@ -53,9 +55,11 @@ interface LayoutBox {
     fontWeight?: string;
     textAlign?: 'left' | 'center' | 'right';
     backgroundColor?: string;
+    backgroundStyle?: 'solid' | 'transparent';
     textColor?: string;
     borderColor?: string;
     borderWidth?: number;
+    borderSides?: ('all' | 'top' | 'right' | 'bottom' | 'left')[];
     objectFit?: 'contain' | 'cover' | 'fill';
   };
 }
@@ -929,13 +933,36 @@ export default function SimpleSceneEditor() {
             )}
             
             {/* Boxes */}
-            {boxes.map((box) => (
+            {boxes.map((box) => {
+              // Compute border styles based on borderSides
+              const borderWidth = box.style?.borderWidth || 0;
+              const borderColor = box.style?.borderColor || '#ffffff';
+              const borderSides = box.style?.borderSides || ['all'];
+              const hasAllBorders = borderSides.includes('all') || borderSides.length === 0;
+              
+              const borderStyles: React.CSSProperties = {};
+              if (borderWidth > 0) {
+                if (hasAllBorders) {
+                  borderStyles.border = `${borderWidth}px solid ${borderColor}`;
+                } else {
+                  if (borderSides.includes('top')) borderStyles.borderTop = `${borderWidth}px solid ${borderColor}`;
+                  if (borderSides.includes('right')) borderStyles.borderRight = `${borderWidth}px solid ${borderColor}`;
+                  if (borderSides.includes('bottom')) borderStyles.borderBottom = `${borderWidth}px solid ${borderColor}`;
+                  if (borderSides.includes('left')) borderStyles.borderLeft = `${borderWidth}px solid ${borderColor}`;
+                }
+              }
+              
+              // Background style
+              const bgStyle = box.style?.backgroundStyle || 'solid';
+              const bgColor = bgStyle === 'transparent' ? 'transparent' : (box.style?.backgroundColor || 'rgba(0,0,0,0.5)');
+              
+              return (
               <div
                 key={box.id}
-                className={`absolute border ${
+                className={`absolute ${
                   selectedBoxId === box.id 
-                    ? 'border-primary border-2' 
-                    : 'border-white/30'
+                    ? 'ring-2 ring-primary' 
+                    : (borderWidth === 0 ? 'border border-white/30' : '')
                 }`}
                 style={{
                   left: `${box.x}%`,
@@ -943,7 +970,7 @@ export default function SimpleSceneEditor() {
                   width: `${box.width}%`,
                   height: `${box.height}%`,
                   zIndex: box.zIndex,
-                  backgroundColor: box.style?.backgroundColor || 'rgba(0,0,0,0.5)',
+                  backgroundColor: bgColor,
                   color: box.style?.textColor || '#ffffff',
                   display: 'flex',
                   alignItems: 'center',
@@ -952,6 +979,7 @@ export default function SimpleSceneEditor() {
                   padding: '2px 4px',
                   fontSize: `${(box.style?.fontSize || 14) * (displayWidth / 1920)}px`,
                   overflow: 'hidden',
+                  ...borderStyles,
                 }}
                 data-testid={`box-${box.id}`}
               >
@@ -980,7 +1008,8 @@ export default function SimpleSceneEditor() {
                   </>
                 )}
               </div>
-            ))}
+            );
+            })}
             
             {/* Drawing preview */}
             {isDrawing && drawStart && drawCurrent && (
@@ -1204,6 +1233,127 @@ export default function SimpleSceneEditor() {
                       />
                     </div>
                   )}
+                </div>
+              </div>
+              
+              {/* Background Style */}
+              <Separator />
+              <div className="space-y-2">
+                <Label>Background Style</Label>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant={(selectedBox.style?.backgroundStyle || 'solid') === 'solid' ? 'default' : 'outline'}
+                    onClick={() => updateSelectedBox({ 
+                      style: { ...selectedBox.style, backgroundStyle: 'solid' } 
+                    })}
+                    className="flex-1"
+                    data-testid="button-bg-solid"
+                  >
+                    Solid
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={selectedBox.style?.backgroundStyle === 'transparent' ? 'default' : 'outline'}
+                    onClick={() => updateSelectedBox({ 
+                      style: { ...selectedBox.style, backgroundStyle: 'transparent', backgroundColor: 'transparent' } 
+                    })}
+                    className="flex-1"
+                    data-testid="button-bg-transparent"
+                  >
+                    Transparent
+                  </Button>
+                </div>
+              </div>
+              
+              {/* Border */}
+              <Separator />
+              <div className="space-y-3">
+                <Label>Border</Label>
+                
+                {/* Border Color & Width */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Color</Label>
+                    <Input
+                      type="color"
+                      value={selectedBox.style?.borderColor || '#ffffff'}
+                      onChange={(e) => updateSelectedBox({ 
+                        style: { ...selectedBox.style, borderColor: e.target.value } 
+                      })}
+                      className="h-8"
+                      data-testid="input-border-color"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Width (px)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={20}
+                      value={selectedBox.style?.borderWidth || 0}
+                      onChange={(e) => updateSelectedBox({ 
+                        style: { ...selectedBox.style, borderWidth: parseInt(e.target.value) || 0 } 
+                      })}
+                      className="h-8"
+                      data-testid="input-border-width"
+                    />
+                  </div>
+                </div>
+                
+                {/* Border Sides */}
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-2 block">Sides</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {/* All Sides */}
+                    <Button
+                      size="sm"
+                      variant={(selectedBox.style?.borderSides?.includes('all') || !selectedBox.style?.borderSides?.length) ? 'default' : 'outline'}
+                      onClick={() => updateSelectedBox({ 
+                        style: { ...selectedBox.style, borderSides: ['all'] } 
+                      })}
+                      data-testid="button-border-all"
+                    >
+                      All
+                    </Button>
+                    {/* Individual Sides */}
+                    {(['top', 'right', 'bottom', 'left'] as const).map((side) => {
+                      const currentSides = selectedBox.style?.borderSides || [];
+                      const isAllSelected = currentSides.includes('all') || currentSides.length === 0;
+                      const isSelected = isAllSelected || currentSides.includes(side);
+                      
+                      return (
+                        <Button
+                          key={side}
+                          size="sm"
+                          variant={!isAllSelected && isSelected ? 'default' : 'outline'}
+                          onClick={() => {
+                            let newSides: ('all' | 'top' | 'right' | 'bottom' | 'left')[];
+                            if (isAllSelected) {
+                              // Switch from 'all' to individual - start with all 4 but remove clicked one
+                              newSides = (['top', 'right', 'bottom', 'left'] as const).filter(s => s !== side);
+                            } else if (currentSides.includes(side)) {
+                              // Remove this side
+                              newSides = currentSides.filter(s => s !== side && s !== 'all') as typeof newSides;
+                            } else {
+                              // Add this side
+                              newSides = [...currentSides.filter(s => s !== 'all'), side] as typeof newSides;
+                            }
+                            // If all 4 are selected, switch back to 'all'
+                            if (newSides.length === 4) {
+                              newSides = ['all'];
+                            }
+                            updateSelectedBox({ 
+                              style: { ...selectedBox.style, borderSides: newSides } 
+                            });
+                          }}
+                          data-testid={`button-border-${side}`}
+                        >
+                          {side.charAt(0).toUpperCase() + side.slice(1)}
+                        </Button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
               

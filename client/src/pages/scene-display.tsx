@@ -177,6 +177,28 @@ function SceneObjectRenderer({
   const width = (object.width / 100) * canvasWidth;
   const height = (object.height / 100) * canvasHeight;
   
+  // Compute border styles based on borderSides
+  const borderWidth = styleConfig.borderWidth || 0;
+  const borderColor = styleConfig.borderColor || '#ffffff';
+  const borderSides = styleConfig.borderSides || ['all'];
+  const hasAllBorders = borderSides.includes('all') || borderSides.length === 0;
+  
+  const borderStyles: React.CSSProperties = {};
+  if (borderWidth > 0) {
+    if (hasAllBorders) {
+      borderStyles.border = `${borderWidth}px solid ${borderColor}`;
+    } else {
+      if (borderSides.includes('top')) borderStyles.borderTop = `${borderWidth}px solid ${borderColor}`;
+      if (borderSides.includes('right')) borderStyles.borderRight = `${borderWidth}px solid ${borderColor}`;
+      if (borderSides.includes('bottom')) borderStyles.borderBottom = `${borderWidth}px solid ${borderColor}`;
+      if (borderSides.includes('left')) borderStyles.borderLeft = `${borderWidth}px solid ${borderColor}`;
+    }
+  }
+  
+  // Handle background style
+  const bgStyle = styleConfig.backgroundStyle || 'solid';
+  const bgColor = bgStyle === 'transparent' ? 'transparent' : (styleConfig.backgroundColor || 'transparent');
+  
   const objectStyle: React.CSSProperties = {
     position: "absolute",
     left: `${left}px`,
@@ -185,9 +207,10 @@ function SceneObjectRenderer({
     height: `${height}px`,
     zIndex: object.zIndex,
     overflow: "hidden",
-    backgroundColor: styleConfig.backgroundColor || "transparent",
+    backgroundColor: bgColor,
     borderRadius: styleConfig.borderRadius || "0px",
     opacity: styleConfig.opacity ?? 1,
+    ...borderStyles,
   };
   
   const renderContent = () => {
