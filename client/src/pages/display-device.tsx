@@ -492,11 +492,13 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, eventId, devi
       const capability = DISPLAY_CAPABILITIES[displayType];
       const isSingleAthleteDisplay = capability.maxAthletes === 1;
       
-      // Build scene URL with event number for live data
+      // Build scene URL with event number for live data and paging params
       const eventNum = liveEventData?.eventNumber;
-      const sceneUrl = eventNum 
-        ? `/scene-display/${sceneId}?eventNumber=${eventNum}` 
-        : `/scene-display/${sceneId}`;
+      const params = new URLSearchParams();
+      if (eventNum) params.set('eventNumber', String(eventNum));
+      if (pagingSize) params.set('pagingSize', String(pagingSize));
+      if (pagingInterval) params.set('pagingInterval', String(pagingInterval));
+      const sceneUrl = `/scene-display/${sceneId}${params.toString() ? '?' + params.toString() : ''}`;
       
       // Use full viewport for BigBoard, fixed dimensions for P10/P6
       if (isSingleAthleteDisplay) {

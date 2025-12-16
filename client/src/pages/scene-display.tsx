@@ -120,13 +120,17 @@ function SceneObjectRenderer({
   meetId,
   canvasWidth,
   canvasHeight,
-  eventNumber
+  eventNumber,
+  pageIndex = 0,
+  pageSize = 8
 }: { 
   object: SelectLayoutObject; 
   meetId?: string;
   canvasWidth: number;
   canvasHeight: number;
   eventNumber?: string;
+  pageIndex?: number;
+  pageSize?: number;
 }) {
   const dataBinding: SceneDataBinding = object.dataBinding || { sourceType: 'static' };
   const componentConfig: SceneObjectConfig = object.config || {};
@@ -294,10 +298,10 @@ function SceneObjectRenderer({
         if (componentConfig.logoType === "meet") {
           logoUrl = meet?.logoUrl;
         } else if (logoFieldKey === "school-logo" && liveData) {
-          // Get school name from first entry's affiliation
-          const firstEntry = Array.isArray(liveData.entries) && liveData.entries.length > 0 
-            ? liveData.entries[0] 
-            : null;
+          // Get school name from current page's entry (for paging through athletes)
+          const entries = Array.isArray(liveData.entries) ? liveData.entries : [];
+          const entryIndex = pageSize === 1 ? pageIndex : 0; // Only page through if showing 1 at a time
+          const firstEntry = entries.length > entryIndex ? entries[entryIndex] : null;
           const schoolName = firstEntry?.affiliation || firstEntry?.team;
           if (schoolName) {
             // Build path to NCAA logo folder
@@ -337,10 +341,10 @@ function SceneObjectRenderer({
             ? `${liveData.distance}m` 
             : `Event ${liveData.eventNumber}`;
           
-          // Get first entry for single-athlete fields
-          const firstEntry = Array.isArray(liveData.entries) && liveData.entries.length > 0 
-            ? liveData.entries[0] 
-            : null;
+          // Get current page's entry for single-athlete fields (paging support)
+          const entries = Array.isArray(liveData.entries) ? liveData.entries : [];
+          const entryIndex = pageSize === 1 ? pageIndex : 0; // Only page through if showing 1 at a time
+          const firstEntry = entries.length > entryIndex ? entries[entryIndex] : null;
           
           // Map fieldKey to live data value
           const fieldMap: Record<string, any> = {
@@ -733,8 +737,11 @@ export default function SceneDisplay() {
   const sceneId = params.sceneId || urlParams.get("sceneId") || undefined;
   const meetId = urlParams.get("meetId") || undefined;
   const eventNumber = urlParams.get("eventNumber") || undefined;
+  const pagingSize = parseInt(urlParams.get("pagingSize") || "8", 10);
+  const pagingInterval = parseInt(urlParams.get("pagingInterval") || "5", 10);
   
   const [dimensions, setDimensions] = useState({ width: 1920, height: 1080 });
+  const [currentPageIndex, setCurrentPageIndex] = useState(0);
   
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -756,6 +763,37 @@ export default function SceneDisplay() {
   
   const { data: scene, isLoading: sceneLoading, error: sceneError } = useScene(sceneId);
   const { data: objects = [], isLoading: objectsLoading } = useSceneObjects(sceneId);
+  const { data: liveEventData } = useLiveEventData(eventNumber);
+  
+  // Get total entries count from live data for paging
+  const totalEntries = useMemo(() => {
+    if (!liveEventData) return 0;
+    const entries = liveEventData.entries || liveEventData.results || [];
+    return entries.length;
+  }, [liveEventData]);
+  
+  const totalPages = Math.max(1, Math.ceil(totalEntries / pagingSize));
+  
+  // Paging timer - cycles through pages with looping
+  useEffect(() => {
+    if (totalPages <= 1 || pagingInterval <= 0) {
+      setCurrentPageIndex(0);
+      return;
+    }
+    
+    const timer = setInterval(() => {
+      setCurrentPageIndex(prev => (prev + 1) % totalPages);
+    }, pagingInterval * 1000);
+    
+    return () => clearInterval(timer);
+  }, [totalPages, pagingInterval]);
+  
+  // Reset page index when entries change significantly
+  useEffect(() => {
+    if (currentPageIndex >= totalPages) {
+      setCurrentPageIndex(0);
+    }
+  }, [totalPages, currentPageIndex]);
   
   const sortedObjects = useMemo(() => {
     return [...objects].sort((a, b) => a.zIndex - b.zIndex);
@@ -901,6 +939,8 @@ export default function SceneDisplay() {
             canvasWidth={dimensions.width}
             canvasHeight={dimensions.height}
             eventNumber={eventNumber}
+            pageIndex={currentPageIndex}
+            pageSize={pagingSize}
           />
         ))}
         
