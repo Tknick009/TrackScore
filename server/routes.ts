@@ -5744,6 +5744,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
+      // Get existing data to preserve eventName if not provided (e.g., running mode)
+      const existingData = await storage.getLiveEventData(eventNumber);
+      const eventNameToUse = data.eventName || existingData?.eventName || `Event ${eventNumber}`;
+      const distanceToUse = data.distance || existingData?.distance;
+      
       // Store live event data to database
       await storage.upsertLiveEventData({
         eventNumber,
@@ -5754,7 +5759,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         flight: 1,
         wind: data.wind,
         status: data.status,
-        distance: data.distance,
+        distance: distanceToUse,
+        eventName: eventNameToUse,
         entries: data.entries || data.results || [],
         runningTime: data.time,
         isArmed: data.armed || false,
@@ -5783,15 +5789,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         autoState = 'results';
       }
       
-      // Build live event data for displays
+      // Build live event data for displays - use preserved eventName
       const liveEventData = {
         eventNumber,
-        eventName: data.eventName || `Event ${eventNumber}`,
+        eventName: eventNameToUse,
         heat: data.heat || 1,
         round: data.round || 1,
         entries: data.entries || data.results || [],
         wind: data.wind,
-        distance: data.distance,
+        distance: distanceToUse,
         status: data.status,
         mode,
       };
@@ -5821,7 +5827,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     liveState.isRunning = isRunning;
     
     try {
-      // Update live event data with running time
+      // Update live event data with running time - preserve eventName from existing data
       const existing = await storage.getLiveEventData(eventNumber);
       if (existing) {
         await storage.upsertLiveEventData({
@@ -5834,6 +5840,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           runningTime: time,
           isRunning,
           entries: existing.entries || [],
+          eventName: existing.eventName, // Preserve eventName from previous data
+          distance: existing.distance, // Preserve distance
         });
       }
     } catch (error) {
