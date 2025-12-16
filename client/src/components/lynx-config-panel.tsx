@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Wifi, WifiOff, RefreshCw, Settings2, Radio } from "lucide-react";
+import { Wifi, WifiOff, RefreshCw, Settings2, Radio, Play } from "lucide-react";
 import type { IngestConfig } from "@shared/schema";
 
 interface PortStatus {
@@ -79,6 +79,29 @@ export function LynxConfigPanel({ meetId }: LynxConfigPanelProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/lynx/status"] });
       toast({ title: "Attempting to reconnect..." });
+    },
+  });
+
+  const simulateMutation = useMutation({
+    mutationFn: (mode: string) => apiRequest("POST", `/api/lynx/simulate`, { 
+      eventNumber: 1, 
+      heat: 1, 
+      distance: "100",
+      mode 
+    }),
+    onSuccess: (_, mode) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/live-events"] });
+      toast({ 
+        title: "Test data sent", 
+        description: `Simulated ${mode} data with NCAA schools` 
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Simulation failed",
+        description: error.message,
+        variant: "destructive",
+      });
     },
   });
 
@@ -225,19 +248,32 @@ export function LynxConfigPanel({ meetId }: LynxConfigPanelProps) {
               })}
             </div>
 
-            {displayConfig.enabled && (
+            <div className="flex gap-2">
+              {displayConfig.enabled && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => reconnectMutation.mutate()}
+                  disabled={reconnectMutation.isPending}
+                  data-testid="button-lynx-reconnect"
+                >
+                  <RefreshCw className={`w-4 h-4 mr-2 ${reconnectMutation.isPending ? 'animate-spin' : ''}`} />
+                  Reconnect
+                </Button>
+              )}
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
-                className="w-full"
-                onClick={() => reconnectMutation.mutate()}
-                disabled={reconnectMutation.isPending}
-                data-testid="button-lynx-reconnect"
+                className={displayConfig.enabled ? "" : "w-full"}
+                onClick={() => simulateMutation.mutate("results")}
+                disabled={simulateMutation.isPending}
+                data-testid="button-simulate-data"
               >
-                <RefreshCw className={`w-4 h-4 mr-2 ${reconnectMutation.isPending ? 'animate-spin' : ''}`} />
-                Reconnect
+                <Play className={`w-4 h-4 mr-2 ${simulateMutation.isPending ? 'animate-pulse' : ''}`} />
+                Simulate
               </Button>
-            )}
+            </div>
 
             {!displayConfig.enabled && (
               <p className="text-xs text-center text-muted-foreground">

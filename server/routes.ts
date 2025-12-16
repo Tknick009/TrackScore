@@ -5129,6 +5129,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Simulate test race with NCAA schools (for testing displays)
+  app.post("/api/lynx/simulate", async (req, res) => {
+    try {
+      const { eventNumber = 1, heat = 1, distance = "100", mode = "results" } = req.body;
+      
+      // NCAA schools with matching logos in /logos/NCAA/ folder
+      const testAthletes = [
+        { lane: '1', bib: '101', firstName: 'Marcus', lastName: 'Johnson', affiliation: 'Alabama' },
+        { lane: '2', bib: '102', firstName: 'Tyler', lastName: 'Williams', affiliation: 'Arizona' },
+        { lane: '3', bib: '103', firstName: 'Dwayne', lastName: 'Davis', affiliation: 'Arkansas' },
+        { lane: '4', bib: '104', firstName: 'Cameron', lastName: 'Brown', affiliation: 'Auburn' },
+        { lane: '5', bib: '105', firstName: 'Terrell', lastName: 'Miller', affiliation: 'Clemson' },
+        { lane: '6', bib: '106', firstName: 'Brandon', lastName: 'Taylor', affiliation: 'Duke' },
+        { lane: '7', bib: '107', firstName: 'Jaylen', lastName: 'Anderson', affiliation: 'Florida' },
+        { lane: '8', bib: '108', firstName: 'Quincy', lastName: 'Thomas', affiliation: 'Georgia' },
+      ];
+      
+      const times = ['10.23', '10.45', '10.67', '10.89', '11.01', '11.15', '11.32', '11.48'];
+      
+      if (mode === 'start_list' || mode === 'all') {
+        // Send start list
+        for (const athlete of testAthletes) {
+          const message = JSON.stringify({
+            T: 'S',
+            D: {
+              EN: eventNumber,
+              R: 1,
+              H: heat,
+              S: 'UNOFFICIAL',
+              DS: distance,
+              P: '',
+              L: athlete.lane,
+              BIB: athlete.bib,
+              N: `${athlete.firstName} ${athlete.lastName}`,
+              AF: athlete.affiliation,
+              FN: athlete.firstName,
+              LN: athlete.lastName,
+            }
+          });
+          lynxListener.processForwardedData(message, 'start_list', 'Simulator');
+        }
+      }
+      
+      if (mode === 'results' || mode === 'all') {
+        // Send results
+        for (let i = 0; i < testAthletes.length; i++) {
+          const athlete = testAthletes[i];
+          const message = JSON.stringify({
+            T: 'F',
+            D: {
+              EN: eventNumber,
+              R: 1,
+              H: heat,
+              S: 'OFFICIAL',
+              DS: distance,
+              P: String(i + 1),
+              L: athlete.lane,
+              BIB: athlete.bib,
+              N: `${athlete.firstName} ${athlete.lastName}`,
+              AF: athlete.affiliation,
+              FN: athlete.firstName,
+              LN: athlete.lastName,
+              TM: times[i],
+            }
+          });
+          lynxListener.processForwardedData(message, 'results', 'Simulator');
+        }
+      }
+      
+      if (mode === 'clock') {
+        // Send a running time
+        const elapsed = req.body.elapsed || 12340;
+        const minutes = Math.floor(elapsed / 60000);
+        const seconds = ((elapsed % 60000) / 1000).toFixed(2);
+        const timeStr = minutes > 0 ? `${minutes}:${seconds.padStart(5, '0')}` : seconds;
+        const message = JSON.stringify({ t: timeStr });
+        lynxListener.processForwardedData(message, 'clock', 'Simulator');
+      }
+      
+      res.json({ 
+        success: true, 
+        mode, 
+        eventNumber, 
+        heat,
+        athleteCount: testAthletes.length 
+      });
+    } catch (error: any) {
+      console.error('[Lynx Simulate] Error:', error.message);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Get live event data by event number
   app.get("/api/live-events/:eventNumber", async (req, res) => {
     try {
