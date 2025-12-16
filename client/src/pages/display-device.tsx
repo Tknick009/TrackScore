@@ -519,7 +519,25 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
       const capability = DISPLAY_CAPABILITIES[displayType];
       const isSingleAthleteDisplay = capability.maxAthletes === 1;
       
-      // All displays use full viewport rendering - objects use percentage-based positioning
+      // P10/P6: Fixed-size rendering at exact native resolution at position 0,0
+      // BigBoard: Full viewport rendering with scaling
+      if (isSingleAthleteDisplay) {
+        return (
+          <SceneCanvas
+            sceneId={sceneId}
+            scene={currentSceneData?.scene}
+            objects={currentSceneData?.objects}
+            meetId={meetId || undefined}
+            liveEventData={liveEventData}
+            pagingSize={pagingSize}
+            pagingInterval={pagingInterval}
+            displayWidth={capability.resolution.width}
+            displayHeight={capability.resolution.height}
+          />
+        );
+      }
+      
+      // BigBoard uses full viewport with scaling
       return (
         <SceneCanvas
           sceneId={sceneId}

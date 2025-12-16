@@ -840,16 +840,61 @@ export function SceneCanvas({
   
   const backgroundColor = scene.backgroundColor || "hsl(var(--display-bg))";
   
-  // Use scene's designed dimensions - this is the native resolution the scene was created for
+  // Check if we have fixed display dimensions (P10/P6)
+  const isFixedSize = displayWidth !== undefined && displayHeight !== undefined;
+  
+  if (isFixedSize) {
+    // Fixed-size rendering for P10/P6: exact pixel dimensions at position 0,0
+    // No scaling, no centering - just the raw native resolution
+    const canvasWidth = displayWidth;
+    const canvasHeight = displayHeight;
+    
+    return (
+      <div 
+        className="fixed overflow-hidden display-layout"
+        style={{ 
+          top: 0,
+          left: 0,
+          width: canvasWidth,
+          height: canvasHeight,
+          backgroundColor,
+        }}
+        data-testid="scene-canvas"
+      >
+        {sortedObjects.map((obj) => (
+          <SceneObjectRenderer 
+            key={obj.id} 
+            object={obj} 
+            meetId={meetId}
+            canvasWidth={canvasWidth}
+            canvasHeight={canvasHeight}
+            eventNumber={eventNumber}
+            pageIndex={currentPageIndex}
+            pageSize={pagingSize}
+            sharedLatestLiveData={latestLiveEventData}
+          />
+        ))}
+        
+        {sortedObjects.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center text-[hsl(var(--display-muted))]">
+              <Trophy className="w-8 h-8 mx-auto mb-2 opacity-30" />
+              <p className="text-xs font-stadium">Empty</p>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+  
+  // Default: Scale scene to fit viewport while maintaining aspect ratio (for BigBoard/desktop)
   const designWidth = scene.canvasWidth || 1920;
   const designHeight = scene.canvasHeight || 1080;
   
-  // Calculate scale to fit the designed scene into the browser viewport while maintaining aspect ratio
   const scaleX = dimensions.width / designWidth;
   const scaleY = dimensions.height / designHeight;
-  const scale = Math.min(scaleX, scaleY); // Fit while preserving aspect ratio
+  const scale = Math.min(scaleX, scaleY);
   
-  // Calculate centered position for letterboxing/pillarboxing
   const scaledWidth = designWidth * scale;
   const scaledHeight = designHeight * scale;
   const offsetX = (dimensions.width - scaledWidth) / 2;
@@ -858,10 +903,9 @@ export function SceneCanvas({
   return (
     <div 
       className="fixed inset-0 overflow-hidden display-layout"
-      style={{ backgroundColor: '#000' }} // Black letterbox/pillarbox
+      style={{ backgroundColor: '#000' }}
       data-testid="scene-canvas"
     >
-      {/* Scaled and centered scene container */}
       <div
         style={{
           position: 'absolute',
