@@ -93,6 +93,8 @@ interface ConnectedDisplayDevice {
   meetId: string;
   displayType: string;
   autoMode: boolean; // Auto-switching based on Lynx timing data
+  pagingSize: number; // Number of results per page (1-20)
+  pagingInterval: number; // Seconds between page scrolls (1-60)
 }
 const connectedDisplayDevices = new Map<string, ConnectedDisplayDevice>();
 
@@ -180,6 +182,8 @@ async function sendAutoModeUpdate(deviceId: string, state: TrackAutoState, liveD
       eventId: null,
       autoMode: true,
       liveEventData: liveData || null,
+      pagingSize: device.pagingSize,
+      pagingInterval: device.pagingInterval,
     }));
     
     if (sceneId) {
@@ -1926,6 +1930,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           sceneId: sceneId, // Custom scene ID (if mapped)
           eventId,
           liveEventData,
+          pagingSize: connectedDevice.pagingSize,
+          pagingInterval: connectedDevice.pagingInterval,
         }));
         
         res.json({ success: true, delivered: true, sceneId });
@@ -2021,6 +2027,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
         connected: isConnected, 
         autoMode: device.autoMode ?? true // Default to true
       });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get paging settings for a display device
+  app.get("/api/display-devices/:id/paging", async (req, res) => {
+    try {
+      const device = await storage.getDisplayDevice(req.params.id);
+      if (!device) {
+        return res.status(404).json({ error: "Device not found" });
+      }
+      res.json({ 
+        pagingSize: device.pagingSize ?? 8,
+        pagingInterval: device.pagingInterval ?? 5
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Update paging settings for a display device
+  app.patch("/api/display-devices/:id/paging", async (req, res) => {
+    try {
+      const { pagingSize, pagingInterval } = req.body;
+      const deviceId = req.params.id;
+      
+      // Validate inputs
+      const size = Math.max(1, Math.min(20, parseInt(pagingSize) || 8));
+      const interval = Math.max(1, Math.min(60, parseInt(pagingInterval) || 5));
+      
+      const device = await storage.getDisplayDevice(deviceId);
+      if (!device) {
+        return res.status(404).json({ error: "Device not found" });
+      }
+      
+      // Update paging settings in database
+      const updated = await storage.updateDisplayDevice(deviceId, { 
+        pagingSize: size, 
+        pagingInterval: interval 
+      });
+      
+      // Update the in-memory device record with new paging settings
+      const connectedDevice = connectedDisplayDevices.get(deviceId);
+      if (connectedDevice) {
+        connectedDevice.pagingSize = size;
+        connectedDevice.pagingInterval = interval;
+        
+        // Notify the connected device of the new settings
+        if (connectedDevice.ws.readyState === WebSocket.OPEN) {
+          connectedDevice.ws.send(JSON.stringify({
+            type: 'paging_settings',
+            pagingSize: size,
+            pagingInterval: interval,
+          }));
+        }
+      }
+      
+      res.json({ success: true, pagingSize: size, pagingInterval: interval });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -4801,6 +4866,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 meetId: device.meetId,
                 displayType: displayType || 'P10',
                 autoMode: deviceAutoMode,
+                pagingSize: device.pagingSize ?? 8,
+                pagingInterval: device.pagingInterval ?? 5,
               });
               
               // Send registration confirmation with assigned event

@@ -832,6 +832,8 @@ export const displayDevices = pgTable("display_devices", {
   assignedEventId: varchar("assigned_event_id").references(() => events.id, { onDelete: "set null" }), // Which event to show (only used for field mode)
   assignedLayoutId: integer("assigned_layout_id").references(() => compositeLayouts.id, { onDelete: "set null" }), // Optional: composite layout
   autoMode: boolean("auto_mode").default(true), // When true, display auto-switches templates based on Lynx timing events
+  pagingSize: integer("paging_size").default(8), // Number of results to show at once (1-20)
+  pagingInterval: integer("paging_interval").default(5), // Seconds between page scrolls (1-60)
   status: text("status").default("offline"), // online, offline, idle
   lastSeenAt: timestamp("last_seen_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),

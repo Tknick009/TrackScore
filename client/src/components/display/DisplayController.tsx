@@ -14,6 +14,8 @@ interface DisplayControllerProps {
   meet?: Meet;
   mode: "live" | "results" | "schedule" | "standings";
   boardType?: "live-results" | "live-time" | "single-result" | "field-event" | "standings";
+  pagingSize?: number;
+  pagingInterval?: number;
 }
 
 interface BoardTemplateProps {
@@ -22,7 +24,7 @@ interface BoardTemplateProps {
   mode: string;
 }
 
-export function DisplayController({ event, meet, mode, boardType = "live-results" }: DisplayControllerProps) {
+export function DisplayController({ event, meet, mode, boardType = "live-results", pagingSize = 8, pagingInterval = 5 }: DisplayControllerProps) {
   if (!event) {
     return (
       <div className="min-h-screen w-full bg-[hsl(var(--display-bg))] flex items-center justify-center p-16">
@@ -57,7 +59,7 @@ export function DisplayController({ event, meet, mode, boardType = "live-results
 
   // When event is completed, use scrolling results board to cycle through all results
   if (event.status === "completed") {
-    return <ScrollingResultsBoard event={event} meet={meet} mode="results" />;
+    return <ScrollingResultsBoard event={event} meet={meet} mode="results" resultsPerPage={pagingSize} scrollIntervalMs={pagingInterval * 1000} />;
   }
 
   const boardTemplates: Record<string, React.ComponentType<BoardTemplateProps>> = {

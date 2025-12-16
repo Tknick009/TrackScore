@@ -43,6 +43,8 @@ interface DisplayDeviceState {
   setupComplete: boolean;
   liveClockTime: string | null;
   liveEventData: LiveEventData | null;
+  pagingSize: number;
+  pagingInterval: number;
 }
 
 // Storage helpers for device identity - each display type gets its own key
@@ -111,6 +113,8 @@ export default function DisplayDevice() {
     setupComplete: false,
     liveClockTime: null,
     liveEventData: null,
+    pagingSize: 8,
+    pagingInterval: 5,
   });
   const [selectedMeetId, setSelectedMeetId] = useState<string | null>(null);
   const [deviceName, setDeviceName] = useState<string>('');
@@ -204,6 +208,16 @@ export default function DisplayDevice() {
               currentSceneId: message.sceneId || null, // Custom scene ID from auto-mode mapping
               currentEventId: message.eventId || prev.currentEventId,
               liveEventData: message.liveEventData || prev.liveEventData,
+              pagingSize: message.pagingSize ?? prev.pagingSize,
+              pagingInterval: message.pagingInterval ?? prev.pagingInterval,
+            }));
+          }
+          
+          if (message.type === 'paging_settings') {
+            setState(prev => ({
+              ...prev,
+              pagingSize: message.pagingSize ?? prev.pagingSize,
+              pagingInterval: message.pagingInterval ?? prev.pagingInterval,
             }));
           }
           
@@ -423,6 +437,8 @@ export default function DisplayDevice() {
       isConnected={state.isConnected}
       liveClockTime={state.liveClockTime}
       liveEventData={state.liveEventData}
+      pagingSize={state.pagingSize}
+      pagingInterval={state.pagingInterval}
     />
   );
 }
@@ -437,13 +453,15 @@ interface DisplayRendererProps {
   isConnected: boolean;
   liveClockTime: string | null;
   liveEventData: LiveEventData | null;
+  pagingSize: number;
+  pagingInterval: number;
 }
 
 interface EventWithEntries extends Event {
   entries: any[];
 }
 
-function DisplayRenderer({ displayType, meetId, template, sceneId, eventId, deviceId, isConnected, liveClockTime, liveEventData }: DisplayRendererProps) {
+function DisplayRenderer({ displayType, meetId, template, sceneId, eventId, deviceId, isConnected, liveClockTime, liveEventData, pagingSize, pagingInterval }: DisplayRendererProps) {
   const { data: meet } = useQuery<Meet>({
     queryKey: ['/api/meets', meetId],
     enabled: !!meetId,
