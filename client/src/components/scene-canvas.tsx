@@ -749,9 +749,6 @@ export function SceneCanvas({
   const [dimensions, setDimensions] = useState({ width: 1920, height: 1080 });
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   
-  // For fixed-size displays, use transform scaling
-  const isFixedSize = displayWidth !== undefined && displayHeight !== undefined;
-  
   const skipSceneQuery = !!propScene;
   const skipObjectsQuery = !!propObjects;
   
@@ -798,9 +795,6 @@ export function SceneCanvas({
   }, [objects]);
   
   useEffect(() => {
-    // For fixed-size displays, skip window resize - we use transform scaling
-    if (isFixedSize) return;
-    
     const updateDimensions = () => {
       setDimensions({
         width: window.innerWidth,
@@ -811,7 +805,7 @@ export function SceneCanvas({
     updateDimensions();
     window.addEventListener("resize", updateDimensions);
     return () => window.removeEventListener("resize", updateDimensions);
-  }, [isFixedSize]);
+  }, []);
   
   const isLoading = (!skipSceneQuery && sceneLoading) || (!skipObjectsQuery && objectsLoading);
   
@@ -846,64 +840,7 @@ export function SceneCanvas({
   
   const backgroundColor = scene.backgroundColor || "hsl(var(--display-bg))";
   
-  // For fixed-size displays, use scene dimensions and scale to fit target display
-  const designWidth = scene.width || 1920;
-  const designHeight = scene.height || 1080;
-  
-  if (isFixedSize && displayWidth && displayHeight) {
-    // Calculate scale to fit scene into display dimensions
-    const scaleX = displayWidth / designWidth;
-    const scaleY = displayHeight / designHeight;
-    const scale = Math.min(scaleX, scaleY); // Fit while maintaining aspect ratio
-    
-    return (
-      <div 
-        className="overflow-hidden display-layout"
-        style={{ 
-          width: displayWidth,
-          height: displayHeight,
-          backgroundColor,
-        }}
-        data-testid="scene-canvas"
-      >
-        <div 
-          className="relative"
-          style={{ 
-            width: designWidth, 
-            height: designHeight,
-            transform: `scale(${scale})`,
-            transformOrigin: 'top left',
-          }}
-        >
-          {sortedObjects.map((obj) => (
-            <SceneObjectRenderer 
-              key={obj.id} 
-              object={obj} 
-              meetId={meetId}
-              canvasWidth={designWidth}
-              canvasHeight={designHeight}
-              eventNumber={eventNumber}
-              pageIndex={currentPageIndex}
-              pageSize={pagingSize}
-              sharedLatestLiveData={latestLiveEventData}
-            />
-          ))}
-          
-          {sortedObjects.length === 0 && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="text-center text-[hsl(var(--display-muted))]">
-                <Trophy className="w-32 h-32 mx-auto mb-8 opacity-30" />
-                <p className="text-4xl font-stadium">Empty Scene</p>
-                <p className="text-xl mt-4">Add objects in the Scene Editor</p>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-  
-  // Default: full viewport rendering for BigBoard and desktop displays
+  // All displays use full viewport rendering - objects use percentage-based positioning
   return (
     <div 
       className="fixed inset-0 overflow-hidden display-layout"

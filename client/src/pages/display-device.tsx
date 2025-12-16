@@ -519,43 +519,17 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
       const capability = DISPLAY_CAPABILITIES[displayType];
       const isSingleAthleteDisplay = capability.maxAthletes === 1;
       
-      // Use full viewport for BigBoard, fixed dimensions for P10/P6
-      if (isSingleAthleteDisplay) {
-        return (
-          <div
-            style={{
-              width: `${capability.resolution.width}px`,
-              height: `${capability.resolution.height}px`,
-              overflow: 'hidden',
-            }}
-          >
-            <SceneCanvas
-              sceneId={sceneId}
-              scene={currentSceneData?.scene}
-              objects={currentSceneData?.objects}
-              meetId={meetId || undefined}
-              liveEventData={liveEventData}
-              pagingSize={pagingSize}
-              pagingInterval={pagingInterval}
-              displayWidth={capability.resolution.width}
-              displayHeight={capability.resolution.height}
-            />
-          </div>
-        );
-      }
-      
+      // All displays use full viewport rendering - objects use percentage-based positioning
       return (
-        <div className="w-screen h-screen">
-          <SceneCanvas
-            sceneId={sceneId}
-            scene={currentSceneData?.scene}
-            objects={currentSceneData?.objects}
-            meetId={meetId || undefined}
-            liveEventData={liveEventData}
-            pagingSize={pagingSize}
-            pagingInterval={pagingInterval}
-          />
-        </div>
+        <SceneCanvas
+          sceneId={sceneId}
+          scene={currentSceneData?.scene}
+          objects={currentSceneData?.objects}
+          meetId={meetId || undefined}
+          liveEventData={liveEventData}
+          pagingSize={pagingSize}
+          pagingInterval={pagingInterval}
+        />
       );
     }
     
