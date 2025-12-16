@@ -179,33 +179,6 @@ export default function DisplayControlPage() {
     },
   });
 
-  // Paging settings: Query
-  const { data: pagingSettings } = useQuery<{ pagingSize: number; pagingInterval: number }>({
-    queryKey: ['/api/display-devices', selectedDeviceId, 'paging'],
-    enabled: !!selectedDeviceId,
-  });
-
-  // Paging settings: Update mutation
-  const updatePagingMutation = useMutation({
-    mutationFn: async ({ deviceId, pagingSize, pagingInterval }: { deviceId: string; pagingSize: number; pagingInterval: number }) => {
-      return apiRequest('PATCH', `/api/display-devices/${deviceId}/paging`, { pagingSize, pagingInterval });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/display-devices', selectedDeviceId, 'paging'] });
-      toast({
-        title: 'Paging settings updated',
-        description: 'Display will now use the new paging settings.',
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: 'Failed to update paging settings',
-        description: error.message,
-        variant: 'destructive',
-      });
-    },
-  });
-
   // Scene Template Mappings - for assigning custom scenes to display types/modes
   const { data: sceneMappings = [] } = useQuery<SelectSceneTemplateMapping[]>({
     queryKey: [`/api/scene-template-mappings/${currentMeetId}`],
@@ -705,70 +678,6 @@ export default function DisplayControlPage() {
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <List className="w-5 h-5" />
-                    Results Paging
-                  </CardTitle>
-                  <CardDescription>
-                    Control how many results show at once and how long before scrolling
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="paging-size">Results per page</Label>
-                      <Select
-                        value={String(pagingSettings?.pagingSize ?? 8)}
-                        onValueChange={(value) => {
-                          updatePagingMutation.mutate({
-                            deviceId: selectedDevice.id,
-                            pagingSize: parseInt(value),
-                            pagingInterval: pagingSettings?.pagingInterval ?? 5,
-                          });
-                        }}
-                        disabled={updatePagingMutation.isPending}
-                      >
-                        <SelectTrigger id="paging-size" data-testid="select-paging-size">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {[1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20].map(n => (
-                            <SelectItem key={n} value={String(n)}>{n} results</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="paging-interval">Scroll interval</Label>
-                      <Select
-                        value={String(pagingSettings?.pagingInterval ?? 5)}
-                        onValueChange={(value) => {
-                          updatePagingMutation.mutate({
-                            deviceId: selectedDevice.id,
-                            pagingSize: pagingSettings?.pagingSize ?? 8,
-                            pagingInterval: parseInt(value),
-                          });
-                        }}
-                        disabled={updatePagingMutation.isPending}
-                      >
-                        <SelectTrigger id="paging-interval" data-testid="select-paging-interval">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {[1, 2, 3, 5, 10, 15, 20, 30, 45, 60].map(n => (
-                            <SelectItem key={n} value={String(n)}>{n} seconds</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    When there are more results than fit on screen, the display will automatically scroll through pages
-                  </p>
-                </CardContent>
-              </Card>
             </div>
           ) : (
             <div className="h-full flex items-center justify-center">

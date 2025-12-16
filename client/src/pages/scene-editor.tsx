@@ -1719,6 +1719,38 @@ export default function SceneEditor() {
                         </div>
                       )}
                       
+                      {/* Line Number for athlete data objects - ResulTV-style paging */}
+                      {((selectedObject.dataBinding as SceneDataBinding)?.sourceType === 'live-data' ||
+                        (selectedObject.dataBinding as SceneDataBinding)?.sourceType === 'current-field') && (
+                        <div className="space-y-2">
+                          <Label className="text-xs">Line Number</Label>
+                          <Select
+                            value={String(((selectedObject.dataBinding as SceneDataBinding)?.athleteIndex ?? 0) + 1)}
+                            onValueChange={(value) => updateObjectMutation.mutate({
+                              id: selectedObject.id,
+                              data: {
+                                dataBinding: {
+                                  ...(selectedObject.dataBinding as SceneDataBinding || {}),
+                                  athleteIndex: parseInt(value) - 1,
+                                },
+                              },
+                            })}
+                          >
+                            <SelectTrigger data-testid="select-line-number">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n => (
+                                <SelectItem key={n} value={String(n)}>Line {n}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground">
+                            Which result slot this object shows (Line 1 = 1st result, Line 2 = 2nd, etc.)
+                          </p>
+                        </div>
+                      )}
+                      
                       {/* Enhanced text field binding for text objects */}
                       {selectedObject.objectType === 'text' && (selectedObject.dataBinding as SceneDataBinding)?.sourceType !== 'static' && (
                         <div className="space-y-3 mt-4 p-3 bg-muted/50 rounded-md">

@@ -1028,6 +1028,7 @@ export type SceneDataBinding = {
   showAllHeats?: boolean;     // Show combined results from all heats
   fieldCode?: string;         // For text objects - dynamic field code like {place}, {name}, etc.
   fieldKey?: string;          // For simple field boxes - key from FIELD_BINDINGS registry
+  athleteIndex?: number;      // ResulTV-style line number (0-indexed). Line 1 = 0, Line 2 = 1, etc.
 };
 
 // Scene Object Config - type-specific configuration
@@ -1149,6 +1150,7 @@ export const sceneDataBindingSchema = z.object({
   showAllHeats: z.boolean().optional(),
   fieldCode: z.string().optional(),
   fieldKey: z.string().optional(),
+  athleteIndex: z.number().optional(),
 });
 
 export const sceneObjectConfigSchema = z.object({
