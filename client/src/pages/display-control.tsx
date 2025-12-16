@@ -375,14 +375,41 @@ export default function DisplayControlPage() {
           </div>
           <div className="flex items-center gap-2">
             <Button 
-              variant="secondary" 
+              variant="outline" 
+              size="sm" 
+              onClick={() => simulateMutation.mutate("start_list")}
+              disabled={simulateMutation.isPending}
+              data-testid="button-arm"
+            >
+              Arm
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => simulateMutation.mutate("clock")}
+              disabled={simulateMutation.isPending}
+              data-testid="button-start-clock"
+            >
+              Start Clock
+            </Button>
+            <Button 
+              variant="outline" 
               size="sm" 
               onClick={() => simulateMutation.mutate("results")}
+              disabled={simulateMutation.isPending}
+              data-testid="button-show-results"
+            >
+              Results
+            </Button>
+            <Button 
+              variant="secondary" 
+              size="sm" 
+              onClick={() => simulateMutation.mutate("all")}
               disabled={simulateMutation.isPending}
               data-testid="button-simulate-data"
             >
               <Play className={`w-4 h-4 mr-2 ${simulateMutation.isPending ? 'animate-pulse' : ''}`} />
-              Simulate
+              Simulate All
             </Button>
             <Button 
               variant="outline" 
