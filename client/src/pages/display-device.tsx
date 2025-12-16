@@ -537,6 +537,8 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
               liveEventData={liveEventData}
               pagingSize={pagingSize}
               pagingInterval={pagingInterval}
+              displayWidth={capability.resolution.width}
+              displayHeight={capability.resolution.height}
             />
           </div>
         );
