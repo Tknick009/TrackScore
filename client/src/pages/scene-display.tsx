@@ -277,7 +277,7 @@ function SceneObjectRenderer({
         return (
           <div className="flex flex-col justify-center h-full p-4 bg-[hsl(var(--display-bg))]">
             <h1 
-              className="font-stadium font-[900] text-[hsl(var(--display-fg))] uppercase truncate"
+              className="font-stadium font-[900] text-[hsl(var(--display-fg))] uppercase"
               style={{ fontSize: componentConfig.fontSize === 'xlarge' ? '64px' : componentConfig.fontSize === 'large' ? '48px' : componentConfig.fontSize === 'medium' ? '36px' : '24px' }}
             >
               {event?.name || componentConfig.staticText || componentConfig.textContent || "Event Name"}
@@ -384,7 +384,7 @@ function SceneObjectRenderer({
               textAlign: componentConfig.textAlign || "center",
             }}
           >
-            <span className="whitespace-nowrap truncate">{textContent || "Label"}</span>
+            <span className="whitespace-nowrap">{textContent || "Label"}</span>
           </div>
         );
         
@@ -419,7 +419,7 @@ function SceneObjectRenderer({
                     <span className="font-stadium-numbers text-xl font-[700] text-[hsl(var(--display-accent))] w-8 flex-shrink-0">
                       {index + 1}
                     </span>
-                    <span className="font-stadium text-lg text-[hsl(var(--display-fg))] whitespace-nowrap truncate">
+                    <span className="font-stadium text-lg text-[hsl(var(--display-fg))] whitespace-nowrap">
                       {team.teamName}
                     </span>
                   </div>
@@ -470,11 +470,11 @@ function SceneObjectRenderer({
                     {entry.finalLane || "-"}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <span className="font-stadium text-lg text-[hsl(var(--display-fg))] truncate block">
+                    <span className="font-stadium text-lg text-[hsl(var(--display-fg))] block">
                       {entry.athlete.firstName} {entry.athlete.lastName}
                     </span>
                     {entry.team && (
-                      <span className="text-sm text-[hsl(var(--display-muted))] whitespace-nowrap truncate block">
+                      <span className="text-sm text-[hsl(var(--display-muted))] whitespace-nowrap block">
                         {entry.team.name}
                       </span>
                     )}
@@ -535,7 +535,7 @@ function SceneObjectRenderer({
               {athlete.athlete.firstName} {athlete.athlete.lastName}
             </h3>
             {athlete.team && (
-              <p className="text-lg text-[hsl(var(--display-muted))] whitespace-nowrap truncate max-w-full">{athlete.team.name}</p>
+              <p className="text-lg text-[hsl(var(--display-muted))] whitespace-nowrap max-w-full">{athlete.team.name}</p>
             )}
             {athlete.finalPlace && (
               <div className="mt-2 px-4 py-1 rounded-full bg-[hsl(var(--display-accent))]">
@@ -561,7 +561,7 @@ function SceneObjectRenderer({
                     key={laneNum}
                     className="flex-1 flex flex-col items-center justify-end bg-[hsl(var(--display-bg-elevated))] rounded-t p-2"
                   >
-                    <span className="font-stadium text-sm text-[hsl(var(--display-fg))] truncate max-w-full">
+                    <span className="font-stadium text-sm text-[hsl(var(--display-fg))] max-w-full">
                       {entry ? `${entry.athlete.firstName.charAt(0)}. ${entry.athlete.lastName}` : '-'}
                     </span>
                     <span className="font-stadium-numbers text-lg font-[700] text-[hsl(var(--display-accent))]">
