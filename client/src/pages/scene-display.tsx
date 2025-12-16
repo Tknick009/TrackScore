@@ -321,6 +321,7 @@ function SceneObjectRenderer({
               alt="Logo" 
               className="max-w-full max-h-full object-contain"
               style={{ objectFit: componentConfig.objectFit || componentConfig.imageFit || "contain" }}
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
             />
           </div>
         );
