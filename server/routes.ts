@@ -3359,6 +3359,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Return updated scene with objects
       const updatedScene = await storage.getLayoutScene(sceneId);
+      
+      // Broadcast scene update to all connected displays for real-time updates
+      broadcastToDisplays({
+        type: 'scene_update',
+        data: { sceneId, scene: updatedScene }
+      });
+      
       res.json(updatedScene);
     } catch (error: any) {
       if (error instanceof z.ZodError) {
@@ -3447,6 +3454,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!object) {
         return res.status(404).json({ error: 'Object not found' });
       }
+      
+      // Broadcast object update to all connected displays for real-time updates
+      broadcastToDisplays({
+        type: 'scene_update',
+        data: { sceneId: object.sceneId, objectId: object.id }
+      });
+      
       res.json(object);
     } catch (error: any) {
       if (error instanceof z.ZodError) {

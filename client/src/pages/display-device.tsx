@@ -252,6 +252,21 @@ export default function DisplayDevice() {
               liveClockTime: message.data?.time || prev.liveClockTime,
             }));
           }
+          
+          // Handle scene updates for real-time layout changes
+          if (message.type === 'scene_update') {
+            const sceneId = message.data?.sceneId;
+            if (sceneId) {
+              console.log(`[Display] Scene ${sceneId} updated - refreshing display`);
+              // Invalidate cache to force refetch
+              queryClient.invalidateQueries({ queryKey: ['/api/layout-scenes', sceneId] });
+              queryClient.invalidateQueries({ queryKey: ['/api/layout-objects', { sceneId }] });
+              // If we have the full scene data, hydrate it directly for instant update
+              if (message.data?.scene) {
+                queryClient.setQueryData(['/api/layout-scenes', sceneId], message.data.scene);
+              }
+            }
+          }
         } catch (e) {
           console.error('Error parsing WebSocket message:', e);
         }
