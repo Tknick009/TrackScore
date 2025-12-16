@@ -34,7 +34,7 @@ import {
   MousePointer, Square, Copy, Clipboard,
   Type, Image, ChevronLeft, Upload,
   Grid3X3, ZoomIn, ZoomOut, Undo2, Pencil,
-  BorderAll, Minus
+  LayoutGrid, Minus
 } from "lucide-react";
 
 type BoxType = 'text' | 'image';
@@ -50,8 +50,7 @@ interface LayoutBox {
   staticText?: string;
   staticImageUrl?: string;
   zIndex: number;
-  resultsPerPage?: number;
-  pageDurationSeconds?: number;
+  athleteIndex?: number;  // ResulTV-style line number (0-indexed). Line 1 = 0, Line 2 = 1, etc.
   style?: {
     fontSize?: number;
     fontWeight?: string;
@@ -232,12 +231,10 @@ export default function SimpleSceneEditor() {
       width: box.width,
       height: box.height,
       zIndex: box.zIndex,
-      dataBinding: { sourceType, fieldKey: box.fieldKey || undefined },
+      dataBinding: { sourceType, fieldKey: box.fieldKey || undefined, athleteIndex: box.athleteIndex },
       config: {
         dynamicText: box.staticText,
         staticImageUrl: box.staticImageUrl,
-        resultsPerPage: box.resultsPerPage,
-        pageDurationSeconds: box.pageDurationSeconds,
       },
       style: box.style as any,
     };
@@ -254,8 +251,7 @@ export default function SimpleSceneEditor() {
     fieldKey: (obj.dataBinding as any)?.fieldKey || null,
     staticText: (obj.config as any)?.dynamicText,
     staticImageUrl: (obj.config as any)?.staticImageUrl,
-    resultsPerPage: (obj.config as any)?.resultsPerPage,
-    pageDurationSeconds: (obj.config as any)?.pageDurationSeconds,
+    athleteIndex: (obj.dataBinding as any)?.athleteIndex,
     zIndex: obj.zIndex,
     style: obj.style as any,
   });
@@ -1387,42 +1383,27 @@ export default function SimpleSceneEditor() {
                 </p>
               </div>
               
-              {/* Paging Options */}
+              {/* Line Number for ResulTV-style multi-athlete layouts */}
               <Separator />
-              <div className="space-y-3">
-                <Label>Paging / Scrolling</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Results Per Page</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      max={20}
-                      value={selectedBox.resultsPerPage || 8}
-                      onChange={(e) => updateSelectedBox({ 
-                        resultsPerPage: parseInt(e.target.value) || 8
-                      })}
-                      className="h-8"
-                      data-testid="input-results-per-page"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Page Duration (sec)</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      max={60}
-                      value={selectedBox.pageDurationSeconds || 5}
-                      onChange={(e) => updateSelectedBox({ 
-                        pageDurationSeconds: parseInt(e.target.value) || 5
-                      })}
-                      className="h-8"
-                      data-testid="input-page-duration"
-                    />
-                  </div>
-                </div>
+              <div className="space-y-2">
+                <Label>Line Number</Label>
+                <Select
+                  value={String((selectedBox.athleteIndex ?? 0) + 1)}
+                  onValueChange={(value) => updateSelectedBox({ 
+                    athleteIndex: parseInt(value) - 1
+                  })}
+                >
+                  <SelectTrigger data-testid="select-line-number">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n => (
+                      <SelectItem key={n} value={String(n)}>Line {n}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <p className="text-xs text-muted-foreground">
-                  Controls how results scroll through pages
+                  Which result slot this box shows (Line 1 = 1st result, Line 2 = 2nd, etc.)
                 </p>
               </div>
               
