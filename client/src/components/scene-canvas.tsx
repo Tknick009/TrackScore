@@ -840,18 +840,38 @@ export function SceneCanvas({
   
   const backgroundColor = scene.backgroundColor || "hsl(var(--display-bg))";
   
-  // All displays use full viewport rendering - objects use percentage-based positioning
+  // Use scene's designed dimensions - this is the native resolution the scene was created for
+  const designWidth = scene.canvasWidth || 1920;
+  const designHeight = scene.canvasHeight || 1080;
+  
+  // Calculate scale to fit the designed scene into the browser viewport while maintaining aspect ratio
+  const scaleX = dimensions.width / designWidth;
+  const scaleY = dimensions.height / designHeight;
+  const scale = Math.min(scaleX, scaleY); // Fit while preserving aspect ratio
+  
+  // Calculate centered position for letterboxing/pillarboxing
+  const scaledWidth = designWidth * scale;
+  const scaledHeight = designHeight * scale;
+  const offsetX = (dimensions.width - scaledWidth) / 2;
+  const offsetY = (dimensions.height - scaledHeight) / 2;
+  
   return (
     <div 
       className="fixed inset-0 overflow-hidden display-layout"
-      style={{ backgroundColor }}
+      style={{ backgroundColor: '#000' }} // Black letterbox/pillarbox
       data-testid="scene-canvas"
     >
-      <div 
-        className="relative w-full h-full"
-        style={{ 
-          width: dimensions.width, 
-          height: dimensions.height,
+      {/* Scaled and centered scene container */}
+      <div
+        style={{
+          position: 'absolute',
+          left: offsetX,
+          top: offsetY,
+          width: designWidth,
+          height: designHeight,
+          transform: `scale(${scale})`,
+          transformOrigin: 'top left',
+          backgroundColor,
         }}
       >
         {sortedObjects.map((obj) => (
@@ -859,8 +879,8 @@ export function SceneCanvas({
             key={obj.id} 
             object={obj} 
             meetId={meetId}
-            canvasWidth={dimensions.width}
-            canvasHeight={dimensions.height}
+            canvasWidth={designWidth}
+            canvasHeight={designHeight}
             eventNumber={eventNumber}
             pageIndex={currentPageIndex}
             pageSize={pagingSize}
