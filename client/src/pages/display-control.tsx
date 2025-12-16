@@ -179,6 +179,33 @@ export default function DisplayControlPage() {
     },
   });
 
+  // Paging: Query settings for selected device
+  const { data: pagingSettings } = useQuery<{ pagingSize: number; pagingInterval: number }>({
+    queryKey: ['/api/display-devices', selectedDeviceId, 'paging'],
+    enabled: !!selectedDeviceId,
+  });
+
+  // Paging: Update mutation
+  const updatePagingMutation = useMutation({
+    mutationFn: async ({ deviceId, pagingSize, pagingInterval }: { deviceId: string; pagingSize: number; pagingInterval: number }) => {
+      return apiRequest('POST', `/api/display-devices/${deviceId}/paging`, { pagingSize, pagingInterval });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/display-devices', selectedDeviceId, 'paging'] });
+      toast({
+        title: 'Paging updated',
+        description: 'Display paging settings have been saved.',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Paging update failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
   // Scene Template Mappings - for assigning custom scenes to display types/modes
   const { data: sceneMappings = [] } = useQuery<SelectSceneTemplateMapping[]>({
     queryKey: [`/api/scene-template-mappings/${currentMeetId}`],
@@ -673,6 +700,77 @@ export default function DisplayControlPage() {
                           </div>
                         </div>
                       )}
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <List className="w-5 h-5" />
+                    Paging Settings
+                  </CardTitle>
+                  <CardDescription>
+                    Control how results are paged on this display
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {selectedDevice.status !== 'online' ? (
+                    <div className="p-3 rounded-lg bg-muted text-muted-foreground text-sm">
+                      Device must be online to configure paging
+                    </div>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="paging-size">Results per page</Label>
+                          <Select
+                            value={String(pagingSettings?.pagingSize ?? 8)}
+                            onValueChange={(value) => {
+                              updatePagingMutation.mutate({
+                                deviceId: selectedDevice.id,
+                                pagingSize: parseInt(value),
+                                pagingInterval: pagingSettings?.pagingInterval ?? 5,
+                              });
+                            }}
+                          >
+                            <SelectTrigger id="paging-size" data-testid="select-paging-size">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {[1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 16, 20].map(n => (
+                                <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="paging-interval">Page interval (sec)</Label>
+                          <Select
+                            value={String(pagingSettings?.pagingInterval ?? 5)}
+                            onValueChange={(value) => {
+                              updatePagingMutation.mutate({
+                                deviceId: selectedDevice.id,
+                                pagingSize: pagingSettings?.pagingSize ?? 8,
+                                pagingInterval: parseInt(value),
+                              });
+                            }}
+                          >
+                            <SelectTrigger id="paging-interval" data-testid="select-paging-interval">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {[2, 3, 4, 5, 6, 8, 10, 15, 20, 30, 45, 60].map(n => (
+                                <SelectItem key={n} value={String(n)}>{n}s</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        When there are more results than fit on one page, the display will cycle through pages at this interval.
+                      </p>
                     </>
                   )}
                 </CardContent>
