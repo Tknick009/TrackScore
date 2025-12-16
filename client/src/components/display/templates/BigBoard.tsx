@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import type { EventWithEntries, Meet } from "@shared/schema";
 
 interface BigBoardProps {
@@ -6,10 +6,13 @@ interface BigBoardProps {
   meet?: Meet | null;
   showSplits?: boolean;
   liveTime?: string;
+  pagingSize?: number;
+  pagingIntervalMs?: number;
 }
 
-export function BigBoard({ event, meet, showSplits = false, liveTime }: BigBoardProps) {
+export function BigBoard({ event, meet, showSplits = false, liveTime, pagingSize = 8, pagingIntervalMs = 5000 }: BigBoardProps) {
   const [clock, setClock] = useState<string>("");
+  const [currentPage, setCurrentPage] = useState(0);
 
   useEffect(() => {
     const updateClock = () => {
@@ -26,12 +29,39 @@ export function BigBoard({ event, meet, showSplits = false, liveTime }: BigBoard
 
   const displayClock = liveTime || clock;
 
-  const sortedEntries = [...(event.entries || [])].sort((a, b) => {
-    if (a.finalPlace && b.finalPlace) return a.finalPlace - b.finalPlace;
-    if (a.finalPlace) return -1;
-    if (b.finalPlace) return 1;
-    return (a.finalLane || 0) - (b.finalLane || 0);
-  });
+  const sortedEntries = useMemo(() => {
+    return [...(event.entries || [])].sort((a, b) => {
+      if (a.finalPlace && b.finalPlace) return a.finalPlace - b.finalPlace;
+      if (a.finalPlace) return -1;
+      if (b.finalPlace) return 1;
+      return (a.finalLane || 0) - (b.finalLane || 0);
+    });
+  }, [event.entries]);
+
+  // Calculate paging
+  const totalPages = Math.ceil(sortedEntries.length / pagingSize);
+  
+  // Reset page when event changes
+  useEffect(() => {
+    setCurrentPage(0);
+  }, [event.id, sortedEntries.length, pagingSize]);
+
+  // Paging timer - loop through pages
+  useEffect(() => {
+    if (totalPages <= 1) return;
+    
+    const timer = setInterval(() => {
+      setCurrentPage((prev) => (prev + 1) % totalPages);
+    }, pagingIntervalMs);
+    
+    return () => clearInterval(timer);
+  }, [totalPages, pagingIntervalMs]);
+
+  // Get current page entries
+  const currentPageEntries = useMemo(() => {
+    const startIndex = currentPage * pagingSize;
+    return sortedEntries.slice(startIndex, startIndex + pagingSize);
+  }, [sortedEntries, currentPage, pagingSize]);
 
   const isRelay = event.eventType?.toLowerCase().includes('relay');
   const status = event.status === 'completed' ? 'FINAL' : event.status === 'in_progress' ? 'IN PROGRESS' : 'SCHEDULED';
@@ -124,8 +154,8 @@ export function BigBoard({ event, meet, showSplits = false, liveTime }: BigBoard
 
         <div className="h-1 bg-gradient-to-r from-cyan-500/0 via-cyan-500/60 to-cyan-500/0" />
 
-        <div className="flex-1 flex flex-col px-4 py-3 overflow-hidden">
-          {sortedEntries.slice(0, 8).map((entry, index) => {
+        <div className="flex-1 flex flex-col px-4 py-3 overflow-hidden" key={currentPage}>
+          {currentPageEntries.map((entry, index) => {
             const teamLogo = entry.team?.logoUrl;
             const displayName = isRelay 
               ? entry.team?.name || 'Unknown Team'

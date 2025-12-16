@@ -776,7 +776,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, eventId, devi
 
     if ((isTrackResults || isStartList || isBigBoard) && currentEvent) {
       const showSplits = templateId.includes('splits');
-      return <BigBoard event={currentEvent as any} meet={meet} showSplits={showSplits} />;
+      return <BigBoard event={currentEvent as any} meet={meet} showSplits={showSplits} pagingSize={pagingSize} pagingIntervalMs={pagingInterval * 1000} />;
     }
     
     // Use live event data from Lynx when no configured event exists
@@ -803,7 +803,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, eventId, devi
         heat: liveEventData.heat,
         round: liveEventData.round,
       };
-      return <BigBoard event={syntheticEvent as any} meet={meet} showSplits={showSplits} />;
+      return <BigBoard event={syntheticEvent as any} meet={meet} showSplits={showSplits} pagingSize={pagingSize} pagingIntervalMs={pagingInterval * 1000} />;
     }
 
     if (!currentEvent && !liveEventData && (isTrackResults || isFieldResults || isStartList || isFieldStandings)) {
