@@ -326,7 +326,11 @@ export function SceneObjectRenderer({
         return <LiveResultsBoard event={event} meet={meet} mode="live" />;
         
       case "timer":
-        const timerFontSize = componentConfig.fontSize === 'xlarge' ? '96px' : componentConfig.fontSize === 'large' ? '72px' : componentConfig.fontSize === 'medium' ? '48px' : '36px';
+        // Use numeric fontSize from style, or fall back to componentConfig string mapping
+        const timerNumericSize = styleConfig.fontSize || componentConfig.fontSize;
+        const timerFontSize = typeof timerNumericSize === 'number' 
+          ? `${timerNumericSize}px` 
+          : (timerNumericSize === 'xlarge' ? '96px' : timerNumericSize === 'large' ? '72px' : timerNumericSize === 'medium' ? '48px' : '36px');
         return (
           <div 
             className="flex items-center justify-center h-full bg-[hsl(var(--display-bg))]"
@@ -340,11 +344,16 @@ export function SceneObjectRenderer({
         );
         
       case "event-header":
+        // Use numeric fontSize from style, or fall back to componentConfig string mapping
+        const headerNumericSize = styleConfig.fontSize || componentConfig.fontSize;
+        const headerFontSize = typeof headerNumericSize === 'number' 
+          ? `${headerNumericSize}px` 
+          : (headerNumericSize === 'xlarge' ? '64px' : headerNumericSize === 'large' ? '48px' : headerNumericSize === 'medium' ? '36px' : '24px');
         return (
           <div className="flex flex-col justify-center h-full p-4 bg-[hsl(var(--display-bg))]">
             <h1 
               className="font-stadium font-[900] text-[hsl(var(--display-fg))] uppercase"
-              style={{ fontSize: componentConfig.fontSize === 'xlarge' ? '64px' : componentConfig.fontSize === 'large' ? '48px' : componentConfig.fontSize === 'medium' ? '36px' : '24px' }}
+              style={{ fontSize: headerFontSize }}
             >
               {event?.name || componentConfig.staticText || componentConfig.textContent || "Event Name"}
             </h1>
@@ -399,7 +408,11 @@ export function SceneObjectRenderer({
         
         // Special case: running-time uses smooth clock for jitter-free updates
         if (fieldKey === 'running-time' && liveData) {
-          const textFontSize = componentConfig.fontSize === 'xlarge' ? '48px' : componentConfig.fontSize === 'large' ? '36px' : componentConfig.fontSize === 'medium' ? '24px' : '18px';
+          // Use numeric fontSize from style, or fall back to componentConfig string mapping
+          const numericFontSize = styleConfig.fontSize || componentConfig.fontSize;
+          const textFontSize = typeof numericFontSize === 'number' 
+            ? `${numericFontSize}px` 
+            : (numericFontSize === 'xlarge' ? '48px' : numericFontSize === 'large' ? '36px' : numericFontSize === 'medium' ? '24px' : '18px');
           const textAlign = componentConfig.textAlign || styleConfig.textAlign || "center";
           const justifyContent = textAlign === 'left' ? 'flex-start' : textAlign === 'right' ? 'flex-end' : 'center';
           return (
@@ -469,13 +482,19 @@ export function SceneObjectRenderer({
         const textAlign = componentConfig.textAlign || styleConfig.textAlign || "center";
         const justifyContent = textAlign === 'left' ? 'flex-start' : textAlign === 'right' ? 'flex-end' : 'center';
         
+        // Use numeric fontSize from style, or fall back to componentConfig string mapping
+        const numericTextFontSize = styleConfig.fontSize || componentConfig.fontSize;
+        const resolvedFontSize = typeof numericTextFontSize === 'number' 
+          ? `${numericTextFontSize}px` 
+          : (numericTextFontSize === 'xlarge' ? '48px' : numericTextFontSize === 'large' ? '36px' : numericTextFontSize === 'medium' ? '24px' : '18px');
+        
         return (
           <div 
             className="flex items-center h-full p-2 overflow-hidden"
             style={{
               justifyContent,
-              fontSize: componentConfig.fontSize === 'xlarge' ? '48px' : componentConfig.fontSize === 'large' ? '36px' : componentConfig.fontSize === 'medium' ? '24px' : '18px',
-              fontWeight: componentConfig.fontWeight || "normal",
+              fontSize: resolvedFontSize,
+              fontWeight: componentConfig.fontWeight || styleConfig.fontWeight || "normal",
               color: componentConfig.textColor || styleConfig.textColor || "hsl(var(--display-fg))",
             }}
           >
