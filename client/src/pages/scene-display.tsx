@@ -376,14 +376,17 @@ function SceneObjectRenderer({
           }
         }
         
+        const textAlign = componentConfig.textAlign || styleConfig.textAlign || "center";
+        const justifyContent = textAlign === 'left' ? 'flex-start' : textAlign === 'right' ? 'flex-end' : 'center';
+        
         return (
           <div 
-            className="flex items-center justify-center h-full p-2 overflow-hidden"
+            className="flex items-center h-full p-2 overflow-hidden"
             style={{
+              justifyContent,
               fontSize: componentConfig.fontSize === 'xlarge' ? '48px' : componentConfig.fontSize === 'large' ? '36px' : componentConfig.fontSize === 'medium' ? '24px' : '18px',
               fontWeight: componentConfig.fontWeight || "normal",
               color: componentConfig.textColor || styleConfig.textColor || "hsl(var(--display-fg))",
-              textAlign: componentConfig.textAlign || "center",
             }}
           >
             <span className="whitespace-nowrap">{textContent || "Label"}</span>
