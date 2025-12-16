@@ -1747,6 +1747,10 @@ export default function SceneEditor() {
                               <SelectItem value="5">Line 6</SelectItem>
                               <SelectItem value="6">Line 7</SelectItem>
                               <SelectItem value="7">Line 8</SelectItem>
+                              <SelectItem value="8">Line 9</SelectItem>
+                              <SelectItem value="9">Line 10</SelectItem>
+                              <SelectItem value="10">Line 11</SelectItem>
+                              <SelectItem value="11">Line 12</SelectItem>
                             </SelectContent>
                           </Select>
                           <p className="text-xs text-muted-foreground">
