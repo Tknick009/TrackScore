@@ -1,4 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700;900&family=Bebas+Neue&display=swap');
+@font-face {
+  font-family: 'Oswald';
+  src: url('/fonts/Oswald-VariableFont.ttf') format('truetype');
+  font-weight: 200 700;
+  font-style: normal;
+  font-display: swap;
+}
 
 @tailwind base;
 @tailwind components;
@@ -238,12 +244,14 @@
 
   /* Stadium Display Board Typography */
   .font-stadium {
-    font-family: 'Barlow Semi Condensed', sans-serif;
+    font-family: 'Oswald', sans-serif;
+    text-transform: uppercase;
   }
 
   .font-stadium-numbers {
-    font-family: 'Bebas Neue', sans-serif;
+    font-family: 'Oswald', sans-serif;
     font-variant-numeric: tabular-nums;
+    text-transform: uppercase;
   }
 
   /* Gradient Edge Styling - Blue stadium aesthetic */
