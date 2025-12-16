@@ -298,9 +298,10 @@ function SceneObjectRenderer({
         if (componentConfig.logoType === "meet") {
           logoUrl = meet?.logoUrl;
         } else if (logoFieldKey === "school-logo" && liveData) {
-          // Get school name from current page's entry (for paging through athletes)
+          // ResulTV-style paging: entryIndex = pageIndex * pageSize + athleteIndex
+          const athleteIndex = dataBinding.athleteIndex || 0;
           const entries = Array.isArray(liveData.entries) ? liveData.entries : [];
-          const entryIndex = pageSize === 1 ? pageIndex : 0; // Only page through if showing 1 at a time
+          const entryIndex = pageIndex * pageSize + athleteIndex;
           const firstEntry = entries.length > entryIndex ? entries[entryIndex] : null;
           const schoolName = firstEntry?.affiliation || firstEntry?.team;
           if (schoolName) {
@@ -340,9 +341,11 @@ function SceneObjectRenderer({
           const eventName = liveData.eventName 
             || (liveData.distance ? `${liveData.distance}m` : `Event ${liveData.eventNumber}`);
           
-          // Get current page's entry for single-athlete fields (paging support)
+          // ResulTV-style paging: entryIndex = pageIndex * pageSize + athleteIndex
+          // athleteIndex is which "slot" this object represents (0=first, 1=second, etc.)
+          const athleteIndex = dataBinding.athleteIndex || 0;
           const entries = Array.isArray(liveData.entries) ? liveData.entries : [];
-          const entryIndex = pageSize === 1 ? pageIndex : 0; // Only page through if showing 1 at a time
+          const entryIndex = pageIndex * pageSize + athleteIndex;
           const firstEntry = entries.length > entryIndex ? entries[entryIndex] : null;
           
           // Map fieldKey to live data value
@@ -739,6 +742,9 @@ export default function SceneDisplay() {
   const pagingSize = parseInt(urlParams.get("pagingSize") || "8", 10);
   const pagingInterval = parseInt(urlParams.get("pagingInterval") || "5", 10);
   
+  // Debug logging for paging
+  console.log('[SceneDisplay] Paging params:', { pagingSize, pagingInterval, eventNumber, location });
+  
   const [dimensions, setDimensions] = useState({ width: 1920, height: 1080 });
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   
@@ -773,12 +779,18 @@ export default function SceneDisplay() {
   
   const totalPages = Math.max(1, Math.ceil(totalEntries / pagingSize));
   
+  // Debug logging for paging calculation
+  console.log('[SceneDisplay] Paging calculation:', { totalEntries, pagingSize, totalPages, currentPageIndex });
+  
   // Paging timer - cycles through pages with looping
   useEffect(() => {
     if (totalPages <= 1 || pagingInterval <= 0) {
+      console.log('[SceneDisplay] Paging disabled:', { totalPages, pagingInterval });
       setCurrentPageIndex(0);
       return;
     }
+    
+    console.log('[SceneDisplay] Starting paging timer:', { totalPages, pagingInterval });
     
     const timer = setInterval(() => {
       setCurrentPageIndex(prev => (prev + 1) % totalPages);

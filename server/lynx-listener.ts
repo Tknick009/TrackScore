@@ -539,6 +539,7 @@ export class LynxListener extends EventEmitter {
           heat,
           round,
           distance,
+          eventName: data.DN,
           status,
           wind,
           entries: [],
@@ -546,6 +547,9 @@ export class LynxListener extends EventEmitter {
           type: 'T',
         };
         this.aggregatedEvents.set(key, aggregated);
+      } else if (data.DN && !aggregated.eventName) {
+        // Update eventName if we receive it and don't have it yet
+        aggregated.eventName = data.DN;
       }
       
       const athleteName = data.N || (data.FN && data.LN ? `${data.FN} ${data.LN}` : undefined);
