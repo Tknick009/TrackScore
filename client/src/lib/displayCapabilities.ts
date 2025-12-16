@@ -20,7 +20,7 @@ export const DISPLAY_CAPABILITIES: Record<DisplayType, DisplayCapability> = {
   },
   P6: {
     maxAthletes: 1,
-    resolution: { width: 288, height: 192 },
+    resolution: { width: 288, height: 144 },
     allowedLayoutKinds: ['single'],
     description: 'Medium LED matrix - one athlete only',
   },
