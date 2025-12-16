@@ -5303,16 +5303,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         simulatedClockStartTime = Date.now();
         console.log('[Simulator] Starting running clock from 0.0');
         
-        // Send clock updates every 100ms (tenths of a second)
+        // Send clock updates every 50ms (20 times per second)
         simulatedClockTimer = setInterval(() => {
           const elapsed = Date.now() - simulatedClockStartTime;
           const totalSeconds = elapsed / 1000;
           const minutes = Math.floor(totalSeconds / 60);
-          const seconds = (totalSeconds % 60).toFixed(1);
-          const timeStr = minutes > 0 ? `${minutes}:${seconds.padStart(4, '0')}` : seconds;
+          const seconds = (totalSeconds % 60).toFixed(2);
+          const timeStr = minutes > 0 ? `${minutes}:${seconds.padStart(5, '0')}` : seconds;
           const message = JSON.stringify({ t: timeStr });
           lynxListener.processForwardedData(message, 'clock', 'Simulator');
-        }, 100);
+        }, 50);
       }
       
       if (mode === 'stop_clock') {
