@@ -1028,6 +1028,7 @@ export type SceneDataBinding = {
   showAllHeats?: boolean;     // Show combined results from all heats
   fieldCode?: string;         // For text objects - dynamic field code like {place}, {name}, etc.
   fieldKey?: string;          // For simple field boxes - key from FIELD_BINDINGS registry
+  athleteIndex?: number;      // Which entry slot this object shows (0=first, 1=second, etc.)
 };
 
 // Scene Object Config - type-specific configuration

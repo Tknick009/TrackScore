@@ -120,17 +120,13 @@ function SceneObjectRenderer({
   meetId,
   canvasWidth,
   canvasHeight,
-  eventNumber,
-  pageIndex = 0,
-  pageSize = 8
+  eventNumber
 }: { 
   object: SelectLayoutObject; 
   meetId?: string;
   canvasWidth: number;
   canvasHeight: number;
   eventNumber?: string;
-  pageIndex?: number;
-  pageSize?: number;
 }) {
   const dataBinding: SceneDataBinding = object.dataBinding || { sourceType: 'static' };
   const componentConfig: SceneObjectConfig = object.config || {};
@@ -298,11 +294,11 @@ function SceneObjectRenderer({
         if (componentConfig.logoType === "meet") {
           logoUrl = meet?.logoUrl;
         } else if (logoFieldKey === "school-logo" && liveData) {
-          // ResulTV-style paging: entryIndex = pageIndex * pageSize + athleteIndex
+          // athleteIndex determines which entry slot this object shows (0=first, 1=second, etc.)
+          // FinishLynx handles paging externally by sending different entries
           const athleteIndex = dataBinding.athleteIndex || 0;
           const entries = Array.isArray(liveData.entries) ? liveData.entries : [];
-          const entryIndex = pageIndex * pageSize + athleteIndex;
-          const firstEntry = entries.length > entryIndex ? entries[entryIndex] : null;
+          const firstEntry = entries.length > athleteIndex ? entries[athleteIndex] : null;
           const schoolName = firstEntry?.affiliation || firstEntry?.team;
           if (schoolName) {
             // Build path to NCAA logo folder
@@ -341,12 +337,11 @@ function SceneObjectRenderer({
           const eventName = liveData.eventName 
             || (liveData.distance ? `${liveData.distance}m` : `Event ${liveData.eventNumber}`);
           
-          // ResulTV-style paging: entryIndex = pageIndex * pageSize + athleteIndex
-          // athleteIndex is which "slot" this object represents (0=first, 1=second, etc.)
+          // athleteIndex determines which entry slot this object shows (0=first, 1=second, etc.)
+          // FinishLynx handles paging externally by sending different entries
           const athleteIndex = dataBinding.athleteIndex || 0;
           const entries = Array.isArray(liveData.entries) ? liveData.entries : [];
-          const entryIndex = pageIndex * pageSize + athleteIndex;
-          const firstEntry = entries.length > entryIndex ? entries[entryIndex] : null;
+          const currentEntry = entries.length > athleteIndex ? entries[athleteIndex] : null;
           
           // Map fieldKey to live data value
           const fieldMap: Record<string, any> = {
@@ -357,18 +352,18 @@ function SceneObjectRenderer({
             'round': liveData.round,
             'wind': liveData.wind,
             'status': liveData.status,
-            'lane': firstEntry?.lane,
-            'place': firstEntry?.place,
-            'name': firstEntry?.name,
-            'first-name': firstEntry?.firstName,
-            'last-name': firstEntry?.lastName,
-            'school': firstEntry?.affiliation || firstEntry?.team,
-            'time': firstEntry?.time || firstEntry?.mark,
-            'last-split': firstEntry?.lastSplit,
-            'cumulative-split': firstEntry?.cumulativeSplit,
-            'reaction-time': firstEntry?.reactionTime,
+            'lane': currentEntry?.lane,
+            'place': currentEntry?.place,
+            'name': currentEntry?.name,
+            'first-name': currentEntry?.firstName,
+            'last-name': currentEntry?.lastName,
+            'school': currentEntry?.affiliation || currentEntry?.team,
+            'time': currentEntry?.time || currentEntry?.mark,
+            'last-split': currentEntry?.lastSplit,
+            'cumulative-split': currentEntry?.cumulativeSplit,
+            'reaction-time': currentEntry?.reactionTime,
             'running-time': liveData.runningTime,
-            'bib': firstEntry?.bib,
+            'bib': currentEntry?.bib,
           };
           const resolvedValue = fieldMap[fieldKey];
           if (resolvedValue !== undefined && resolvedValue !== null && resolvedValue !== '') {
@@ -739,14 +734,8 @@ export default function SceneDisplay() {
   const sceneId = params.sceneId || urlParams.get("sceneId") || undefined;
   const meetId = urlParams.get("meetId") || undefined;
   const eventNumber = urlParams.get("eventNumber") || undefined;
-  const pagingSize = parseInt(urlParams.get("pagingSize") || "8", 10);
-  const pagingInterval = parseInt(urlParams.get("pagingInterval") || "5", 10);
-  
-  // Debug logging for paging
-  console.log('[SceneDisplay] Paging params:', { pagingSize, pagingInterval, eventNumber, location });
   
   const [dimensions, setDimensions] = useState({ width: 1920, height: 1080 });
-  const [currentPageIndex, setCurrentPageIndex] = useState(0);
   
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -769,42 +758,6 @@ export default function SceneDisplay() {
   const { data: scene, isLoading: sceneLoading, error: sceneError } = useScene(sceneId);
   const { data: objects = [], isLoading: objectsLoading } = useSceneObjects(sceneId);
   const { data: liveEventData } = useLiveEventData(eventNumber);
-  
-  // Get total entries count from live data for paging
-  const totalEntries = useMemo(() => {
-    if (!liveEventData) return 0;
-    const entries = liveEventData.entries || liveEventData.results || [];
-    return entries.length;
-  }, [liveEventData]);
-  
-  const totalPages = Math.max(1, Math.ceil(totalEntries / pagingSize));
-  
-  // Debug logging for paging calculation
-  console.log('[SceneDisplay] Paging calculation:', { totalEntries, pagingSize, totalPages, currentPageIndex });
-  
-  // Paging timer - cycles through pages with looping
-  useEffect(() => {
-    if (totalPages <= 1 || pagingInterval <= 0) {
-      console.log('[SceneDisplay] Paging disabled:', { totalPages, pagingInterval });
-      setCurrentPageIndex(0);
-      return;
-    }
-    
-    console.log('[SceneDisplay] Starting paging timer:', { totalPages, pagingInterval });
-    
-    const timer = setInterval(() => {
-      setCurrentPageIndex(prev => (prev + 1) % totalPages);
-    }, pagingInterval * 1000);
-    
-    return () => clearInterval(timer);
-  }, [totalPages, pagingInterval]);
-  
-  // Reset page index when entries change significantly
-  useEffect(() => {
-    if (currentPageIndex >= totalPages) {
-      setCurrentPageIndex(0);
-    }
-  }, [totalPages, currentPageIndex]);
   
   const sortedObjects = useMemo(() => {
     return [...objects].sort((a, b) => a.zIndex - b.zIndex);
@@ -950,8 +903,6 @@ export default function SceneDisplay() {
             canvasWidth={dimensions.width}
             canvasHeight={dimensions.height}
             eventNumber={eventNumber}
-            pageIndex={currentPageIndex}
-            pageSize={pagingSize}
           />
         ))}
         
