@@ -112,8 +112,8 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === `${basePath}/layout-editor`}>
-                  <Link href={`${basePath}/layout-editor`} data-testid="link-layout-editor">
+                <SidebarMenuButton asChild isActive={location === `${basePath}/scene-editor`}>
+                  <Link href={`${basePath}/scene-editor`} data-testid="link-scene-editor">
                     <LayoutTemplate />
                     <span>Layout Designer</span>
                   </Link>
