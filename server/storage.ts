@@ -2733,7 +2733,7 @@ export class DatabaseStorage implements IStorage {
   async getCombinedEventsByLynxEventNumber(lynxEventNumber: number): Promise<SelectCombinedEvent[]> {
     const lynxNumStr = String(lynxEventNumber);
     
-    const allEvents = await db.select().from(events).where(sql`${events.lynxEventNumber} IS NOT NULL`);
+    const allEvents = await db.select().from(events).where(isNotNull(events.lynxEventNumber));
     
     const matchingEvents = allEvents.filter(e => {
       if (!e.lynxEventNumber) return false;
