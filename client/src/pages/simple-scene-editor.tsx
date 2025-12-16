@@ -50,6 +50,8 @@ interface LayoutBox {
   staticText?: string;
   staticImageUrl?: string;
   zIndex: number;
+  resultsPerPage?: number;
+  pageDurationSeconds?: number;
   style?: {
     fontSize?: number;
     fontWeight?: string;
@@ -234,6 +236,8 @@ export default function SimpleSceneEditor() {
       config: {
         dynamicText: box.staticText,
         staticImageUrl: box.staticImageUrl,
+        resultsPerPage: box.resultsPerPage,
+        pageDurationSeconds: box.pageDurationSeconds,
       },
       style: box.style as any,
     };
@@ -250,6 +254,8 @@ export default function SimpleSceneEditor() {
     fieldKey: (obj.dataBinding as any)?.fieldKey || null,
     staticText: (obj.config as any)?.dynamicText,
     staticImageUrl: (obj.config as any)?.staticImageUrl,
+    resultsPerPage: (obj.config as any)?.resultsPerPage,
+    pageDurationSeconds: (obj.config as any)?.pageDurationSeconds,
     zIndex: obj.zIndex,
     style: obj.style as any,
   });
@@ -1378,6 +1384,45 @@ export default function SimpleSceneEditor() {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Space between content and box edge
+                </p>
+              </div>
+              
+              {/* Paging Options */}
+              <Separator />
+              <div className="space-y-3">
+                <Label>Paging / Scrolling</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Results Per Page</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={20}
+                      value={selectedBox.resultsPerPage || 8}
+                      onChange={(e) => updateSelectedBox({ 
+                        resultsPerPage: parseInt(e.target.value) || 8
+                      })}
+                      className="h-8"
+                      data-testid="input-results-per-page"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Page Duration (sec)</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={60}
+                      value={selectedBox.pageDurationSeconds || 5}
+                      onChange={(e) => updateSelectedBox({ 
+                        pageDurationSeconds: parseInt(e.target.value) || 5
+                      })}
+                      className="h-8"
+                      data-testid="input-page-duration"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Controls how results scroll through pages
                 </p>
               </div>
               

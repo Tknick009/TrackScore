@@ -1070,6 +1070,10 @@ export type SceneObjectConfig = {
   boardType?: 'live-results' | 'live-time' | 'field-event' | 'standings' | 'scrolling';
   scrollOnComplete?: boolean;
   
+  // Paging/scrolling options
+  resultsPerPage?: number;
+  pageDurationSeconds?: number;
+  
   // Event header options
   staticText?: string;
   showStatus?: boolean;

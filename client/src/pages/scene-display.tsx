@@ -236,7 +236,15 @@ function SceneObjectRenderer({
         }
         const boardType = componentConfig.boardType || "live-results";
         if (event.status === "completed" && componentConfig.scrollOnComplete !== false) {
-          return <ScrollingResultsBoard event={event} meet={meet} mode="results" />;
+          return (
+            <ScrollingResultsBoard 
+              event={event} 
+              meet={meet} 
+              mode="results" 
+              resultsPerPage={componentConfig.resultsPerPage || 5}
+              scrollIntervalMs={(componentConfig.pageDurationSeconds || 5) * 1000}
+            />
+          );
         }
         if (boardType === "field-event") {
           return <FieldEventBoard event={event} meet={meet} mode="live" />;
