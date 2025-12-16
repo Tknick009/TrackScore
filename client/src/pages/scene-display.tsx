@@ -336,10 +336,9 @@ function SceneObjectRenderer({
         let textContent = componentConfig.text || componentConfig.textContent || componentConfig.dynamicText;
         
         if (fieldKey && liveData) {
-          // Build event name from distance/event number
-          const eventName = liveData.distance 
-            ? `${liveData.distance}m` 
-            : `Event ${liveData.eventNumber}`;
+          // Use eventName from live data, or build from distance/event number
+          const eventName = liveData.eventName 
+            || (liveData.distance ? `${liveData.distance}m` : `Event ${liveData.eventNumber}`);
           
           // Get current page's entry for single-athlete fields (paging support)
           const entries = Array.isArray(liveData.entries) ? liveData.entries : [];

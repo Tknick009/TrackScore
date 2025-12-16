@@ -67,6 +67,7 @@ interface AggregatedEvent {
   heat: number;
   round: number;
   distance?: string;
+  eventName?: string;
   status?: string;
   wind?: string;
   entries: Array<LynxStartListEntry | LynxTrackResult | LynxFieldResult>;
@@ -116,6 +117,7 @@ export class LynxListener extends EventEmitter {
           eventNumber: event.eventNumber,
           heat: event.heat,
           distance: event.distance,
+          eventName: event.eventName,
           entries: event.entries,
         });
         break;
@@ -125,6 +127,7 @@ export class LynxListener extends EventEmitter {
             eventNumber: event.eventNumber,
             heat: event.heat,
             wind: event.wind,
+            eventName: event.eventName,
             results: event.entries,
           });
         }
@@ -438,6 +441,7 @@ export class LynxListener extends EventEmitter {
     const round = parseInt(data.R) || 1;
     const status = data.S || '';
     const distance = data.DS || '';
+    const eventName = data.DN || '';
     
     this.isRunning = false;
     
@@ -450,12 +454,15 @@ export class LynxListener extends EventEmitter {
         heat,
         round,
         distance,
+        eventName,
         status,
         entries: [],
         lastUpdate: Date.now(),
         type: 'S',
       };
       this.aggregatedEvents.set(key, aggregated);
+    } else if (eventName && !aggregated.eventName) {
+      aggregated.eventName = eventName;
     }
     
     if (data.L || data.N || data.BIB) {
@@ -493,6 +500,7 @@ export class LynxListener extends EventEmitter {
     const status = data.S || '';
     const wind = data.W || '';
     const distance = data.DS || '';
+    const eventName = data.DN || '';
     const time = data.T;
     const place = data.P;
     const lane = data.L;

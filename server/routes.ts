@@ -5199,7 +5199,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Simulate test race with NCAA schools (for testing displays)
   app.post("/api/lynx/simulate", async (req, res) => {
     try {
-      const { eventNumber = 1, heat = 1, distance = "100", mode = "results" } = req.body;
+      const { eventNumber = 1, heat = 1, distance = "100", mode = "results", eventName = "Men's 100m Dash" } = req.body;
       
       // NCAA schools with matching logos in /logos/NCAA/ folder
       const testAthletes = [
@@ -5226,6 +5226,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               H: heat,
               S: 'UNOFFICIAL',
               DS: distance,
+              DN: eventName,
               P: '',
               L: athlete.lane,
               BIB: athlete.bib,
@@ -5251,6 +5252,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               H: heat,
               S: 'OFFICIAL',
               DS: distance,
+              DN: eventName,
               P: String(i + 1),
               L: athlete.lane,
               BIB: athlete.bib,
@@ -5737,7 +5739,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Build live event data for displays
       const liveEventData = {
         eventNumber,
-        eventName: `Event ${eventNumber}`,
+        eventName: data.eventName || `Event ${eventNumber}`,
         heat: data.heat || 1,
         round: data.round || 1,
         entries: data.entries || data.results || [],
