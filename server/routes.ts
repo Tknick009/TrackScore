@@ -5173,11 +5173,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       if (mode === 'results' || mode === 'all') {
-        // Send results
+        // Send track results (T: 'T' for track timing with place and time)
         for (let i = 0; i < testAthletes.length; i++) {
           const athlete = testAthletes[i];
           const message = JSON.stringify({
-            T: 'F',
+            T: 'T',
             D: {
               EN: eventNumber,
               R: 1,
@@ -5191,7 +5191,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               AF: athlete.affiliation,
               FN: athlete.firstName,
               LN: athlete.lastName,
-              TM: times[i],
+              T: times[i],
             }
           });
           lynxListener.processForwardedData(message, 'results', 'Simulator');
