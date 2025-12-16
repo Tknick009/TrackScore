@@ -210,6 +210,7 @@ function SceneObjectRenderer({
     backgroundColor: bgColor,
     borderRadius: styleConfig.borderRadius || "0px",
     opacity: styleConfig.opacity ?? 1,
+    padding: styleConfig.padding ? `${styleConfig.padding}px` : undefined,
     ...borderStyles,
   };
   

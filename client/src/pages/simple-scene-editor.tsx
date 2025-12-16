@@ -60,6 +60,7 @@ interface LayoutBox {
     borderColor?: string;
     borderWidth?: number;
     borderSides?: ('all' | 'top' | 'right' | 'bottom' | 'left')[];
+    padding?: number;
     objectFit?: 'contain' | 'cover' | 'fill';
   };
 }
@@ -976,7 +977,7 @@ export default function SimpleSceneEditor() {
                   alignItems: 'center',
                   justifyContent: box.style?.textAlign === 'center' ? 'center' : 
                                   box.style?.textAlign === 'right' ? 'flex-end' : 'flex-start',
-                  padding: '2px 4px',
+                  padding: box.style?.padding ? `${box.style.padding}px` : '2px 4px',
                   fontSize: `${(box.style?.fontSize || 14) * (displayWidth / 1920)}px`,
                   overflow: 'hidden',
                   ...borderStyles,
@@ -1355,6 +1356,29 @@ export default function SimpleSceneEditor() {
                     })}
                   </div>
                 </div>
+              </div>
+              
+              {/* Padding/Buffer */}
+              <Separator />
+              <div className="space-y-2">
+                <Label>Padding / Buffer</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min={0}
+                    max={50}
+                    value={selectedBox.style?.padding || 0}
+                    onChange={(e) => updateSelectedBox({ 
+                      style: { ...selectedBox.style, padding: parseInt(e.target.value) || 0 } 
+                    })}
+                    className="w-20"
+                    data-testid="input-padding"
+                  />
+                  <span className="text-xs text-muted-foreground">pixels</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Space between content and box edge
+                </p>
               </div>
               
               <Separator />
