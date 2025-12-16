@@ -188,7 +188,7 @@ export default function DisplayControlPage() {
   // Paging: Update mutation
   const updatePagingMutation = useMutation({
     mutationFn: async ({ deviceId, pagingSize, pagingInterval }: { deviceId: string; pagingSize: number; pagingInterval: number }) => {
-      return apiRequest('POST', `/api/display-devices/${deviceId}/paging`, { pagingSize, pagingInterval });
+      return apiRequest('PATCH', `/api/display-devices/${deviceId}/paging`, { pagingSize, pagingInterval });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/display-devices', selectedDeviceId, 'paging'] });
@@ -724,7 +724,7 @@ export default function DisplayControlPage() {
                     <>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="paging-size">Results per page</Label>
+                          <Label htmlFor="paging-size">Athletes per screen</Label>
                           <Select
                             value={String(pagingSettings?.pagingSize ?? 8)}
                             onValueChange={(value) => {
@@ -746,7 +746,7 @@ export default function DisplayControlPage() {
                           </Select>
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="paging-interval">Page interval (sec)</Label>
+                          <Label htmlFor="paging-interval">Time per page (sec)</Label>
                           <Select
                             value={String(pagingSettings?.pagingInterval ?? 5)}
                             onValueChange={(value) => {
@@ -769,7 +769,7 @@ export default function DisplayControlPage() {
                         </div>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        When there are more results than fit on one page, the display will cycle through pages at this interval.
+                        Shows this many athletes at a time. When there are more athletes than fit on screen, the display cycles to the next group after the set time.
                       </p>
                     </>
                   )}
