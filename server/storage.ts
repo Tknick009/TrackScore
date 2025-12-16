@@ -2986,10 +2986,33 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getLiveEventsByMeet(meetId?: string): Promise<LiveEventData[]> {
+    // Fetch recent records
+    let allRecords: LiveEventData[];
     if (meetId) {
-      return db.select().from(liveEventData).where(eq(liveEventData.meetId, meetId)).orderBy(desc(liveEventData.lastUpdateAt)).limit(10);
+      allRecords = await db.select().from(liveEventData).where(eq(liveEventData.meetId, meetId)).orderBy(desc(liveEventData.lastUpdateAt)).limit(50);
+    } else {
+      allRecords = await db.select().from(liveEventData).orderBy(desc(liveEventData.lastUpdateAt)).limit(50);
     }
-    return db.select().from(liveEventData).orderBy(desc(liveEventData.lastUpdateAt)).limit(10);
+    
+    // Group by eventNumber and return only the most complete record per event
+    // (most entries, or most recently updated if entries count is equal)
+    const bestByEvent = new Map<number, LiveEventData>();
+    
+    for (const record of allRecords) {
+      const existing = bestByEvent.get(record.eventNumber);
+      const recordEntries = Array.isArray(record.entries) ? record.entries.length : 0;
+      const existingEntries = existing && Array.isArray(existing.entries) ? existing.entries.length : 0;
+      
+      // Prefer record with more entries, or newer if equal
+      if (!existing || recordEntries > existingEntries) {
+        bestByEvent.set(record.eventNumber, record);
+      }
+    }
+    
+    // Return sorted by lastUpdateAt descending
+    return Array.from(bestByEvent.values())
+      .sort((a, b) => new Date(b.lastUpdateAt || 0).getTime() - new Date(a.lastUpdateAt || 0).getTime())
+      .slice(0, 10);
   }
 
   async upsertLiveEventData(data: InsertLiveEventData): Promise<LiveEventData> {
