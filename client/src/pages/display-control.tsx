@@ -227,7 +227,7 @@ export default function DisplayControlPage() {
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/scene-template-mappings', currentMeetId] });
+      queryClient.invalidateQueries({ queryKey: [`/api/scene-template-mappings/${currentMeetId}`] });
       toast({
         title: 'Scene mapping saved',
         description: 'The custom scene has been assigned.',
@@ -247,7 +247,7 @@ export default function DisplayControlPage() {
       return apiRequest('DELETE', `/api/scene-template-mappings/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/scene-template-mappings', currentMeetId] });
+      queryClient.invalidateQueries({ queryKey: [`/api/scene-template-mappings/${currentMeetId}`] });
       toast({
         title: 'Scene mapping removed',
         description: 'The custom scene assignment has been cleared.',
