@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback, memo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { 
   SelectLayoutScene, 
@@ -17,6 +17,85 @@ import {
   ScrollingResultsBoard 
 } from "@/components/display/templates";
 import { Trophy, Clock, Users, User, Image, Type, Award, Loader2 } from "lucide-react";
+
+// Smooth running clock that uses requestAnimationFrame for jitter-free updates
+function SmoothRunningClock({ 
+  serverTime, 
+  fontSize,
+  color
+}: { 
+  serverTime: string | null | undefined;
+  fontSize?: string;
+  color?: string;
+}) {
+  const textRef = useRef<HTMLDivElement>(null);
+  const lastServerTimeRef = useRef<string | null>(null);
+  const serverTimeReceivedAtRef = useRef<number>(0);
+  const rafRef = useRef<number | null>(null);
+  
+  // Parse time string like "0:12.34" or "1:23.45" to milliseconds
+  const parseTimeToMs = useCallback((timeStr: string): number => {
+    const match = timeStr.match(/^(\d+):(\d{2})\.(\d{2})$/);
+    if (match) {
+      const mins = parseInt(match[1], 10);
+      const secs = parseInt(match[2], 10);
+      const hundredths = parseInt(match[3], 10);
+      return (mins * 60 * 1000) + (secs * 1000) + (hundredths * 10);
+    }
+    return 0;
+  }, []);
+  
+  // Format milliseconds back to display string "M:SS.HH"
+  const formatMsToTime = useCallback((ms: number): string => {
+    const totalSeconds = Math.floor(ms / 1000);
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    const hundredths = Math.floor((ms % 1000) / 10);
+    return `${mins}:${secs.toString().padStart(2, '0')}.${hundredths.toString().padStart(2, '0')}`;
+  }, []);
+  
+  // Update the server time reference when it changes
+  useEffect(() => {
+    if (serverTime && serverTime !== lastServerTimeRef.current) {
+      lastServerTimeRef.current = serverTime;
+      serverTimeReceivedAtRef.current = performance.now();
+    }
+  }, [serverTime]);
+  
+  // requestAnimationFrame loop for smooth interpolation
+  useEffect(() => {
+    const updateDisplay = () => {
+      if (textRef.current && lastServerTimeRef.current) {
+        const serverMs = parseTimeToMs(lastServerTimeRef.current);
+        const elapsedSinceSync = performance.now() - serverTimeReceivedAtRef.current;
+        const currentMs = serverMs + elapsedSinceSync;
+        textRef.current.textContent = formatMsToTime(currentMs);
+      }
+      rafRef.current = requestAnimationFrame(updateDisplay);
+    };
+    
+    rafRef.current = requestAnimationFrame(updateDisplay);
+    
+    return () => {
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+      }
+    };
+  }, [parseTimeToMs, formatMsToTime]);
+  
+  return (
+    <div 
+      ref={textRef}
+      className="font-stadium-numbers font-[900]"
+      style={{ 
+        fontSize: fontSize || '48px',
+        color: color || 'hsl(var(--display-fg))'
+      }}
+    >
+      {serverTime || "0:00.00"}
+    </div>
+  );
+}
 
 export interface SceneCanvasProps {
   sceneId: number;
@@ -227,14 +306,16 @@ export function SceneObjectRenderer({
         return <LiveResultsBoard event={event} meet={meet} mode="live" />;
         
       case "timer":
+        const timerFontSize = componentConfig.fontSize === 'xlarge' ? '96px' : componentConfig.fontSize === 'large' ? '72px' : componentConfig.fontSize === 'medium' ? '48px' : '36px';
         return (
           <div 
             className="flex items-center justify-center h-full bg-[hsl(var(--display-bg))]"
-            style={{ fontSize: componentConfig.fontSize === 'xlarge' ? '96px' : componentConfig.fontSize === 'large' ? '72px' : componentConfig.fontSize === 'medium' ? '48px' : '36px' }}
           >
-            <div className="font-stadium-numbers font-[900] text-[hsl(var(--display-fg))]">
-              {liveData?.runningTime || "00:00.00"}
-            </div>
+            <SmoothRunningClock 
+              serverTime={liveData?.runningTime}
+              fontSize={timerFontSize}
+              color="hsl(var(--display-fg))"
+            />
           </div>
         );
         
@@ -297,6 +378,25 @@ export function SceneObjectRenderer({
         const fieldKey = dataBinding.fieldKey as string | undefined;
         let textContent = componentConfig.text || componentConfig.textContent || componentConfig.dynamicText;
         
+        // Special case: running-time uses smooth clock for jitter-free updates
+        if (fieldKey === 'running-time' && liveData) {
+          const textFontSize = componentConfig.fontSize === 'xlarge' ? '48px' : componentConfig.fontSize === 'large' ? '36px' : componentConfig.fontSize === 'medium' ? '24px' : '18px';
+          const textAlign = componentConfig.textAlign || styleConfig.textAlign || "center";
+          const justifyContent = textAlign === 'left' ? 'flex-start' : textAlign === 'right' ? 'flex-end' : 'center';
+          return (
+            <div 
+              className="flex items-center h-full p-2 overflow-hidden"
+              style={{ justifyContent }}
+            >
+              <SmoothRunningClock 
+                serverTime={liveData.runningTime}
+                fontSize={textFontSize}
+                color={componentConfig.textColor || styleConfig.textColor || "hsl(var(--display-fg))"}
+              />
+            </div>
+          );
+        }
+        
         if (fieldKey && liveData) {
           const eventName = liveData.eventName 
             || (liveData.distance ? `${liveData.distance}m` : `Event ${liveData.eventNumber}`);
@@ -339,7 +439,6 @@ export function SceneObjectRenderer({
             'last-split': firstEntry?.lastSplit,
             'cumulative-split': firstEntry?.cumulativeSplit,
             'reaction-time': firstEntry?.reactionTime,
-            'running-time': liveData.runningTime,
             'bib': firstEntry?.bib,
           };
           const resolvedValue = fieldMap[fieldKey];
@@ -851,7 +950,7 @@ export function SceneCanvas({
     
     return (
       <div 
-        className="fixed overflow-hidden display-layout"
+        className="fixed overflow-hidden display-layout animate-in fade-in duration-150"
         style={{ 
           top: 0,
           left: 0,
@@ -860,6 +959,7 @@ export function SceneCanvas({
           backgroundColor,
         }}
         data-testid="scene-canvas"
+        key={`scene-${sceneId}`}
       >
         {sortedObjects.map((obj) => (
           <SceneObjectRenderer 
@@ -907,6 +1007,8 @@ export function SceneCanvas({
       data-testid="scene-canvas"
     >
       <div
+        className="animate-in fade-in duration-150"
+        key={`scene-${sceneId}`}
         style={{
           position: 'absolute',
           left: offsetX,
