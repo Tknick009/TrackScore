@@ -62,6 +62,13 @@ interface LynxFieldResult {
   attemptMarks?: string[];
 }
 
+// Clean event name by removing common suffixes like "Run" and "Dash" from FinishLynx
+function cleanEventName(name: string | undefined): string | undefined {
+  if (!name) return name;
+  // Remove trailing "Run" or "Dash" (case-insensitive, with optional leading space)
+  return name.replace(/\s*(Run|Dash)\s*$/i, '').trim();
+}
+
 interface AggregatedEvent {
   eventNumber: number;
   heat: number;
@@ -441,7 +448,7 @@ export class LynxListener extends EventEmitter {
     const round = parseInt(data.R) || 1;
     const status = data.S || '';
     const distance = data.DS || '';
-    const eventName = data.DN || '';
+    const eventName = cleanEventName(data.DN || '');
     
     this.isRunning = false;
     
@@ -500,7 +507,7 @@ export class LynxListener extends EventEmitter {
     const status = data.S || '';
     const wind = data.W || '';
     const distance = data.DS || '';
-    const eventName = data.DN || '';
+    const eventName = cleanEventName(data.DN || '');
     const time = data.T;
     const place = data.P;
     const lane = data.L;
@@ -539,7 +546,7 @@ export class LynxListener extends EventEmitter {
           heat,
           round,
           distance,
-          eventName: data.DN,
+          eventName: cleanEventName(data.DN),
           status,
           wind,
           entries: [],
@@ -549,7 +556,7 @@ export class LynxListener extends EventEmitter {
         this.aggregatedEvents.set(key, aggregated);
       } else if (data.DN && !aggregated.eventName) {
         // Update eventName if we receive it and don't have it yet
-        aggregated.eventName = data.DN;
+        aggregated.eventName = cleanEventName(data.DN);
       }
       
       const athleteName = data.N || (data.FN && data.LN ? `${data.FN} ${data.LN}` : undefined);
