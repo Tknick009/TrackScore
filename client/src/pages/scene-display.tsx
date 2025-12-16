@@ -851,7 +851,7 @@ export default function SceneDisplay() {
   
   if (sceneLoading || objectsLoading) {
     return (
-      <div className="fixed inset-0 flex items-center justify-center bg-[hsl(var(--display-bg))]">
+      <div className="fixed inset-0 flex items-center justify-center bg-[hsl(var(--display-bg))] display-layout">
         <div className="text-center">
           <Loader2 className="w-24 h-24 animate-spin text-[hsl(var(--display-accent))] mx-auto mb-4" />
           <p className="text-2xl font-stadium text-[hsl(var(--display-muted))]">
@@ -864,7 +864,7 @@ export default function SceneDisplay() {
   
   if (sceneError || !scene) {
     return (
-      <div className="fixed inset-0 flex items-center justify-center bg-[hsl(var(--display-bg))]">
+      <div className="fixed inset-0 flex items-center justify-center bg-[hsl(var(--display-bg))] display-layout">
         <div className="text-center">
           <Trophy className="w-24 h-24 text-[hsl(var(--display-warning))] mx-auto mb-4" />
           <p className="text-2xl font-stadium text-[hsl(var(--display-fg))] mb-2">
@@ -882,7 +882,7 @@ export default function SceneDisplay() {
   
   return (
     <div 
-      className="fixed inset-0 overflow-hidden"
+      className="fixed inset-0 overflow-hidden display-layout"
       style={{ backgroundColor }}
       data-testid="scene-display"
     >

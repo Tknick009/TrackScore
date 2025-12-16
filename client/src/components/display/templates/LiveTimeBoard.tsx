@@ -13,7 +13,7 @@ export function LiveTimeBoard({ event, meet, mode }: LiveTimeBoardProps) {
   // Empty state - no entries
   if (!event.entries || event.entries.length === 0) {
     return (
-      <div className="min-h-screen w-full bg-[hsl(var(--display-bg))]">
+      <div className="min-h-screen w-full bg-[hsl(var(--display-bg))] display-layout">
         <EventHeader event={event} meet={meet} mode={mode} />
         <div className="flex items-center justify-center p-16 min-h-[calc(100vh-200px)]">
           <div className="text-center">
@@ -49,7 +49,7 @@ export function LiveTimeBoard({ event, meet, mode }: LiveTimeBoardProps) {
   }
 
   return (
-    <div className="min-h-screen w-full bg-[hsl(var(--display-bg))]">
+    <div className="min-h-screen w-full bg-[hsl(var(--display-bg))] display-layout">
       <EventHeader event={event} meet={meet} mode={mode} />
       
       <div className="p-8">

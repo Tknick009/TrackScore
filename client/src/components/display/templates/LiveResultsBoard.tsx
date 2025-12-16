@@ -29,7 +29,7 @@ export function LiveResultsBoard({ event, meet, mode }: LiveResultsBoardProps) {
   const showTrackResults = displayMode === 'track';
 
   return (
-    <div className="min-h-screen w-full bg-[hsl(var(--display-bg))] relative">
+    <div className="min-h-screen w-full bg-[hsl(var(--display-bg))] relative display-layout">
       {/* Meet Logo - Absolute positioned top-right */}
       {meet?.logoUrl && (
         <img

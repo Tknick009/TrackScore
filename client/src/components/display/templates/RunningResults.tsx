@@ -28,8 +28,8 @@ export function RunningResults({ event, meet, athleteEntry, liveTime }: RunningR
   if (!entry) {
     return (
       <div 
-        className="h-screen w-screen flex items-center justify-center"
-        style={{ backgroundColor: '#000000', fontFamily: "'Barlow Semi Condensed', sans-serif" }}
+        className="h-screen w-screen flex items-center justify-center display-layout"
+        style={{ backgroundColor: '#000000' }}
       >
         <p className="text-gray-500" style={{ fontSize: '48px' }}>No athlete data</p>
       </div>
@@ -56,10 +56,9 @@ export function RunningResults({ event, meet, athleteEntry, liveTime }: RunningR
 
   return (
     <div 
-      className="h-screen w-screen overflow-hidden" 
+      className="h-screen w-screen overflow-hidden display-layout" 
       style={{ 
-        backgroundColor: '#000000',
-        fontFamily: "'Barlow Semi Condensed', sans-serif" 
+        backgroundColor: '#000000'
       }}
     >
       <div 

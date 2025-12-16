@@ -59,10 +59,9 @@ export function BigBoard({ event, meet, showSplits = false, liveTime }: BigBoard
 
   return (
     <div 
-      className="h-screen w-screen overflow-hidden flex flex-col" 
+      className="h-screen w-screen overflow-hidden flex flex-col display-layout" 
       style={{ 
-        backgroundColor: '#000000',
-        fontFamily: "'Barlow Semi Condensed', sans-serif" 
+        backgroundColor: '#000000'
       }}
     >
       <div 

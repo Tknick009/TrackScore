@@ -49,10 +49,9 @@ export function SingleAthleteTrack({ event, meet, liveTime, focusIndex = 0 }: Si
   if (!athlete) {
     return (
       <div 
-        className="h-screen w-screen flex items-center justify-center"
+        className="h-screen w-screen flex items-center justify-center display-layout"
         style={{ 
-          backgroundColor: '#000000',
-          fontFamily: "'Barlow Semi Condensed', sans-serif" 
+          backgroundColor: '#000000'
         }}
       >
         <div 
@@ -74,10 +73,9 @@ export function SingleAthleteTrack({ event, meet, liveTime, focusIndex = 0 }: Si
 
   return (
     <div 
-      className="h-screen w-screen overflow-hidden flex flex-col"
+      className="h-screen w-screen overflow-hidden flex flex-col display-layout"
       style={{ 
-        backgroundColor: '#000000',
-        fontFamily: "'Barlow Semi Condensed', sans-serif" 
+        backgroundColor: '#000000'
       }}
     >
       <div 

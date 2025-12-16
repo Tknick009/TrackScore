@@ -254,6 +254,13 @@
     text-transform: uppercase;
   }
 
+  /* Global Display Layout Styling - Apply Oswald font and uppercase to all display pages */
+  .display-layout,
+  .display-layout * {
+    font-family: 'Oswald', sans-serif !important;
+    text-transform: uppercase;
+  }
+
   /* Gradient Edge Styling - Blue stadium aesthetic */
   .gradient-edge-blue {
     position: relative;

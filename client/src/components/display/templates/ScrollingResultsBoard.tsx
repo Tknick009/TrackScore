@@ -74,7 +74,7 @@ export function ScrollingResultsBoard({
   }, [totalPages, scrollIntervalMs]);
 
   return (
-    <div className="min-h-screen w-full bg-[hsl(var(--display-bg))] relative overflow-hidden">
+    <div className="min-h-screen w-full bg-[hsl(var(--display-bg))] relative overflow-hidden display-layout">
       {meet?.logoUrl && (
         <img
           src={meet.logoUrl}
