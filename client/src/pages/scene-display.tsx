@@ -282,27 +282,40 @@ function SceneObjectRenderer({
         let textContent = componentConfig.text || componentConfig.textContent || componentConfig.dynamicText;
         
         if (fieldKey && liveData) {
+          // Build event name from distance/event number
+          const eventName = liveData.distance 
+            ? `${liveData.distance}m` 
+            : `Event ${liveData.eventNumber}`;
+          
+          // Get first entry for single-athlete fields
+          const firstEntry = Array.isArray(liveData.entries) && liveData.entries.length > 0 
+            ? liveData.entries[0] 
+            : null;
+          
           // Map fieldKey to live data value
           const fieldMap: Record<string, any> = {
-            'event-name': liveData.eventName,
+            'event-name': eventName,
+            'event-number': liveData.eventNumber,
+            'distance': liveData.distance,
             'heat-number': liveData.heat,
             'round': liveData.round,
             'wind': liveData.wind,
-            'lane': liveData.entries?.[0]?.lane,
-            'place': liveData.entries?.[0]?.place,
-            'name': liveData.entries?.[0]?.name,
-            'first-name': liveData.entries?.[0]?.firstName,
-            'last-name': liveData.entries?.[0]?.lastName,
-            'school': liveData.entries?.[0]?.affiliation || liveData.entries?.[0]?.team,
-            'time': liveData.entries?.[0]?.time || liveData.entries?.[0]?.mark,
-            'last-split': liveData.entries?.[0]?.lastSplit,
-            'cumulative-split': liveData.entries?.[0]?.cumulativeSplit,
-            'reaction-time': liveData.entries?.[0]?.reactionTime,
+            'status': liveData.status,
+            'lane': firstEntry?.lane,
+            'place': firstEntry?.place,
+            'name': firstEntry?.name,
+            'first-name': firstEntry?.firstName,
+            'last-name': firstEntry?.lastName,
+            'school': firstEntry?.affiliation || firstEntry?.team,
+            'time': firstEntry?.time || firstEntry?.mark,
+            'last-split': firstEntry?.lastSplit,
+            'cumulative-split': firstEntry?.cumulativeSplit,
+            'reaction-time': firstEntry?.reactionTime,
             'running-time': liveData.runningTime,
-            'bib': liveData.entries?.[0]?.bib,
+            'bib': firstEntry?.bib,
           };
           const resolvedValue = fieldMap[fieldKey];
-          if (resolvedValue !== undefined && resolvedValue !== null) {
+          if (resolvedValue !== undefined && resolvedValue !== null && resolvedValue !== '') {
             textContent = String(resolvedValue);
           }
         }

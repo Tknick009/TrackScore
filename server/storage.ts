@@ -2977,9 +2977,9 @@ export class DatabaseStorage implements IStorage {
 
   async getLiveEventsByMeet(meetId?: string): Promise<LiveEventData[]> {
     if (meetId) {
-      return db.select().from(liveEventData).where(eq(liveEventData.meetId, meetId));
+      return db.select().from(liveEventData).where(eq(liveEventData.meetId, meetId)).orderBy(desc(liveEventData.lastUpdateAt));
     }
-    return db.select().from(liveEventData);
+    return db.select().from(liveEventData).orderBy(desc(liveEventData.lastUpdateAt));
   }
 
   async upsertLiveEventData(data: InsertLiveEventData): Promise<LiveEventData> {
