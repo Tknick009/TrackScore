@@ -5765,26 +5765,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Get existing data to preserve eventName if not provided (e.g., running mode)
       const existingData = await storage.getLiveEventData(eventNumber);
+      
+      // Compute values for display/broadcast
       const eventNameToUse = data.eventName || existingData?.eventName || `Event ${eventNumber}`;
       const distanceToUse = data.distance || existingData?.distance;
       
-      // Store live event data to database
-      await storage.upsertLiveEventData({
-        eventNumber,
-        eventType: 'track',
-        mode,
-        heat: data.heat || 1,
-        round: data.round || 1,
-        flight: 1,
-        wind: data.wind,
-        status: data.status,
-        distance: distanceToUse,
-        eventName: eventNameToUse,
-        entries: data.entries || data.results || [],
-        runningTime: data.time,
-        isArmed: data.armed || false,
-        isRunning: mode === 'running',
-      });
+      // For running mode with no event data, only update if record exists - don't create with fallback
+      if (mode === 'running' && !data.eventName && !data.entries && !data.results && !existingData) {
+        // Skip creating a new record for just clock updates with no existing data
+        // The actual event data will come later with proper eventName
+        console.log(`[Lynx] Skipping running mode update - no existing data and no event info for Event ${eventNumber}`);
+      } else {
+        // Store live event data to database
+        await storage.upsertLiveEventData({
+          eventNumber,
+          eventType: 'track',
+          mode,
+          heat: data.heat || existingData?.heat || 1,
+          round: data.round || existingData?.round || 1,
+          flight: 1,
+          wind: data.wind ?? existingData?.wind,
+          status: data.status ?? existingData?.status,
+          distance: distanceToUse,
+          eventName: data.eventName || existingData?.eventName, // Only use existing/provided, not fallback
+          entries: data.entries || data.results || existingData?.entries || [],
+          runningTime: data.time,
+          isArmed: data.armed || false,
+          isRunning: mode === 'running',
+        });
+      }
 
       // Broadcast display mode change
       broadcastToDisplays({
