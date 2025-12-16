@@ -1719,44 +1719,6 @@ export default function SceneEditor() {
                         </div>
                       )}
                       
-                      {/* Line Number selection - which athlete slot this object displays */}
-                      <div className="space-y-2">
-                        <Label className="text-xs">Line Number</Label>
-                        <Select
-                          value={String((selectedObject.dataBinding as SceneDataBinding)?.athleteIndex ?? 0)}
-                          onValueChange={(value) => updateObjectMutation.mutate({
-                            id: selectedObject.id,
-                            data: {
-                              dataBinding: {
-                                ...(selectedObject.dataBinding as SceneDataBinding || {}),
-                                athleteIndex: parseInt(value),
-                              },
-                            },
-                          })}
-                        >
-                          <SelectTrigger data-testid="select-line-number">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="0">Line 1</SelectItem>
-                            <SelectItem value="1">Line 2</SelectItem>
-                            <SelectItem value="2">Line 3</SelectItem>
-                            <SelectItem value="3">Line 4</SelectItem>
-                            <SelectItem value="4">Line 5</SelectItem>
-                            <SelectItem value="5">Line 6</SelectItem>
-                            <SelectItem value="6">Line 7</SelectItem>
-                            <SelectItem value="7">Line 8</SelectItem>
-                            <SelectItem value="8">Line 9</SelectItem>
-                            <SelectItem value="9">Line 10</SelectItem>
-                            <SelectItem value="10">Line 11</SelectItem>
-                            <SelectItem value="11">Line 12</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <p className="text-xs text-muted-foreground">
-                          Which athlete entry this object displays
-                        </p>
-                      </div>
-                      
                       {/* Enhanced text field binding for text objects */}
                       {selectedObject.objectType === 'text' && (selectedObject.dataBinding as SceneDataBinding)?.sourceType !== 'static' && (
                         <div className="space-y-3 mt-4 p-3 bg-muted/50 rounded-md">
