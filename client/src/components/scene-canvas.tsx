@@ -19,6 +19,7 @@ import {
 import { Trophy, Clock, Users, User, Image, Type, Award, Loader2 } from "lucide-react";
 
 // Smooth running clock that uses requestAnimationFrame for jitter-free updates
+// Displays tenths of seconds only (M:SS.T format)
 function SmoothRunningClock({ 
   serverTime, 
   fontSize,
@@ -33,25 +34,32 @@ function SmoothRunningClock({
   const serverTimeReceivedAtRef = useRef<number>(0);
   const rafRef = useRef<number | null>(null);
   
-  // Parse time string like "0:12.34" or "1:23.45" to milliseconds
+  // Parse time string like "12.3" or "1:23.4" to milliseconds
   const parseTimeToMs = useCallback((timeStr: string): number => {
-    const match = timeStr.match(/^(\d+):(\d{2})\.(\d{2})$/);
-    if (match) {
-      const mins = parseInt(match[1], 10);
-      const secs = parseInt(match[2], 10);
-      const hundredths = parseInt(match[3], 10);
-      return (mins * 60 * 1000) + (secs * 1000) + (hundredths * 10);
+    // Format: M:SS.T or SS.T
+    const colonMatch = timeStr.match(/^(\d+):(\d{2})\.(\d)$/);
+    if (colonMatch) {
+      const mins = parseInt(colonMatch[1], 10);
+      const secs = parseInt(colonMatch[2], 10);
+      const tenths = parseInt(colonMatch[3], 10);
+      return (mins * 60 * 1000) + (secs * 1000) + (tenths * 100);
+    }
+    // Format: SS.T (no minutes)
+    const noMinMatch = timeStr.match(/^(\d+)\.(\d)$/);
+    if (noMinMatch) {
+      const secs = parseFloat(timeStr);
+      return secs * 1000;
     }
     return 0;
   }, []);
   
-  // Format milliseconds back to display string "M:SS.HH"
+  // Format milliseconds back to display string "M:SS.T" (tenths only)
   const formatMsToTime = useCallback((ms: number): string => {
     const totalSeconds = Math.floor(ms / 1000);
     const mins = Math.floor(totalSeconds / 60);
     const secs = totalSeconds % 60;
-    const hundredths = Math.floor((ms % 1000) / 10);
-    return `${mins}:${secs.toString().padStart(2, '0')}.${hundredths.toString().padStart(2, '0')}`;
+    const tenths = Math.floor((ms % 1000) / 100);
+    return `${mins}:${secs.toString().padStart(2, '0')}.${tenths}`;
   }, []);
   
   // Update the server time reference when it changes
@@ -92,7 +100,7 @@ function SmoothRunningClock({
         color: color || 'hsl(var(--display-fg))'
       }}
     >
-      {serverTime || "0:00.00"}
+      {serverTime || "0:00.0"}
     </div>
   );
 }
