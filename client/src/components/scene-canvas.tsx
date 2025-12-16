@@ -303,6 +303,21 @@ export function SceneObjectRenderer({
           const entryIndex = pageIndex * pageSize + athleteIndex;
           const firstEntry = entries.length > entryIndex ? entries[entryIndex] : null;
           
+          // Format name as "First Initial. Last Name"
+          const formatName = (firstName?: string, lastName?: string, fullName?: string) => {
+            if (firstName && lastName) {
+              return `${firstName.charAt(0)}. ${lastName}`;
+            }
+            if (fullName) {
+              const parts = fullName.trim().split(/\s+/);
+              if (parts.length >= 2) {
+                return `${parts[0].charAt(0)}. ${parts.slice(1).join(' ')}`;
+              }
+              return fullName;
+            }
+            return '';
+          };
+          
           const fieldMap: Record<string, any> = {
             'event-name': eventName,
             'event-number': liveData.eventNumber,
@@ -313,7 +328,7 @@ export function SceneObjectRenderer({
             'status': liveData.status,
             'lane': firstEntry?.lane,
             'place': firstEntry?.place,
-            'name': firstEntry?.name,
+            'name': formatName(firstEntry?.firstName, firstEntry?.lastName, firstEntry?.name),
             'first-name': firstEntry?.firstName,
             'last-name': firstEntry?.lastName,
             'school': firstEntry?.affiliation || firstEntry?.team,
@@ -430,7 +445,7 @@ export function SceneObjectRenderer({
                   </span>
                   <div className="flex-1 min-w-0">
                     <span className="font-stadium text-lg text-[hsl(var(--display-fg))] block">
-                      {entry.athlete.firstName} {entry.athlete.lastName}
+                      {entry.athlete.firstName.charAt(0)}. {entry.athlete.lastName}
                     </span>
                     {entry.team && (
                       <span className="text-sm text-[hsl(var(--display-muted))] whitespace-nowrap block">
@@ -491,7 +506,7 @@ export function SceneObjectRenderer({
               <User className="w-12 h-12 text-[hsl(var(--display-muted))]" />
             </div>
             <h3 className="font-stadium text-2xl font-[700] text-[hsl(var(--display-fg))] text-center">
-              {athlete.athlete.firstName} {athlete.athlete.lastName}
+              {athlete.athlete.firstName.charAt(0)}. {athlete.athlete.lastName}
             </h3>
             {athlete.team && (
               <p className="text-lg text-[hsl(var(--display-muted))] whitespace-nowrap max-w-full">{athlete.team.name}</p>
