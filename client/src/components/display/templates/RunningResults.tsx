@@ -134,7 +134,7 @@ export function RunningResults({ event, meet, athleteEntry, liveTime }: RunningR
                 </h1>
                 
                 <p 
-                  className="text-gray-400 uppercase tracking-wider"
+                  className="text-gray-400 uppercase tracking-wider whitespace-nowrap truncate"
                   style={{ fontSize: '40px', fontWeight: 600 }}
                 >
                   {teamName}

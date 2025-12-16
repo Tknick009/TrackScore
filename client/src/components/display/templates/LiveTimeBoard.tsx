@@ -93,7 +93,7 @@ export function LiveTimeBoard({ event, meet, mode }: LiveTimeBoardProps) {
                   {athleteName}
                 </div>
                 {result.team && (
-                  <div className="text-[24px] text-[hsl(var(--display-muted))]" data-testid={`text-team-name-${result.athlete.id}`}>
+                  <div className="text-[24px] text-[hsl(var(--display-muted))] whitespace-nowrap truncate" data-testid={`text-team-name-${result.athlete.id}`}>
                     {result.team.name}
                   </div>
                 )}

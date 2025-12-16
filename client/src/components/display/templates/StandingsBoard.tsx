@@ -112,7 +112,7 @@ export function StandingsBoard({ event, meet, mode }: StandingsBoardProps) {
                     <div className="font-stadium-numbers text-[48px] font-[700] text-[hsl(var(--display-muted))]">
                       {index + 1}
                     </div>
-                    <div className="font-stadium text-[48px] font-[700] text-[hsl(var(--display-fg))]">
+                    <div className="font-stadium text-[48px] font-[700] text-[hsl(var(--display-fg))] whitespace-nowrap truncate">
                       {team.teamName}
                     </div>
                   </div>

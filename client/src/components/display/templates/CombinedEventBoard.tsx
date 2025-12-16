@@ -138,7 +138,7 @@ function AthleteRow({ standing, showBreakdown, isHighlighted }: AthleteRowProps)
             {standing.athleteName}
           </p>
           {standing.teamName && (
-            <p className="text-[22px] text-[hsl(var(--display-muted))] truncate">
+            <p className="text-[22px] text-[hsl(var(--display-muted))] whitespace-nowrap truncate">
               {standing.teamName}
             </p>
           )}

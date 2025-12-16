@@ -203,7 +203,7 @@ function TrackResultsPage({ results }: { results: EntryWithDetails[] }) {
                 )}
               </div>
               {result.team && (
-                <p className="text-[32px] text-[hsl(var(--display-muted))] leading-none">
+                <p className="text-[32px] text-[hsl(var(--display-muted))] leading-none whitespace-nowrap truncate">
                   {result.team.name}
                 </p>
               )}
@@ -282,7 +282,7 @@ function FieldResultsPage({ results }: { results: EntryWithDetails[] }) {
                 </h2>
               </div>
               {result.team && (
-                <p className="text-[32px] text-[hsl(var(--display-muted))] leading-none">
+                <p className="text-[32px] text-[hsl(var(--display-muted))] leading-none whitespace-nowrap truncate">
                   {result.team.name}
                 </p>
               )}

@@ -371,7 +371,7 @@ function SceneObjectRenderer({
         
         return (
           <div 
-            className="flex items-center justify-center h-full p-2"
+            className="flex items-center justify-center h-full p-2 overflow-hidden"
             style={{
               fontSize: componentConfig.fontSize === 'xlarge' ? '48px' : componentConfig.fontSize === 'large' ? '36px' : componentConfig.fontSize === 'medium' ? '24px' : '18px',
               fontWeight: componentConfig.fontWeight || "normal",
@@ -379,7 +379,7 @@ function SceneObjectRenderer({
               textAlign: componentConfig.textAlign || "center",
             }}
           >
-            {textContent || "Label"}
+            <span className="whitespace-nowrap truncate">{textContent || "Label"}</span>
           </div>
         );
         
@@ -410,11 +410,11 @@ function SceneObjectRenderer({
                   key={team.teamId || index}
                   className="flex items-center justify-between p-2 rounded bg-[hsl(var(--display-bg-elevated))]"
                 >
-                  <div className="flex items-center gap-3">
-                    <span className="font-stadium-numbers text-xl font-[700] text-[hsl(var(--display-accent))] w-8">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <span className="font-stadium-numbers text-xl font-[700] text-[hsl(var(--display-accent))] w-8 flex-shrink-0">
                       {index + 1}
                     </span>
-                    <span className="font-stadium text-lg text-[hsl(var(--display-fg))]">
+                    <span className="font-stadium text-lg text-[hsl(var(--display-fg))] whitespace-nowrap truncate">
                       {team.teamName}
                     </span>
                   </div>
@@ -469,7 +469,7 @@ function SceneObjectRenderer({
                       {entry.athlete.firstName} {entry.athlete.lastName}
                     </span>
                     {entry.team && (
-                      <span className="text-sm text-[hsl(var(--display-muted))] truncate block">
+                      <span className="text-sm text-[hsl(var(--display-muted))] whitespace-nowrap truncate block">
                         {entry.team.name}
                       </span>
                     )}
@@ -530,7 +530,7 @@ function SceneObjectRenderer({
               {athlete.athlete.firstName} {athlete.athlete.lastName}
             </h3>
             {athlete.team && (
-              <p className="text-lg text-[hsl(var(--display-muted))]">{athlete.team.name}</p>
+              <p className="text-lg text-[hsl(var(--display-muted))] whitespace-nowrap truncate max-w-full">{athlete.team.name}</p>
             )}
             {athlete.finalPlace && (
               <div className="mt-2 px-4 py-1 rounded-full bg-[hsl(var(--display-accent))]">

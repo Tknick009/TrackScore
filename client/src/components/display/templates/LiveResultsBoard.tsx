@@ -136,7 +136,7 @@ function TrackResultsDisplay({ event, mode }: { event: EventWithEntries; mode: s
               </div>
               {/* Team name - 40px */}
               {result.team && (
-                <p className="text-[40px] text-[hsl(var(--display-muted))] leading-none mb-1">
+                <p className="text-[40px] text-[hsl(var(--display-muted))] leading-none mb-1 whitespace-nowrap truncate">
                   {result.team.name}
                 </p>
               )}
