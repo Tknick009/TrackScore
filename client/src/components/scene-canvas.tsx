@@ -53,13 +53,25 @@ function SmoothRunningClock({
     return 0;
   }, []);
   
-  // Format milliseconds back to display string "M:SS.T" (tenths only)
+  // Format milliseconds back to display string
+  // Only show minutes when >= 1 minute, only show hours when >= 1 hour
   const formatMsToTime = useCallback((ms: number): string => {
     const totalSeconds = Math.floor(ms / 1000);
-    const mins = Math.floor(totalSeconds / 60);
+    const hours = Math.floor(totalSeconds / 3600);
+    const mins = Math.floor((totalSeconds % 3600) / 60);
     const secs = totalSeconds % 60;
     const tenths = Math.floor((ms % 1000) / 100);
-    return `${mins}:${secs.toString().padStart(2, '0')}.${tenths}`;
+    
+    if (hours > 0) {
+      // H:MM:SS.T format for 1+ hours
+      return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${tenths}`;
+    } else if (mins > 0) {
+      // M:SS.T format for 1+ minutes
+      return `${mins}:${secs.toString().padStart(2, '0')}.${tenths}`;
+    } else {
+      // SS.T format for under 1 minute
+      return `${secs}.${tenths}`;
+    }
   }, []);
   
   // Update the server time reference when it changes
