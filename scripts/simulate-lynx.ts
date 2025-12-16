@@ -3,14 +3,14 @@
 const BASE_URL = process.env.BASE_URL || 'http://localhost:5000';
 
 const testAthletes = [
-  { lane: '1', bib: '101', name: 'John Smith', affiliation: 'State University', firstName: 'John', lastName: 'Smith' },
-  { lane: '2', bib: '102', name: 'Mike Johnson', affiliation: 'Tech College', firstName: 'Mike', lastName: 'Johnson' },
-  { lane: '3', bib: '103', name: 'David Williams', affiliation: 'City University', firstName: 'David', lastName: 'Williams' },
-  { lane: '4', bib: '104', name: 'James Brown', affiliation: 'State University', firstName: 'James', lastName: 'Brown' },
-  { lane: '5', bib: '105', name: 'Robert Davis', affiliation: 'Tech College', firstName: 'Robert', lastName: 'Davis' },
-  { lane: '6', bib: '106', name: 'William Miller', affiliation: 'City University', firstName: 'William', lastName: 'Miller' },
-  { lane: '7', bib: '107', name: 'Richard Wilson', affiliation: 'State University', firstName: 'Richard', lastName: 'Wilson' },
-  { lane: '8', bib: '108', name: 'Joseph Moore', affiliation: 'Tech College', firstName: 'Joseph', lastName: 'Moore' },
+  { lane: '1', bib: '101', name: 'John Smith', affiliation: 'Alabama', firstName: 'John', lastName: 'Smith' },
+  { lane: '2', bib: '102', name: 'Mike Johnson', affiliation: 'Arizona', firstName: 'Mike', lastName: 'Johnson' },
+  { lane: '3', bib: '103', name: 'David Williams', affiliation: 'Arkansas', firstName: 'David', lastName: 'Williams' },
+  { lane: '4', bib: '104', name: 'James Brown', affiliation: 'Air Force', firstName: 'James', lastName: 'Brown' },
+  { lane: '5', bib: '105', name: 'Robert Davis', affiliation: 'Army', firstName: 'Robert', lastName: 'Davis' },
+  { lane: '6', bib: '106', name: 'William Miller', affiliation: 'Arizona St.', firstName: 'William', lastName: 'Miller' },
+  { lane: '7', bib: '107', name: 'Richard Wilson', affiliation: 'Akron', firstName: 'Richard', lastName: 'Wilson' },
+  { lane: '8', bib: '108', name: 'Joseph Moore', affiliation: 'Appalachian St.', firstName: 'Joseph', lastName: 'Moore' },
 ];
 
 async function sendLynxData(data: string, portType: string) {

@@ -542,7 +542,7 @@ export default function SimpleSceneEditor() {
     const binding = FIELD_BINDINGS[fieldKey];
     if (!binding) return fieldKey;
     
-    // Sample preview data
+    // Sample preview data using real NCAA school names
     const sampleData: Record<string, string> = {
       'event-name': "Men's 100m Final",
       'heat-number': 'Heat 2 of 4',
@@ -553,7 +553,7 @@ export default function SimpleSceneEditor() {
       'name': 'John Smith',
       'first-name': 'John',
       'last-name': 'Smith',
-      'school': 'Jefferson HS',
+      'school': 'Alabama',
       'time': '10.24',
       'last-split': '5.12',
       'cumulative-split': '5.12',
