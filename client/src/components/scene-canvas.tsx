@@ -352,17 +352,26 @@ export function SceneObjectRenderer({
         const headerFontSize = typeof headerNumericSize === 'number' 
           ? `${headerNumericSize}px` 
           : (headerNumericSize === 'xlarge' ? '64px' : headerNumericSize === 'large' ? '48px' : headerNumericSize === 'medium' ? '36px' : '24px');
+        // Get event name from multiple sources: configured event, live data, or static config
+        const headerEventName = event?.name 
+          || liveData?.eventName 
+          || (liveData?.distance ? `${liveData.distance}` : null)
+          || componentConfig.staticText 
+          || componentConfig.textContent 
+          || "Event Name";
+        // Get status from event or live data
+        const headerStatus = event?.status || liveData?.status || liveData?.mode;
         return (
           <div className="flex flex-col justify-center h-full p-4 bg-[hsl(var(--display-bg))]">
             <h1 
               className="font-stadium font-[900] text-[hsl(var(--display-fg))] uppercase"
               style={{ fontSize: headerFontSize }}
             >
-              {event?.name || componentConfig.staticText || componentConfig.textContent || "Event Name"}
+              {headerEventName}
             </h1>
-            {componentConfig.showStatus && event?.status && (
+            {componentConfig.showStatus && headerStatus && (
               <p className="text-[hsl(var(--display-accent))] font-stadium text-lg uppercase">
-                {event.status}
+                {headerStatus}
               </p>
             )}
           </div>
@@ -499,7 +508,7 @@ export function SceneObjectRenderer({
             style={{
               justifyContent,
               fontSize: resolvedFontSize,
-              fontWeight: componentConfig.fontWeight || styleConfig.fontWeight || "normal",
+              fontWeight: componentConfig.fontWeight || (styleConfig as any).fontWeight || "normal",
               color: componentConfig.textColor || styleConfig.textColor || "hsl(var(--display-fg))",
             }}
           >

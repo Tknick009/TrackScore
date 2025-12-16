@@ -207,35 +207,47 @@ export default function DisplayDevice() {
           
           if (message.type === 'display_command') {
             // Pre-warm React Query cache for instant inline rendering (no HTTP fetch needed)
-            if (message.sceneId) {
-              const sid = Number(message.sceneId);
-              if (message.sceneData) {
-                try {
-                  // Hydrate React Query cache synchronously before state update
-                  queryClient.setQueryData(['/api/layout-scenes', sid], message.sceneData.scene);
-                  queryClient.setQueryData(['/api/layout-objects', { sceneId: sid }], message.sceneData.objects);
-                  console.log(`[Display] Hydrated React Query cache for scene ${sid} - instant switch ready`);
-                } catch (e) {
-                  console.warn('[Display] Failed to hydrate React Query cache:', e);
-                }
-              } else {
-                // No sceneData provided - invalidate stale cache to force fresh fetch
-                queryClient.invalidateQueries({ queryKey: ['/api/layout-scenes', sid] });
-                queryClient.invalidateQueries({ queryKey: ['/api/layout-objects', { sceneId: sid }] });
-                console.log(`[Display] Invalidated stale cache for scene ${sid} - will fetch fresh data`);
+            const newSceneId = message.sceneId ? Number(message.sceneId) : null;
+            
+            if (newSceneId && message.sceneData) {
+              try {
+                // Hydrate React Query cache synchronously before state update
+                queryClient.setQueryData(['/api/layout-scenes', newSceneId], message.sceneData.scene);
+                queryClient.setQueryData(['/api/layout-objects', { sceneId: newSceneId }], message.sceneData.objects);
+                console.log(`[Display] Hydrated React Query cache for scene ${newSceneId} - instant switch ready`);
+              } catch (e) {
+                console.warn('[Display] Failed to hydrate React Query cache:', e);
               }
             }
             
-            setState(prev => ({
-              ...prev,
-              currentTemplate: message.template || (message.sceneId ? null : prev.currentTemplate),
-              currentSceneId: message.sceneId || null, // Custom scene ID from auto-mode mapping
-              currentSceneData: message.sceneData || null, // Pre-fetched scene data for instant switching
-              currentEventId: message.eventId || prev.currentEventId,
-              liveEventData: message.liveEventData || prev.liveEventData,
-              pagingSize: message.pagingSize ?? prev.pagingSize,
-              pagingInterval: message.pagingInterval ?? prev.pagingInterval,
-            }));
+            setState(prev => {
+              // Determine if we're switching to a new scene
+              const isSwitchingScenes = newSceneId !== prev.currentSceneId;
+              const isSwitchingToTemplate = !newSceneId && message.template;
+              
+              // Preserve scene data if staying on same scene and no new data provided
+              let sceneData = message.sceneData || null;
+              if (!sceneData && newSceneId && newSceneId === prev.currentSceneId) {
+                sceneData = prev.currentSceneData; // Keep existing scene data for same scene
+              }
+              
+              console.log(`[Display] Command: sceneId=${newSceneId}, template=${message.template}, switching=${isSwitchingScenes}`);
+              
+              return {
+                ...prev,
+                // Template: use message template, or null if we have a scene, or keep previous
+                currentTemplate: message.template ?? (newSceneId ? null : prev.currentTemplate),
+                // Scene ID: use new scene ID or null if switching to template
+                currentSceneId: isSwitchingToTemplate ? null : (newSceneId ?? prev.currentSceneId),
+                // Scene data: use new data, or preserved data for same scene, or null for template
+                currentSceneData: isSwitchingToTemplate ? null : sceneData,
+                currentEventId: message.eventId ?? prev.currentEventId,
+                // Always update live data if provided, preserve if not
+                liveEventData: message.liveEventData ?? prev.liveEventData,
+                pagingSize: message.pagingSize ?? prev.pagingSize,
+                pagingInterval: message.pagingInterval ?? prev.pagingInterval,
+              };
+            });
           }
           
           if (message.type === 'paging_settings') {
