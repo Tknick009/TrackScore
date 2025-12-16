@@ -255,9 +255,26 @@ function SceneObjectRenderer({
         );
         
       case "logo":
-        const logoUrl = componentConfig.logoType === "meet" 
-          ? meet?.logoUrl 
-          : (componentConfig.logoUrl || componentConfig.imageUrl);
+        // Determine logo URL based on type
+        let logoUrl: string | null | undefined = null;
+        const logoFieldKey = dataBinding.fieldKey as string | undefined;
+        
+        if (componentConfig.logoType === "meet") {
+          logoUrl = meet?.logoUrl;
+        } else if (logoFieldKey === "school-logo" && liveData) {
+          // Get school name from first entry's affiliation
+          const firstEntry = Array.isArray(liveData.entries) && liveData.entries.length > 0 
+            ? liveData.entries[0] 
+            : null;
+          const schoolName = firstEntry?.affiliation || firstEntry?.team;
+          if (schoolName) {
+            // Build path to NCAA logo folder
+            logoUrl = `/logos/NCAA/${schoolName}.png`;
+          }
+        } else {
+          logoUrl = componentConfig.logoUrl || componentConfig.imageUrl;
+        }
+        
         if (!logoUrl) {
           return (
             <div className="flex items-center justify-center h-full">
