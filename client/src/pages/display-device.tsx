@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -21,6 +21,7 @@ import {
   DISPLAY_CAPABILITIES,
   isTemplateCompatible,
 } from "@/lib/displayCapabilities";
+import { SceneCanvas } from "@/components/scene-canvas";
 
 interface LiveEventData {
   eventNumber: number;
@@ -205,20 +206,23 @@ export default function DisplayDevice() {
           }
           
           if (message.type === 'display_command') {
-            // Pre-warm localStorage cache with scene data for instant iframe switching
-            if (message.sceneData && message.sceneId) {
-              try {
-                localStorage.setItem(
-                  `scene_cache_${message.sceneId}`,
-                  JSON.stringify({
-                    scene: message.sceneData.scene,
-                    objects: message.sceneData.objects,
-                    timestamp: Date.now()
-                  })
-                );
-                console.log(`[Display] Pre-cached scene ${message.sceneId} for instant switch`);
-              } catch (e) {
-                console.warn('[Display] Failed to cache scene data:', e);
+            // Pre-warm React Query cache for instant inline rendering (no HTTP fetch needed)
+            if (message.sceneId) {
+              const sid = Number(message.sceneId);
+              if (message.sceneData) {
+                try {
+                  // Hydrate React Query cache synchronously before state update
+                  queryClient.setQueryData(['/api/layout-scenes', sid], message.sceneData.scene);
+                  queryClient.setQueryData(['/api/layout-objects', { sceneId: sid }], message.sceneData.objects);
+                  console.log(`[Display] Hydrated React Query cache for scene ${sid} - instant switch ready`);
+                } catch (e) {
+                  console.warn('[Display] Failed to hydrate React Query cache:', e);
+                }
+              } else {
+                // No sceneData provided - invalidate stale cache to force fresh fetch
+                queryClient.invalidateQueries({ queryKey: ['/api/layout-scenes', sid] });
+                queryClient.invalidateQueries({ queryKey: ['/api/layout-objects', { sceneId: sid }] });
+                console.log(`[Display] Invalidated stale cache for scene ${sid} - will fetch fresh data`);
               }
             }
             
@@ -453,6 +457,7 @@ export default function DisplayDevice() {
       meetId={state.meetId}
       template={state.currentTemplate}
       sceneId={state.currentSceneId}
+      currentSceneData={state.currentSceneData}
       eventId={state.currentEventId}
       deviceId={registeredDeviceId || 'pending'}
       isConnected={state.isConnected}
@@ -469,6 +474,7 @@ interface DisplayRendererProps {
   meetId: string | null;
   template: string | null;
   sceneId: number | null;
+  currentSceneData: { scene: any; objects: any[] } | null;
   eventId: number | null;
   deviceId: string;
   isConnected: boolean;
@@ -482,7 +488,7 @@ interface EventWithEntries extends Event {
   entries: any[];
 }
 
-function DisplayRenderer({ displayType, meetId, template, sceneId, eventId, deviceId, isConnected, liveClockTime, liveEventData, pagingSize, pagingInterval }: DisplayRendererProps) {
+function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTime, liveEventData, pagingSize, pagingInterval }: DisplayRendererProps) {
   const { data: meet } = useQuery<Meet>({
     queryKey: ['/api/meets', meetId],
     enabled: !!meetId,
@@ -507,71 +513,47 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, eventId, devi
 
   const currentEvent = specificEvent || currentEventData;
 
-  // Ref for scene iframe to send postMessage
-  const sceneIframeRef = useRef<HTMLIFrameElement>(null);
-  
-  // Send scene data to iframe via postMessage when iframe loads
-  const handleSceneIframeLoad = useCallback(() => {
-    if (sceneIframeRef.current?.contentWindow) {
-      // Check localStorage for cached scene data
-      try {
-        const cached = localStorage.getItem(`scene_cache_${sceneId}`);
-        if (cached) {
-          const data = JSON.parse(cached);
-          sceneIframeRef.current.contentWindow.postMessage({
-            type: 'scene_data_preload',
-            scene: data.scene,
-            objects: data.objects,
-          }, window.location.origin);
-          console.log(`[Display] Sent scene ${sceneId} data to iframe via postMessage`);
-        }
-      } catch (e) {
-        console.warn('[Display] Failed to send scene data to iframe:', e);
-      }
-    }
-  }, [sceneId]);
-
   const renderContent = () => {
-    // If a custom scene is assigned, render it via iframe
+    // If a custom scene is assigned, render it inline using SceneCanvas
     if (sceneId) {
       const capability = DISPLAY_CAPABILITIES[displayType];
       const isSingleAthleteDisplay = capability.maxAthletes === 1;
       
-      // Build scene URL with event number for live data and paging params
-      const eventNum = liveEventData?.eventNumber;
-      const params = new URLSearchParams();
-      if (eventNum) params.set('eventNumber', String(eventNum));
-      if (pagingSize) params.set('pagingSize', String(pagingSize));
-      if (pagingInterval) params.set('pagingInterval', String(pagingInterval));
-      const sceneUrl = `/scene-display/${sceneId}${params.toString() ? '?' + params.toString() : ''}`;
-      
       // Use full viewport for BigBoard, fixed dimensions for P10/P6
       if (isSingleAthleteDisplay) {
         return (
-          <iframe
-            ref={sceneIframeRef}
-            src={sceneUrl}
-            onLoad={handleSceneIframeLoad}
+          <div
             style={{
               width: `${capability.resolution.width}px`,
               height: `${capability.resolution.height}px`,
-              border: 'none',
               overflow: 'hidden',
             }}
-            title="Custom Scene Display"
-          />
+          >
+            <SceneCanvas
+              sceneId={sceneId}
+              scene={currentSceneData?.scene}
+              objects={currentSceneData?.objects}
+              meetId={meetId || undefined}
+              liveEventData={liveEventData}
+              pagingSize={pagingSize}
+              pagingInterval={pagingInterval}
+            />
+          </div>
         );
       }
       
       return (
-        <iframe
-          ref={sceneIframeRef}
-          src={sceneUrl}
-          onLoad={handleSceneIframeLoad}
-          className="w-screen h-screen"
-          style={{ border: 'none', overflow: 'hidden' }}
-          title="Custom Scene Display"
-        />
+        <div className="w-screen h-screen">
+          <SceneCanvas
+            sceneId={sceneId}
+            scene={currentSceneData?.scene}
+            objects={currentSceneData?.objects}
+            meetId={meetId || undefined}
+            liveEventData={liveEventData}
+            pagingSize={pagingSize}
+            pagingInterval={pagingInterval}
+          />
+        </div>
       );
     }
     
