@@ -105,6 +105,14 @@ export default function SimpleSceneEditor() {
   const [customWidth, setCustomWidth] = useState(1920);
   const [customHeight, setCustomHeight] = useState(1080);
   
+  // Copy scene dialog
+  const [showCopyDialog, setShowCopyDialog] = useState(false);
+  const [sceneToCopy, setSceneToCopy] = useState<LayoutSceneWithObjects | null>(null);
+  const [copySceneName, setCopySceneName] = useState('');
+  const [copyPreset, setCopyPreset] = useState<typeof SCREEN_PRESETS[number] | null>(null);
+  const [copyWidth, setCopyWidth] = useState(1920);
+  const [copyHeight, setCopyHeight] = useState(1080);
+  
   // Scene dimensions (default 1920x1080)
   const [canvasWidth, setCanvasWidth] = useState(1920);
   const [canvasHeight, setCanvasHeight] = useState(1080);
@@ -165,33 +173,58 @@ export default function SimpleSceneEditor() {
     },
   });
   
-  // Copy scene mutation
+  // Copy scene mutation with scaling support
   const copyMutation = useMutation({
-    mutationFn: async (scene: LayoutSceneWithObjects) => {
-      // Create a copy of the scene with a new name
+    mutationFn: async ({ scene, newName, newWidth, newHeight }: { 
+      scene: LayoutSceneWithObjects; 
+      newName: string; 
+      newWidth: number; 
+      newHeight: number;
+    }) => {
+      // Calculate scale factors
+      const scaleX = newWidth / scene.canvasWidth;
+      const scaleY = newHeight / scene.canvasHeight;
+      
+      // Create a copy of the scene with new name and dimensions
       const response = await apiRequest('POST', '/api/layout-scenes', {
         meetId: currentMeet?.id,
-        name: `${scene.name} (Copy)`,
-        canvasWidth: scene.canvasWidth,
-        canvasHeight: scene.canvasHeight,
+        name: newName,
+        canvasWidth: newWidth,
+        canvasHeight: newHeight,
         backgroundColor: scene.backgroundColor || '#000000',
       });
       const newScene = await response.json();
       
-      // Copy all objects to the new scene
+      // Copy all objects to the new scene with scaled positions and sizes
       const objects = scene.objects || [];
       for (const obj of objects) {
+        // Scale position and size proportionally
+        const scaledX = obj.x * scaleX;
+        const scaledY = obj.y * scaleY;
+        const scaledWidth = obj.width * scaleX;
+        const scaledHeight = obj.height * scaleY;
+        
+        // Scale font size if present in style
+        let scaledStyle: any = obj.style;
+        if (scaledStyle && typeof scaledStyle === 'object' && 'fontSize' in scaledStyle) {
+          const avgScale = (scaleX + scaleY) / 2;
+          scaledStyle = {
+            ...scaledStyle,
+            fontSize: Math.round(scaledStyle.fontSize * avgScale),
+          };
+        }
+        
         await apiRequest('POST', `/api/layout-scenes/${newScene.id}/objects`, {
           name: obj.name,
           objectType: obj.objectType,
-          x: obj.x,
-          y: obj.y,
-          width: obj.width,
-          height: obj.height,
+          x: scaledX,
+          y: scaledY,
+          width: scaledWidth,
+          height: scaledHeight,
           zIndex: obj.zIndex,
           dataBinding: obj.dataBinding,
           config: obj.config,
-          style: obj.style,
+          style: scaledStyle,
         });
       }
       
@@ -210,6 +243,10 @@ export default function SimpleSceneEditor() {
         .then((objects: SelectLayoutObject[]) => {
           setBoxes(objects.map(layoutObjectToBox));
         });
+      // Close the dialog
+      setShowCopyDialog(false);
+      setSceneToCopy(null);
+      setCopySceneName('');
     },
     onError: (error) => {
       toast({ title: 'Failed to copy scene', description: String(error), variant: 'destructive' });
@@ -638,7 +675,13 @@ export default function SimpleSceneEditor() {
                             variant="ghost"
                             onClick={(e) => {
                               e.stopPropagation();
-                              copyMutation.mutate(scene);
+                              // Open copy dialog with scene info
+                              setSceneToCopy(scene);
+                              setCopySceneName('');
+                              setCopyWidth(scene.canvasWidth);
+                              setCopyHeight(scene.canvasHeight);
+                              setCopyPreset(null);
+                              setShowCopyDialog(true);
                             }}
                             disabled={copyMutation.isPending}
                             title="Copy"
@@ -753,6 +796,133 @@ export default function SimpleSceneEditor() {
               </Button>
               <Button onClick={handleCreateScene} data-testid="button-create-scene">
                 Create Scene
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        
+        {/* Copy Scene Dialog */}
+        <Dialog open={showCopyDialog} onOpenChange={(open) => {
+          setShowCopyDialog(open);
+          if (!open) {
+            setSceneToCopy(null);
+            setCopySceneName('');
+          }
+        }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Copy Scene</DialogTitle>
+              <DialogDescription>
+                Enter a new name and optionally resize the layout. All objects will scale proportionally.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>New Scene Name <span className="text-destructive">*</span></Label>
+                <Input
+                  value={copySceneName}
+                  onChange={(e) => setCopySceneName(e.target.value)}
+                  placeholder="Enter a unique name"
+                  data-testid="input-copy-scene-name"
+                />
+                {sceneToCopy && (
+                  <p className="text-xs text-muted-foreground">
+                    Copying from: {sceneToCopy.name} ({sceneToCopy.canvasWidth}×{sceneToCopy.canvasHeight})
+                  </p>
+                )}
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Target Screen Size</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {SCREEN_PRESETS.map((preset) => (
+                    <Button
+                      key={preset.name}
+                      variant={copyPreset?.name === preset.name ? 'default' : 'outline'}
+                      className="justify-start h-auto py-3"
+                      onClick={() => {
+                        setCopyPreset(preset);
+                        setCopyWidth(preset.width);
+                        setCopyHeight(preset.height);
+                      }}
+                      data-testid={`button-copy-preset-${preset.name.replace(/\s+/g, '-').toLowerCase()}`}
+                    >
+                      <div className="text-left">
+                        <div className="font-medium">{preset.name}</div>
+                        <div className="text-xs opacity-70">{preset.width}×{preset.height}</div>
+                      </div>
+                    </Button>
+                  ))}
+                  <Button
+                    variant={copyPreset === null ? 'default' : 'outline'}
+                    className="justify-start h-auto py-3"
+                    onClick={() => setCopyPreset(null)}
+                    data-testid="button-copy-preset-custom"
+                  >
+                    <div className="text-left">
+                      <div className="font-medium">Custom</div>
+                      <div className="text-xs opacity-70">Enter dimensions</div>
+                    </div>
+                  </Button>
+                </div>
+              </div>
+              
+              {copyPreset === null && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Width (px)</Label>
+                    <Input
+                      type="number"
+                      value={copyWidth}
+                      onChange={(e) => setCopyWidth(parseInt(e.target.value) || 1920)}
+                      data-testid="input-copy-width"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Height (px)</Label>
+                    <Input
+                      type="number"
+                      value={copyHeight}
+                      onChange={(e) => setCopyHeight(parseInt(e.target.value) || 1080)}
+                      data-testid="input-copy-height"
+                    />
+                  </div>
+                </div>
+              )}
+              
+              {sceneToCopy && (copyWidth !== sceneToCopy.canvasWidth || copyHeight !== sceneToCopy.canvasHeight) && (
+                <div className="p-3 rounded-lg bg-muted text-sm">
+                  <div className="font-medium mb-1">Scale Preview</div>
+                  <div className="text-muted-foreground">
+                    Objects will scale {((copyWidth / sceneToCopy.canvasWidth) * 100).toFixed(0)}% horizontally 
+                    and {((copyHeight / sceneToCopy.canvasHeight) * 100).toFixed(0)}% vertically
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowCopyDialog(false)}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={() => {
+                  if (!sceneToCopy || !copySceneName.trim()) {
+                    toast({ title: 'Please enter a name for the new scene', variant: 'destructive' });
+                    return;
+                  }
+                  copyMutation.mutate({
+                    scene: sceneToCopy,
+                    newName: copySceneName.trim(),
+                    newWidth: copyWidth,
+                    newHeight: copyHeight,
+                  });
+                }}
+                disabled={!copySceneName.trim() || copyMutation.isPending}
+                data-testid="button-confirm-copy"
+              >
+                {copyMutation.isPending ? 'Copying...' : 'Copy Scene'}
               </Button>
             </DialogFooter>
           </DialogContent>
