@@ -148,6 +148,19 @@ function getDisplayModeFromTemplate(template: string): string | null {
   return null;
 }
 
+// Pre-fetch scene data for instant display switching (eliminates HTTP round-trips)
+async function prefetchSceneData(sceneId: number): Promise<{ scene: any; objects: any[] } | null> {
+  try {
+    const scene = await storage.getLayoutScene(sceneId);
+    if (!scene) return null;
+    const objects = await storage.getLayoutObjects(sceneId);
+    return { scene, objects };
+  } catch (err) {
+    console.error(`[Prefetch] Error loading scene ${sceneId}:`, err);
+    return null;
+  }
+}
+
 // Send auto-mode template update to a device
 async function sendAutoModeUpdate(deviceId: string, state: TrackAutoState, liveData?: any) {
   const device = connectedDisplayDevices.get(deviceId);
@@ -157,6 +170,7 @@ async function sendAutoModeUpdate(deviceId: string, state: TrackAutoState, liveD
     
     // Check for custom scene mapping
     let sceneId: number | null = null;
+    let sceneData: { scene: any; objects: any[] } | null = null;
     const sceneDisplayMode = getSceneDisplayModeForAutoState(state);
     
     if (sceneDisplayMode) {
@@ -168,6 +182,8 @@ async function sendAutoModeUpdate(deviceId: string, state: TrackAutoState, liveD
         );
         if (mapping) {
           sceneId = mapping.sceneId;
+          // Pre-fetch scene data for instant switching
+          sceneData = await prefetchSceneData(sceneId);
           console.log(`[Auto-Mode] ${device.deviceName}: Using custom scene ${sceneId} for ${sceneDisplayMode}`);
         }
       } catch (err) {
@@ -179,6 +195,7 @@ async function sendAutoModeUpdate(deviceId: string, state: TrackAutoState, liveD
       type: 'display_command',
       template: sceneId ? null : defaultTemplate, // Use template only if no custom scene
       sceneId: sceneId, // Custom scene ID (if mapped)
+      sceneData: sceneData, // Pre-fetched scene data for instant switching
       eventId: null,
       autoMode: true,
       liveEventData: liveData || null,
@@ -1879,6 +1896,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {
         // Look up custom scene mapping if template is provided
         let sceneId: number | null = null;
+        let sceneData: { scene: any; objects: any[] } | null = null;
         let liveEventData: any = null;
         
         if (template && device.meetId) {
@@ -1892,6 +1910,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               );
               if (mapping) {
                 sceneId = mapping.sceneId;
+                // Pre-fetch scene data for instant switching
+                sceneData = await prefetchSceneData(sceneId);
                 console.log(`[Manual Command] ${device.deviceName}: Using custom scene ${sceneId} for ${displayMode}`);
               }
             } catch (err) {
@@ -1928,6 +1948,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           type: 'display_command',
           template: sceneId ? null : template, // Use template only if no custom scene
           sceneId: sceneId, // Custom scene ID (if mapped)
+          sceneData: sceneData, // Pre-fetched scene data for instant switching
           eventId,
           liveEventData,
           pagingSize: connectedDevice.pagingSize,

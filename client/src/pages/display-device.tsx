@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -38,6 +39,7 @@ interface DisplayDeviceState {
   meetId: string | null;
   currentTemplate: string | null;
   currentSceneId: number | null;
+  currentSceneData: { scene: any; objects: any[] } | null; // Pre-fetched scene data for instant switching
   currentEventId: number | null;
   isConnected: boolean;
   setupComplete: boolean;
@@ -108,6 +110,7 @@ export default function DisplayDevice() {
     meetId: null,
     currentTemplate: null,
     currentSceneId: null,
+    currentSceneData: null,
     currentEventId: null,
     isConnected: false,
     setupComplete: false,
@@ -202,10 +205,28 @@ export default function DisplayDevice() {
           }
           
           if (message.type === 'display_command') {
+            // Pre-warm localStorage cache with scene data for instant iframe switching
+            if (message.sceneData && message.sceneId) {
+              try {
+                localStorage.setItem(
+                  `scene_cache_${message.sceneId}`,
+                  JSON.stringify({
+                    scene: message.sceneData.scene,
+                    objects: message.sceneData.objects,
+                    timestamp: Date.now()
+                  })
+                );
+                console.log(`[Display] Pre-cached scene ${message.sceneId} for instant switch`);
+              } catch (e) {
+                console.warn('[Display] Failed to cache scene data:', e);
+              }
+            }
+            
             setState(prev => ({
               ...prev,
               currentTemplate: message.template || (message.sceneId ? null : prev.currentTemplate),
               currentSceneId: message.sceneId || null, // Custom scene ID from auto-mode mapping
+              currentSceneData: message.sceneData || null, // Pre-fetched scene data for instant switching
               currentEventId: message.eventId || prev.currentEventId,
               liveEventData: message.liveEventData || prev.liveEventData,
               pagingSize: message.pagingSize ?? prev.pagingSize,
@@ -486,6 +507,30 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, eventId, devi
 
   const currentEvent = specificEvent || currentEventData;
 
+  // Ref for scene iframe to send postMessage
+  const sceneIframeRef = useRef<HTMLIFrameElement>(null);
+  
+  // Send scene data to iframe via postMessage when iframe loads
+  const handleSceneIframeLoad = useCallback(() => {
+    if (sceneIframeRef.current?.contentWindow) {
+      // Check localStorage for cached scene data
+      try {
+        const cached = localStorage.getItem(`scene_cache_${sceneId}`);
+        if (cached) {
+          const data = JSON.parse(cached);
+          sceneIframeRef.current.contentWindow.postMessage({
+            type: 'scene_data_preload',
+            scene: data.scene,
+            objects: data.objects,
+          }, window.location.origin);
+          console.log(`[Display] Sent scene ${sceneId} data to iframe via postMessage`);
+        }
+      } catch (e) {
+        console.warn('[Display] Failed to send scene data to iframe:', e);
+      }
+    }
+  }, [sceneId]);
+
   const renderContent = () => {
     // If a custom scene is assigned, render it via iframe
     if (sceneId) {
@@ -504,7 +549,9 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, eventId, devi
       if (isSingleAthleteDisplay) {
         return (
           <iframe
+            ref={sceneIframeRef}
             src={sceneUrl}
+            onLoad={handleSceneIframeLoad}
             style={{
               width: `${capability.resolution.width}px`,
               height: `${capability.resolution.height}px`,
@@ -518,7 +565,9 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, eventId, devi
       
       return (
         <iframe
+          ref={sceneIframeRef}
           src={sceneUrl}
+          onLoad={handleSceneIframeLoad}
           className="w-screen h-screen"
           style={{ border: 'none', overflow: 'hidden' }}
           title="Custom Scene Display"
