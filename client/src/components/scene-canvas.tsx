@@ -364,11 +364,8 @@ export function SceneObjectRenderer({
         }
         
         if (!logoUrl) {
-          return (
-            <div className="flex items-center justify-center h-full">
-              <Image className="w-12 h-12 text-[hsl(var(--display-muted))] opacity-30" />
-            </div>
-          );
+          // Show empty space instead of placeholder when no logo available
+          return <div className="h-full" />;
         }
         return (
           <div className="flex items-center justify-center h-full p-2">
@@ -377,6 +374,8 @@ export function SceneObjectRenderer({
               alt="Logo" 
               className="max-w-full max-h-full object-contain"
               style={{ objectFit: componentConfig.objectFit || componentConfig.imageFit || "contain" }}
+              loading="eager"
+              decoding="async"
               onError={(e) => { e.currentTarget.style.display = 'none'; }}
             />
           </div>
@@ -468,7 +467,7 @@ export function SceneObjectRenderer({
               color: componentConfig.textColor || styleConfig.textColor || "hsl(var(--display-fg))",
             }}
           >
-            <span className="whitespace-nowrap">{textContent || "Label"}</span>
+            <span className="whitespace-nowrap">{textContent || ""}</span>
           </div>
         );
         
