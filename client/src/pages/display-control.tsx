@@ -24,7 +24,8 @@ import {
   Send,
   ExternalLink,
   QrCode,
-  Copy
+  Copy,
+  Play
 } from 'lucide-react';
 import { DISPLAY_CONTENT_TYPES } from '@shared/layout-templates';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -109,6 +110,29 @@ export default function DisplayControlPage() {
         title: 'Delete failed',
         description: error.message,
         variant: 'destructive',
+      });
+    },
+  });
+
+  const simulateMutation = useMutation({
+    mutationFn: (mode: string) => apiRequest("POST", `/api/lynx/simulate`, { 
+      eventNumber: 1, 
+      heat: 1, 
+      distance: "100",
+      mode 
+    }),
+    onSuccess: (_, mode) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/live-events"] });
+      toast({ 
+        title: "Test data sent", 
+        description: `Simulated ${mode} data with NCAA schools` 
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Simulation failed",
+        description: error.message,
+        variant: "destructive",
       });
     },
   });
@@ -321,15 +345,27 @@ export default function DisplayControlPage() {
               Manage connected display boards and assign events to each device
             </p>
           </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => refetchDevices()}
-            data-testid="button-refresh-devices"
-          >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="secondary" 
+              size="sm" 
+              onClick={() => simulateMutation.mutate("results")}
+              disabled={simulateMutation.isPending}
+              data-testid="button-simulate-data"
+            >
+              <Play className={`w-4 h-4 mr-2 ${simulateMutation.isPending ? 'animate-pulse' : ''}`} />
+              Simulate
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => refetchDevices()}
+              data-testid="button-refresh-devices"
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
         </div>
       </div>
 
