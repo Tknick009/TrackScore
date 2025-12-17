@@ -102,10 +102,6 @@ const connectedDisplayDevices = new Map<string, ConnectedDisplayDevice>();
 type TrackAutoState = 'idle' | 'armed' | 'running' | 'results' | 'time_of_day';
 const autoModeDeviceStates = new Map<string, TrackAutoState>();
 
-// Simulated running clock timer (for testing without FinishLynx)
-let simulatedClockTimer: ReturnType<typeof setInterval> | null = null;
-let simulatedClockStartTime: number = 0;
-
 // Template mapping for auto-mode states
 function getTemplateForAutoState(state: TrackAutoState, displayType: string): string {
   switch (state) {
@@ -5235,127 +5231,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Simulate test race with NCAA schools (for testing displays)
-  app.post("/api/lynx/simulate", async (req, res) => {
-    try {
-      const { eventNumber = 1, heat = 1, distance = "100", mode = "results", eventName = "Mens 100M Dash" } = req.body;
-      
-      // Clear old live event data for this event before starting simulation
-      // This ensures fresh data and proper eventName display
-      await storage.clearLiveEventData();
-      console.log('[Simulator] Cleared old live event data before simulation');
-      
-      // NCAA schools with matching logos in /logos/NCAA/ folder
-      const testAthletes = [
-        { lane: '1', bib: '101', firstName: 'Marcus', lastName: 'Johnson', affiliation: 'Alabama' },
-        { lane: '2', bib: '102', firstName: 'Tyler', lastName: 'Williams', affiliation: 'Arizona' },
-        { lane: '3', bib: '103', firstName: 'Dwayne', lastName: 'Davis', affiliation: 'Arkansas' },
-        { lane: '4', bib: '104', firstName: 'Cameron', lastName: 'Brown', affiliation: 'Auburn' },
-        { lane: '5', bib: '105', firstName: 'Terrell', lastName: 'Miller', affiliation: 'Clemson' },
-        { lane: '6', bib: '106', firstName: 'Brandon', lastName: 'Taylor', affiliation: 'Duke' },
-        { lane: '7', bib: '107', firstName: 'Jaylen', lastName: 'Anderson', affiliation: 'Florida' },
-        { lane: '8', bib: '108', firstName: 'Quincy', lastName: 'Thomas', affiliation: 'Georgia' },
-      ];
-      
-      const times = ['10.23', '10.45', '10.67', '10.89', '11.01', '11.15', '11.32', '11.48'];
-      
-      if (mode === 'start_list' || mode === 'all') {
-        // Send start list
-        for (const athlete of testAthletes) {
-          const message = JSON.stringify({
-            T: 'S',
-            D: {
-              EN: eventNumber,
-              R: 1,
-              H: heat,
-              S: 'UNOFFICIAL',
-              DS: distance,
-              DN: eventName,
-              P: '',
-              L: athlete.lane,
-              BIB: athlete.bib,
-              N: `${athlete.firstName} ${athlete.lastName}`,
-              AF: athlete.affiliation,
-              FN: athlete.firstName,
-              LN: athlete.lastName,
-            }
-          });
-          lynxListener.processForwardedData(message, 'start_list', 'Simulator');
-        }
-      }
-      
-      if (mode === 'results' || mode === 'all') {
-        // Send track results (T: 'T' for track timing with place and time)
-        for (let i = 0; i < testAthletes.length; i++) {
-          const athlete = testAthletes[i];
-          const message = JSON.stringify({
-            T: 'T',
-            D: {
-              EN: eventNumber,
-              R: 1,
-              H: heat,
-              S: 'OFFICIAL',
-              DS: distance,
-              DN: eventName,
-              P: String(i + 1),
-              L: athlete.lane,
-              BIB: athlete.bib,
-              N: `${athlete.firstName} ${athlete.lastName}`,
-              AF: athlete.affiliation,
-              FN: athlete.firstName,
-              LN: athlete.lastName,
-              T: times[i],
-            }
-          });
-          lynxListener.processForwardedData(message, 'results', 'Simulator');
-        }
-      }
-      
-      if (mode === 'clock') {
-        // Start a running clock from 0.0 counting up by tenths (like FinishLynx)
-        // Stop any existing clock first
-        if (simulatedClockTimer) {
-          clearInterval(simulatedClockTimer);
-          simulatedClockTimer = null;
-        }
-        
-        simulatedClockStartTime = Date.now();
-        console.log('[Simulator] Starting running clock from 0.0');
-        
-        // Send clock updates every 100ms (10 times per second) - tenths only
-        simulatedClockTimer = setInterval(() => {
-          const elapsed = Date.now() - simulatedClockStartTime;
-          const totalSeconds = elapsed / 1000;
-          const minutes = Math.floor(totalSeconds / 60);
-          const seconds = (totalSeconds % 60).toFixed(1); // Tenths only
-          const timeStr = minutes > 0 ? `${minutes}:${seconds.padStart(4, '0')}` : seconds;
-          const message = JSON.stringify({ t: timeStr });
-          lynxListener.processForwardedData(message, 'clock', 'Simulator');
-        }, 100);
-      }
-      
-      if (mode === 'stop_clock') {
-        // Stop the running clock
-        if (simulatedClockTimer) {
-          clearInterval(simulatedClockTimer);
-          simulatedClockTimer = null;
-          console.log('[Simulator] Stopped running clock');
-        }
-      }
-      
-      res.json({ 
-        success: true, 
-        mode, 
-        eventNumber, 
-        heat,
-        athleteCount: testAthletes.length 
-      });
-    } catch (error: any) {
-      console.error('[Lynx Simulate] Error:', error.message);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
   // Get live event data by event number
   app.get("/api/live-events/:eventNumber", async (req, res) => {
     try {
@@ -5766,8 +5641,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get existing data to preserve eventName if not provided (e.g., running mode)
       const existingData = await storage.getLiveEventData(eventNumber);
       
-      // Compute values for display/broadcast
-      const eventNameToUse = data.eventName || existingData?.eventName || `Event ${eventNumber}`;
+      // Compute values for display/broadcast - only use actual names from FinishLynx, no fallbacks
+      const eventNameToUse = data.eventName || existingData?.eventName || '';
       const distanceToUse = data.distance || existingData?.distance;
       
       // For running mode with no event data, only update if record exists - don't create with fallback

@@ -444,8 +444,8 @@ export function SceneObjectRenderer({
         }
         
         if (fieldKey && liveData) {
-          const eventName = liveData.eventName 
-            || (liveData.distance ? `${liveData.distance}m` : `Event ${liveData.eventNumber}`);
+          // Only use actual event name from FinishLynx - no fallbacks
+          const eventName = liveData.eventName || '';
           
           const athleteIndex = dataBinding.athleteIndex || 0;
           const entries = Array.isArray(liveData.entries) ? liveData.entries : [];

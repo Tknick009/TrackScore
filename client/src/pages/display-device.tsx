@@ -841,7 +841,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
       // Create a synthetic event from live Lynx data
       const syntheticEvent = {
         id: 0,
-        name: liveEventData.eventName || `Event ${liveEventData.eventNumber}`,
+        name: liveEventData.eventName || '',
         eventType: 'track',
         status: liveEventData.mode === 'results' ? 'completed' : 'in_progress',
         entries: (liveEventData.entries || []).map((entry: any, idx: number) => ({
