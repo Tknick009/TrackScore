@@ -418,8 +418,10 @@ export function SceneObjectRenderer({
         let textContent = componentConfig.text || componentConfig.textContent || componentConfig.dynamicText;
         
         // Special case: running-time uses smooth clock for jitter-free updates
+        // Only show running clock when race is actually in running mode
         // Use liveData.runningTime if available, otherwise fall back to liveClockTime from WebSocket
-        const clockTime = liveData?.runningTime || liveClockTime;
+        const isRaceRunning = liveData?.mode === 'running' || liveData?.isRunning === true;
+        const clockTime = isRaceRunning ? (liveData?.runningTime || liveClockTime) : null;
         if (fieldKey === 'running-time' && clockTime) {
           // Use numeric fontSize from style, or fall back to componentConfig string mapping
           const numericFontSize = styleConfig.fontSize || componentConfig.fontSize;
