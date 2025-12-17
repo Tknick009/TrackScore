@@ -1,0 +1,80 @@
+; Track Scoreboard Script for Real-time Display
+; Outputs JSON with all athletes in an array for multi-lane display
+;
+;      \13  Results Header/Trailer
+;         \00  No variable
+;         \01  OFFICIAL/UNOFFICIAL string
+;         \02  Event name (Display Name)
+;         \03  Wind
+;         \04  Event number
+;         \05  Round number
+;         \06  Heat number
+;         \07  AUTO/MANUAL start type
+;         \08  Number of participants
+;         \09  ARMED/RUNNING status
+;         \0a  Distance
+;      \14  Result
+;         \00  No variable
+;         \01  Place
+;         \02  Lane
+;         \03  Id (Bib)
+;         \04  Name
+;         \05  Affiliation
+;         \06  Time
+;         \07  Delta Time
+;         \08  Cumulative Split Time
+;         \09  Last Split Time
+;         \0a  Laps To Go
+;         \0b  License
+;         \0c  ReacTime
+;         \0d  Speed
+;         \0e  Pace
+;         \0f  Best Split Time
+;         \10  User1
+;         \11  User2
+;         \12  User3
+;         \17  First Name
+;         \18  Last Name
+
+;;StartListHeader
+\13\00{"T":"S","D":{"EN":%s,"R":%s,"H":%s,"S":"%s","DS":"%s","DN":"%s","athletes":[
+\13\04\13\05\13\06\13\01\13\0a\13\02
+
+;;StartList
+\14\00{"P":"%s","L":"%s","BIB":"%s","N":"%s","AF":"%s","FN":"%s","LN":"%s"}
+\14\01\14\02\14\03\14\04\14\05\14\17\14\18
+
+;;StartListSeparator
+,
+
+;;StartListTrailer
+\13\00]}}\0d\0a
+
+;;StartedHeader
+\13\00{"T":"T","D":{"EN":%s,"R":%s,"H":%s,"S":"%s","DS":"%s","W":"%s","DN":"%s","athletes":[
+\13\04\13\05\13\06\13\01\13\0a\13\03\13\02
+
+;;Started
+\14\00{"P":"%s","L":"%s","BIB":"%s","N":"%s","AF":"%s","T":"%s","RT":"%s","L2G":"%s","CS":"%s","LS":"%s","FN":"%s","LN":"%s"}
+\14\01\14\02\14\03\14\04\14\05\14\06\14\0c\14\0a\14\08\14\09\14\17\14\18
+
+;;StartedSeparator
+,
+
+;;StartedTrailer
+\13\00]}}\0d\0a
+
+;;ResultsHeader
+\13\00{"T":"F","D":{"EN":%s,"R":%s,"H":%s,"S":"%s","DS":"%s","DN":"%s","W":"%s","athletes":[
+\13\04\13\05\13\06\13\01\13\0a\13\02\13\03
+
+;;Results
+\14\00{"P":"%s","L":"%s","BIB":"%s","N":"%s","AF":"%s","T":"%s","RT":"%s","L2G":"%s","CS":"%s","LS":"%s","FN":"%s","LN":"%s"}
+\14\01\14\02\14\03\14\04\14\05\14\06\14\0c\14\0a\14\08\14\09\14\17\14\18
+
+;;ResultsSeparator
+,
+
+;;ResultsTrailer
+\13\00]}}\0d\0a
+
