@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback, memo } from "react";
+import { useState, useEffect, useMemo, memo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { 
   SelectLayoutScene, 
@@ -18,9 +18,8 @@ import {
 } from "@/components/display/templates";
 import { Trophy, Clock, Users, User, Image, Type, Award, Loader2 } from "lucide-react";
 
-// Smooth running clock that uses requestAnimationFrame for jitter-free updates
-// Displays tenths of seconds only (M:SS.T format)
-function SmoothRunningClock({ 
+// Static clock display - shows exactly what FinishLynx sends, no local interpolation
+function StaticRunningClock({ 
   serverTime, 
   fontSize,
   color
@@ -29,90 +28,16 @@ function SmoothRunningClock({
   fontSize?: string;
   color?: string;
 }) {
-  const textRef = useRef<HTMLDivElement>(null);
-  const lastServerTimeRef = useRef<string | null>(null);
-  const serverTimeReceivedAtRef = useRef<number>(0);
-  const rafRef = useRef<number | null>(null);
-  
-  // Parse time string like "12.3" or "1:23.4" to milliseconds
-  const parseTimeToMs = useCallback((timeStr: string): number => {
-    // Format: M:SS.T or SS.T
-    const colonMatch = timeStr.match(/^(\d+):(\d{2})\.(\d)$/);
-    if (colonMatch) {
-      const mins = parseInt(colonMatch[1], 10);
-      const secs = parseInt(colonMatch[2], 10);
-      const tenths = parseInt(colonMatch[3], 10);
-      return (mins * 60 * 1000) + (secs * 1000) + (tenths * 100);
-    }
-    // Format: SS.T (no minutes)
-    const noMinMatch = timeStr.match(/^(\d+)\.(\d)$/);
-    if (noMinMatch) {
-      const secs = parseFloat(timeStr);
-      return secs * 1000;
-    }
-    return 0;
-  }, []);
-  
-  // Format milliseconds back to display string
-  // Only show minutes when >= 1 minute, only show hours when >= 1 hour
-  const formatMsToTime = useCallback((ms: number): string => {
-    const totalSeconds = Math.floor(ms / 1000);
-    const hours = Math.floor(totalSeconds / 3600);
-    const mins = Math.floor((totalSeconds % 3600) / 60);
-    const secs = totalSeconds % 60;
-    const tenths = Math.floor((ms % 1000) / 100);
-    
-    if (hours > 0) {
-      // H:MM:SS.T format for 1+ hours
-      return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${tenths}`;
-    } else if (mins > 0) {
-      // M:SS.T format for 1+ minutes
-      return `${mins}:${secs.toString().padStart(2, '0')}.${tenths}`;
-    } else {
-      // SS.T format for under 1 minute
-      return `${secs}.${tenths}`;
-    }
-  }, []);
-  
-  // Update the server time reference when it changes
-  useEffect(() => {
-    if (serverTime && serverTime !== lastServerTimeRef.current) {
-      lastServerTimeRef.current = serverTime;
-      serverTimeReceivedAtRef.current = performance.now();
-    }
-  }, [serverTime]);
-  
-  // requestAnimationFrame loop for smooth interpolation
-  useEffect(() => {
-    const updateDisplay = () => {
-      if (textRef.current && lastServerTimeRef.current) {
-        const serverMs = parseTimeToMs(lastServerTimeRef.current);
-        const elapsedSinceSync = performance.now() - serverTimeReceivedAtRef.current;
-        const currentMs = serverMs + elapsedSinceSync;
-        textRef.current.textContent = formatMsToTime(currentMs);
-      }
-      rafRef.current = requestAnimationFrame(updateDisplay);
-    };
-    
-    rafRef.current = requestAnimationFrame(updateDisplay);
-    
-    return () => {
-      if (rafRef.current) {
-        cancelAnimationFrame(rafRef.current);
-      }
-    };
-  }, [parseTimeToMs, formatMsToTime]);
-  
+  // Display exactly what FinishLynx sends - no local counting
   return (
     <div 
-      ref={textRef}
       className="font-stadium-numbers font-[900]"
       style={{ 
         fontSize: fontSize || '48px',
         color: color || 'hsl(var(--display-fg))'
       }}
     >
-      {serverTime || "0:00.0"}
+      {serverTime || ""}
     </div>
   );
 }
@@ -338,12 +263,15 @@ export function SceneObjectRenderer({
         const timerFontSize = typeof timerNumericSize === 'number' 
           ? `${timerNumericSize}px` 
           : (timerNumericSize === 'xlarge' ? '96px' : timerNumericSize === 'large' ? '72px' : timerNumericSize === 'medium' ? '48px' : '36px');
+        // Only show time from FinishLynx when race is running
+        const timerIsRunning = liveData?.mode === 'running' || liveData?.isRunning === true;
+        const timerTime = timerIsRunning ? liveData?.runningTime : null;
         return (
           <div 
             className="flex items-center justify-center h-full bg-[hsl(var(--display-bg))]"
           >
-            <SmoothRunningClock 
-              serverTime={liveData?.runningTime}
+            <StaticRunningClock 
+              serverTime={timerTime}
               fontSize={timerFontSize}
               color="hsl(var(--display-fg))"
             />
@@ -435,7 +363,7 @@ export function SceneObjectRenderer({
               className="flex items-center h-full p-2 overflow-hidden"
               style={{ justifyContent }}
             >
-              <SmoothRunningClock 
+              <StaticRunningClock 
                 serverTime={clockTime}
                 fontSize={textFontSize}
                 color={componentConfig.textColor || styleConfig.textColor || "hsl(var(--display-fg))"}
