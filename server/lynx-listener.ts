@@ -79,6 +79,8 @@ interface AggregatedEvent {
   wind?: string;
   entries: Array<LynxStartListEntry | LynxTrackResult | LynxFieldResult>;
   lastUpdate: number;
+  firstUpdate: number; // Track when aggregation started for max wait time
+  emitScheduled?: boolean; // Prevent scheduling multiple emits
   type: 'S' | 'T' | 'F';
 }
 
@@ -107,13 +109,22 @@ export class LynxListener extends EventEmitter {
     const event = this.aggregatedEvents.get(key);
     if (!event) return;
     
+    // Only schedule one emit per aggregation period
+    if (event.emitScheduled) return;
+    event.emitScheduled = true;
+    
+    // Use a max wait time from first message (500ms) to ensure we emit
+    // even when messages are streaming continuously
+    const maxWaitTime = 500;
+    const waitTime = Math.max(50, maxWaitTime - (Date.now() - event.firstUpdate));
+    
     setTimeout(() => {
       const currentEvent = this.aggregatedEvents.get(key);
-      if (currentEvent && Date.now() - currentEvent.lastUpdate >= this.aggregationTimeout) {
+      if (currentEvent) {
         this.emitAggregatedEvent(key, currentEvent);
         this.aggregatedEvents.delete(key);
       }
-    }, this.aggregationTimeout + 50);
+    }, waitTime);
   }
   
   private emitAggregatedEvent(key: string, event: AggregatedEvent) {
@@ -456,6 +467,7 @@ export class LynxListener extends EventEmitter {
     let aggregated = this.aggregatedEvents.get(key);
     
     if (!aggregated) {
+      const now = Date.now();
       aggregated = {
         eventNumber: eventNum,
         heat,
@@ -464,7 +476,8 @@ export class LynxListener extends EventEmitter {
         eventName,
         status,
         entries: [],
-        lastUpdate: Date.now(),
+        lastUpdate: now,
+        firstUpdate: now,
         type: 'S',
       };
       this.aggregatedEvents.set(key, aggregated);
@@ -541,6 +554,7 @@ export class LynxListener extends EventEmitter {
       let aggregated = this.aggregatedEvents.get(key);
       
       if (!aggregated) {
+        const now = Date.now();
         aggregated = {
           eventNumber: eventNum,
           heat,
@@ -550,7 +564,8 @@ export class LynxListener extends EventEmitter {
           status,
           wind,
           entries: [],
-          lastUpdate: Date.now(),
+          lastUpdate: now,
+          firstUpdate: now,
           type: 'T',
         };
         this.aggregatedEvents.set(key, aggregated);
@@ -627,6 +642,7 @@ export class LynxListener extends EventEmitter {
       let aggregated = this.aggregatedEvents.get(key);
       
       if (!aggregated) {
+        const now = Date.now();
         aggregated = {
           eventNumber: eventNum,
           heat: flight,
@@ -634,7 +650,8 @@ export class LynxListener extends EventEmitter {
           status: officialStatus,
           wind,
           entries: [],
-          lastUpdate: Date.now(),
+          lastUpdate: now,
+          firstUpdate: now,
           type: 'F',
         };
         this.aggregatedEvents.set(key, aggregated);
