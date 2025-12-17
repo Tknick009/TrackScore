@@ -181,9 +181,11 @@ export default function SimpleSceneEditor() {
       newWidth: number; 
       newHeight: number;
     }) => {
-      // Calculate scale factors
+      // Calculate scale factors for font sizing only
+      // x, y, width, height are percentages (0-100) so they don't need scaling
       const scaleX = newWidth / scene.canvasWidth;
       const scaleY = newHeight / scene.canvasHeight;
+      const avgScale = (scaleX + scaleY) / 2;
       
       // Create a copy of the scene with new name and dimensions
       const response = await apiRequest('POST', '/api/layout-scenes', {
@@ -195,19 +197,14 @@ export default function SimpleSceneEditor() {
       });
       const newScene = await response.json();
       
-      // Copy all objects to the new scene with scaled positions and sizes
+      // Copy all objects to the new scene
+      // Positions and sizes are percentages, so they stay the same
+      // Only font sizes (in pixels) need to be scaled
       const objects = scene.objects || [];
       for (const obj of objects) {
-        // Scale position and size proportionally
-        const scaledX = obj.x * scaleX;
-        const scaledY = obj.y * scaleY;
-        const scaledWidth = obj.width * scaleX;
-        const scaledHeight = obj.height * scaleY;
-        
-        // Scale font size if present in style
+        // Scale font size if present in style (font sizes are in pixels)
         let scaledStyle: any = obj.style;
         if (scaledStyle && typeof scaledStyle === 'object' && 'fontSize' in scaledStyle) {
-          const avgScale = (scaleX + scaleY) / 2;
           scaledStyle = {
             ...scaledStyle,
             fontSize: Math.round(scaledStyle.fontSize * avgScale),
@@ -217,10 +214,10 @@ export default function SimpleSceneEditor() {
         await apiRequest('POST', `/api/layout-scenes/${newScene.id}/objects`, {
           name: obj.name,
           objectType: obj.objectType,
-          x: scaledX,
-          y: scaledY,
-          width: scaledWidth,
-          height: scaledHeight,
+          x: obj.x,
+          y: obj.y,
+          width: obj.width,
+          height: obj.height,
           zIndex: obj.zIndex,
           dataBinding: obj.dataBinding,
           config: obj.config,
@@ -813,7 +810,7 @@ export default function SimpleSceneEditor() {
             <DialogHeader>
               <DialogTitle>Copy Scene</DialogTitle>
               <DialogDescription>
-                Enter a new name and optionally resize the layout. All objects will scale proportionally.
+                Enter a new name and optionally change the canvas size. Objects keep their relative positions.
               </DialogDescription>
             </DialogHeader>
             
@@ -893,10 +890,9 @@ export default function SimpleSceneEditor() {
               
               {sceneToCopy && (copyWidth !== sceneToCopy.canvasWidth || copyHeight !== sceneToCopy.canvasHeight) && (
                 <div className="p-3 rounded-lg bg-muted text-sm">
-                  <div className="font-medium mb-1">Scale Preview</div>
+                  <div className="font-medium mb-1">Dimension Change</div>
                   <div className="text-muted-foreground">
-                    Objects will scale {((copyWidth / sceneToCopy.canvasWidth) * 100).toFixed(0)}% horizontally 
-                    and {((copyHeight / sceneToCopy.canvasHeight) * 100).toFixed(0)}% vertically
+                    Objects keep the same relative positions. Font sizes will scale by {(((copyWidth / sceneToCopy.canvasWidth + copyHeight / sceneToCopy.canvasHeight) / 2) * 100).toFixed(0)}%.
                   </div>
                 </div>
               )}
