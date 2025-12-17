@@ -108,7 +108,9 @@ function getTemplateForAutoState(state: TrackAutoState, displayType: string): st
     case 'armed':
       return 'start-list';
     case 'running':
-      return 'running-time';
+      // BigBoard: Keep lane rows visible with running times in each row
+      // P10/P6: Show running clock (single athlete displays)
+      return displayType === 'BigBoard' ? 'live-results' : 'running-time';
     case 'results':
       return displayType === 'BigBoard' ? 'live-results' : 'results';
     case 'time_of_day':
