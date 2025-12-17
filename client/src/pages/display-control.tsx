@@ -115,29 +115,6 @@ export default function DisplayControlPage() {
     },
   });
 
-  const simulateMutation = useMutation({
-    mutationFn: (mode: string) => apiRequest("POST", `/api/lynx/simulate`, { 
-      eventNumber: 1, 
-      heat: 1, 
-      distance: "100",
-      mode 
-    }),
-    onSuccess: (_, mode) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/live-events"] });
-      toast({ 
-        title: "Test data sent", 
-        description: `Simulated ${mode} data with NCAA schools` 
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Simulation failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
   const sendCommandMutation = useMutation({
     mutationFn: async ({ deviceId, template }: { deviceId: string; template: string }) => {
       return apiRequest('POST', `/api/display-devices/${deviceId}/command`, { template });
@@ -374,52 +351,6 @@ export default function DisplayControlPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => simulateMutation.mutate("start_list")}
-              disabled={simulateMutation.isPending}
-              data-testid="button-arm"
-            >
-              Arm
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => simulateMutation.mutate("clock")}
-              disabled={simulateMutation.isPending}
-              data-testid="button-start-clock"
-            >
-              Start Clock
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => simulateMutation.mutate("stop_clock")}
-              disabled={simulateMutation.isPending}
-              data-testid="button-stop-clock"
-            >
-              Stop Clock
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => simulateMutation.mutate("results")}
-              disabled={simulateMutation.isPending}
-              data-testid="button-show-results"
-            >
-              Results
-            </Button>
-            <Button 
-              variant="secondary" 
-              size="sm" 
-              onClick={() => simulateMutation.mutate("all")}
-              disabled={simulateMutation.isPending}
-              data-testid="button-simulate-data"
-            >
-              <Play className={`w-4 h-4 mr-2 ${simulateMutation.isPending ? 'animate-pulse' : ''}`} />
-              Simulate All
-            </Button>
             <Button 
               variant="outline" 
               size="sm" 

@@ -109,22 +109,18 @@ function TeamLogo({ teamName, className = "" }: { teamName?: string; className?:
   );
 }
 
-// Live element renderer - shows real data
+// Live element renderer - shows placeholder labels (no sample data)
 function LiveElement({ 
   element, 
   event,
-  results,
   isSelected,
   onClick
 }: { 
   element: PlacedElement;
   event?: Event;
-  results?: Array<{ place: number; name: string; team: string; time: string; logo?: string }>;
   isSelected: boolean;
   onClick: () => void;
 }) {
-  const idx = element.config.index ?? 0;
-  const result = results?.[idx];
   
   const baseClasses = `
     absolute flex items-center justify-center overflow-hidden
@@ -165,69 +161,71 @@ function LiveElement({
       case 'wind':
         return (
           <div className={`${fontSize} text-gray-300`}>
-            WIND: +1.2
+            WIND
           </div>
         );
       
       case 'place':
         return (
           <div className={`text-xl font-bold text-white`}>
-            {result?.place || (idx + 1)}
+            PLACE
           </div>
         );
       
       case 'lane':
         return (
           <div className={`${fontSize} text-white`}>
-            {idx + 1}
+            LANE
           </div>
         );
       
       case 'athlete-name':
         return (
           <div className={`${fontSize} font-bold text-white truncate px-1`}>
-            {result?.name || `Athlete ${idx + 1}`}
+            ATHLETE
           </div>
         );
       
       case 'team-name':
         return (
           <div className={`${fontSize} text-gray-300 truncate px-1`}>
-            {result?.team || `Team ${idx + 1}`}
+            TEAM
           </div>
         );
       
       case 'team-abbrev':
         return (
           <div className={`${fontSize} text-white truncate`}>
-            {result?.team?.substring(0, 4).toUpperCase() || 'TEAM'}
+            TEAM
           </div>
         );
       
       case 'time-mark':
         return (
           <div className={`${fontSize} font-mono font-bold text-yellow-400`}>
-            {result?.time || '0:00.00'}
+            TIME
           </div>
         );
       
       case 'delta':
         return (
           <div className={`${fontSize} font-mono text-cyan-400`}>
-            +0.00
+            DELTA
           </div>
         );
       
       case 'cumulative':
         return (
           <div className={`${fontSize} font-mono text-white`}>
-            0:00.00
+            CUMULATIVE
           </div>
         );
       
       case 'team-logo':
         return (
-          <TeamLogo teamName={result?.team} className="w-full h-full p-1" />
+          <div className="w-full h-full bg-gray-700 flex items-center justify-center">
+            <span className="text-xs text-gray-400">LOGO</span>
+          </div>
         );
       
       case 'athlete-photo':
@@ -406,18 +404,6 @@ export default function VisualLayoutDesigner() {
   const { data: events = [] } = useQuery<Event[]>({
     queryKey: ['/api/events'],
   });
-  
-  // Sample results for preview
-  const sampleResults = [
-    { place: 1, name: 'Enrique Torres', team: 'Navy', time: '8:47.57' },
-    { place: 2, name: 'Davia Rodriguez', team: 'Army', time: '8:52.03' },
-    { place: 3, name: 'Brad Hansen', team: 'Air Force', time: '8:52.75' },
-    { place: 4, name: 'Brian Henstorf', team: 'Navy', time: '8:54.38' },
-    { place: 5, name: 'Paul Wellman', team: 'Army', time: '8:54.96' },
-    { place: 6, name: 'Tony Trueba', team: 'Navy', time: '8:56.24' },
-    { place: 7, name: 'Daniel Embaye', team: 'Army', time: '8:57.46' },
-    { place: 8, name: 'Juan Pablo Miramonte', team: 'Air Force', time: '8:57.67' },
-  ];
   
   const selectedEvent = events[0];
   
@@ -691,7 +677,6 @@ export default function VisualLayoutDesigner() {
                   <LiveElement
                     element={element}
                     event={selectedEvent}
-                    results={sampleResults}
                     isSelected={selectedElement === element.id && !previewMode}
                     onClick={() => !previewMode && setSelectedElement(element.id)}
                   />

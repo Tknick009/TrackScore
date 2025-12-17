@@ -572,28 +572,12 @@ export default function SimpleSceneEditor() {
     const binding = FIELD_BINDINGS[fieldKey];
     if (!binding) return fieldKey;
     
-    // Sample preview data using real NCAA school names
-    const sampleData: Record<string, string> = {
-      'event-name': "Men's 100m Final",
-      'heat-number': 'Heat 2 of 4',
-      'round': 'Finals',
-      'wind': '+1.2',
-      'lane': '4',
-      'place': '1',
-      'name': 'John Smith',
-      'first-name': 'John',
-      'last-name': 'Smith',
-      'school': 'Alabama',
-      'time': '10.24',
-      'last-split': '5.12',
-      'cumulative-split': '5.12',
-      'reaction-time': '0.142',
-      'running-time': '0:12.34',
-      'bib': '247',
-      'static-text': selectedBox?.staticText || 'Static Text',
-    };
+    // Show field label as placeholder (no sample data)
+    if (fieldKey === 'static-text') {
+      return selectedBox?.staticText || 'STATIC TEXT';
+    }
     
-    return sampleData[fieldKey] || binding.label;
+    return binding.label.toUpperCase();
   };
   
   // Calculate canvas display size
