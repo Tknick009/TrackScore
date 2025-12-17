@@ -816,50 +816,64 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     );
 
     if (isSingleAthleteDisplay && currentEvent) {
+      // Always override event name with live FinishLynx data
+      const eventWithLiveName = {
+        ...currentEvent,
+        name: liveEventData?.eventName || '', // Always use live data for event name
+      };
       if (isFieldResults || isFieldStandings) {
-        return <SingleAthleteField event={currentEvent as any} meet={meet} focusIndex={0} />;
+        return <SingleAthleteField event={eventWithLiveName as any} meet={meet} focusIndex={0} />;
       }
-      return <SingleAthleteTrack event={currentEvent as any} meet={meet} focusIndex={0} />;
+      return <SingleAthleteTrack event={eventWithLiveName as any} meet={meet} focusIndex={0} />;
     }
 
     if (isRunningTimeTemplate) {
-      return <RunningTime event={currentEvent as any} meet={meet} liveTime={liveClockTime || undefined} />;
+      // Always override event name with live FinishLynx data
+      const eventWithLiveName = currentEvent 
+        ? { ...currentEvent, name: liveEventData?.eventName || '' }
+        : null;
+      return <RunningTime event={eventWithLiveName as any} meet={meet} liveTime={liveClockTime || undefined} />;
     }
 
     if ((isFieldResults || isFieldStandings) && currentEvent) {
-      return <FieldSideBySide event={currentEvent as any} meet={meet} />;
+      // Always override event name with live FinishLynx data
+      const eventWithLiveName = {
+        ...currentEvent,
+        name: liveEventData?.eventName || '', // Always use live data for event name
+      };
+      return <FieldSideBySide event={eventWithLiveName as any} meet={meet} />;
     }
 
-    if ((isTrackResults || isStartList || isBigBoard) && currentEvent) {
+    // For track results, start lists, and BigBoard - always use live data for event name (never database)
+    if ((isTrackResults || isStartList || isBigBoard) && (currentEvent || liveEventData)) {
       const showSplits = templateId.includes('splits');
-      return <BigBoard event={currentEvent as any} meet={meet} showSplits={showSplits} pagingSize={pagingSize} pagingIntervalMs={pagingInterval * 1000} />;
-    }
-    
-    // Use live event data from Lynx when no configured event exists
-    if ((isTrackResults || isStartList || isBigBoard) && !currentEvent && liveEventData) {
-      const showSplits = templateId.includes('splits');
-      // Create a synthetic event from live Lynx data
-      const syntheticEvent = {
-        id: 0,
-        name: liveEventData.eventName || '',
-        eventType: 'track',
-        status: liveEventData.mode === 'results' ? 'completed' : 'in_progress',
-        entries: (liveEventData.entries || []).map((entry: any, idx: number) => ({
-          id: idx,
-          lane: entry.lane || idx + 1,
-          place: entry.place,
-          time: entry.time,
-          athlete: {
-            firstName: entry.name?.split(' ')[0] || '',
-            lastName: entry.name?.split(' ').slice(1).join(' ') || entry.name || `Lane ${entry.lane || idx + 1}`,
-            team: entry.team || entry.affiliation || '',
-          },
-        })),
-        wind: liveEventData.wind,
-        heat: liveEventData.heat,
-        round: liveEventData.round,
-      };
-      return <BigBoard event={syntheticEvent as any} meet={meet} showSplits={showSplits} pagingSize={pagingSize} pagingIntervalMs={pagingInterval * 1000} />;
+      // Always override event name with live FinishLynx data
+      const eventWithLiveName = currentEvent 
+        ? {
+            ...currentEvent,
+            name: liveEventData?.eventName || '', // Always use live data for event name
+          }
+        : {
+            id: 0,
+            name: liveEventData?.eventName || '',
+            eventType: 'track',
+            status: liveEventData?.mode === 'results' ? 'completed' : 'in_progress',
+            entries: (liveEventData?.entries || []).map((entry: any, idx: number) => ({
+              id: idx,
+              lane: entry.lane || idx + 1,
+              place: entry.place,
+              time: entry.time,
+              athlete: {
+                firstName: entry.name?.split(' ')[0] || '',
+                lastName: entry.name?.split(' ').slice(1).join(' ') || entry.name || '',
+                team: entry.team || entry.affiliation || '',
+              },
+            })),
+            wind: liveEventData?.wind,
+            heat: liveEventData?.heat,
+            round: liveEventData?.round,
+          };
+      return <BigBoard event={eventWithLiveName as any} meet={meet} showSplits={showSplits} pagingSize={pagingSize} pagingIntervalMs={pagingInterval * 1000} />;
     }
 
     if (!currentEvent && !liveEventData && (isTrackResults || isFieldResults || isStartList || isFieldStandings)) {

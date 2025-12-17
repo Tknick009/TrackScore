@@ -352,13 +352,8 @@ export function SceneObjectRenderer({
         const headerFontSize = typeof headerNumericSize === 'number' 
           ? `${headerNumericSize}px` 
           : (headerNumericSize === 'xlarge' ? '64px' : headerNumericSize === 'large' ? '48px' : headerNumericSize === 'medium' ? '36px' : '24px');
-        // Get event name from multiple sources: live data first (priority for auto-mode), then configured event
-        const headerEventName = liveData?.eventName 
-          || event?.name 
-          || (liveData?.distance ? `${liveData.distance}` : null)
-          || componentConfig.staticText 
-          || componentConfig.textContent 
-          || '';
+        // Get event name exclusively from FinishLynx live data - never from database
+        const headerEventName = liveData?.eventName || '';
         // Get status from event or live data
         const headerStatus = event?.status || liveData?.status || liveData?.mode;
         return (
