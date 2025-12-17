@@ -99,6 +99,9 @@ export class LynxListener extends EventEmitter {
   
   private aggregatedEvents: Map<string, AggregatedEvent> = new Map();
   private aggregationTimeout: number = 250;
+  
+  // Persist event names by event number so results can use start list's event name
+  private eventNamesByNumber: Map<number, string> = new Map();
 
   constructor() {
     super();
@@ -465,10 +468,18 @@ export class LynxListener extends EventEmitter {
     const distance = data.DS || '';
     const eventName = cleanEventName(data.DN || '');
     
+    // Persist event name by event number so results can use it
+    if (eventName) {
+      this.eventNamesByNumber.set(eventNum, eventName);
+    }
+    
     this.isRunning = false;
     
     const key = this.getAggregationKey(eventNum, heat, 'S', round, portName);
     let aggregated = this.aggregatedEvents.get(key);
+    
+    // Use persisted event name if DN not in this message
+    const resolvedEventName = eventName || this.eventNamesByNumber.get(eventNum);
     
     if (!aggregated) {
       const now = Date.now();
@@ -477,7 +488,7 @@ export class LynxListener extends EventEmitter {
         heat,
         round,
         distance,
-        eventName,
+        eventName: resolvedEventName,
         status,
         entries: [],
         lastUpdate: now,
@@ -485,8 +496,8 @@ export class LynxListener extends EventEmitter {
         type: 'S',
       };
       this.aggregatedEvents.set(key, aggregated);
-    } else if (eventName && !aggregated.eventName) {
-      aggregated.eventName = eventName;
+    } else if (resolvedEventName && !aggregated.eventName) {
+      aggregated.eventName = resolvedEventName;
     }
     
     if (data.L || data.N || data.BIB) {
@@ -529,6 +540,11 @@ export class LynxListener extends EventEmitter {
     const place = data.P;
     const lane = data.L;
     
+    // Persist event name by event number so it's available for results
+    if (eventName) {
+      this.eventNamesByNumber.set(eventNum, eventName);
+    }
+    
     packet.eventNumber = eventNum;
     if (time) packet.time = time;
     if (place) packet.place = parseInt(place);
@@ -557,6 +573,9 @@ export class LynxListener extends EventEmitter {
       const key = this.getAggregationKey(eventNum, heat, 'T', round, portName);
       let aggregated = this.aggregatedEvents.get(key);
       
+      // Use persisted event name if DN not in this message
+      const resolvedEventName = eventName || this.eventNamesByNumber.get(eventNum);
+      
       if (!aggregated) {
         const now = Date.now();
         aggregated = {
@@ -564,7 +583,7 @@ export class LynxListener extends EventEmitter {
           heat,
           round,
           distance,
-          eventName: cleanEventName(data.DN),
+          eventName: resolvedEventName,
           status,
           wind,
           entries: [],
@@ -573,9 +592,9 @@ export class LynxListener extends EventEmitter {
           type: 'T',
         };
         this.aggregatedEvents.set(key, aggregated);
-      } else if (data.DN && !aggregated.eventName) {
-        // Update eventName if we receive it and don't have it yet
-        aggregated.eventName = cleanEventName(data.DN);
+      } else if (resolvedEventName && !aggregated.eventName) {
+        // Update eventName if we have it now and didn't before
+        aggregated.eventName = resolvedEventName;
       }
       
       const athleteName = data.N || (data.FN && data.LN ? `${data.FN} ${data.LN}` : undefined);
