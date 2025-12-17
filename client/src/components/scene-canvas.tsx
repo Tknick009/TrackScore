@@ -847,7 +847,42 @@ export function SceneCanvas({
   const { data: fetchedLiveEventData } = useLiveEventData(eventNumber);
   const { data: latestLiveEventData } = useLatestLiveEventData();
   
-  const liveData = propLiveEventData || fetchedLiveEventData;
+  const rawLiveData = propLiveEventData || fetchedLiveEventData;
+  
+  // Sort entries based on mode: lane for start_list, place for results
+  const liveData = useMemo(() => {
+    if (!rawLiveData) return rawLiveData;
+    
+    const entries = rawLiveData.entries || rawLiveData.results || [];
+    if (entries.length === 0) return rawLiveData;
+    
+    const mode = rawLiveData.mode || '';
+    const isStartList = mode === 'start_list' || mode === 'armed';
+    const isResults = mode === 'results' || mode === 'finished';
+    
+    let sortedEntries = [...entries];
+    
+    if (isStartList) {
+      // Sort by lane number for start lists
+      sortedEntries.sort((a: any, b: any) => {
+        const laneA = parseInt(a.lane) || 999;
+        const laneB = parseInt(b.lane) || 999;
+        return laneA - laneB;
+      });
+    } else if (isResults) {
+      // Sort by place for finished results
+      sortedEntries.sort((a: any, b: any) => {
+        const placeA = parseInt(a.place) || 999;
+        const placeB = parseInt(b.place) || 999;
+        return placeA - placeB;
+      });
+    }
+    
+    return {
+      ...rawLiveData,
+      entries: sortedEntries,
+    };
+  }, [rawLiveData]);
   
   const totalEntries = useMemo(() => {
     if (!liveData) return 0;
