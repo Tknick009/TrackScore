@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -7,6 +7,126 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Monitor, Tv, LayoutGrid, Calendar } from "lucide-react";
 import type { Meet, Event } from "@shared/schema";
+
+// Transition duration in milliseconds - smooth but fast for live stadium use
+const TRANSITION_DURATION_MS = 200;
+
+// Robust transition hook with proper race condition handling
+interface TransitionState {
+  activeKey: string;
+  previousKey: string | null;
+  phase: 'idle' | 'transitioning';
+  version: number;
+  fadeStarted: boolean;
+}
+
+interface PreviousSnapshot {
+  template: string | null;
+  sceneId: number | null;
+  currentSceneData: any;
+  version: number;
+}
+
+function useLayoutTransition(
+  currentLayoutKey: string,
+  currentProps: { template: string | null; sceneId: number | null; currentSceneData: any }
+) {
+  const [state, setState] = useState<TransitionState>({
+    activeKey: currentLayoutKey,
+    previousKey: null,
+    phase: 'idle',
+    version: 0,
+    fadeStarted: false,
+  });
+  
+  // Store snapshot of outgoing layout's props when transition starts
+  const snapshotRef = useRef<PreviousSnapshot | null>(null);
+  
+  // Keep track of last stable (idle) props - these are what we snapshot when transitioning
+  const lastStablePropsRef = useRef({
+    template: currentProps.template,
+    sceneId: currentProps.sceneId,
+    currentSceneData: currentProps.currentSceneData,
+  });
+  
+  const lastKeyRef = useRef<string>(currentLayoutKey);
+  const versionRef = useRef<number>(0);
+  
+  // Update lastStableProps only when phase is idle and key matches
+  useEffect(() => {
+    if (state.phase === 'idle' && currentLayoutKey === lastKeyRef.current) {
+      lastStablePropsRef.current = {
+        template: currentProps.template,
+        sceneId: currentProps.sceneId,
+        currentSceneData: currentProps.currentSceneData,
+      };
+    }
+  }, [state.phase, currentLayoutKey, currentProps.template, currentProps.sceneId, currentProps.currentSceneData]);
+  
+  // Handle layout key changes - snapshot the LAST STABLE props (the outgoing layout)
+  useEffect(() => {
+    if (currentLayoutKey === lastKeyRef.current) {
+      return;
+    }
+    
+    // Increment version
+    const newVersion = ++versionRef.current;
+    
+    // Snapshot the LAST STABLE props - these are the OUTGOING layout's props
+    // (NOT currentProps which already reflect the new layout)
+    snapshotRef.current = {
+      template: lastStablePropsRef.current.template,
+      sceneId: lastStablePropsRef.current.sceneId,
+      currentSceneData: lastStablePropsRef.current.currentSceneData,
+      version: newVersion,
+    };
+    
+    const previousKey = lastKeyRef.current;
+    lastKeyRef.current = currentLayoutKey;
+    
+    // Start transition - fadeStarted will be triggered via queueMicrotask
+    setState({
+      activeKey: currentLayoutKey,
+      previousKey: previousKey,
+      phase: 'transitioning',
+      version: newVersion,
+      fadeStarted: false,
+    });
+    
+    // Defer fade start to next microtask with version binding
+    const capturedVersion = newVersion;
+    queueMicrotask(() => {
+      // Only start fade if this is still the current version
+      if (versionRef.current !== capturedVersion) return;
+      setState(prev => prev.version === capturedVersion ? { ...prev, fadeStarted: true } : prev);
+    });
+  }, [currentLayoutKey]);
+  
+  // Callback for when transition completes (called from transitionend handler)
+  const completeTransition = useCallback((completedVersion: number) => {
+    // Only complete if this is still the current transition version
+    if (completedVersion !== versionRef.current) return;
+    
+    // Clear snapshot only for matching version
+    if (snapshotRef.current?.version === completedVersion) {
+      snapshotRef.current = null;
+    }
+    
+    setState(prev => prev.version === completedVersion ? {
+      ...prev,
+      previousKey: null,
+      phase: 'idle',
+      fadeStarted: false,
+    } : prev);
+  }, []);
+  
+  return { 
+    state, 
+    completeTransition, 
+    currentVersion: versionRef.current,
+    snapshot: snapshotRef.current,
+  };
+}
 import { 
   BigBoard,
   RunningTime,
@@ -539,10 +659,28 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
   });
 
   const currentEvent = specificEvent || currentEventData;
+  
+  // Generate a unique layout key for transition tracking
+  // Only trigger transition when scene/template changes, not on data updates
+  const layoutKey = useMemo(() => {
+    if (sceneId) return `scene-${sceneId}`;
+    if (template) return `template-${template}`;
+    return 'idle';
+  }, [sceneId, template]);
+  
+  // Use transition hook for smooth crossfade between layouts
+  // Props are snapshotted inside the hook when transition starts
+  const { state: transitionState, completeTransition, currentVersion: transitionVersion, snapshot } = useLayoutTransition(
+    layoutKey,
+    { template, sceneId, currentSceneData }
+  );
 
-  const renderContent = () => {
+  const renderContent = (overrideProps?: { template?: string | null; sceneId?: number | null; currentSceneData?: any }) => {
+    const effectiveTemplate = overrideProps?.template !== undefined ? overrideProps.template : template;
+    const effectiveSceneId = overrideProps?.sceneId !== undefined ? overrideProps.sceneId : sceneId;
+    const effectiveSceneData = overrideProps?.currentSceneData !== undefined ? overrideProps.currentSceneData : currentSceneData;
     // If a custom scene is assigned, render it inline using SceneCanvas
-    if (sceneId) {
+    if (effectiveSceneId) {
       const capability = DISPLAY_CAPABILITIES[displayType];
       const isSingleAthleteDisplay = capability.maxAthletes === 1;
       
@@ -551,9 +689,9 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
       if (isSingleAthleteDisplay) {
         return (
           <SceneCanvas
-            sceneId={sceneId}
-            scene={currentSceneData?.scene}
-            objects={currentSceneData?.objects}
+            sceneId={effectiveSceneId}
+            scene={effectiveSceneData?.scene}
+            objects={effectiveSceneData?.objects}
             meetId={meetId || undefined}
             liveEventData={liveEventData}
             liveClockTime={liveClockTime}
@@ -568,9 +706,9 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
       // BigBoard uses full viewport with scaling
       return (
         <SceneCanvas
-          sceneId={sceneId}
-          scene={currentSceneData?.scene}
-          objects={currentSceneData?.objects}
+          sceneId={effectiveSceneId}
+          scene={effectiveSceneData?.scene}
+          objects={effectiveSceneData?.objects}
           meetId={meetId || undefined}
           liveEventData={liveEventData}
           liveClockTime={liveClockTime}
@@ -580,7 +718,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
       );
     }
     
-    const templateId = template || '';
+    const templateId = effectiveTemplate || '';
     const capability = DISPLAY_CAPABILITIES[displayType];
     const maxAthletes = capability.maxAthletes;
     const isSingleAthleteDisplay = maxAthletes === 1;
@@ -591,10 +729,10 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     const isRunningTimeTemplate = templateId.includes('running-time');
     const isStartList = templateId.includes('start-list');
     const isTeamScores = templateId === 'team-scores' || templateId.includes('team-scores');
-    const isMeetLogo = templateId === 'meet-logo' || templateId.includes('meet-logo') || !template;
+    const isMeetLogo = templateId === 'meet-logo' || templateId.includes('meet-logo') || !effectiveTemplate;
     const isBigBoard = templateId.includes('live-results') || templateId.includes('BigBoard');
 
-    if (isMeetLogo || !template) {
+    if (isMeetLogo || !effectiveTemplate) {
       // Get color scheme from meet or use defaults
       const primaryColor = meet?.primaryColor || '#0066CC';
       const secondaryColor = meet?.secondaryColor || '#003366';
@@ -931,6 +1069,80 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
   const resolution = DISPLAY_CAPABILITIES[displayType].resolution;
   const isFixedSizeDisplay = displayType === 'P10' || displayType === 'P6';
 
+  // Ref for incoming layer to attach transitionend handler
+  const incomingLayerRef = useRef<HTMLDivElement>(null);
+  
+  // Handle transitionend event to complete the transition - use { once: true } and version binding
+  useEffect(() => {
+    const layer = incomingLayerRef.current;
+    if (!layer || transitionState.phase !== 'transitioning') return;
+    
+    const capturedVersion = transitionState.version;
+    
+    const handleTransitionEnd = (e: TransitionEvent) => {
+      // Only handle opacity transitions on this exact element (not children)
+      if (e.propertyName !== 'opacity' || e.target !== layer) return;
+      completeTransition(capturedVersion);
+    };
+    
+    // Use { once: true } so the handler is automatically removed after firing
+    layer.addEventListener('transitionend', handleTransitionEnd, { once: true });
+    
+    // Cleanup removes handler if a new version starts before animation completes
+    return () => layer.removeEventListener('transitionend', handleTransitionEnd);
+  }, [transitionState.phase, transitionState.version, completeTransition]);
+
+  // Render transition layers with smooth CSS crossfade effect
+  const renderWithTransition = () => {
+    const { previousKey, phase, version, fadeStarted } = transitionState;
+    
+    // No transition in progress - just render current content
+    if (phase === 'idle' || !previousKey || !snapshot) {
+      return renderContent();
+    }
+    
+    // Opacity is controlled by fadeStarted (set via queueMicrotask in hook)
+    const outgoingOpacity = fadeStarted ? 0 : 1;
+    const incomingOpacity = fadeStarted ? 1 : 0;
+    
+    return (
+      <>
+        {/* Outgoing layer - fading out */}
+        <div 
+          style={{
+            position: 'absolute',
+            inset: 0,
+            opacity: outgoingOpacity,
+            transition: `opacity ${TRANSITION_DURATION_MS}ms ease-out`,
+            zIndex: 1,
+            willChange: 'opacity',
+            pointerEvents: 'none',
+          }}
+        >
+          {renderContent({
+            template: snapshot.template,
+            sceneId: snapshot.sceneId,
+            currentSceneData: snapshot.currentSceneData,
+          })}
+        </div>
+        {/* Incoming layer - fading in, with transitionend handler */}
+        <div 
+          ref={incomingLayerRef}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            opacity: incomingOpacity,
+            transition: `opacity ${TRANSITION_DURATION_MS}ms ease-in`,
+            zIndex: 2,
+            willChange: 'opacity',
+          }}
+        >
+          {renderContent()}
+        </div>
+      </>
+    );
+  };
+
   if (isFixedSizeDisplay) {
     // P10 and P6 use exact pixel dimensions at position 0,0
     return (
@@ -946,7 +1158,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             backgroundColor: '#000',
           }}
         >
-          {renderContent()}
+          {renderWithTransition()}
         </div>
       </div>
     );
@@ -954,8 +1166,8 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
 
   // BigBoard uses full screen
   return (
-    <div className="h-screen w-screen bg-black overflow-hidden">
-      {renderContent()}
+    <div className="h-screen w-screen bg-black overflow-hidden" style={{ position: 'relative' }}>
+      {renderWithTransition()}
     </div>
   );
 }
