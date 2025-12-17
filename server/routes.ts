@@ -5902,18 +5902,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       });
     } else if (isRunning) {
-      // Clock is running - switch to running time for related meets
-      const matchingEvents = await storage.getEventsByLynxEventNumber(eventNumber);
-      if (matchingEvents.length > 0) {
-        const meetId = matchingEvents[0].meetId;
-        connectedDisplayDevices.forEach((device, deviceId) => {
-          if (device.meetId === meetId && device.autoMode) {
-            const currentState = autoModeDeviceStates.get(deviceId);
-            if (currentState !== 'running') {
-              sendAutoModeUpdate(deviceId, 'running');
+      // Check if clock is at 0.0 (armed/ready state) - stay on start list
+      // Parse time to check if it's essentially zero (0.0, 0:00.0, etc.)
+      const timeValue = parseFloat(time.replace(/[^\d.]/g, '')) || 0;
+      const isAtZero = timeValue < 0.5; // Consider anything under 0.5 seconds as "at zero"
+      
+      if (isAtZero) {
+        // Clock at 0.0 = armed state, show start list
+        const matchingEvents = await storage.getEventsByLynxEventNumber(eventNumber);
+        if (matchingEvents.length > 0) {
+          const meetId = matchingEvents[0].meetId;
+          connectedDisplayDevices.forEach((device, deviceId) => {
+            if (device.meetId === meetId && device.autoMode) {
+              const currentState = autoModeDeviceStates.get(deviceId);
+              if (currentState !== 'armed') {
+                sendAutoModeUpdate(deviceId, 'armed');
+              }
             }
-          }
-        });
+          });
+        } else {
+          // No matching events - broadcast to all auto-mode displays
+          connectedDisplayDevices.forEach((device, deviceId) => {
+            if (device.autoMode) {
+              const currentState = autoModeDeviceStates.get(deviceId);
+              if (currentState !== 'armed') {
+                sendAutoModeUpdate(deviceId, 'armed');
+              }
+            }
+          });
+        }
+      } else {
+        // Clock is actually running (> 0) - switch to running time
+        const matchingEvents = await storage.getEventsByLynxEventNumber(eventNumber);
+        if (matchingEvents.length > 0) {
+          const meetId = matchingEvents[0].meetId;
+          connectedDisplayDevices.forEach((device, deviceId) => {
+            if (device.meetId === meetId && device.autoMode) {
+              const currentState = autoModeDeviceStates.get(deviceId);
+              if (currentState !== 'running') {
+                sendAutoModeUpdate(deviceId, 'running');
+              }
+            }
+          });
+        } else {
+          // No matching events - broadcast to all auto-mode displays
+          connectedDisplayDevices.forEach((device, deviceId) => {
+            if (device.autoMode) {
+              const currentState = autoModeDeviceStates.get(deviceId);
+              if (currentState !== 'running') {
+                sendAutoModeUpdate(deviceId, 'running');
+              }
+            }
+          });
+        }
       }
     }
   });
