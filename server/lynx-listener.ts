@@ -134,6 +134,32 @@ export class LynxListener extends EventEmitter {
   }
   
   private emitAggregatedEvent(key: string, event: AggregatedEvent) {
+    // Sort entries before emitting: by lane for start list, by place for results
+    const sortedEntries = [...event.entries].sort((a: any, b: any) => {
+      if (event.type === 'S') {
+        // Start list: sort by lane number
+        const laneA = parseInt(a.lane) || 999;
+        const laneB = parseInt(b.lane) || 999;
+        return laneA - laneB;
+      } else if (event.type === 'T') {
+        // Track results: sort by place if available, otherwise by lane
+        const hasPlaceA = a.place && a.place !== '';
+        const hasPlaceB = b.place && b.place !== '';
+        if (hasPlaceA && hasPlaceB) {
+          // Both have places - sort by place
+          const placeA = parseInt(a.place) || 999;
+          const placeB = parseInt(b.place) || 999;
+          return placeA - placeB;
+        } else {
+          // Running mode - sort by lane
+          const laneA = parseInt(a.lane) || 999;
+          const laneB = parseInt(b.lane) || 999;
+          return laneA - laneB;
+        }
+      }
+      return 0;
+    });
+    
     switch (event.type) {
       case 'S':
         // Suppress start_list mode change when race is already running
@@ -142,24 +168,24 @@ export class LynxListener extends EventEmitter {
           console.log(`[Lynx] Suppressing start_list emission - race is running (event ${event.eventNumber})`);
           return;
         }
-        this.emit('start-list', event.eventNumber, event.heat, event.entries as LynxStartListEntry[]);
+        this.emit('start-list', event.eventNumber, event.heat, sortedEntries as LynxStartListEntry[]);
         this.emit('track-mode-change', event.eventNumber, 'start_list', {
           eventNumber: event.eventNumber,
           heat: event.heat,
           distance: event.distance,
           eventName: event.eventName,
-          entries: event.entries,
+          entries: sortedEntries,
         });
         break;
       case 'T':
-        if (event.entries.some(e => (e as LynxTrackResult).place && (e as LynxTrackResult).time)) {
+        if (sortedEntries.some(e => (e as LynxTrackResult).place && (e as LynxTrackResult).time)) {
           this.emit('track-mode-change', event.eventNumber, 'results', {
             eventNumber: event.eventNumber,
             heat: event.heat,
             distance: event.distance,
             wind: event.wind,
             eventName: event.eventName,
-            entries: event.entries,
+            entries: sortedEntries,
           });
         }
         break;
@@ -167,7 +193,7 @@ export class LynxListener extends EventEmitter {
         this.emit('field-mode-change', event.eventNumber, 'standings', {
           eventNumber: event.eventNumber,
           flight: event.heat,
-          results: event.entries,
+          results: sortedEntries,
         });
         break;
     }
@@ -572,7 +598,7 @@ export class LynxListener extends EventEmitter {
       if (time) {
         this.emit('clock-update', eventNum, time, true);
       }
-      return;
+      // Don't return - continue to aggregate athlete entries with running times
     }
     
     if (lane || data.N || data.BIB) {

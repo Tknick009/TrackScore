@@ -849,7 +849,7 @@ export function SceneCanvas({
   
   const rawLiveData = propLiveEventData || fetchedLiveEventData;
   
-  // Sort entries based on mode: lane for start_list, place for results
+  // Sort entries based on mode: lane for start_list/running, place for results
   const liveData = useMemo(() => {
     if (!rawLiveData) return rawLiveData;
     
@@ -858,12 +858,13 @@ export function SceneCanvas({
     
     const mode = rawLiveData.mode || '';
     const isStartList = mode === 'start_list' || mode === 'armed';
+    const isRunning = mode === 'running';
     const isResults = mode === 'results' || mode === 'finished';
     
     let sortedEntries = [...entries];
     
-    if (isStartList) {
-      // Sort by lane number for start lists
+    if (isStartList || isRunning) {
+      // Sort by lane number for start lists and running mode
       sortedEntries.sort((a: any, b: any) => {
         const laneA = parseInt(a.lane) || 999;
         const laneB = parseInt(b.lane) || 999;
