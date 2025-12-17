@@ -91,6 +91,7 @@ The frontend uses React with shadcn/ui on Radix UI and Tailwind CSS for styling,
 - API endpoints: `GET /api/field-sessions/:id/lff` for download, `POST /api/field-sessions/:id/export-lff` for file export.
 - Export button available in Field Events Control dashboard for each session.
 - Respects session measurement unit (Metric vs English) in output format.
+- **Auto-Export:** Configure `lffExportPath` on a session to automatically export LFF files after every mark change. Set in Edit Session Configuration dialog.
 
 ### System Design Choices
 **Database Schema (Drizzle ORM):**

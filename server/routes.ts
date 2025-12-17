@@ -379,6 +379,27 @@ async function broadcastFieldEventUpdate(sessionId: number) {
   }
 }
 
+// Auto-export LFF file after every mark change if export path is configured
+async function autoExportLFF(sessionId: number) {
+  try {
+    const session = await storage.getFieldEventSessionWithDetails(sessionId);
+    if (!session || !session.lffExportPath) {
+      return; // No export path configured, skip auto-export
+    }
+    
+    const measurementSystem = (session.measurementUnit === 'english' ? 'English' : 'Metric') as 'Metric' | 'English';
+    
+    const filePath = await exportSessionToLFF(session, {
+      outputDir: session.lffExportPath,
+      measurementSystem
+    });
+    
+    console.log(`[LFF Auto-Export] Session ${sessionId}: exported to ${filePath}`);
+  } catch (error) {
+    console.error(`[LFF Auto-Export] Error exporting session ${sessionId}:`, error);
+  }
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Configure multer for file uploads (disk storage for large files like MDB)
   const upload = multer({
@@ -6693,8 +6714,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validated = insertFieldEventMarkSchema.parse(req.body);
       const mark = await storage.createFieldEventMark(validated);
       
-      // Broadcast field event update
+      // Broadcast field event update and auto-export LFF
       broadcastFieldEventUpdate(mark.sessionId).catch(console.error);
+      autoExportLFF(mark.sessionId).catch(console.error);
       
       res.status(201).json(mark);
     } catch (error: any) {
@@ -6715,8 +6737,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Mark not found" });
       }
       
-      // Broadcast field event update
+      // Broadcast field event update and auto-export LFF
       broadcastFieldEventUpdate(mark.sessionId).catch(console.error);
+      autoExportLFF(mark.sessionId).catch(console.error);
       
       res.json(mark);
     } catch (error: any) {
@@ -6738,9 +6761,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       await storage.deleteFieldEventMark(id);
       
-      // Broadcast field event update if we had a session ID
+      // Broadcast field event update and auto-export LFF if we had a session ID
       if (sessionId) {
         broadcastFieldEventUpdate(sessionId).catch(console.error);
+        autoExportLFF(sessionId).catch(console.error);
       }
       
       res.json({ success: true });

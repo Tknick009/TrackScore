@@ -2283,6 +2283,9 @@ export const fieldEventSessions = pgTable('field_event_sessions', {
   // Access control
   accessCode: varchar('access_code', { length: 6 }), // 6-char code for officials to join
   
+  // Auto-export configuration
+  lffExportPath: text('lff_export_path'), // Directory path for automatic LFF export after every change
+  
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 }, (table) => ({

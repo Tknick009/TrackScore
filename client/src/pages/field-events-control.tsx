@@ -756,6 +756,23 @@ export default function FieldEventsControl() {
                   data-testid="input-edit-total-attempts"
                 />
               </div>
+
+              <div className="space-y-2">
+                <Label>LFF Auto-Export Path</Label>
+                <Input
+                  type="text"
+                  placeholder="/path/to/export/directory"
+                  value={editingSession.lffExportPath || ""}
+                  onChange={(e) => setEditingSession({ 
+                    ...editingSession, 
+                    lffExportPath: e.target.value || null
+                  })}
+                  data-testid="input-edit-lff-export-path"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Leave blank to disable auto-export. When set, LFF files will be automatically exported after every mark change.
+                </p>
+              </div>
             </div>
           )}
 
@@ -772,6 +789,7 @@ export default function FieldEventsControl() {
                       measurementUnit: editingSession.measurementUnit,
                       recordWind: editingSession.recordWind,
                       totalAttempts: editingSession.totalAttempts,
+                      lffExportPath: editingSession.lffExportPath,
                     },
                   });
                 }
