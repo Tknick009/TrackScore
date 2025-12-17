@@ -147,9 +147,10 @@ export class LynxListener extends EventEmitter {
           this.emit('track-mode-change', event.eventNumber, 'results', {
             eventNumber: event.eventNumber,
             heat: event.heat,
+            distance: event.distance,
             wind: event.wind,
             eventName: event.eventName,
-            results: event.entries,
+            entries: event.entries,
           });
         }
         break;
