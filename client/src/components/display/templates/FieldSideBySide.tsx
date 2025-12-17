@@ -189,7 +189,7 @@ export function FieldSideBySide({ event, meet, leftAthlete, rightAthlete, liveTi
             className="text-white font-bold uppercase"
             style={{ fontSize: '48px', fontWeight: 700 }}
           >
-            {event.name || event.eventName || `${event.gender === 'M' ? 'Men' : 'Women'} ${event.eventType}`}
+            {event.name || event.eventName || ''}
           </h1>
         </div>
         <span 

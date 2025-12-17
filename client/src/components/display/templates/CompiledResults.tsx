@@ -80,7 +80,7 @@ export function CompiledResults({ event, meet }: CompiledResultsProps) {
               className="text-white font-bold leading-none uppercase"
               style={{ fontSize: '64px', fontWeight: 700 }}
             >
-              {event.name || event.eventName || `${event.gender === 'M' ? 'Men' : 'Women'} ${event.eventType}`}
+              {event.name || event.eventName || ''}
             </h1>
           </div>
           <div className="text-right">

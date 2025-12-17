@@ -31,7 +31,7 @@ export function RunningTime({ event, meet, liveTime }: RunningTimeProps) {
   }, [liveTime]);
 
   const displayTime = liveTime || elapsedTime;
-  const eventName = event?.name || event?.eventName || (event ? `${event.gender === 'M' ? 'Men' : 'Women'} ${event.eventType}` : 'Running Time');
+  const eventName = event?.name || event?.eventName || '';
   const status = event?.status === 'completed' ? 'FINAL' : event?.status === 'in_progress' ? 'IN PROGRESS' : liveTime ? 'IN PROGRESS' : 'SCHEDULED';
 
   return (
