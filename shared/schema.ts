@@ -2206,3 +2206,183 @@ export const insertProcessedFileSchema = createInsertSchema(processedIngestionFi
 
 export type InsertProcessedFile = z.infer<typeof insertProcessedFileSchema>;
 export type ProcessedFile = typeof processedIngestionFiles.$inferSelect;
+
+// ====================
+// FIELD EVENT ENTRY SYSTEM
+// ====================
+
+// Field Event Session - configuration for officiating a field event
+export const fieldEventSessions = pgTable('field_event_sessions', {
+  id: serial('id').primaryKey(),
+  eventId: varchar('event_id').references(() => events.id, { onDelete: 'cascade' }).notNull(),
+  
+  // Session status
+  status: text('status').default('setup'), // setup, check_in, in_progress, completed
+  
+  // Measurement configuration
+  measurementUnit: text('measurement_unit').default('metric'), // metric, english
+  recordWind: boolean('record_wind').default(false), // For long jump, triple jump
+  
+  // Attempt configuration (horizontal events)
+  hasFinals: boolean('has_finals').default(false),
+  prelimAttempts: integer('prelim_attempts').default(3), // Attempts in prelims
+  finalsAttempts: integer('finals_attempts').default(3), // Additional attempts in finals
+  athletesToFinals: integer('athletes_to_finals').default(8), // How many advance
+  totalAttempts: integer('total_attempts').default(6), // If no prelims/finals split
+  
+  // Vertical event configuration
+  aliveGroupSize: integer('alive_group_size'), // e.g., 5 for 5-alive
+  stopAliveAtCount: integer('stop_alive_at_count'), // Stop alive groups when X athletes remain
+  
+  // Current state
+  currentFlightNumber: integer('current_flight_number').default(1),
+  currentAthleteIndex: integer('current_athlete_index').default(0),
+  currentAttemptNumber: integer('current_attempt_number').default(1),
+  currentHeightIndex: integer('current_height_index').default(0),
+  isInFinals: boolean('is_in_finals').default(false),
+  
+  // Access control
+  accessCode: varchar('access_code', { length: 6 }), // 6-char code for officials to join
+  
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  eventIdIdx: index('field_event_sessions_event_idx').on(table.eventId),
+  accessCodeIdx: index('field_event_sessions_access_code_idx').on(table.accessCode),
+  eventUnique: unique('field_event_sessions_event_unique').on(table.eventId),
+}));
+
+export const insertFieldEventSessionSchema = createInsertSchema(fieldEventSessions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertFieldEventSession = z.infer<typeof insertFieldEventSessionSchema>;
+export type FieldEventSession = typeof fieldEventSessions.$inferSelect;
+
+// Field Heights - height progression for vertical events
+export const fieldHeights = pgTable('field_heights', {
+  id: serial('id').primaryKey(),
+  sessionId: integer('session_id').references(() => fieldEventSessions.id, { onDelete: 'cascade' }).notNull(),
+  heightIndex: integer('height_index').notNull(), // Order in progression (0, 1, 2...)
+  heightMeters: real('height_meters').notNull(), // Height in meters
+  isActive: boolean('is_active').default(true), // Can be disabled
+  isJumpOff: boolean('is_jump_off').default(false), // Jump-off height
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  sessionIdx: index('field_heights_session_idx').on(table.sessionId),
+  sessionHeightUnique: unique('field_heights_session_height_unique').on(table.sessionId, table.heightIndex),
+}));
+
+export const insertFieldHeightSchema = createInsertSchema(fieldHeights).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertFieldHeight = z.infer<typeof insertFieldHeightSchema>;
+export type FieldHeight = typeof fieldHeights.$inferSelect;
+
+// Field Event Flights - manage athletes in flights
+export const fieldEventFlights = pgTable('field_event_flights', {
+  id: serial('id').primaryKey(),
+  sessionId: integer('session_id').references(() => fieldEventSessions.id, { onDelete: 'cascade' }).notNull(),
+  flightNumber: integer('flight_number').notNull(),
+  status: text('status').default('pending'), // pending, in_progress, completed
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  sessionFlightUnique: unique('field_flights_session_flight_unique').on(table.sessionId, table.flightNumber),
+}));
+
+export const insertFieldEventFlightSchema = createInsertSchema(fieldEventFlights).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertFieldEventFlight = z.infer<typeof insertFieldEventFlightSchema>;
+export type FieldEventFlight = typeof fieldEventFlights.$inferSelect;
+
+// Field Athletes - athletes in a field event session with check-in status
+export const fieldEventAthletes = pgTable('field_event_athletes', {
+  id: serial('id').primaryKey(),
+  sessionId: integer('session_id').references(() => fieldEventSessions.id, { onDelete: 'cascade' }).notNull(),
+  entryId: varchar('entry_id').references(() => entries.id, { onDelete: 'cascade' }).notNull(),
+  flightNumber: integer('flight_number').default(1),
+  orderInFlight: integer('order_in_flight').notNull(),
+  
+  // Check-in status
+  checkInStatus: text('check_in_status').default('pending'), // pending, checked_in, scratched
+  checkedInAt: timestamp('checked_in_at'),
+  
+  // Competition status
+  competitionStatus: text('competition_status').default('waiting'), // waiting, up, on_deck, on_hold, completed, retired, checked_out
+  checkedOutAt: timestamp('checked_out_at'),
+  retiredAt: timestamp('retired_at'),
+  
+  // For vertical events - starting height (pass up)
+  startingHeightIndex: integer('starting_height_index').default(0),
+  
+  // Best mark tracking
+  bestMark: real('best_mark'),
+  currentPlace: integer('current_place'),
+  
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  sessionIdx: index('field_event_athletes_session_idx').on(table.sessionId),
+  entryIdx: index('field_event_athletes_entry_idx').on(table.entryId),
+  sessionEntryUnique: unique('field_event_athletes_session_entry_unique').on(table.sessionId, table.entryId),
+}));
+
+export const insertFieldEventAthleteSchema = createInsertSchema(fieldEventAthletes).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  checkedInAt: true,
+  checkedOutAt: true,
+  retiredAt: true,
+});
+export type InsertFieldEventAthlete = z.infer<typeof insertFieldEventAthleteSchema>;
+export type FieldEventAthlete = typeof fieldEventAthletes.$inferSelect;
+
+// Field Event Marks - individual marks/attempts for field events
+export const fieldEventMarks = pgTable('field_event_marks', {
+  id: serial('id').primaryKey(),
+  sessionId: integer('session_id').references(() => fieldEventSessions.id, { onDelete: 'cascade' }).notNull(),
+  athleteId: integer('athlete_id').references(() => fieldEventAthletes.id, { onDelete: 'cascade' }).notNull(),
+  
+  // Attempt info
+  attemptNumber: integer('attempt_number').notNull(), // 1-6 for horizontal, varies for vertical
+  heightIndex: integer('height_index'), // For vertical events - which height
+  attemptAtHeight: integer('attempt_at_height'), // For vertical - attempt 1, 2, or 3 at this height
+  
+  // Mark data
+  markType: text('mark_type').notNull(), // mark, foul, pass, scratch, cleared, missed
+  measurement: real('measurement'), // Meters (null for foul/pass/scratch/missed)
+  measurementDisplay: text('measurement_display'), // Original display format (e.g., "57-05.25")
+  wind: real('wind'), // Wind reading for this attempt
+  
+  // Metadata
+  isBest: boolean('is_best').default(false),
+  isDarkMark: boolean('is_dark_mark').default(false), // Recorded but fouled
+  darkMeasurement: real('dark_measurement'), // The dark mark value
+  
+  recordedAt: timestamp('recorded_at').defaultNow(),
+}, (table) => ({
+  sessionIdx: index('field_event_marks_session_idx').on(table.sessionId),
+  athleteIdx: index('field_event_marks_athlete_idx').on(table.athleteId),
+  athleteAttemptUnique: unique('field_event_marks_athlete_attempt_unique').on(table.athleteId, table.attemptNumber, table.heightIndex),
+}));
+
+export const insertFieldEventMarkSchema = createInsertSchema(fieldEventMarks).omit({
+  id: true,
+  recordedAt: true,
+});
+export type InsertFieldEventMark = z.infer<typeof insertFieldEventMarkSchema>;
+export type FieldEventMark = typeof fieldEventMarks.$inferSelect;
+
+// Type for field event session with related data
+export interface FieldEventSessionWithDetails extends FieldEventSession {
+  event?: Event;
+  heights?: FieldHeight[];
+  athletes?: (FieldEventAthlete & { entry?: Entry; athlete?: Athlete })[];
+  marks?: FieldEventMark[];
+}
