@@ -85,6 +85,13 @@ The frontend uses React with shadcn/ui on Radix UI and Tailwind CSS for styling,
 - Configurable polling for HyTek MDB file changes, triggering full database re-import.
 - UI component for configuring ingestion settings.
 
+**LFF Export System:**
+- Exports field event results in FieldLynx LFF format for meet management software (Hy-Tek, MeetPro, etc.).
+- Supports both horizontal events (throws/jumps with distance marks, fouls, passes, wind) and vertical events (high jump/pole vault with O/X/P grid).
+- API endpoints: `GET /api/field-sessions/:id/lff` for download, `POST /api/field-sessions/:id/export-lff` for file export.
+- Export button available in Field Events Control dashboard for each session.
+- Respects session measurement unit (Metric vs English) in output format.
+
 ### System Design Choices
 **Database Schema (Drizzle ORM):**
 - Core tables: `athletes`, `events`, `track_results`, `field_results`, `meets`.

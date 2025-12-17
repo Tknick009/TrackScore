@@ -37,6 +37,7 @@ import {
   CheckCircle2,
   Clock,
   Users,
+  Download,
 } from "lucide-react";
 import type {
   Event,
@@ -84,9 +85,10 @@ interface SessionCardProps {
   onEdit: () => void;
   onDelete: () => void;
   onUpdateStatus: (status: string) => void;
+  onExportLFF: () => void;
 }
 
-function SessionCard({ session, athletes, onEdit, onDelete, onUpdateStatus }: SessionCardProps) {
+function SessionCard({ session, athletes, onEdit, onDelete, onUpdateStatus, onExportLFF }: SessionCardProps) {
   const { toast } = useToast();
   const eventName = session.event?.name || "Unknown Event";
   const checkedInCount = athletes.filter(a => a.checkInStatus === "checked_in").length;
@@ -209,6 +211,16 @@ function SessionCard({ session, athletes, onEdit, onDelete, onUpdateStatus }: Se
           >
             <Settings className="h-4 w-4 mr-2" />
             Edit Config
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onExportLFF}
+            data-testid={`button-export-lff-${session.id}`}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export LFF
           </Button>
 
           <Button
@@ -561,6 +573,35 @@ export default function FieldEventsControl() {
     updateSessionMutation.mutate({ id: sessionId, data: { status } });
   };
 
+  const handleExportLFF = async (session: FieldEventSessionWithDetails) => {
+    try {
+      const units = session.measurementUnit === 'english' ? 'english' : 'metric';
+      const response = await fetch(`/api/field-sessions/${session.id}/lff?units=${units}`);
+      if (!response.ok) {
+        throw new Error('Failed to export LFF');
+      }
+      const content = await response.text();
+      
+      const blob = new Blob([content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${session.eventId || 'event'}-1-1.lff`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      toast({ title: "LFF file exported successfully" });
+    } catch (error: any) {
+      toast({
+        title: "Failed to export LFF",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   const isLoading = eventsLoading || sessionsLoading;
 
   if (isLoading) {
@@ -603,6 +644,7 @@ export default function FieldEventsControl() {
                 onEdit={() => setEditingSession(session)}
                 onDelete={() => deleteSessionMutation.mutate(session.id)}
                 onUpdateStatus={(status) => handleUpdateStatus(session.id, status)}
+                onExportLFF={() => handleExportLFF(session)}
               />
             ))}
           </div>

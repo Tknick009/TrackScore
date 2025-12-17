@@ -64,6 +64,7 @@ import {
   calculateHorizontalStandings, 
   calculateVerticalStandings 
 } from './field-standings';
+import { exportSessionToLFF, generateLFFContent } from './lff-exporter';
 
 // Check-in validation schemas
 const checkInSchema = z.object({
@@ -6743,6 +6744,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ===============================
+  // LFF EXPORT ROUTES
+  // ===============================
+
+  // Export field session results as LFF file content
+  app.get("/api/field-sessions/:id/lff", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid session ID" });
+      }
+      
+      const session = await storage.getFieldEventSession(id);
+      if (!session) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+      
+      const measurementSystem = (req.query.units === 'english' ? 'English' : 'Metric') as 'Metric' | 'English';
+      const content = generateLFFContent(session, measurementSystem);
+      
+      res.setHeader('Content-Type', 'text/plain');
+      res.setHeader('Content-Disposition', `attachment; filename="${session.eventId}-1-1.lff"`);
+      res.send(content);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Export field session results to a file on disk
+  app.post("/api/field-sessions/:id/export-lff", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid session ID" });
+      }
+      
+      const session = await storage.getFieldEventSession(id);
+      if (!session) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+      
+      const outputDir = req.body.outputDir || './exports/lff';
+      const measurementSystem = (req.body.units === 'english' ? 'English' : 'Metric') as 'Metric' | 'English';
+      
+      const filePath = await exportSessionToLFF(session, {
+        outputDir,
+        measurementSystem
+      });
+      
+      res.json({ success: true, filePath });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
