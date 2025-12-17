@@ -1024,7 +1024,7 @@ export function SceneCanvas({
             eventNumber={eventNumber}
             pageIndex={currentPageIndex}
             pageSize={pagingSize}
-            sharedLatestLiveData={latestLiveEventData}
+            sharedLatestLiveData={propLiveEventData || latestLiveEventData}
             liveClockTime={liveClockTime}
           />
         ))}
@@ -1084,7 +1084,7 @@ export function SceneCanvas({
             eventNumber={eventNumber}
             pageIndex={currentPageIndex}
             pageSize={pagingSize}
-            sharedLatestLiveData={latestLiveEventData}
+            sharedLatestLiveData={propLiveEventData || latestLiveEventData}
             liveClockTime={liveClockTime}
           />
         ))}
