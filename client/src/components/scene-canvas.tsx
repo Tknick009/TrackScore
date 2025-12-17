@@ -352,13 +352,13 @@ export function SceneObjectRenderer({
         const headerFontSize = typeof headerNumericSize === 'number' 
           ? `${headerNumericSize}px` 
           : (headerNumericSize === 'xlarge' ? '64px' : headerNumericSize === 'large' ? '48px' : headerNumericSize === 'medium' ? '36px' : '24px');
-        // Get event name from multiple sources: configured event, live data, or static config
-        const headerEventName = event?.name 
-          || liveData?.eventName 
+        // Get event name from multiple sources: live data first (priority for auto-mode), then configured event
+        const headerEventName = liveData?.eventName 
+          || event?.name 
           || (liveData?.distance ? `${liveData.distance}` : null)
           || componentConfig.staticText 
           || componentConfig.textContent 
-          || "Event Name";
+          || '';
         // Get status from event or live data
         const headerStatus = event?.status || liveData?.status || liveData?.mode;
         return (
