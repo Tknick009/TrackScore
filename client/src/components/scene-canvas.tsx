@@ -304,11 +304,16 @@ export function SceneObjectRenderer({
             </div>
           );
         }
+        // Override event name with live FinishLynx data - NEVER use database name
+        const eventWithLiveName = {
+          ...event,
+          name: liveData?.eventName || '', // Event name MUST come from FinishLynx only
+        };
         const boardType = componentConfig.boardType || "live-results";
-        if (event.status === "completed" && componentConfig.scrollOnComplete !== false) {
+        if (eventWithLiveName.status === "completed" && componentConfig.scrollOnComplete !== false) {
           return (
             <ScrollingResultsBoard 
-              event={event} 
+              event={eventWithLiveName} 
               meet={meet} 
               mode="results" 
               resultsPerPage={componentConfig.resultsPerPage || 5}
@@ -317,15 +322,15 @@ export function SceneObjectRenderer({
           );
         }
         if (boardType === "field-event") {
-          return <FieldEventBoard event={event} meet={meet} mode="live" />;
+          return <FieldEventBoard event={eventWithLiveName} meet={meet} mode="live" />;
         }
         if (boardType === "live-time") {
-          return <LiveTimeBoard event={event} meet={meet} mode="live" />;
+          return <LiveTimeBoard event={eventWithLiveName} meet={meet} mode="live" />;
         }
         if (boardType === "standings") {
-          return <StandingsBoard event={event} meet={meet} mode="live" />;
+          return <StandingsBoard event={eventWithLiveName} meet={meet} mode="live" />;
         }
-        return <LiveResultsBoard event={event} meet={meet} mode="live" />;
+        return <LiveResultsBoard event={eventWithLiveName} meet={meet} mode="live" />;
         
       case "timer":
         // Use numeric fontSize from style, or fall back to componentConfig string mapping
