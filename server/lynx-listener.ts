@@ -65,8 +65,11 @@ interface LynxFieldResult {
 // Clean event name by removing common suffixes like "Run" and "Dash" from FinishLynx
 function cleanEventName(name: string | undefined): string | undefined {
   if (!name) return name;
+  // Replace "Meter" or "Meters" with "M" (e.g., "Men 3000 Meter Steeplechase" -> "Men 3000M Steeplechase")
+  let cleaned = name.replace(/(\d)\s*Meters?\b/gi, '$1M');
   // Remove trailing "Run" or "Dash" (case-insensitive, with optional leading space)
-  return name.replace(/\s*(Run|Dash)\s*$/i, '').trim();
+  cleaned = cleaned.replace(/\s*(Run|Dash)\s*$/i, '').trim();
+  return cleaned;
 }
 
 interface AggregatedEvent {
