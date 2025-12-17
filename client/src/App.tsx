@@ -40,6 +40,8 @@ import DisplayHub from "@/pages/display-hub";
 import PresetDisplay from "@/pages/preset-display";
 import DisplayDevice from "@/pages/display-device";
 import MeetSetup from "@/pages/meet-setup";
+import FieldOfficialPage from "@/pages/field-official";
+import FieldEventsControl from "@/pages/field-events-control";
 import NotFound from "@/pages/not-found";
 
 function MeetSyncWrapper({ meetId, children }: { meetId: string; children: React.ReactNode }) {
@@ -112,6 +114,7 @@ function MeetControlRouter() {
     if (subPath === "displays/launcher") return <DisplayLauncher />;
     if (subPath === "displays") return <DisplayHub />;
     if (subPath === "setup") return <MeetSetup />;
+    if (subPath === "field-events") return <FieldEventsControl />;
     return <NotFound />;
   };
   
@@ -142,6 +145,8 @@ function Router() {
       <Route path="/scene-display" component={SceneDisplay} />
       <Route path="/preset-display/:templateId" component={PresetDisplay} />
       <Route path="/display" component={DisplayDevice} />
+      <Route path="/field/:accessCode" component={FieldOfficialPage} />
+      <Route path="/field" component={FieldOfficialPage} />
       <Route path="/control/:meetId/scene-editor">{() => <MeetControlRouter />}</Route>
       <Route path="/control/:meetId/events/:eventId">{() => <MeetControlRouter />}</Route>
       <Route path="/control/:meetId/layouts/designer/:layoutId">{() => <MeetControlRouter />}</Route>

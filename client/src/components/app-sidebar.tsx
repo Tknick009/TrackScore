@@ -8,7 +8,8 @@ import {
   Building2,
   Home,
   Settings,
-  LayoutTemplate
+  LayoutTemplate,
+  Target
 } from "lucide-react";
 import {
   Sidebar,
@@ -68,6 +69,14 @@ export function AppSidebar() {
                   <Link href={`${basePath}/scoring`} data-testid="link-scoring">
                     <Trophy />
                     <span>Team Scoring</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location === `${basePath}/field-events`}>
+                  <Link href={`${basePath}/field-events`} data-testid="link-field-events">
+                    <Target />
+                    <span>Field Events</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

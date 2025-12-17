@@ -8,8 +8,9 @@ import QRCode from "qrcode";
 import { storage } from "./storage";
 import { FileStorage } from "./file-storage";
 import { lynxListener } from "./lynx-listener";
-import type { TrackDisplayMode, FieldDisplayMode, LynxPortType, MeetLiveState, Meet } from "@shared/schema";
+import type { TrackDisplayMode, FieldDisplayMode, LynxPortType, MeetLiveState, Meet, FieldEventUpdatePayload } from "@shared/schema";
 import {
+  isHeightEvent,
   insertEventSchema,
   insertAthleteSchema,
   insertEntrySchema,
@@ -41,6 +42,11 @@ import {
   insertCombinedEventComponentSchema,
   overlayConfigSchema,
   insertWeatherConfigSchema,
+  insertFieldEventSessionSchema,
+  insertFieldHeightSchema,
+  insertFieldEventFlightSchema,
+  insertFieldEventAthleteSchema,
+  insertFieldEventMarkSchema,
   type DisplayBoardState,
   type WSMessage,
   type EntrySplit,
@@ -54,6 +60,10 @@ import { generateCertificatePDF, type CertificateData } from './certificate-gene
 import { startWeatherPolling, stopWeatherPolling } from './weather-poller';
 import archiver from 'archiver';
 import syncRouter from './sync/routes';
+import { 
+  calculateHorizontalStandings, 
+  calculateVerticalStandings 
+} from './field-standings';
 
 // Check-in validation schemas
 const checkInSchema = z.object({
@@ -101,6 +111,9 @@ const connectedDisplayDevices = new Map<string, ConnectedDisplayDevice>();
 // Auto-mode state tracking - maps device states based on Lynx events
 type TrackAutoState = 'idle' | 'armed' | 'running' | 'results' | 'time_of_day';
 const autoModeDeviceStates = new Map<string, TrackAutoState>();
+
+// Track field event session subscribers (sessionId -> Set of WebSocket clients)
+const fieldSessionSubscribers = new Map<number, Set<WebSocket>>();
 
 // Template mapping for auto-mode states
 function getTemplateForAutoState(state: TrackAutoState, displayType: string): string {
@@ -282,6 +295,87 @@ async function broadcastCurrentEvent() {
     type: "board_update",
     data: boardState,
   });
+}
+
+// Broadcast field event update to subscribers and all displays
+async function broadcastFieldEventUpdate(sessionId: number) {
+  try {
+    const session = await storage.getFieldEventSessionWithDetails(sessionId);
+    if (!session) {
+      console.log(`[Field Broadcast] Session ${sessionId} not found`);
+      return;
+    }
+
+    const event = await storage.getEvent(session.eventId);
+    if (!event) {
+      console.log(`[Field Broadcast] Event ${session.eventId} not found`);
+      return;
+    }
+
+    const isVertical = isHeightEvent(event.eventType);
+    
+    let standings: any[] = [];
+    if (session.athletes && session.marks) {
+      if (isVertical && session.heights) {
+        standings = calculateVerticalStandings(
+          session.athletes as any,
+          session.marks,
+          session.heights
+        );
+      } else {
+        standings = calculateHorizontalStandings(
+          session.athletes as any,
+          session.marks
+        );
+      }
+    }
+
+    // Get actual athlete ID from the current index (null if no current athlete)
+    let currentAthleteId: number | null = null;
+    const currentAthleteIndex = session.currentAthleteIndex;
+    if (currentAthleteIndex !== null && currentAthleteIndex !== undefined && 
+        session.athletes && currentAthleteIndex >= 0 && currentAthleteIndex < session.athletes.length) {
+      currentAthleteId = session.athletes[currentAthleteIndex]?.id ?? null;
+    }
+
+    const update: FieldEventUpdatePayload = {
+      athletes: session.athletes || [],
+      marks: session.marks || [],
+      heights: session.heights,
+      standings: standings,
+      currentAthleteId: currentAthleteId,
+      currentAttempt: session.currentAttemptNumber,
+      currentHeight: isVertical ? session.currentHeightIndex : undefined,
+      sessionStatus: session.status,
+      eventType: isVertical ? 'vertical' : 'horizontal'
+    };
+
+    const message: WSMessage = {
+      type: 'field_event_update',
+      sessionId: sessionId,
+      eventId: session.eventId,
+      meetId: event.meetId,
+      update
+    };
+
+    // Broadcast to session-specific subscribers
+    const subscribers = fieldSessionSubscribers.get(sessionId);
+    if (subscribers) {
+      const messageStr = JSON.stringify(message);
+      subscribers.forEach(client => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(messageStr);
+        }
+      });
+      console.log(`[Field Broadcast] Session ${sessionId}: sent to ${subscribers.size} subscribers`);
+    }
+
+    // Also broadcast to all display clients
+    broadcastToDisplays(message);
+    console.log(`[Field Broadcast] Session ${sessionId}: broadcast complete`);
+  } catch (error) {
+    console.error(`[Field Broadcast] Error broadcasting session ${sessionId}:`, error);
+  }
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -4952,6 +5046,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (data.type === 'device_heartbeat' && registeredDeviceId) {
           await storage.updateDisplayDeviceStatus(registeredDeviceId, 'online');
         }
+        
+        // Handle field session subscription
+        if (data.type === 'subscribe_field_session') {
+          const sessionId = parseInt(data.sessionId);
+          if (!isNaN(sessionId)) {
+            if (!fieldSessionSubscribers.has(sessionId)) {
+              fieldSessionSubscribers.set(sessionId, new Set());
+            }
+            fieldSessionSubscribers.get(sessionId)!.add(ws);
+            console.log(`[Field WS] Client subscribed to session ${sessionId}`);
+            
+            // Send current state immediately
+            broadcastFieldEventUpdate(sessionId).catch(console.error);
+          }
+        }
+        
+        // Handle field session unsubscription
+        if (data.type === 'unsubscribe_field_session') {
+          const sessionId = parseInt(data.sessionId);
+          if (!isNaN(sessionId) && fieldSessionSubscribers.has(sessionId)) {
+            fieldSessionSubscribers.get(sessionId)!.delete(ws);
+            console.log(`[Field WS] Client unsubscribed from session ${sessionId}`);
+          }
+        }
       } catch (error) {
         // Not a control message, could be other WebSocket traffic
       }
@@ -4976,6 +5094,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("WebSocket client disconnected");
       displayClients.delete(ws);
       
+      // Clean up field session subscriptions
+      fieldSessionSubscribers.forEach((subscribers, sessionId) => {
+        if (subscribers.has(ws)) {
+          subscribers.delete(ws);
+          console.log(`[Field WS] Client removed from session ${sessionId} on close`);
+        }
+      });
+      
       // If this was a registered display device, update its status
       if (registeredDeviceId) {
         connectedDisplayDevices.delete(registeredDeviceId);
@@ -4998,6 +5124,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     ws.on("error", (error) => {
       console.error("WebSocket error:", error);
       displayClients.delete(ws);
+      
+      // Clean up field session subscriptions
+      fieldSessionSubscribers.forEach((subscribers, sessionId) => {
+        if (subscribers.has(ws)) {
+          subscribers.delete(ws);
+        }
+      });
       
       // Clean up device tracking on error
       if (registeredDeviceId) {
@@ -6170,6 +6303,450 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
   })();
+
+  // ===============================
+  // FIELD EVENT SESSION ROUTES
+  // ===============================
+
+  // Rate limiting for access code lookups (prevent brute-force)
+  const accessCodeAttempts = new Map<string, { count: number; lastAttempt: number }>();
+  const RATE_LIMIT_WINDOW = 60000; // 1 minute
+  const MAX_ATTEMPTS = 10; // Max attempts per minute per IP
+
+  function isRateLimited(ip: string): boolean {
+    const now = Date.now();
+    const record = accessCodeAttempts.get(ip);
+    
+    if (!record) {
+      accessCodeAttempts.set(ip, { count: 1, lastAttempt: now });
+      return false;
+    }
+    
+    // Reset if window expired
+    if (now - record.lastAttempt > RATE_LIMIT_WINDOW) {
+      accessCodeAttempts.set(ip, { count: 1, lastAttempt: now });
+      return false;
+    }
+    
+    // Increment and check
+    record.count++;
+    record.lastAttempt = now;
+    return record.count > MAX_ATTEMPTS;
+  }
+
+  // Get all field sessions (optionally filter by meetId query param)
+  app.get("/api/field-sessions", async (req, res) => {
+    try {
+      const { eventId } = req.query;
+      if (eventId && typeof eventId === 'string') {
+        const session = await storage.getFieldEventSessionByEvent(eventId);
+        return res.json(session ? [session] : []);
+      }
+      res.status(400).json({ error: "eventId query parameter required" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get field session by ID
+  app.get("/api/field-sessions/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid session ID" });
+      }
+      const session = await storage.getFieldEventSession(id);
+      if (!session) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+      res.json(session);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get field session by event ID
+  app.get("/api/field-sessions/event/:eventId", async (req, res) => {
+    try {
+      const { eventId } = req.params;
+      const session = await storage.getFieldEventSessionByEvent(eventId);
+      res.json(session);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get field session by access code (for officials to join)
+  app.get("/api/field-sessions/access/:code", async (req, res) => {
+    try {
+      // Rate limiting check
+      const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+      if (isRateLimited(clientIp)) {
+        console.log(`[Rate Limit] Access code attempt blocked for IP: ${clientIp}`);
+        return res.status(429).json({ error: "Too many attempts. Please wait a minute and try again." });
+      }
+
+      const { code } = req.params;
+      const session = await storage.getFieldEventSessionByAccessCode(code);
+      if (!session) {
+        return res.status(404).json({ error: "Session not found with that access code" });
+      }
+      res.json(session);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Create field session
+  app.post("/api/field-sessions", async (req, res) => {
+    try {
+      const validated = insertFieldEventSessionSchema.parse(req.body);
+      const session = await storage.createFieldEventSession(validated);
+      res.status(201).json(session);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Update field session
+  app.patch("/api/field-sessions/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid session ID" });
+      }
+      const validated = insertFieldEventSessionSchema.partial().parse(req.body);
+      const session = await storage.updateFieldEventSession(id, validated);
+      if (!session) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+      
+      // Broadcast field event update
+      broadcastFieldEventUpdate(id).catch(console.error);
+      
+      res.json(session);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Delete field session
+  app.delete("/api/field-sessions/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid session ID" });
+      }
+      await storage.deleteFieldEventSession(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get field session with all related data
+  app.get("/api/field-sessions/:id/full", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid session ID" });
+      }
+      const session = await storage.getFieldEventSessionWithDetails(id);
+      if (!session) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+      res.json(session);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ===============================
+  // FIELD HEIGHTS ROUTES
+  // ===============================
+
+  // Get heights for a session
+  app.get("/api/field-sessions/:sessionId/heights", async (req, res) => {
+    try {
+      const sessionId = parseInt(req.params.sessionId);
+      if (isNaN(sessionId)) {
+        return res.status(400).json({ error: "Invalid session ID" });
+      }
+      const heights = await storage.getFieldHeights(sessionId);
+      res.json(heights);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Create a single height
+  app.post("/api/field-sessions/:sessionId/heights", async (req, res) => {
+    try {
+      const sessionId = parseInt(req.params.sessionId);
+      if (isNaN(sessionId)) {
+        return res.status(400).json({ error: "Invalid session ID" });
+      }
+      const validated = insertFieldHeightSchema.parse({ ...req.body, sessionId });
+      const height = await storage.createFieldHeight(validated);
+      res.status(201).json(height);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Bulk replace all heights for a session
+  app.put("/api/field-sessions/:sessionId/heights", async (req, res) => {
+    try {
+      const sessionId = parseInt(req.params.sessionId);
+      if (isNaN(sessionId)) {
+        return res.status(400).json({ error: "Invalid session ID" });
+      }
+      const { heights } = req.body;
+      if (!Array.isArray(heights)) {
+        return res.status(400).json({ error: "heights must be an array" });
+      }
+      const validated = heights.map((h: any, index: number) => 
+        insertFieldHeightSchema.parse({ ...h, sessionId, heightIndex: h.heightIndex ?? index })
+      );
+      const created = await storage.setFieldHeights(sessionId, validated);
+      res.json(created);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Update a height
+  app.patch("/api/field-heights/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid height ID" });
+      }
+      const validated = insertFieldHeightSchema.partial().parse(req.body);
+      const height = await storage.updateFieldHeight(id, validated);
+      if (!height) {
+        return res.status(404).json({ error: "Height not found" });
+      }
+      res.json(height);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Delete a height
+  app.delete("/api/field-heights/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid height ID" });
+      }
+      await storage.deleteFieldHeight(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ===============================
+  // FIELD EVENT ATHLETES ROUTES
+  // ===============================
+
+  // Get athletes for a session
+  app.get("/api/field-sessions/:sessionId/athletes", async (req, res) => {
+    try {
+      const sessionId = parseInt(req.params.sessionId);
+      if (isNaN(sessionId)) {
+        return res.status(400).json({ error: "Invalid session ID" });
+      }
+      const athletes = await storage.getFieldEventAthletes(sessionId);
+      res.json(athletes);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Create field athlete
+  app.post("/api/field-sessions/:sessionId/athletes", async (req, res) => {
+    try {
+      const sessionId = parseInt(req.params.sessionId);
+      if (isNaN(sessionId)) {
+        return res.status(400).json({ error: "Invalid session ID" });
+      }
+      const validated = insertFieldEventAthleteSchema.parse({ ...req.body, sessionId });
+      const athlete = await storage.createFieldEventAthlete(validated);
+      res.status(201).json(athlete);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Update field athlete
+  app.patch("/api/field-athletes/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid athlete ID" });
+      }
+      const validated = insertFieldEventAthleteSchema.partial().parse(req.body);
+      const athlete = await storage.updateFieldEventAthlete(id, validated);
+      if (!athlete) {
+        return res.status(404).json({ error: "Athlete not found" });
+      }
+      res.json(athlete);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Delete field athlete
+  app.delete("/api/field-athletes/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid athlete ID" });
+      }
+      await storage.deleteFieldEventAthlete(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Check-in field athlete
+  app.post("/api/field-athletes/:id/check-in", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid athlete ID" });
+      }
+      const athlete = await storage.checkInFieldAthlete(id);
+      if (!athlete) {
+        return res.status(404).json({ error: "Athlete not found" });
+      }
+      
+      // Broadcast field event update
+      broadcastFieldEventUpdate(athlete.sessionId).catch(console.error);
+      
+      res.json(athlete);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Scratch field athlete
+  app.post("/api/field-athletes/:id/scratch", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid athlete ID" });
+      }
+      const athlete = await storage.scratchFieldAthlete(id);
+      if (!athlete) {
+        return res.status(404).json({ error: "Athlete not found" });
+      }
+      
+      // Broadcast field event update
+      broadcastFieldEventUpdate(athlete.sessionId).catch(console.error);
+      
+      res.json(athlete);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ===============================
+  // FIELD EVENT MARKS ROUTES
+  // ===============================
+
+  // Get marks for a session
+  app.get("/api/field-sessions/:sessionId/marks", async (req, res) => {
+    try {
+      const sessionId = parseInt(req.params.sessionId);
+      if (isNaN(sessionId)) {
+        return res.status(400).json({ error: "Invalid session ID" });
+      }
+      const marks = await storage.getFieldEventMarks(sessionId);
+      res.json(marks);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get marks by athlete
+  app.get("/api/field-athletes/:athleteId/marks", async (req, res) => {
+    try {
+      const athleteId = parseInt(req.params.athleteId);
+      if (isNaN(athleteId)) {
+        return res.status(400).json({ error: "Invalid athlete ID" });
+      }
+      const marks = await storage.getFieldEventMarksByAthlete(athleteId);
+      res.json(marks);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Create field mark
+  app.post("/api/field-marks", async (req, res) => {
+    try {
+      const validated = insertFieldEventMarkSchema.parse(req.body);
+      const mark = await storage.createFieldEventMark(validated);
+      
+      // Broadcast field event update
+      broadcastFieldEventUpdate(mark.sessionId).catch(console.error);
+      
+      res.status(201).json(mark);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Update field mark
+  app.patch("/api/field-marks/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid mark ID" });
+      }
+      const validated = insertFieldEventMarkSchema.partial().parse(req.body);
+      const mark = await storage.updateFieldEventMark(id, validated);
+      if (!mark) {
+        return res.status(404).json({ error: "Mark not found" });
+      }
+      
+      // Broadcast field event update
+      broadcastFieldEventUpdate(mark.sessionId).catch(console.error);
+      
+      res.json(mark);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Delete field mark
+  app.delete("/api/field-marks/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid mark ID" });
+      }
+      
+      // Get mark to find session ID before deleting
+      const existingMark = await storage.getFieldEventMark(id);
+      const sessionId = existingMark?.sessionId;
+      
+      await storage.deleteFieldEventMark(id);
+      
+      // Broadcast field event update if we had a session ID
+      if (sessionId) {
+        broadcastFieldEventUpdate(sessionId).catch(console.error);
+      }
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
 
   return httpServer;
 }

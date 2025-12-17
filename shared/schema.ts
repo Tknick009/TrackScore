@@ -1714,6 +1714,44 @@ export type DisplayBoardState = {
   timestamp: number;
 };
 
+// ====================
+// FIELD EVENT STANDINGS TYPES
+// ====================
+
+export interface HorizontalStanding {
+  athleteId: number;
+  place: number;
+  bestMark: number | null;
+  bestMarkDisplay: string | null;
+  attempts: FieldEventMark[];
+  legalMarks: number[];
+  isTied: boolean;
+}
+
+export interface VerticalStanding {
+  athleteId: number;
+  place: number;
+  highestCleared: number | null;
+  highestClearedDisplay: string | null;
+  missesAtWinningHeight: number;
+  totalMisses: number;
+  attemptSequence: string;
+  isTied: boolean;
+  isEliminated: boolean;
+}
+
+export interface FieldEventUpdatePayload {
+  athletes: (FieldEventAthlete & { entry?: Entry; athlete?: Athlete })[];
+  marks: FieldEventMark[];
+  heights?: FieldHeight[];
+  standings: HorizontalStanding[] | VerticalStanding[];
+  currentAthleteId: number | null;
+  currentAttempt: number;
+  currentHeight?: number;
+  sessionStatus: string;
+  eventType: 'horizontal' | 'vertical';
+}
+
 // WebSocket Message Types
 export type WSMessage = 
   | { type: "board_update"; data: DisplayBoardState }
@@ -1741,7 +1779,8 @@ export type WSMessage =
   | { type: "result_received"; data: { eventNumber: number; lane: number; place: number; time: string; athleteName?: string } }
   | { type: "field_mode_change"; data: { eventNumber: number; mode: FieldDisplayMode; [key: string]: any } }
   | { type: "field_athlete_up"; data: { eventNumber: number; athleteName: string; attemptNumber: number; mark?: string } }
-  | { type: "lynx_connection"; data: { portType: LynxPortType; connected: boolean } };
+  | { type: "lynx_connection"; data: { portType: LynxPortType; connected: boolean } }
+  | { type: "field_event_update"; sessionId: number; eventId: string; meetId: string | null; update: FieldEventUpdatePayload };
 
 export type OverlayType = 'lower-third' | 'scorebug' | 'athlete-spotlight' | 'team-standings';
 

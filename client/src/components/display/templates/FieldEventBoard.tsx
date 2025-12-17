@@ -1,17 +1,20 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { EventWithEntries, Meet, AthleteBest } from "@shared/schema";
+import { EventWithEntries, Meet, AthleteBest, FieldEventAthlete, FieldEventMark, FieldHeight, Entry, Athlete } from "@shared/schema";
 import { EventHeader, FieldAthleteCard, FieldAttemptGrid } from "../shared";
 import { generateAttemptHeaders } from "../utils";
+import type { HorizontalStanding, VerticalStanding } from "@/lib/fieldStandings";
+import { liveDataToEntries, type LiveFieldEventData } from "@/lib/fieldEventAdapter";
 
 interface FieldEventBoardProps {
   event: EventWithEntries;
   meet?: Meet;
   mode: string;
+  fieldEventData?: LiveFieldEventData;
 }
 
 const athleteBestsCache = new Map<string, Map<string, AthleteBest[]>>();
 
-export function FieldEventBoard({ event, meet, mode }: FieldEventBoardProps) {
+export function FieldEventBoard({ event, meet, mode, fieldEventData }: FieldEventBoardProps) {
   const [athleteBestsMap, setAthleteBestsMap] = useState<Map<string, AthleteBest[]>>(new Map());
   const lastMeetIdRef = useRef<string | null>(null);
 
@@ -58,13 +61,21 @@ export function FieldEventBoard({ event, meet, mode }: FieldEventBoardProps) {
       cancelled = true;
     };
   }, [meet?.id]);
-  const sortedResults = [...event.entries].sort((a, b) => {
-    const aPos = a.finalPlace ?? 999;
-    const bPos = b.finalPlace ?? 999;
-    return aPos - bPos;
-  });
+
+  const sortedResults = useMemo(() => {
+    if (fieldEventData) {
+      return liveDataToEntries(fieldEventData);
+    }
+    return [...event.entries].sort((a, b) => {
+      const aPos = a.finalPlace ?? 999;
+      const bPos = b.finalPlace ?? 999;
+      return aPos - bPos;
+    });
+  }, [event.entries, fieldEventData]);
 
   const headers = generateAttemptHeaders(sortedResults);
+
+  const currentAthleteId = fieldEventData?.currentAthleteId;
 
   return (
     <div className="min-h-screen w-full bg-[hsl(var(--display-bg))] relative">
@@ -86,18 +97,24 @@ export function FieldEventBoard({ event, meet, mode }: FieldEventBoardProps) {
               const position = result.finalPlace ?? 0;
               const isLeader = position === 1;
               const isPodium = position <= 3;
-              const rowBg = isLeader
-                ? "bg-[hsl(var(--display-accent))]/12"
-                : index % 2 === 0
-                ? "bg-[hsl(var(--display-border))]/20"
-                : "";
+              const isCurrent = currentAthleteId !== null && 
+                currentAthleteId !== undefined && 
+                String(result.athlete.id) === String(currentAthleteId);
+              
+              const rowBg = isCurrent
+                ? "bg-[hsl(var(--display-accent))]/25 ring-2 ring-[hsl(var(--display-accent))]"
+                : isLeader
+                  ? "bg-[hsl(var(--display-accent))]/12"
+                  : index % 2 === 0
+                    ? "bg-[hsl(var(--display-border))]/20"
+                    : "";
               
               const bests = athleteBestsMap.get(result.athlete.id);
 
               return (
                 <div
                   key={result.athlete.id}
-                  className={`p-6 ${rowBg}`}
+                  className={`p-6 ${rowBg} transition-all duration-300`}
                   data-testid={`result-row-${result.athlete.id}`}
                 >
                   <div className="grid grid-cols-2 gap-8">

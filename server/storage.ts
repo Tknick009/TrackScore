@@ -157,6 +157,22 @@ import {
   sceneTemplateMappings,
   type SelectSceneTemplateMapping,
   type InsertSceneTemplateMapping,
+  fieldEventSessions,
+  fieldHeights,
+  fieldEventFlights,
+  fieldEventAthletes,
+  fieldEventMarks,
+  type FieldEventSession,
+  type InsertFieldEventSession,
+  type FieldHeight,
+  type InsertFieldHeight,
+  type FieldEventFlight,
+  type InsertFieldEventFlight,
+  type FieldEventAthlete,
+  type InsertFieldEventAthlete,
+  type FieldEventMark,
+  type InsertFieldEventMark,
+  type FieldEventSessionWithDetails,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql, and, not, inArray, count, isNull, isNotNull, desc } from "drizzle-orm";
@@ -473,6 +489,44 @@ export interface IStorage {
   upsertAthleteBest(best: InsertAthleteBest): Promise<AthleteBest>;
   deleteAthleteBest(id: string): Promise<void>;
   bulkImportAthleteBests(bests: InsertAthleteBest[]): Promise<AthleteBest[]>;
+
+  // Field Event Sessions
+  getFieldEventSession(id: number): Promise<FieldEventSession | null>;
+  getFieldEventSessionByEvent(eventId: string): Promise<FieldEventSession | null>;
+  getFieldEventSessionByAccessCode(code: string): Promise<FieldEventSession | null>;
+  createFieldEventSession(session: InsertFieldEventSession): Promise<FieldEventSession>;
+  updateFieldEventSession(id: number, updates: Partial<InsertFieldEventSession>): Promise<FieldEventSession | null>;
+  deleteFieldEventSession(id: number): Promise<void>;
+  getFieldEventSessionWithDetails(id: number): Promise<FieldEventSessionWithDetails | null>;
+
+  // Field Heights (for vertical events)
+  getFieldHeights(sessionId: number): Promise<FieldHeight[]>;
+  createFieldHeight(height: InsertFieldHeight): Promise<FieldHeight>;
+  updateFieldHeight(id: number, updates: Partial<InsertFieldHeight>): Promise<FieldHeight | null>;
+  deleteFieldHeight(id: number): Promise<void>;
+  setFieldHeights(sessionId: number, heights: InsertFieldHeight[]): Promise<FieldHeight[]>;
+
+  // Field Event Flights
+  getFieldEventFlights(sessionId: number): Promise<FieldEventFlight[]>;
+  createFieldEventFlight(flight: InsertFieldEventFlight): Promise<FieldEventFlight>;
+  updateFieldEventFlight(id: number, updates: Partial<InsertFieldEventFlight>): Promise<FieldEventFlight | null>;
+
+  // Field Event Athletes
+  getFieldEventAthletes(sessionId: number): Promise<FieldEventAthlete[]>;
+  getFieldEventAthlete(id: number): Promise<FieldEventAthlete | null>;
+  createFieldEventAthlete(athlete: InsertFieldEventAthlete): Promise<FieldEventAthlete>;
+  updateFieldEventAthlete(id: number, updates: Partial<InsertFieldEventAthlete>): Promise<FieldEventAthlete | null>;
+  deleteFieldEventAthlete(id: number): Promise<void>;
+  checkInFieldAthlete(id: number): Promise<FieldEventAthlete | null>;
+  scratchFieldAthlete(id: number): Promise<FieldEventAthlete | null>;
+
+  // Field Event Marks
+  getFieldEventMark(id: number): Promise<FieldEventMark | null>;
+  getFieldEventMarks(sessionId: number): Promise<FieldEventMark[]>;
+  getFieldEventMarksByAthlete(athleteId: number): Promise<FieldEventMark[]>;
+  createFieldEventMark(mark: InsertFieldEventMark): Promise<FieldEventMark>;
+  updateFieldEventMark(id: number, updates: Partial<InsertFieldEventMark>): Promise<FieldEventMark | null>;
+  deleteFieldEventMark(id: number): Promise<void>;
 
   // Layout Scenes (Scene-based layout system)
   getLayoutScenes(meetId?: string): Promise<LayoutSceneWithObjects[]>;
@@ -3455,6 +3509,195 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(processedIngestionFiles)
       .where(eq(processedIngestionFiles.meetId, meetId));
+  }
+
+  // Field Event Sessions
+  async getFieldEventSession(id: number): Promise<FieldEventSession | null> {
+    const [session] = await db.select().from(fieldEventSessions).where(eq(fieldEventSessions.id, id));
+    return session || null;
+  }
+
+  async getFieldEventSessionByEvent(eventId: string): Promise<FieldEventSession | null> {
+    const [session] = await db.select().from(fieldEventSessions).where(eq(fieldEventSessions.eventId, eventId));
+    return session || null;
+  }
+
+  async getFieldEventSessionByAccessCode(code: string): Promise<FieldEventSession | null> {
+    const [session] = await db.select().from(fieldEventSessions).where(eq(fieldEventSessions.accessCode, code));
+    return session || null;
+  }
+
+  async createFieldEventSession(session: InsertFieldEventSession): Promise<FieldEventSession> {
+    const [created] = await db.insert(fieldEventSessions).values(session).returning();
+    return created;
+  }
+
+  async updateFieldEventSession(id: number, updates: Partial<InsertFieldEventSession>): Promise<FieldEventSession | null> {
+    const [updated] = await db
+      .update(fieldEventSessions)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(fieldEventSessions.id, id))
+      .returning();
+    return updated || null;
+  }
+
+  async deleteFieldEventSession(id: number): Promise<void> {
+    await db.delete(fieldEventSessions).where(eq(fieldEventSessions.id, id));
+  }
+
+  async getFieldEventSessionWithDetails(id: number): Promise<FieldEventSessionWithDetails | null> {
+    const session = await this.getFieldEventSession(id);
+    if (!session) return null;
+
+    const [event, heights, fieldAthletes, marks] = await Promise.all([
+      session.eventId ? this.getEvent(session.eventId) : null,
+      this.getFieldHeights(id),
+      this.getFieldEventAthletes(id),
+      this.getFieldEventMarks(id),
+    ]);
+
+    const athletesWithDetails = await Promise.all(
+      fieldAthletes.map(async (fa) => {
+        const entry = await this.getEntry(fa.entryId);
+        const athlete = entry?.athlete || null;
+        return { ...fa, entry: entry || undefined, athlete: athlete || undefined };
+      })
+    );
+
+    return {
+      ...session,
+      event: event || undefined,
+      heights,
+      athletes: athletesWithDetails,
+      marks,
+    };
+  }
+
+  // Field Heights
+  async getFieldHeights(sessionId: number): Promise<FieldHeight[]> {
+    return db.select().from(fieldHeights).where(eq(fieldHeights.sessionId, sessionId));
+  }
+
+  async createFieldHeight(height: InsertFieldHeight): Promise<FieldHeight> {
+    const [created] = await db.insert(fieldHeights).values(height).returning();
+    return created;
+  }
+
+  async updateFieldHeight(id: number, updates: Partial<InsertFieldHeight>): Promise<FieldHeight | null> {
+    const [updated] = await db
+      .update(fieldHeights)
+      .set(updates)
+      .where(eq(fieldHeights.id, id))
+      .returning();
+    return updated || null;
+  }
+
+  async deleteFieldHeight(id: number): Promise<void> {
+    await db.delete(fieldHeights).where(eq(fieldHeights.id, id));
+  }
+
+  async setFieldHeights(sessionId: number, heights: InsertFieldHeight[]): Promise<FieldHeight[]> {
+    await db.delete(fieldHeights).where(eq(fieldHeights.sessionId, sessionId));
+    if (heights.length === 0) return [];
+    const created = await db.insert(fieldHeights).values(heights).returning();
+    return created;
+  }
+
+  // Field Event Flights
+  async getFieldEventFlights(sessionId: number): Promise<FieldEventFlight[]> {
+    return db.select().from(fieldEventFlights).where(eq(fieldEventFlights.sessionId, sessionId));
+  }
+
+  async createFieldEventFlight(flight: InsertFieldEventFlight): Promise<FieldEventFlight> {
+    const [created] = await db.insert(fieldEventFlights).values(flight).returning();
+    return created;
+  }
+
+  async updateFieldEventFlight(id: number, updates: Partial<InsertFieldEventFlight>): Promise<FieldEventFlight | null> {
+    const [updated] = await db
+      .update(fieldEventFlights)
+      .set(updates)
+      .where(eq(fieldEventFlights.id, id))
+      .returning();
+    return updated || null;
+  }
+
+  // Field Event Athletes
+  async getFieldEventAthletes(sessionId: number): Promise<FieldEventAthlete[]> {
+    return db.select().from(fieldEventAthletes).where(eq(fieldEventAthletes.sessionId, sessionId));
+  }
+
+  async getFieldEventAthlete(id: number): Promise<FieldEventAthlete | null> {
+    const [athlete] = await db.select().from(fieldEventAthletes).where(eq(fieldEventAthletes.id, id));
+    return athlete || null;
+  }
+
+  async createFieldEventAthlete(athlete: InsertFieldEventAthlete): Promise<FieldEventAthlete> {
+    const [created] = await db.insert(fieldEventAthletes).values(athlete).returning();
+    return created;
+  }
+
+  async updateFieldEventAthlete(id: number, updates: Partial<InsertFieldEventAthlete>): Promise<FieldEventAthlete | null> {
+    const [updated] = await db
+      .update(fieldEventAthletes)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(fieldEventAthletes.id, id))
+      .returning();
+    return updated || null;
+  }
+
+  async deleteFieldEventAthlete(id: number): Promise<void> {
+    await db.delete(fieldEventAthletes).where(eq(fieldEventAthletes.id, id));
+  }
+
+  async checkInFieldAthlete(id: number): Promise<FieldEventAthlete | null> {
+    const [updated] = await db
+      .update(fieldEventAthletes)
+      .set({ checkInStatus: 'checked_in', checkedInAt: new Date(), updatedAt: new Date() })
+      .where(eq(fieldEventAthletes.id, id))
+      .returning();
+    return updated || null;
+  }
+
+  async scratchFieldAthlete(id: number): Promise<FieldEventAthlete | null> {
+    const [updated] = await db
+      .update(fieldEventAthletes)
+      .set({ checkInStatus: 'scratched', updatedAt: new Date() })
+      .where(eq(fieldEventAthletes.id, id))
+      .returning();
+    return updated || null;
+  }
+
+  // Field Event Marks
+  async getFieldEventMark(id: number): Promise<FieldEventMark | null> {
+    const [mark] = await db.select().from(fieldEventMarks).where(eq(fieldEventMarks.id, id));
+    return mark || null;
+  }
+
+  async getFieldEventMarks(sessionId: number): Promise<FieldEventMark[]> {
+    return db.select().from(fieldEventMarks).where(eq(fieldEventMarks.sessionId, sessionId));
+  }
+
+  async getFieldEventMarksByAthlete(athleteId: number): Promise<FieldEventMark[]> {
+    return db.select().from(fieldEventMarks).where(eq(fieldEventMarks.athleteId, athleteId));
+  }
+
+  async createFieldEventMark(mark: InsertFieldEventMark): Promise<FieldEventMark> {
+    const [created] = await db.insert(fieldEventMarks).values(mark).returning();
+    return created;
+  }
+
+  async updateFieldEventMark(id: number, updates: Partial<InsertFieldEventMark>): Promise<FieldEventMark | null> {
+    const [updated] = await db
+      .update(fieldEventMarks)
+      .set(updates)
+      .where(eq(fieldEventMarks.id, id))
+      .returning();
+    return updated || null;
+  }
+
+  async deleteFieldEventMark(id: number): Promise<void> {
+    await db.delete(fieldEventMarks).where(eq(fieldEventMarks.id, id));
   }
 }
 

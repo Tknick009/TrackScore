@@ -1,5 +1,6 @@
 export * from './LiveResultsBoard';
 export * from './FieldEventBoard';
+export * from './LiveFieldEventBoard';
 export * from './LiveTimeBoard';
 export * from './SingleResultBoard';
 export * from './StandingsBoard';
