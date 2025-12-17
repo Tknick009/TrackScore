@@ -136,6 +136,12 @@ export class LynxListener extends EventEmitter {
   private emitAggregatedEvent(key: string, event: AggregatedEvent) {
     switch (event.type) {
       case 'S':
+        // Suppress start_list mode change when race is already running
+        // FinishLynx sends S packets even after race starts - ignore them during running mode
+        if (this.isRunning) {
+          console.log(`[Lynx] Suppressing start_list emission - race is running (event ${event.eventNumber})`);
+          return;
+        }
         this.emit('start-list', event.eventNumber, event.heat, event.entries as LynxStartListEntry[]);
         this.emit('track-mode-change', event.eventNumber, 'start_list', {
           eventNumber: event.eventNumber,

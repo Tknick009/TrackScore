@@ -1093,55 +1093,10 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     return () => layer.removeEventListener('transitionend', handleTransitionEnd);
   }, [transitionState.phase, transitionState.version, completeTransition]);
 
-  // Render transition layers with smooth CSS crossfade effect
+  // Render content directly - instant switching for live stadium use
+  // Crossfade transitions were causing glitchy behavior with rapid mode changes
   const renderWithTransition = () => {
-    const { previousKey, phase, version, fadeStarted } = transitionState;
-    
-    // No transition in progress - just render current content
-    if (phase === 'idle' || !previousKey || !snapshot) {
-      return renderContent();
-    }
-    
-    // Opacity is controlled by fadeStarted (set via queueMicrotask in hook)
-    const outgoingOpacity = fadeStarted ? 0 : 1;
-    const incomingOpacity = fadeStarted ? 1 : 0;
-    
-    return (
-      <>
-        {/* Outgoing layer - fading out */}
-        <div 
-          style={{
-            position: 'absolute',
-            inset: 0,
-            opacity: outgoingOpacity,
-            transition: `opacity ${TRANSITION_DURATION_MS}ms ease-out`,
-            zIndex: 1,
-            willChange: 'opacity',
-            pointerEvents: 'none',
-          }}
-        >
-          {renderContent({
-            template: snapshot.template,
-            sceneId: snapshot.sceneId,
-            currentSceneData: snapshot.currentSceneData,
-          })}
-        </div>
-        {/* Incoming layer - fading in, with transitionend handler */}
-        <div 
-          ref={incomingLayerRef}
-          style={{
-            position: 'absolute',
-            inset: 0,
-            opacity: incomingOpacity,
-            transition: `opacity ${TRANSITION_DURATION_MS}ms ease-in`,
-            zIndex: 2,
-            willChange: 'opacity',
-          }}
-        >
-          {renderContent()}
-        </div>
-      </>
-    );
+    return renderContent();
   };
 
   if (isFixedSizeDisplay) {
