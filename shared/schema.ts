@@ -2065,6 +2065,7 @@ export const liveEventData = pgTable('live_event_data', {
   eventType: text('event_type').notNull(), // track, field
   mode: text('mode').notNull(), // start_list, running, results, athlete_up
   heat: integer('heat').default(1),
+  totalHeats: integer('total_heats').default(1), // Total heats from database for "Heat X of Y" display
   round: integer('round').default(1),
   flight: integer('flight').default(1),
   wind: text('wind'),

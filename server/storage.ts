@@ -173,6 +173,7 @@ export interface IStorage {
   getCurrentEvent(): Promise<EventWithEntries | undefined>;
   createEvent(event: InsertEvent): Promise<Event>;
   updateEventStatus(id: string, status: string): Promise<Event | undefined>;
+  getTotalHeatsForEvent(eventId: string, round?: string): Promise<number>;
 
   // Athletes
   getAthletes(): Promise<Athlete[]>;
@@ -567,6 +568,44 @@ export class DatabaseStorage implements IStorage {
       .where(eq(events.id, id))
       .returning();
     return updated || undefined;
+  }
+
+  async getTotalHeatsForEvent(eventId: string, round?: string): Promise<number> {
+    // Get all entries for this event and count distinct heats based on round
+    const eventEntries = await db.select().from(entries).where(eq(entries.eventId, eventId));
+    
+    if (eventEntries.length === 0) return 1;
+    
+    // Determine which heat column to use based on round
+    const heatValues = new Set<number>();
+    
+    // Normalize round string for matching
+    const normalizedRound = round?.toLowerCase().trim();
+    
+    for (const entry of eventEntries) {
+      let heatNum: number | null = null;
+      
+      // Check each round's heat field based on round parameter
+      if (normalizedRound === 'prelim' || normalizedRound === 'preliminary' || normalizedRound === '1') {
+        heatNum = entry.preliminaryHeat;
+      } else if (normalizedRound === 'quarter' || normalizedRound === 'quarterfinal' || normalizedRound === '2') {
+        heatNum = entry.quarterfinalHeat;
+      } else if (normalizedRound === 'semi' || normalizedRound === 'semifinal' || normalizedRound === '3') {
+        heatNum = entry.semifinalHeat;
+      } else if (normalizedRound === 'final' || normalizedRound === '4' || normalizedRound === 'f') {
+        heatNum = entry.finalHeat;
+      } else {
+        // Default when round not specified: use preliminary heats as the most common case
+        // If no preliminary heats, try other rounds in order
+        heatNum = entry.preliminaryHeat || entry.quarterfinalHeat || entry.semifinalHeat || entry.finalHeat;
+      }
+      
+      if (heatNum) heatValues.add(heatNum);
+    }
+    
+    // Return count of distinct heats (not max heat number), minimum 1
+    const distinctHeats = heatValues.size;
+    return distinctHeats > 0 ? distinctHeats : 1;
   }
 
   // Athletes
@@ -3016,6 +3055,7 @@ export class DatabaseStorage implements IStorage {
           runningTime: data.runningTime,
           isArmed: data.isArmed,
           isRunning: data.isRunning,
+          totalHeats: data.totalHeats,
           lastUpdateAt: new Date(),
         },
       })

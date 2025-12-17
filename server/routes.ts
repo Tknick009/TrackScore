@@ -1927,11 +1927,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
               if (liveData && liveData.length > 0) {
                 // Use the most recent entry
                 const latestLive = liveData[0];
+                
+                // Get total heats from database for "Heat X of Y" display
+                let totalHeats = 1;
+                const matchingEvents = await storage.getEventsByLynxEventNumber(latestLive.eventNumber);
+                if (matchingEvents.length > 0) {
+                  // Normalize round to string (could be number or string from FinishLynx)
+                  const roundStr = latestLive.round ? String(latestLive.round).toLowerCase() : undefined;
+                  totalHeats = await storage.getTotalHeatsForEvent(matchingEvents[0].id, roundStr);
+                }
+                
                 liveEventData = {
                   eventNumber: latestLive.eventNumber,
                   eventName: latestLive.eventName,
                   mode: latestLive.mode,
                   heat: latestLive.heat,
+                  totalHeats, // Total heats from database for "Heat X of Y" display
                   round: latestLive.round,
                   entries: latestLive.entries,
                   wind: latestLive.wind,
@@ -5651,12 +5662,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // The actual event data will come later with proper eventName
         console.log(`[Lynx] Skipping running mode update - no existing data and no event info for Event ${eventNumber}`);
       } else {
+        // Get total heats from database for this event
+        let dbTotalHeats = 1;
+        if (matchingEvents.length > 0) {
+          const roundStr = data.round ? String(data.round).toLowerCase() : undefined;
+          dbTotalHeats = await storage.getTotalHeatsForEvent(matchingEvents[0].id, roundStr);
+        }
+        
         // Store live event data to database
         await storage.upsertLiveEventData({
           eventNumber,
           eventType: 'track',
           mode,
           heat: data.heat || existingData?.heat || 1,
+          totalHeats: dbTotalHeats, // Total heats from database for "Heat X of Y" display
           round: data.round || existingData?.round || 1,
           flight: 1,
           wind: data.wind ?? existingData?.wind,
@@ -5692,11 +5711,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         autoState = 'results';
       }
       
+      // Get total heats from database for "Heat X of Y" display
+      let totalHeats = 1;
+      if (matchingEvents.length > 0) {
+        // Normalize round to string (could be number or string from FinishLynx)
+        const roundStr = data.round ? String(data.round).toLowerCase() : undefined;
+        totalHeats = await storage.getTotalHeatsForEvent(matchingEvents[0].id, roundStr);
+      }
+      
       // Build live event data for displays - use preserved eventName
       const liveEventData = {
         eventNumber,
         eventName: eventNameToUse,
         heat: data.heat || 1,
+        totalHeats, // Total heats from database for "Heat X of Y" display
         round: data.round || 1,
         entries: data.entries || data.results || [],
         wind: data.wind,
@@ -5729,7 +5757,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     liveState.isRunning = isRunning;
     
     try {
-      // Update live event data with running time - preserve eventName from existing data
+      // Update live event data with running time - preserve eventName and totalHeats from existing data
       const existing = await storage.getLiveEventData(eventNumber);
       if (existing) {
         await storage.upsertLiveEventData({
@@ -5737,6 +5765,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           eventType: 'track',
           mode: 'running',
           heat: existing.heat || 1,
+          totalHeats: existing.totalHeats || 1, // Preserve totalHeats from previous data
           round: existing.round || 1,
           flight: 1,
           runningTime: time,

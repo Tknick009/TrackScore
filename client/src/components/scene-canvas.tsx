@@ -466,11 +466,16 @@ export function SceneObjectRenderer({
             return '';
           };
           
+          // Format heat as "X of Y" if totalHeats is available
+          const heatDisplay = liveData.heat && liveData.totalHeats && liveData.totalHeats > 1
+            ? `${liveData.heat} OF ${liveData.totalHeats}`
+            : liveData.heat;
+          
           const fieldMap: Record<string, any> = {
             'event-name': eventName,
             'event-number': liveData.eventNumber,
             'distance': liveData.distance,
-            'heat-number': liveData.heat,
+            'heat-number': heatDisplay,
             'round': liveData.round,
             'wind': liveData.wind,
             'status': liveData.status,

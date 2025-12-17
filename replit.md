@@ -65,6 +65,7 @@ The frontend uses React with shadcn/ui on Radix UI and Tailwind CSS for styling,
 - HTTP Forward Endpoint (`/api/lynx/forward`) for receiving forwarded TCP data from remote networks.
 - TCP Forwarder Scripts are provided for cross-network connectivity.
 - **JSON Clock Handler Enhancement:** Clock data in JSON format (e.g., `{"t":"0:12.34"}`) now properly emits `track-mode-change` events, enabling auto-mode switching from running clocks.
+- **Heat Number Display:** Shows "X OF Y" format (e.g., "1 OF 3") where current heat comes from FinishLynx and total heats is counted from database entries. The `totalHeats` field is stored in `live_event_data` table and broadcast via WebSocket.
 
 **Auto-Mode Track Display System:**
 - **Zero-Configuration Operation:** Displays with auto-mode enabled automatically switch templates based on live Lynx timing data without requiring pre-configured events.

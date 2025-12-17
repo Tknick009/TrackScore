@@ -147,6 +147,7 @@ interface LiveEventData {
   eventNumber: number;
   eventName: string;
   heat?: number;
+  totalHeats?: number; // Total heats from database for "Heat X of Y" display
   round?: number;
   entries?: any[];
   wind?: string;
