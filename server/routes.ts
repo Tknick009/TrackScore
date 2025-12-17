@@ -5708,8 +5708,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Broadcast to matching meet if events exist, otherwise broadcast to ALL auto-mode displays
       if (matchingEvents.length > 0) {
         const meetId = matchingEvents[0].meetId;
-        // Include event name from configured event
-        liveEventData.eventName = matchingEvents[0].name;
+        // Event name comes from FinishLynx (eventNameToUse) - never override with database name
         broadcastAutoModeUpdate(meetId, autoState, liveEventData);
       } else {
         // No matching events configured - broadcast to all auto-mode enabled displays
