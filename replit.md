@@ -94,13 +94,22 @@ The frontend uses React with shadcn/ui on Radix UI and Tailwind CSS for styling,
 - **Auto-Export:** Configure `lffExportPath` on a session to automatically export LFF files after every mark change. Set in Edit Session Configuration dialog.
 
 **EVT File Import System:**
-- Watches FinishLynx .evt files for athlete data and auto-imports to field event sessions.
+- **Directory-Based Import:** Configure an EVT directory path to scan all .evt files in that directory.
 - EVT file format: Event lines start with event number; athlete lines start with comma containing bib/lane/name/team.
-- Configure `evtFilePath` and optional `evtEventNumber` on a session in the Edit Session Configuration dialog.
-- File watcher uses `chokidar` with hash comparison to detect changes and avoid duplicate processing.
-- API endpoint: `POST /api/field-sessions/:id/sync-evt` for manual sync trigger.
+- **API Endpoints:**
+  - `GET /api/evt-config` - Get configured EVT directory path
+  - `POST /api/evt-config` - Save EVT directory path
+  - `GET /api/evt-events` - List all events from EVT files in the directory
+  - `GET /api/evt-events/:eventNumber/athletes` - Get athletes for a specific event
 - Field event athletes can now exist without database entries (for EVT imports) via nullable `entryId` and EVT-specific fields (`evtBibNumber`, `evtFirstName`, `evtLastName`, `evtTeam`).
-- Watchers auto-initialize on server startup for all active sessions with configured EVT paths.
+- **"Open Event" Workflow:** Instead of creating sessions manually, users now:
+  1. Configure EVT directory path in the Field Events Control page
+  2. View list of all events detected from EVT files
+  3. Click "Open Event" to initiate check-in workflow
+  4. Mark athletes as "Checked In" or "DNS" (Did Not Start) in check-in dialog
+  5. Click "Start Event" to create session and begin officiating
+- Check-in dialog shows all athletes with bib, name, team and toggle buttons for In/DNS status.
+- Athletes marked DNS get `checkInStatus="dns"` and `competitionStatus="dns"`.
 
 ### System Design Choices
 **Database Schema (Drizzle ORM):**
