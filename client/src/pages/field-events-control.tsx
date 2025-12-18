@@ -96,6 +96,7 @@ interface EVTAthlete {
   lastName: string;
   firstName: string;
   team: string;
+  flight: number;
 }
 
 interface CheckInAthleteState {
@@ -103,6 +104,7 @@ interface CheckInAthleteState {
   firstName: string;
   lastName: string;
   team: string;
+  flight: number;
   status: "checked_in" | "dns";
 }
 
@@ -287,10 +289,20 @@ function CheckInDialog({
   const checkedInCount = athletes.filter(a => a.status === "checked_in").length;
   const totalCount = athletes.length;
 
+  // Group athletes by flight
+  const athletesByFlight = athletes.reduce((acc, athlete) => {
+    const flight = athlete.flight || 1;
+    if (!acc[flight]) acc[flight] = [];
+    acc[flight].push(athlete);
+    return acc;
+  }, {} as Record<number, CheckInAthleteState[]>);
+  
+  const flightNumbers = Object.keys(athletesByFlight).map(Number).sort((a, b) => a - b);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
-        <DialogHeader>
+      <DialogContent className="max-w-2xl h-[85vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle data-testid="text-checkin-dialog-title">
             {eventName} - Check In
           </DialogTitle>
@@ -299,51 +311,60 @@ function CheckInDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 pr-4">
-          <div className="space-y-2">
-            {athletes.map((athlete, idx) => (
-              <div
-                key={athlete.bibNumber || idx}
-                className="flex items-center justify-between gap-4 p-3 rounded-md bg-muted/50"
-                data-testid={`row-athlete-${athlete.bibNumber}`}
-              >
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <code className="bg-background px-2 py-1 rounded font-mono text-sm font-bold min-w-[60px] text-center">
-                    {athlete.bibNumber || "-"}
-                  </code>
-                  <span className="font-medium truncate">
-                    {athlete.firstName} {athlete.lastName}
-                  </span>
-                  <span className="text-muted-foreground text-sm truncate">
-                    {athlete.team}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant={athlete.status === "checked_in" ? "default" : "outline"}
-                    onClick={() => onAthleteStatusChange(athlete.bibNumber, "checked_in")}
-                    data-testid={`button-checkin-${athlete.bibNumber}`}
-                  >
-                    <Check className="h-4 w-4 mr-1" />
-                    In
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={athlete.status === "dns" ? "destructive" : "outline"}
-                    onClick={() => onAthleteStatusChange(athlete.bibNumber, "dns")}
-                    data-testid={`button-dns-${athlete.bibNumber}`}
-                  >
-                    <X className="h-4 w-4 mr-1" />
-                    DNS
-                  </Button>
+        <div className="flex-1 overflow-y-auto pr-2">
+          <div className="space-y-4">
+            {flightNumbers.map(flightNum => (
+              <div key={flightNum} className="space-y-2">
+                <h3 className="font-semibold text-sm bg-muted px-3 py-2 rounded-md sticky top-0 z-10">
+                  Flight {flightNum} ({athletesByFlight[flightNum].length} athletes)
+                </h3>
+                <div className="space-y-2">
+                  {athletesByFlight[flightNum].map((athlete, idx) => (
+                    <div
+                      key={athlete.bibNumber || idx}
+                      className="flex items-center justify-between gap-4 p-3 rounded-md bg-muted/50"
+                      data-testid={`row-athlete-${athlete.bibNumber}`}
+                    >
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <code className="bg-background px-2 py-1 rounded font-mono text-sm font-bold min-w-[60px] text-center">
+                          {athlete.bibNumber || "-"}
+                        </code>
+                        <span className="font-medium truncate">
+                          {athlete.firstName} {athlete.lastName}
+                        </span>
+                        <span className="text-muted-foreground text-sm truncate">
+                          {athlete.team}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant={athlete.status === "checked_in" ? "default" : "outline"}
+                          onClick={() => onAthleteStatusChange(athlete.bibNumber, "checked_in")}
+                          data-testid={`button-checkin-${athlete.bibNumber}`}
+                        >
+                          <Check className="h-4 w-4 mr-1" />
+                          In
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={athlete.status === "dns" ? "destructive" : "outline"}
+                          onClick={() => onAthleteStatusChange(athlete.bibNumber, "dns")}
+                          data-testid={`button-dns-${athlete.bibNumber}`}
+                        >
+                          <X className="h-4 w-4 mr-1" />
+                          DNS
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}
           </div>
-        </ScrollArea>
+        </div>
 
-        <div className="border-t pt-4 mt-4">
+        <div className="flex-shrink-0 border-t pt-4 mt-4">
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground" data-testid="text-checkin-count">
               {checkedInCount} of {totalCount} checked in
@@ -491,6 +512,7 @@ export default function FieldEventsControl() {
         firstName: a.firstName,
         lastName: a.lastName,
         team: a.team,
+        flight: a.flight || 1,
         status: "checked_in" as const,
       })));
       

@@ -16,6 +16,7 @@ export interface EVTAthlete {
   lastName: string;
   firstName: string;
   team: string;
+  flight: number;
 }
 
 export interface EVTEventSummary {
@@ -69,7 +70,8 @@ export function parseEVTContent(content: string): EVTEvent[] {
           order,
           lastName,
           firstName,
-          team
+          team,
+          flight: currentEvent.heat,
         });
       }
     }
