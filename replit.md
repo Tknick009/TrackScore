@@ -93,6 +93,15 @@ The frontend uses React with shadcn/ui on Radix UI and Tailwind CSS for styling,
 - Respects session measurement unit (Metric vs English) in output format.
 - **Auto-Export:** Configure `lffExportPath` on a session to automatically export LFF files after every mark change. Set in Edit Session Configuration dialog.
 
+**EVT File Import System:**
+- Watches FinishLynx .evt files for athlete data and auto-imports to field event sessions.
+- EVT file format: Event lines start with event number; athlete lines start with comma containing bib/lane/name/team.
+- Configure `evtFilePath` and optional `evtEventNumber` on a session in the Edit Session Configuration dialog.
+- File watcher uses `chokidar` with hash comparison to detect changes and avoid duplicate processing.
+- API endpoint: `POST /api/field-sessions/:id/sync-evt` for manual sync trigger.
+- Field event athletes can now exist without database entries (for EVT imports) via nullable `entryId` and EVT-specific fields (`evtBibNumber`, `evtFirstName`, `evtLastName`, `evtTeam`).
+- Watchers auto-initialize on server startup for all active sessions with configured EVT paths.
+
 ### System Design Choices
 **Database Schema (Drizzle ORM):**
 - Core tables: `athletes`, `events`, `track_results`, `field_results`, `meets`.

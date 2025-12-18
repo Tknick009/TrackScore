@@ -773,6 +773,40 @@ export default function FieldEventsControl() {
                   Leave blank to disable auto-export. When set, LFF files will be automatically exported after every mark change.
                 </p>
               </div>
+              
+              <div className="space-y-2">
+                <Label>EVT File Path (FinishLynx Athletes)</Label>
+                <Input
+                  type="text"
+                  placeholder="/path/to/lynx.evt"
+                  value={editingSession.evtFilePath || ""}
+                  onChange={(e) => setEditingSession({ 
+                    ...editingSession, 
+                    evtFilePath: e.target.value || null
+                  })}
+                  data-testid="input-edit-evt-file-path"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Path to FinishLynx .evt file. Athletes will be automatically imported when the file changes.
+                </p>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>EVT Event Number</Label>
+                <Input
+                  type="number"
+                  placeholder="e.g., 17"
+                  value={editingSession.evtEventNumber || ""}
+                  onChange={(e) => setEditingSession({ 
+                    ...editingSession, 
+                    evtEventNumber: e.target.value ? parseInt(e.target.value) : null
+                  })}
+                  data-testid="input-edit-evt-event-number"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Event number in the EVT file to import athletes from. Leave blank to import all athletes.
+                </p>
+              </div>
             </div>
           )}
 
@@ -790,6 +824,8 @@ export default function FieldEventsControl() {
                       recordWind: editingSession.recordWind,
                       totalAttempts: editingSession.totalAttempts,
                       lffExportPath: editingSession.lffExportPath,
+                      evtFilePath: editingSession.evtFilePath,
+                      evtEventNumber: editingSession.evtEventNumber,
                     },
                   });
                 }
