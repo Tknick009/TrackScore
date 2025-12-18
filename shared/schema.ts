@@ -2295,7 +2295,6 @@ export const fieldEventSessions = pgTable('field_event_sessions', {
 }, (table) => ({
   eventIdIdx: index('field_event_sessions_event_idx').on(table.eventId),
   accessCodeIdx: index('field_event_sessions_access_code_idx').on(table.accessCode),
-  eventUnique: unique('field_event_sessions_event_unique').on(table.eventId),
 }));
 
 export const insertFieldEventSessionSchema = createInsertSchema(fieldEventSessions).omit({
