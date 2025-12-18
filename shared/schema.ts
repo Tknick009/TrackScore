@@ -2286,6 +2286,10 @@ export const fieldEventSessions = pgTable('field_event_sessions', {
   // Auto-export configuration
   lffExportPath: text('lff_export_path'), // Directory path for automatic LFF export after every change
   
+  // EVT file import configuration
+  evtFilePath: text('evt_file_path'), // Path to FinishLynx .evt file for athlete import
+  evtEventNumber: integer('evt_event_number'), // Event number within the EVT file to match
+  
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 }, (table) => ({
@@ -2345,7 +2349,7 @@ export type FieldEventFlight = typeof fieldEventFlights.$inferSelect;
 export const fieldEventAthletes = pgTable('field_event_athletes', {
   id: serial('id').primaryKey(),
   sessionId: integer('session_id').references(() => fieldEventSessions.id, { onDelete: 'cascade' }).notNull(),
-  entryId: varchar('entry_id').references(() => entries.id, { onDelete: 'cascade' }).notNull(),
+  entryId: varchar('entry_id').references(() => entries.id, { onDelete: 'cascade' }), // Nullable for EVT imports
   flightNumber: integer('flight_number').default(1),
   orderInFlight: integer('order_in_flight').notNull(),
   
@@ -2365,13 +2369,19 @@ export const fieldEventAthletes = pgTable('field_event_athletes', {
   bestMark: real('best_mark'),
   currentPlace: integer('current_place'),
   
+  // EVT file import data (used when no entry exists)
+  evtBibNumber: varchar('evt_bib_number', { length: 20 }),
+  evtFirstName: varchar('evt_first_name', { length: 100 }),
+  evtLastName: varchar('evt_last_name', { length: 100 }),
+  evtTeam: varchar('evt_team', { length: 100 }),
+  
   notes: text('notes'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 }, (table) => ({
   sessionIdx: index('field_event_athletes_session_idx').on(table.sessionId),
   entryIdx: index('field_event_athletes_entry_idx').on(table.entryId),
-  sessionEntryUnique: unique('field_event_athletes_session_entry_unique').on(table.sessionId, table.entryId),
+  sessionBibUnique: unique('field_event_athletes_session_bib_unique').on(table.sessionId, table.evtBibNumber),
 }));
 
 export const insertFieldEventAthleteSchema = createInsertSchema(fieldEventAthletes).omit({

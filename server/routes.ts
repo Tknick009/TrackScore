@@ -6424,6 +6424,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validated = insertFieldEventSessionSchema.parse(req.body);
       const session = await storage.createFieldEventSession(validated);
+      
+      // Auto-populate athletes from event entries
+      try {
+        const entries = await storage.getEntriesByEvent(validated.eventId);
+        let orderInFlight = 1;
+        for (const entry of entries) {
+          await storage.createFieldEventAthlete({
+            sessionId: session.id,
+            entryId: entry.id,
+            flightNumber: 1,
+            orderInFlight: orderInFlight++,
+            checkInStatus: "pending",
+            competitionStatus: "waiting"
+          });
+        }
+        console.log(`[Field Session] Created session ${session.id} with ${entries.length} athletes from entries`);
+      } catch (populateError) {
+        console.error(`[Field Session] Error populating athletes:`, populateError);
+        // Continue - session is still valid even without athletes
+      }
+      
       res.status(201).json(session);
     } catch (error: any) {
       res.status(400).json({ error: error.message });

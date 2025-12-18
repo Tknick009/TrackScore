@@ -1,0 +1,819 @@
+2,1,1,Men 3000 Meter Steeplechase,,,,,,3000
+,234,1,Pratt-Perez,Ethan,Bucknell
+,52,2,Miklus,Luke,Binghamton
+,343,3,Arangala,Emil,Lafayette
+,46,4,Garrison,John,Binghamton
+,204,5,DiCerbo,Max,Bucknell
+,433,6,McLaughlin,Cade,Lock Haven
+,425,7,Klinger,Evan,Lock Haven
+,255,8,Wuenschel,Dan,Bucknell
+,369,9,Scattergood,Cole,Lafayette
+,423,10,Hibell,Owen,Lock Haven
+,96,11,Dufrene,Caden,Bloomsburg
+,443,12,Simander,Colin,Lock Haven
+,479,13,Kupsky,Greysen,Mansfield
+,95,14,Dowell,Brady,Bloomsburg
+,195,15,Barlow,Mason,Bucknell
+1,1,1,Women 3000 Meter Steeplechase,,,,,,3000
+,169,1,O'Day,Kerry,Bucknell
+,331,2,McCloskey,Carolina,Lafayette
+,391,3,Lloyd,Kiersten,Lock Haven
+,147,4,Erme,Haylee,Bucknell
+,266,5,Kuntz,Stella,Indiana (Pa.)
+,460,6,Allen,Marissa,Mansfield
+,379,7,Daugherty,Paige,Lock Haven
+,278,8,Steiner,Paiton,Indiana (Pa.)
+4,1,1,Men 4x100 Meter Relay,,,,,,400
+,,3,Bucknell,,BUCK  C
+,,4,Bucknell,,BUCK  B
+,,5,Lock Haven,,LOHA  B
+4,1,2,Men 4x100 Meter Relay,,,,,,400
+,,2,Bloomsburg,,BLOO  A
+,,3,Lock Haven,,LOHA  A
+,,4,Lafayette,,LAFA  A
+,,5,Bucknell,,BUCK  A
+,,6,Mansfield,,MANS  A
+,,7,Indiana (Pa.),,INPA  A
+3,1,1,Women 4x100 Meter Relay,,,,,,400
+,,3,Lafayette,,LAFA  B
+,,4,Bucknell,,BUCK  B
+,,5,Lock Haven,,LOHA  B
+3,1,2,Women 4x100 Meter Relay,,,,,,400
+,,2,Mansfield,,MANS  A
+,,3,Lafayette,,LAFA  A
+,,4,Binghamton,,BING  A
+,,5,Bucknell,,BUCK  A
+,,6,Indiana (Pa.),,INPA  A
+,,7,Bloomsburg,,BLOO  A
+,,8,Lock Haven,,LOHA  A
+6,1,1,Men 1500 Meter Run,,,,,,1500
+,218,1,Kern,Grant,Bucknell
+,246,2,Sorensen,Peter,Bucknell
+,253,3,White,Thomas,Bucknell
+,199,4,Carillo,David,Bucknell
+,123,5,Tepper,Peter,Bloomsburg
+,310,6,Sparks,Owen,Indiana (Pa.)
+,311,7,Ward,Brendon,Indiana (Pa.)
+,307,8,Rauber,Ian,Indiana (Pa.)
+,485,9,Simpson,Derek,Mansfield
+,118,10,Snyder,Colin,Bloomsburg
+,91,11,Casagrande,Ryan,Bloomsburg
+,475,12,Ebner,Rylan,Mansfield
+,410,13,Bauer,Joe,Lock Haven
+6,1,2,Men 1500 Meter Run,,,,,,1500
+,205,1,Didden,Henry,Bucknell
+,368,2,Sanford II,Alfred,Lafayette
+,238,3,Santos,Ben,Bucknell
+,226,4,Marson,Harry,Bucknell
+,229,5,Paul,Carter,Bucknell
+,251,6,Ward,Lucas,Bucknell
+,225,7,Lynam,Bobby,Bucknell
+,49,8,Jibb,Oliver,Binghamton
+,436,9,Mizdail,Kristian,Lock Haven
+,214,10,Goonewardene,Alexander,Bucknell
+,203,11,Crockett,Grayson,Bucknell
+,305,12,Pacyna,Gabe,Indiana (Pa.)
+,288,13,Cardone,Marco,Indiana (Pa.)
+,241,14,Siebenhaar,Mason,Bucknell
+,116,15,Riley,Peyton,Bloomsburg
+5,1,1,Women 1500 Meter Run,,,,,,1500
+,133,1,Bartholomew,Hannah,Bucknell
+,5,2,Conklin,Nicole,Binghamton
+,9,3,Donner,Lindsay,Binghamton
+,282,4,Westrick,Jensen,Indiana (Pa.)
+,395,5,Schell,Adra,Lock Haven
+,268,6,McCormick,Katie,Indiana (Pa.)
+,382,7,Farrer,Addison,Lock Haven
+,274,8,Roche,Camryn,Indiana (Pa.)
+,269,9,McCune,Zaya,Indiana (Pa.)
+,383,10,Farrer,Madalyn,Lock Haven
+,279,11,Stiles,Tori,Indiana (Pa.)
+,394,12,Rosahac,Megan,Lock Haven
+,278,13,Steiner,Paiton,Indiana (Pa.)
+,467,14,Moore,Libby,Mansfield
+5,1,2,Women 1500 Meter Run,,,,,,1500
+,178,1,Rippey,Caryn,Bucknell
+,378,2,Carroll,Nicole,Lock Haven
+,321,3,Cochrane,Chelsey,Lafayette
+,150,4,Granger,Kailey,Bucknell
+,164,5,McLoughlin,Margaret,Bucknell
+,175,6,Reinhard,Hailey,Bucknell
+,191,7,Weldon,Bradley,Bucknell
+,85,8,Werner,Sydney,Bloomsburg
+,62,9,Cunningham,Alyssa,Bloomsburg
+,390,10,Lloyd,Gwen,Lock Haven
+,402,11,Strange,Kaydence,Lock Haven
+,339,12,Timoney,Maura,Lafayette
+,260,13,Douglas,Abby,Indiana (Pa.)
+,391,14,Lloyd,Kiersten,Lock Haven
+,151,15,Hargis,Avery,Bucknell
+,84,16,Turner,Melina,Bloomsburg
+8,1,1,Men 110 Meter Hurdles,,,,,,110
+,300,3,Lingenfelter,Elijah,Indiana (Pa.)
+,451,4,Watson,Jacob,Lock Haven
+8,1,2,Men 110 Meter Hurdles,,,,,,110
+,50,1,Joseph,David,Binghamton
+,411,2,Bellomo,Nick,Lock Haven
+,301,3,Lobban,Taimir,Indiana (Pa.)
+,201,4,Colmenares-Bittar,Luis,Bucknell
+,480,5,McDannell,Jonathan,Mansfield
+8,1,3,Men 110 Meter Hurdles,,,,,,110
+,44,1,Confort,Angelo,Binghamton
+,437,2,Muthler,Matthew,Lock Haven
+,98,3,Herrmann,Justin,Bloomsburg
+,441,4,Santana,Jorge,Lock Haven
+,220,5,Kossick,Robert,Bucknell
+,57,6,Primavera,Christian,Binghamton
+8,1,4,Men 110 Meter Hurdles,,,,,,110
+,219,1,Knight,Ethan,Bucknell
+,358,2,Liedtka,John,Lafayette
+,442,3,Schans,Josiah,Lock Haven
+,239,4,Scotto,Brian,Bucknell
+,45,5,Delany,Brennan,Binghamton
+,426,6,Kravetz,Austin,Lock Haven
+7,1,1,Women 100 Meter Hurdles,,,,,,100
+,325,3,Gallo,Julianne,Lafayette
+,377,4,Carle,Kelci,Lock Haven
+,317,5,Brose,Kayla,Lafayette
+,3,6,Bransfield,Nicole,Binghamton
+7,1,2,Women 100 Meter Hurdles,,,,,,100
+,6,1,Cruz,Delilah,Binghamton
+,43,2,Wheeler,Logan,Binghamton
+,141,3,Cole,Samantha,Bucknell
+,405,4,Trench,Samantha,Lock Haven
+,7,5,Davis,Carlea,Binghamton
+,138,6,Cain,Megan,Bucknell
+,408,7,Weber,Makayla,Lock Haven
+,36,8,Robleno,Cassidy,Binghamton
+7,1,3,Women 100 Meter Hurdles,,,,,,100
+,70,1,Ikeler,Madeline,Bloomsburg
+,31,2,Payne,Victoria,Binghamton
+,78,3,Parise,Abby,Bloomsburg
+,182,4,Sadler,Noelani,Bucknell
+,27,5,Modupe,Dami,Binghamton
+,313,6,Awono,Angel,Lafayette
+,16,7,Hayes,Morgan,Binghamton
+,1,8,Alden,Maura,Binghamton
+10,1,1,Men 400 Meter Dash,,,,,,400
+,0,3,Mann,Evan,Bloomsburg
+,114,4,Pearson,Lucas,Bloomsburg
+,484,5,Sheriff,Ibrahim,Mansfield
+10,1,2,Men 400 Meter Dash,,,,,,400
+,413,1,Carr,Sage,Lock Haven
+,103,2,Kester,Landon,Bloomsburg
+,99,3,Hill,Jalik,Bloomsburg
+,202,4,Coughlin,Sam,Bucknell
+,361,5,Millett,Ilios,Lafayette
+,440,6,Romani,Rocky,Lock Haven
+,113,7,Pattillo,Bryce,Bloomsburg
+10,1,3,Men 400 Meter Dash,,,,,,400
+,362,1,Moore,Ryan,Lafayette
+,474,2,Doughty,Jackson,Mansfield
+,47,3,Hayes,Logan,Binghamton
+,409,4,Aitkins,Anden,Lock Haven
+,374,5,Wright,Christian,Lafayette
+,233,6,Philogene,Gardy,Bucknell
+,115,7,Purtle,Finnegan,Bloomsburg
+,429,8,Lewis,Cam,Lock Haven
+10,1,4,Men 400 Meter Dash,,,,,,400
+,447,1,Summers,Aydan,Lock Haven
+,449,2,Thompson,Lorenzo,Lock Haven
+,420,3,Gavitt,Morgan,Lock Haven
+,435,4,Miller,Ryan,Lock Haven
+,228,5,Ndegwa-Brown,Amani,Bucknell
+,347,6,Conca,Roman,Lafayette
+,213,7,Goldfarb,Connor,Bucknell
+,365,8,Pfisterer,John Paul,Lafayette
+9,1,1,Women 400 Meter Dash,,,,,,400
+,29,2,Napolitano,Donna,Binghamton
+,323,3,Convy,Madeline,Lafayette
+,159,4,Loew,Katherine,Bucknell
+,470,5,Ziska,Madison,Mansfield
+,71,6,Kay,Emma,Bloomsburg
+,400,7,Stahl,Sydney,Lock Haven
+,162,8,McConnaughey,Devin,Bucknell
+9,1,2,Women 400 Meter Dash,,,,,,400
+,316,1,Bradfield,Lilly,Lafayette
+,68,2,Heard,Natalya,Bloomsburg
+,318,3,Buber,Gabby,Lafayette
+,163,4,McGrath,Regan,Bucknell
+,41,5,Toepfer,Sofia,Binghamton
+,142,6,Cooke,Alison,Bucknell
+,165,7,Michaelson,Abigail,Bucknell
+,30,8,Nester,Patricia,Binghamton
+9,1,3,Women 400 Meter Dash,,,,,,400
+,192,1,Wright,Jenna,Bucknell
+,10,2,Duran,Kaya,Binghamton
+,11,3,Edwards,Savanna,Binghamton
+,156,4,Lea,Alex,Bucknell
+,329,5,Malone,Elena,Lafayette
+,149,6,Goll,Alexa,Bucknell
+,397,7,Shultz,Elizabeth,Lock Haven
+,258,8,Brozeski,Bella,Indiana (Pa.)
+12,1,1,Men 100 Meter Dash,,,,,,100
+,473,2,Culver,Joshua,Mansfield
+,424,3,Inch,Micah,Lock Haven
+,86,4,Antal,Lucas,Bloomsburg
+,304,5,Mansally,Blessing,Indiana (Pa.)
+,458,6,Young,Chase,Lock Haven
+12,1,2,Men 100 Meter Dash,,,,,,100
+,477,1,Holmes,Jerry,Mansfield
+,415,2,Chipeleski,Gage,Lock Haven
+,99,3,Hill,Jalik,Bloomsburg
+,98,4,Herrmann,Justin,Bloomsburg
+,431,5,Lucas,Garrison,Lock Haven
+,57,6,Primavera,Christian,Binghamton
+,104,7,Lee,LJ,Bloomsburg
+,450,8,Wagner,Trey,Lock Haven
+12,1,3,Men 100 Meter Dash,,,,,,100
+,292,1,Combary,Steve,Indiana (Pa.)
+,416,2,Epitropakis,Lukas,Lock Haven
+,294,3,Dunnum,Nolan,Indiana (Pa.)
+,299,4,Jubin,Trenton,Indiana (Pa.)
+,412,5,Capparelli,Lucca,Lock Haven
+,434,6,Miller,Brennan,Lock Haven
+,44,7,Confort,Angelo,Binghamton
+,54,8,Oluwole,Matthew,Binghamton
+12,1,4,Men 100 Meter Dash,,,,,,100
+,454,1,Whitman,Peyton,Lock Haven
+,453,2,White,Jonah,Lock Haven
+,109,3,Moore,Patrick,Bloomsburg
+,456,4,Wright,Jaden,Lock Haven
+,100,5,Hoffman,Jaxson,Bloomsburg
+,51,6,McLay,Will,Binghamton
+,289,7,Carter,Demitrius,Indiana (Pa.)
+,297,8,Hinman,Jacob,Indiana (Pa.)
+12,1,5,Men 100 Meter Dash,,,,,,100
+,295,1,Egizio,Justin,Indiana (Pa.)
+,298,2,Jennings,George,Indiana (Pa.)
+,414,3,Cassetori,Dylan,Lock Haven
+,106,4,Leitzel,Tyler,Bloomsburg
+,367,5,Rosen,Harrison,Lafayette
+,58,6,Smith,Kevin,Binghamton
+,256,7,Young,Brayden,Bucknell
+,53,8,Minutello,Zakary,Binghamton
+12,1,6,Men 100 Meter Dash,,,,,,100
+,89,1,Brittingham,Christopher,Bloomsburg
+,232,2,Petryna,Luke,Bucknell
+,212,3,Foust,Brandon,Bucknell
+,483,4,Raymond,Cahsid,Mansfield
+,345,5,Caba,Alexander,Lafayette
+,216,6,Hyken,Cooper,Bucknell
+,194,7,Backus,Garrett,Bucknell
+,427,8,Lawrence,Michael,Lock Haven
+11,1,1,Women 100 Meter Dash,,,,,,100
+,386,1,Halasz,Maja,Lock Haven
+,464,2,Lemus,Sandra,Mansfield
+,261,3,Finisterra,Alice,Indiana (Pa.)
+,320,4,Choma,Isabel,Lafayette
+,81,5,Rochester,Abby,Bloomsburg
+,19,6,Horn,Riley,Binghamton
+,403,7,Thomas,Briana,Lock Haven
+,468,8,Robicheaux,Makayla,Mansfield
+11,1,2,Women 100 Meter Dash,,,,,,100
+,31,1,Payne,Victoria,Binghamton
+,33,2,Portillo,Isabella,Binghamton
+,322,3,Conca,Mia,Lafayette
+,276,4,Simmonds,Renee,Indiana (Pa.)
+,264,5,Kelly,Bryna,Indiana (Pa.)
+,38,6,Scott,Jayla,Binghamton
+,338,7,Thomas,Lauren,Lafayette
+,1,8,Alden,Maura,Binghamton
+11,1,3,Women 100 Meter Dash,,,,,,100
+,68,1,Heard,Natalya,Bloomsburg
+,263,2,Kadlubek,Anna,Indiana (Pa.)
+,375,3,Bradley,Lillian,Lock Haven
+,39,4,Sefcik,Bella,Binghamton
+,13,5,Ferrer,Alepha,Binghamton
+,190,6,Vogel,Ella,Bucknell
+,275,7,Scott,Sterlene,Indiana (Pa.)
+,385,8,Gordon,Havanna,Lock Haven
+11,1,4,Women 100 Meter Dash,,,,,,100
+,267,1,Laughlin,Emma,Indiana (Pa.)
+,35,2,Rattray,Ashlyn,Binghamton
+,137,3,Burkett,Camdin,Bucknell
+,40,4,Tenemille,Kaylen,Binghamton
+,272,5,Page,Cahsia,Indiana (Pa.)
+,341,6,Waldron,Maeve,Lafayette
+,326,7,Jenkins,Lily,Lafayette
+,160,8,Lomberto,Ava,Bucknell
+14,1,1,Men 800 Meter Run,,,,,,800
+,430,1,Loffredo,Michael,Lock Haven
+,87,2,Babarsky,Evan,Bloomsburg
+,122,3,Suwala,Stephen,Bloomsburg
+,0,4,Loughran,Richard,Bloomsburg
+,291,5,Clifford,Jason,Indiana (Pa.)
+,486,6,Welch,Nathaniel,Mansfield
+,306,7,Polin,Jackson,Indiana (Pa.)
+,108,8,Mann,Jordan,Bloomsburg
+14,1,2,Men 800 Meter Run,,,,,,800
+,211,1,Flammer,John,Bucknell
+,116,2,Riley,Peyton,Bloomsburg
+,481,3,Neal,Seth,Mansfield
+,439,4,Rager,Jakob,Lock Haven
+,444,5,Small,Skylar,Lock Haven
+,428,6,Lee,Jarrett,Lock Haven
+,455,7,Williams,Ryan,Lock Haven
+,207,8,DiRoma,Jackson,Bucknell
+,286,9,Amador,Alex,Indiana (Pa.)
+,197,10,Boullard,Carter,Bucknell
+14,1,3,Men 800 Meter Run,,,,,,800
+,217,1,Jelinek,Zachary,Bucknell
+,196,2,Belczyk,Colby,Bucknell
+,419,3,Furey,Gavin,Lock Haven
+,245,4,Singer,Hayden,Bucknell
+,198,5,Byrnes,John,Bucknell
+,346,6,Casey,Titan,Lafayette
+,368,7,Sanford II,Alfred,Lafayette
+,206,8,Dinant,Trent,Bucknell
+13,1,1,Women 800 Meter Run,,,,,,800
+,270,1,McMenamin,Shannon,Indiana (Pa.)
+,262,2,Hoover,Alyssa,Indiana (Pa.)
+,401,3,Steckel,Stefany,Lock Haven
+,130,4,Andron,Alexa,Bucknell
+,176,5,Reinhard,Kera,Bucknell
+,72,6,Keeley,Alyssa,Bloomsburg
+,383,7,Farrer,Madalyn,Lock Haven
+,465,8,Lytle,Anissa,Mansfield
+13,1,2,Women 800 Meter Run,,,,,,800
+,398,1,Smith,Jenna Lynn,Lock Haven
+,17,2,Hodges,Taegan,Binghamton
+,340,3,Tippin,Sara,Lafayette
+,60,4,Albright,Ashlyn,Bloomsburg
+,161,5,Malone,Lilian,Bucknell
+,257,6,Bogacz,Grace,Indiana (Pa.)
+,184,7,Smith,Aidan,Bucknell
+,181,8,Sabatini,MaryGrace,Bucknell
+,65,9,Eshelman,Meah,Bloomsburg
+13,1,3,Women 800 Meter Run,,,,,,800
+,28,1,Mordvinova,Ana,Binghamton
+,172,2,Posh,Anna,Bucknell
+,139,3,Carruthers,Anna,Bucknell
+,37,4,Rose,Zoe,Binghamton
+,171,5,Policano,Sarah,Bucknell
+,155,6,Knab,Clara,Bucknell
+,396,7,Sechrist,Aubrey,Lock Haven
+,21,8,Jensen,Madeline,Binghamton
+,167,9,Moncavage,Kate,Bucknell
+,187,10,Torelli,Katrina,Bucknell
+,131,11,Ashe,Baila,Bucknell
+16,1,1,Men 400 Meter Hurdles,,,,,,400
+,482,3,Quaker,Marcus,Mansfield
+,98,4,Herrmann,Justin,Bloomsburg
+,97,5,Gehman,Michael,Bloomsburg
+16,1,2,Men 400 Meter Hurdles,,,,,,400
+,451,2,Watson,Jacob,Lock Haven
+,93,3,Deivert,Brady,Bloomsburg
+,350,4,DeMarco,Dexter,Lafayette
+,90,5,Burdett,William,Bloomsburg
+,450,6,Wagner,Trey,Lock Haven
+,480,7,McDannell,Jonathan,Mansfield
+16,1,3,Men 400 Meter Hurdles,,,,,,400
+,441,1,Santana,Jorge,Lock Haven
+,358,2,Liedtka,John,Lafayette
+,437,3,Muthler,Matthew,Lock Haven
+,442,4,Schans,Josiah,Lock Haven
+,219,5,Knight,Ethan,Bucknell
+,344,6,Barban,Zach,Lafayette
+,201,7,Colmenares-Bittar,Luis,Bucknell
+,242,8,Silvestri,Joseph,Bucknell
+15,1,1,Women 400 Meter Hurdles,,,,,,400
+,281,1,Tutt,Annalie,Indiana (Pa.)
+,317,2,Brose,Kayla,Lafayette
+,313,3,Awono,Angel,Lafayette
+,377,4,Carle,Kelci,Lock Haven
+,325,5,Gallo,Julianne,Lafayette
+,70,6,Ikeler,Madeline,Bloomsburg
+,3,7,Bransfield,Nicole,Binghamton
+15,1,2,Women 400 Meter Hurdles,,,,,,400
+,78,1,Parise,Abby,Bloomsburg
+,384,2,Gentzel,Natalie,Lock Haven
+,183,3,Sipe,Maddy,Bucknell
+,182,4,Sadler,Noelani,Bucknell
+,143,5,Derstine,Ella,Bucknell
+,36,6,Robleno,Cassidy,Binghamton
+,408,7,Weber,Makayla,Lock Haven
+,138,8,Cain,Megan,Bucknell
+18,1,1,Men 200 Meter Dash,,,,,,200
+,473,2,Culver,Joshua,Mansfield
+,120,3,Stebila,Michael,Bloomsburg
+,413,4,Carr,Sage,Lock Haven
+,424,5,Inch,Micah,Lock Haven
+,476,6,Gibson,Ajani,Mansfield
+18,1,2,Men 200 Meter Dash,,,,,,200
+,304,1,Mansally,Blessing,Indiana (Pa.)
+,415,2,Chipeleski,Gage,Lock Haven
+,124,3,Umbenhaur,Peter,Bloomsburg
+,109,4,Moore,Patrick,Bloomsburg
+,453,5,White,Jonah,Lock Haven
+,104,6,Lee,LJ,Bloomsburg
+,446,7,Streator,Ben,Lock Haven
+,113,8,Pattillo,Bryce,Bloomsburg
+18,1,3,Men 200 Meter Dash,,,,,,200
+,440,1,Romani,Rocky,Lock Haven
+,289,2,Carter,Demitrius,Indiana (Pa.)
+,202,3,Coughlin,Sam,Bucknell
+,416,4,Epitropakis,Lukas,Lock Haven
+,297,5,Hinman,Jacob,Indiana (Pa.)
+,454,6,Whitman,Peyton,Lock Haven
+,292,7,Combary,Steve,Indiana (Pa.)
+,114,8,Pearson,Lucas,Bloomsburg
+18,1,4,Men 200 Meter Dash,,,,,,200
+,100,1,Hoffman,Jaxson,Bloomsburg
+,447,2,Summers,Aydan,Lock Haven
+,365,3,Pfisterer,John Paul,Lafayette
+,412,4,Capparelli,Lucca,Lock Haven
+,471,5,Adomako,Pius,Mansfield
+,51,6,McLay,Will,Binghamton
+,115,7,Purtle,Finnegan,Bloomsburg
+,233,8,Philogene,Gardy,Bucknell
+18,1,5,Men 200 Meter Dash,,,,,,200
+,59,1,Sutayasa,Putu,Binghamton
+,449,2,Thompson,Lorenzo,Lock Haven
+,429,3,Lewis,Cam,Lock Haven
+,298,4,Jennings,George,Indiana (Pa.)
+,367,5,Rosen,Harrison,Lafayette
+,256,6,Young,Brayden,Bucknell
+,456,7,Wright,Jaden,Lock Haven
+,53,8,Minutello,Zakary,Binghamton
+18,1,6,Men 200 Meter Dash,,,,,,200
+,434,1,Miller,Brennan,Lock Haven
+,427,2,Lawrence,Michael,Lock Haven
+,58,3,Smith,Kevin,Binghamton
+,347,4,Conca,Roman,Lafayette
+,357,5,Leckie,Kaseme,Lafayette
+,89,6,Brittingham,Christopher,Bloomsburg
+,106,7,Leitzel,Tyler,Bloomsburg
+,414,8,Cassetori,Dylan,Lock Haven
+18,1,7,Men 200 Meter Dash,,,,,,200
+,45,1,Delany,Brennan,Binghamton
+,228,2,Ndegwa-Brown,Amani,Bucknell
+,212,3,Foust,Brandon,Bucknell
+,345,4,Caba,Alexander,Lafayette
+,435,5,Miller,Ryan,Lock Haven
+,232,6,Petryna,Luke,Bucknell
+,295,7,Egizio,Justin,Indiana (Pa.)
+,224,8,Lubeski,Preston,Bucknell
+17,1,1,Women 200 Meter Dash,,,,,,200
+,389,2,Leskovansky,Heather,Lock Haven
+,261,3,Finisterra,Alice,Indiana (Pa.)
+,405,4,Trench,Samantha,Lock Haven
+,81,5,Rochester,Abby,Bloomsburg
+,386,6,Halasz,Maja,Lock Haven
+,71,7,Kay,Emma,Bloomsburg
+17,1,2,Women 200 Meter Dash,,,,,,200
+,400,1,Stahl,Sydney,Lock Haven
+,43,2,Wheeler,Logan,Binghamton
+,320,3,Choma,Isabel,Lafayette
+,146,4,Dolphin,Sarah,Bucknell
+,336,5,Steiner,MeryEllen,Lafayette
+,322,6,Conca,Mia,Lafayette
+,338,7,Thomas,Lauren,Lafayette
+,403,8,Thomas,Briana,Lock Haven
+17,1,3,Women 200 Meter Dash,,,,,,200
+,4,1,Colondona,Alexa,Binghamton
+,135,2,Boback,Ella,Bucknell
+,159,3,Loew,Katherine,Bucknell
+,397,4,Shultz,Elizabeth,Lock Haven
+,375,5,Bradley,Lillian,Lock Haven
+,265,6,Kirsch,Mackenzie,Indiana (Pa.)
+,33,7,Portillo,Isabella,Binghamton
+,76,8,Messner,Aria,Bloomsburg
+17,1,4,Women 200 Meter Dash,,,,,,200
+,11,1,Edwards,Savanna,Binghamton
+,323,2,Convy,Madeline,Lafayette
+,190,3,Vogel,Ella,Bucknell
+,326,4,Jenkins,Lily,Lafayette
+,263,5,Kadlubek,Anna,Indiana (Pa.)
+,160,6,Lomberto,Ava,Bucknell
+,385,7,Gordon,Havanna,Lock Haven
+,267,8,Laughlin,Emma,Indiana (Pa.)
+17,1,5,Women 200 Meter Dash,,,,,,200
+,13,1,Ferrer,Alepha,Binghamton
+,192,2,Wright,Jenna,Bucknell
+,272,3,Page,Cahsia,Indiana (Pa.)
+,156,4,Lea,Alex,Bucknell
+,341,5,Waldron,Maeve,Lafayette
+,149,6,Goll,Alexa,Bucknell
+,39,7,Sefcik,Bella,Binghamton
+,27,8,Modupe,Dami,Binghamton
+41,1,1,Men 5000 Meter Run,,,,,,5000
+,215,1,Harmer,Jayson,Bucknell
+,372,2,Whitford,David,Lafayette
+,351,3,Dougherty,Francis,Lafayette
+,117,4,Simpson,Aaron,Bloomsburg
+,308,5,Ribelin,Ethan,Indiana (Pa.)
+,296,6,Gitonga,Timothy,Indiana (Pa.)
+42,1,1,Women 5000 Meter Run,,,,,,5000
+,330,1,Marr,Kira,Lafayette
+,154,2,Joyce,Lauren,Bucknell
+,327,3,Kazemi,Anya,Lafayette
+,335,4,Shaver,Bridget,Lafayette
+,173,5,Posh,Laura,Bucknell
+,14,6,Guyette,Sarah,Binghamton
+,24,7,Litwiller,Abigail,Binghamton
+,140,8,Chace,Tori,Bucknell
+,180,9,Roop,Cassidy,Bucknell
+,462,10,Claypool,Carrie,Mansfield
+44,1,1,Mixed 3000 Meter Run,,,,,,3000
+,439,1,Rager,Jakob,Lock Haven
+,370,2,Strachman,Colin,Lafayette
+,436,3,Mizdail,Kristian,Lock Haven
+,452,4,Webster,Ryen,Lock Haven
+,487,5,Searle,Alex,Unattached
+,390,6,Lloyd,Gwen,Lock Haven
+,314,7,Bear,Alivia,Lafayette
+,388,8,Jones,Krista,Lock Haven
+,407,9,Watson,Paige,Lock Haven
+,376,10,Bray,Ella,Lock Haven
+,271,11,Murphy,Jane,Indiana (Pa.)
+24,1,1,Men 4x400 Meter Relay,,,,,,1600
+,,2,Lock Haven,,LOHA  D
+,,3,Lafayette,,LAFA  B
+,,4,Lock Haven,,LOHA  B
+,,5,Lock Haven,,LOHA  C
+,,6,Bloomsburg,,BLOO  B
+24,1,2,Men 4x400 Meter Relay,,,,,,1600
+,,1,Indiana (Pa.),,INPA  A
+,,2,Bloomsburg,,BLOO  A
+,,3,Lafayette,,LAFA  A
+,,4,Lock Haven,,LOHA  A
+,,5,Bucknell,,BUCK  A
+,,6,Mansfield,,MANS  A
+23,1,1,Women 4x400 Meter Relay,,,,,,1600
+,,1,Lock Haven,,LOHA  B
+,,2,Mansfield,,MANS  A
+,,3,Lock Haven,,LOHA  A
+,,4,Lafayette,,LAFA  A
+,,5,Bucknell,,BUCK  A
+,,6,Indiana (Pa.),,INPA  A
+,,7,Bloomsburg,,BLOO  A
+,,8,Indiana (Pa.),,INPA  B
+40,1,1,Men Hammer Throw,HT1
+,248,1,Tacker,Aiden,Bucknell
+,55,2,Ormsby,Jaston,Binghamton
+,364,3,Petry,Javin,Lafayette
+,354,4,Googel,Jared,Lafayette
+,235,5,Pulver,Braiden,Bucknell
+,94,6,Donchez,Jack,Bloomsburg
+,438,7,Myers,Colton,Lock Haven
+,363,8,Paradis,Jack,Lafayette
+,236,9,Regec,Angelo,Bucknell
+,56,10,Pollard,Bradley,Binghamton
+,417,11,Fetchkan,Nathan,Lock Haven
+,126,12,Walker,Ryan,Bloomsburg
+,48,13,Iraola-Ceely,Jose,Binghamton
+,459,14,Zalar,Eric,Lock Haven
+,371,15,Tejada,Ivan,Lafayette
+27,1,1,Women Triple Jump,TJ1
+,259,1,Dewyer,Sara,Indiana (Pa.)
+,132,2,Baggetta,Megan,Bucknell
+,34,3,Prescott,Tristan,Binghamton
+,280,4,Trotter-Wimberly,Jahnaya,Indiana (Pa.)
+,144,5,Deweese,Morgan,Bucknell
+,79,6,Peleaz,Lindsey,Bloomsburg
+,7,7,Davis,Carlea,Binghamton
+29,1,1,Women Pole Vault,PV1
+,23,1,Lilly,Kirsten,Binghamton
+,185,2,Steeber,Sienna,Bucknell
+,389,3,Leskovansky,Heather,Lock Haven
+,2,4,Armitage,Alyssa,Binghamton
+,136,5,Bryant,Elizabeth,Bucknell
+,333,6,O'Mara,Bridget,Lafayette
+,177,7,Renn,Karly,Bucknell
+,15,8,Hamby,Ella,Binghamton
+,277,9,Sphicer,Torrence,Indiana (Pa.)
+,82,10,Shivok,Coral,Bloomsburg
+,166,11,Michalczyk,Maura,Bucknell
+,25,12,McKenney,Sydney,Binghamton
+,20,13,Jacobson,Siena,Binghamton
+,284,14,Wilt,Jenna,Indiana (Pa.)
+,67,15,Gerhart,Hannah,Bloomsburg
+,77,16,O'Keefe,Bailey,Bloomsburg
+37,1,1,Women Shot Put,SP1
+,461,1,Batdorf,Riley,Mansfield
+,399,2,Smith,Madalyn,Lock Haven
+,141,3,Cole,Samantha,Bucknell
+,463,4,Easterling,Minyhah,Mansfield
+,43,5,Wheeler,Logan,Binghamton
+,342,6,Williams,Cheyla,Lafayette
+,145,7,Dlugos,Elizabeth,Bucknell
+,469,8,Wood,Blaze,Mansfield
+,157,9,Lehker,Madeline,Bucknell
+37,1,2,Women Shot Put,SP1
+,75,1,Martin,Becca,Bloomsburg
+,129,2,Ajao,Christine,Bucknell
+,148,3,Fowler,Madison,Bucknell
+,168,4,Negrete,Prizila,Bucknell
+,380,5,Davis,Clarissa,Lock Haven
+,12,6,Estabine,Deborah,Binghamton
+,174,7,Rebar,Avery,Bucknell
+,319,8,Cacciacarne,Anna,Lafayette
+,324,9,DeBolt,Kristin,Lafayette
+,61,10,Beccari,Julia,Bloomsburg
+,381,11,Eck,Mallory,Lock Haven
+39,1,1,Women Hammer Throw,HT1
+,381,1,Eck,Mallory,Lock Haven
+,342,2,Williams,Cheyla,Lafayette
+,74,3,Lippincott,Grace,Bloomsburg
+,61,4,Beccari,Julia,Bloomsburg
+,188,5,Vestri,Siena,Bucknell
+,170,6,Paxton,Brenna,Bucknell
+,461,7,Batdorf,Riley,Mansfield
+,319,8,Cacciacarne,Anna,Lafayette
+,404,9,Thompson,Laurie,Lock Haven
+,83,10,Trimble,Sarah,Bloomsburg
+39,1,2,Women Hammer Throw,HT1
+,179,1,Roes,Isabelle,Bucknell
+,168,2,Negrete,Prizila,Bucknell
+,12,3,Estabine,Deborah,Binghamton
+,328,4,Krumwiede,Zoe,Lafayette
+,129,5,Ajao,Christine,Bucknell
+,406,6,VanGorder,Alyssa,Lock Haven
+,64,7,Eckard,Briannan,Bloomsburg
+,332,8,O'Leary,Erin,Lafayette
+,42,9,Waters,Erin,Binghamton
+,18,10,Hoose,Gianna,Binghamton
+,324,11,DeBolt,Kristin,Lafayette
+28,1,1,Men Triple Jump,TJ1
+,458,1,Young,Chase,Lock Haven
+,101,2,Johnson,Trevor,Bloomsburg
+,243,3,Simbiri,Caleb,Bucknell
+,293,4,Cusatis,Matthew,Indiana (Pa.)
+,110,5,Munoz,Paul,Bloomsburg
+,244,6,Sims,Chris,Bucknell
+,349,7,Curtin,Quinn,Lafayette
+,355,8,Harrison,Andrew,Lafayette
+,476,9,Gibson,Ajani,Mansfield
+,302,10,Loro,Evan,Indiana (Pa.)
+,427,11,Lawrence,Michael,Lock Haven
+,223,12,Lessieu,Jason,Bucknell
+,103,13,Kester,Landon,Bloomsburg
+30,1,1,Men Pole Vault,PV1
+,230,1,Pecaitis,Gabriel,Bucknell
+,254,2,Williams,Lucas,Bucknell
+,287,3,Botzan,Ashton,Indiana (Pa.)
+,309,4,Robinson,Quintin,Indiana (Pa.)
+,121,5,Steffy,Dillon,Bloomsburg
+,200,6,Chernova,Michael,Bucknell
+,448,7,Taylor,Kevin,Lock Haven
+,359,8,Lynett,Jack,Lafayette
+,107,9,Lobos,Tyler,Bloomsburg
+,356,10,Hill,Ben,Lafayette
+,411,11,Bellomo,Nick,Lock Haven
+,353,12,Godin,Elliott,Lafayette
+,478,13,Inman,Khyre,Mansfield
+,303,14,Losoya,Louis,Indiana (Pa.)
+,92,15,Corrigan,Aiden,Bloomsburg
+36,1,1,Men High Jump,HJ1
+,244,1,Sims,Chris,Bucknell
+,422,2,Hertzog,Shawn,Lock Haven
+,312,3,Wood,Adam,Indiana (Pa.)
+,110,4,Munoz,Paul,Bloomsburg
+,193,5,An,Tristan,Bucknell
+,227,6,McFarlane,Tristan,Bucknell
+,446,7,Streator,Ben,Lock Haven
+38,1,1,Men Shot Put,SP1
+,366,1,Pirog,Adrian,Lafayette
+,417,2,Fetchkan,Nathan,Lock Haven
+,45,3,Delany,Brennan,Binghamton
+,249,4,Tandler,Andrew,Bucknell
+,56,5,Pollard,Bradley,Binghamton
+,432,6,Marcinko,Patrick,Lock Haven
+,48,7,Iraola-Ceely,Jose,Binghamton
+,363,8,Paradis,Jack,Lafayette
+,120,9,Stebila,Michael,Bloomsburg
+,252,10,Weigle,Aaron,Bucknell
+,126,11,Walker,Ryan,Bloomsburg
+38,1,2,Men Shot Put,SP1
+,459,1,Zalar,Eric,Lock Haven
+,208,2,Donaher,Patrick,Bucknell
+,55,3,Ormsby,Jaston,Binghamton
+,221,4,LaMontagne,Keenan,Bucknell
+,240,5,Shomper,Wade,Bucknell
+,127,6,Zimmerman,Kaleb,Bloomsburg
+,247,7,Stryker,Braden,Bucknell
+,352,8,Downey,Liam,Lafayette
+,222,9,Lerner,Robert,Bucknell
+,235,10,Pulver,Braiden,Bucknell
+,371,11,Tejada,Ivan,Lafayette
+34,1,1,Men Discus Throw,DT1
+,249,1,Tandler,Andrew,Bucknell
+,364,2,Petry,Javin,Lafayette
+,472,3,Beals,Michael,Mansfield
+,363,4,Paradis,Jack,Lafayette
+,432,5,Marcinko,Patrick,Lock Haven
+,300,6,Lingenfelter,Elijah,Indiana (Pa.)
+,366,7,Pirog,Adrian,Lafayette
+,248,8,Tacker,Aiden,Bucknell
+,290,9,Christeleit,Dominick,Indiana (Pa.)
+,125,10,Vaughan,Stephen,Bloomsburg
+,126,11,Walker,Ryan,Bloomsburg
+,210,12,Feddeler,William,Bucknell
+34,1,2,Men Discus Throw,DT1
+,247,1,Stryker,Braden,Bucknell
+,252,2,Weigle,Aaron,Bucknell
+,236,3,Regec,Angelo,Bucknell
+,418,4,Firanski,Braedon,Lock Haven
+,56,5,Pollard,Bradley,Binghamton
+,373,6,Williams,Niko,Lafayette
+,221,7,LaMontagne,Keenan,Bucknell
+,459,8,Zalar,Eric,Lock Haven
+,127,9,Zimmerman,Kaleb,Bloomsburg
+,222,10,Lerner,Robert,Bucknell
+,240,11,Shomper,Wade,Bucknell
+31,1,1,Women Javelin Throw,JT1
+,337,1,Still,Maddie,Lafayette
+,283,2,Williams,Kaylla,Indiana (Pa.)
+,391,3,Lloyd,Kiersten,Lock Haven
+,134,4,Bliss,Evelyn,Bucknell
+,4,5,Colondona,Alexa,Binghamton
+,392,6,Prouty,Kenzie,Lock Haven
+,32,7,Pelayo,Maya,Binghamton
+,393,8,Puglia,Maria,Lock Haven
+,69,9,Hengst,Abbey`,Bloomsburg
+,189,10,Viellette,Melissa,Bucknell
+,186,11,Tereska,Brylee,Bucknell
+,152,12,Hudak,Madelyn,Bucknell
+,73,13,Leszcynski,Kelly,Bloomsburg
+,466,14,McNitt,Alexis,Mansfield
+,63,15,Dellinger,Clara,Bloomsburg
+,315,16,Bordwick,Rylee,Lafayette
+25,1,1,Women Long Jump,LJ1
+,76,1,Messner,Aria,Bloomsburg
+,177,2,Renn,Karly,Bucknell
+,334,3,Rudolph,Leah,Lafayette
+,22,4,LaMarca,Ava,Binghamton
+,41,5,Toepfer,Sofia,Binghamton
+,273,6,Robertson,Nataiah,Indiana (Pa.)
+,40,7,Tenemille,Kaylen,Binghamton
+,405,8,Trench,Samantha,Lock Haven
+,158,9,Libby,Madison,Bucknell
+,276,10,Simmonds,Renee,Indiana (Pa.)
+,285,11,Yeykal,Hannah,Indiana (Pa.)
+,8,12,Desrosiers,Nephlini,Binghamton
+,19,13,Horn,Riley,Binghamton
+,132,14,Baggetta,Megan,Bucknell
+,387,15,Irons,Reagan,Lock Haven
+,144,16,Deweese,Morgan,Bucknell
+33,1,1,Women Discus Throw,DT1
+,145,1,Dlugos,Elizabeth,Bucknell
+,12,2,Estabine,Deborah,Binghamton
+,80,3,Rizzo,Grace,Bloomsburg
+,463,4,Easterling,Minyhah,Mansfield
+,399,5,Smith,Madalyn,Lock Haven
+,328,6,Krumwiede,Zoe,Lafayette
+,188,7,Vestri,Siena,Bucknell
+,83,8,Trimble,Sarah,Bloomsburg
+,174,9,Rebar,Avery,Bucknell
+33,1,2,Women Discus Throw,DT1
+,18,1,Hoose,Gianna,Binghamton
+,61,2,Beccari,Julia,Bloomsburg
+,332,3,O'Leary,Erin,Lafayette
+,179,4,Roes,Isabelle,Bucknell
+,381,5,Eck,Mallory,Lock Haven
+,324,6,DeBolt,Kristin,Lafayette
+,168,7,Negrete,Prizila,Bucknell
+,148,8,Fowler,Madison,Bucknell
+,129,9,Ajao,Christine,Bucknell
+35,1,1,Women High Jump,HJ1
+,405,1,Trench,Samantha,Lock Haven
+,157,2,Lehker,Madeline,Bucknell
+,276,3,Simmonds,Renee,Indiana (Pa.)
+,387,4,Irons,Reagan,Lock Haven
+,26,5,Misiukiewicz,Olivia,Binghamton
+26,1,1,Men Long Jump,LJ1
+,348,1,Cook,J.T.,Lafayette
+,477,2,Holmes,Jerry,Mansfield
+,105,3,Leininger,Josh,Bloomsburg
+,300,4,Lingenfelter,Elijah,Indiana (Pa.)
+,86,5,Antal,Lucas,Bloomsburg
+,243,6,Simbiri,Caleb,Bucknell
+,54,7,Oluwole,Matthew,Binghamton
+,458,8,Young,Chase,Lock Haven
+,355,9,Harrison,Andrew,Lafayette
+,456,10,Wright,Jaden,Lock Haven
+26,1,2,Men Long Jump,LJ1
+,223,1,Lessieu,Jason,Bucknell
+,483,2,Raymond,Cahsid,Mansfield
+,437,3,Muthler,Matthew,Lock Haven
+,250,4,Tipton,Josh,Bucknell
+,59,5,Sutayasa,Putu,Binghamton
+,101,6,Johnson,Trevor,Bloomsburg
+,231,7,Peters,Momo,Bucknell
+,249,8,Tandler,Andrew,Bucknell
+,349,9,Curtin,Quinn,Lafayette
+,411,10,Bellomo,Nick,Lock Haven
+32,1,1,Men Javelin Throw,JT1
+,209,1,Drescher,Trevor,Bucknell
+,237,2,Riedinger,James,Bucknell
+,373,3,Williams,Niko,Lafayette
+,111,4,O'Connor,Brian,Bloomsburg
+,421,5,Gwinn,Keegan,Lock Haven
+,119,6,Staffin,Matthew,Bloomsburg
+,479,7,Kupsky,Greysen,Mansfield
+,210,8,Feddeler,William,Bucknell
+,88,9,Baldini,Jackson,Bloomsburg
+,445,10,Smith,Ben,Lock Haven
+,457,11,Young,Carter,Lock Haven
+,360,12,McClosky,Bobby,Lafayette

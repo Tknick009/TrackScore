@@ -491,6 +491,7 @@ export interface IStorage {
   bulkImportAthleteBests(bests: InsertAthleteBest[]): Promise<AthleteBest[]>;
 
   // Field Event Sessions
+  getAllFieldEventSessions(): Promise<FieldEventSession[]>;
   getFieldEventSession(id: number): Promise<FieldEventSession | null>;
   getFieldEventSessionByEvent(eventId: string): Promise<FieldEventSession | null>;
   getFieldEventSessionByAccessCode(code: string): Promise<FieldEventSession | null>;
@@ -3512,6 +3513,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Field Event Sessions
+  async getAllFieldEventSessions(): Promise<FieldEventSession[]> {
+    return await db.select().from(fieldEventSessions);
+  }
+
   async getFieldEventSession(id: number): Promise<FieldEventSession | null> {
     const [session] = await db.select().from(fieldEventSessions).where(eq(fieldEventSessions.id, id));
     return session || null;
