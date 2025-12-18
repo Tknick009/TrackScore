@@ -18,6 +18,14 @@ export interface EVTAthlete {
   team: string;
 }
 
+export interface EVTEventSummary {
+  eventNumber: number;
+  eventName: string;
+  athleteCount: number;
+  round: number;
+  heat: number;
+}
+
 export function parseEVTFile(filePath: string): EVTEvent[] {
   const content = fs.readFileSync(filePath, 'utf-8');
   return parseEVTContent(content);
@@ -102,6 +110,75 @@ export function getAllAthletesForEvent(events: EVTEvent[], eventNumber: number):
         } else if (!athlete.bibNumber) {
           allAthletes.push(athlete);
         }
+      }
+    }
+  }
+  
+  return allAthletes;
+}
+
+export function parseEVTDirectory(dirPath: string): { events: EVTEvent[]; summaries: EVTEventSummary[] } {
+  const allEvents: EVTEvent[] = [];
+  const summaryMap = new Map<string, EVTEventSummary>();
+  
+  if (!fs.existsSync(dirPath)) {
+    return { events: [], summaries: [] };
+  }
+  
+  const files = fs.readdirSync(dirPath);
+  const evtFiles = files.filter(f => f.toLowerCase().endsWith('.evt'));
+  
+  for (const file of evtFiles) {
+    const filePath = path.join(dirPath, file);
+    try {
+      const events = parseEVTFile(filePath);
+      allEvents.push(...events);
+      
+      for (const evt of events) {
+        const key = `${evt.eventNumber}-${evt.round}-${evt.heat}`;
+        if (!summaryMap.has(key)) {
+          summaryMap.set(key, {
+            eventNumber: evt.eventNumber,
+            eventName: evt.eventName,
+            athleteCount: evt.athletes.length,
+            round: evt.round,
+            heat: evt.heat,
+          });
+        } else {
+          const existing = summaryMap.get(key)!;
+          existing.athleteCount += evt.athletes.length;
+        }
+      }
+    } catch (err) {
+      console.error(`[EVT Parser] Error parsing ${file}:`, err);
+    }
+  }
+  
+  const summaries = Array.from(summaryMap.values()).sort((a, b) => {
+    if (a.eventNumber !== b.eventNumber) return a.eventNumber - b.eventNumber;
+    if (a.round !== b.round) return a.round - b.round;
+    return a.heat - b.heat;
+  });
+  
+  return { events: allEvents, summaries };
+}
+
+export function getAthletesFromDirectory(dirPath: string, eventNumber: number, round?: number, heat?: number): EVTAthlete[] {
+  const { events } = parseEVTDirectory(dirPath);
+  const allAthletes: EVTAthlete[] = [];
+  const seenBibs = new Set<string>();
+  
+  for (const event of events) {
+    if (event.eventNumber !== eventNumber) continue;
+    if (round !== undefined && event.round !== round) continue;
+    if (heat !== undefined && event.heat !== heat) continue;
+    
+    for (const athlete of event.athletes) {
+      if (athlete.bibNumber && !seenBibs.has(athlete.bibNumber)) {
+        seenBibs.add(athlete.bibNumber);
+        allAthletes.push(athlete);
+      } else if (!athlete.bibNumber) {
+        allAthletes.push(athlete);
       }
     }
   }

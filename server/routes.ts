@@ -66,6 +66,8 @@ import {
 } from './field-standings';
 import { exportSessionToLFF, generateLFFContent } from './lff-exporter';
 import { syncAthletesFromEVT, startEVTWatcher, stopEVTWatcher, initEVTWatchers } from './evt-watcher';
+import { parseEVTDirectory, getAthletesFromDirectory, type EVTEventSummary, type EVTAthlete } from './evt-parser';
+import * as fs from 'fs';
 
 // Check-in validation schemas
 const checkInSchema = z.object({
@@ -6326,6 +6328,91 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
   })();
+
+  // ===============================
+  // EVT DIRECTORY CONFIG ROUTES
+  // ===============================
+  
+  const EVT_CONFIG_FILE = './evt-config.json';
+  
+  interface EVTConfig {
+    directoryPath: string;
+  }
+  
+  function loadEVTConfig(): EVTConfig | null {
+    try {
+      if (fs.existsSync(EVT_CONFIG_FILE)) {
+        const content = fs.readFileSync(EVT_CONFIG_FILE, 'utf-8');
+        return JSON.parse(content);
+      }
+    } catch (err) {
+      console.error('[EVT Config] Error loading config:', err);
+    }
+    return null;
+  }
+  
+  function saveEVTConfig(config: EVTConfig): void {
+    fs.writeFileSync(EVT_CONFIG_FILE, JSON.stringify(config, null, 2));
+  }
+  
+  app.get("/api/evt-config", async (req, res) => {
+    try {
+      const config = loadEVTConfig();
+      res.json(config || { directoryPath: "" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  app.post("/api/evt-config", async (req, res) => {
+    try {
+      const { directoryPath } = req.body;
+      if (typeof directoryPath !== 'string') {
+        return res.status(400).json({ error: "directoryPath must be a string" });
+      }
+      const config: EVTConfig = { directoryPath };
+      saveEVTConfig(config);
+      res.json(config);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  app.get("/api/evt-events", async (req, res) => {
+    try {
+      const config = loadEVTConfig();
+      if (!config || !config.directoryPath) {
+        return res.json({ events: [] });
+      }
+      
+      const { summaries } = parseEVTDirectory(config.directoryPath);
+      res.json({ events: summaries });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  app.get("/api/evt-events/:eventNumber/athletes", async (req, res) => {
+    try {
+      const config = loadEVTConfig();
+      if (!config || !config.directoryPath) {
+        return res.json({ athletes: [] });
+      }
+      
+      const eventNumber = parseInt(req.params.eventNumber);
+      const round = req.query.round ? parseInt(req.query.round as string) : undefined;
+      const heat = req.query.heat ? parseInt(req.query.heat as string) : undefined;
+      
+      if (isNaN(eventNumber)) {
+        return res.status(400).json({ error: "Invalid event number" });
+      }
+      
+      const athletes = getAthletesFromDirectory(config.directoryPath, eventNumber, round, heat);
+      res.json({ athletes });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
 
   // ===============================
   // FIELD EVENT SESSION ROUTES

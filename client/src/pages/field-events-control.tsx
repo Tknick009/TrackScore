@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useMeet } from "@/contexts/MeetContext";
@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
   DialogContent,
@@ -16,7 +17,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -38,6 +38,11 @@ import {
   Clock,
   Users,
   Download,
+  FolderOpen,
+  Save,
+  RefreshCw,
+  Check,
+  X,
 } from "lucide-react";
 import type {
   Event,
@@ -77,6 +82,30 @@ function isFieldEvent(eventType: string): boolean {
 
 function isWindAffectedFieldEvent(eventType: string): boolean {
   return eventType === "long_jump" || eventType === "triple_jump";
+}
+
+interface EVTEventSummary {
+  eventNumber: number;
+  eventName: string;
+  athleteCount: number;
+  round: number;
+  heat: number;
+}
+
+interface EVTAthlete {
+  bibNumber: string;
+  order: number;
+  lastName: string;
+  firstName: string;
+  team: string;
+}
+
+interface CheckInAthleteState {
+  bibNumber: string;
+  firstName: string;
+  lastName: string;
+  team: string;
+  status: "checked_in" | "dns";
 }
 
 interface SessionCardProps {
@@ -238,212 +267,113 @@ function SessionCard({ session, athletes, onEdit, onDelete, onUpdateStatus, onEx
   );
 }
 
-interface CreateSessionDialogProps {
+interface CheckInDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  availableEvents: Event[];
-  onSubmit: (data: InsertFieldEventSession) => void;
+  eventName: string;
+  athletes: CheckInAthleteState[];
+  onAthleteStatusChange: (bibNumber: string, status: "checked_in" | "dns") => void;
+  onStartEvent: () => void;
   isPending: boolean;
 }
 
-function CreateSessionDialog({
+function CheckInDialog({
   open,
   onOpenChange,
-  availableEvents,
-  onSubmit,
+  eventName,
+  athletes,
+  onAthleteStatusChange,
+  onStartEvent,
   isPending,
-}: CreateSessionDialogProps) {
-  const [selectedEventId, setSelectedEventId] = useState<string>("");
-  const [measurementUnit, setMeasurementUnit] = useState<string>("metric");
-  const [recordWind, setRecordWind] = useState(false);
-  const [prelimAttempts, setPrelimAttempts] = useState(3);
-  const [finalsAttempts, setFinalsAttempts] = useState(3);
-  const [hasFinals, setHasFinals] = useState(false);
-  const [athletesToFinals, setAthletesToFinals] = useState(8);
-  const [totalAttempts, setTotalAttempts] = useState(6);
-
-  const selectedEvent = availableEvents.find(e => e.id === selectedEventId);
-  const isVertical = selectedEvent ? isHeightEvent(selectedEvent.eventType) : false;
-  const showWindOption = selectedEvent ? isWindAffectedFieldEvent(selectedEvent.eventType) : false;
-
-  const handleSubmit = () => {
-    if (!selectedEventId) return;
-    
-    const accessCode = generateAccessCode();
-    const sessionData: InsertFieldEventSession = {
-      eventId: selectedEventId,
-      status: "setup",
-      measurementUnit,
-      recordWind: showWindOption ? recordWind : false,
-      hasFinals: isVertical ? false : hasFinals,
-      prelimAttempts: isVertical ? 3 : (hasFinals ? prelimAttempts : 3),
-      finalsAttempts: isVertical ? 3 : (hasFinals ? finalsAttempts : 3),
-      athletesToFinals: isVertical ? 8 : (hasFinals ? athletesToFinals : 8),
-      totalAttempts: isVertical ? 3 : (hasFinals ? prelimAttempts + finalsAttempts : totalAttempts),
-      accessCode,
-    };
-    
-    onSubmit(sessionData);
-  };
-
-  const resetForm = () => {
-    setSelectedEventId("");
-    setMeasurementUnit("metric");
-    setRecordWind(false);
-    setPrelimAttempts(3);
-    setFinalsAttempts(3);
-    setHasFinals(false);
-    setAthletesToFinals(8);
-    setTotalAttempts(6);
-  };
+}: CheckInDialogProps) {
+  const checkedInCount = athletes.filter(a => a.status === "checked_in").length;
+  const totalCount = athletes.length;
 
   return (
-    <Dialog open={open} onOpenChange={(val) => { 
-      onOpenChange(val); 
-      if (!val) resetForm();
-    }}>
-      <DialogContent className="max-w-md">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Create Field Event Session</DialogTitle>
+          <DialogTitle data-testid="text-checkin-dialog-title">
+            {eventName} - Check In
+          </DialogTitle>
           <DialogDescription>
-            Configure a new officiating session for a field event
+            Mark athletes as checked in or DNS (Did Not Start)
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <ScrollArea className="flex-1 pr-4">
           <div className="space-y-2">
-            <Label>Select Event</Label>
-            <Select value={selectedEventId} onValueChange={setSelectedEventId}>
-              <SelectTrigger data-testid="select-event">
-                <SelectValue placeholder="Choose a field event" />
-              </SelectTrigger>
-              <SelectContent>
-                {availableEvents.map(event => (
-                  <SelectItem key={event.id} value={event.id} data-testid={`option-event-${event.id}`}>
-                    {event.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Measurement Unit</Label>
-            <Select value={measurementUnit} onValueChange={setMeasurementUnit}>
-              <SelectTrigger data-testid="select-measurement-unit">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="metric">Metric (meters)</SelectItem>
-                <SelectItem value="english">English (feet-inches)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {showWindOption && (
-            <div className="flex items-center justify-between">
-              <Label htmlFor="record-wind">Record Wind</Label>
-              <Switch
-                id="record-wind"
-                checked={recordWind}
-                onCheckedChange={setRecordWind}
-                data-testid="switch-record-wind"
-              />
-            </div>
-          )}
-
-          {!isVertical && (
-            <>
-              <div className="flex items-center justify-between">
-                <Label htmlFor="has-finals">Prelim/Finals Format</Label>
-                <Switch
-                  id="has-finals"
-                  checked={hasFinals}
-                  onCheckedChange={setHasFinals}
-                  data-testid="switch-has-finals"
-                />
-              </div>
-
-              {hasFinals ? (
-                <>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Prelim Attempts</Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={6}
-                        value={prelimAttempts}
-                        onChange={(e) => setPrelimAttempts(parseInt(e.target.value) || 3)}
-                        data-testid="input-prelim-attempts"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Finals Attempts</Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={6}
-                        value={finalsAttempts}
-                        onChange={(e) => setFinalsAttempts(parseInt(e.target.value) || 3)}
-                        data-testid="input-finals-attempts"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Athletes to Finals</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      max={24}
-                      value={athletesToFinals}
-                      onChange={(e) => setAthletesToFinals(parseInt(e.target.value) || 8)}
-                      data-testid="input-athletes-to-finals"
-                    />
-                  </div>
-                </>
-              ) : (
-                <div className="space-y-2">
-                  <Label>Total Attempts</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={12}
-                    value={totalAttempts}
-                    onChange={(e) => setTotalAttempts(parseInt(e.target.value) || 6)}
-                    data-testid="input-total-attempts"
-                  />
+            {athletes.map((athlete, idx) => (
+              <div
+                key={athlete.bibNumber || idx}
+                className="flex items-center justify-between gap-4 p-3 rounded-md bg-muted/50"
+                data-testid={`row-athlete-${athlete.bibNumber}`}
+              >
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <code className="bg-background px-2 py-1 rounded font-mono text-sm font-bold min-w-[60px] text-center">
+                    {athlete.bibNumber || "-"}
+                  </code>
+                  <span className="font-medium truncate">
+                    {athlete.firstName} {athlete.lastName}
+                  </span>
+                  <span className="text-muted-foreground text-sm truncate">
+                    {athlete.team}
+                  </span>
                 </div>
-              )}
-            </>
-          )}
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant={athlete.status === "checked_in" ? "default" : "outline"}
+                    onClick={() => onAthleteStatusChange(athlete.bibNumber, "checked_in")}
+                    data-testid={`button-checkin-${athlete.bibNumber}`}
+                  >
+                    <Check className="h-4 w-4 mr-1" />
+                    In
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={athlete.status === "dns" ? "destructive" : "outline"}
+                    onClick={() => onAthleteStatusChange(athlete.bibNumber, "dns")}
+                    data-testid={`button-dns-${athlete.bibNumber}`}
+                  >
+                    <X className="h-4 w-4 mr-1" />
+                    DNS
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </ScrollArea>
 
-          {isVertical && (
-            <p className="text-sm text-muted-foreground">
-              Height progression will be configured after session creation.
-            </p>
-          )}
+        <div className="border-t pt-4 mt-4">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground" data-testid="text-checkin-count">
+              {checkedInCount} of {totalCount} checked in
+            </span>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel-checkin">
+                Cancel
+              </Button>
+              <Button
+                onClick={onStartEvent}
+                disabled={isPending}
+                data-testid="button-start-event-checkin"
+              >
+                {isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Starting...
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-4 w-4 mr-2" />
+                    Start Event
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
         </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel-create">
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={!selectedEventId || isPending}
-            data-testid="button-confirm-create"
-          >
-            {isPending ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Creating...
-              </>
-            ) : (
-              "Create Session"
-            )}
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
@@ -452,8 +382,36 @@ function CreateSessionDialog({
 export default function FieldEventsControl() {
   const { currentMeetId } = useMeet();
   const { toast } = useToast();
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editingSession, setEditingSession] = useState<FieldEventSession | null>(null);
+  const [evtDirectoryPath, setEvtDirectoryPath] = useState("");
+  const [isSavingConfig, setIsSavingConfig] = useState(false);
+  
+  const [checkInDialogOpen, setCheckInDialogOpen] = useState(false);
+  const [selectedEvtEvent, setSelectedEvtEvent] = useState<EVTEventSummary | null>(null);
+  const [checkInAthletes, setCheckInAthletes] = useState<CheckInAthleteState[]>([]);
+  const [isCreatingSession, setIsCreatingSession] = useState(false);
+  const [createdSessionId, setCreatedSessionId] = useState<number | null>(null);
+
+  const { data: evtConfig, isLoading: configLoading } = useQuery<{ directoryPath: string }>({
+    queryKey: ["/api/evt-config"],
+    queryFn: () => fetch("/api/evt-config").then(r => r.json()),
+    staleTime: 0,
+  });
+
+  useEffect(() => {
+    if (evtConfig?.directoryPath && !evtDirectoryPath) {
+      setEvtDirectoryPath(evtConfig.directoryPath);
+    }
+  }, [evtConfig?.directoryPath]);
+
+  const { data: evtEventsData, isLoading: evtEventsLoading, refetch: refetchEvtEvents } = useQuery<{ events: EVTEventSummary[] }>({
+    queryKey: ["/api/evt-events"],
+    queryFn: () => fetch("/api/evt-events").then(r => r.json()),
+    enabled: !!evtConfig?.directoryPath,
+    refetchInterval: 5000,
+  });
+
+  const evtEvents = evtEventsData?.events || [];
 
   const { data: events = [], isLoading: eventsLoading } = useQuery<Event[]>({
     queryKey: ["/api/events", currentMeetId],
@@ -486,17 +444,6 @@ export default function FieldEventsControl() {
     refetchInterval: 10000,
   });
 
-  const sessionsMap = useMemo(() => {
-    const map = new Map<string, FieldEventSessionWithDetails>();
-    sessions.forEach(s => map.set(s.eventId, s));
-    return map;
-  }, [sessions]);
-
-  const eventsWithoutSessions = useMemo(() => 
-    fieldEvents.filter(e => !sessionsMap.has(e.id)),
-    [fieldEvents, sessionsMap]
-  );
-
   const { data: athletesBySession } = useQuery<Record<number, FieldEventAthlete[]>>({
     queryKey: ["/api/field-athletes", "bySession", sessions.map(s => s.id).join(",")],
     queryFn: async () => {
@@ -515,22 +462,116 @@ export default function FieldEventsControl() {
     refetchInterval: 10000,
   });
 
-  const createSessionMutation = useMutation({
-    mutationFn: (data: InsertFieldEventSession) =>
-      apiRequest("POST", "/api/field-sessions", data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/field-sessions"] });
-      setCreateDialogOpen(false);
-      toast({ title: "Session created successfully" });
-    },
-    onError: (error: any) => {
+  const handleSaveEvtConfig = async () => {
+    setIsSavingConfig(true);
+    try {
+      await apiRequest("POST", "/api/evt-config", { directoryPath: evtDirectoryPath });
+      queryClient.invalidateQueries({ queryKey: ["/api/evt-config"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/evt-events"] });
+      toast({ title: "EVT directory path saved" });
+    } catch (error: any) {
       toast({
-        title: "Failed to create session",
+        title: "Failed to save config",
         description: error.message,
         variant: "destructive",
       });
-    },
-  });
+    } finally {
+      setIsSavingConfig(false);
+    }
+  };
+
+  const handleOpenEvent = async (evtEvent: EVTEventSummary) => {
+    try {
+      const response = await fetch(`/api/evt-events/${evtEvent.eventNumber}/athletes?round=${evtEvent.round}&heat=${evtEvent.heat}`);
+      if (!response.ok) throw new Error("Failed to load athletes");
+      
+      const data = await response.json();
+      const athletes: EVTAthlete[] = data.athletes || [];
+      
+      setCheckInAthletes(athletes.map(a => ({
+        bibNumber: a.bibNumber,
+        firstName: a.firstName,
+        lastName: a.lastName,
+        team: a.team,
+        status: "checked_in" as const,
+      })));
+      
+      setSelectedEvtEvent(evtEvent);
+      setCheckInDialogOpen(true);
+    } catch (error: any) {
+      toast({
+        title: "Failed to load athletes",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleAthleteStatusChange = (bibNumber: string, status: "checked_in" | "dns") => {
+    setCheckInAthletes(prev =>
+      prev.map(a => a.bibNumber === bibNumber ? { ...a, status } : a)
+    );
+  };
+
+  const handleStartEventFromCheckIn = async () => {
+    if (!selectedEvtEvent || !currentMeetId) return;
+    
+    setIsCreatingSession(true);
+    try {
+      const accessCode = generateAccessCode();
+      const sessionData: InsertFieldEventSession = {
+        eventId: fieldEvents[0]?.id || "",
+        status: "check_in",
+        measurementUnit: "metric",
+        recordWind: false,
+        hasFinals: false,
+        prelimAttempts: 3,
+        finalsAttempts: 3,
+        athletesToFinals: 8,
+        totalAttempts: 6,
+        accessCode,
+        evtEventNumber: selectedEvtEvent.eventNumber,
+      };
+      
+      const sessionResponse = await apiRequest("POST", "/api/field-sessions", sessionData);
+      const session = await sessionResponse.json();
+      setCreatedSessionId(session.id);
+      
+      for (const athlete of checkInAthletes) {
+        await apiRequest("POST", `/api/field-sessions/${session.id}/athletes`, {
+          sessionId: session.id,
+          flightNumber: 1,
+          orderInFlight: checkInAthletes.indexOf(athlete) + 1,
+          checkInStatus: athlete.status,
+          competitionStatus: athlete.status === "dns" ? "dns" : "waiting",
+          evtBibNumber: athlete.bibNumber,
+          evtFirstName: athlete.firstName,
+          evtLastName: athlete.lastName,
+          evtTeam: athlete.team,
+        });
+      }
+      
+      await apiRequest("PATCH", `/api/field-sessions/${session.id}`, { status: "in_progress" });
+      
+      queryClient.invalidateQueries({ queryKey: ["/api/field-sessions"] });
+      
+      setCheckInDialogOpen(false);
+      setSelectedEvtEvent(null);
+      setCheckInAthletes([]);
+      
+      toast({ title: "Event started successfully" });
+      
+      window.open(`/field/${accessCode}`, "_blank");
+    } catch (error: any) {
+      toast({
+        title: "Failed to start event",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsCreatingSession(false);
+    }
+  };
 
   const updateSessionMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: Partial<InsertFieldEventSession> }) =>
@@ -564,10 +605,6 @@ export default function FieldEventsControl() {
       });
     },
   });
-
-  const handleCreateSession = (eventId: string) => {
-    setCreateDialogOpen(true);
-  };
 
   const handleUpdateStatus = (sessionId: number, status: string) => {
     updateSessionMutation.mutate({ id: sessionId, data: { status } });
@@ -619,15 +656,51 @@ export default function FieldEventsControl() {
           <Target className="h-6 w-6" />
           <h1 className="text-2xl font-bold" data-testid="text-page-title">Field Event Management</h1>
         </div>
-        <Button
-          onClick={() => setCreateDialogOpen(true)}
-          disabled={eventsWithoutSessions.length === 0}
-          data-testid="button-create-session"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Create Session
-        </Button>
       </div>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <FolderOpen className="h-5 w-5" />
+            EVT Directory Settings
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-3">
+            <Input
+              placeholder="/path/to/lynx/evt/directory"
+              value={evtDirectoryPath || evtConfig?.directoryPath || ""}
+              onChange={(e) => setEvtDirectoryPath(e.target.value)}
+              className="flex-1"
+              data-testid="input-evt-directory"
+            />
+            <Button
+              onClick={handleSaveEvtConfig}
+              disabled={isSavingConfig}
+              data-testid="button-save-evt-config"
+            >
+              {isSavingConfig ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  Save
+                </>
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => refetchEvtEvents()}
+              data-testid="button-refresh-evt"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            Set the directory path where FinishLynx EVT files are stored. Events will be automatically detected.
+          </p>
+        </CardContent>
+      </Card>
 
       {sessions.length > 0 && (
         <div className="space-y-4">
@@ -651,31 +724,40 @@ export default function FieldEventsControl() {
         </div>
       )}
 
-      {eventsWithoutSessions.length > 0 && (
+      {evtEvents.length > 0 && (
         <div className="space-y-4">
-          <h2 className="text-lg font-semibold" data-testid="text-events-without-sessions-header">
-            Events Without Sessions
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Target className="h-5 w-5" />
+            EVT Events ({evtEvents.length})
           </h2>
           <Card>
             <CardContent className="p-0">
               <ul className="divide-y">
-                {eventsWithoutSessions.map(event => (
+                {evtEvents.map((evt, idx) => (
                   <li
-                    key={event.id}
+                    key={`${evt.eventNumber}-${evt.round}-${evt.heat}`}
                     className="flex items-center justify-between gap-4 p-4"
-                    data-testid={`item-event-${event.id}`}
+                    data-testid={`item-evt-event-${evt.eventNumber}`}
                   >
-                    <span className="font-medium">{event.name}</span>
+                    <div className="flex items-center gap-3 flex-1">
+                      <Badge variant="outline" className="font-mono min-w-[40px] justify-center">
+                        {evt.eventNumber}
+                      </Badge>
+                      <span className="font-medium">{evt.eventName}</span>
+                      <Badge variant="secondary" className="text-xs">
+                        R{evt.round} H{evt.heat}
+                      </Badge>
+                      <span className="text-sm text-muted-foreground">
+                        {evt.athleteCount} athletes
+                      </span>
+                    </div>
                     <Button
-                      variant="outline"
                       size="sm"
-                      onClick={() => {
-                        setCreateDialogOpen(true);
-                      }}
-                      data-testid={`button-create-session-${event.id}`}
+                      onClick={() => handleOpenEvent(evt)}
+                      data-testid={`button-open-event-${evt.eventNumber}`}
                     >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Create Session
+                      <Play className="h-4 w-4 mr-2" />
+                      Open Event
                     </Button>
                   </li>
                 ))}
@@ -685,24 +767,38 @@ export default function FieldEventsControl() {
         </div>
       )}
 
-      {sessions.length === 0 && eventsWithoutSessions.length === 0 && (
+      {!evtConfig?.directoryPath && evtEvents.length === 0 && sessions.length === 0 && (
         <Card>
           <CardContent className="p-12 text-center">
-            <Target className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No Field Events</h3>
+            <FolderOpen className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Configure EVT Directory</h3>
             <p className="text-muted-foreground">
-              This meet has no field events configured.
+              Set the EVT directory path above to load field events from FinishLynx.
             </p>
           </CardContent>
         </Card>
       )}
 
-      <CreateSessionDialog
-        open={createDialogOpen}
-        onOpenChange={setCreateDialogOpen}
-        availableEvents={eventsWithoutSessions}
-        onSubmit={(data) => createSessionMutation.mutate(data)}
-        isPending={createSessionMutation.isPending}
+      {evtConfig?.directoryPath && evtEvents.length === 0 && sessions.length === 0 && (
+        <Card>
+          <CardContent className="p-12 text-center">
+            <Target className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">No EVT Files Found</h3>
+            <p className="text-muted-foreground">
+              No .evt files found in the configured directory. Make sure FinishLynx is exporting EVT files to this location.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      <CheckInDialog
+        open={checkInDialogOpen}
+        onOpenChange={setCheckInDialogOpen}
+        eventName={selectedEvtEvent?.eventName || ""}
+        athletes={checkInAthletes}
+        onAthleteStatusChange={handleAthleteStatusChange}
+        onStartEvent={handleStartEventFromCheckIn}
+        isPending={isCreatingSession}
       />
 
       <Dialog open={!!editingSession} onOpenChange={(open) => !open && setEditingSession(null)}>
@@ -773,40 +869,6 @@ export default function FieldEventsControl() {
                   Leave blank to disable auto-export. When set, LFF files will be automatically exported after every mark change.
                 </p>
               </div>
-              
-              <div className="space-y-2">
-                <Label>EVT File Path (FinishLynx Athletes)</Label>
-                <Input
-                  type="text"
-                  placeholder="/path/to/lynx.evt"
-                  value={editingSession.evtFilePath || ""}
-                  onChange={(e) => setEditingSession({ 
-                    ...editingSession, 
-                    evtFilePath: e.target.value || null
-                  })}
-                  data-testid="input-edit-evt-file-path"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Path to FinishLynx .evt file. Athletes will be automatically imported when the file changes.
-                </p>
-              </div>
-              
-              <div className="space-y-2">
-                <Label>EVT Event Number</Label>
-                <Input
-                  type="number"
-                  placeholder="e.g., 17"
-                  value={editingSession.evtEventNumber || ""}
-                  onChange={(e) => setEditingSession({ 
-                    ...editingSession, 
-                    evtEventNumber: e.target.value ? parseInt(e.target.value) : null
-                  })}
-                  data-testid="input-edit-evt-event-number"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Event number in the EVT file to import athletes from. Leave blank to import all athletes.
-                </p>
-              </div>
             </div>
           )}
 
@@ -824,8 +886,6 @@ export default function FieldEventsControl() {
                       recordWind: editingSession.recordWind,
                       totalAttempts: editingSession.totalAttempts,
                       lffExportPath: editingSession.lffExportPath,
-                      evtFilePath: editingSession.evtFilePath,
-                      evtEventNumber: editingSession.evtEventNumber,
                     },
                   });
                 }
