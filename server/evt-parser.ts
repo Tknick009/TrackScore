@@ -22,8 +22,6 @@ export interface EVTEventSummary {
   eventNumber: number;
   eventName: string;
   athleteCount: number;
-  round: number;
-  heat: number;
 }
 
 export function parseEVTFile(filePath: string): EVTEvent[] {
@@ -119,7 +117,8 @@ export function getAllAthletesForEvent(events: EVTEvent[], eventNumber: number):
 
 export function parseEVTDirectory(dirPath: string): { events: EVTEvent[]; summaries: EVTEventSummary[] } {
   const allEvents: EVTEvent[] = [];
-  const summaryMap = new Map<string, EVTEventSummary>();
+  const summaryMap = new Map<number, EVTEventSummary>();
+  const seenAthletesByEvent = new Map<number, Set<string>>();
   
   if (!fs.existsSync(dirPath)) {
     return { events: [], summaries: [] };
@@ -135,18 +134,24 @@ export function parseEVTDirectory(dirPath: string): { events: EVTEvent[]; summar
       allEvents.push(...events);
       
       for (const evt of events) {
-        const key = `${evt.eventNumber}-${evt.round}-${evt.heat}`;
-        if (!summaryMap.has(key)) {
-          summaryMap.set(key, {
+        // Group by event number only (not by round/heat)
+        if (!summaryMap.has(evt.eventNumber)) {
+          summaryMap.set(evt.eventNumber, {
             eventNumber: evt.eventNumber,
             eventName: evt.eventName,
-            athleteCount: evt.athletes.length,
-            round: evt.round,
-            heat: evt.heat,
+            athleteCount: 0,
           });
-        } else {
-          const existing = summaryMap.get(key)!;
-          existing.athleteCount += evt.athletes.length;
+          seenAthletesByEvent.set(evt.eventNumber, new Set());
+        }
+        
+        // Count unique athletes by bib number
+        const seenBibs = seenAthletesByEvent.get(evt.eventNumber)!;
+        for (const athlete of evt.athletes) {
+          const key = athlete.bibNumber || `${athlete.lastName}-${athlete.firstName}`;
+          if (!seenBibs.has(key)) {
+            seenBibs.add(key);
+            summaryMap.get(evt.eventNumber)!.athleteCount++;
+          }
         }
       }
     } catch (err) {
@@ -154,30 +159,23 @@ export function parseEVTDirectory(dirPath: string): { events: EVTEvent[]; summar
     }
   }
   
-  const summaries = Array.from(summaryMap.values()).sort((a, b) => {
-    if (a.eventNumber !== b.eventNumber) return a.eventNumber - b.eventNumber;
-    if (a.round !== b.round) return a.round - b.round;
-    return a.heat - b.heat;
-  });
+  const summaries = Array.from(summaryMap.values()).sort((a, b) => a.eventNumber - b.eventNumber);
   
   return { events: allEvents, summaries };
 }
 
-export function getAthletesFromDirectory(dirPath: string, eventNumber: number, round?: number, heat?: number): EVTAthlete[] {
+export function getAthletesFromDirectory(dirPath: string, eventNumber: number): EVTAthlete[] {
   const { events } = parseEVTDirectory(dirPath);
   const allAthletes: EVTAthlete[] = [];
   const seenBibs = new Set<string>();
   
   for (const event of events) {
     if (event.eventNumber !== eventNumber) continue;
-    if (round !== undefined && event.round !== round) continue;
-    if (heat !== undefined && event.heat !== heat) continue;
     
     for (const athlete of event.athletes) {
-      if (athlete.bibNumber && !seenBibs.has(athlete.bibNumber)) {
-        seenBibs.add(athlete.bibNumber);
-        allAthletes.push(athlete);
-      } else if (!athlete.bibNumber) {
+      const key = athlete.bibNumber || `${athlete.lastName}-${athlete.firstName}`;
+      if (!seenBibs.has(key)) {
+        seenBibs.add(key);
         allAthletes.push(athlete);
       }
     }

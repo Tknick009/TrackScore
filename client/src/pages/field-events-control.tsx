@@ -88,8 +88,6 @@ interface EVTEventSummary {
   eventNumber: number;
   eventName: string;
   athleteCount: number;
-  round: number;
-  heat: number;
 }
 
 interface EVTAthlete {
@@ -482,7 +480,7 @@ export default function FieldEventsControl() {
 
   const handleOpenEvent = async (evtEvent: EVTEventSummary) => {
     try {
-      const response = await fetch(`/api/evt-events/${evtEvent.eventNumber}/athletes?round=${evtEvent.round}&heat=${evtEvent.heat}`);
+      const response = await fetch(`/api/evt-events/${evtEvent.eventNumber}/athletes`);
       if (!response.ok) throw new Error("Failed to load athletes");
       
       const data = await response.json();
@@ -733,9 +731,9 @@ export default function FieldEventsControl() {
           <Card>
             <CardContent className="p-0">
               <ul className="divide-y">
-                {evtEvents.map((evt, idx) => (
+                {evtEvents.map((evt) => (
                   <li
-                    key={`${evt.eventNumber}-${evt.round}-${evt.heat}`}
+                    key={evt.eventNumber}
                     className="flex items-center justify-between gap-4 p-4"
                     data-testid={`item-evt-event-${evt.eventNumber}`}
                   >
@@ -744,9 +742,6 @@ export default function FieldEventsControl() {
                         {evt.eventNumber}
                       </Badge>
                       <span className="font-medium">{evt.eventName}</span>
-                      <Badge variant="secondary" className="text-xs">
-                        R{evt.round} H{evt.heat}
-                      </Badge>
                       <span className="text-sm text-muted-foreground">
                         {evt.athleteCount} athletes
                       </span>

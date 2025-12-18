@@ -6413,14 +6413,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const eventNumber = parseInt(req.params.eventNumber);
-      const round = req.query.round ? parseInt(req.query.round as string) : undefined;
-      const heat = req.query.heat ? parseInt(req.query.heat as string) : undefined;
       
       if (isNaN(eventNumber)) {
         return res.status(400).json({ error: "Invalid event number" });
       }
       
-      const athletes = getAthletesFromDirectory(config.directoryPath, eventNumber, round, heat);
+      // Get all athletes for this event (all rounds/flights combined)
+      const athletes = getAthletesFromDirectory(config.directoryPath, eventNumber);
       res.json({ athletes });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
