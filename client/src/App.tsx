@@ -41,6 +41,7 @@ import PresetDisplay from "@/pages/preset-display";
 import DisplayDevice from "@/pages/display-device";
 import MeetSetup from "@/pages/meet-setup";
 import FieldOfficialPage from "@/pages/field-official";
+import FieldApp from "@/pages/field-app";
 import FieldEventsControl from "@/pages/field-events-control";
 import NotFound from "@/pages/not-found";
 
@@ -145,6 +146,7 @@ function Router() {
       <Route path="/scene-display" component={SceneDisplay} />
       <Route path="/preset-display/:templateId" component={PresetDisplay} />
       <Route path="/display" component={DisplayDevice} />
+      <Route path="/field-app" component={FieldApp} />
       <Route path="/field/:accessCode" component={FieldOfficialPage} />
       <Route path="/field" component={FieldOfficialPage} />
       <Route path="/control/:meetId/scene-editor">{() => <MeetControlRouter />}</Route>

@@ -31,7 +31,7 @@ function getAthleteDisplayInfo(athlete: EnrichedAthlete) {
     return {
       name: `${athlete.athlete.firstName} ${athlete.athlete.lastName}`,
       bib: athlete.athlete.bibNumber || "-",
-      team: athlete.entry?.team?.abbreviation || "",
+      team: (athlete.entry as any)?.team?.abbreviation || "",
     };
   }
   if (athlete.evtFirstName || athlete.evtLastName) {
@@ -668,15 +668,26 @@ function FieldEntryUI({
 }
 
 export default function FieldOfficialPage() {
-  const [, params] = useRoute("/field/:accessCode");
+  const [, params] = useRoute("/field/:codeOrId");
   const [sessionId, setSessionId] = useState<number | null>(null);
 
   useEffect(() => {
+    const codeOrId = params?.codeOrId;
+    
+    if (codeOrId) {
+      const numericId = parseInt(codeOrId, 10);
+      if (!isNaN(numericId) && String(numericId) === codeOrId) {
+        setSessionId(numericId);
+        sessionStorage.setItem(SESSION_STORAGE_KEY, String(numericId));
+        return;
+      }
+    }
+    
     const storedId = sessionStorage.getItem(SESSION_STORAGE_KEY);
     if (storedId) {
       setSessionId(parseInt(storedId, 10));
     }
-  }, []);
+  }, [params?.codeOrId]);
 
   const handleJoin = (id: number) => {
     setSessionId(id);
@@ -690,5 +701,6 @@ export default function FieldOfficialPage() {
     return <FieldEntryUI sessionId={sessionId} onLeave={handleLeave} />;
   }
 
-  return <JoinSession onJoin={handleJoin} initialCode={params?.accessCode} />;
+  const accessCode = params?.codeOrId && isNaN(parseInt(params.codeOrId, 10)) ? params.codeOrId : undefined;
+  return <JoinSession onJoin={handleJoin} initialCode={accessCode} />;
 }
