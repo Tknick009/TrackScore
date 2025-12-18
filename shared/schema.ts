@@ -2253,7 +2253,7 @@ export type ProcessedFile = typeof processedIngestionFiles.$inferSelect;
 // Field Event Session - configuration for officiating a field event
 export const fieldEventSessions = pgTable('field_event_sessions', {
   id: serial('id').primaryKey(),
-  eventId: varchar('event_id').references(() => events.id, { onDelete: 'cascade' }).notNull(),
+  eventId: varchar('event_id').references(() => events.id, { onDelete: 'cascade' }), // Nullable for EVT-based sessions
   
   // Session status
   status: text('status').default('setup'), // setup, check_in, in_progress, completed
@@ -2289,6 +2289,7 @@ export const fieldEventSessions = pgTable('field_event_sessions', {
   // EVT file import configuration
   evtFilePath: text('evt_file_path'), // Path to FinishLynx .evt file for athlete import
   evtEventNumber: integer('evt_event_number'), // Event number within the EVT file to match
+  evtEventName: text('evt_event_name'), // Event name from EVT file (for display when no DB event)
   
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),

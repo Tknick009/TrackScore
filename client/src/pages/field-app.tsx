@@ -250,19 +250,16 @@ function CheckInScreen({
       const dnsAthletes = athletes.filter(a => checkInStatus[a.bibNumber] === "dns");
 
       const response = await apiRequest("POST", "/api/field-sessions", {
-        meetId,
-        eventNumber: event.eventNumber,
-        eventName: event.eventName,
-        eventType: "horizontal",
+        evtEventNumber: event.eventNumber,
+        evtEventName: event.eventName,
         measurementUnit: "metric",
-        status: "active",
-        currentFlight: 1,
-        totalFlights: 1,
-        attemptsPerAthlete: 6,
+        status: "in_progress",
+        totalAttempts: 6,
       });
 
       const session: FieldEventSession = await response.json();
 
+      let orderInFlight = 1;
       for (const athlete of checkedInAthletes) {
         await apiRequest("POST", `/api/field-sessions/${session.id}/athletes`, {
           evtBibNumber: athlete.bibNumber,
@@ -272,6 +269,7 @@ function CheckInScreen({
           checkInStatus: "checked_in",
           competitionStatus: "competing",
           flightNumber: 1,
+          orderInFlight: orderInFlight++,
         });
       }
 
@@ -284,6 +282,7 @@ function CheckInScreen({
           checkInStatus: "dns",
           competitionStatus: "dns",
           flightNumber: 1,
+          orderInFlight: orderInFlight++,
         });
       }
 
