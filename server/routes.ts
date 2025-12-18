@@ -6378,6 +6378,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Helper to detect field events from event name
+  function isFieldEventName(eventName: string): boolean {
+    const name = eventName.toLowerCase();
+    const fieldEventKeywords = [
+      'shot put', 'shot', 'discus', 'javelin', 'hammer', 'weight throw', 'weight',
+      'long jump', 'triple jump', 'high jump', 'pole vault',
+      'hj', 'pv', 'lj', 'tj', 'sp', 'dt', 'jt', 'ht', 'wt'
+    ];
+    return fieldEventKeywords.some(keyword => name.includes(keyword));
+  }
+  
   app.get("/api/evt-events", async (req, res) => {
     try {
       const config = loadEVTConfig();
@@ -6386,7 +6397,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const { summaries } = parseEVTDirectory(config.directoryPath);
-      res.json({ events: summaries });
+      // Filter to only show field events
+      const fieldEvents = summaries.filter(evt => isFieldEventName(evt.eventName));
+      res.json({ events: fieldEvents });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
