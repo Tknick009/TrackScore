@@ -4,6 +4,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { startAutoRefresh } from "./auto-refresh";
 import { storage } from "./storage";
+import { initEVTWatchers } from "./evt-watcher";
 
 const app = express();
 
@@ -105,5 +106,10 @@ app.use((req, res, next) => {
   }, () => {
     log(`serving on port ${port}`);
     startAutoRefresh();
+    
+    // Initialize EVT file watchers for field event sessions
+    initEVTWatchers().catch(err => {
+      console.error("Failed to initialize EVT watchers:", err);
+    });
   });
 })();

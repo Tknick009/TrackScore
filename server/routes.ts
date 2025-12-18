@@ -65,6 +65,7 @@ import {
   calculateVerticalStandings 
 } from './field-standings';
 import { exportSessionToLFF, generateLFFContent } from './lff-exporter';
+import { syncAthletesFromEVT, startEVTWatcher, stopEVTWatcher, initEVTWatchers } from './evt-watcher';
 
 // Check-in validation schemas
 const checkInSchema = z.object({
@@ -6458,10 +6459,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (isNaN(id)) {
         return res.status(400).json({ error: "Invalid session ID" });
       }
+      
+      const oldSession = await storage.getFieldEventSession(id);
       const validated = insertFieldEventSessionSchema.partial().parse(req.body);
       const session = await storage.updateFieldEventSession(id, validated);
       if (!session) {
         return res.status(404).json({ error: "Session not found" });
+      }
+      
+      // Manage EVT watcher lifecycle
+      if (validated.evtFilePath !== undefined) {
+        if (validated.evtFilePath) {
+          startEVTWatcher(id, validated.evtFilePath);
+        } else if (oldSession?.evtFilePath) {
+          stopEVTWatcher(id);
+        }
       }
       
       // Broadcast field event update
@@ -6470,6 +6482,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(session);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
+    }
+  });
+  
+  // Sync athletes from EVT file
+  app.post("/api/field-sessions/:id/sync-evt", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid session ID" });
+      }
+      
+      const result = await syncAthletesFromEVT(id);
+      
+      if (result.errors.length > 0 && result.added === 0) {
+        return res.status(400).json({ error: result.errors.join(', '), ...result });
+      }
+      
+      // Broadcast update after sync
+      broadcastFieldEventUpdate(id).catch(console.error);
+      
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
   });
 
