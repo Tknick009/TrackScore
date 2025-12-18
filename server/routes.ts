@@ -6789,6 +6789,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Advance to next athlete in field event session (auto-advance after mark entry)
+  app.post("/api/field-sessions/:sessionId/advance", async (req, res) => {
+    try {
+      const sessionId = parseInt(req.params.sessionId);
+      if (isNaN(sessionId)) {
+        return res.status(400).json({ error: "Invalid session ID" });
+      }
+      const { currentAthleteId } = req.body;
+      
+      // Get all athletes for this session
+      const athletes = await storage.getFieldEventAthletes(sessionId);
+      const activeAthletes = athletes
+        .filter(a => a.checkInStatus === "checked_in" && a.competitionStatus !== "completed")
+        .sort((a, b) => {
+          if ((a.flightNumber || 1) !== (b.flightNumber || 1)) {
+            return (a.flightNumber || 1) - (b.flightNumber || 1);
+          }
+          return a.orderInFlight - b.orderInFlight;
+        });
+      
+      // Find current athlete index
+      const currentIndex = activeAthletes.findIndex(a => a.id === currentAthleteId);
+      
+      // Determine next athlete (circular rotation)
+      if (activeAthletes.length > 1 && currentIndex !== -1) {
+        const nextIndex = (currentIndex + 1) % activeAthletes.length;
+        const nextAthlete = activeAthletes[nextIndex];
+        
+        // Update current athlete status (no longer "up")
+        if (currentAthleteId) {
+          await storage.updateFieldEventAthlete(currentAthleteId, { competitionStatus: "active" });
+        }
+        
+        // Set next athlete as "up"
+        await storage.updateFieldEventAthlete(nextAthlete.id, { competitionStatus: "up" });
+        
+        // Broadcast field event update
+        broadcastFieldEventUpdate(sessionId).catch(console.error);
+        
+        res.json({ success: true, nextAthleteId: nextAthlete.id });
+      } else {
+        res.json({ success: true, nextAthleteId: null });
+      }
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Check-in field athlete
   app.post("/api/field-athletes/:id/check-in", async (req, res) => {
     try {

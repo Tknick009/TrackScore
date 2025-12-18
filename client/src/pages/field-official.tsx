@@ -26,6 +26,27 @@ type EnrichedAthlete = FieldEventAthlete & {
   athlete?: Athlete;
 };
 
+// Helper to get athlete display info (works with EVT imports or database entries)
+function getAthleteDisplayInfo(athlete: EnrichedAthlete) {
+  // Try database athlete first
+  if (athlete.athlete) {
+    return {
+      name: `${athlete.athlete.firstName} ${athlete.athlete.lastName}`,
+      bib: athlete.athlete.bibNumber || "-",
+      team: athlete.entry?.team?.abbreviation || "",
+    };
+  }
+  // Fall back to EVT data
+  if (athlete.evtFirstName || athlete.evtLastName) {
+    return {
+      name: `${athlete.evtFirstName || ""} ${athlete.evtLastName || ""}`.trim() || "Unknown",
+      bib: athlete.evtBibNumber || "-",
+      team: athlete.evtTeam || "",
+    };
+  }
+  return { name: "Unknown Athlete", bib: "-", team: "" };
+}
+
 function JoinSession({ 
   onJoin, 
   initialCode 
@@ -115,39 +136,53 @@ function JoinSession({
 
 function AthleteCard({ 
   athlete, 
-  isUp 
+  label,
+  onClick
 }: { 
   athlete: EnrichedAthlete; 
-  isUp?: boolean;
+  label?: "up" | "on-deck" | "in-hole";
+  onClick?: () => void;
 }) {
-  const athleteData = athlete.athlete;
-  const bibNumber = athleteData?.bibNumber || "-";
-  const name = athleteData 
-    ? `${athleteData.firstName} ${athleteData.lastName}` 
-    : "Unknown Athlete";
+  const info = getAthleteDisplayInfo(athlete);
+  const isUp = label === "up";
+
+  const labelColors = {
+    "up": "bg-green-600 text-white",
+    "on-deck": "bg-yellow-500 text-black",
+    "in-hole": "bg-blue-500 text-white",
+  };
+
+  const labelText = {
+    "up": "UP",
+    "on-deck": "ON DECK",
+    "in-hole": "IN HOLE",
+  };
 
   return (
-    <Card className={isUp ? "border-2 border-primary bg-primary/5" : ""}>
+    <Card 
+      className={`${isUp ? "border-2 border-green-600 bg-green-50 dark:bg-green-950/30" : "hover-elevate cursor-pointer"}`}
+      onClick={onClick}
+    >
       <CardContent className={`p-4 ${isUp ? "py-6" : "py-3"}`}>
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            <div className={`flex items-center justify-center rounded-full bg-muted ${isUp ? "w-14 h-14" : "w-10 h-10"}`}>
-              <User className={isUp ? "h-7 w-7" : "h-5 w-5"} />
-            </div>
+            {label && (
+              <Badge className={`${labelColors[label]} shrink-0 font-bold ${isUp ? "text-sm px-3 py-1" : "text-xs"}`}>
+                {labelText[label]}
+              </Badge>
+            )}
             <div className="min-w-0 flex-1">
               <p className={`font-semibold truncate ${isUp ? "text-xl" : "text-base"}`} data-testid={`text-athlete-name-${athlete.id}`}>
-                {isUp && <span className="text-primary mr-2">UP:</span>}
-                {name}
+                {info.name}
               </p>
-              {athlete.entry && (
-                <p className="text-muted-foreground text-sm truncate">
-                  Flight {athlete.flightNumber} • Order {athlete.orderInFlight}
-                </p>
-              )}
+              <p className="text-muted-foreground text-sm truncate">
+                {info.team && <span>{info.team} • </span>}
+                Flight {athlete.flightNumber || 1}
+              </p>
             </div>
           </div>
-          <Badge variant="outline" className={`shrink-0 ${isUp ? "text-lg px-3 py-1" : ""}`}>
-            #{bibNumber}
+          <Badge variant="outline" className={`shrink-0 font-mono ${isUp ? "text-lg px-3 py-1" : ""}`}>
+            #{info.bib}
           </Badge>
         </div>
       </CardContent>
@@ -193,12 +228,23 @@ function FieldEntryUI({
         queryKey: ["/api/field-sessions", sessionId, "athletes"] 
       });
       setMeasurement("");
-      toast({ title: "Mark recorded" });
+      toast({ title: "Mark recorded - advancing to next athlete" });
     },
     onError: () => {
       toast({
         title: "Failed to record mark",
         variant: "destructive",
+      });
+    },
+  });
+
+  // Advance to next athlete mutation
+  const advanceAthleteMutation = useMutation({
+    mutationFn: async (athleteId: number) => 
+      apiRequest(`/api/field-sessions/${sessionId}/advance`, "POST", { currentAthleteId: athleteId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ 
+        queryKey: ["/api/field-sessions", sessionId, "athletes"] 
       });
     },
   });
@@ -259,7 +305,7 @@ function FieldEntryUI({
     : 0;
   const nextAttemptNumber = currentAttemptCount + 1;
 
-  const recordMark = (markType: "mark" | "foul" | "pass") => {
+  const recordMark = async (markType: "mark" | "foul" | "pass") => {
     if (!currentAthlete) return;
 
     const markData: InsertFieldEventMark = {
@@ -272,7 +318,12 @@ function FieldEntryUI({
         : undefined,
     };
 
-    submitMarkMutation.mutate(markData);
+    // Record the mark then auto-advance to next athlete
+    submitMarkMutation.mutate(markData, {
+      onSuccess: () => {
+        advanceAthleteMutation.mutate(currentAthlete.id);
+      }
+    });
   };
 
   return (
@@ -307,24 +358,22 @@ function FieldEntryUI({
         </div>
       </header>
 
-      <main className="flex-1 p-4 space-y-4 overflow-auto">
+      <main className="flex-1 p-4 space-y-3 overflow-auto">
         {currentAthlete ? (
           <>
-            <div>
-              <AthleteCard athlete={currentAthlete} isUp />
-              <p className="text-center text-muted-foreground mt-2" data-testid="text-attempt-info">
-                Attempt {nextAttemptNumber} of {totalAttempts}
-              </p>
-            </div>
+            <AthleteCard athlete={currentAthlete} label="up" />
+            <p className="text-center text-muted-foreground text-sm" data-testid="text-attempt-info">
+              Attempt {nextAttemptNumber} of {totalAttempts}
+            </p>
 
             {onDeck.length > 0 && (
               <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground flex items-center gap-1">
-                  <ChevronRight className="h-4 w-4" />
-                  Up Next
-                </p>
                 {onDeck.map((athlete, index) => (
-                  <AthleteCard key={athlete.id} athlete={athlete} />
+                  <AthleteCard 
+                    key={athlete.id} 
+                    athlete={athlete} 
+                    label={index === 0 ? "on-deck" : "in-hole"}
+                  />
                 ))}
               </div>
             )}
