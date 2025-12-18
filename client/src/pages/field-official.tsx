@@ -5,16 +5,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { LogOut, User, ChevronRight, Check, X, Minus, Loader2 } from "lucide-react";
+import { LogOut, Check, X, Minus, Loader2, ChevronDown, Users, Trophy, Grid3X3, Circle } from "lucide-react";
 import type { 
   FieldEventSession, 
   FieldEventSessionWithDetails,
   FieldEventAthlete, 
   FieldEventMark,
   InsertFieldEventMark,
-  Event,
   Athlete,
   Entry
 } from "@shared/schema";
@@ -26,9 +26,7 @@ type EnrichedAthlete = FieldEventAthlete & {
   athlete?: Athlete;
 };
 
-// Helper to get athlete display info (works with EVT imports or database entries)
 function getAthleteDisplayInfo(athlete: EnrichedAthlete) {
-  // Try database athlete first
   if (athlete.athlete) {
     return {
       name: `${athlete.athlete.firstName} ${athlete.athlete.lastName}`,
@@ -36,7 +34,6 @@ function getAthleteDisplayInfo(athlete: EnrichedAthlete) {
       team: athlete.entry?.team?.abbreviation || "",
     };
   }
-  // Fall back to EVT data
   if (athlete.evtFirstName || athlete.evtLastName) {
     return {
       name: `${athlete.evtFirstName || ""} ${athlete.evtLastName || ""}`.trim() || "Unknown",
@@ -134,59 +131,303 @@ function JoinSession({
   );
 }
 
-function AthleteCard({ 
+function AthleteListItem({ 
   athlete, 
-  label,
+  isUp,
+  marks,
+  totalAttempts,
+  bestMark,
   onClick
 }: { 
   athlete: EnrichedAthlete; 
-  label?: "up" | "on-deck" | "in-hole";
-  onClick?: () => void;
+  isUp: boolean;
+  marks: FieldEventMark[];
+  totalAttempts: number;
+  bestMark: number | null;
+  onClick: () => void;
 }) {
   const info = getAthleteDisplayInfo(athlete);
-  const isUp = label === "up";
 
-  const labelColors = {
-    "up": "bg-green-600 text-white",
-    "on-deck": "bg-yellow-500 text-black",
-    "in-hole": "bg-blue-500 text-white",
-  };
+  return (
+    <div
+      onClick={onClick}
+      className={`flex items-center gap-3 p-3 border-b border-border cursor-pointer active:bg-muted/50 ${
+        isUp ? "bg-green-50 dark:bg-green-950/30" : ""
+      }`}
+      data-testid={`athlete-row-${athlete.id}`}
+    >
+      {/* Status indicator */}
+      <div className="w-16 shrink-0 text-center">
+        {isUp ? (
+          <Badge className="bg-green-600 text-white font-bold px-2 py-1">UP</Badge>
+        ) : (
+          <span className="text-xs text-muted-foreground">
+            {marks.length}/{totalAttempts}
+          </span>
+        )}
+      </div>
 
-  const labelText = {
-    "up": "UP",
-    "on-deck": "ON DECK",
-    "in-hole": "IN HOLE",
+      {/* Athlete info */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-sm text-muted-foreground">{info.bib}</span>
+          <span className="font-semibold truncate">{info.name}</span>
+        </div>
+        {info.team && (
+          <p className="text-xs text-muted-foreground truncate">{info.team}</p>
+        )}
+      </div>
+
+      {/* Attempt dots */}
+      <div className="flex gap-0.5 shrink-0">
+        {Array.from({ length: totalAttempts }).map((_, i) => {
+          const mark = marks[i];
+          let bgColor = "bg-gray-300 dark:bg-gray-600";
+          if (mark) {
+            if (mark.markType === "mark") bgColor = "bg-green-500";
+            else if (mark.markType === "foul") bgColor = "bg-red-500";
+            else if (mark.markType === "pass") bgColor = "bg-yellow-500";
+          }
+          return <div key={i} className={`w-2.5 h-2.5 rounded-full ${bgColor}`} />;
+        })}
+      </div>
+
+      {/* Best mark */}
+      <div className="w-20 text-right shrink-0">
+        {bestMark !== null ? (
+          <span className="font-mono font-semibold text-sm">{bestMark.toFixed(2)}</span>
+        ) : (
+          <span className="text-muted-foreground text-sm">-</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MarkEntrySheet({
+  athlete,
+  attemptNumber,
+  totalAttempts,
+  onRecordMark,
+  onClose,
+  isPending
+}: {
+  athlete: EnrichedAthlete;
+  attemptNumber: number;
+  totalAttempts: number;
+  onRecordMark: (markType: "mark" | "foul" | "pass", measurement?: string) => void;
+  onClose: () => void;
+  isPending: boolean;
+}) {
+  const [measurement, setMeasurement] = useState("");
+  const info = getAthleteDisplayInfo(athlete);
+
+  const handleSubmit = (markType: "mark" | "foul" | "pass") => {
+    onRecordMark(markType, markType === "mark" ? measurement : undefined);
+    setMeasurement("");
   };
 
   return (
-    <Card 
-      className={`${isUp ? "border-2 border-green-600 bg-green-50 dark:bg-green-950/30" : "hover-elevate cursor-pointer"}`}
-      onClick={onClick}
-    >
-      <CardContent className={`p-4 ${isUp ? "py-6" : "py-3"}`}>
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 flex-1 min-w-0">
-            {label && (
-              <Badge className={`${labelColors[label]} shrink-0 font-bold ${isUp ? "text-sm px-3 py-1" : "text-xs"}`}>
-                {labelText[label]}
-              </Badge>
-            )}
-            <div className="min-w-0 flex-1">
-              <p className={`font-semibold truncate ${isUp ? "text-xl" : "text-base"}`} data-testid={`text-athlete-name-${athlete.id}`}>
-                {info.name}
+    <div className="fixed inset-0 z-50 flex flex-col">
+      {/* Backdrop */}
+      <div className="flex-1 bg-black/50" onClick={onClose} />
+      
+      {/* Sheet */}
+      <div className="bg-card border-t-2 border-primary animate-in slide-in-from-bottom duration-200">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b">
+          <div>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="font-mono">{info.bib}</Badge>
+              <span className="font-bold text-lg">{info.name}</span>
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">
+              {info.team && `${info.team} • `}Attempt {attemptNumber} of {totalAttempts}
+            </p>
+          </div>
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            <ChevronDown className="h-5 w-5" />
+          </Button>
+        </div>
+
+        {/* Input */}
+        <div className="p-4">
+          <Input
+            type="number"
+            step="0.01"
+            inputMode="decimal"
+            placeholder="Enter distance (meters)"
+            value={measurement}
+            onChange={(e) => setMeasurement(e.target.value)}
+            className="h-16 text-2xl text-center font-mono"
+            autoFocus
+            data-testid="input-measurement"
+          />
+        </div>
+        
+        {/* Action buttons - large touch targets */}
+        <div className="grid grid-cols-3 gap-2 p-4 pt-0">
+          <Button
+            onClick={() => handleSubmit("mark")}
+            disabled={!measurement || isPending}
+            className="h-16 text-lg bg-green-600 hover:bg-green-700"
+            data-testid="button-record-mark"
+          >
+            <Check className="h-6 w-6 mr-2" />
+            MARK
+          </Button>
+          <Button
+            onClick={() => handleSubmit("foul")}
+            disabled={isPending}
+            className="h-16 text-lg bg-red-600 hover:bg-red-700"
+            data-testid="button-record-foul"
+          >
+            <X className="h-6 w-6 mr-2" />
+            FOUL
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => handleSubmit("pass")}
+            disabled={isPending}
+            className="h-16 text-lg"
+            data-testid="button-record-pass"
+          >
+            <Minus className="h-6 w-6 mr-2" />
+            PASS
+          </Button>
+        </div>
+
+        {/* Safe area padding for mobile */}
+        <div className="h-4" />
+      </div>
+    </div>
+  );
+}
+
+function StandingsView({ 
+  athletes, 
+  marks, 
+  totalAttempts 
+}: { 
+  athletes: EnrichedAthlete[]; 
+  marks: FieldEventMark[];
+  totalAttempts: number;
+}) {
+  const getAthleteMarks = (athleteId: number) => {
+    return marks.filter(m => m.athleteId === athleteId).sort((a, b) => a.attemptNumber - b.attemptNumber);
+  };
+
+  const getBestMark = (athleteId: number): number | null => {
+    const athleteMarks = getAthleteMarks(athleteId);
+    const validMarks = athleteMarks.filter(m => m.markType === "mark" && m.measurement).map(m => m.measurement as number);
+    return validMarks.length > 0 ? Math.max(...validMarks) : null;
+  };
+
+  const rankedAthletes = [...athletes]
+    .map(a => ({ athlete: a, best: getBestMark(a.id), marks: getAthleteMarks(a.id) }))
+    .sort((a, b) => {
+      if (a.best === null && b.best === null) return 0;
+      if (a.best === null) return 1;
+      if (b.best === null) return -1;
+      return b.best - a.best;
+    });
+
+  return (
+    <div className="divide-y">
+      {rankedAthletes.map((item, index) => {
+        const info = getAthleteDisplayInfo(item.athlete);
+        return (
+          <div key={item.athlete.id} className="flex items-center gap-3 p-3">
+            <div className="w-8 text-center font-bold text-lg">
+              {item.best !== null ? index + 1 : "-"}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold truncate">{info.name}</p>
+              <p className="text-xs text-muted-foreground">{info.team || info.bib}</p>
+            </div>
+            <div className="text-right">
+              <p className="font-mono font-bold text-lg">
+                {item.best !== null ? item.best.toFixed(2) : "-"}
               </p>
-              <p className="text-muted-foreground text-sm truncate">
-                {info.team && <span>{info.team} • </span>}
-                Flight {athlete.flightNumber || 1}
+              <p className="text-xs text-muted-foreground">
+                {item.marks.filter(m => m.markType === "mark").length} marks
               </p>
             </div>
           </div>
-          <Badge variant="outline" className={`shrink-0 font-mono ${isUp ? "text-lg px-3 py-1" : ""}`}>
-            #{info.bib}
-          </Badge>
-        </div>
-      </CardContent>
-    </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+function ReviewMarksView({ 
+  athletes, 
+  marks, 
+  totalAttempts 
+}: { 
+  athletes: EnrichedAthlete[]; 
+  marks: FieldEventMark[];
+  totalAttempts: number;
+}) {
+  const getAthleteMarks = (athleteId: number) => {
+    return marks.filter(m => m.athleteId === athleteId).sort((a, b) => a.attemptNumber - b.attemptNumber);
+  };
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b">
+            <th className="text-left p-2 sticky left-0 bg-background">Athlete</th>
+            {Array.from({ length: totalAttempts }).map((_, i) => (
+              <th key={i} className="text-center p-2 min-w-16">{i + 1}</th>
+            ))}
+            <th className="text-center p-2">Best</th>
+          </tr>
+        </thead>
+        <tbody>
+          {athletes.map(athlete => {
+            const info = getAthleteDisplayInfo(athlete);
+            const athleteMarks = getAthleteMarks(athlete.id);
+            const validMarks = athleteMarks.filter(m => m.markType === "mark" && m.measurement);
+            const best = validMarks.length > 0 ? Math.max(...validMarks.map(m => m.measurement as number)) : null;
+
+            return (
+              <tr key={athlete.id} className="border-b">
+                <td className="p-2 sticky left-0 bg-background">
+                  <div className="font-semibold truncate max-w-32">{info.name}</div>
+                </td>
+                {Array.from({ length: totalAttempts }).map((_, i) => {
+                  const mark = athleteMarks.find(m => m.attemptNumber === i + 1);
+                  let content = "-";
+                  let className = "text-muted-foreground";
+                  if (mark) {
+                    if (mark.markType === "mark" && mark.measurement) {
+                      content = mark.measurement.toFixed(2);
+                      className = "font-mono";
+                    } else if (mark.markType === "foul") {
+                      content = "X";
+                      className = "text-red-500 font-bold";
+                    } else if (mark.markType === "pass") {
+                      content = "P";
+                      className = "text-yellow-600 font-bold";
+                    }
+                  }
+                  return (
+                    <td key={i} className={`text-center p-2 ${className}`}>
+                      {content}
+                    </td>
+                  );
+                })}
+                <td className="text-center p-2 font-mono font-bold">
+                  {best !== null ? best.toFixed(2) : "-"}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -198,7 +439,8 @@ function FieldEntryUI({
   onLeave: () => void;
 }) {
   const { toast } = useToast();
-  const [measurement, setMeasurement] = useState("");
+  const [selectedAthleteId, setSelectedAthleteId] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState("officiate");
 
   const { data: session, isLoading: sessionLoading, error: sessionError } = useQuery<FieldEventSessionWithDetails>({
     queryKey: ["/api/field-sessions", sessionId, "full"],
@@ -219,7 +461,7 @@ function FieldEntryUI({
 
   const submitMarkMutation = useMutation({
     mutationFn: async (mark: InsertFieldEventMark) => 
-      apiRequest("/api/field-marks", "POST", mark),
+      apiRequest("POST", "/api/field-marks", mark),
     onSuccess: () => {
       queryClient.invalidateQueries({ 
         queryKey: ["/api/field-sessions", sessionId, "marks"] 
@@ -227,8 +469,8 @@ function FieldEntryUI({
       queryClient.invalidateQueries({ 
         queryKey: ["/api/field-sessions", sessionId, "athletes"] 
       });
-      setMeasurement("");
-      toast({ title: "Mark recorded - advancing to next athlete" });
+      toast({ title: "Mark recorded" });
+      setSelectedAthleteId(null);
     },
     onError: () => {
       toast({
@@ -238,20 +480,65 @@ function FieldEntryUI({
     },
   });
 
-  // Advance to next athlete mutation
-  const advanceAthleteMutation = useMutation({
-    mutationFn: async (athleteId: number) => 
-      apiRequest(`/api/field-sessions/${sessionId}/advance`, "POST", { currentAthleteId: athleteId }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ 
-        queryKey: ["/api/field-sessions", sessionId, "athletes"] 
-      });
-    },
-  });
-
   const handleLeave = () => {
     sessionStorage.removeItem(SESSION_STORAGE_KEY);
     onLeave();
+  };
+
+  const activeAthletes = athletes?.filter(
+    (a) => a.checkInStatus === "checked_in" && a.competitionStatus !== "completed" && a.competitionStatus !== "dns"
+  ) || [];
+  
+  const sortedAthletes = [...activeAthletes].sort((a, b) => {
+    if (a.flightNumber !== b.flightNumber) {
+      return (a.flightNumber || 1) - (b.flightNumber || 1);
+    }
+    return a.orderInFlight - b.orderInFlight;
+  });
+
+  const selectedAthlete = sortedAthletes.find(a => a.id === selectedAthleteId);
+  
+  const getAthleteMarks = (athleteId: number) => {
+    return (marks || [])
+      .filter(m => m.athleteId === athleteId)
+      .sort((a, b) => a.attemptNumber - b.attemptNumber);
+  };
+
+  const getAthleteBestMark = (athleteId: number): number | null => {
+    const athleteMarks = getAthleteMarks(athleteId);
+    const validMarks = athleteMarks
+      .filter(m => m.markType === "mark" && m.measurement)
+      .map(m => m.measurement as number);
+    return validMarks.length > 0 ? Math.max(...validMarks) : null;
+  };
+
+  const totalAttempts = session?.totalAttempts || 6;
+  
+  const selectedAthleteMarks = selectedAthlete ? getAthleteMarks(selectedAthlete.id) : [];
+  const nextAttemptNumber = selectedAthleteMarks.length + 1;
+
+  // Find who should be "Up" (first athlete with fewest attempts)
+  const getUpAthlete = () => {
+    if (sortedAthletes.length === 0) return null;
+    const minAttempts = Math.min(...sortedAthletes.map(a => getAthleteMarks(a.id).length));
+    return sortedAthletes.find(a => getAthleteMarks(a.id).length === minAttempts);
+  };
+  const upAthlete = getUpAthlete();
+
+  const recordMark = (markType: "mark" | "foul" | "pass", measurement?: string) => {
+    if (!selectedAthlete) return;
+
+    const markData: InsertFieldEventMark = {
+      sessionId,
+      athleteId: selectedAthlete.id,
+      attemptNumber: nextAttemptNumber,
+      markType,
+      measurement: markType === "mark" && measurement 
+        ? parseFloat(measurement) 
+        : undefined,
+    };
+
+    submitMarkMutation.mutate(markData);
   };
 
   if (sessionLoading || athletesLoading) {
@@ -277,167 +564,104 @@ function FieldEntryUI({
     );
   }
 
-  const activeAthletes = athletes?.filter(
-    (a) => a.checkInStatus === "checked_in" && a.competitionStatus !== "completed"
-  ) || [];
-  
-  const sortedAthletes = [...activeAthletes].sort((a, b) => {
-    if (a.flightNumber !== b.flightNumber) {
-      return (a.flightNumber || 1) - (b.flightNumber || 1);
-    }
-    return a.orderInFlight - b.orderInFlight;
-  });
-
-  const currentAthlete = sortedAthletes.find(a => a.competitionStatus === "up") || sortedAthletes[0];
-  const onDeck = sortedAthletes.filter(a => a.id !== currentAthlete?.id).slice(0, 2);
-
-  const getAthleteAttemptCount = (athleteId: number) => {
-    return marks?.filter(m => m.athleteId === athleteId).length || 0;
-  };
-
   const eventName = session.event?.name || "Field Event";
   const totalFlights = Math.max(...(athletes?.map(a => a.flightNumber || 1) || [1]));
   const currentFlight = session.currentFlightNumber || 1;
 
-  const totalAttempts = session.totalAttempts || 6;
-  const currentAttemptCount = currentAthlete 
-    ? getAthleteAttemptCount(currentAthlete.id) 
-    : 0;
-  const nextAttemptNumber = currentAttemptCount + 1;
-
-  const recordMark = async (markType: "mark" | "foul" | "pass") => {
-    if (!currentAthlete) return;
-
-    const markData: InsertFieldEventMark = {
-      sessionId,
-      athleteId: currentAthlete.id,
-      attemptNumber: nextAttemptNumber,
-      markType,
-      measurement: markType === "mark" && measurement 
-        ? parseFloat(measurement) 
-        : undefined,
-    };
-
-    // Record the mark then auto-advance to next athlete
-    submitMarkMutation.mutate(markData, {
-      onSuccess: () => {
-        advanceAthleteMutation.mutate(currentAthlete.id);
-      }
-    });
-  };
-
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <header className="border-b bg-card p-4">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
+      {/* Header */}
+      <header className="bg-primary text-primary-foreground p-3 sticky top-0 z-40">
+        <div className="flex items-center justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <h1 className="text-xl font-bold truncate" data-testid="text-event-name">
+            <h1 className="font-bold truncate" data-testid="text-event-name">
               {eventName}
             </h1>
-            <div className="flex items-center gap-2 flex-wrap mt-1">
-              <Badge variant="secondary" data-testid="badge-flight-info">
-                Flight {currentFlight} of {totalFlights}
-              </Badge>
-              <Badge 
-                variant={session.status === "in_progress" ? "default" : "outline"}
-                data-testid="badge-session-status"
-              >
-                {session.status === "in_progress" ? "In Progress" : session.status}
-              </Badge>
-            </div>
+            <p className="text-xs opacity-80">
+              Flight {currentFlight} of {totalFlights} • {sortedAthletes.length} athletes
+            </p>
           </div>
           <Button 
-            variant="outline" 
+            variant="ghost" 
+            size="sm"
             onClick={handleLeave}
-            className="shrink-0"
+            className="shrink-0 text-primary-foreground hover:bg-primary-foreground/20"
             data-testid="button-leave-session"
           >
-            <LogOut className="h-4 w-4 mr-2" />
-            Leave
+            <LogOut className="h-4 w-4" />
           </Button>
         </div>
       </header>
 
-      <main className="flex-1 p-4 space-y-3 overflow-auto">
-        {currentAthlete ? (
-          <>
-            <AthleteCard athlete={currentAthlete} label="up" />
-            <p className="text-center text-muted-foreground text-sm" data-testid="text-attempt-info">
-              Attempt {nextAttemptNumber} of {totalAttempts}
-            </p>
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+        <TabsList className="w-full rounded-none border-b h-12 bg-background">
+          <TabsTrigger value="officiate" className="flex-1 gap-1 data-[state=active]:bg-muted">
+            <Users className="h-4 w-4" />
+            <span className="hidden sm:inline">Officiate</span>
+          </TabsTrigger>
+          <TabsTrigger value="standings" className="flex-1 gap-1 data-[state=active]:bg-muted">
+            <Trophy className="h-4 w-4" />
+            <span className="hidden sm:inline">Standings</span>
+          </TabsTrigger>
+          <TabsTrigger value="review" className="flex-1 gap-1 data-[state=active]:bg-muted">
+            <Grid3X3 className="h-4 w-4" />
+            <span className="hidden sm:inline">Review</span>
+          </TabsTrigger>
+        </TabsList>
 
-            {onDeck.length > 0 && (
-              <div className="space-y-2">
-                {onDeck.map((athlete, index) => (
-                  <AthleteCard 
-                    key={athlete.id} 
-                    athlete={athlete} 
-                    label={index === 0 ? "on-deck" : "in-hole"}
-                  />
-                ))}
-              </div>
-            )}
-          </>
-        ) : (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <p className="text-muted-foreground text-lg">
-                No athletes currently active
-              </p>
+        <TabsContent value="officiate" className="flex-1 m-0 overflow-auto">
+          {sortedAthletes.length > 0 ? (
+            <div className="divide-y">
+              {sortedAthletes.map((athlete) => (
+                <AthleteListItem
+                  key={athlete.id}
+                  athlete={athlete}
+                  isUp={upAthlete?.id === athlete.id}
+                  marks={getAthleteMarks(athlete.id)}
+                  totalAttempts={totalAttempts}
+                  bestMark={getAthleteBestMark(athlete.id)}
+                  onClick={() => setSelectedAthleteId(athlete.id)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="p-8 text-center">
+              <p className="text-muted-foreground text-lg">No athletes checked in</p>
               <p className="text-sm text-muted-foreground mt-2">
-                Waiting for athletes to be queued...
+                Athletes will appear here once they check in
               </p>
-            </CardContent>
-          </Card>
-        )}
-      </main>
+            </div>
+          )}
+        </TabsContent>
 
-      {currentAthlete && (
-        <footer className="border-t bg-card p-4 space-y-4">
-          <div className="flex gap-2">
-            <Input
-              type="number"
-              step="0.01"
-              placeholder="Enter measurement (m)"
-              value={measurement}
-              onChange={(e) => setMeasurement(e.target.value)}
-              className="h-14 text-xl text-center font-mono"
-              data-testid="input-measurement"
-            />
-          </div>
-          
-          <div className="grid grid-cols-3 gap-2">
-            <Button
-              onClick={() => recordMark("mark")}
-              disabled={!measurement || submitMarkMutation.isPending}
-              className="h-16 text-lg"
-              data-testid="button-record-mark"
-            >
-              <Check className="h-5 w-5 mr-2" />
-              Mark
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => recordMark("foul")}
-              disabled={submitMarkMutation.isPending}
-              className="h-16 text-lg"
-              data-testid="button-record-foul"
-            >
-              <X className="h-5 w-5 mr-2" />
-              Foul
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => recordMark("pass")}
-              disabled={submitMarkMutation.isPending}
-              className="h-16 text-lg"
-              data-testid="button-record-pass"
-            >
-              <Minus className="h-5 w-5 mr-2" />
-              Pass
-            </Button>
-          </div>
-        </footer>
+        <TabsContent value="standings" className="flex-1 m-0 overflow-auto">
+          <StandingsView 
+            athletes={sortedAthletes} 
+            marks={marks || []} 
+            totalAttempts={totalAttempts} 
+          />
+        </TabsContent>
+
+        <TabsContent value="review" className="flex-1 m-0 overflow-auto">
+          <ReviewMarksView 
+            athletes={sortedAthletes} 
+            marks={marks || []} 
+            totalAttempts={totalAttempts} 
+          />
+        </TabsContent>
+      </Tabs>
+
+      {/* Mark entry sheet */}
+      {selectedAthlete && (
+        <MarkEntrySheet
+          athlete={selectedAthlete}
+          attemptNumber={nextAttemptNumber}
+          totalAttempts={totalAttempts}
+          onRecordMark={recordMark}
+          onClose={() => setSelectedAthleteId(null)}
+          isPending={submitMarkMutation.isPending}
+        />
       )}
     </div>
   );
