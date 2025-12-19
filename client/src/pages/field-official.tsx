@@ -494,157 +494,256 @@ function AthleteListItem({
   const info = getAthleteDisplayInfo(athlete);
   const flightOptions = Array.from({ length: totalFlights + 1 }, (_, i) => i + 1);
 
+  const actionsDropdown = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="h-9 w-9 sm:h-10 sm:w-10 md:h-12 md:w-12 shrink-0"
+          data-testid={`button-athlete-menu-${athlete.id}`}
+        >
+          <MoreVertical className="h-5 w-5 md:h-6 md:w-6" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {isDns ? (
+          <DropdownMenuItem
+            onClick={() => onChangeStatus(athlete.id, "checked_in", "competing")}
+            data-testid={`menu-check-in-${athlete.id}`}
+          >
+            <Check className="h-4 w-4 mr-2" />
+            Check In
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem
+            onClick={() => onChangeStatus(athlete.id, "dns", "dns")}
+            data-testid={`menu-mark-dns-${athlete.id}`}
+          >
+            <X className="h-4 w-4 mr-2" />
+            Mark as No Show
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            <ArrowRightLeft className="h-4 w-4 mr-2" />
+            Move to Flight
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            {flightOptions.map((flight) => (
+              <DropdownMenuItem
+                key={flight}
+                disabled={flight === (athlete.flightNumber || 1)}
+                onClick={() => onMoveFlight(athlete.id, flight)}
+                data-testid={`menu-move-flight-${flight}`}
+              >
+                Flight {flight}
+                {flight === (athlete.flightNumber || 1) && " (current)"}
+                {flight === totalFlights + 1 && " (new)"}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+        <DropdownMenuItem
+          onClick={() => onForceFinalist(athlete.id, !athlete.isFinalist)}
+          data-testid={`menu-toggle-finalist-${athlete.id}`}
+        >
+          <Star className={`h-4 w-4 mr-2 ${athlete.isFinalist ? 'text-amber-500 fill-amber-500' : ''}`} />
+          {athlete.isFinalist ? "Remove from Finals" : "Force to Finals"}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
   return (
     <div
-      className={`flex items-center gap-2 sm:gap-3 p-2 sm:p-4 md:p-5 border-b border-border ${
+      className={`p-3 sm:p-4 md:p-5 border-b border-border ${
         isUp ? "bg-green-50 dark:bg-green-950/30" : ""
       }`}
       data-testid={`athlete-row-${athlete.id}`}
     >
-      {/* Status indicator */}
-      <div className="w-16 md:w-20 shrink-0 text-center">
-        {isUp ? (
-          <Badge className="bg-green-600 text-white font-bold px-3 py-1.5 text-sm md:text-base">UP</Badge>
-        ) : (
-          <span className="text-sm md:text-base text-muted-foreground">
-            {marks.length}/{totalAttempts}
-          </span>
-        )}
-      </div>
-
-      {/* Athlete info - clickable for mark entry */}
-      <div 
-        className="flex-1 min-w-0 cursor-pointer active:bg-muted/50" 
-        onClick={onClick}
-      >
-        <div className="flex items-center gap-2">
-          {showBibNumbers !== false && (
-            <span className="font-mono text-sm md:text-base text-muted-foreground">{info.bib}</span>
+      {/* Desktop: horizontal layout */}
+      <div className="hidden sm:flex sm:items-center gap-3">
+        {/* Status indicator */}
+        <div className="w-16 md:w-20 shrink-0 text-center">
+          {isUp ? (
+            <Badge className="bg-green-600 text-white font-bold px-3 py-1.5 text-sm md:text-base">UP</Badge>
+          ) : (
+            <span className="text-sm md:text-base text-muted-foreground">
+              {marks.length}/{totalAttempts}
+            </span>
           )}
-          <span className="font-semibold text-base md:text-lg truncate">{info.name}</span>
         </div>
-        {info.team && (
-          <p className="text-sm text-muted-foreground truncate">{info.team}</p>
-        )}
-      </div>
 
-      {/* Attempt values - clickable to edit */}
-      <div className="flex gap-1 md:gap-1.5 shrink-0">
-        {Array.from({ length: totalAttempts }).map((_, i) => {
-          const mark = marks[i];
-          if (mark) {
-            let content: string;
-            let textColor: string;
-            let bgColor: string;
-            if (mark.markType === "mark" && mark.measurement) {
-              content = mark.measurement.toFixed(2);
-              textColor = "text-white";
-              bgColor = "bg-green-600";
-            } else if (mark.markType === "foul") {
-              content = "X";
-              textColor = "text-white";
-              bgColor = "bg-red-600";
-            } else {
-              content = "P";
-              textColor = "text-black";
-              bgColor = "bg-yellow-400";
+        {/* Athlete info - clickable for mark entry */}
+        <div 
+          className="flex-1 min-w-0 cursor-pointer active:bg-muted/50" 
+          onClick={onClick}
+        >
+          <div className="flex items-center gap-2">
+            {showBibNumbers !== false && (
+              <span className="font-mono text-sm md:text-base text-muted-foreground">{info.bib}</span>
+            )}
+            <span className="font-semibold text-base md:text-lg">{info.name}</span>
+          </div>
+          {info.team && (
+            <p className="text-sm text-muted-foreground truncate">{info.team}</p>
+          )}
+        </div>
+
+        {/* Attempt values - clickable to edit */}
+        <div className="flex gap-1.5 shrink-0">
+          {Array.from({ length: totalAttempts }).map((_, i) => {
+            const mark = marks[i];
+            if (mark) {
+              let content: string;
+              let textColor: string;
+              let bgColor: string;
+              if (mark.markType === "mark" && mark.measurement) {
+                content = mark.measurement.toFixed(2);
+                textColor = "text-white";
+                bgColor = "bg-green-600";
+              } else if (mark.markType === "foul") {
+                content = "X";
+                textColor = "text-white";
+                bgColor = "bg-red-600";
+              } else {
+                content = "P";
+                textColor = "text-black";
+                bgColor = "bg-yellow-400";
+              }
+              return (
+                <button
+                  key={i}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEditMark(mark);
+                  }}
+                  className={`min-w-[2.75rem] md:min-w-[3rem] px-1.5 py-0.5 rounded ${bgColor} ${textColor} font-mono text-sm font-semibold hover:ring-2 hover:ring-primary hover:ring-offset-1 transition-all flex flex-col items-center`}
+                  data-testid={`button-edit-mark-${mark.id}`}
+                >
+                  <span>{content}</span>
+                  {mark.wind !== null && mark.wind !== undefined && (
+                    <span className="text-[10px] opacity-80">{mark.wind > 0 ? '+' : ''}{mark.wind.toFixed(1)}</span>
+                  )}
+                </button>
+              );
             }
             return (
-              <button
-                key={i}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEditMark(mark);
-                }}
-                className={`min-w-[2.5rem] md:min-w-[3rem] px-1.5 py-0.5 rounded ${bgColor} ${textColor} font-mono text-xs md:text-sm font-semibold hover:ring-2 hover:ring-primary hover:ring-offset-1 transition-all flex flex-col items-center`}
-                data-testid={`button-edit-mark-${mark.id}`}
+              <div 
+                key={i} 
+                className="min-w-[2.75rem] md:min-w-[3rem] px-1.5 py-1 rounded bg-muted text-muted-foreground font-mono text-sm text-center"
               >
-                <span>{content}</span>
-                {mark.wind !== null && mark.wind !== undefined && (
-                  <span className="text-[10px] opacity-80">{mark.wind > 0 ? '+' : ''}{mark.wind.toFixed(1)}</span>
-                )}
-              </button>
+                -
+              </div>
             );
-          }
-          return (
-            <div 
-              key={i} 
-              className="min-w-[2.5rem] md:min-w-[3rem] px-1.5 py-1 rounded bg-muted text-muted-foreground font-mono text-xs md:text-sm text-center"
-            >
-              -
-            </div>
-          );
-        })}
-      </div>
+          })}
+        </div>
 
-      {/* Best mark */}
-      <div className="w-16 md:w-20 text-right shrink-0">
-        {bestMark !== null ? (
-          <span className="font-mono font-semibold text-sm md:text-base">{bestMark.toFixed(2)}</span>
-        ) : (
-          <span className="text-muted-foreground text-sm md:text-base">-</span>
-        )}
-      </div>
-
-      {/* Actions dropdown */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="h-10 w-10 md:h-12 md:w-12 shrink-0"
-            data-testid={`button-athlete-menu-${athlete.id}`}
-          >
-            <MoreVertical className="h-5 w-5 md:h-6 md:w-6" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          {isDns ? (
-            <DropdownMenuItem
-              onClick={() => onChangeStatus(athlete.id, "checked_in", "competing")}
-              data-testid={`menu-check-in-${athlete.id}`}
-            >
-              <Check className="h-4 w-4 mr-2" />
-              Check In
-            </DropdownMenuItem>
+        {/* Best mark */}
+        <div className="w-16 md:w-20 text-right shrink-0">
+          {bestMark !== null ? (
+            <span className="font-mono font-semibold text-sm md:text-base">{bestMark.toFixed(2)}</span>
           ) : (
-            <DropdownMenuItem
-              onClick={() => onChangeStatus(athlete.id, "dns", "dns")}
-              data-testid={`menu-mark-dns-${athlete.id}`}
-            >
-              <X className="h-4 w-4 mr-2" />
-              Mark as No Show
-            </DropdownMenuItem>
+            <span className="text-muted-foreground text-sm md:text-base">-</span>
           )}
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>
-              <ArrowRightLeft className="h-4 w-4 mr-2" />
-              Move to Flight
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
-              {flightOptions.map((flight) => (
-                <DropdownMenuItem
-                  key={flight}
-                  disabled={flight === (athlete.flightNumber || 1)}
-                  onClick={() => onMoveFlight(athlete.id, flight)}
-                  data-testid={`menu-move-flight-${flight}`}
-                >
-                  Flight {flight}
-                  {flight === (athlete.flightNumber || 1) && " (current)"}
-                  {flight === totalFlights + 1 && " (new)"}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-          <DropdownMenuItem
-            onClick={() => onForceFinalist(athlete.id, !athlete.isFinalist)}
-            data-testid={`menu-toggle-finalist-${athlete.id}`}
+        </div>
+
+        {actionsDropdown}
+      </div>
+
+      {/* Mobile: stacked layout */}
+      <div className="sm:hidden flex flex-col gap-2">
+        {/* Top row: Status + Name + Best + Actions */}
+        <div className="flex items-center gap-2">
+          {/* Status indicator */}
+          <div className="w-10 shrink-0 text-center">
+            {isUp ? (
+              <Badge className="bg-green-600 text-white font-bold px-2 py-1 text-xs">UP</Badge>
+            ) : (
+              <span className="text-xs text-muted-foreground">
+                {marks.length}/{totalAttempts}
+              </span>
+            )}
+          </div>
+
+          {/* Athlete info - clickable for mark entry */}
+          <div 
+            className="flex-1 min-w-0 cursor-pointer active:bg-muted/50" 
+            onClick={onClick}
           >
-            <Star className={`h-4 w-4 mr-2 ${athlete.isFinalist ? 'text-amber-500 fill-amber-500' : ''}`} />
-            {athlete.isFinalist ? "Remove from Finals" : "Force to Finals"}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+            <div className="flex items-center gap-1.5">
+              {showBibNumbers !== false && (
+                <span className="font-mono text-xs text-muted-foreground">{info.bib}</span>
+              )}
+              <span className="font-semibold text-sm">{info.name}</span>
+            </div>
+            {info.team && (
+              <p className="text-xs text-muted-foreground truncate">{info.team}</p>
+            )}
+          </div>
+
+          {/* Best mark */}
+          <div className="w-12 text-right shrink-0">
+            {bestMark !== null ? (
+              <span className="font-mono font-bold text-sm">{bestMark.toFixed(2)}</span>
+            ) : (
+              <span className="text-xs text-muted-foreground">-</span>
+            )}
+          </div>
+
+          {actionsDropdown}
+        </div>
+
+        {/* Bottom row: Attempts */}
+        <div className="flex gap-1 pl-12">
+          {Array.from({ length: totalAttempts }).map((_, i) => {
+            const mark = marks[i];
+            if (mark) {
+              let content: string;
+              let textColor: string;
+              let bgColor: string;
+              if (mark.markType === "mark" && mark.measurement) {
+                content = mark.measurement.toFixed(2);
+                textColor = "text-white";
+                bgColor = "bg-green-600";
+              } else if (mark.markType === "foul") {
+                content = "X";
+                textColor = "text-white";
+                bgColor = "bg-red-600";
+              } else {
+                content = "P";
+                textColor = "text-black";
+                bgColor = "bg-yellow-400";
+              }
+              return (
+                <button
+                  key={i}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEditMark(mark);
+                  }}
+                  className={`min-w-[2.25rem] px-1 py-0.5 rounded ${bgColor} ${textColor} font-mono text-xs font-semibold hover:ring-2 hover:ring-primary hover:ring-offset-1 transition-all flex flex-col items-center`}
+                  data-testid={`button-edit-mark-mobile-${mark.id}`}
+                >
+                  <span>{content}</span>
+                  {mark.wind !== null && mark.wind !== undefined && (
+                    <span className="text-[9px] opacity-80">{mark.wind > 0 ? '+' : ''}{mark.wind.toFixed(1)}</span>
+                  )}
+                </button>
+              );
+            }
+            return (
+              <div 
+                key={i} 
+                className="min-w-[2.25rem] px-1 py-1 rounded bg-muted text-muted-foreground font-mono text-xs text-center"
+              >
+                -
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
@@ -3016,56 +3115,84 @@ function FieldEntryUI({
             </SheetContent>
           </Sheet>
           <div className="min-w-0 flex-1">
-            <h1 className="font-bold text-xl md:text-2xl truncate" data-testid="text-event-name">
+            <h1 className="font-bold text-lg sm:text-xl md:text-2xl truncate" data-testid="text-event-name">
               {eventName}
             </h1>
-            <p className="text-base md:text-lg opacity-80">
+            <p className="text-xs sm:text-sm md:text-base opacity-80">
               {isVertical && currentHeight ? (
                 <>Bar: {formatHeightMark(currentHeight.heightMeters)} • </>
               ) : null}
               {!isVertical && session.isInFinals ? (
                 <>Finals • {sortedAthletes.filter(a => a.isFinalist).length} finalists</>
               ) : (
-                <>Flight {currentFlight} of {totalFlights} • {sortedAthletes.filter(a => (a.flightNumber || 1) === currentFlight).length} athletes</>
+                <>Flt {currentFlight}/{totalFlights} • {sortedAthletes.filter(a => (a.flightNumber || 1) === currentFlight).length} athletes</>
               )}
             </p>
           </div>
           {isVertical && (
-            <Button 
-              variant="ghost" 
-              size="default"
-              onClick={() => setShowHeightsDialog(true)}
-              className="shrink-0 text-primary-foreground hover:bg-primary-foreground/20 text-base md:text-lg"
-              data-testid="button-add-edit-heights"
-            >
-              <Ruler className="h-5 w-5 md:h-6 md:w-6 mr-1.5" />
-              <span className="hidden sm:inline">Add/Edit Heights</span>
-              <span className="sm:hidden">Heights</span>
-            </Button>
+            <>
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={() => setShowHeightsDialog(true)}
+                className="sm:hidden shrink-0 text-primary-foreground hover:bg-primary-foreground/20"
+                data-testid="button-add-edit-heights-mobile"
+              >
+                <Ruler className="h-5 w-5" />
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => setShowHeightsDialog(true)}
+                className="hidden sm:flex shrink-0 text-primary-foreground hover:bg-primary-foreground/20"
+                data-testid="button-add-edit-heights"
+              >
+                <Ruler className="h-5 w-5 mr-1.5" />
+                Heights
+              </Button>
+            </>
           )}
           <Button 
             variant="ghost" 
-            size="default"
+            size="icon"
             onClick={() => setShowAddAthlete(true)}
-            className="shrink-0 text-primary-foreground hover:bg-primary-foreground/20 text-base md:text-lg"
+            className="sm:hidden shrink-0 text-primary-foreground hover:bg-primary-foreground/20"
+            data-testid="button-add-athlete-mobile"
+          >
+            <UserPlus className="h-5 w-5" />
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={() => setShowAddAthlete(true)}
+            className="hidden sm:flex shrink-0 text-primary-foreground hover:bg-primary-foreground/20"
             data-testid="button-add-athlete"
           >
-            <UserPlus className="h-5 w-5 md:h-6 md:w-6 mr-1.5" />
-            <span className="hidden sm:inline">Add Athlete</span>
-            <span className="sm:hidden">Add</span>
+            <UserPlus className="h-5 w-5 mr-1.5" />
+            Add
           </Button>
           {!isVertical && (
-            <Button 
-              variant="ghost" 
-              size="default"
-              onClick={() => setShowGenerateFinals(true)}
-              className="shrink-0 text-primary-foreground hover:bg-primary-foreground/20 text-base md:text-lg"
-              data-testid="button-generate-finals-header"
-            >
-              <Star className="h-5 w-5 md:h-6 md:w-6 mr-1.5" />
-              <span className="hidden sm:inline">Generate Finals</span>
-              <span className="sm:hidden">Finals</span>
-            </Button>
+            <>
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={() => setShowGenerateFinals(true)}
+                className="sm:hidden shrink-0 text-primary-foreground hover:bg-primary-foreground/20"
+                data-testid="button-generate-finals-header-mobile"
+              >
+                <Star className="h-5 w-5" />
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => setShowGenerateFinals(true)}
+                className="hidden sm:flex shrink-0 text-primary-foreground hover:bg-primary-foreground/20"
+                data-testid="button-generate-finals-header"
+              >
+                <Star className="h-5 w-5 mr-1.5" />
+                Finals
+              </Button>
+            </>
           )}
           <div className="hidden sm:flex shrink-0 items-center gap-1.5">
             <Label htmlFor="device-name" className="text-xs text-primary-foreground/70 whitespace-nowrap">Device:</Label>
