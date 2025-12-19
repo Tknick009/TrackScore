@@ -648,19 +648,22 @@ function MarkEntrySheet({
   onDeleteLastMark,
   onClose,
   isPending,
-  canDeleteLast
+  canDeleteLast,
+  recordWind = false
 }: {
   athlete: EnrichedAthlete;
   attemptNumber: number;
   totalAttempts: number;
-  onRecordMark: (markType: "mark" | "foul" | "pass", measurement?: string) => void;
+  onRecordMark: (markType: "mark" | "foul" | "pass", measurement?: string, wind?: number) => void;
   onDeleteLastMark: () => void;
   onClose: () => void;
   isPending: boolean;
   canDeleteLast: boolean;
+  recordWind?: boolean;
 }) {
   const [meters, setMeters] = useState("");
   const [centimeters, setCentimeters] = useState("");
+  const [wind, setWind] = useState("");
   const cmInputRef = useRef<HTMLInputElement>(null);
   const info = getAthleteDisplayInfo(athlete);
 
@@ -673,9 +676,11 @@ function MarkEntrySheet({
 
   const handleSubmit = (markType: "mark" | "foul" | "pass") => {
     const measurement = getMeasurement();
-    onRecordMark(markType, markType === "mark" ? measurement : undefined);
+    const windValue = wind ? parseFloat(wind) : undefined;
+    onRecordMark(markType, markType === "mark" ? measurement : undefined, windValue);
     setMeters("");
     setCentimeters("");
+    setWind("");
   };
 
   const handleMetersChange = (value: string) => {
@@ -730,31 +735,51 @@ function MarkEntrySheet({
         </div>
 
         {/* Input - Two boxes for meters.centimeters */}
-        <div className="p-4 md:p-5">
-          <div className="flex items-center justify-center gap-2">
-            <Input
-              type="text"
-              inputMode="numeric"
-              placeholder="M"
-              value={meters}
-              onChange={(e) => handleMetersChange(e.target.value)}
-              className="h-16 md:h-20 w-24 md:w-32 text-2xl md:text-3xl text-center font-mono"
-              autoFocus
-              data-testid="input-meters"
-            />
-            <span className="text-3xl md:text-4xl font-bold text-muted-foreground">.</span>
-            <Input
-              ref={cmInputRef}
-              type="text"
-              inputMode="numeric"
-              placeholder="CM"
-              value={centimeters}
-              onChange={(e) => handleCentimetersChange(e.target.value)}
-              className="h-16 md:h-20 w-24 md:w-32 text-2xl md:text-3xl text-center font-mono"
-              data-testid="input-centimeters"
-            />
+        <div className="p-4 md:p-5 space-y-4">
+          <div>
+            <div className="flex items-center justify-center gap-2">
+              <Input
+                type="text"
+                inputMode="numeric"
+                placeholder="M"
+                value={meters}
+                onChange={(e) => handleMetersChange(e.target.value)}
+                className="h-16 md:h-20 w-24 md:w-32 text-2xl md:text-3xl text-center font-mono"
+                autoFocus
+                data-testid="input-meters"
+              />
+              <span className="text-3xl md:text-4xl font-bold text-muted-foreground">.</span>
+              <Input
+                ref={cmInputRef}
+                type="text"
+                inputMode="numeric"
+                placeholder="CM"
+                value={centimeters}
+                onChange={(e) => handleCentimetersChange(e.target.value)}
+                className="h-16 md:h-20 w-24 md:w-32 text-2xl md:text-3xl text-center font-mono"
+                data-testid="input-centimeters"
+              />
+            </div>
+            <p className="text-center text-sm text-muted-foreground mt-2">Meters . Centimeters</p>
           </div>
-          <p className="text-center text-sm text-muted-foreground mt-2">Meters . Centimeters</p>
+          
+          {recordWind && (
+            <div>
+              <div className="flex items-center justify-center gap-2">
+                <span className="text-lg md:text-xl text-muted-foreground">Wind:</span>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="+0.0"
+                  value={wind}
+                  onChange={(e) => setWind(e.target.value)}
+                  className="h-12 md:h-14 w-24 md:w-28 text-xl md:text-2xl text-center font-mono"
+                  data-testid="input-wind"
+                />
+                <span className="text-lg md:text-xl text-muted-foreground">m/s</span>
+              </div>
+            </div>
+          )}
         </div>
         
         {/* Action buttons - large touch targets for iPad */}
@@ -2501,7 +2526,7 @@ function FieldEntryUI({
   };
   const upAthlete = getUpAthlete();
 
-  const recordMark = (markType: "mark" | "foul" | "pass", measurement?: string) => {
+  const recordMark = (markType: "mark" | "foul" | "pass", measurement?: string, wind?: number) => {
     if (!selectedAthlete) return;
 
     const markData: InsertFieldEventMark = {
@@ -2512,6 +2537,7 @@ function FieldEntryUI({
       measurement: markType === "mark" && measurement 
         ? parseFloat(measurement) 
         : undefined,
+      wind: wind,
     };
 
     submitMarkMutation.mutate(markData);
@@ -3131,6 +3157,7 @@ function FieldEntryUI({
           onClose={() => setSelectedAthleteId(null)}
           isPending={submitMarkMutation.isPending || deleteMarkMutation.isPending}
           canDeleteLast={!!getLastMarkForAthlete(selectedAthlete.id)}
+          recordWind={session?.recordWind || false}
         />
       ) : null}
 
