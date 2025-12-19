@@ -225,7 +225,7 @@ function HeightsDialog({
       
       await refetch();
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "heights"] });
-      toast({ title: "Heights saved successfully" });
+      // Success - no toast needed
       onOpenChange(false);
     } catch (error: any) {
       console.error("Failed to save heights:", error);
@@ -413,7 +413,7 @@ function JoinSession({
     if (!isNaN(id)) {
       sessionStorage.setItem(SESSION_STORAGE_KEY, sessionId);
       onJoin(id);
-      toast({ title: "Joined session successfully" });
+      // Success - no toast needed
     }
   };
 
@@ -1135,7 +1135,7 @@ function EditMarkDialog({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "marks"] });
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "athletes"] });
-      toast({ title: "Mark updated" });
+      // Success - no toast needed
       onClose();
     },
     onError: (error: Error) => {
@@ -1150,7 +1150,7 @@ function EditMarkDialog({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "marks"] });
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "athletes"] });
-      toast({ title: "Mark deleted" });
+      // Success - no toast needed
       onClose();
     },
     onError: (error: Error) => {
@@ -2180,7 +2180,7 @@ function GenerateFinalsDialog({
       return apiRequest("POST", `/api/field-sessions/${sessionId}/generate-finals`, { count });
     },
     onSuccess: () => {
-      toast({ title: "Finals generated", description: `${count} athletes marked as finalists` });
+      // Success - no toast needed
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "athletes"] });
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "full"] });
       onClose();
@@ -2329,7 +2329,7 @@ function AddAthleteDialog({
     }) => apiRequest("POST", `/api/field-sessions/${sessionId}/athletes`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "athletes"] });
-      toast({ title: "Athlete added and checked in" });
+      // Success - no toast needed
       setFirstName("");
       setLastName("");
       setBibNumber("");
@@ -2515,7 +2515,7 @@ function DeleteFinalsButton({
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "full"] });
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "athletes"] });
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "marks"] });
-      toast({ title: "Finals deleted", description: "Event has been reset to prelims mode" });
+      // Success - no toast needed
       onClose();
     },
     onError: (error: Error) => {
@@ -2637,7 +2637,7 @@ function EventSettingsDialog({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", session.id, "full"] });
-      toast({ title: "Settings saved" });
+      // Success - no toast needed
       onClose();
     },
     onError: (error: Error) => {
@@ -2905,7 +2905,7 @@ function FieldEntryUI({
       queryClient.invalidateQueries({ 
         queryKey: ["/api/field-sessions", sessionId, "athletes"] 
       });
-      toast({ title: "Mark recorded" });
+      // Success - no toast needed
       setSelectedAthleteId(null);
     },
     onError: () => {
@@ -2927,7 +2927,7 @@ function FieldEntryUI({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "athletes"] });
-      toast({ title: "Athlete moved to new flight" });
+      // Success - no toast needed
     },
     onError: () => {
       toast({ title: "Failed to move athlete", variant: "destructive" });
@@ -2945,7 +2945,7 @@ function FieldEntryUI({
     },
     onSuccess: (_, { isFinalist }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "athletes"] });
-      toast({ title: isFinalist ? "Athlete added to finals" : "Athlete removed from finals" });
+      // Success - no toast needed
     },
     onError: () => {
       toast({ title: "Failed to update finalist status", variant: "destructive" });
@@ -2971,9 +2971,9 @@ function FieldEntryUI({
     onSuccess: (_, { competitionStatus }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "athletes"] });
       if (competitionStatus === "dns") {
-        toast({ title: "Athlete marked as no show" });
+        // Success - no toast needed
       } else {
-        toast({ title: "Athlete checked in" });
+        // Success - no toast needed
       }
     },
     onError: () => {
@@ -2992,7 +2992,7 @@ function FieldEntryUI({
     },
     onSuccess: (_, direction) => {
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId] });
-      toast({ title: direction === 1 ? "Advanced to next height" : "Returned to previous height" });
+      // Success - no toast needed
     },
     onError: (error: Error) => {
       toast({ title: error.message || "Failed to change height", variant: "destructive" });
@@ -3029,7 +3029,7 @@ function FieldEntryUI({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId] });
-      toast({ title: "Alive group updated" });
+      // Success - no toast needed
     },
     onError: (error: Error) => {
       toast({ title: error.message || "Failed to update alive group", variant: "destructive" });
@@ -3048,7 +3048,7 @@ function FieldEntryUI({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "full"] });
-      toast({ title: "Switched flight" });
+      // Success - no toast needed
     },
     onError: (error: Error) => {
       toast({ title: error.message || "Failed to switch flight", variant: "destructive" });
@@ -3071,7 +3071,7 @@ function FieldEntryUI({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "full"] });
-      toast({ title: "Switched to flight" });
+      // Success - no toast needed
     },
     onError: (error: Error) => {
       toast({ title: error.message || "Failed to switch flight", variant: "destructive" });
@@ -3085,7 +3085,7 @@ function FieldEntryUI({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "full"] });
-      toast({ title: "Switched to Finals" });
+      // Success - no toast needed
     },
     onError: (error: Error) => {
       toast({ title: error.message || "Failed to enter finals", variant: "destructive" });
@@ -3100,7 +3100,7 @@ function FieldEntryUI({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "marks"] });
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "athletes"] });
-      toast({ title: "Last mark deleted" });
+      // Success - no toast needed
     },
     onError: (error: Error) => {
       toast({ title: error.message || "Failed to delete mark", variant: "destructive" });
@@ -3114,7 +3114,7 @@ function FieldEntryUI({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "athletes"] });
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "marks"] });
-      toast({ title: "Opening height set" });
+      // Success - no toast needed
     },
     onError: (error: Error) => {
       toast({ title: error.message || "Failed to set opening height", variant: "destructive" });
