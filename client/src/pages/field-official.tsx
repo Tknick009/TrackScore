@@ -3362,12 +3362,12 @@ function FieldEntryUI({
                         <ChevronRight className="h-4 w-4" />
                       </Button>
                     </div>
-                    <div className="flex gap-1.5 overflow-x-auto pb-1">
+                    <div className="flex gap-2 overflow-x-auto pb-1">
                       {heights.sort((a, b) => a.heightIndex - b.heightIndex).map((h) => (
                         <Badge 
                           key={h.id} 
                           variant={h.heightIndex === currentHeightIndex ? "default" : "outline"}
-                          className={`text-xs px-2 py-0.5 cursor-pointer shrink-0 ${
+                          className={`text-sm px-3 py-1.5 cursor-pointer shrink-0 min-h-[2.5rem] flex items-center ${
                             h.heightIndex === currentHeightIndex ? 'ring-2 ring-primary ring-offset-1' : ''
                           }`}
                           onClick={() => handleJumpToHeight(h.heightIndex)}
