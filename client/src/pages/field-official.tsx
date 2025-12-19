@@ -529,6 +529,7 @@ function AthleteListItem({
           variant="ghost" 
           size="icon" 
           className="h-9 w-9 sm:h-10 sm:w-10 md:h-12 md:w-12 shrink-0"
+          onClick={(e) => e.stopPropagation()}
           data-testid={`button-athlete-menu-${athlete.id}`}
         >
           <MoreVertical className="h-5 w-5 md:h-6 md:w-6" />
@@ -585,9 +586,10 @@ function AthleteListItem({
 
   return (
     <div
-      className={`p-3 sm:p-4 md:p-5 border-b border-border ${
-        isUp ? "bg-green-50 dark:bg-green-950/30" : ""
+      className={`p-3 sm:p-4 md:p-5 border-b border-border cursor-pointer hover:bg-muted/30 active:bg-muted/50 transition-colors ${
+        isUp ? "bg-green-50 dark:bg-green-950/30 hover:bg-green-100 dark:hover:bg-green-950/50" : ""
       }`}
+      onClick={onClick}
       data-testid={`athlete-row-${athlete.id}`}
     >
       {/* Desktop: horizontal layout */}
@@ -603,11 +605,8 @@ function AthleteListItem({
           )}
         </div>
 
-        {/* Athlete info - clickable for mark entry */}
-        <div 
-          className="flex-1 min-w-0 cursor-pointer active:bg-muted/50" 
-          onClick={onClick}
-        >
+        {/* Athlete info */}
+        <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             {showBibNumbers !== false && (
               <span className="font-mono text-sm md:text-base text-muted-foreground">{info.bib}</span>
@@ -695,11 +694,8 @@ function AthleteListItem({
             )}
           </div>
 
-          {/* Athlete info - clickable for mark entry */}
-          <div 
-            className="flex-1 min-w-0 cursor-pointer active:bg-muted/50" 
-            onClick={onClick}
-          >
+          {/* Athlete info */}
+          <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
               {showBibNumbers !== false && (
                 <span className="font-mono text-sm text-muted-foreground">{info.bib}</span>
