@@ -516,13 +516,6 @@ function AthleteListItem({
         <div className="flex items-center gap-2">
           <span className="font-mono text-sm md:text-base text-muted-foreground">{info.bib}</span>
           <span className="font-semibold text-base md:text-lg truncate">{info.name}</span>
-          <Badge variant="outline" className="text-xs md:text-sm">F{athlete.flightNumber || 1}</Badge>
-          {athlete.isFinalist && (
-            <Badge className="text-xs md:text-sm bg-amber-500 text-white border-amber-500">
-              <Star className="h-3 w-3 mr-0.5" />
-              Finals
-            </Badge>
-          )}
         </div>
         {info.team && (
           <p className="text-sm text-muted-foreground truncate">{info.team}</p>
