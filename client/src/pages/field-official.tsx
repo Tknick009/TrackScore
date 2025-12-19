@@ -550,10 +550,13 @@ function AthleteListItem({
                   e.stopPropagation();
                   onEditMark(mark);
                 }}
-                className={`min-w-[2.5rem] md:min-w-[3rem] px-1.5 py-1 rounded ${bgColor} ${textColor} font-mono text-xs md:text-sm font-semibold hover:ring-2 hover:ring-primary hover:ring-offset-1 transition-all`}
+                className={`min-w-[2.5rem] md:min-w-[3rem] px-1.5 py-0.5 rounded ${bgColor} ${textColor} font-mono text-xs md:text-sm font-semibold hover:ring-2 hover:ring-primary hover:ring-offset-1 transition-all flex flex-col items-center`}
                 data-testid={`button-edit-mark-${mark.id}`}
               >
-                {content}
+                <span>{content}</span>
+                {mark.wind !== null && mark.wind !== undefined && (
+                  <span className="text-[10px] opacity-80">{mark.wind > 0 ? '+' : ''}{mark.wind.toFixed(1)}</span>
+                )}
               </button>
             );
           }
@@ -840,16 +843,18 @@ function EditMarkDialog({
   const { toast } = useToast();
   const [markType, setMarkType] = useState<string>("");
   const [measurement, setMeasurement] = useState<string>("");
+  const [wind, setWind] = useState<string>("");
 
   useEffect(() => {
     if (mark) {
       setMarkType(mark.markType || "");
       setMeasurement(mark.measurement?.toString() || "");
+      setWind(mark.wind?.toString() || "");
     }
   }, [mark]);
 
   const updateMarkMutation = useMutation({
-    mutationFn: async (data: { markType: string; measurement?: number }) => {
+    mutationFn: async (data: { markType: string; measurement?: number; wind?: number | null }) => {
       return apiRequest("PATCH", `/api/field-marks/${mark!.id}`, data);
     },
     onSuccess: () => {
@@ -880,9 +885,15 @@ function EditMarkDialog({
 
   const handleSave = () => {
     if (!mark) return;
-    const data: { markType: string; measurement?: number } = { markType };
+    const data: { markType: string; measurement?: number; wind?: number | null } = { markType };
     if (markType === "mark" && measurement) {
       data.measurement = parseFloat(measurement);
+    }
+    // Include wind value (can be cleared by setting to null)
+    if (wind.trim() !== "") {
+      data.wind = parseFloat(wind);
+    } else {
+      data.wind = null;
     }
     updateMarkMutation.mutate(data);
   };
@@ -939,6 +950,20 @@ function EditMarkDialog({
                 onChange={(e) => setMeasurement(e.target.value)}
                 placeholder="Enter distance in meters"
                 data-testid="input-edit-measurement"
+              />
+            </div>
+          )}
+
+          {!isVertical && (
+            <div className="space-y-2">
+              <Label>Wind (m/s)</Label>
+              <Input
+                type="number"
+                step="0.1"
+                value={wind}
+                onChange={(e) => setWind(e.target.value)}
+                placeholder="e.g. +1.2 or -0.5"
+                data-testid="input-edit-wind"
               />
             </div>
           )}
