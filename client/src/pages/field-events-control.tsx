@@ -43,6 +43,7 @@ import {
   RefreshCw,
   Check,
   X,
+  QrCode,
 } from "lucide-react";
 import type {
   Event,
@@ -119,10 +120,17 @@ interface SessionCardProps {
 
 function SessionCard({ session, athletes, onEdit, onDelete, onUpdateStatus, onExportLFF }: SessionCardProps) {
   const { toast } = useToast();
+  const [showQRDialog, setShowQRDialog] = useState(false);
+  
   // Use database event name if available, otherwise use EVT event name
   const eventName = session.event?.name || session.evtEventName || "Unknown Event";
   const checkedInCount = athletes.filter(a => a.checkInStatus === "checked_in").length;
   const totalAthletes = athletes.length;
+  
+  // Build the full URL for the field officiating page
+  const fieldUrl = typeof window !== "undefined" 
+    ? `${window.location.origin}/field/${session.accessCode}`
+    : `/field/${session.accessCode}`;
 
   const copyAccessCode = () => {
     if (session.accessCode) {
@@ -196,6 +204,61 @@ function SessionCard({ session, athletes, onEdit, onDelete, onUpdateStatus, onEx
               View Standings
             </a>
           </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowQRDialog(true)}
+            data-testid={`button-show-qr-${session.id}`}
+          >
+            <QrCode className="h-4 w-4 mr-2" />
+            QR Code
+          </Button>
+
+          <Dialog open={showQRDialog} onOpenChange={setShowQRDialog}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <QrCode className="h-5 w-5" />
+                  Field Official Access
+                </DialogTitle>
+                <DialogDescription>
+                  Scan this QR code to open the officiating page for {eventName}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex flex-col items-center gap-4 py-4">
+                <div className="bg-white p-4 rounded-lg">
+                  <img
+                    src={`/api/qr/url?url=${encodeURIComponent(fieldUrl)}`}
+                    alt="QR Code for field officiating"
+                    className="w-64 h-64"
+                    data-testid={`img-qr-code-${session.id}`}
+                  />
+                </div>
+                <div className="text-center space-y-2">
+                  <p className="text-sm text-muted-foreground">Or enter this code manually:</p>
+                  <code className="bg-muted px-4 py-2 rounded font-mono text-lg font-bold">
+                    {session.accessCode}
+                  </code>
+                </div>
+                <div className="text-center">
+                  <a 
+                    href={fieldUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-sm text-primary hover:underline"
+                  >
+                    {fieldUrl}
+                  </a>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowQRDialog(false)}>
+                  Close
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           {session.status === "setup" && (
             <Button

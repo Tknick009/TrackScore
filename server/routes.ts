@@ -4828,6 +4828,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== QR CODE GENERATION =====
 
+  // Generate QR code for any URL (no storage, direct generation)
+  app.get("/api/qr/url", async (req, res) => {
+    try {
+      const url = req.query.url as string;
+      if (!url) {
+        return res.status(400).json({ error: "URL is required" });
+      }
+      
+      const format = (req.query.format as string) || 'png';
+      
+      if (format === 'svg') {
+        const svg = await QRCode.toString(url, { type: 'svg', margin: 2, width: 256 });
+        res.setHeader('Content-Type', 'image/svg+xml');
+        res.send(svg);
+      } else {
+        const buffer = await QRCode.toBuffer(url, { margin: 2, width: 256 });
+        res.setHeader('Content-Type', 'image/png');
+        res.send(buffer);
+      }
+    } catch (error) {
+      console.error("QR direct generation error:", error);
+      res.status(500).json({ error: "Failed to generate QR code" });
+    }
+  });
+
   // Generate QR code
   app.post("/api/qr/generate", async (req, res) => {
     try {
@@ -6549,6 +6574,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Also load athletes from EVT file and add them
         const athletes = getAthletesFromDirectory(config.directoryPath, evt.eventNumber);
+        let orderInFlight = 1;
         for (const athlete of athletes) {
           await storage.createFieldEventAthlete({
             sessionId: session.id,
@@ -6558,6 +6584,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             evtLastName: athlete.lastName,
             evtTeam: athlete.team,
             order: athlete.order,
+            orderInFlight: orderInFlight++,
             flightNumber: athlete.flight || 1,
             checkInStatus: "checked_in",
             competitionStatus: "competing",
