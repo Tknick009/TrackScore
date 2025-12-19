@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRoute } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -119,6 +119,8 @@ function HeightsDialog({
   const [newHeightMeters, setNewHeightMeters] = useState("");
   const [localHeights, setLocalHeights] = useState<LocalHeight[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const scrollEndRef = useRef<HTMLDivElement>(null);
+  const [shouldScrollToBottom, setShouldScrollToBottom] = useState(false);
 
   const { data: heights = [], isLoading, refetch } = useQuery<FieldHeight[]>({
     queryKey: ["/api/field-sessions", sessionId, "heights"],
@@ -141,6 +143,14 @@ function HeightsDialog({
     }
   }, [heights, open, isLoading]);
 
+  // Auto-scroll to bottom when new height is added
+  useEffect(() => {
+    if (shouldScrollToBottom && scrollEndRef.current) {
+      scrollEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      setShouldScrollToBottom(false);
+    }
+  }, [shouldScrollToBottom, localHeights]);
+
   const handleAddHeight = () => {
     const meters = parseFloat(newHeightMeters);
     if (isNaN(meters) || meters <= 0) {
@@ -160,6 +170,7 @@ function HeightsDialog({
     updatedHeights.forEach((h, idx) => { h.heightIndex = idx; });
     setLocalHeights(updatedHeights);
     setNewHeightMeters("");
+    setShouldScrollToBottom(true);
   };
 
   const handleDeleteHeight = (index: number) => {
@@ -261,7 +272,7 @@ function HeightsDialog({
             </Button>
           </div>
 
-          <ScrollArea className="flex-1 max-h-[300px]">
+          <ScrollArea className="flex-1 max-h-[400px]">
             {isLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -334,6 +345,7 @@ function HeightsDialog({
                     </div>
                   </div>
                 ))}
+                <div ref={scrollEndRef} />
               </div>
             )}
           </ScrollArea>
