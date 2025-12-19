@@ -1067,6 +1067,65 @@ function ReviewMarksView({
     return marks.filter(m => m.athleteId === athleteId).sort((a, b) => a.attemptNumber - b.attemptNumber);
   };
 
+  // Group athletes by flight
+  const flights = new Map<number, EnrichedAthlete[]>();
+  athletes.forEach(athlete => {
+    const flight = athlete.flight || 1;
+    if (!flights.has(flight)) {
+      flights.set(flight, []);
+    }
+    flights.get(flight)!.push(athlete);
+  });
+  const sortedFlights = Array.from(flights.entries()).sort((a, b) => a[0] - b[0]);
+
+  const renderAthleteRow = (athlete: EnrichedAthlete) => {
+    const info = getAthleteDisplayInfo(athlete);
+    const athleteMarks = getAthleteMarks(athlete.id);
+    const validMarks = athleteMarks.filter(m => m.markType === "mark" && m.measurement);
+    const best = validMarks.length > 0 ? Math.max(...validMarks.map(m => m.measurement as number)) : null;
+
+    return (
+      <tr key={athlete.id} className="border-b">
+        <td className="p-3 md:p-4 sticky left-0 bg-background min-w-[140px] md:min-w-[200px]">
+          <div className="font-semibold text-base md:text-lg">{info.name}</div>
+        </td>
+        {Array.from({ length: totalAttempts }).map((_, i) => {
+          const mark = athleteMarks.find(m => m.attemptNumber === i + 1);
+          let content: React.ReactNode = "-";
+          let className = "text-muted-foreground";
+          if (mark) {
+            if (mark.markType === "mark" && mark.measurement) {
+              content = mark.measurement.toFixed(2);
+              className = "font-mono";
+            } else if (mark.markType === "foul") {
+              content = "X";
+              className = "text-red-500 font-bold";
+            } else if (mark.markType === "pass") {
+              content = "P";
+              className = "text-yellow-600 font-bold";
+            }
+          }
+          return (
+            <td 
+              key={i} 
+              className={`text-center p-3 md:p-4 ${className} ${mark ? 'cursor-pointer hover:bg-muted/50' : ''}`}
+              onClick={() => mark && onEditMark(mark)}
+              data-testid={mark ? `cell-mark-${athlete.id}-${i + 1}` : undefined}
+            >
+              <div className="flex items-center justify-center gap-1">
+                {content}
+                {mark && <Pencil className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground opacity-50" />}
+              </div>
+            </td>
+          );
+        })}
+        <td className="text-center p-3 md:p-4 font-mono font-bold text-base md:text-lg">
+          {best !== null ? best.toFixed(2) : "-"}
+        </td>
+      </tr>
+    );
+  };
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm md:text-base">
@@ -1080,53 +1139,20 @@ function ReviewMarksView({
           </tr>
         </thead>
         <tbody>
-          {athletes.map(athlete => {
-            const info = getAthleteDisplayInfo(athlete);
-            const athleteMarks = getAthleteMarks(athlete.id);
-            const validMarks = athleteMarks.filter(m => m.markType === "mark" && m.measurement);
-            const best = validMarks.length > 0 ? Math.max(...validMarks.map(m => m.measurement as number)) : null;
-
-            return (
-              <tr key={athlete.id} className="border-b">
-                <td className="p-3 md:p-4 sticky left-0 bg-background min-w-[140px] md:min-w-[200px]">
-                  <div className="font-semibold text-base md:text-lg">{info.name}</div>
-                </td>
-                {Array.from({ length: totalAttempts }).map((_, i) => {
-                  const mark = athleteMarks.find(m => m.attemptNumber === i + 1);
-                  let content: React.ReactNode = "-";
-                  let className = "text-muted-foreground";
-                  if (mark) {
-                    if (mark.markType === "mark" && mark.measurement) {
-                      content = mark.measurement.toFixed(2);
-                      className = "font-mono";
-                    } else if (mark.markType === "foul") {
-                      content = "X";
-                      className = "text-red-500 font-bold";
-                    } else if (mark.markType === "pass") {
-                      content = "P";
-                      className = "text-yellow-600 font-bold";
-                    }
-                  }
-                  return (
-                    <td 
-                      key={i} 
-                      className={`text-center p-3 md:p-4 ${className} ${mark ? 'cursor-pointer hover:bg-muted/50' : ''}`}
-                      onClick={() => mark && onEditMark(mark)}
-                      data-testid={mark ? `cell-mark-${athlete.id}-${i + 1}` : undefined}
-                    >
-                      <div className="flex items-center justify-center gap-1">
-                        {content}
-                        {mark && <Pencil className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground opacity-50" />}
-                      </div>
-                    </td>
-                  );
-                })}
-                <td className="text-center p-3 md:p-4 font-mono font-bold text-base md:text-lg">
-                  {best !== null ? best.toFixed(2) : "-"}
+          {sortedFlights.map(([flightNum, flightAthletes]) => (
+            <>
+              {/* Flight header row */}
+              <tr key={`flight-${flightNum}`} className="bg-muted/50">
+                <td 
+                  colSpan={totalAttempts + 2} 
+                  className="p-2 md:p-3 font-semibold text-sm md:text-base text-muted-foreground sticky left-0"
+                >
+                  Flight {flightNum}
                 </td>
               </tr>
-            );
-          })}
+              {flightAthletes.map(renderAthleteRow)}
+            </>
+          ))}
         </tbody>
       </table>
     </div>
