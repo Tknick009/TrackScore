@@ -39,9 +39,11 @@ import type {
   FieldEventAthlete, 
   FieldEventMark,
   InsertFieldEventMark,
+  FieldHeight,
   Athlete,
   Entry
 } from "@shared/schema";
+import { isHeightEvent } from "@shared/schema";
 
 const SESSION_STORAGE_KEY = "field-official-session-id";
 
@@ -522,6 +524,493 @@ function ReviewMarksView({
   );
 }
 
+// ==================== VERTICAL EVENT HELPERS ====================
+
+function formatHeightMark(meters: number): string {
+  return `${meters.toFixed(2)}m`;
+}
+
+function getAthleteHeightAttempts(athleteId: number, heightIndex: number, marks: FieldEventMark[]): FieldEventMark[] {
+  return marks
+    .filter(m => m.athleteId === athleteId && m.heightIndex === heightIndex)
+    .sort((a, b) => (a.attemptAtHeight || 0) - (b.attemptAtHeight || 0));
+}
+
+function getAthleteAttemptsAtHeight(athleteId: number, heightIndex: number, marks: FieldEventMark[]): string {
+  const heightMarks = getAthleteHeightAttempts(athleteId, heightIndex, marks);
+  let display = '';
+  for (const mark of heightMarks) {
+    if (mark.markType === 'cleared') {
+      display += 'O';
+      break;
+    } else if (mark.markType === 'missed') {
+      display += 'X';
+    } else if (mark.markType === 'pass') {
+      display += '-';
+    }
+  }
+  return display;
+}
+
+function isAthleteEliminated(athleteId: number, marks: FieldEventMark[], heights: FieldHeight[]): boolean {
+  let consecutiveMisses = 0;
+  const sortedMarks = [...marks]
+    .filter(m => m.athleteId === athleteId)
+    .sort((a, b) => a.attemptNumber - b.attemptNumber);
+  
+  for (const mark of sortedMarks) {
+    if (mark.markType === 'missed') {
+      consecutiveMisses++;
+      if (consecutiveMisses >= 3) {
+        return true;
+      }
+    } else if (mark.markType === 'cleared') {
+      consecutiveMisses = 0;
+    }
+  }
+  return false;
+}
+
+function getHighestClearedHeight(athleteId: number, marks: FieldEventMark[], heights: FieldHeight[]): FieldHeight | null {
+  const clearedMarks = marks.filter(m => m.athleteId === athleteId && m.markType === 'cleared');
+  if (clearedMarks.length === 0) return null;
+  
+  let maxHeightIndex = -1;
+  for (const mark of clearedMarks) {
+    if (mark.heightIndex !== null && mark.heightIndex !== undefined && mark.heightIndex > maxHeightIndex) {
+      maxHeightIndex = mark.heightIndex;
+    }
+  }
+  
+  if (maxHeightIndex < 0) return null;
+  return heights.find(h => h.heightIndex === maxHeightIndex) || null;
+}
+
+function countMissesAtHeight(athleteId: number, heightIndex: number, marks: FieldEventMark[]): number {
+  return marks.filter(
+    m => m.athleteId === athleteId && m.heightIndex === heightIndex && m.markType === 'missed'
+  ).length;
+}
+
+function countTotalMisses(athleteId: number, marks: FieldEventMark[]): number {
+  return marks.filter(m => m.athleteId === athleteId && m.markType === 'missed').length;
+}
+
+// ==================== VERTICAL EVENT COMPONENTS ====================
+
+function VerticalAthleteListItem({
+  athlete,
+  isUp,
+  marks,
+  heights,
+  currentHeightIndex,
+  onClick,
+  currentFlight,
+  totalFlights,
+  onMoveFlight,
+  onChangeStatus,
+  isDns = false,
+}: {
+  athlete: EnrichedAthlete;
+  isUp: boolean;
+  marks: FieldEventMark[];
+  heights: FieldHeight[];
+  currentHeightIndex: number;
+  onClick: () => void;
+  currentFlight: number;
+  totalFlights: number;
+  onMoveFlight: (athleteId: number, newFlight: number) => void;
+  onChangeStatus: (athleteId: number, checkInStatus: string, competitionStatus: string) => void;
+  isDns?: boolean;
+}) {
+  const info = getAthleteDisplayInfo(athlete);
+  const flightOptions = Array.from({ length: totalFlights + 1 }, (_, i) => i + 1);
+  const eliminated = isAthleteEliminated(athlete.id, marks, heights);
+  const highestCleared = getHighestClearedHeight(athlete.id, marks, heights);
+  const currentHeightAttempts = getAthleteAttemptsAtHeight(athlete.id, currentHeightIndex, marks);
+  const hasCleared = currentHeightAttempts.includes('O');
+  
+  return (
+    <div
+      className={`flex items-center gap-3 p-3 border-b border-border ${
+        isUp ? "bg-green-50 dark:bg-green-950/30" : ""
+      } ${eliminated ? "opacity-50" : ""}`}
+      data-testid={`vertical-athlete-row-${athlete.id}`}
+    >
+      <div className="w-16 shrink-0 text-center">
+        {eliminated ? (
+          <Badge variant="outline" className="text-xs">OUT</Badge>
+        ) : isUp ? (
+          <Badge className="bg-green-600 text-white font-bold px-2 py-1">UP</Badge>
+        ) : hasCleared ? (
+          <Badge variant="secondary" className="text-xs">CLEAR</Badge>
+        ) : (
+          <span className="text-xs text-muted-foreground">{currentHeightAttempts || "-"}</span>
+        )}
+      </div>
+
+      <div 
+        className="flex-1 min-w-0 cursor-pointer active:bg-muted/50" 
+        onClick={eliminated || isDns ? undefined : onClick}
+      >
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-sm text-muted-foreground">{info.bib}</span>
+          <span className={`font-semibold truncate ${eliminated ? "line-through" : ""}`}>{info.name}</span>
+          <Badge variant="outline" className="text-xs">F{athlete.flightNumber || 1}</Badge>
+        </div>
+        {info.team && (
+          <p className="text-xs text-muted-foreground truncate">{info.team}</p>
+        )}
+      </div>
+
+      <div className="flex gap-0.5 shrink-0 font-mono text-sm font-bold">
+        {currentHeightAttempts.split('').map((char, i) => (
+          <span 
+            key={i} 
+            className={
+              char === 'O' ? 'text-green-600' : 
+              char === 'X' ? 'text-red-500' : 
+              'text-yellow-600'
+            }
+          >
+            {char}
+          </span>
+        ))}
+        {!eliminated && !hasCleared && currentHeightAttempts.length < 3 && (
+          <span className="text-muted-foreground">_</span>
+        )}
+      </div>
+
+      <div className="w-16 text-right shrink-0">
+        {highestCleared ? (
+          <span className="font-mono font-semibold text-sm">{formatHeightMark(highestCleared.heightMeters)}</span>
+        ) : (
+          <span className="text-muted-foreground text-sm">-</span>
+        )}
+      </div>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-8 w-8 shrink-0"
+            data-testid={`button-vertical-athlete-menu-${athlete.id}`}
+          >
+            <MoreVertical className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {isDns ? (
+            <DropdownMenuItem
+              onClick={() => onChangeStatus(athlete.id, "checked_in", "competing")}
+              data-testid={`menu-vertical-check-in-${athlete.id}`}
+            >
+              <Check className="h-4 w-4 mr-2" />
+              Check In
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem
+              onClick={() => onChangeStatus(athlete.id, "dns", "dns")}
+              data-testid={`menu-vertical-mark-dns-${athlete.id}`}
+            >
+              <X className="h-4 w-4 mr-2" />
+              Mark as No Show
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <ArrowRightLeft className="h-4 w-4 mr-2" />
+              Move to Flight
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              {flightOptions.map((flight) => (
+                <DropdownMenuItem
+                  key={flight}
+                  disabled={flight === (athlete.flightNumber || 1)}
+                  onClick={() => onMoveFlight(athlete.id, flight)}
+                  data-testid={`menu-vertical-move-flight-${flight}`}
+                >
+                  Flight {flight}
+                  {flight === (athlete.flightNumber || 1) && " (current)"}
+                  {flight === totalFlights + 1 && " (new)"}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
+function VerticalAttemptSheet({
+  athlete,
+  heights,
+  currentHeightIndex,
+  marks,
+  onRecordMark,
+  onClose,
+  isPending
+}: {
+  athlete: EnrichedAthlete;
+  heights: FieldHeight[];
+  currentHeightIndex: number;
+  marks: FieldEventMark[];
+  onRecordMark: (markType: "cleared" | "missed" | "pass") => void;
+  onClose: () => void;
+  isPending: boolean;
+}) {
+  const info = getAthleteDisplayInfo(athlete);
+  const currentHeight = heights.find(h => h.heightIndex === currentHeightIndex);
+  const currentAttempts = getAthleteAttemptsAtHeight(athlete.id, currentHeightIndex, marks);
+  const attemptNumber = currentAttempts.length + 1;
+  const hasCleared = currentAttempts.includes('O');
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col">
+      <div className="flex-1 bg-black/50" onClick={onClose} />
+      
+      <div className="bg-card border-t-2 border-primary animate-in slide-in-from-bottom duration-200">
+        <div className="flex items-center justify-between p-4 border-b">
+          <div>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="font-mono">{info.bib}</Badge>
+              <span className="font-bold text-lg">{info.name}</span>
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">
+              {info.team && `${info.team} • `}
+              Height: {currentHeight ? formatHeightMark(currentHeight.heightMeters) : "-"} • 
+              Attempt {attemptNumber} of 3
+            </p>
+          </div>
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            <ChevronDown className="h-5 w-5" />
+          </Button>
+        </div>
+
+        <div className="p-4">
+          <div className="text-center mb-4">
+            <span className="text-4xl font-bold font-mono">
+              {currentHeight ? formatHeightMark(currentHeight.heightMeters) : "-"}
+            </span>
+            <div className="flex justify-center gap-2 mt-2 font-mono text-xl">
+              {currentAttempts.split('').map((char, i) => (
+                <span 
+                  key={i}
+                  className={
+                    char === 'O' ? 'text-green-600' : 
+                    char === 'X' ? 'text-red-500' : 
+                    'text-yellow-600'
+                  }
+                >
+                  {char}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-3 gap-2 p-4 pt-0">
+          <Button
+            onClick={() => onRecordMark("cleared")}
+            disabled={isPending || hasCleared || attemptNumber > 3}
+            className="h-20 text-2xl bg-green-600 hover:bg-green-700"
+            data-testid="button-record-cleared"
+          >
+            <Check className="h-8 w-8 mr-2" />
+            O
+          </Button>
+          <Button
+            onClick={() => onRecordMark("missed")}
+            disabled={isPending || hasCleared || attemptNumber > 3}
+            className="h-20 text-2xl bg-red-600 hover:bg-red-700"
+            data-testid="button-record-missed"
+          >
+            <X className="h-8 w-8 mr-2" />
+            X
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => onRecordMark("pass")}
+            disabled={isPending || hasCleared || attemptNumber > 3}
+            className="h-20 text-2xl"
+            data-testid="button-record-pass"
+          >
+            <Minus className="h-8 w-8 mr-2" />
+            -
+          </Button>
+        </div>
+
+        <div className="h-4" />
+      </div>
+    </div>
+  );
+}
+
+function VerticalStandingsView({
+  athletes,
+  marks,
+  heights
+}: {
+  athletes: EnrichedAthlete[];
+  marks: FieldEventMark[];
+  heights: FieldHeight[];
+}) {
+  const standings = athletes
+    .map(athlete => {
+      const highestCleared = getHighestClearedHeight(athlete.id, marks, heights);
+      const missesAtBest = highestCleared 
+        ? countMissesAtHeight(athlete.id, highestCleared.heightIndex, marks) 
+        : 0;
+      const totalMisses = countTotalMisses(athlete.id, marks);
+      const eliminated = isAthleteEliminated(athlete.id, marks, heights);
+      
+      return {
+        athlete,
+        highestCleared,
+        missesAtBest,
+        totalMisses,
+        eliminated
+      };
+    })
+    .sort((a, b) => {
+      if (!a.highestCleared && !b.highestCleared) return 0;
+      if (!a.highestCleared) return 1;
+      if (!b.highestCleared) return -1;
+      
+      if (a.highestCleared.heightMeters !== b.highestCleared.heightMeters) {
+        return b.highestCleared.heightMeters - a.highestCleared.heightMeters;
+      }
+      
+      if (a.missesAtBest !== b.missesAtBest) {
+        return a.missesAtBest - b.missesAtBest;
+      }
+      
+      return a.totalMisses - b.totalMisses;
+    });
+
+  let currentPlace = 1;
+  const rankedStandings = standings.map((item, index) => {
+    if (index > 0) {
+      const prev = standings[index - 1];
+      const isTied = 
+        item.highestCleared?.heightMeters === prev.highestCleared?.heightMeters &&
+        item.missesAtBest === prev.missesAtBest &&
+        item.totalMisses === prev.totalMisses;
+      if (!isTied) {
+        currentPlace = index + 1;
+      }
+    }
+    return { ...item, place: item.highestCleared ? currentPlace : null };
+  });
+
+  return (
+    <div className="divide-y">
+      {rankedStandings.map((item) => {
+        const info = getAthleteDisplayInfo(item.athlete);
+        return (
+          <div 
+            key={item.athlete.id} 
+            className={`flex items-center gap-3 p-3 ${item.eliminated ? 'opacity-50' : ''}`}
+          >
+            <div className="w-8 text-center font-bold text-lg">
+              {item.place ?? "-"}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className={`font-semibold truncate ${item.eliminated ? 'line-through' : ''}`}>
+                {info.name}
+              </p>
+              <p className="text-xs text-muted-foreground">{info.team || info.bib}</p>
+            </div>
+            <div className="text-right">
+              <p className="font-mono font-bold text-lg">
+                {item.highestCleared ? formatHeightMark(item.highestCleared.heightMeters) : "-"}
+              </p>
+              {item.highestCleared && (
+                <p className="text-xs text-muted-foreground">
+                  {item.missesAtBest}x @ best, {item.totalMisses} total
+                </p>
+              )}
+              {item.eliminated && (
+                <Badge variant="outline" className="text-xs mt-1">Eliminated</Badge>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function VerticalReviewMarksView({
+  athletes,
+  marks,
+  heights
+}: {
+  athletes: EnrichedAthlete[];
+  marks: FieldEventMark[];
+  heights: FieldHeight[];
+}) {
+  const sortedHeights = [...heights].sort((a, b) => a.heightIndex - b.heightIndex);
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b">
+            <th className="text-left p-2 sticky left-0 bg-background">Athlete</th>
+            {sortedHeights.map((height) => (
+              <th key={height.id} className="text-center p-2 min-w-16">
+                {formatHeightMark(height.heightMeters)}
+              </th>
+            ))}
+            <th className="text-center p-2">Best</th>
+          </tr>
+        </thead>
+        <tbody>
+          {athletes.map(athlete => {
+            const info = getAthleteDisplayInfo(athlete);
+            const highestCleared = getHighestClearedHeight(athlete.id, marks, heights);
+            const eliminated = isAthleteEliminated(athlete.id, marks, heights);
+
+            return (
+              <tr key={athlete.id} className={`border-b ${eliminated ? 'opacity-50' : ''}`}>
+                <td className="p-2 sticky left-0 bg-background">
+                  <div className={`font-semibold truncate max-w-32 ${eliminated ? 'line-through' : ''}`}>
+                    {info.name}
+                  </div>
+                </td>
+                {sortedHeights.map((height) => {
+                  const attempts = getAthleteAttemptsAtHeight(athlete.id, height.heightIndex, marks);
+                  let className = "text-muted-foreground";
+                  
+                  if (attempts.includes('O')) {
+                    className = "text-green-600 font-bold";
+                  } else if (attempts.includes('X')) {
+                    className = "text-red-500";
+                  } else if (attempts.includes('-')) {
+                    className = "text-yellow-600";
+                  }
+                  
+                  return (
+                    <td key={height.id} className={`text-center p-2 font-mono ${className}`}>
+                      {attempts || "-"}
+                    </td>
+                  );
+                })}
+                <td className="text-center p-2 font-mono font-bold">
+                  {highestCleared ? formatHeightMark(highestCleared.heightMeters) : "-"}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function GenerateFinalsDialog({
   isOpen,
   onClose,
@@ -906,6 +1395,20 @@ function FieldEntryUI({
     enabled: !!session,
   });
 
+  // Fetch heights for vertical events
+  const { data: heights } = useQuery<FieldHeight[]>({
+    queryKey: ["/api/field-sessions", sessionId, "heights"],
+    refetchInterval: 5000,
+    enabled: !!session,
+  });
+
+  // Detect if this is a vertical event (high jump / pole vault)
+  const isVertical = session ? (
+    isHeightEvent(session.event?.eventType || '') ||
+    (session.evtEventName?.toLowerCase().includes('high jump')) ||
+    (session.evtEventName?.toLowerCase().includes('pole vault'))
+  ) : false;
+
   const submitMarkMutation = useMutation({
     mutationFn: async (mark: InsertFieldEventMark) => 
       apiRequest("POST", "/api/field-marks", mark),
@@ -1044,6 +1547,53 @@ function FieldEntryUI({
     submitMarkMutation.mutate(markData);
   };
 
+  // Vertical event mark recording
+  const currentHeightIndex = session?.currentHeightIndex ?? 0;
+  const currentHeight = heights?.find(h => h.heightIndex === currentHeightIndex);
+  
+  const recordVerticalMark = (markType: "cleared" | "missed" | "pass") => {
+    if (!selectedAthlete || !heights) return;
+
+    const athleteMarks = (marks || []).filter(m => m.athleteId === selectedAthlete.id);
+    const heightMarks = athleteMarks.filter(m => m.heightIndex === currentHeightIndex);
+    const attemptAtHeight = heightMarks.length + 1;
+    const totalAttempts = athleteMarks.length + 1;
+
+    const markData: InsertFieldEventMark = {
+      sessionId,
+      athleteId: selectedAthlete.id,
+      attemptNumber: totalAttempts,
+      markType,
+      heightIndex: currentHeightIndex,
+      attemptAtHeight,
+      measurement: currentHeight?.heightMeters,
+    };
+
+    submitMarkMutation.mutate(markData);
+  };
+
+  // For vertical events, find the "Up" athlete differently:
+  // First athlete who hasn't cleared this height and isn't eliminated and has room for more attempts
+  const getVerticalUpAthlete = () => {
+    if (!heights || heights.length === 0) return null;
+    
+    for (const athlete of sortedAthletes) {
+      const eliminated = isAthleteEliminated(athlete.id, marks || [], heights);
+      if (eliminated) continue;
+      
+      const heightAttempts = getAthleteAttemptsAtHeight(athlete.id, currentHeightIndex, marks || []);
+      const hasCleared = heightAttempts.includes('O');
+      if (hasCleared) continue;
+      
+      if (heightAttempts.length < 3) {
+        return athlete;
+      }
+    }
+    return null;
+  };
+
+  const verticalUpAthlete = isVertical ? getVerticalUpAthlete() : null;
+
   if (sessionLoading || athletesLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -1067,7 +1617,7 @@ function FieldEntryUI({
     );
   }
 
-  const eventName = session.event?.name || "Field Event";
+  const eventName = session.event?.name || session.evtEventName || "Field Event";
   const totalFlights = Math.max(...(athletes?.map(a => a.flightNumber || 1) || [1]));
   const currentFlight = session.currentFlightNumber || 1;
 
@@ -1081,6 +1631,9 @@ function FieldEntryUI({
               {eventName}
             </h1>
             <p className="text-xs opacity-80">
+              {isVertical && currentHeight ? (
+                <>Bar: {formatHeightMark(currentHeight.heightMeters)} • </>
+              ) : null}
               Flight {currentFlight} of {totalFlights} • {sortedAthletes.length} athletes
             </p>
           </div>
@@ -1123,99 +1676,219 @@ function FieldEntryUI({
         </TabsList>
 
         <TabsContent value="officiate" className="flex-1 m-0 overflow-auto">
-          {sortedAthletes.length > 0 ? (
-            <div className="divide-y">
-              {sortedAthletes.map((athlete) => (
-                <AthleteListItem
-                  key={athlete.id}
-                  athlete={athlete}
-                  isUp={upAthlete?.id === athlete.id}
-                  marks={getAthleteMarks(athlete.id)}
-                  totalAttempts={totalAttempts}
-                  bestMark={getAthleteBestMark(athlete.id)}
-                  onClick={() => setSelectedAthleteId(athlete.id)}
-                  currentFlight={currentFlight}
-                  totalFlights={totalFlights}
-                  onMoveFlight={handleMoveFlight}
-                  onChangeStatus={handleChangeStatus}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="p-8 text-center">
-              <p className="text-muted-foreground text-lg">No athletes checked in</p>
-              <p className="text-sm text-muted-foreground mt-2">
-                Athletes will appear here once they check in
-              </p>
-              <Button 
-                className="mt-4" 
-                onClick={() => setShowAddAthlete(true)}
-                data-testid="button-add-athlete-empty"
-              >
-                <UserPlus className="h-4 w-4 mr-2" />
-                Add Athlete
-              </Button>
-            </div>
-          )}
+          {isVertical ? (
+            // Vertical Event UI
+            <>
+              {/* Current Height Bar */}
+              {heights && heights.length > 0 && (
+                <div className="bg-muted/50 p-3 border-b flex items-center justify-center gap-2">
+                  <span className="text-sm text-muted-foreground">Current Bar:</span>
+                  <span className="font-mono font-bold text-lg">
+                    {currentHeight ? formatHeightMark(currentHeight.heightMeters) : "-"}
+                  </span>
+                  <div className="flex gap-1 ml-4">
+                    {heights.sort((a, b) => a.heightIndex - b.heightIndex).map((h) => (
+                      <Badge 
+                        key={h.id} 
+                        variant={h.heightIndex === currentHeightIndex ? "default" : "outline"}
+                        className={`text-xs ${h.heightIndex === currentHeightIndex ? 'ring-2 ring-primary ring-offset-1' : ''}`}
+                      >
+                        {formatHeightMark(h.heightMeters)}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {sortedAthletes.length > 0 ? (
+                <div className="divide-y">
+                  {sortedAthletes.map((athlete) => (
+                    <VerticalAthleteListItem
+                      key={athlete.id}
+                      athlete={athlete}
+                      isUp={verticalUpAthlete?.id === athlete.id}
+                      marks={marks || []}
+                      heights={heights || []}
+                      currentHeightIndex={currentHeightIndex}
+                      onClick={() => setSelectedAthleteId(athlete.id)}
+                      currentFlight={currentFlight}
+                      totalFlights={totalFlights}
+                      onMoveFlight={handleMoveFlight}
+                      onChangeStatus={handleChangeStatus}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="p-8 text-center">
+                  <p className="text-muted-foreground text-lg">No athletes checked in</p>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Athletes will appear here once they check in
+                  </p>
+                  <Button 
+                    className="mt-4" 
+                    onClick={() => setShowAddAthlete(true)}
+                    data-testid="button-add-athlete-empty-vertical"
+                  >
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Add Athlete
+                  </Button>
+                </div>
+              )}
 
-          {/* DNS Athletes Section */}
-          {dnsAthletes.length > 0 && (
-            <div className="mt-4 border-t">
-              <div className="bg-muted/50 px-4 py-2 flex items-center gap-2">
-                <X className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium text-sm">No Shows ({dnsAthletes.length})</span>
-              </div>
-              <div className="divide-y opacity-60">
-                {dnsAthletes.map((athlete) => (
-                  <AthleteListItem
-                    key={athlete.id}
-                    athlete={athlete}
-                    isUp={false}
-                    marks={getAthleteMarks(athlete.id)}
-                    totalAttempts={totalAttempts}
-                    bestMark={getAthleteBestMark(athlete.id)}
-                    onClick={() => {}}
-                    currentFlight={currentFlight}
-                    totalFlights={totalFlights}
-                    onMoveFlight={handleMoveFlight}
-                    onChangeStatus={handleChangeStatus}
-                    isDns={true}
-                  />
-                ))}
-              </div>
-            </div>
+              {/* DNS Athletes Section for Vertical */}
+              {dnsAthletes.length > 0 && (
+                <div className="mt-4 border-t">
+                  <div className="bg-muted/50 px-4 py-2 flex items-center gap-2">
+                    <X className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium text-sm">No Shows ({dnsAthletes.length})</span>
+                  </div>
+                  <div className="divide-y opacity-60">
+                    {dnsAthletes.map((athlete) => (
+                      <VerticalAthleteListItem
+                        key={athlete.id}
+                        athlete={athlete}
+                        isUp={false}
+                        marks={marks || []}
+                        heights={heights || []}
+                        currentHeightIndex={currentHeightIndex}
+                        onClick={() => {}}
+                        currentFlight={currentFlight}
+                        totalFlights={totalFlights}
+                        onMoveFlight={handleMoveFlight}
+                        onChangeStatus={handleChangeStatus}
+                        isDns={true}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            // Horizontal Event UI (original)
+            <>
+              {sortedAthletes.length > 0 ? (
+                <div className="divide-y">
+                  {sortedAthletes.map((athlete) => (
+                    <AthleteListItem
+                      key={athlete.id}
+                      athlete={athlete}
+                      isUp={upAthlete?.id === athlete.id}
+                      marks={getAthleteMarks(athlete.id)}
+                      totalAttempts={totalAttempts}
+                      bestMark={getAthleteBestMark(athlete.id)}
+                      onClick={() => setSelectedAthleteId(athlete.id)}
+                      currentFlight={currentFlight}
+                      totalFlights={totalFlights}
+                      onMoveFlight={handleMoveFlight}
+                      onChangeStatus={handleChangeStatus}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="p-8 text-center">
+                  <p className="text-muted-foreground text-lg">No athletes checked in</p>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Athletes will appear here once they check in
+                  </p>
+                  <Button 
+                    className="mt-4" 
+                    onClick={() => setShowAddAthlete(true)}
+                    data-testid="button-add-athlete-empty"
+                  >
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Add Athlete
+                  </Button>
+                </div>
+              )}
+
+              {/* DNS Athletes Section */}
+              {dnsAthletes.length > 0 && (
+                <div className="mt-4 border-t">
+                  <div className="bg-muted/50 px-4 py-2 flex items-center gap-2">
+                    <X className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium text-sm">No Shows ({dnsAthletes.length})</span>
+                  </div>
+                  <div className="divide-y opacity-60">
+                    {dnsAthletes.map((athlete) => (
+                      <AthleteListItem
+                        key={athlete.id}
+                        athlete={athlete}
+                        isUp={false}
+                        marks={getAthleteMarks(athlete.id)}
+                        totalAttempts={totalAttempts}
+                        bestMark={getAthleteBestMark(athlete.id)}
+                        onClick={() => {}}
+                        currentFlight={currentFlight}
+                        totalFlights={totalFlights}
+                        onMoveFlight={handleMoveFlight}
+                        onChangeStatus={handleChangeStatus}
+                        isDns={true}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </TabsContent>
 
         <TabsContent value="standings" className="flex-1 m-0 overflow-auto">
-          <div className="p-2 border-b flex justify-end">
-            <Button 
-              size="sm" 
-              onClick={() => setShowGenerateFinals(true)}
-              data-testid="button-generate-finals"
-            >
-              <Star className="h-4 w-4 mr-1" />
-              Generate Finals
-            </Button>
-          </div>
-          <StandingsView 
-            athletes={sortedAthletes} 
-            marks={marks || []} 
-            totalAttempts={totalAttempts} 
-          />
+          {!isVertical && (
+            <div className="p-2 border-b flex justify-end">
+              <Button 
+                size="sm" 
+                onClick={() => setShowGenerateFinals(true)}
+                data-testid="button-generate-finals"
+              >
+                <Star className="h-4 w-4 mr-1" />
+                Generate Finals
+              </Button>
+            </div>
+          )}
+          {isVertical ? (
+            <VerticalStandingsView 
+              athletes={sortedAthletes} 
+              marks={marks || []} 
+              heights={heights || []}
+            />
+          ) : (
+            <StandingsView 
+              athletes={sortedAthletes} 
+              marks={marks || []} 
+              totalAttempts={totalAttempts} 
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="review" className="flex-1 m-0 overflow-auto">
-          <ReviewMarksView 
-            athletes={sortedAthletes} 
-            marks={marks || []} 
-            totalAttempts={totalAttempts} 
-          />
+          {isVertical ? (
+            <VerticalReviewMarksView 
+              athletes={sortedAthletes} 
+              marks={marks || []} 
+              heights={heights || []}
+            />
+          ) : (
+            <ReviewMarksView 
+              athletes={sortedAthletes} 
+              marks={marks || []} 
+              totalAttempts={totalAttempts} 
+            />
+          )}
         </TabsContent>
       </Tabs>
 
-      {/* Mark entry sheet */}
-      {selectedAthlete && (
+      {/* Mark entry sheet - conditionally use vertical or horizontal */}
+      {selectedAthlete && isVertical ? (
+        <VerticalAttemptSheet
+          athlete={selectedAthlete}
+          heights={heights || []}
+          currentHeightIndex={currentHeightIndex}
+          marks={marks || []}
+          onRecordMark={recordVerticalMark}
+          onClose={() => setSelectedAthleteId(null)}
+          isPending={submitMarkMutation.isPending}
+        />
+      ) : selectedAthlete ? (
         <MarkEntrySheet
           athlete={selectedAthlete}
           attemptNumber={nextAttemptNumber}
@@ -1224,7 +1897,7 @@ function FieldEntryUI({
           onClose={() => setSelectedAthleteId(null)}
           isPending={submitMarkMutation.isPending}
         />
-      )}
+      ) : null}
 
       {/* Add Athlete Dialog */}
       <AddAthleteDialog
