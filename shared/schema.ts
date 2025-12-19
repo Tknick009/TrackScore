@@ -2262,6 +2262,9 @@ export const fieldEventSessions = pgTable('field_event_sessions', {
   measurementUnit: text('measurement_unit').default('metric'), // metric, english
   recordWind: boolean('record_wind').default(false), // For long jump, triple jump
   
+  // Display configuration
+  showBibNumbers: boolean('show_bib_numbers').default(true), // Show competitor numbers on screen
+  
   // Attempt configuration (horizontal events)
   hasFinals: boolean('has_finals').default(false),
   prelimAttempts: integer('prelim_attempts').default(3), // Attempts in prelims
@@ -2443,3 +2446,44 @@ export interface FieldEventSessionWithDetails extends FieldEventSession {
   athletes?: (FieldEventAthlete & { entry?: Entry; athlete?: Athlete })[];
   marks?: FieldEventMark[];
 }
+
+// ====================
+// EXTERNAL SCOREBOARDS
+// ====================
+
+// External Scoreboard - configuration for sending results to external displays
+export const externalScoreboards = pgTable('external_scoreboards', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  
+  // LSS file configuration
+  lssDirectory: text('lss_directory'), // Directory to write/read LSS files
+  
+  // Network configuration
+  targetIp: text('target_ip').notNull(),
+  targetPort: integer('target_port').notNull(),
+  
+  // Field event session association
+  sessionId: integer('session_id').references(() => fieldEventSessions.id, { onDelete: 'set null' }),
+  
+  // Status
+  isActive: boolean('is_active').default(false),
+  lastStatus: text('last_status'), // JSON string with connection status info
+  lastSentAt: timestamp('last_sent_at'),
+  
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  sessionIdx: index('external_scoreboards_session_idx').on(table.sessionId),
+}));
+
+export const insertExternalScoreboardSchema = createInsertSchema(externalScoreboards).omit({
+  id: true,
+  isActive: true,
+  lastStatus: true,
+  lastSentAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertExternalScoreboard = z.infer<typeof insertExternalScoreboardSchema>;
+export type ExternalScoreboard = typeof externalScoreboards.$inferSelect;

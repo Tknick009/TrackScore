@@ -486,6 +486,7 @@ function AthleteListItem({
   onEditMark: (mark: FieldEventMark) => void;
   onForceFinalist: (athleteId: number, isFinalist: boolean) => void;
   isDns?: boolean;
+  showBibNumbers?: boolean;
 }) {
   const info = getAthleteDisplayInfo(athlete);
   const flightOptions = Array.from({ length: totalFlights + 1 }, (_, i) => i + 1);
@@ -514,7 +515,9 @@ function AthleteListItem({
         onClick={onClick}
       >
         <div className="flex items-center gap-2">
-          <span className="font-mono text-sm md:text-base text-muted-foreground">{info.bib}</span>
+          {showBibNumbers !== false && (
+            <span className="font-mono text-sm md:text-base text-muted-foreground">{info.bib}</span>
+          )}
           <span className="font-semibold text-base md:text-lg truncate">{info.name}</span>
         </div>
         {info.team && (
@@ -652,7 +655,8 @@ function MarkEntrySheet({
   onClose,
   isPending,
   canDeleteLast,
-  recordWind = false
+  recordWind = false,
+  showBibNumbers = true,
 }: {
   athlete: EnrichedAthlete;
   attemptNumber: number;
@@ -663,6 +667,7 @@ function MarkEntrySheet({
   isPending: boolean;
   canDeleteLast: boolean;
   recordWind?: boolean;
+  showBibNumbers?: boolean;
 }) {
   const [meters, setMeters] = useState("");
   const [centimeters, setCentimeters] = useState("");
@@ -716,7 +721,9 @@ function MarkEntrySheet({
         <div className="flex items-center justify-between p-4 md:p-5 border-b">
           <div>
             <div className="flex items-center gap-2">
-              <Badge variant="outline" className="font-mono text-sm md:text-base">{info.bib}</Badge>
+              {showBibNumbers && (
+                <Badge variant="outline" className="font-mono text-sm md:text-base">{info.bib}</Badge>
+              )}
               <span className="font-bold text-lg md:text-xl">{info.name}</span>
             </div>
             <p className="text-sm md:text-base text-muted-foreground mt-1">
@@ -1339,6 +1346,7 @@ function VerticalAthleteListItem({
   onChangeStatus: (athleteId: number, checkInStatus: string, competitionStatus: string) => void;
   onEditMark: (mark: FieldEventMark) => void;
   isDns?: boolean;
+  showBibNumbers?: boolean;
 }) {
   const info = getAthleteDisplayInfo(athlete);
   const flightOptions = Array.from({ length: totalFlights + 1 }, (_, i) => i + 1);
@@ -1371,7 +1379,9 @@ function VerticalAthleteListItem({
         onClick={eliminated || isDns ? undefined : onClick}
       >
         <div className="flex items-center gap-2">
-          <span className="font-mono text-base md:text-lg text-muted-foreground">{info.bib}</span>
+          {showBibNumbers !== false && (
+            <span className="font-mono text-base md:text-lg text-muted-foreground">{info.bib}</span>
+          )}
           <span className={`font-semibold text-lg md:text-xl ${eliminated ? "line-through" : ""}`}>{info.name}</span>
           <Badge variant="outline" className="text-sm md:text-base">F{athlete.flightNumber || 1}</Badge>
         </div>
@@ -2168,6 +2178,7 @@ function EventSettingsDialog({
   const [athletesToFinals, setAthletesToFinals] = useState(session.athletesToFinals || 8);
   const [measurementUnit, setMeasurementUnit] = useState(session.measurementUnit || 'metric');
   const [recordWind, setRecordWind] = useState(session.recordWind || false);
+  const [showBibNumbers, setShowBibNumbers] = useState(session.showBibNumbers !== false);
   const [aliveGroupSize, setAliveGroupSize] = useState(session.aliveGroupSize || 5);
   const [stopAliveAtCount, setStopAliveAtCount] = useState(session.stopAliveAtCount || 3);
 
@@ -2178,6 +2189,7 @@ function EventSettingsDialog({
       setAthletesToFinals(session.athletesToFinals || 8);
       setMeasurementUnit(session.measurementUnit || 'metric');
       setRecordWind(session.recordWind || false);
+      setShowBibNumbers(session.showBibNumbers !== false);
       setAliveGroupSize(session.aliveGroupSize || 5);
       setStopAliveAtCount(session.stopAliveAtCount || 3);
     }
@@ -2188,6 +2200,7 @@ function EventSettingsDialog({
       const updates: Record<string, any> = {
         measurementUnit,
         recordWind,
+        showBibNumbers,
       };
       if (isVertical) {
         updates.aliveGroupSize = aliveGroupSize;
@@ -2325,6 +2338,23 @@ function EventSettingsDialog({
               </div>
             </>
           )}
+          
+          {/* Display Settings (common to all event types) */}
+          <div className="border-t pt-4 mt-4">
+            <p className="text-sm font-medium mb-2">Display Settings</p>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="show-bib-numbers"
+                checked={showBibNumbers}
+                onChange={(e) => setShowBibNumbers(e.target.checked)}
+                className="h-4 w-4"
+                data-testid="checkbox-show-bib-numbers"
+              />
+              <Label htmlFor="show-bib-numbers">Show Competitor Numbers</Label>
+            </div>
+            <p className="text-xs text-muted-foreground ml-6">Numbers are still sent to scoreboards</p>
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} data-testid="button-cancel-settings">
