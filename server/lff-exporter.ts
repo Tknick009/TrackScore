@@ -153,17 +153,35 @@ export function generateVerticalLFF(
     const firstName = athlete.athlete?.firstName || athlete.evtFirstName || "";
     const affiliation = athlete.athlete?.school || athlete.athlete?.team || athlete.evtTeam || "";
     
+    // Find the first and last height indices where athlete has marks
+    const athleteHeightIndices = athleteMarks.map(m => m.heightIndex ?? -1).filter(h => h >= 0);
+    const firstHeightIndex = athleteHeightIndices.length > 0 ? Math.min(...athleteHeightIndices) : -1;
+    const lastHeightIndex = athleteHeightIndices.length > 0 ? Math.max(...athleteHeightIndices) : -1;
+    
     const attemptParts: string[] = [];
     for (const height of sortedHeights) {
+      const heightIndex = height.heightIndex;
+      
+      // Heights after athlete's last attempted height: stop outputting
+      if (lastHeightIndex >= 0 && heightIndex > lastHeightIndex) {
+        break;
+      }
+      
       const heightMarks = athleteMarks
-        .filter(m => m.heightIndex === height.heightIndex)
+        .filter(m => m.heightIndex === heightIndex)
         .sort((a, b) => (a.attemptAtHeight || 0) - (b.attemptAtHeight || 0));
       
+      // Heights before athlete's first attempt: show PPP (passed)
       if (heightMarks.length === 0) {
-        attemptParts.push("");
+        if (firstHeightIndex >= 0 && heightIndex < firstHeightIndex) {
+          attemptParts.push("PPP");
+        } else {
+          attemptParts.push("");
+        }
         continue;
       }
       
+      // Build result string from marks at this height
       let result = "";
       for (const mark of heightMarks) {
         if (mark.markType === 'pass') {
@@ -173,6 +191,11 @@ export function generateVerticalLFF(
         } else if (mark.markType === 'cleared' || mark.markType === 'mark') {
           result += "O";
         }
+      }
+      
+      // If all attempts at this height are passes, show PPP
+      if (result && result.split('').every(c => c === 'P')) {
+        result = "PPP";
       }
       
       attemptParts.push(result);
