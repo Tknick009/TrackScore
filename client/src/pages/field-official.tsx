@@ -131,11 +131,11 @@ function OpeningHeightButton({
         <Button 
           variant="outline" 
           size={size}
-          className={size === "sm" ? "h-7 px-2 text-xs" : "h-8 px-3 text-sm"}
+          className={`bg-yellow-400 hover:bg-yellow-500 text-black border-yellow-500 ${size === "sm" ? "h-7 px-2 text-xs" : "h-8 px-3 text-sm"}`}
           data-testid={`button-set-opening-height-inline-${athleteId}`}
         >
           <Ruler className={size === "sm" ? "h-3 w-3 mr-1" : "h-4 w-4 mr-1"} />
-          Set Height
+          Set Opening Height
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" onClick={(e) => e.stopPropagation()}>
