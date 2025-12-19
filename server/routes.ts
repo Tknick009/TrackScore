@@ -7215,6 +7215,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         finalistIds.push(finalist.id);
       }
       
+      // Update session to finals mode
+      await storage.updateFieldEventSession(sessionId, {
+        isInFinals: true,
+      });
+      
       // Broadcast field event update
       broadcastFieldEventUpdate(sessionId).catch(console.error);
       

@@ -1618,6 +1618,7 @@ function GenerateFinalsDialog({
     onSuccess: () => {
       toast({ title: "Finals generated", description: `${count} athletes marked as finalists` });
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "athletes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "full"] });
       onClose();
     },
     onError: (error: Error) => {
@@ -2103,6 +2104,38 @@ function FieldEntryUI({
     updateAliveGroupMutation.mutate(size);
   };
 
+  // Mutation to switch current flight (for horizontal events)
+  const switchFlightMutation = useMutation({
+    mutationFn: async (flightNumber: number) => {
+      return apiRequest("PATCH", `/api/field-sessions/${sessionId}`, { currentFlightNumber: flightNumber });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "full"] });
+      toast({ title: "Switched flight" });
+    },
+    onError: (error: Error) => {
+      toast({ title: error.message || "Failed to switch flight", variant: "destructive" });
+    },
+  });
+
+  const handleSwitchFlight = (flightNumber: number) => {
+    switchFlightMutation.mutate(flightNumber);
+  };
+
+  // Mutation to exit finals mode (go back to prelims/flights)
+  const exitFinalsMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("PATCH", `/api/field-sessions/${sessionId}`, { isInFinals: false });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "full"] });
+      toast({ title: "Exited finals mode" });
+    },
+    onError: (error: Error) => {
+      toast({ title: error.message || "Failed to exit finals", variant: "destructive" });
+    },
+  });
+
   // Mutation to delete a mark (for undo functionality)
   const deleteMarkMutation = useMutation({
     mutationFn: async (markId: number) => {
@@ -2560,43 +2593,118 @@ function FieldEntryUI({
               )}
             </>
           ) : (
-            // Horizontal Event UI (original)
+            // Horizontal Event UI with Flight Selector
             <>
-              {sortedAthletes.length > 0 ? (
-                <div className="divide-y">
-                  {sortedAthletes.map((athlete) => (
-                    <AthleteListItem
-                      key={athlete.id}
-                      athlete={athlete}
-                      isUp={upAthlete?.id === athlete.id}
-                      marks={getAthleteMarks(athlete.id)}
-                      totalAttempts={totalAttempts}
-                      bestMark={getAthleteBestMark(athlete.id)}
-                      onClick={() => setSelectedAthleteId(athlete.id)}
-                      currentFlight={currentFlight}
-                      totalFlights={totalFlights}
-                      onMoveFlight={handleMoveFlight}
-                      onChangeStatus={handleChangeStatus}
-                      onEditMark={setEditingMark}
-                    />
-                  ))}
+              {/* Flight Selector Bar */}
+              <div className="bg-muted/50 border-b">
+                <div className="p-3 md:p-4 flex items-center justify-between gap-3 flex-wrap">
+                  <div className="flex items-center gap-2 md:gap-3 flex-wrap">
+                    <span className="text-base md:text-lg text-muted-foreground">Flight:</span>
+                    {Array.from({ length: totalFlights }, (_, i) => i + 1).map((flightNum) => {
+                      const athletesInFlight = sortedAthletes.filter(a => (a.flightNumber || 1) === flightNum);
+                      return (
+                        <Badge
+                          key={flightNum}
+                          variant={!session.isInFinals && currentFlight === flightNum ? "default" : "outline"}
+                          className={`text-sm md:text-base px-3 py-1.5 cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all ${
+                            !session.isInFinals && currentFlight === flightNum ? 'ring-2 ring-primary ring-offset-1' : ''
+                          }`}
+                          onClick={() => {
+                            if (session.isInFinals) {
+                              exitFinalsMutation.mutate();
+                            }
+                            handleSwitchFlight(flightNum);
+                          }}
+                          data-testid={`badge-flight-${flightNum}`}
+                        >
+                          Flight {flightNum} ({athletesInFlight.length})
+                        </Badge>
+                      );
+                    })}
+                    {/* Finals tab - show if there are finalists */}
+                    {sortedAthletes.some(a => a.isFinalist) && (
+                      <Badge
+                        variant={session.isInFinals ? "default" : "outline"}
+                        className={`text-sm md:text-base px-3 py-1.5 cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all ${
+                          session.isInFinals ? 'ring-2 ring-primary ring-offset-1 bg-amber-500 border-amber-500 text-white hover:bg-amber-600' : 'border-amber-500 text-amber-600'
+                        }`}
+                        onClick={() => {
+                          if (!session.isInFinals) {
+                            apiRequest("PATCH", `/api/field-sessions/${sessionId}`, { isInFinals: true })
+                              .then(() => {
+                                queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "full"] });
+                                toast({ title: "Switched to Finals" });
+                              });
+                          }
+                        }}
+                        data-testid="badge-finals"
+                      >
+                        <Star className="h-4 w-4 mr-1" />
+                        Finals ({sortedAthletes.filter(a => a.isFinalist).length})
+                      </Badge>
+                    )}
+                  </div>
+                  <span className="text-sm md:text-base text-muted-foreground">
+                    {session.isInFinals 
+                      ? `${session.finalsAttempts || 3} attempts per finalist`
+                      : `${session.prelimAttempts || 3} prelim attempts`
+                    }
+                  </span>
                 </div>
-              ) : (
-                <div className="p-8 text-center">
-                  <p className="text-muted-foreground text-lg">No athletes checked in</p>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Athletes will appear here once they check in
-                  </p>
-                  <Button 
-                    className="mt-4" 
-                    onClick={() => setShowAddAthlete(true)}
-                    data-testid="button-add-athlete-empty"
-                  >
-                    <UserPlus className="h-4 w-4 mr-2" />
-                    Add Athlete
-                  </Button>
-                </div>
-              )}
+              </div>
+
+              {(() => {
+                // Filter athletes based on mode
+                const displayAthletes = session.isInFinals
+                  ? sortedAthletes.filter(a => a.isFinalist).sort((a, b) => (a.finalsOrder || 0) - (b.finalsOrder || 0))
+                  : sortedAthletes.filter(a => (a.flightNumber || 1) === currentFlight);
+                
+                return displayAthletes.length > 0 ? (
+                  <div className="divide-y">
+                    {displayAthletes.map((athlete) => (
+                      <AthleteListItem
+                        key={athlete.id}
+                        athlete={athlete}
+                        isUp={upAthlete?.id === athlete.id}
+                        marks={getAthleteMarks(athlete.id)}
+                        totalAttempts={totalAttempts}
+                        bestMark={getAthleteBestMark(athlete.id)}
+                        onClick={() => setSelectedAthleteId(athlete.id)}
+                        currentFlight={currentFlight}
+                        totalFlights={totalFlights}
+                        onMoveFlight={handleMoveFlight}
+                        onChangeStatus={handleChangeStatus}
+                        onEditMark={setEditingMark}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-8 text-center">
+                    <p className="text-muted-foreground text-lg">
+                      {session.isInFinals 
+                        ? "No finalists yet" 
+                        : `No athletes in Flight ${currentFlight}`
+                      }
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-2">
+                      {session.isInFinals 
+                        ? "Generate finals from the Standings tab"
+                        : "Athletes will appear here once they check in"
+                      }
+                    </p>
+                    {!session.isInFinals && (
+                      <Button 
+                        className="mt-4" 
+                        onClick={() => setShowAddAthlete(true)}
+                        data-testid="button-add-athlete-empty"
+                      >
+                        <UserPlus className="h-4 w-4 mr-2" />
+                        Add Athlete
+                      </Button>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* DNS Athletes Section */}
               {dnsAthletes.length > 0 && (
