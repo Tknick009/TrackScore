@@ -42,10 +42,12 @@ export function generateHorizontalLFF(
 ): string {
   const lines: string[] = [];
   
-  const eventNumber = session.eventId || "1";
+  // Use evtEventNumber for EVT sessions, fall back to eventId or session id
+  const eventNumber = session.evtEventNumber || session.eventId || session.id || "1";
   const roundNumber = 1;
   const flightNumber = 1;
-  const eventName = session.event?.name || "Field Event";
+  // Use evtEventName for EVT sessions, fall back to event name
+  const eventName = session.evtEventName || session.event?.name || "Field Event";
   
   lines.push(`${eventNumber},${roundNumber},${flightNumber},${eventName},${options.measurementSystem}`);
   
@@ -115,10 +117,12 @@ export function generateVerticalLFF(
 ): string {
   const lines: string[] = [];
   
-  const eventNumber = session.eventId || "1";
+  // Use evtEventNumber for EVT sessions, fall back to eventId or session id
+  const eventNumber = session.evtEventNumber || session.eventId || session.id || "1";
   const roundNumber = 1;
   const flightNumber = 1;
-  const eventName = session.event?.name || "Field Event";
+  // Use evtEventName for EVT sessions, fall back to event name
+  const eventName = session.evtEventName || session.event?.name || "Field Event";
   
   const sortedHeights = [...heights].sort((a, b) => a.heightMeters - b.heightMeters);
   const heightValues = sortedHeights.map(h => formatMark(h.heightMeters, options.measurementSystem));
