@@ -2479,7 +2479,7 @@ function FieldEntryUI({
       </header>
 
       {/* Tabs - always show labels for iPad */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 min-h-0 flex flex-col">
         <TabsList className="w-full rounded-none border-b h-16 md:h-20 bg-background">
           <TabsTrigger value="officiate" className="flex-1 gap-2.5 text-base md:text-lg data-[state=active]:bg-muted">
             <Users className="h-5 w-5 md:h-6 md:w-6" />
@@ -2495,7 +2495,7 @@ function FieldEntryUI({
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="officiate" className="flex-1 m-0 overflow-auto">
+        <TabsContent value="officiate" className="flex-1 m-0 min-h-0 overflow-auto">
           {isVertical ? (
             // Vertical Event UI
             <>
@@ -2646,6 +2646,8 @@ function FieldEntryUI({
                   </div>
                 </div>
               )}
+              {/* Bottom padding for scroll visibility */}
+              <div className="h-8 shrink-0" />
             </>
           ) : (
             // Horizontal Event UI with Flight Selector
@@ -2794,11 +2796,13 @@ function FieldEntryUI({
                   </div>
                 </div>
               )}
+              {/* Bottom padding for scroll visibility */}
+              <div className="h-8 shrink-0" />
             </>
           )}
         </TabsContent>
 
-        <TabsContent value="standings" className="flex-1 m-0 overflow-auto">
+        <TabsContent value="standings" className="flex-1 m-0 min-h-0 overflow-auto">
           {!isVertical && (
             <div className="p-2 border-b flex justify-end">
               <Button 
@@ -2826,7 +2830,7 @@ function FieldEntryUI({
           )}
         </TabsContent>
 
-        <TabsContent value="review" className="flex-1 m-0 overflow-auto">
+        <TabsContent value="review" className="flex-1 m-0 min-h-0 overflow-auto">
           {isVertical ? (
             <VerticalReviewMarksView 
               athletes={sortedAthletes} 
