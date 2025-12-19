@@ -1559,7 +1559,7 @@ function getAthleteAttemptsAtHeight(athleteId: number, heightIndex: number, mark
     } else if (mark.markType === 'missed') {
       display += 'X';
     } else if (mark.markType === 'pass') {
-      display += 'PASS';
+      display += '-';
     }
   }
   return display;
@@ -1699,33 +1699,37 @@ function VerticalAthleteListItem({
             </div>
           )}
         </div>
-        <div className="w-full overflow-x-auto">
-          <div className="flex gap-1.5 min-w-max">
-            {(() => {
-              const heightMarks = marks
-                .filter(m => m.athleteId === athlete.id && m.heightIndex === currentHeightIndex)
-                .sort((a, b) => a.attemptNumber - b.attemptNumber);
-              return heightMarks.map((m) => {
-                const char = m.markType === 'cleared' ? 'O' : m.markType === 'missed' ? 'X' : '-';
-                return (
-                  <button
-                    key={m.id}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onEditMark(m);
-                    }}
-                    className={`min-w-[2.5rem] shrink-0 h-8 rounded font-mono text-sm font-bold flex items-center justify-center ${
-                      char === 'O' ? 'bg-green-600 text-white' : char === 'X' ? 'bg-red-600 text-white' : 'bg-yellow-400 text-black'
-                    }`}
-                    data-testid={`button-edit-vertical-mark-mobile-${m.id}`}
-                  >
-                    {char}
-                  </button>
-                );
-              });
-            })()}
-          </div>
-        </div>
+        {/* Attempt boxes - offset under name/school */}
+        {(() => {
+          const heightMarks = marks
+            .filter(m => m.athleteId === athlete.id && m.heightIndex === currentHeightIndex)
+            .sort((a, b) => a.attemptNumber - b.attemptNumber);
+          if (heightMarks.length === 0) return null;
+          return (
+            <div className="ml-14 overflow-x-auto">
+              <div className="flex gap-1.5 min-w-max">
+                {heightMarks.map((m) => {
+                  const char = m.markType === 'cleared' ? 'O' : m.markType === 'missed' ? 'X' : '-';
+                  return (
+                    <button
+                      key={m.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onEditMark(m);
+                      }}
+                      className={`min-w-[2.5rem] shrink-0 h-8 rounded font-mono text-sm font-bold flex items-center justify-center ${
+                        char === 'O' ? 'bg-green-600 text-white' : char === 'X' ? 'bg-red-600 text-white' : 'bg-yellow-400 text-black'
+                      }`}
+                      data-testid={`button-edit-vertical-mark-mobile-${m.id}`}
+                    >
+                      {char}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Desktop: horizontal layout */}
