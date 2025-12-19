@@ -747,53 +747,55 @@ function AthleteListItem({
           {actionsDropdown}
         </div>
 
-        {/* Bottom row: Attempts - full width on mobile */}
-        <div className="flex gap-1.5 w-full overflow-x-auto">
-          {Array.from({ length: totalAttempts }).map((_, i) => {
-            const mark = marks[i];
-            if (mark) {
-              let content: string;
-              let textColor: string;
-              let bgColor: string;
-              if (mark.markType === "mark" && mark.measurement) {
-                content = mark.measurement.toFixed(2);
-                textColor = "text-white";
-                bgColor = "bg-green-600";
-              } else if (mark.markType === "foul") {
-                content = "X";
-                textColor = "text-white";
-                bgColor = "bg-red-600";
-              } else {
-                content = "P";
-                textColor = "text-black";
-                bgColor = "bg-yellow-400";
+        {/* Bottom row: Attempts - full width on mobile with horizontal scroll */}
+        <div className="w-full overflow-x-auto -mx-3 px-3">
+          <div className="flex gap-1.5 min-w-max">
+            {Array.from({ length: totalAttempts }).map((_, i) => {
+              const mark = marks[i];
+              if (mark) {
+                let content: string;
+                let textColor: string;
+                let bgColor: string;
+                if (mark.markType === "mark" && mark.measurement) {
+                  content = mark.measurement.toFixed(2);
+                  textColor = "text-white";
+                  bgColor = "bg-green-600";
+                } else if (mark.markType === "foul") {
+                  content = "X";
+                  textColor = "text-white";
+                  bgColor = "bg-red-600";
+                } else {
+                  content = "P";
+                  textColor = "text-black";
+                  bgColor = "bg-yellow-400";
+                }
+                return (
+                  <button
+                    key={i}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEditMark(mark);
+                    }}
+                    className={`min-w-[3rem] shrink-0 px-2 py-1.5 rounded ${bgColor} ${textColor} font-mono text-sm font-semibold hover:ring-2 hover:ring-primary hover:ring-offset-1 transition-all flex flex-col items-center`}
+                    data-testid={`button-edit-mark-mobile-${mark.id}`}
+                  >
+                    <span>{content}</span>
+                    {mark.wind !== null && mark.wind !== undefined && (
+                      <span className="text-[10px] opacity-80">{mark.wind > 0 ? '+' : ''}{mark.wind.toFixed(1)}</span>
+                    )}
+                  </button>
+                );
               }
               return (
-                <button
-                  key={i}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onEditMark(mark);
-                  }}
-                  className={`min-w-[3rem] px-2 py-1.5 rounded ${bgColor} ${textColor} font-mono text-sm font-semibold hover:ring-2 hover:ring-primary hover:ring-offset-1 transition-all flex flex-col items-center`}
-                  data-testid={`button-edit-mark-mobile-${mark.id}`}
+                <div 
+                  key={i} 
+                  className="min-w-[3rem] shrink-0 px-2 py-1.5 rounded bg-muted text-muted-foreground font-mono text-sm text-center"
                 >
-                  <span>{content}</span>
-                  {mark.wind !== null && mark.wind !== undefined && (
-                    <span className="text-[10px] opacity-80">{mark.wind > 0 ? '+' : ''}{mark.wind.toFixed(1)}</span>
-                  )}
-                </button>
+                  -
+                </div>
               );
-            }
-            return (
-              <div 
-                key={i} 
-                className="min-w-[3rem] px-2 py-1.5 rounded bg-muted text-muted-foreground font-mono text-sm text-center"
-              >
-                -
-              </div>
-            );
-          })}
+            })}
+          </div>
         </div>
       </div>
     </div>
@@ -1618,30 +1620,32 @@ function VerticalAthleteListItem({
             </div>
           )}
         </div>
-        <div className="flex gap-1.5 overflow-x-auto w-full">
-          {(() => {
-            const heightMarks = marks
-              .filter(m => m.athleteId === athlete.id && m.heightIndex === currentHeightIndex)
-              .sort((a, b) => a.attemptNumber - b.attemptNumber);
-            return heightMarks.map((m) => {
-              const char = m.markType === 'cleared' ? 'O' : m.markType === 'missed' ? 'X' : '-';
-              return (
-                <button
-                  key={m.id}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onEditMark(m);
-                  }}
-                  className={`min-w-[2.5rem] h-8 rounded font-mono text-sm font-bold flex items-center justify-center ${
-                    char === 'O' ? 'bg-green-600 text-white' : char === 'X' ? 'bg-red-600 text-white' : 'bg-yellow-400 text-black'
-                  }`}
-                  data-testid={`button-edit-vertical-mark-mobile-${m.id}`}
-                >
-                  {char}
-                </button>
-              );
-            });
-          })()}
+        <div className="w-full overflow-x-auto -mx-2 px-2">
+          <div className="flex gap-1.5 min-w-max">
+            {(() => {
+              const heightMarks = marks
+                .filter(m => m.athleteId === athlete.id && m.heightIndex === currentHeightIndex)
+                .sort((a, b) => a.attemptNumber - b.attemptNumber);
+              return heightMarks.map((m) => {
+                const char = m.markType === 'cleared' ? 'O' : m.markType === 'missed' ? 'X' : '-';
+                return (
+                  <button
+                    key={m.id}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEditMark(m);
+                    }}
+                    className={`min-w-[2.5rem] shrink-0 h-8 rounded font-mono text-sm font-bold flex items-center justify-center ${
+                      char === 'O' ? 'bg-green-600 text-white' : char === 'X' ? 'bg-red-600 text-white' : 'bg-yellow-400 text-black'
+                    }`}
+                    data-testid={`button-edit-vertical-mark-mobile-${m.id}`}
+                  >
+                    {char}
+                  </button>
+                );
+              });
+            })()}
+          </div>
         </div>
       </div>
 
@@ -3398,9 +3402,9 @@ function FieldEntryUI({
               {/* Current Height Bar - iPad optimized */}
               {heights && heights.length > 0 ? (
                 <div className="bg-muted/50 border-b">
-                  {/* Mobile: stacked layout */}
-                  <div className="sm:hidden p-2">
-                    <div className="flex items-center justify-between gap-2 mb-2">
+                  {/* Mobile: stacked layout - full width */}
+                  <div className="sm:hidden p-2 w-full">
+                    <div className="flex items-center justify-between gap-2 mb-2 w-full">
                       <Button
                         size="sm"
                         variant="outline"
@@ -3428,20 +3432,22 @@ function FieldEntryUI({
                         <ChevronRight className="h-4 w-4" />
                       </Button>
                     </div>
-                    <div className="flex gap-2 overflow-x-auto pb-1">
-                      {heights.sort((a, b) => a.heightIndex - b.heightIndex).map((h) => (
-                        <Badge 
-                          key={h.id} 
-                          variant={h.heightIndex === currentHeightIndex ? "default" : "outline"}
-                          className={`text-sm px-3 py-1.5 cursor-pointer shrink-0 min-h-[2.5rem] flex items-center ${
-                            h.heightIndex === currentHeightIndex ? 'ring-2 ring-primary ring-offset-1' : ''
-                          }`}
-                          onClick={() => handleJumpToHeight(h.heightIndex)}
-                          data-testid={`badge-height-mobile-${h.heightIndex}`}
-                        >
-                          {formatHeightMark(h.heightMeters)}
-                        </Badge>
-                      ))}
+                    <div className="w-full overflow-x-auto -mx-2 px-2">
+                      <div className="flex gap-2 min-w-max pb-1">
+                        {heights.sort((a, b) => a.heightIndex - b.heightIndex).map((h) => (
+                          <Badge 
+                            key={h.id} 
+                            variant={h.heightIndex === currentHeightIndex ? "default" : "outline"}
+                            className={`text-sm px-3 py-1.5 cursor-pointer shrink-0 min-h-[2.5rem] flex items-center ${
+                              h.heightIndex === currentHeightIndex ? 'ring-2 ring-primary ring-offset-1' : ''
+                            }`}
+                            onClick={() => handleJumpToHeight(h.heightIndex)}
+                            data-testid={`badge-height-mobile-${h.heightIndex}`}
+                          >
+                            {formatHeightMark(h.heightMeters)}
+                          </Badge>
+                        ))}
+                      </div>
                     </div>
                   </div>
                   {/* Desktop: horizontal layout */}
@@ -3599,11 +3605,12 @@ function FieldEntryUI({
           ) : (
             // Horizontal Event UI with Flight Selector
             <>
-              {/* Flight Selector Bar */}
-              <div className="bg-muted/50 border-b">
-                <div className="p-3 md:p-4 flex items-center justify-between gap-3 flex-wrap">
-                  <div className="flex items-center gap-2 md:gap-3 flex-wrap">
-                    <span className="text-base md:text-lg text-muted-foreground">Flight:</span>
+              {/* Flight Selector Bar - full width on mobile */}
+              <div className="bg-muted/50 border-b w-full">
+                <div className="p-3 md:p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 w-full">
+                  <div className="w-full overflow-x-auto sm:overflow-visible">
+                    <div className="flex items-center gap-2 md:gap-3 min-w-max sm:min-w-0 sm:flex-wrap">
+                      <span className="text-base md:text-lg text-muted-foreground shrink-0">Flight:</span>
                     {Array.from({ length: totalFlights }, (_, i) => i + 1).map((flightNum) => {
                       const athletesInFlight = sortedAthletes.filter(a => (a.flightNumber || 1) === flightNum);
                       const isSelected = !session.isInFinals && currentFlight === flightNum;
@@ -3650,8 +3657,9 @@ function FieldEntryUI({
                         Finals ({sortedAthletes.filter(a => a.isFinalist).length})
                       </Badge>
                     )}
+                    </div>
                   </div>
-                  <span className="text-sm md:text-base text-muted-foreground">
+                  <span className="text-sm md:text-base text-muted-foreground shrink-0">
                     {session.isInFinals 
                       ? `${session.finalsAttempts || 3} attempts per finalist`
                       : `${session.prelimAttempts || 3} prelim attempts`
