@@ -1945,6 +1945,199 @@ function AddAthleteDialog({
   );
 }
 
+function EventSettingsDialog({
+  isOpen,
+  onClose,
+  session,
+  isVertical,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  session: FieldEventSessionWithDetails;
+  isVertical: boolean;
+}) {
+  const { toast } = useToast();
+  const [prelimAttempts, setPrelimAttempts] = useState(session.prelimAttempts || 3);
+  const [finalsAttempts, setFinalsAttempts] = useState(session.finalsAttempts || 3);
+  const [athletesToFinals, setAthletesToFinals] = useState(session.athletesToFinals || 8);
+  const [measurementUnit, setMeasurementUnit] = useState(session.measurementUnit || 'metric');
+  const [recordWind, setRecordWind] = useState(session.recordWind || false);
+  const [aliveGroupSize, setAliveGroupSize] = useState(session.aliveGroupSize || 5);
+  const [stopAliveAtCount, setStopAliveAtCount] = useState(session.stopAliveAtCount || 3);
+
+  useEffect(() => {
+    if (isOpen) {
+      setPrelimAttempts(session.prelimAttempts || 3);
+      setFinalsAttempts(session.finalsAttempts || 3);
+      setAthletesToFinals(session.athletesToFinals || 8);
+      setMeasurementUnit(session.measurementUnit || 'metric');
+      setRecordWind(session.recordWind || false);
+      setAliveGroupSize(session.aliveGroupSize || 5);
+      setStopAliveAtCount(session.stopAliveAtCount || 3);
+    }
+  }, [isOpen, session]);
+
+  const updateSettingsMutation = useMutation({
+    mutationFn: async () => {
+      const updates: Record<string, any> = {
+        measurementUnit,
+        recordWind,
+      };
+      if (isVertical) {
+        updates.aliveGroupSize = aliveGroupSize;
+        updates.stopAliveAtCount = stopAliveAtCount;
+      } else {
+        updates.prelimAttempts = prelimAttempts;
+        updates.finalsAttempts = finalsAttempts;
+        updates.athletesToFinals = athletesToFinals;
+        updates.totalAttempts = prelimAttempts + finalsAttempts;
+      }
+      return apiRequest("PATCH", `/api/field-sessions/${session.id}`, updates);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", session.id, "full"] });
+      toast({ title: "Settings saved" });
+      onClose();
+    },
+    onError: (error: Error) => {
+      toast({ title: error.message || "Failed to save settings", variant: "destructive" });
+    },
+  });
+
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Settings className="h-5 w-5" />
+            Event Settings
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          {/* Measurement Unit */}
+          <div>
+            <Label>Measurement Unit</Label>
+            <Select value={measurementUnit} onValueChange={setMeasurementUnit}>
+              <SelectTrigger data-testid="select-measurement-unit">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="metric">Metric (meters)</SelectItem>
+                <SelectItem value="english">English (feet/inches)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {!isVertical ? (
+            <>
+              {/* Horizontal Event Settings */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="prelim-attempts">Prelim Attempts</Label>
+                  <Input
+                    id="prelim-attempts"
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={prelimAttempts}
+                    onChange={(e) => setPrelimAttempts(parseInt(e.target.value) || 3)}
+                    className="mt-1"
+                    data-testid="input-prelim-attempts"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="finals-attempts">Finals Attempts</Label>
+                  <Input
+                    id="finals-attempts"
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={finalsAttempts}
+                    onChange={(e) => setFinalsAttempts(parseInt(e.target.value) || 3)}
+                    className="mt-1"
+                    data-testid="input-finals-attempts"
+                  />
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="athletes-to-finals">Athletes to Finals</Label>
+                <Input
+                  id="athletes-to-finals"
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={athletesToFinals}
+                  onChange={(e) => setAthletesToFinals(parseInt(e.target.value) || 8)}
+                  className="mt-1"
+                  data-testid="input-athletes-to-finals"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="record-wind"
+                  checked={recordWind}
+                  onChange={(e) => setRecordWind(e.target.checked)}
+                  className="h-4 w-4"
+                  data-testid="checkbox-record-wind"
+                />
+                <Label htmlFor="record-wind">Record Wind</Label>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Vertical Event Settings */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="alive-group-size">Alive Group Size</Label>
+                  <Input
+                    id="alive-group-size"
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={aliveGroupSize}
+                    onChange={(e) => setAliveGroupSize(parseInt(e.target.value) || 5)}
+                    className="mt-1"
+                    data-testid="input-alive-group-size"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Athletes jumping together</p>
+                </div>
+                <div>
+                  <Label htmlFor="stop-alive-at">Stop Alive At</Label>
+                  <Input
+                    id="stop-alive-at"
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={stopAliveAtCount}
+                    onChange={(e) => setStopAliveAtCount(parseInt(e.target.value) || 3)}
+                    className="mt-1"
+                    data-testid="input-stop-alive-at"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Resume rotation when X remain</p>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} data-testid="button-cancel-settings">
+            Cancel
+          </Button>
+          <Button 
+            onClick={() => updateSettingsMutation.mutate()}
+            disabled={updateSettingsMutation.isPending}
+            data-testid="button-save-settings"
+          >
+            {updateSettingsMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            Save Settings
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function FieldEntryUI({ 
   sessionId, 
   onLeave 
@@ -1959,6 +2152,7 @@ function FieldEntryUI({
   const [showGenerateFinals, setShowGenerateFinals] = useState(false);
   const [editingMark, setEditingMark] = useState<FieldEventMark | null>(null);
   const [showHeightsDialog, setShowHeightsDialog] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   const { data: session, isLoading: sessionLoading, error: sessionError } = useQuery<FieldEventSessionWithDetails>({
     queryKey: ["/api/field-sessions", sessionId, "full"],
@@ -2487,6 +2681,15 @@ function FieldEntryUI({
           <Button 
             variant="ghost" 
             size="icon"
+            onClick={() => setShowSettings(true)}
+            className="shrink-0 h-11 w-11 md:h-14 md:w-14 text-primary-foreground hover:bg-primary-foreground/20"
+            data-testid="button-settings"
+          >
+            <Settings className="h-6 w-6 md:h-7 md:w-7" />
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="icon"
             onClick={handleLeave}
             className="shrink-0 h-11 w-11 md:h-14 md:w-14 text-primary-foreground hover:bg-primary-foreground/20"
             data-testid="button-leave-session"
@@ -2915,6 +3118,16 @@ function FieldEntryUI({
         open={showHeightsDialog}
         onOpenChange={setShowHeightsDialog}
       />
+
+      {/* Event Settings Dialog */}
+      {session && (
+        <EventSettingsDialog
+          isOpen={showSettings}
+          onClose={() => setShowSettings(false)}
+          session={session}
+          isVertical={!!isVertical}
+        />
+      )}
     </div>
   );
 }
