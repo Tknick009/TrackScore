@@ -2420,6 +2420,7 @@ export const fieldEventMarks = pgTable('field_event_marks', {
   isBest: boolean('is_best').default(false),
   isDarkMark: boolean('is_dark_mark').default(false), // Recorded but fouled
   darkMeasurement: real('dark_measurement'), // The dark mark value
+  isFinalsRound: boolean('is_finals_round').default(false), // True if this mark was recorded during finals
   
   recordedAt: timestamp('recorded_at').defaultNow(),
 }, (table) => ({

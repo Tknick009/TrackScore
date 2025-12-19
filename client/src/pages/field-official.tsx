@@ -1149,7 +1149,7 @@ function ReviewMarksView({
   // Group athletes by flight
   const flights = new Map<number, EnrichedAthlete[]>();
   athletes.forEach(athlete => {
-    const flight = athlete.flight || 1;
+    const flight = athlete.flightNumber || 1;
     if (!flights.has(flight)) {
       flights.set(flight, []);
     }
@@ -2625,9 +2625,18 @@ function FieldEntryUI({
 
   const selectedAthlete = sortedAthletes.find(a => a.id === selectedAthleteId);
   
+  // Get all marks for an athlete (used for standings/review)
   const getAthleteMarks = (athleteId: number) => {
     return (marks || [])
       .filter(m => m.athleteId === athleteId)
+      .sort((a, b) => a.attemptNumber - b.attemptNumber);
+  };
+
+  // Get marks for current round only (prelims or finals)
+  const getAthleteRoundMarks = (athleteId: number) => {
+    const isInFinals = session?.isInFinals || false;
+    return (marks || [])
+      .filter(m => m.athleteId === athleteId && (m.isFinalsRound || false) === isInFinals)
       .sort((a, b) => a.attemptNumber - b.attemptNumber);
   };
 
@@ -2646,14 +2655,15 @@ function FieldEntryUI({
     ? (session?.finalsAttempts || 3) 
     : (session?.prelimAttempts || 3);
   
-  const selectedAthleteMarks = selectedAthlete ? getAthleteMarks(selectedAthlete.id) : [];
-  const nextAttemptNumber = selectedAthleteMarks.length + 1;
+  // Only count current round marks for attempt tracking
+  const selectedAthleteRoundMarks = selectedAthlete ? getAthleteRoundMarks(selectedAthlete.id) : [];
+  const nextAttemptNumber = selectedAthleteRoundMarks.length + 1;
 
-  // Find who should be "Up" (first athlete with fewest attempts)
+  // Find who should be "Up" (first athlete with fewest attempts in current round)
   const getUpAthlete = () => {
     if (sortedAthletes.length === 0) return null;
-    const minAttempts = Math.min(...sortedAthletes.map(a => getAthleteMarks(a.id).length));
-    return sortedAthletes.find(a => getAthleteMarks(a.id).length === minAttempts);
+    const minAttempts = Math.min(...sortedAthletes.map(a => getAthleteRoundMarks(a.id).length));
+    return sortedAthletes.find(a => getAthleteRoundMarks(a.id).length === minAttempts);
   };
   const upAthlete = getUpAthlete();
 
@@ -2669,6 +2679,7 @@ function FieldEntryUI({
         ? parseFloat(measurement) 
         : undefined,
       wind: wind,
+      isFinalsRound: session?.isInFinals || false,
     };
 
     submitMarkMutation.mutate(markData);
@@ -3154,7 +3165,7 @@ function FieldEntryUI({
                         key={athlete.id}
                         athlete={athlete}
                         isUp={upAthlete?.id === athlete.id}
-                        marks={getAthleteMarks(athlete.id)}
+                        marks={getAthleteRoundMarks(athlete.id)}
                         totalAttempts={officiateAttempts}
                         bestMark={getAthleteBestMark(athlete.id)}
                         onClick={() => setSelectedAthleteId(athlete.id)}
@@ -3208,7 +3219,7 @@ function FieldEntryUI({
                         key={athlete.id}
                         athlete={athlete}
                         isUp={false}
-                        marks={getAthleteMarks(athlete.id)}
+                        marks={getAthleteRoundMarks(athlete.id)}
                         totalAttempts={officiateAttempts}
                         bestMark={getAthleteBestMark(athlete.id)}
                         onClick={() => {}}
