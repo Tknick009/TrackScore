@@ -3341,9 +3341,17 @@ function FieldEntryUI({
     if (!heights || heights.length === 0) return null;
     
     // Get eligible athletes: not eliminated, not cleared current height, < 3 attempts at this height
+    // Also check that the current height is at or above their opening height
     const eligibleAthletes = sortedAthletes.filter(athlete => {
       const eliminated = isAthleteEliminated(athlete.id, marks || [], heights);
       if (eliminated) return false;
+      
+      // Check if athlete's opening height has been reached - if they have a starting height set,
+      // they're only eligible when the bar is at or above that height
+      const startingHeight = athlete.startingHeightIndex;
+      if (startingHeight !== null && startingHeight !== undefined && startingHeight > currentHeightIndex) {
+        return false; // Not yet at their opening height
+      }
       
       const heightAttempts = getAthleteAttemptsAtHeight(athlete.id, currentHeightIndex, marks || []);
       const hasCleared = heightAttempts.includes('O');
