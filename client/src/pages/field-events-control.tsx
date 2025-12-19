@@ -540,7 +540,7 @@ export default function FieldEventsControl() {
     try {
       const accessCode = generateAccessCode();
       const sessionData: InsertFieldEventSession = {
-        eventId: fieldEvents[0]?.id || "",
+        eventId: null,  // EVT-based sessions don't need a database event ID
         status: "check_in",
         measurementUnit: "metric",
         recordWind: false,
@@ -551,6 +551,7 @@ export default function FieldEventsControl() {
         totalAttempts: 6,
         accessCode,
         evtEventNumber: selectedEvtEvent.eventNumber,
+        evtEventName: selectedEvtEvent.eventName,
       };
       
       const sessionResponse = await apiRequest("POST", "/api/field-sessions", sessionData);
