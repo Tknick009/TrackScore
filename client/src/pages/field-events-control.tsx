@@ -406,23 +406,46 @@ export default function FieldEventsControl() {
   const [evtDirectoryPath, setEvtDirectoryPath] = useState("");
   const [isSavingConfig, setIsSavingConfig] = useState(false);
   
+  // Horizontal event defaults
+  const [horizontalPrelimAttempts, setHorizontalPrelimAttempts] = useState(3);
+  const [horizontalFinalists, setHorizontalFinalists] = useState(8);
+  const [horizontalFinalAttempts, setHorizontalFinalAttempts] = useState(3);
+  
   const [checkInDialogOpen, setCheckInDialogOpen] = useState(false);
   const [selectedEvtEvent, setSelectedEvtEvent] = useState<EVTEventSummary | null>(null);
   const [checkInAthletes, setCheckInAthletes] = useState<CheckInAthleteState[]>([]);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [createdSessionId, setCreatedSessionId] = useState<number | null>(null);
 
-  const { data: evtConfig, isLoading: configLoading } = useQuery<{ directoryPath: string }>({
+  interface EVTConfigData {
+    directoryPath: string;
+    horizontalPrelimAttempts?: number;
+    horizontalFinalists?: number;
+    horizontalFinalAttempts?: number;
+  }
+
+  const { data: evtConfig, isLoading: configLoading } = useQuery<EVTConfigData>({
     queryKey: ["/api/evt-config"],
     queryFn: () => fetch("/api/evt-config").then(r => r.json()),
     staleTime: 0,
   });
 
   useEffect(() => {
-    if (evtConfig?.directoryPath && !evtDirectoryPath) {
-      setEvtDirectoryPath(evtConfig.directoryPath);
+    if (evtConfig) {
+      if (evtConfig.directoryPath && !evtDirectoryPath) {
+        setEvtDirectoryPath(evtConfig.directoryPath);
+      }
+      if (evtConfig.horizontalPrelimAttempts !== undefined) {
+        setHorizontalPrelimAttempts(evtConfig.horizontalPrelimAttempts);
+      }
+      if (evtConfig.horizontalFinalists !== undefined) {
+        setHorizontalFinalists(evtConfig.horizontalFinalists);
+      }
+      if (evtConfig.horizontalFinalAttempts !== undefined) {
+        setHorizontalFinalAttempts(evtConfig.horizontalFinalAttempts);
+      }
     }
-  }, [evtConfig?.directoryPath]);
+  }, [evtConfig]);
 
   const { data: evtEventsData, isLoading: evtEventsLoading, refetch: refetchEvtEvents } = useQuery<{ events: EVTEventSummary[] }>({
     queryKey: ["/api/evt-events"],
@@ -508,10 +531,15 @@ export default function FieldEventsControl() {
   const handleSaveEvtConfig = async () => {
     setIsSavingConfig(true);
     try {
-      await apiRequest("POST", "/api/evt-config", { directoryPath: evtDirectoryPath });
+      await apiRequest("POST", "/api/evt-config", { 
+        directoryPath: evtDirectoryPath,
+        horizontalPrelimAttempts,
+        horizontalFinalists,
+        horizontalFinalAttempts,
+      });
       queryClient.invalidateQueries({ queryKey: ["/api/evt-config"] });
       queryClient.invalidateQueries({ queryKey: ["/api/evt-events"] });
-      toast({ title: "EVT directory path saved" });
+      toast({ title: "Configuration saved" });
     } catch (error: any) {
       toast({
         title: "Failed to save config",
@@ -707,18 +735,77 @@ export default function FieldEventsControl() {
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center gap-2">
             <FolderOpen className="h-5 w-5" />
-            EVT Directory Settings
+            Field Events Configuration
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-3">
-            <Input
-              placeholder="/path/to/lynx/evt/directory"
-              value={evtDirectoryPath || evtConfig?.directoryPath || ""}
-              onChange={(e) => setEvtDirectoryPath(e.target.value)}
-              className="flex-1"
-              data-testid="input-evt-directory"
-            />
+        <CardContent className="space-y-4">
+          <div>
+            <Label className="text-sm text-muted-foreground mb-2 block">EVT Directory Path</Label>
+            <div className="flex items-center gap-3">
+              <Input
+                placeholder="/path/to/lynx/evt/directory"
+                value={evtDirectoryPath || evtConfig?.directoryPath || ""}
+                onChange={(e) => setEvtDirectoryPath(e.target.value)}
+                className="flex-1"
+                data-testid="input-evt-directory"
+              />
+              <Button
+                variant="outline"
+                onClick={() => refetchEvtEvents()}
+                data-testid="button-refresh-evt"
+              >
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+          
+          <div className="border-t pt-4">
+            <Label className="text-sm font-medium mb-3 block">Horizontal Event Defaults (Throws &amp; Jumps)</Label>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1 block">Prelim Attempts</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={horizontalPrelimAttempts}
+                  onChange={(e) => setHorizontalPrelimAttempts(parseInt(e.target.value) || 3)}
+                  className="w-full"
+                  data-testid="input-prelim-attempts"
+                />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1 block">Athletes to Finals</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={24}
+                  value={horizontalFinalists}
+                  onChange={(e) => setHorizontalFinalists(parseInt(e.target.value) || 8)}
+                  className="w-full"
+                  data-testid="input-finalists"
+                />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1 block">Finals Attempts</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={horizontalFinalAttempts}
+                  onChange={(e) => setHorizontalFinalAttempts(parseInt(e.target.value) || 3)}
+                  className="w-full"
+                  data-testid="input-finals-attempts"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              These defaults apply to Long Jump, Triple Jump, Shot Put, Discus, Javelin, Hammer, etc.
+              High Jump and Pole Vault are configured manually per session.
+            </p>
+          </div>
+          
+          <div className="flex justify-end pt-2">
             <Button
               onClick={handleSaveEvtConfig}
               disabled={isSavingConfig}
@@ -729,21 +816,11 @@ export default function FieldEventsControl() {
               ) : (
                 <>
                   <Save className="h-4 w-4 mr-2" />
-                  Save
+                  Save Configuration
                 </>
               )}
             </Button>
-            <Button
-              variant="outline"
-              onClick={() => refetchEvtEvents()}
-              data-testid="button-refresh-evt"
-            >
-              <RefreshCw className="h-4 w-4" />
-            </Button>
           </div>
-          <p className="text-xs text-muted-foreground mt-2">
-            Set the directory path where FinishLynx EVT files are stored. Events will be automatically detected.
-          </p>
         </CardContent>
       </Card>
 
