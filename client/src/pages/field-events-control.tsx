@@ -931,7 +931,9 @@ export default function FieldEventsControl() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${session.eventId || 'event'}-1-1.lff`;
+      // Use evtEventNumber for EVT sessions, fall back to eventId or session id
+      const eventNum = session.evtEventNumber || session.eventId || session.id;
+      a.download = `${eventNum}-1-01.lff`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
