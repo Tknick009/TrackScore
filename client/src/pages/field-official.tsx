@@ -411,79 +411,106 @@ function JoinSession({
   const activeMeets = meets?.filter(m => m.status === "in_progress" || m.status === "upcoming") || [];
 
   return (
-    <div className="h-screen max-h-screen flex items-center justify-center p-4 bg-background overflow-hidden">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">Field Official Entry</CardTitle>
-          <p className="text-muted-foreground mt-2">
-            Select a meet and event to begin officiating
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {meetsLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : (
-            <>
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Select Meet</Label>
-                <Select value={selectedMeetId} onValueChange={(value) => {
-                  setSelectedMeetId(value);
-                  setSelectedSessionId("");
-                }}>
-                  <SelectTrigger className="h-14 text-lg" data-testid="select-meet">
-                    <SelectValue placeholder="Choose a meet..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {activeMeets.length === 0 ? (
-                      <div className="p-3 text-center text-muted-foreground">
-                        No active meets found
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 overflow-auto">
+      {/* Hero section with logo */}
+      <div className="flex-1 flex flex-col items-center justify-center p-6">
+        {/* Logo */}
+        <div className="mb-8">
+          <img 
+            src="/attached_assets/LTR-Raulli-sm_1766156518063.png" 
+            alt="Leone Timing" 
+            className="h-32 sm:h-40 md:h-48 w-auto drop-shadow-2xl"
+          />
+        </div>
+        
+        {/* Title */}
+        <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white text-center mb-2 tracking-tight">
+          Field Events
+        </h1>
+        <p className="text-blue-200 text-lg sm:text-xl mb-10 text-center">
+          Professional Field Event Management
+        </p>
+
+        {/* Selection Card */}
+        <Card className="w-full max-w-md bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm shadow-2xl border-0">
+          <CardHeader className="text-center pb-4">
+            <CardTitle className="text-xl font-semibold text-slate-800 dark:text-white">
+              Select Your Event
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5 pb-8">
+            {meetsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-slate-600 dark:text-slate-300">Meet</Label>
+                  <Select value={selectedMeetId} onValueChange={(value) => {
+                    setSelectedMeetId(value);
+                    setSelectedSessionId("");
+                  }}>
+                    <SelectTrigger className="h-14 text-lg border-slate-300 dark:border-slate-600 focus:ring-blue-500" data-testid="select-meet">
+                      <SelectValue placeholder="Choose a meet..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {activeMeets.length === 0 ? (
+                        <div className="p-4 text-center text-muted-foreground">
+                          No active meets found
+                        </div>
+                      ) : (
+                        activeMeets.map((meet) => (
+                          <SelectItem key={meet.id} value={meet.id} className="text-base py-3">
+                            {meet.name}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {selectedMeetId && (
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-slate-600 dark:text-slate-300">Event</Label>
+                    {sessionsLoading ? (
+                      <div className="flex items-center justify-center py-4">
+                        <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
                       </div>
                     ) : (
-                      activeMeets.map((meet) => (
-                        <SelectItem key={meet.id} value={meet.id} className="text-base py-3">
-                          {meet.name}
-                        </SelectItem>
-                      ))
+                      <Select value={selectedSessionId} onValueChange={handleSelectEvent}>
+                        <SelectTrigger className="h-14 text-lg border-slate-300 dark:border-slate-600 focus:ring-blue-500" data-testid="select-event">
+                          <SelectValue placeholder="Choose an event..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {!sessions || sessions.length === 0 ? (
+                            <div className="p-4 text-center text-muted-foreground">
+                              No field events available
+                            </div>
+                          ) : (
+                            sessions.map((session) => (
+                              <SelectItem key={session.id} value={String(session.id)} className="text-base py-3">
+                                {session.evtEventName || `Session ${session.id}`}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
                     )}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {selectedMeetId && (
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Select Event</Label>
-                  {sessionsLoading ? (
-                    <div className="flex items-center justify-center py-4">
-                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : (
-                    <Select value={selectedSessionId} onValueChange={handleSelectEvent}>
-                      <SelectTrigger className="h-14 text-lg" data-testid="select-event">
-                        <SelectValue placeholder="Choose an event..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {!sessions || sessions.length === 0 ? (
-                          <div className="p-3 text-center text-muted-foreground">
-                            No field events found for this meet
-                          </div>
-                        ) : (
-                          sessions.map((session) => (
-                            <SelectItem key={session.id} value={String(session.id)} className="text-base py-3">
-                              {session.evtEventName || `Session ${session.id}`}
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
-              )}
-            </>
-          )}
-        </CardContent>
-      </Card>
+                  </div>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+      
+      {/* Footer */}
+      <div className="py-4 text-center">
+        <p className="text-blue-300/60 text-sm">
+          Powered by Leone Timing
+        </p>
+      </div>
     </div>
   );
 }
