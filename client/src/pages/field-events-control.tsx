@@ -119,7 +119,8 @@ interface SessionCardProps {
 
 function SessionCard({ session, athletes, onEdit, onDelete, onUpdateStatus, onExportLFF }: SessionCardProps) {
   const { toast } = useToast();
-  const eventName = session.event?.name || "Unknown Event";
+  // Use database event name if available, otherwise use EVT event name
+  const eventName = session.event?.name || session.evtEventName || "Unknown Event";
   const checkedInCount = athletes.filter(a => a.checkInStatus === "checked_in").length;
   const totalAthletes = athletes.length;
 
@@ -444,22 +445,17 @@ export default function FieldEventsControl() {
   );
 
   const { data: sessions = [], isLoading: sessionsLoading } = useQuery<FieldEventSessionWithDetails[]>({
-    queryKey: ["/api/field-sessions", "all", currentMeetId],
+    queryKey: ["/api/field-sessions"],
     queryFn: async () => {
-      const allSessions: FieldEventSessionWithDetails[] = [];
-      for (const event of fieldEvents) {
-        const response = await fetch(`/api/field-sessions/event/${event.id}`);
-        if (response.ok) {
-          const session = await response.json();
-          if (session) {
-            const eventData = events.find(e => e.id === session.eventId);
-            allSessions.push({ ...session, event: eventData });
-          }
-        }
-      }
-      return allSessions;
+      const response = await fetch("/api/field-sessions");
+      if (!response.ok) return [];
+      const allSessions: FieldEventSession[] = await response.json();
+      // Enrich sessions with event data where available
+      return allSessions.map(session => {
+        const eventData = session.eventId ? events.find(e => e.id === session.eventId) : undefined;
+        return { ...session, event: eventData } as FieldEventSessionWithDetails;
+      });
     },
-    enabled: fieldEvents.length > 0,
     refetchInterval: 10000,
   });
 

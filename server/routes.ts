@@ -6478,7 +6478,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return record.count > MAX_ATTEMPTS;
   }
 
-  // Get all field sessions (optionally filter by meetId query param)
+  // Get all field sessions (optionally filter by eventId query param)
   app.get("/api/field-sessions", async (req, res) => {
     try {
       const { eventId } = req.query;
@@ -6486,7 +6486,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const session = await storage.getFieldEventSessionByEvent(eventId);
         return res.json(session ? [session] : []);
       }
-      res.status(400).json({ error: "eventId query parameter required" });
+      // Return all sessions if no eventId specified
+      const sessions = await storage.getAllFieldEventSessions();
+      res.json(sessions);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
