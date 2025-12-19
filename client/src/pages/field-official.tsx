@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { LogOut, Check, X, Minus, Loader2, ChevronDown, ChevronLeft, ChevronRight, Users, Trophy, Grid3X3, Circle, MoreVertical, UserPlus, ArrowRightLeft, Search, Star, Pencil, Trash2, Ruler, GripVertical, Plus, Settings, Delete } from "lucide-react";
+import { LogOut, Check, X, Minus, Loader2, ChevronDown, ChevronLeft, ChevronRight, Users, Trophy, Grid3X3, Circle, MoreVertical, UserPlus, ArrowRightLeft, Search, Star, Pencil, Trash2, Ruler, GripVertical, Plus, Settings, Delete, Menu } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DialogDescription } from "@/components/ui/dialog";
 import {
@@ -473,6 +474,7 @@ function AthleteListItem({
   onEditMark,
   onForceFinalist,
   isDns = false,
+  showBibNumbers = true,
 }: { 
   athlete: EnrichedAthlete; 
   isUp: boolean;
@@ -1336,6 +1338,7 @@ function VerticalAthleteListItem({
   onChangeStatus,
   onEditMark,
   isDns = false,
+  showBibNumbers = true,
 }: {
   athlete: EnrichedAthlete;
   isUp: boolean;
@@ -2394,8 +2397,13 @@ function FieldEntryUI({
   const [editingMark, setEditingMark] = useState<FieldEventMark | null>(null);
   const [showHeightsDialog, setShowHeightsDialog] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showEventsSidebar, setShowEventsSidebar] = useState(false);
   const [deviceName, setDeviceName] = useState<string>(() => {
     return localStorage.getItem(DEVICE_NAME_KEY) || "";
+  });
+
+  const { data: allSessions } = useQuery<FieldEventSession[]>({
+    queryKey: ["/api/field-sessions"],
   });
 
   const handleDeviceNameChange = (value: string) => {
@@ -2894,6 +2902,62 @@ function FieldEntryUI({
       {/* Header - optimized for iPad */}
       <header className="bg-primary text-primary-foreground p-4 md:p-6 shrink-0">
         <div className="flex items-center justify-between gap-3">
+          <Sheet open={showEventsSidebar} onOpenChange={setShowEventsSidebar}>
+            <SheetTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="icon"
+                className="shrink-0 h-11 w-11 md:h-14 md:w-14 bg-primary text-primary-foreground hover:bg-primary-foreground/20"
+                data-testid="button-menu-events"
+              >
+                <Menu className="h-6 w-6 md:h-7 md:w-7" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" data-testid="sidebar-field-events">
+              <SheetHeader>
+                <SheetTitle>Field Events</SheetTitle>
+              </SheetHeader>
+              <ScrollArea className="h-[calc(100vh-100px)] mt-4">
+                <div className="space-y-2 pr-4">
+                  {allSessions?.map((s) => {
+                    const name = s.evtEventName || "Unnamed Event";
+                    const isCurrentSession = s.id === sessionId;
+                    return (
+                      <div
+                        key={s.id}
+                        onClick={() => {
+                          window.location.href = `/field-official/${s.id}`;
+                        }}
+                        className={`p-3 rounded-lg cursor-pointer transition-colors ${
+                          isCurrentSession 
+                            ? "bg-primary text-primary-foreground" 
+                            : "hover-elevate"
+                        }`}
+                        data-testid={`link-event-${s.id}`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={`font-medium truncate ${isCurrentSession ? "" : ""}`}>
+                            {name}
+                          </span>
+                          <Badge 
+                            variant={s.status === "active" ? "default" : "secondary"}
+                            className="shrink-0 text-xs"
+                          >
+                            {s.status || "pending"}
+                          </Badge>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {(!allSessions || allSessions.length === 0) && (
+                    <p className="text-muted-foreground text-sm text-center py-4">
+                      No field events found
+                    </p>
+                  )}
+                </div>
+              </ScrollArea>
+            </SheetContent>
+          </Sheet>
           <div className="min-w-0 flex-1">
             <h1 className="font-bold text-xl md:text-2xl truncate" data-testid="text-event-name">
               {eventName}
