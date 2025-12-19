@@ -719,7 +719,6 @@ function MarkEntrySheet({
             className="h-16 md:h-20 text-lg md:text-xl"
             data-testid="button-record-pass"
           >
-            <Minus className="h-6 w-6 md:h-7 md:w-7 mr-2" />
             PASS
           </Button>
         </div>
@@ -1363,11 +1362,10 @@ function VerticalAttemptSheet({
             variant="secondary"
             onClick={() => onRecordMark("pass")}
             disabled={isPending || hasCleared || attemptNumber > 3}
-            className="h-20 md:h-24 text-2xl md:text-3xl"
+            className="h-20 md:h-24 text-xl md:text-2xl"
             data-testid="button-record-pass"
           >
-            <Minus className="h-8 w-8 md:h-10 md:w-10 mr-2" />
-            -
+            PASS
           </Button>
         </div>
 
@@ -2352,12 +2350,14 @@ function FieldEntryUI({
           )}
           <Button 
             variant="ghost" 
-            size="icon"
+            size="sm"
             onClick={() => setShowAddAthlete(true)}
-            className="shrink-0 h-10 w-10 md:h-12 md:w-12 text-primary-foreground hover:bg-primary-foreground/20"
+            className="shrink-0 text-primary-foreground hover:bg-primary-foreground/20 text-sm"
             data-testid="button-add-athlete"
           >
-            <UserPlus className="h-5 w-5 md:h-6 md:w-6" />
+            <UserPlus className="h-4 w-4 mr-1" />
+            <span className="hidden sm:inline">Add Athlete</span>
+            <span className="sm:hidden">Add</span>
           </Button>
           <Button 
             variant="ghost" 
