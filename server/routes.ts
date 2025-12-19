@@ -6901,6 +6901,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Generate finals - mark top N athletes as finalists
+  app.post("/api/field-sessions/:sessionId/generate-finals", async (req, res) => {
+    try {
+      const sessionId = parseInt(req.params.sessionId);
+      if (isNaN(sessionId)) {
+        return res.status(400).json({ error: "Invalid session ID" });
+      }
+      
+      const { count } = req.body;
+      if (!count || typeof count !== 'number' || count < 1) {
+        return res.status(400).json({ error: "Invalid count - must be a positive number" });
+      }
+      
+      // Get all athletes with their marks for this session
+      const athletes = await storage.getFieldEventAthletes(sessionId);
+      const marks = await storage.getFieldEventMarks(sessionId);
+      
+      // Calculate best mark for each athlete
+      const athleteMarks = new Map<number, number>();
+      for (const mark of marks) {
+        if (mark.markType === 'mark' && mark.measurement !== null) {
+          const current = athleteMarks.get(mark.athleteId) || 0;
+          if (mark.measurement > current) {
+            athleteMarks.set(mark.athleteId, mark.measurement);
+          }
+        }
+      }
+      
+      // Filter to active athletes (not DNS/scratched) and sort by best mark (descending)
+      const rankedAthletes = athletes
+        .filter(a => a.checkInStatus === 'checked_in' && a.competitionStatus !== 'dns')
+        .map(a => ({
+          ...a,
+          bestMark: athleteMarks.get(a.id) || 0
+        }))
+        .sort((a, b) => b.bestMark - a.bestMark);
+      
+      // Mark top N as finalists
+      const finalists = rankedAthletes.slice(0, count);
+      const finalistIds: number[] = [];
+      
+      // Reset all athletes to non-finalist first
+      for (const athlete of athletes) {
+        await storage.updateFieldEventAthlete(athlete.id, { 
+          isFinalist: false, 
+          finalsOrder: null 
+        });
+      }
+      
+      // Mark finalists with their order (reversed so last place goes first)
+      for (let i = 0; i < finalists.length; i++) {
+        const finalist = finalists[i];
+        // Reverse order: best mark goes last
+        const finalsOrder = finalists.length - i;
+        await storage.updateFieldEventAthlete(finalist.id, { 
+          isFinalist: true, 
+          finalsOrder 
+        });
+        finalistIds.push(finalist.id);
+      }
+      
+      // Broadcast field event update
+      broadcastFieldEventUpdate(sessionId).catch(console.error);
+      
+      res.json({ 
+        success: true, 
+        finalistCount: finalists.length,
+        finalistIds 
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // ===============================
   // FIELD EVENT MARKS ROUTES
   // ===============================
