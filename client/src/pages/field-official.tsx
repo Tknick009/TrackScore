@@ -8,7 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { LogOut, Check, X, Minus, Loader2, ChevronDown, ChevronLeft, ChevronRight, Users, Trophy, Grid3X3, Circle, MoreVertical, UserPlus, ArrowRightLeft, Search, Star, Pencil, Trash2 } from "lucide-react";
+import { LogOut, Check, X, Minus, Loader2, ChevronDown, ChevronLeft, ChevronRight, Users, Trophy, Grid3X3, Circle, MoreVertical, UserPlus, ArrowRightLeft, Search, Star, Pencil, Trash2, Ruler, GripVertical, Plus, Settings } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { DialogDescription } from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -68,6 +70,293 @@ function getAthleteDisplayInfo(athlete: EnrichedAthlete) {
     };
   }
   return { name: "Unknown Athlete", bib: "-", team: "" };
+}
+
+function metersToFeetInches(meters: number): string {
+  const totalInches = meters * 39.3701;
+  const feet = Math.floor(totalInches / 12);
+  const remainingInches = totalInches % 12;
+  const wholeInches = Math.floor(remainingInches);
+  const fraction = remainingInches - wholeInches;
+  
+  let fractionStr = "";
+  if (fraction >= 0.875) {
+    fractionStr = "";
+    return `${feet}' ${wholeInches + 1}"`;
+  } else if (fraction >= 0.625) {
+    fractionStr = "3/4";
+  } else if (fraction >= 0.375) {
+    fractionStr = "1/2";
+  } else if (fraction >= 0.125) {
+    fractionStr = "1/4";
+  }
+  
+  if (fractionStr) {
+    return `${feet}' ${wholeInches} ${fractionStr}"`;
+  }
+  return `${feet}' ${wholeInches}"`;
+}
+
+// Local height type for client-side state
+type LocalHeight = {
+  tempKey: string;
+  heightIndex: number;
+  heightMeters: number;
+  isActive: boolean;
+  isJumpOff: boolean;
+};
+
+function HeightsDialog({ 
+  sessionId, 
+  open, 
+  onOpenChange 
+}: { 
+  sessionId: number; 
+  open: boolean; 
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { toast } = useToast();
+  const [newHeightMeters, setNewHeightMeters] = useState("");
+  const [localHeights, setLocalHeights] = useState<LocalHeight[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const { data: heights = [], isLoading, refetch } = useQuery<FieldHeight[]>({
+    queryKey: ["/api/field-sessions", sessionId, "heights"],
+    queryFn: () => fetch(`/api/field-sessions/${sessionId}/heights`).then(r => r.json()),
+    enabled: open,
+  });
+
+  useEffect(() => {
+    if (open && heights.length > 0) {
+      const sorted = [...heights].sort((a, b) => a.heightIndex - b.heightIndex);
+      setLocalHeights(sorted.map(h => ({
+        tempKey: `server-${h.id}`,
+        heightIndex: h.heightIndex,
+        heightMeters: typeof h.heightMeters === 'string' ? parseFloat(h.heightMeters) : h.heightMeters,
+        isActive: h.isActive,
+        isJumpOff: h.isJumpOff,
+      })));
+    } else if (open && heights.length === 0 && !isLoading) {
+      setLocalHeights([]);
+    }
+  }, [heights, open, isLoading]);
+
+  const handleAddHeight = () => {
+    const meters = parseFloat(newHeightMeters);
+    if (isNaN(meters) || meters <= 0) {
+      toast({ title: "Invalid height", description: "Please enter a valid height in meters", variant: "destructive" });
+      return;
+    }
+    
+    const newHeight: LocalHeight = {
+      tempKey: `new-${Date.now()}`,
+      heightIndex: localHeights.length,
+      heightMeters: meters,
+      isActive: true,
+      isJumpOff: false,
+    };
+    
+    const updatedHeights = [...localHeights, newHeight].sort((a, b) => a.heightMeters - b.heightMeters);
+    updatedHeights.forEach((h, idx) => { h.heightIndex = idx; });
+    setLocalHeights(updatedHeights);
+    setNewHeightMeters("");
+  };
+
+  const handleDeleteHeight = (index: number) => {
+    const updated = localHeights.filter((_, i) => i !== index);
+    updated.forEach((h, idx) => { h.heightIndex = idx; });
+    setLocalHeights(updated);
+  };
+
+  const handleToggleActive = (index: number) => {
+    const updated = [...localHeights];
+    updated[index] = { ...updated[index], isActive: !updated[index].isActive };
+    setLocalHeights(updated);
+  };
+
+  const handleToggleJumpOff = (index: number) => {
+    const updated = [...localHeights];
+    updated[index] = { ...updated[index], isJumpOff: !updated[index].isJumpOff };
+    setLocalHeights(updated);
+  };
+
+  const handleUpdateHeight = (index: number, newMeters: string) => {
+    const meters = parseFloat(newMeters);
+    if (isNaN(meters) || meters <= 0) return;
+    
+    const updated = [...localHeights];
+    updated[index] = { ...updated[index], heightMeters: meters };
+    updated.sort((a, b) => a.heightMeters - b.heightMeters);
+    updated.forEach((h, idx) => { h.heightIndex = idx; });
+    setLocalHeights(updated);
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const heightsToSave = localHeights.map((h, idx) => ({
+        heightIndex: idx,
+        heightMeters: h.heightMeters,
+        isActive: h.isActive,
+        isJumpOff: h.isJumpOff,
+      }));
+      
+      const response = await apiRequest("PUT", `/api/field-sessions/${sessionId}/heights`, { heights: heightsToSave });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || errorData.error || `Server returned ${response.status}`);
+      }
+      
+      await refetch();
+      queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "heights"] });
+      toast({ title: "Heights saved successfully" });
+      onOpenChange(false);
+    } catch (error: any) {
+      console.error("Failed to save heights:", error);
+      toast({ title: "Failed to save heights", description: error.message || "Unknown error", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg max-h-[80vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Ruler className="h-5 w-5" />
+            Configure Heights
+          </DialogTitle>
+          <DialogDescription>
+            Set the height progression. Heights are automatically sorted.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-hidden flex flex-col gap-4">
+          <div className="flex items-center gap-2">
+            <div className="flex-1">
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="Height in meters (e.g., 1.85)"
+                value={newHeightMeters}
+                onChange={(e) => setNewHeightMeters(e.target.value)}
+                data-testid="input-new-height-official"
+              />
+              {newHeightMeters && !isNaN(parseFloat(newHeightMeters)) && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  = {metersToFeetInches(parseFloat(newHeightMeters))}
+                </p>
+              )}
+            </div>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleAddHeight}
+              data-testid="button-add-height-official"
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
+
+          <ScrollArea className="flex-1 max-h-[300px]">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : localHeights.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Ruler className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p>No heights configured yet.</p>
+                <p className="text-sm">Add heights above to create a progression.</p>
+              </div>
+            ) : (
+              <div className="space-y-2 pr-4">
+                {localHeights.map((height, index) => (
+                  <div
+                    key={height.tempKey}
+                    className={`flex items-center gap-2 p-2 rounded-lg border ${
+                      height.isActive ? "bg-card" : "bg-muted/50 opacity-60"
+                    } ${height.isJumpOff ? "border-yellow-500" : ""}`}
+                    data-testid={`height-row-official-${index}`}
+                  >
+                    <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
+                    
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          className="w-24"
+                          value={height.heightMeters}
+                          onChange={(e) => handleUpdateHeight(index, e.target.value)}
+                          data-testid={`input-height-official-${index}`}
+                        />
+                        <span className="text-sm text-muted-foreground whitespace-nowrap">
+                          {metersToFeetInches(height.heightMeters)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant={height.isActive ? "secondary" : "ghost"}
+                        size="sm"
+                        onClick={() => handleToggleActive(index)}
+                        className="text-xs px-2"
+                        data-testid={`button-toggle-active-official-${index}`}
+                      >
+                        {height.isActive ? "Active" : "Skip"}
+                      </Button>
+                      
+                      <Button
+                        variant={height.isJumpOff ? "default" : "ghost"}
+                        size="sm"
+                        onClick={() => handleToggleJumpOff(index)}
+                        className={`text-xs px-2 ${height.isJumpOff ? "bg-yellow-500 hover:bg-yellow-600 text-black" : ""}`}
+                        data-testid={`button-toggle-jumpoff-official-${index}`}
+                      >
+                        J/O
+                      </Button>
+                      
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => handleDeleteHeight(index)}
+                        data-testid={`button-delete-height-official-${index}`}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </ScrollArea>
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel-heights-official">
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={isSaving} data-testid="button-save-heights-official">
+            {isSaving ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Save Heights"
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function JoinSession({ 
@@ -1576,6 +1865,7 @@ function FieldEntryUI({
   const [showAddAthlete, setShowAddAthlete] = useState(false);
   const [showGenerateFinals, setShowGenerateFinals] = useState(false);
   const [editingMark, setEditingMark] = useState<FieldEventMark | null>(null);
+  const [showHeightsDialog, setShowHeightsDialog] = useState(false);
 
   const { data: session, isLoading: sessionLoading, error: sessionError } = useQuery<FieldEventSessionWithDetails>({
     queryKey: ["/api/field-sessions", sessionId, "full"],
@@ -1897,7 +2187,7 @@ function FieldEntryUI({
             // Vertical Event UI
             <>
               {/* Current Height Bar */}
-              {heights && heights.length > 0 && (
+              {heights && heights.length > 0 ? (
                 <div className="bg-muted/50 p-3 border-b flex items-center justify-between gap-2">
                   <Button
                     size="sm"
@@ -1914,6 +2204,15 @@ function FieldEntryUI({
                     <span className="font-mono font-bold text-lg">
                       {currentHeight ? formatHeightMark(currentHeight.heightMeters) : "-"}
                     </span>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => setShowHeightsDialog(true)}
+                      className="h-7 w-7"
+                      data-testid="button-edit-heights"
+                    >
+                      <Settings className="h-4 w-4" />
+                    </Button>
                     <div className="flex gap-1">
                       {heights.sort((a, b) => a.heightIndex - b.heightIndex).map((h) => (
                         <Badge 
@@ -1935,6 +2234,18 @@ function FieldEntryUI({
                   >
                     Next
                     <ChevronRight className="h-4 w-4 ml-1" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="bg-muted/50 p-4 border-b text-center">
+                  <p className="text-muted-foreground mb-2">No heights configured</p>
+                  <Button
+                    variant="default"
+                    onClick={() => setShowHeightsDialog(true)}
+                    data-testid="button-configure-heights"
+                  >
+                    <Ruler className="h-4 w-4 mr-2" />
+                    Configure Heights
                   </Button>
                 </div>
               )}
@@ -2166,6 +2477,13 @@ function FieldEntryUI({
         sessionId={sessionId}
         isVertical={!!isVertical}
         heights={heights}
+      />
+
+      {/* Heights Configuration Dialog */}
+      <HeightsDialog
+        sessionId={sessionId}
+        open={showHeightsDialog}
+        onOpenChange={setShowHeightsDialog}
       />
     </div>
   );
