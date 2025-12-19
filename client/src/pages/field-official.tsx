@@ -914,19 +914,19 @@ function StandingsView({
       {rankedAthletes.map((item, index) => {
         const info = getAthleteDisplayInfo(item.athlete);
         return (
-          <div key={item.athlete.id} className="flex items-center gap-4 p-4 md:p-5">
-            <div className="w-10 md:w-12 text-center font-bold text-lg md:text-xl shrink-0">
+          <div key={item.athlete.id} className="flex items-center gap-4 p-5 md:p-6">
+            <div className="w-12 md:w-14 text-center font-bold text-xl md:text-2xl shrink-0">
               {item.best !== null ? index + 1 : "-"}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-base md:text-lg">{info.name}</p>
-              <p className="text-sm md:text-base text-muted-foreground">{info.team || info.bib}</p>
+              <p className="font-semibold text-lg md:text-xl">{info.name}</p>
+              <p className="text-base md:text-lg text-muted-foreground">{info.team || info.bib}</p>
             </div>
             <div className="text-right shrink-0">
-              <p className="font-mono font-bold text-lg md:text-xl">
+              <p className="font-mono font-bold text-xl md:text-2xl">
                 {item.best !== null ? item.best.toFixed(2) : "-"}
               </p>
-              <p className="text-sm md:text-base text-muted-foreground">
+              <p className="text-base md:text-lg text-muted-foreground">
                 {item.marks.filter(m => m.markType === "mark").length} marks
               </p>
             </div>
@@ -1128,20 +1128,20 @@ function VerticalAthleteListItem({
   
   return (
     <div
-      className={`flex items-center gap-3 p-4 md:p-5 border-b border-border ${
+      className={`flex items-center gap-4 p-4 md:p-6 border-b border-border ${
         isUp ? "bg-green-50 dark:bg-green-950/30" : ""
       } ${eliminated ? "opacity-50" : ""}`}
       data-testid={`vertical-athlete-row-${athlete.id}`}
     >
-      <div className="w-16 md:w-20 shrink-0 text-center">
+      <div className="w-18 md:w-24 shrink-0 text-center">
         {eliminated ? (
-          <Badge variant="outline" className="text-sm md:text-base">OUT</Badge>
+          <Badge variant="outline" className="text-base md:text-lg px-3 py-1">OUT</Badge>
         ) : isUp ? (
-          <Badge className="bg-green-600 text-white font-bold px-3 py-1.5 text-sm md:text-base">UP</Badge>
+          <Badge className="bg-green-600 text-white font-bold px-4 py-2 text-base md:text-lg">UP</Badge>
         ) : hasCleared ? (
-          <Badge variant="secondary" className="text-sm md:text-base">CLEAR</Badge>
+          <Badge variant="secondary" className="text-base md:text-lg px-3 py-1">CLEAR</Badge>
         ) : (
-          <span className="text-sm md:text-base text-muted-foreground">{currentHeightAttempts || "-"}</span>
+          <span className="text-base md:text-lg text-muted-foreground">{currentHeightAttempts || "-"}</span>
         )}
       </div>
 
@@ -1150,16 +1150,16 @@ function VerticalAthleteListItem({
         onClick={eliminated || isDns ? undefined : onClick}
       >
         <div className="flex items-center gap-2">
-          <span className="font-mono text-sm md:text-base text-muted-foreground">{info.bib}</span>
-          <span className={`font-semibold text-base md:text-lg truncate ${eliminated ? "line-through" : ""}`}>{info.name}</span>
-          <Badge variant="outline" className="text-xs md:text-sm">F{athlete.flightNumber || 1}</Badge>
+          <span className="font-mono text-base md:text-lg text-muted-foreground">{info.bib}</span>
+          <span className={`font-semibold text-lg md:text-xl ${eliminated ? "line-through" : ""}`}>{info.name}</span>
+          <Badge variant="outline" className="text-sm md:text-base">F{athlete.flightNumber || 1}</Badge>
         </div>
         {info.team && (
-          <p className="text-sm text-muted-foreground truncate">{info.team}</p>
+          <p className="text-base md:text-lg text-muted-foreground">{info.team}</p>
         )}
       </div>
 
-      <div className="flex gap-1.5 md:gap-2 shrink-0 font-mono text-base md:text-lg font-bold">
+      <div className="flex gap-2 md:gap-3 shrink-0 font-mono text-lg md:text-xl font-bold">
         {(() => {
           const heightMarks = marks
             .filter(m => m.athleteId === athlete.id && m.heightIndex === currentHeightIndex)
@@ -1173,7 +1173,7 @@ function VerticalAthleteListItem({
                   e.stopPropagation();
                   onEditMark(m);
                 }}
-                className={`px-1.5 md:px-2 py-0.5 rounded hover:bg-muted/50 hover:ring-1 hover:ring-primary ${
+                className={`px-2 md:px-3 py-1 rounded hover:bg-muted/50 hover:ring-1 hover:ring-primary ${
                   char === 'O' ? 'text-green-600' : 
                   char === 'X' ? 'text-red-500' : 
                   'text-yellow-600'
@@ -1190,11 +1190,11 @@ function VerticalAthleteListItem({
         )}
       </div>
 
-      <div className="w-16 md:w-20 text-right shrink-0">
+      <div className="w-20 md:w-24 text-right shrink-0">
         {highestCleared ? (
-          <span className="font-mono font-semibold text-sm md:text-base">{formatHeightMark(highestCleared.heightMeters)}</span>
+          <span className="font-mono font-semibold text-base md:text-lg">{formatHeightMark(highestCleared.heightMeters)}</span>
         ) : (
-          <span className="text-muted-foreground text-sm md:text-base">-</span>
+          <span className="text-muted-foreground text-base md:text-lg">-</span>
         )}
       </div>
 
@@ -1203,10 +1203,10 @@ function VerticalAthleteListItem({
           <Button 
             variant="ghost" 
             size="icon" 
-            className="h-10 w-10 md:h-12 md:w-12 shrink-0"
+            className="h-12 w-12 md:h-14 md:w-14 shrink-0"
             data-testid={`button-vertical-athlete-menu-${athlete.id}`}
           >
-            <MoreVertical className="h-5 w-5 md:h-6 md:w-6" />
+            <MoreVertical className="h-6 w-6 md:h-7 md:w-7" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
@@ -1285,44 +1285,44 @@ function VerticalAttemptSheet({
       <div className="flex-1 bg-black/50" onClick={onClose} />
       
       <div className="bg-card border-t-2 border-primary animate-in slide-in-from-bottom duration-200">
-        <div className="flex items-center justify-between p-4 md:p-5 border-b">
+        <div className="flex items-center justify-between p-5 md:p-6 border-b">
           <div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="font-mono text-sm md:text-base">{info.bib}</Badge>
-              <span className="font-bold text-lg md:text-xl">{info.name}</span>
+            <div className="flex items-center gap-3">
+              <Badge variant="outline" className="font-mono text-base md:text-lg px-3 py-1">{info.bib}</Badge>
+              <span className="font-bold text-xl md:text-2xl">{info.name}</span>
             </div>
-            <p className="text-sm md:text-base text-muted-foreground mt-1">
+            <p className="text-base md:text-lg text-muted-foreground mt-1.5">
               {info.team && `${info.team} • `}
               Height: {currentHeight ? formatHeightMark(currentHeight.heightMeters) : "-"} • 
               Attempt {attemptNumber} of 3
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             {canDeleteLast && (
               <Button 
                 variant="outline" 
-                size="default" 
+                size="lg" 
                 onClick={onDeleteLastMark}
                 disabled={isPending}
-                className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground"
+                className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground text-base md:text-lg"
                 data-testid="button-undo-last-vertical-mark"
               >
-                <Delete className="h-4 w-4 md:h-5 md:w-5 mr-1" />
+                <Delete className="h-5 w-5 md:h-6 md:w-6 mr-1.5" />
                 Undo
               </Button>
             )}
-            <Button variant="ghost" size="icon" onClick={onClose} className="h-10 w-10 md:h-12 md:w-12">
-              <ChevronDown className="h-6 w-6" />
+            <Button variant="ghost" size="icon" onClick={onClose} className="h-12 w-12 md:h-14 md:w-14">
+              <ChevronDown className="h-7 w-7 md:h-8 md:w-8" />
             </Button>
           </div>
         </div>
 
-        <div className="p-4 md:p-5">
-          <div className="text-center mb-4">
-            <span className="text-4xl md:text-5xl font-bold font-mono">
+        <div className="p-5 md:p-6">
+          <div className="text-center mb-5">
+            <span className="text-5xl md:text-6xl font-bold font-mono">
               {currentHeight ? formatHeightMark(currentHeight.heightMeters) : "-"}
             </span>
-            <div className="flex justify-center gap-3 mt-3 font-mono text-2xl md:text-3xl">
+            <div className="flex justify-center gap-4 mt-4 font-mono text-3xl md:text-4xl">
               {currentAttempts.split('').map((char, i) => (
                 <span 
                   key={i}
@@ -1339,37 +1339,37 @@ function VerticalAttemptSheet({
           </div>
         </div>
         
-        <div className="grid grid-cols-3 gap-3 md:gap-4 p-4 md:p-5 pt-0">
+        <div className="grid grid-cols-3 gap-4 md:gap-5 p-5 md:p-6 pt-0">
           <Button
             onClick={() => onRecordMark("cleared")}
             disabled={isPending || hasCleared || attemptNumber > 3}
-            className="h-20 md:h-24 text-2xl md:text-3xl bg-green-600 hover:bg-green-700"
+            className="h-24 md:h-28 text-3xl md:text-4xl bg-green-600 hover:bg-green-700"
             data-testid="button-record-cleared"
           >
-            <Check className="h-8 w-8 md:h-10 md:w-10 mr-2" />
+            <Check className="h-10 w-10 md:h-12 md:w-12 mr-2" />
             O
           </Button>
           <Button
             onClick={() => onRecordMark("missed")}
             disabled={isPending || hasCleared || attemptNumber > 3}
-            className="h-20 md:h-24 text-2xl md:text-3xl bg-red-600 hover:bg-red-700"
+            className="h-24 md:h-28 text-3xl md:text-4xl bg-red-600 hover:bg-red-700"
             data-testid="button-record-missed"
           >
-            <X className="h-8 w-8 md:h-10 md:w-10 mr-2" />
+            <X className="h-10 w-10 md:h-12 md:w-12 mr-2" />
             X
           </Button>
           <Button
             variant="secondary"
             onClick={() => onRecordMark("pass")}
             disabled={isPending || hasCleared || attemptNumber > 3}
-            className="h-20 md:h-24 text-xl md:text-2xl"
+            className="h-24 md:h-28 text-2xl md:text-3xl"
             data-testid="button-record-pass"
           >
             PASS
           </Button>
         </div>
 
-        <div className="h-4 md:h-6" />
+        <div className="h-6 md:h-8" />
       </div>
     </div>
   );
@@ -1439,28 +1439,28 @@ function VerticalStandingsView({
         return (
           <div 
             key={item.athlete.id} 
-            className={`flex items-center gap-4 p-4 md:p-5 ${item.eliminated ? 'opacity-50' : ''}`}
+            className={`flex items-center gap-4 p-5 md:p-6 ${item.eliminated ? 'opacity-50' : ''}`}
           >
-            <div className="w-10 md:w-12 text-center font-bold text-lg md:text-xl shrink-0">
+            <div className="w-12 md:w-14 text-center font-bold text-xl md:text-2xl shrink-0">
               {item.place ?? "-"}
             </div>
             <div className="flex-1 min-w-0">
-              <p className={`font-semibold text-base md:text-lg ${item.eliminated ? 'line-through' : ''}`}>
+              <p className={`font-semibold text-lg md:text-xl ${item.eliminated ? 'line-through' : ''}`}>
                 {info.name}
               </p>
-              <p className="text-sm md:text-base text-muted-foreground">{info.team || info.bib}</p>
+              <p className="text-base md:text-lg text-muted-foreground">{info.team || info.bib}</p>
             </div>
             <div className="text-right shrink-0">
-              <p className="font-mono font-bold text-lg md:text-xl">
+              <p className="font-mono font-bold text-xl md:text-2xl">
                 {item.highestCleared ? formatHeightMark(item.highestCleared.heightMeters) : "-"}
               </p>
               {item.highestCleared && (
-                <p className="text-sm md:text-base text-muted-foreground">
+                <p className="text-base md:text-lg text-muted-foreground">
                   {item.missesAtBest}x @ best, {item.totalMisses} total
                 </p>
               )}
               {item.eliminated && (
-                <Badge variant="outline" className="text-sm md:text-base mt-1">Eliminated</Badge>
+                <Badge variant="outline" className="text-base md:text-lg mt-1">Eliminated</Badge>
               )}
             </div>
           </div>
@@ -2341,13 +2341,13 @@ function FieldEntryUI({
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header - optimized for iPad */}
-      <header className="bg-primary text-primary-foreground p-4 md:p-5 sticky top-0 z-40">
+      <header className="bg-primary text-primary-foreground p-4 md:p-6 sticky top-0 z-40">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <h1 className="font-bold text-lg md:text-xl truncate" data-testid="text-event-name">
+            <h1 className="font-bold text-xl md:text-2xl truncate" data-testid="text-event-name">
               {eventName}
             </h1>
-            <p className="text-sm md:text-base opacity-80">
+            <p className="text-base md:text-lg opacity-80">
               {isVertical && currentHeight ? (
                 <>Bar: {formatHeightMark(currentHeight.heightMeters)} • </>
               ) : null}
@@ -2357,24 +2357,24 @@ function FieldEntryUI({
           {isVertical && (
             <Button 
               variant="ghost" 
-              size="sm"
+              size="default"
               onClick={() => setShowHeightsDialog(true)}
-              className="shrink-0 text-primary-foreground hover:bg-primary-foreground/20 text-sm"
+              className="shrink-0 text-primary-foreground hover:bg-primary-foreground/20 text-base md:text-lg"
               data-testid="button-add-edit-heights"
             >
-              <Ruler className="h-4 w-4 mr-1" />
+              <Ruler className="h-5 w-5 md:h-6 md:w-6 mr-1.5" />
               <span className="hidden sm:inline">Add/Edit Heights</span>
               <span className="sm:hidden">Heights</span>
             </Button>
           )}
           <Button 
             variant="ghost" 
-            size="sm"
+            size="default"
             onClick={() => setShowAddAthlete(true)}
-            className="shrink-0 text-primary-foreground hover:bg-primary-foreground/20 text-sm"
+            className="shrink-0 text-primary-foreground hover:bg-primary-foreground/20 text-base md:text-lg"
             data-testid="button-add-athlete"
           >
-            <UserPlus className="h-4 w-4 mr-1" />
+            <UserPlus className="h-5 w-5 md:h-6 md:w-6 mr-1.5" />
             <span className="hidden sm:inline">Add Athlete</span>
             <span className="sm:hidden">Add</span>
           </Button>
@@ -2382,27 +2382,27 @@ function FieldEntryUI({
             variant="ghost" 
             size="icon"
             onClick={handleLeave}
-            className="shrink-0 h-10 w-10 md:h-12 md:w-12 text-primary-foreground hover:bg-primary-foreground/20"
+            className="shrink-0 h-11 w-11 md:h-14 md:w-14 text-primary-foreground hover:bg-primary-foreground/20"
             data-testid="button-leave-session"
           >
-            <LogOut className="h-5 w-5 md:h-6 md:w-6" />
+            <LogOut className="h-6 w-6 md:h-7 md:w-7" />
           </Button>
         </div>
       </header>
 
       {/* Tabs - always show labels for iPad */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-        <TabsList className="w-full rounded-none border-b h-14 md:h-16 bg-background">
-          <TabsTrigger value="officiate" className="flex-1 gap-2 text-sm md:text-base data-[state=active]:bg-muted">
-            <Users className="h-5 w-5" />
+        <TabsList className="w-full rounded-none border-b h-16 md:h-20 bg-background">
+          <TabsTrigger value="officiate" className="flex-1 gap-2.5 text-base md:text-lg data-[state=active]:bg-muted">
+            <Users className="h-5 w-5 md:h-6 md:w-6" />
             <span>Officiate</span>
           </TabsTrigger>
-          <TabsTrigger value="standings" className="flex-1 gap-2 text-sm md:text-base data-[state=active]:bg-muted">
-            <Trophy className="h-5 w-5" />
+          <TabsTrigger value="standings" className="flex-1 gap-2.5 text-base md:text-lg data-[state=active]:bg-muted">
+            <Trophy className="h-5 w-5 md:h-6 md:w-6" />
             <span>Standings</span>
           </TabsTrigger>
-          <TabsTrigger value="review" className="flex-1 gap-2 text-sm md:text-base data-[state=active]:bg-muted">
-            <Grid3X3 className="h-5 w-5" />
+          <TabsTrigger value="review" className="flex-1 gap-2.5 text-base md:text-lg data-[state=active]:bg-muted">
+            <Grid3X3 className="h-5 w-5 md:h-6 md:w-6" />
             <span>Review</span>
           </TabsTrigger>
         </TabsList>
@@ -2414,29 +2414,29 @@ function FieldEntryUI({
               {/* Current Height Bar - iPad optimized */}
               {heights && heights.length > 0 ? (
                 <div className="bg-muted/50 border-b">
-                  <div className="p-3 md:p-4 flex items-center justify-between gap-3">
+                  <div className="p-4 md:p-5 flex items-center justify-between gap-3">
                     <Button
-                      size="default"
+                      size="lg"
                       variant="outline"
                       onClick={() => handleAdvanceHeight(-1)}
                       disabled={currentHeightIndex <= 0 || advanceHeightMutation.isPending}
-                      className="md:text-base"
+                      className="text-base md:text-lg"
                       data-testid="button-previous-height"
                     >
-                      <ChevronLeft className="h-4 w-4 md:h-5 md:w-5 mr-1" />
+                      <ChevronLeft className="h-5 w-5 md:h-6 md:w-6 mr-1" />
                       Prev
                     </Button>
-                    <div className="flex items-center gap-2 md:gap-3 flex-wrap justify-center">
-                      <span className="text-sm md:text-base text-muted-foreground">Current Bar:</span>
-                      <span className="font-mono font-bold text-xl md:text-2xl">
+                    <div className="flex items-center gap-2 md:gap-4 flex-wrap justify-center">
+                      <span className="text-base md:text-lg text-muted-foreground">Current Bar:</span>
+                      <span className="font-mono font-bold text-2xl md:text-3xl">
                         {currentHeight ? formatHeightMark(currentHeight.heightMeters) : "-"}
                       </span>
-                      <div className="flex gap-1.5 md:gap-2">
+                      <div className="flex gap-2 md:gap-2.5">
                         {heights.sort((a, b) => a.heightIndex - b.heightIndex).map((h) => (
                           <Badge 
                             key={h.id} 
                             variant={h.heightIndex === currentHeightIndex ? "default" : "outline"}
-                            className={`text-xs md:text-sm cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all ${
+                            className={`text-sm md:text-base px-2.5 py-1 cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all ${
                               h.heightIndex === currentHeightIndex ? 'ring-2 ring-primary ring-offset-1' : ''
                             }`}
                             onClick={() => handleJumpToHeight(h.heightIndex)}
@@ -2448,40 +2448,40 @@ function FieldEntryUI({
                       </div>
                     </div>
                     <Button
-                      size="default"
+                      size="lg"
                       variant="default"
                       onClick={() => handleAdvanceHeight(1)}
                       disabled={currentHeightIndex >= Math.max(...heights.map(h => h.heightIndex)) || advanceHeightMutation.isPending}
-                      className="md:text-base"
+                      className="text-base md:text-lg"
                       data-testid="button-next-height"
                     >
                       Next
-                      <ChevronRight className="h-4 w-4 md:h-5 md:w-5 ml-1" />
+                      <ChevronRight className="h-5 w-5 md:h-6 md:w-6 ml-1" />
                     </Button>
                   </div>
                   
                   {/* Alive Group Selector */}
-                  <div className="px-3 md:px-4 pb-3 md:pb-4 flex items-center justify-center gap-2 md:gap-3">
-                    <span className="text-sm md:text-base text-muted-foreground">Alive Group:</span>
+                  <div className="px-4 md:px-5 pb-4 md:pb-5 flex items-center justify-center gap-3 md:gap-4">
+                    <span className="text-base md:text-lg text-muted-foreground">Alive Group:</span>
                     <Select 
                       value={session?.aliveGroupSize?.toString() || "all"}
                       onValueChange={handleAliveGroupChange}
                     >
-                      <SelectTrigger className="w-28 md:w-32 h-9 md:h-10 text-sm md:text-base" data-testid="select-alive-group">
+                      <SelectTrigger className="w-32 md:w-36 h-10 md:h-12 text-base md:text-lg" data-testid="select-alive-group">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All</SelectItem>
-                        <SelectItem value="3">3-Alive</SelectItem>
-                        <SelectItem value="4">4-Alive</SelectItem>
-                        <SelectItem value="5">5-Alive</SelectItem>
-                        <SelectItem value="6">6-Alive</SelectItem>
-                        <SelectItem value="8">8-Alive</SelectItem>
-                        <SelectItem value="10">10-Alive</SelectItem>
+                        <SelectItem value="all" className="text-base md:text-lg">All</SelectItem>
+                        <SelectItem value="3" className="text-base md:text-lg">3-Alive</SelectItem>
+                        <SelectItem value="4" className="text-base md:text-lg">4-Alive</SelectItem>
+                        <SelectItem value="5" className="text-base md:text-lg">5-Alive</SelectItem>
+                        <SelectItem value="6" className="text-base md:text-lg">6-Alive</SelectItem>
+                        <SelectItem value="8" className="text-base md:text-lg">8-Alive</SelectItem>
+                        <SelectItem value="10" className="text-base md:text-lg">10-Alive</SelectItem>
                       </SelectContent>
                     </Select>
                     {session?.aliveGroupSize && (
-                      <span className="text-sm md:text-base text-muted-foreground">
+                      <span className="text-base md:text-lg text-muted-foreground">
                         (next {session.aliveGroupSize} athletes rotate)
                       </span>
                     )}
