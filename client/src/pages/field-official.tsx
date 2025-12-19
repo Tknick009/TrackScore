@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { LogOut, Check, X, Minus, Loader2, ChevronDown, ChevronLeft, ChevronRight, Users, Trophy, Grid3X3, Circle, MoreVertical, UserPlus, ArrowRightLeft, Search, Star } from "lucide-react";
+import { LogOut, Check, X, Minus, Loader2, ChevronDown, ChevronLeft, ChevronRight, Users, Trophy, Grid3X3, Circle, MoreVertical, UserPlus, ArrowRightLeft, Search, Star, Pencil, Trash2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -397,6 +397,157 @@ function MarkEntrySheet({
   );
 }
 
+// ==================== EDIT MARK DIALOG ====================
+
+function EditMarkDialog({
+  mark,
+  isOpen,
+  onClose,
+  sessionId,
+  isVertical,
+  heights,
+}: {
+  mark: FieldEventMark | null;
+  isOpen: boolean;
+  onClose: () => void;
+  sessionId: number;
+  isVertical: boolean;
+  heights?: FieldHeight[];
+}) {
+  const { toast } = useToast();
+  const [markType, setMarkType] = useState<string>("");
+  const [measurement, setMeasurement] = useState<string>("");
+
+  useEffect(() => {
+    if (mark) {
+      setMarkType(mark.markType || "");
+      setMeasurement(mark.measurement?.toString() || "");
+    }
+  }, [mark]);
+
+  const updateMarkMutation = useMutation({
+    mutationFn: async (data: { markType: string; measurement?: number }) => {
+      return apiRequest("PATCH", `/api/field-marks/${mark!.id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "marks"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "athletes"] });
+      toast({ title: "Mark updated" });
+      onClose();
+    },
+    onError: (error: Error) => {
+      toast({ title: error.message || "Failed to update mark", variant: "destructive" });
+    },
+  });
+
+  const deleteMarkMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("DELETE", `/api/field-marks/${mark!.id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "marks"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "athletes"] });
+      toast({ title: "Mark deleted" });
+      onClose();
+    },
+    onError: (error: Error) => {
+      toast({ title: error.message || "Failed to delete mark", variant: "destructive" });
+    },
+  });
+
+  const handleSave = () => {
+    if (!mark) return;
+    const data: { markType: string; measurement?: number } = { markType };
+    if (markType === "mark" && measurement) {
+      data.measurement = parseFloat(measurement);
+    }
+    updateMarkMutation.mutate(data);
+  };
+
+  const handleDelete = () => {
+    if (!mark) return;
+    deleteMarkMutation.mutate();
+  };
+
+  if (!mark) return null;
+
+  const markOptions = isVertical 
+    ? [
+        { value: "cleared", label: "O (Cleared)" },
+        { value: "missed", label: "X (Missed)" },
+        { value: "pass", label: "Pass" },
+      ]
+    : [
+        { value: "mark", label: "Mark (Distance)" },
+        { value: "foul", label: "X (Foul)" },
+        { value: "pass", label: "Pass" },
+      ];
+
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Edit Attempt #{mark.attemptNumber}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label>Mark Type</Label>
+            <Select value={markType} onValueChange={setMarkType}>
+              <SelectTrigger data-testid="select-edit-mark-type">
+                <SelectValue placeholder="Select mark type" />
+              </SelectTrigger>
+              <SelectContent>
+                {markOptions.map(opt => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {!isVertical && markType === "mark" && (
+            <div className="space-y-2">
+              <Label>Measurement (m)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={measurement}
+                onChange={(e) => setMeasurement(e.target.value)}
+                placeholder="Enter distance in meters"
+                data-testid="input-edit-measurement"
+              />
+            </div>
+          )}
+        </div>
+        <DialogFooter className="flex justify-between gap-2">
+          <Button
+            variant="destructive"
+            onClick={handleDelete}
+            disabled={deleteMarkMutation.isPending}
+            data-testid="button-delete-mark"
+          >
+            <Trash2 className="h-4 w-4 mr-1" />
+            Delete
+          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onClose} data-testid="button-cancel-edit">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={updateMarkMutation.isPending || !markType}
+              data-testid="button-save-mark"
+            >
+              Save
+            </Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function StandingsView({ 
   athletes, 
   marks, 
@@ -456,11 +607,13 @@ function StandingsView({
 function ReviewMarksView({ 
   athletes, 
   marks, 
-  totalAttempts 
+  totalAttempts,
+  onEditMark,
 }: { 
   athletes: EnrichedAthlete[]; 
   marks: FieldEventMark[];
   totalAttempts: number;
+  onEditMark: (mark: FieldEventMark) => void;
 }) {
   const getAthleteMarks = (athleteId: number) => {
     return marks.filter(m => m.athleteId === athleteId).sort((a, b) => a.attemptNumber - b.attemptNumber);
@@ -492,7 +645,7 @@ function ReviewMarksView({
                 </td>
                 {Array.from({ length: totalAttempts }).map((_, i) => {
                   const mark = athleteMarks.find(m => m.attemptNumber === i + 1);
-                  let content = "-";
+                  let content: React.ReactNode = "-";
                   let className = "text-muted-foreground";
                   if (mark) {
                     if (mark.markType === "mark" && mark.measurement) {
@@ -507,8 +660,16 @@ function ReviewMarksView({
                     }
                   }
                   return (
-                    <td key={i} className={`text-center p-2 ${className}`}>
-                      {content}
+                    <td 
+                      key={i} 
+                      className={`text-center p-2 ${className} ${mark ? 'cursor-pointer hover:bg-muted/50' : ''}`}
+                      onClick={() => mark && onEditMark(mark)}
+                      data-testid={mark ? `cell-mark-${athlete.id}-${i + 1}` : undefined}
+                    >
+                      <div className="flex items-center justify-center gap-1">
+                        {content}
+                        {mark && <Pencil className="h-3 w-3 text-muted-foreground opacity-50" />}
+                      </div>
                     </td>
                   );
                 })}
@@ -946,11 +1107,13 @@ function VerticalStandingsView({
 function VerticalReviewMarksView({
   athletes,
   marks,
-  heights
+  heights,
+  onEditMark,
 }: {
   athletes: EnrichedAthlete[];
   marks: FieldEventMark[];
   heights: FieldHeight[];
+  onEditMark: (mark: FieldEventMark) => void;
 }) {
   const sortedHeights = [...heights].sort((a, b) => a.heightIndex - b.heightIndex);
 
@@ -982,6 +1145,7 @@ function VerticalReviewMarksView({
                   </div>
                 </td>
                 {sortedHeights.map((height) => {
+                  const heightMarks = getAthleteHeightAttempts(athlete.id, height.heightIndex, marks);
                   const attempts = getAthleteAttemptsAtHeight(athlete.id, height.heightIndex, marks);
                   let className = "text-muted-foreground";
                   
@@ -993,9 +1157,43 @@ function VerticalReviewMarksView({
                     className = "text-yellow-600";
                   }
                   
+                  const hasMarks = heightMarks.length > 0;
+                  
                   return (
-                    <td key={height.id} className={`text-center p-2 font-mono ${className}`}>
-                      {attempts || "-"}
+                    <td 
+                      key={height.id} 
+                      className={`text-center p-2 font-mono ${className} ${hasMarks ? 'cursor-pointer hover:bg-muted/50' : ''}`}
+                      data-testid={hasMarks ? `cell-vertical-${athlete.id}-${height.heightIndex}` : undefined}
+                    >
+                      {hasMarks ? (
+                        <div className="space-y-0.5">
+                          {heightMarks.map((m, idx) => {
+                            let symbol = '-';
+                            let symbolClass = 'text-muted-foreground';
+                            if (m.markType === 'cleared') {
+                              symbol = 'O';
+                              symbolClass = 'text-green-600';
+                            } else if (m.markType === 'missed') {
+                              symbol = 'X';
+                              symbolClass = 'text-red-500';
+                            } else if (m.markType === 'pass') {
+                              symbol = 'P';
+                              symbolClass = 'text-yellow-600';
+                            }
+                            return (
+                              <button
+                                key={m.id}
+                                onClick={() => onEditMark(m)}
+                                className={`inline-flex items-center gap-0.5 px-1 rounded hover:bg-muted ${symbolClass}`}
+                                data-testid={`button-edit-mark-${m.id}`}
+                              >
+                                {symbol}
+                                <Pencil className="h-2.5 w-2.5 opacity-50" />
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : "-"}
                     </td>
                   );
                 })}
@@ -1377,6 +1575,7 @@ function FieldEntryUI({
   const [activeTab, setActiveTab] = useState("officiate");
   const [showAddAthlete, setShowAddAthlete] = useState(false);
   const [showGenerateFinals, setShowGenerateFinals] = useState(false);
+  const [editingMark, setEditingMark] = useState<FieldEventMark | null>(null);
 
   const { data: session, isLoading: sessionLoading, error: sessionError } = useQuery<FieldEventSessionWithDetails>({
     queryKey: ["/api/field-sessions", sessionId, "full"],
@@ -1906,12 +2105,14 @@ function FieldEntryUI({
               athletes={sortedAthletes} 
               marks={marks || []} 
               heights={heights || []}
+              onEditMark={setEditingMark}
             />
           ) : (
             <ReviewMarksView 
               athletes={sortedAthletes} 
               marks={marks || []} 
-              totalAttempts={totalAttempts} 
+              totalAttempts={totalAttempts}
+              onEditMark={setEditingMark}
             />
           )}
         </TabsContent>
@@ -1955,6 +2156,16 @@ function FieldEntryUI({
         athletes={sortedAthletes}
         marks={marks || []}
         defaultCount={session?.athletesToFinals || 8}
+      />
+
+      {/* Edit Mark Dialog */}
+      <EditMarkDialog
+        mark={editingMark}
+        isOpen={!!editingMark}
+        onClose={() => setEditingMark(null)}
+        sessionId={sessionId}
+        isVertical={!!isVertical}
+        heights={heights}
       />
     </div>
   );
