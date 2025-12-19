@@ -403,9 +403,11 @@ interface SessionCardProps {
   onDelete: () => void;
   onUpdateStatus: (status: string) => void;
   onExportLFF: () => void;
+  onCheckInAll: () => void;
+  isCheckingInAll?: boolean;
 }
 
-function SessionCard({ session, athletes, onEdit, onDelete, onUpdateStatus, onExportLFF }: SessionCardProps) {
+function SessionCard({ session, athletes, onEdit, onDelete, onUpdateStatus, onExportLFF, onCheckInAll, isCheckingInAll }: SessionCardProps) {
   const { toast } = useToast();
   const [showQRDialog, setShowQRDialog] = useState(false);
   const [showHeightsDialog, setShowHeightsDialog] = useState(false);
@@ -580,15 +582,31 @@ function SessionCard({ session, athletes, onEdit, onDelete, onUpdateStatus, onEx
           )}
 
           {session.status === "check_in" && (
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => onUpdateStatus("in_progress")}
-              data-testid={`button-start-event-${session.id}`}
-            >
-              <Play className="h-4 w-4 mr-2" />
-              Start Event
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onCheckInAll}
+                disabled={isCheckingInAll || athletes.every(a => a.checkInStatus === "checked_in")}
+                data-testid={`button-checkin-all-${session.id}`}
+              >
+                {isCheckingInAll ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Users className="h-4 w-4 mr-2" />
+                )}
+                Check In All
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => onUpdateStatus("in_progress")}
+                data-testid={`button-start-event-${session.id}`}
+              >
+                <Play className="h-4 w-4 mr-2" />
+                Start Event
+              </Button>
+            </>
           )}
 
           {session.status === "in_progress" && (
@@ -861,6 +879,40 @@ export default function FieldEventsControl() {
     },
   });
 
+  const [checkingInSessionId, setCheckingInSessionId] = useState<number | null>(null);
+
+  const handleCheckInAll = async (sessionId: number) => {
+    const sessionAthletes = athletesBySession?.[sessionId] || [];
+    const uncheckedAthletes = sessionAthletes.filter(a => a.checkInStatus !== "checked_in");
+    
+    if (uncheckedAthletes.length === 0) {
+      toast({ title: "All athletes already checked in" });
+      return;
+    }
+
+    setCheckingInSessionId(sessionId);
+    try {
+      await Promise.all(
+        uncheckedAthletes.map(athlete =>
+          apiRequest("PATCH", `/api/field-athletes/${athlete.id}`, {
+            checkInStatus: "checked_in",
+            competitionStatus: "active",
+          })
+        )
+      );
+      queryClient.invalidateQueries({ queryKey: ["/api/field-athletes", "bySession"] });
+      toast({ title: `${uncheckedAthletes.length} athletes checked in` });
+    } catch (error: any) {
+      toast({
+        title: "Failed to check in athletes",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setCheckingInSessionId(null);
+    }
+  };
+
   const handleUpdateStatus = (sessionId: number, status: string) => {
     updateSessionMutation.mutate({ id: sessionId, data: { status } });
   };
@@ -1036,6 +1088,8 @@ export default function FieldEventsControl() {
                 onDelete={() => deleteSessionMutation.mutate(session.id)}
                 onUpdateStatus={(status) => handleUpdateStatus(session.id, status)}
                 onExportLFF={() => handleExportLFF(session)}
+                onCheckInAll={() => handleCheckInAll(session.id)}
+                isCheckingInAll={checkingInSessionId === session.id}
               />
             ))}
           </div>
