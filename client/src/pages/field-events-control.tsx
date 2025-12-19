@@ -64,15 +64,14 @@ function generateAccessCode(): string {
 
 function getStatusBadge(status: string) {
   switch (status) {
-    case "in_progress":
-      return <Badge className="bg-green-600 text-white">In Progress</Badge>;
-    case "check_in":
-      return <Badge className="bg-blue-600 text-white">Check-In</Badge>;
     case "completed":
       return <Badge variant="secondary">Completed</Badge>;
+    case "in_progress":
+    case "check_in":
     case "setup":
     default:
-      return <Badge variant="outline">Setup</Badge>;
+      // All non-completed statuses show as "In Progress"
+      return <Badge className="bg-green-600 text-white">In Progress</Badge>;
   }
 }
 
@@ -132,8 +131,6 @@ function SessionCard({ session, athletes, onEdit, onDelete, onUpdateStatus, onEx
   };
 
   const getProgressText = () => {
-    if (session.status === "setup") return "Not started";
-    if (session.status === "check_in") return `${checkedInCount} of ${totalAthletes} checked in`;
     if (session.status === "completed") return "Event completed";
     
     const flightText = `Flight ${session.currentFlightNumber || 1}`;
@@ -197,31 +194,7 @@ function SessionCard({ session, athletes, onEdit, onDelete, onUpdateStatus, onEx
             </a>
           </Button>
 
-          {session.status === "setup" && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onUpdateStatus("check_in")}
-              data-testid={`button-start-checkin-${session.id}`}
-            >
-              <CheckCircle2 className="h-4 w-4 mr-2" />
-              Start Check-In
-            </Button>
-          )}
-
-          {session.status === "check_in" && (
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => onUpdateStatus("in_progress")}
-              data-testid={`button-start-event-${session.id}`}
-            >
-              <Play className="h-4 w-4 mr-2" />
-              Start Event
-            </Button>
-          )}
-
-          {session.status === "in_progress" && (
+          {session.status !== "completed" && (
             <Button
               variant="outline"
               size="sm"
@@ -537,7 +510,7 @@ export default function FieldEventsControl() {
       const accessCode = generateAccessCode();
       const sessionData: InsertFieldEventSession = {
         eventId: null,  // EVT-based sessions don't need a database event ID
-        status: "check_in",
+        status: "in_progress",
         measurementUnit: "metric",
         recordWind: false,
         hasFinals: false,
@@ -567,8 +540,6 @@ export default function FieldEventsControl() {
           evtTeam: athlete.team,
         });
       }
-      
-      await apiRequest("PATCH", `/api/field-sessions/${session.id}`, { status: "in_progress" });
       
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions"] });
       
