@@ -48,6 +48,7 @@ import type {
 import { isHeightEvent } from "@shared/schema";
 
 const SESSION_STORAGE_KEY = "field-official-session-id";
+const DEVICE_NAME_KEY = "fieldDeviceName";
 
 type EnrichedAthlete = FieldEventAthlete & { 
   entry?: Entry; 
@@ -855,6 +856,7 @@ function EditMarkDialog({
   sessionId,
   isVertical,
   heights,
+  deviceName,
 }: {
   mark: FieldEventMark | null;
   isOpen: boolean;
@@ -862,6 +864,7 @@ function EditMarkDialog({
   sessionId: number;
   isVertical: boolean;
   heights?: FieldHeight[];
+  deviceName?: string;
 }) {
   const { toast } = useToast();
   const [markType, setMarkType] = useState<string>("");
@@ -885,7 +888,7 @@ function EditMarkDialog({
 
   const updateMarkMutation = useMutation({
     mutationFn: async (data: { markType: string; measurement?: number; wind?: number | null }) => {
-      return apiRequest("PATCH", `/api/field-marks/${mark!.id}`, data);
+      return apiRequest("PATCH", `/api/field-marks/${mark!.id}`, { ...data, deviceName });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "marks"] });
@@ -2197,10 +2200,12 @@ function EventSettingsDialog({
 
   const updateSettingsMutation = useMutation({
     mutationFn: async () => {
+      const deviceName = localStorage.getItem(DEVICE_NAME_KEY) || undefined;
       const updates: Record<string, any> = {
         measurementUnit,
         recordWind,
         showBibNumbers,
+        deviceName,
       };
       if (isVertical) {
         updates.aliveGroupSize = aliveGroupSize;
@@ -2389,6 +2394,14 @@ function FieldEntryUI({
   const [editingMark, setEditingMark] = useState<FieldEventMark | null>(null);
   const [showHeightsDialog, setShowHeightsDialog] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [deviceName, setDeviceName] = useState<string>(() => {
+    return localStorage.getItem(DEVICE_NAME_KEY) || "";
+  });
+
+  const handleDeviceNameChange = (value: string) => {
+    setDeviceName(value);
+    localStorage.setItem(DEVICE_NAME_KEY, value);
+  };
 
   const { data: session, isLoading: sessionLoading, error: sessionError } = useQuery<FieldEventSessionWithDetails>({
     queryKey: ["/api/field-sessions", sessionId, "full"],
@@ -2423,7 +2436,7 @@ function FieldEntryUI({
 
   const submitMarkMutation = useMutation({
     mutationFn: async (mark: InsertFieldEventMark) => 
-      apiRequest("POST", "/api/field-marks", mark),
+      apiRequest("POST", "/api/field-marks", { ...mark, deviceName }),
     onSuccess: () => {
       queryClient.invalidateQueries({ 
         queryKey: ["/api/field-sessions", sessionId, "marks"] 
@@ -2514,7 +2527,7 @@ function FieldEntryUI({
   // Mutation for advancing to next/previous height
   const advanceHeightMutation = useMutation({
     mutationFn: async (direction: 1 | -1) => {
-      return apiRequest("POST", `/api/field-sessions/${sessionId}/advance-height`, { direction });
+      return apiRequest("POST", `/api/field-sessions/${sessionId}/advance-height`, { direction, deviceName });
     },
     onSuccess: (_, direction) => {
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId] });
@@ -2532,7 +2545,7 @@ function FieldEntryUI({
   // Mutation to jump to a specific height
   const jumpToHeightMutation = useMutation({
     mutationFn: async (heightIndex: number) => {
-      return apiRequest("PATCH", `/api/field-sessions/${sessionId}`, { currentHeightIndex: heightIndex });
+      return apiRequest("PATCH", `/api/field-sessions/${sessionId}`, { currentHeightIndex: heightIndex, deviceName });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "full"] });
@@ -2551,7 +2564,7 @@ function FieldEntryUI({
   // Mutation to update alive group size
   const updateAliveGroupMutation = useMutation({
     mutationFn: async (size: number | null) => {
-      return apiRequest("PATCH", `/api/field-sessions/${sessionId}`, { aliveGroupSize: size });
+      return apiRequest("PATCH", `/api/field-sessions/${sessionId}`, { aliveGroupSize: size, deviceName });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId] });
@@ -2570,7 +2583,7 @@ function FieldEntryUI({
   // Mutation to switch current flight (for horizontal events)
   const switchFlightMutation = useMutation({
     mutationFn: async (flightNumber: number) => {
-      return apiRequest("PATCH", `/api/field-sessions/${sessionId}`, { currentFlightNumber: flightNumber });
+      return apiRequest("PATCH", `/api/field-sessions/${sessionId}`, { currentFlightNumber: flightNumber, deviceName });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "full"] });
@@ -2591,7 +2604,8 @@ function FieldEntryUI({
       // First exit finals, then switch flight in one PATCH request
       return apiRequest("PATCH", `/api/field-sessions/${sessionId}`, { 
         isInFinals: false,
-        currentFlightNumber: flightNumber 
+        currentFlightNumber: flightNumber,
+        deviceName 
       });
     },
     onSuccess: () => {
@@ -2606,7 +2620,7 @@ function FieldEntryUI({
   // Mutation to enter finals mode
   const enterFinalsMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest("PATCH", `/api/field-sessions/${sessionId}`, { isInFinals: true });
+      return apiRequest("PATCH", `/api/field-sessions/${sessionId}`, { isInFinals: true, deviceName });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "full"] });
@@ -2932,6 +2946,17 @@ function FieldEntryUI({
               <span className="sm:hidden">Finals</span>
             </Button>
           )}
+          <div className="shrink-0 flex items-center gap-1.5">
+            <Label htmlFor="device-name" className="text-xs text-primary-foreground/70 whitespace-nowrap">Device:</Label>
+            <Input
+              id="device-name"
+              value={deviceName}
+              onChange={(e) => handleDeviceNameChange(e.target.value)}
+              placeholder="Device name"
+              className="h-8 w-24 md:w-32 text-sm bg-primary-foreground/10 border-primary-foreground/30 text-primary-foreground placeholder:text-primary-foreground/50"
+              data-testid="input-device-name"
+            />
+          </div>
           <Button 
             variant="ghost" 
             size="icon"
@@ -3365,6 +3390,7 @@ function FieldEntryUI({
         sessionId={sessionId}
         isVertical={!!isVertical}
         heights={heights}
+        deviceName={deviceName}
       />
 
       {/* Heights Configuration Dialog */}

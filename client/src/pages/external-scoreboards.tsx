@@ -43,6 +43,7 @@ type ScoreboardFormData = {
   targetIp: string;
   targetPort: string;
   sessionId: string;
+  followDeviceName: string;
 };
 
 const emptyFormData: ScoreboardFormData = {
@@ -51,6 +52,7 @@ const emptyFormData: ScoreboardFormData = {
   targetIp: "",
   targetPort: "",
   sessionId: "",
+  followDeviceName: "",
 };
 
 export default function ExternalScoreboards() {
@@ -168,6 +170,7 @@ export default function ExternalScoreboards() {
       targetIp: scoreboard.targetIp,
       targetPort: String(scoreboard.targetPort),
       sessionId: scoreboard.sessionId ? String(scoreboard.sessionId) : "",
+      followDeviceName: scoreboard.followDeviceName || "",
     });
     setEditingScoreboard(scoreboard);
   };
@@ -193,6 +196,7 @@ export default function ExternalScoreboards() {
       targetIp: formData.targetIp.trim(),
       targetPort: port,
       sessionId: formData.sessionId ? parseInt(formData.sessionId, 10) : null,
+      followDeviceName: formData.followDeviceName.trim() || null,
     };
 
     if (editingScoreboard) {
@@ -290,6 +294,14 @@ export default function ExternalScoreboards() {
                       <span data-testid={`text-session-${scoreboard.id}`}>
                         {getSessionDisplayName(scoreboard.sessionId)}
                       </span>
+                      {scoreboard.followDeviceName && (
+                        <>
+                          <span className="mx-2">·</span>
+                          <span data-testid={`text-follow-device-${scoreboard.id}`}>
+                            Following: {scoreboard.followDeviceName}
+                          </span>
+                        </>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
@@ -430,6 +442,19 @@ export default function ExternalScoreboards() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="followDeviceName">Follow Device (Optional)</Label>
+              <Input
+                id="followDeviceName"
+                placeholder="e.g., Throws"
+                value={formData.followDeviceName}
+                onChange={(e) => setFormData({ ...formData, followDeviceName: e.target.value })}
+                data-testid="input-follow-device"
+              />
+              <p className="text-xs text-muted-foreground">
+                Leave empty to receive updates from all devices, or enter a device name to filter
+              </p>
             </div>
           </div>
           <DialogFooter className="gap-2">
