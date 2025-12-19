@@ -409,8 +409,34 @@ export default function FieldEventsControl() {
       const response = await fetch("/api/field-sessions");
       if (!response.ok) return [];
       const allSessions: FieldEventSession[] = await response.json();
+      
+      // Deduplicate sessions by evtEventNumber (keep the one with the highest ID, which is the newest)
+      const seenEvtNumbers = new Map<number, FieldEventSession>();
+      const uniqueSessions: FieldEventSession[] = [];
+      
+      for (const session of allSessions) {
+        if (session.evtEventNumber !== null) {
+          const existing = seenEvtNumbers.get(session.evtEventNumber);
+          if (!existing || session.id > existing.id) {
+            seenEvtNumbers.set(session.evtEventNumber, session);
+          }
+        } else {
+          // Sessions without evtEventNumber are kept as-is
+          uniqueSessions.push(session);
+        }
+      }
+      
+      // Add deduplicated EVT sessions
+      uniqueSessions.push(...seenEvtNumbers.values());
+      
+      // Sort by evtEventNumber or id
+      uniqueSessions.sort((a, b) => {
+        if (a.evtEventNumber && b.evtEventNumber) return a.evtEventNumber - b.evtEventNumber;
+        return a.id - b.id;
+      });
+      
       // Enrich sessions with event data where available
-      return allSessions.map(session => {
+      return uniqueSessions.map(session => {
         const eventData = session.eventId ? events.find(e => e.id === session.eventId) : undefined;
         return { ...session, event: eventData } as FieldEventSessionWithDetails;
       });

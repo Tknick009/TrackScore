@@ -6508,9 +6508,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get all existing sessions to check which EVT events already have sessions
       const existingSessions = await storage.getAllFieldEventSessions();
       const existingEvtSessionMap = new Map<number, typeof existingSessions[0]>();
+      const duplicatesToDelete: number[] = [];
+      
+      // Find duplicates - keep the newest session (highest ID) for each EVT event
       for (const s of existingSessions) {
         if (s.evtEventNumber !== null) {
-          existingEvtSessionMap.set(s.evtEventNumber, s);
+          const existing = existingEvtSessionMap.get(s.evtEventNumber);
+          if (existing) {
+            // Keep the one with higher ID (newer), delete the older one
+            if (s.id > existing.id) {
+              duplicatesToDelete.push(existing.id);
+              existingEvtSessionMap.set(s.evtEventNumber, s);
+            } else {
+              duplicatesToDelete.push(s.id);
+            }
+          } else {
+            existingEvtSessionMap.set(s.evtEventNumber, s);
+          }
+        }
+      }
+      
+      // Delete duplicate sessions
+      for (const dupId of duplicatesToDelete) {
+        try {
+          await storage.deleteFieldEventSession(dupId);
+          console.log(`[EVT Provision] Deleted duplicate session ${dupId}`);
+        } catch (e) {
+          console.error(`[EVT Provision] Failed to delete duplicate session ${dupId}:`, e);
         }
       }
       
