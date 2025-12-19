@@ -1337,6 +1337,7 @@ function VerticalAthleteListItem({
   onMoveFlight,
   onChangeStatus,
   onEditMark,
+  onSetOpeningHeight,
   isDns = false,
   showBibNumbers = true,
 }: {
@@ -1351,6 +1352,7 @@ function VerticalAthleteListItem({
   onMoveFlight: (athleteId: number, newFlight: number) => void;
   onChangeStatus: (athleteId: number, checkInStatus: string, competitionStatus: string) => void;
   onEditMark: (mark: FieldEventMark) => void;
+  onSetOpeningHeight: (athleteId: number, heightIndex: number) => void;
   isDns?: boolean;
   showBibNumbers?: boolean;
 }) {
@@ -1484,6 +1486,25 @@ function VerticalAthleteListItem({
               ))}
             </DropdownMenuSubContent>
           </DropdownMenuSub>
+          {!isDns && !eliminated && (!athlete.startingHeightIndex || athlete.startingHeightIndex === 0) && heights.length > 0 && (
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger data-testid={`button-set-opening-height-${athlete.id}`}>
+                <Ruler className="h-4 w-4 mr-2" />
+                Set Opening Height
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                {heights.sort((a, b) => a.heightIndex - b.heightIndex).map((h) => (
+                  <DropdownMenuItem
+                    key={h.id}
+                    onClick={() => onSetOpeningHeight(athlete.id, h.heightIndex)}
+                    data-testid={`menu-set-opening-height-${h.heightIndex}`}
+                  >
+                    {formatHeightMark(h.heightMeters)}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
@@ -2654,6 +2675,20 @@ function FieldEntryUI({
     },
   });
 
+  // Mutation to set opening height for vertical events
+  const setOpeningHeightMutation = useMutation({
+    mutationFn: async ({ athleteId, heightIndex }: { athleteId: number; heightIndex: number }) =>
+      apiRequest("POST", `/api/field-athletes/${athleteId}/opening-height`, { heightIndex, deviceName }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "athletes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "marks"] });
+      toast({ title: "Opening height set" });
+    },
+    onError: (error: Error) => {
+      toast({ title: error.message || "Failed to set opening height", variant: "destructive" });
+    },
+  });
+
   const handleLeave = () => {
     sessionStorage.removeItem(SESSION_STORAGE_KEY);
     onLeave();
@@ -3162,6 +3197,7 @@ function FieldEntryUI({
                       onMoveFlight={handleMoveFlight}
                       onChangeStatus={handleChangeStatus}
                       onEditMark={setEditingMark}
+                      onSetOpeningHeight={(athleteId, heightIndex) => setOpeningHeightMutation.mutate({ athleteId, heightIndex })}
                     />
                   ))}
                 </div>
@@ -3204,6 +3240,7 @@ function FieldEntryUI({
                         onMoveFlight={handleMoveFlight}
                         onChangeStatus={handleChangeStatus}
                         onEditMark={setEditingMark}
+                        onSetOpeningHeight={(athleteId, heightIndex) => setOpeningHeightMutation.mutate({ athleteId, heightIndex })}
                         isDns={true}
                       />
                     ))}

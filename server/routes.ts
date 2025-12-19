@@ -7208,6 +7208,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Set opening height for vertical field events
+  app.post("/api/field-athletes/:id/opening-height", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid athlete ID" });
+      }
+      
+      const { heightIndex, deviceName } = req.body || {};
+      if (typeof heightIndex !== 'number' || heightIndex < 0) {
+        return res.status(400).json({ error: "Invalid heightIndex" });
+      }
+      
+      // Get the athlete to find sessionId
+      const existingAthlete = await storage.getFieldEventAthlete(id);
+      if (!existingAthlete) {
+        return res.status(404).json({ error: "Athlete not found" });
+      }
+      
+      const sessionId = existingAthlete.sessionId;
+      
+      // Update the athlete's startingHeightIndex
+      const updatedAthlete = await storage.updateFieldEventAthlete(id, { 
+        startingHeightIndex: heightIndex 
+      });
+      
+      // If heightIndex > 0, create pass marks for all heights from 0 to heightIndex-1
+      if (heightIndex > 0) {
+        // Get existing marks to determine next attempt number
+        const existingMarks = await storage.getFieldEventMarks(sessionId);
+        const athleteMarks = existingMarks.filter(m => m.athleteId === id);
+        let nextAttemptNumber = athleteMarks.length + 1;
+        
+        // Create 3 pass marks for each height from 0 to heightIndex-1
+        for (let hi = 0; hi < heightIndex; hi++) {
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            await storage.createFieldEventMark({
+              sessionId,
+              athleteId: id,
+              markType: 'pass',
+              heightIndex: hi,
+              attemptNumber: nextAttemptNumber,
+              attemptAtHeight: attempt,
+            });
+            nextAttemptNumber++;
+          }
+        }
+      }
+      
+      // Broadcast field event update
+      broadcastFieldEventUpdate(sessionId, deviceName).catch(console.error);
+      
+      res.json({ success: true, athlete: updatedAthlete });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Generate finals - mark top N athletes as finalists
   app.post("/api/field-sessions/:sessionId/generate-finals", async (req, res) => {
     try {
