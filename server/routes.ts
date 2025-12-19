@@ -7624,7 +7624,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid session ID" });
       }
       
-      const session = await storage.getFieldEventSession(id);
+      // Use getFieldEventSessionWithDetails to include athletes and marks
+      const session = await storage.getFieldEventSessionWithDetails(id);
       if (!session) {
         return res.status(404).json({ error: "Session not found" });
       }
@@ -7632,8 +7633,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const measurementSystem = (req.query.units === 'english' ? 'English' : 'Metric') as 'Metric' | 'English';
       const content = generateLFFContent(session, measurementSystem);
       
+      // Use evtEventNumber for EVT sessions, fall back to eventId or session id
+      const eventNum = session.evtEventNumber || session.eventId || session.id;
       res.setHeader('Content-Type', 'text/plain');
-      res.setHeader('Content-Disposition', `attachment; filename="${session.eventId}-1-1.lff"`);
+      res.setHeader('Content-Disposition', `attachment; filename="${eventNum}-1-1.lff"`);
       res.send(content);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -7648,7 +7651,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid session ID" });
       }
       
-      const session = await storage.getFieldEventSession(id);
+      // Use getFieldEventSessionWithDetails to include athletes and marks
+      const session = await storage.getFieldEventSessionWithDetails(id);
       if (!session) {
         return res.status(404).json({ error: "Session not found" });
       }
