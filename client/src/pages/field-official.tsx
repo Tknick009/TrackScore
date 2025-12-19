@@ -529,28 +529,48 @@ function AthleteListItem({
         )}
       </div>
 
-      {/* Attempt dots - clickable to edit */}
-      <div className="flex gap-1.5 md:gap-2 shrink-0">
+      {/* Attempt values - clickable to edit */}
+      <div className="flex gap-1 md:gap-1.5 shrink-0">
         {Array.from({ length: totalAttempts }).map((_, i) => {
           const mark = marks[i];
-          let bgColor = "bg-gray-300 dark:bg-gray-600";
           if (mark) {
-            if (mark.markType === "mark") bgColor = "bg-green-500";
-            else if (mark.markType === "foul") bgColor = "bg-red-500";
-            else if (mark.markType === "pass") bgColor = "bg-yellow-500";
+            let content: string;
+            let textColor: string;
+            let bgColor: string;
+            if (mark.markType === "mark" && mark.measurement) {
+              content = mark.measurement.toFixed(2);
+              textColor = "text-white";
+              bgColor = "bg-green-600";
+            } else if (mark.markType === "foul") {
+              content = "X";
+              textColor = "text-white";
+              bgColor = "bg-red-600";
+            } else {
+              content = "P";
+              textColor = "text-black";
+              bgColor = "bg-yellow-400";
+            }
+            return (
+              <button
+                key={i}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEditMark(mark);
+                }}
+                className={`min-w-[2.5rem] md:min-w-[3rem] px-1.5 py-1 rounded ${bgColor} ${textColor} font-mono text-xs md:text-sm font-semibold hover:ring-2 hover:ring-primary hover:ring-offset-1 transition-all`}
+                data-testid={`button-edit-mark-${mark.id}`}
+              >
+                {content}
+              </button>
+            );
           }
-          return mark ? (
-            <button
-              key={i}
-              onClick={(e) => {
-                e.stopPropagation();
-                onEditMark(mark);
-              }}
-              className={`w-5 h-5 md:w-6 md:h-6 rounded-full ${bgColor} hover:ring-2 hover:ring-primary hover:ring-offset-1 transition-all`}
-              data-testid={`button-edit-mark-dot-${mark.id}`}
-            />
-          ) : (
-            <div key={i} className={`w-5 h-5 md:w-6 md:h-6 rounded-full ${bgColor}`} />
+          return (
+            <div 
+              key={i} 
+              className="min-w-[2.5rem] md:min-w-[3rem] px-1.5 py-1 rounded bg-muted text-muted-foreground font-mono text-xs md:text-sm text-center"
+            >
+              -
+            </div>
           );
         })}
       </div>
@@ -646,12 +666,36 @@ function MarkEntrySheet({
   isPending: boolean;
   canDeleteLast: boolean;
 }) {
-  const [measurement, setMeasurement] = useState("");
+  const [meters, setMeters] = useState("");
+  const [centimeters, setCentimeters] = useState("");
+  const cmInputRef = useRef<HTMLInputElement>(null);
   const info = getAthleteDisplayInfo(athlete);
 
+  const getMeasurement = () => {
+    const m = parseInt(meters) || 0;
+    const cm = parseInt(centimeters) || 0;
+    if (m === 0 && cm === 0) return "";
+    return (m + cm / 100).toFixed(2);
+  };
+
   const handleSubmit = (markType: "mark" | "foul" | "pass") => {
+    const measurement = getMeasurement();
     onRecordMark(markType, markType === "mark" ? measurement : undefined);
-    setMeasurement("");
+    setMeters("");
+    setCentimeters("");
+  };
+
+  const handleMetersChange = (value: string) => {
+    const cleaned = value.replace(/\D/g, '').slice(0, 2);
+    setMeters(cleaned);
+    if (cleaned.length >= 2) {
+      cmInputRef.current?.focus();
+    }
+  };
+
+  const handleCentimetersChange = (value: string) => {
+    const cleaned = value.replace(/\D/g, '').slice(0, 2);
+    setCentimeters(cleaned);
   };
 
   return (
@@ -692,26 +736,39 @@ function MarkEntrySheet({
           </div>
         </div>
 
-        {/* Input */}
+        {/* Input - Two boxes for meters.centimeters */}
         <div className="p-4 md:p-5">
-          <Input
-            type="number"
-            step="0.01"
-            inputMode="decimal"
-            placeholder="Enter distance (meters)"
-            value={measurement}
-            onChange={(e) => setMeasurement(e.target.value)}
-            className="h-16 md:h-20 text-2xl md:text-3xl text-center font-mono"
-            autoFocus
-            data-testid="input-measurement"
-          />
+          <div className="flex items-center justify-center gap-2">
+            <Input
+              type="text"
+              inputMode="numeric"
+              placeholder="M"
+              value={meters}
+              onChange={(e) => handleMetersChange(e.target.value)}
+              className="h-16 md:h-20 w-24 md:w-32 text-2xl md:text-3xl text-center font-mono"
+              autoFocus
+              data-testid="input-meters"
+            />
+            <span className="text-3xl md:text-4xl font-bold text-muted-foreground">.</span>
+            <Input
+              ref={cmInputRef}
+              type="text"
+              inputMode="numeric"
+              placeholder="CM"
+              value={centimeters}
+              onChange={(e) => handleCentimetersChange(e.target.value)}
+              className="h-16 md:h-20 w-24 md:w-32 text-2xl md:text-3xl text-center font-mono"
+              data-testid="input-centimeters"
+            />
+          </div>
+          <p className="text-center text-sm text-muted-foreground mt-2">Meters . Centimeters</p>
         </div>
         
         {/* Action buttons - large touch targets for iPad */}
         <div className="grid grid-cols-3 gap-3 md:gap-4 p-4 md:p-5 pt-0">
           <Button
             onClick={() => handleSubmit("mark")}
-            disabled={!measurement || isPending}
+            disabled={(!meters && !centimeters) || isPending}
             className="h-16 md:h-20 text-lg md:text-xl bg-green-600 hover:bg-green-700"
             data-testid="button-record-mark"
           >
