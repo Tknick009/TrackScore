@@ -2241,6 +2241,11 @@ function FieldEntryUI({
 
   const totalAttempts = session?.totalAttempts || 6;
   
+  // For horizontal events in Officiate view: show only prelim or finals attempts based on mode
+  const officiateAttempts = session?.isInFinals 
+    ? (session?.finalsAttempts || 3) 
+    : (session?.prelimAttempts || 3);
+  
   const selectedAthleteMarks = selectedAthlete ? getAthleteMarks(selectedAthlete.id) : [];
   const nextAttemptNumber = selectedAthleteMarks.length + 1;
 
@@ -2727,7 +2732,7 @@ function FieldEntryUI({
                         athlete={athlete}
                         isUp={upAthlete?.id === athlete.id}
                         marks={getAthleteMarks(athlete.id)}
-                        totalAttempts={totalAttempts}
+                        totalAttempts={officiateAttempts}
                         bestMark={getAthleteBestMark(athlete.id)}
                         onClick={() => setSelectedAthleteId(athlete.id)}
                         currentFlight={currentFlight}
@@ -2781,7 +2786,7 @@ function FieldEntryUI({
                         athlete={athlete}
                         isUp={false}
                         marks={getAthleteMarks(athlete.id)}
-                        totalAttempts={totalAttempts}
+                        totalAttempts={officiateAttempts}
                         bestMark={getAthleteBestMark(athlete.id)}
                         onClick={() => {}}
                         currentFlight={currentFlight}
@@ -2866,7 +2871,7 @@ function FieldEntryUI({
         <MarkEntrySheet
           athlete={selectedAthlete}
           attemptNumber={nextAttemptNumber}
-          totalAttempts={totalAttempts}
+          totalAttempts={officiateAttempts}
           onRecordMark={recordMark}
           onDeleteLastMark={handleDeleteLastMark}
           onClose={() => setSelectedAthleteId(null)}
