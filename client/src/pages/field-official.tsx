@@ -385,6 +385,14 @@ function JoinSession({
   const { toast } = useToast();
   const [selectedMeetId, setSelectedMeetId] = useState<string>("");
   const [selectedSessionId, setSelectedSessionId] = useState<string>("");
+  const [deviceName, setDeviceName] = useState<string>(() => {
+    return localStorage.getItem(DEVICE_NAME_KEY) || "";
+  });
+
+  const handleDeviceNameChange = (value: string) => {
+    setDeviceName(value);
+    localStorage.setItem(DEVICE_NAME_KEY, value);
+  };
 
   const { data: meets, isLoading: meetsLoading } = useQuery<Meet[]>({
     queryKey: ["/api/meets"],
@@ -440,6 +448,22 @@ function JoinSession({
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-5 pb-8">
+            {/* Device Name - Always visible first */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-slate-600 dark:text-slate-300">Device Name</Label>
+              <Input
+                type="text"
+                placeholder="e.g., iPad-Pit1, Phone-HJ, Tablet-LJ"
+                value={deviceName}
+                onChange={(e) => handleDeviceNameChange(e.target.value)}
+                className="h-14 text-lg border-slate-300 dark:border-slate-600 focus:ring-blue-500"
+                data-testid="input-device-name-join"
+              />
+              <p className="text-xs text-muted-foreground">
+                This name identifies your device for scoreboard exports and mark tracking
+              </p>
+            </div>
+
             {meetsLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
