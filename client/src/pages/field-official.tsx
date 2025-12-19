@@ -1559,7 +1559,7 @@ function getAthleteAttemptsAtHeight(athleteId: number, heightIndex: number, mark
     } else if (mark.markType === 'missed') {
       display += 'X';
     } else if (mark.markType === 'pass') {
-      display += '-';
+      display += 'P';
     }
   }
   return display;
@@ -1709,7 +1709,7 @@ function VerticalAthleteListItem({
             <div className="ml-14 overflow-x-auto">
               <div className="flex gap-1.5 min-w-max">
                 {heightMarks.map((m) => {
-                  const char = m.markType === 'cleared' ? 'O' : m.markType === 'missed' ? 'X' : '-';
+                  const char = m.markType === 'cleared' ? 'O' : m.markType === 'missed' ? 'X' : 'P';
                   return (
                     <button
                       key={m.id}
@@ -1777,7 +1777,7 @@ function VerticalAthleteListItem({
               .filter(m => m.athleteId === athlete.id && m.heightIndex === currentHeightIndex)
               .sort((a, b) => a.attemptNumber - b.attemptNumber);
             return heightMarks.map((m) => {
-              const char = m.markType === 'cleared' ? 'O' : m.markType === 'missed' ? 'X' : '-';
+              const char = m.markType === 'cleared' ? 'O' : m.markType === 'missed' ? 'X' : 'P';
               return (
                 <button
                   key={m.id}
