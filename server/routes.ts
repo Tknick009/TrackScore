@@ -685,20 +685,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Athletes
   app.get("/api/athletes", async (req, res) => {
     try {
-      const { meetId } = req.query;
+      const { meetId, search } = req.query;
       let athletes;
       if (meetId) {
         athletes = await storage.getAthletesByMeetId(meetId as string);
         // Get teams to include team names
         const teams = await storage.getTeamsByMeetId(meetId as string);
         const teamMap = new Map(teams.map(t => [t.id, t.name]));
-        const athletesWithTeams = athletes.map(a => ({
+        let athletesWithTeams = athletes.map(a => ({
           ...a,
           teamName: a.teamId ? teamMap.get(a.teamId) || null : null
         }));
+        
+        // Filter by search if provided
+        if (search && typeof search === 'string' && search.trim()) {
+          const searchLower = search.toLowerCase().trim();
+          athletesWithTeams = athletesWithTeams.filter(a => {
+            const fullName = `${a.firstName || ''} ${a.lastName || ''}`.toLowerCase();
+            const bibNumber = (a.bibNumber || '').toLowerCase();
+            return fullName.includes(searchLower) || bibNumber.includes(searchLower);
+          });
+        }
+        
         return res.json(athletesWithTeams);
       }
       athletes = await storage.getAthletes();
+      
+      // Filter by search if provided
+      if (search && typeof search === 'string' && search.trim()) {
+        const searchLower = search.toLowerCase().trim();
+        athletes = athletes.filter(a => {
+          const fullName = `${a.firstName || ''} ${a.lastName || ''}`.toLowerCase();
+          const bibNumber = (a.bibNumber || '').toLowerCase();
+          return fullName.includes(searchLower) || bibNumber.includes(searchLower);
+        });
+      }
+      
       res.json(athletes);
     } catch (error: any) {
       res.status(500).json({ error: error.message });

@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { LogOut, Check, X, Minus, Loader2, ChevronDown, Users, Trophy, Grid3X3, Circle, MoreVertical, UserPlus, ArrowRightLeft } from "lucide-react";
+import { LogOut, Check, X, Minus, Loader2, ChevronDown, Users, Trophy, Grid3X3, Circle, MoreVertical, UserPlus, ArrowRightLeft, Search } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -506,18 +506,51 @@ function AddAthleteDialog({
   onClose,
   sessionId,
   totalFlights,
+  meetId,
 }: {
   isOpen: boolean;
   onClose: () => void;
   sessionId: number;
   totalFlights: number;
+  meetId?: number;
 }) {
   const { toast } = useToast();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showDropdown, setShowDropdown] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [bibNumber, setBibNumber] = useState("");
   const [team, setTeam] = useState("");
   const [flight, setFlight] = useState("1");
+
+  // Search for athletes in database
+  const { data: searchResults = [] } = useQuery<any[]>({
+    queryKey: ["/api/athletes", { meetId, search: searchQuery }],
+    queryFn: async () => {
+      if (!searchQuery.trim() || searchQuery.length < 2) return [];
+      const params = new URLSearchParams();
+      if (meetId) params.append("meetId", String(meetId));
+      params.append("search", searchQuery);
+      const res = await fetch(`/api/athletes?${params.toString()}`);
+      return res.json();
+    },
+    enabled: searchQuery.length >= 2,
+  });
+
+  const selectAthlete = (athlete: any) => {
+    setFirstName(athlete.firstName || athlete.first_name || "");
+    setLastName(athlete.lastName || athlete.last_name || "");
+    setBibNumber(athlete.bibNumber || athlete.bib_number || "");
+    // Try multiple possible team field names
+    setTeam(athlete.teamName || athlete.team_name || athlete.team || athlete.affiliation || athlete.school || "");
+    setSearchQuery("");
+    setShowDropdown(false);
+  };
+
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    setShowDropdown(value.length >= 2);
+  };
 
   const addAthleteMutation = useMutation({
     mutationFn: async (data: {
@@ -532,12 +565,13 @@ function AddAthleteDialog({
     }) => apiRequest("POST", `/api/field-sessions/${sessionId}/athletes`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "athletes"] });
-      toast({ title: "Athlete added" });
+      toast({ title: "Athlete added and checked in" });
       setFirstName("");
       setLastName("");
       setBibNumber("");
       setTeam("");
       setFlight("1");
+      setSearchQuery("");
       onClose();
     },
     onError: () => {
@@ -552,8 +586,8 @@ function AddAthleteDialog({
     }
     const athletesRes = await fetch(`/api/field-sessions/${sessionId}/athletes`);
     const athletes = await athletesRes.json();
-    const flightAthletes = athletes.filter((a: any) => (a.flightNumber || 1) === parseInt(flight));
-    const maxOrder = flightAthletes.reduce((max: number, a: any) => Math.max(max, a.orderInFlight || 0), 0);
+    // Always add to end of list - get max order across all flights
+    const maxOrder = athletes.reduce((max: number, a: any) => Math.max(max, a.orderInFlight || 0), 0);
     
     addAthleteMutation.mutate({
       evtFirstName: firstName.trim(),
@@ -576,24 +610,70 @@ function AddAthleteDialog({
           <DialogTitle>Add Athlete</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>First Name</Label>
+          {/* Search input */}
+          <div className="space-y-2 relative">
+            <Label>Search Athlete</Label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                placeholder="First name"
-                data-testid="input-add-firstname"
+                value={searchQuery}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                onFocus={() => searchQuery.length >= 2 && setShowDropdown(true)}
+                onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
+                placeholder="Search by name or bib..."
+                className="pl-10"
+                data-testid="input-search-athlete"
               />
             </div>
-            <div className="space-y-2">
-              <Label>Last Name</Label>
-              <Input
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                placeholder="Last name"
-                data-testid="input-add-lastname"
-              />
+            {/* Search results dropdown */}
+            {showDropdown && searchResults.length > 0 && (
+              <div className="absolute z-50 w-full mt-1 bg-background border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                {searchResults.slice(0, 10).map((athlete: any) => (
+                  <button
+                    key={athlete.id}
+                    type="button"
+                    className="w-full px-3 py-2 text-left hover:bg-muted flex items-center justify-between"
+                    onMouseDown={() => selectAthlete(athlete)}
+                    data-testid={`search-result-${athlete.id}`}
+                  >
+                    <span className="font-medium">
+                      {athlete.firstName} {athlete.lastName}
+                    </span>
+                    <span className="text-sm text-muted-foreground">
+                      {athlete.bibNumber && `#${athlete.bibNumber}`} {athlete.teamName && `- ${athlete.teamName}`}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {showDropdown && searchQuery.length >= 2 && searchResults.length === 0 && (
+              <div className="absolute z-50 w-full mt-1 bg-background border rounded-md shadow-lg p-3 text-sm text-muted-foreground">
+                No athletes found. Enter details manually below.
+              </div>
+            )}
+          </div>
+
+          <div className="border-t pt-4">
+            <p className="text-sm text-muted-foreground mb-3">Or enter athlete details manually:</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>First Name</Label>
+                <Input
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  placeholder="First name"
+                  data-testid="input-add-firstname"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Last Name</Label>
+                <Input
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  placeholder="Last name"
+                  data-testid="input-add-lastname"
+                />
+              </div>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -932,6 +1012,7 @@ function FieldEntryUI({
         onClose={() => setShowAddAthlete(false)}
         sessionId={sessionId}
         totalFlights={totalFlights}
+        meetId={session?.meetId || undefined}
       />
     </div>
   );
