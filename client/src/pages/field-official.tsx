@@ -1131,6 +1131,7 @@ function ReviewMarksView({
       <tr key={athlete.id} className="border-b">
         <td className="p-3 md:p-4 sticky left-0 bg-background min-w-[140px] md:min-w-[200px]">
           <div className="font-semibold text-base md:text-lg">{info.name}</div>
+          {info.team && <div className="text-sm text-muted-foreground">{info.team}</div>}
         </td>
         {Array.from({ length: totalAttempts }).map((_, i) => {
           const mark = athleteMarks.find(m => m.attemptNumber === i + 1);
