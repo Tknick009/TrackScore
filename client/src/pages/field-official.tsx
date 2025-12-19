@@ -772,7 +772,7 @@ function AthleteListItem({
         </div>
 
         {/* Bottom row: Attempts - full width on mobile with horizontal scroll */}
-        <div className="w-full overflow-x-auto -mx-3 px-3">
+        <div className="w-full overflow-x-auto">
           <div className="flex gap-1.5 min-w-max">
             {Array.from({ length: totalAttempts }).map((_, i) => {
               const mark = marks[i];
@@ -1644,7 +1644,7 @@ function VerticalAthleteListItem({
             </div>
           )}
         </div>
-        <div className="w-full overflow-x-auto -mx-2 px-2">
+        <div className="w-full overflow-x-auto">
           <div className="flex gap-1.5 min-w-max">
             {(() => {
               const heightMarks = marks
@@ -3456,8 +3456,8 @@ function FieldEntryUI({
                         <ChevronRight className="h-4 w-4" />
                       </Button>
                     </div>
-                    <div className="w-full overflow-x-auto -mx-2 px-2 mt-3">
-                      <div className="flex gap-2 min-w-max pt-1 pb-2">
+                    <div className="w-full overflow-x-auto mt-3">
+                      <div className="flex gap-2 min-w-max pt-1 pb-2 px-1">
                         {heights.sort((a, b) => a.heightIndex - b.heightIndex).map((h) => (
                           <Badge 
                             key={h.id} 
