@@ -2311,14 +2311,14 @@ function FieldEntryUI({
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <header className="bg-primary text-primary-foreground p-3 sticky top-0 z-40">
-        <div className="flex items-center justify-between gap-2">
+      {/* Header - optimized for iPad */}
+      <header className="bg-primary text-primary-foreground p-4 md:p-5 sticky top-0 z-40">
+        <div className="flex items-center justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <h1 className="font-bold truncate" data-testid="text-event-name">
+            <h1 className="font-bold text-lg md:text-xl truncate" data-testid="text-event-name">
               {eventName}
             </h1>
-            <p className="text-xs opacity-80">
+            <p className="text-sm md:text-base opacity-80">
               {isVertical && currentHeight ? (
                 <>Bar: {formatHeightMark(currentHeight.heightMeters)} • </>
               ) : null}
@@ -2329,37 +2329,37 @@ function FieldEntryUI({
             variant="ghost" 
             size="icon"
             onClick={() => setShowAddAthlete(true)}
-            className="shrink-0 text-primary-foreground hover:bg-primary-foreground/20"
+            className="shrink-0 h-10 w-10 md:h-12 md:w-12 text-primary-foreground hover:bg-primary-foreground/20"
             data-testid="button-add-athlete"
           >
-            <UserPlus className="h-4 w-4" />
+            <UserPlus className="h-5 w-5 md:h-6 md:w-6" />
           </Button>
           <Button 
             variant="ghost" 
             size="icon"
             onClick={handleLeave}
-            className="shrink-0 text-primary-foreground hover:bg-primary-foreground/20"
+            className="shrink-0 h-10 w-10 md:h-12 md:w-12 text-primary-foreground hover:bg-primary-foreground/20"
             data-testid="button-leave-session"
           >
-            <LogOut className="h-4 w-4" />
+            <LogOut className="h-5 w-5 md:h-6 md:w-6" />
           </Button>
         </div>
       </header>
 
-      {/* Tabs */}
+      {/* Tabs - always show labels for iPad */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-        <TabsList className="w-full rounded-none border-b h-12 bg-background">
-          <TabsTrigger value="officiate" className="flex-1 gap-1 data-[state=active]:bg-muted">
-            <Users className="h-4 w-4" />
-            <span className="hidden sm:inline">Officiate</span>
+        <TabsList className="w-full rounded-none border-b h-14 md:h-16 bg-background">
+          <TabsTrigger value="officiate" className="flex-1 gap-2 text-sm md:text-base data-[state=active]:bg-muted">
+            <Users className="h-5 w-5" />
+            <span>Officiate</span>
           </TabsTrigger>
-          <TabsTrigger value="standings" className="flex-1 gap-1 data-[state=active]:bg-muted">
-            <Trophy className="h-4 w-4" />
-            <span className="hidden sm:inline">Standings</span>
+          <TabsTrigger value="standings" className="flex-1 gap-2 text-sm md:text-base data-[state=active]:bg-muted">
+            <Trophy className="h-5 w-5" />
+            <span>Standings</span>
           </TabsTrigger>
-          <TabsTrigger value="review" className="flex-1 gap-1 data-[state=active]:bg-muted">
-            <Grid3X3 className="h-4 w-4" />
-            <span className="hidden sm:inline">Review</span>
+          <TabsTrigger value="review" className="flex-1 gap-2 text-sm md:text-base data-[state=active]:bg-muted">
+            <Grid3X3 className="h-5 w-5" />
+            <span>Review</span>
           </TabsTrigger>
         </TabsList>
 
