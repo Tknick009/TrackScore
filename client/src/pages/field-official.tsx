@@ -2471,6 +2471,19 @@ function FieldEntryUI({
             <span className="hidden sm:inline">Add Athlete</span>
             <span className="sm:hidden">Add</span>
           </Button>
+          {!isVertical && (
+            <Button 
+              variant="ghost" 
+              size="default"
+              onClick={() => setShowGenerateFinals(true)}
+              className="shrink-0 text-primary-foreground hover:bg-primary-foreground/20 text-base md:text-lg"
+              data-testid="button-generate-finals-header"
+            >
+              <Star className="h-5 w-5 md:h-6 md:w-6 mr-1.5" />
+              <span className="hidden sm:inline">Generate Finals</span>
+              <span className="sm:hidden">Finals</span>
+            </Button>
+          )}
           <Button 
             variant="ghost" 
             size="icon"
@@ -2808,18 +2821,6 @@ function FieldEntryUI({
         </TabsContent>
 
         <TabsContent value="standings" className="flex-1 m-0 min-h-0 overflow-auto">
-          {!isVertical && (
-            <div className="p-2 border-b flex justify-end">
-              <Button 
-                size="sm" 
-                onClick={() => setShowGenerateFinals(true)}
-                data-testid="button-generate-finals"
-              >
-                <Star className="h-4 w-4 mr-1" />
-                Generate Finals
-              </Button>
-            </div>
-          )}
           {isVertical ? (
             <VerticalStandingsView 
               athletes={sortedAthletes} 
