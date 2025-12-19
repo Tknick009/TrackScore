@@ -527,6 +527,8 @@ function AddAthleteDialog({
       evtTeam: string;
       flightNumber: number;
       orderInFlight: number;
+      checkInStatus: string;
+      competitionStatus: string;
     }) => apiRequest("POST", `/api/field-sessions/${sessionId}/athletes`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "athletes"] });
@@ -560,6 +562,8 @@ function AddAthleteDialog({
       evtTeam: team.trim(),
       flightNumber: parseInt(flight),
       orderInFlight: maxOrder + 1,
+      checkInStatus: "checked_in",
+      competitionStatus: "competing",
     });
   };
 
