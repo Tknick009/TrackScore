@@ -1680,7 +1680,7 @@ function VerticalAthleteListItem({
               )}
               <span className={`font-semibold text-base ${eliminated ? "line-through" : ""}`}>{info.name}</span>
               {/* Opening Height Button - only show for checked-in athletes without opening height set */}
-              {!isDns && !eliminated && (!athlete.startingHeightIndex || athlete.startingHeightIndex === 0) && heights.length > 0 && (
+              {!isDns && !eliminated && (athlete.startingHeightIndex === null || athlete.startingHeightIndex === undefined) && heights.length > 0 && (
                 <OpeningHeightButton
                   athleteId={athlete.id}
                   heights={heights}
@@ -1753,7 +1753,7 @@ function VerticalAthleteListItem({
             <span className={`font-semibold text-lg md:text-xl ${eliminated ? "line-through" : ""}`}>{info.name}</span>
             <Badge variant="outline" className="text-sm md:text-base">F{athlete.flightNumber || 1}</Badge>
             {/* Opening Height Button - only show for checked-in athletes without opening height set */}
-            {!isDns && !eliminated && (!athlete.startingHeightIndex || athlete.startingHeightIndex === 0) && heights.length > 0 && (
+            {!isDns && !eliminated && (athlete.startingHeightIndex === null || athlete.startingHeightIndex === undefined) && heights.length > 0 && (
               <OpeningHeightButton
                 athleteId={athlete.id}
                 heights={heights}
@@ -1855,7 +1855,7 @@ function VerticalAthleteListItem({
                 ))}
               </DropdownMenuSubContent>
             </DropdownMenuSub>
-            {!isDns && !eliminated && (!athlete.startingHeightIndex || athlete.startingHeightIndex === 0) && heights.length > 0 && (
+            {!isDns && !eliminated && (athlete.startingHeightIndex === null || athlete.startingHeightIndex === undefined) && heights.length > 0 && (
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger data-testid={`button-set-opening-height-${athlete.id}`}>
                   <Ruler className="h-4 w-4 mr-2" />
