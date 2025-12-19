@@ -2065,6 +2065,25 @@ function FieldEntryUI({
     advanceHeightMutation.mutate(direction);
   };
 
+  // Mutation to jump to a specific height
+  const jumpToHeightMutation = useMutation({
+    mutationFn: async (heightIndex: number) => {
+      return apiRequest("PATCH", `/api/field-sessions/${sessionId}`, { currentHeightIndex: heightIndex });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId] });
+    },
+    onError: (error: Error) => {
+      toast({ title: error.message || "Failed to change height", variant: "destructive" });
+    },
+  });
+
+  const handleJumpToHeight = (heightIndex: number) => {
+    if (heightIndex !== currentHeightIndex) {
+      jumpToHeightMutation.mutate(heightIndex);
+    }
+  };
+
   // Mutation to update alive group size
   const updateAliveGroupMutation = useMutation({
     mutationFn: async (size: number | null) => {
@@ -2417,7 +2436,11 @@ function FieldEntryUI({
                           <Badge 
                             key={h.id} 
                             variant={h.heightIndex === currentHeightIndex ? "default" : "outline"}
-                            className={`text-xs md:text-sm ${h.heightIndex === currentHeightIndex ? 'ring-2 ring-primary ring-offset-1' : ''}`}
+                            className={`text-xs md:text-sm cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all ${
+                              h.heightIndex === currentHeightIndex ? 'ring-2 ring-primary ring-offset-1' : ''
+                            }`}
+                            onClick={() => handleJumpToHeight(h.heightIndex)}
+                            data-testid={`badge-height-${h.heightIndex}`}
                           >
                             {formatHeightMark(h.heightMeters)}
                           </Badge>
