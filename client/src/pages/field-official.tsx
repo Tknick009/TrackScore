@@ -1648,12 +1648,14 @@ function VerticalAthleteListItem({
   const highestCleared = getHighestClearedHeight(athlete.id, marks, heights);
   const currentHeightAttempts = getAthleteAttemptsAtHeight(athlete.id, currentHeightIndex, marks);
   const hasCleared = currentHeightAttempts.includes('O');
+  // Check if athlete has only passes at current height (passed this height entirely)
+  const allPasses = currentHeightAttempts.length > 0 && !currentHeightAttempts.includes('O') && !currentHeightAttempts.includes('X');
   
   return (
     <div
       className={`p-2 sm:p-4 md:p-6 border-b border-border ${
         isUp ? "bg-green-50 dark:bg-green-950/30" : ""
-      } ${eliminated ? "opacity-50" : ""}`}
+      } ${eliminated ? "opacity-50" : ""} ${allPasses ? "opacity-60" : ""}`}
       data-testid={`vertical-athlete-row-${athlete.id}`}
     >
       {/* Mobile: stacked layout */}
@@ -1666,6 +1668,8 @@ function VerticalAthleteListItem({
               <Badge className="bg-green-600 text-white font-bold px-2 py-1 text-sm">UP</Badge>
             ) : hasCleared ? (
               <Badge variant="secondary" className="text-sm px-2 py-0.5">CLEAR</Badge>
+            ) : allPasses ? (
+              <span className="text-sm text-muted-foreground">-</span>
             ) : (
               <span className="text-sm text-muted-foreground">{currentHeightAttempts || "-"}</span>
             )}
@@ -1741,6 +1745,8 @@ function VerticalAthleteListItem({
             <Badge className="bg-green-600 text-white font-bold px-4 py-2 text-base md:text-lg">UP</Badge>
           ) : hasCleared ? (
             <Badge variant="secondary" className="text-base md:text-lg px-3 py-1">CLEAR</Badge>
+          ) : allPasses ? (
+            <span className="text-base md:text-lg text-muted-foreground">-</span>
           ) : (
             <span className="text-base md:text-lg text-muted-foreground">{currentHeightAttempts || "-"}</span>
           )}
