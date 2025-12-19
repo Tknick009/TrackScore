@@ -44,7 +44,8 @@ import type {
   InsertFieldEventMark,
   FieldHeight,
   Athlete,
-  Entry
+  Entry,
+  Meet
 } from "@shared/schema";
 import { isHeightEvent } from "@shared/schema";
 
@@ -381,45 +382,33 @@ function JoinSession({
   initialCode?: string;
 }) {
   const { toast } = useToast();
-  const [accessCode, setAccessCode] = useState(initialCode || "");
-  const [isJoining, setIsJoining] = useState(false);
+  const [selectedMeetId, setSelectedMeetId] = useState<string>("");
+  const [selectedSessionId, setSelectedSessionId] = useState<string>("");
 
-  const handleJoin = async () => {
-    if (accessCode.length !== 6) {
-      toast({
-        title: "Invalid Code",
-        description: "Access code must be 6 characters",
-        variant: "destructive",
-      });
-      return;
-    }
+  const { data: meets, isLoading: meetsLoading } = useQuery<Meet[]>({
+    queryKey: ["/api/meets"],
+  });
 
-    setIsJoining(true);
-    try {
-      const response = await fetch(`/api/field-sessions/access/${accessCode.toUpperCase()}`);
-      if (!response.ok) {
-        throw new Error("Session not found");
-      }
-      const session: FieldEventSession = await response.json();
-      sessionStorage.setItem(SESSION_STORAGE_KEY, String(session.id));
-      onJoin(session.id);
+  const { data: sessions, isLoading: sessionsLoading } = useQuery<FieldEventSession[]>({
+    queryKey: ["/api/field-sessions", "meetId", selectedMeetId],
+    queryFn: async () => {
+      const response = await fetch(`/api/field-sessions?meetId=${selectedMeetId}`);
+      if (!response.ok) throw new Error("Failed to fetch sessions");
+      return response.json();
+    },
+    enabled: !!selectedMeetId,
+  });
+
+  const handleSelectEvent = (sessionId: string) => {
+    const id = parseInt(sessionId);
+    if (!isNaN(id)) {
+      sessionStorage.setItem(SESSION_STORAGE_KEY, sessionId);
+      onJoin(id);
       toast({ title: "Joined session successfully" });
-    } catch (error) {
-      toast({
-        title: "Failed to join",
-        description: "Invalid access code or session not found",
-        variant: "destructive",
-      });
-    } finally {
-      setIsJoining(false);
     }
   };
 
-  useEffect(() => {
-    if (initialCode && initialCode.length === 6) {
-      handleJoin();
-    }
-  }, [initialCode]);
+  const activeMeets = meets?.filter(m => m.status === "in_progress" || m.status === "upcoming") || [];
 
   return (
     <div className="h-screen max-h-screen flex items-center justify-center p-4 bg-background overflow-hidden">
@@ -427,33 +416,72 @@ function JoinSession({
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold">Field Official Entry</CardTitle>
           <p className="text-muted-foreground mt-2">
-            Enter the 6-character access code to join a field event session
+            Select a meet and event to begin officiating
           </p>
         </CardHeader>
         <CardContent className="space-y-6">
-          <Input
-            placeholder="ACCESS CODE"
-            value={accessCode}
-            onChange={(e) => setAccessCode(e.target.value.toUpperCase().slice(0, 6))}
-            className="text-center text-2xl tracking-widest font-mono h-16"
-            maxLength={6}
-            data-testid="input-access-code"
-          />
-          <Button
-            onClick={handleJoin}
-            disabled={accessCode.length !== 6 || isJoining}
-            className="w-full h-14 text-lg"
-            data-testid="button-join-session"
-          >
-            {isJoining ? (
-              <>
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                Joining...
-              </>
-            ) : (
-              "Join Session"
-            )}
-          </Button>
+          {meetsLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Select Meet</Label>
+                <Select value={selectedMeetId} onValueChange={(value) => {
+                  setSelectedMeetId(value);
+                  setSelectedSessionId("");
+                }}>
+                  <SelectTrigger className="h-14 text-lg" data-testid="select-meet">
+                    <SelectValue placeholder="Choose a meet..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {activeMeets.length === 0 ? (
+                      <div className="p-3 text-center text-muted-foreground">
+                        No active meets found
+                      </div>
+                    ) : (
+                      activeMeets.map((meet) => (
+                        <SelectItem key={meet.id} value={meet.id} className="text-base py-3">
+                          {meet.name}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {selectedMeetId && (
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Select Event</Label>
+                  {sessionsLoading ? (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : (
+                    <Select value={selectedSessionId} onValueChange={handleSelectEvent}>
+                      <SelectTrigger className="h-14 text-lg" data-testid="select-event">
+                        <SelectValue placeholder="Choose an event..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {!sessions || sessions.length === 0 ? (
+                          <div className="p-3 text-center text-muted-foreground">
+                            No field events found for this meet
+                          </div>
+                        ) : (
+                          sessions.map((session) => (
+                            <SelectItem key={session.id} value={String(session.id)} className="text-base py-3">
+                              {session.evtEventName || `Session ${session.id}`}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              )}
+            </>
+          )}
         </CardContent>
       </Card>
     </div>

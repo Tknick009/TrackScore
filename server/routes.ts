@@ -6763,15 +6763,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return record.count > MAX_ATTEMPTS;
   }
 
-  // Get all field sessions (optionally filter by eventId query param)
+  // Get all field sessions (optionally filter by eventId or meetId query param)
   app.get("/api/field-sessions", async (req, res) => {
     try {
-      const { eventId } = req.query;
+      const { eventId, meetId } = req.query;
       if (eventId && typeof eventId === 'string') {
         const session = await storage.getFieldEventSessionByEvent(eventId);
         return res.json(session ? [session] : []);
       }
-      // Return all sessions if no eventId specified
+      if (meetId && typeof meetId === 'string') {
+        const sessions = await storage.getFieldEventSessionsByMeetId(meetId);
+        return res.json(sessions);
+      }
+      // Return all sessions if no filter specified
       const sessions = await storage.getAllFieldEventSessions();
       res.json(sessions);
     } catch (error: any) {
