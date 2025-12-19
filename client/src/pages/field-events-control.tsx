@@ -773,7 +773,7 @@ export default function FieldEventsControl() {
         <div className="space-y-4">
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <Target className="h-5 w-5" />
-            EVT Events ({evtEvents.length})
+            Field Events ({evtEvents.length})
           </h2>
           <Card>
             <CardContent className="p-0">
