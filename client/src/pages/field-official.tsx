@@ -2494,6 +2494,93 @@ function AddAthleteDialog({
   );
 }
 
+function DeleteFinalsButton({ 
+  sessionId, 
+  onClose 
+}: { 
+  sessionId: number; 
+  onClose: () => void;
+}) {
+  const { toast } = useToast();
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [deleteMarks, setDeleteMarks] = useState(true);
+
+  const deleteFinalsMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("DELETE", `/api/field-sessions/${sessionId}/finals`, {
+        deleteFinalsMarks: deleteMarks,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "full"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "athletes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "marks"] });
+      toast({ title: "Finals deleted", description: "Event has been reset to prelims mode" });
+      onClose();
+    },
+    onError: (error: Error) => {
+      toast({ title: error.message || "Failed to delete finals", variant: "destructive" });
+    },
+  });
+
+  if (!showConfirm) {
+    return (
+      <Button 
+        variant="destructive" 
+        onClick={() => setShowConfirm(true)}
+        className="w-full"
+        data-testid="button-delete-finals"
+      >
+        <Trash2 className="h-4 w-4 mr-2" />
+        Delete Finals
+      </Button>
+    );
+  }
+
+  return (
+    <div className="space-y-3 p-3 border border-destructive rounded-md bg-destructive/5">
+      <p className="text-sm font-medium">Are you sure you want to delete finals?</p>
+      <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          id="delete-finals-marks"
+          checked={deleteMarks}
+          onChange={(e) => setDeleteMarks(e.target.checked)}
+          className="h-4 w-4"
+          data-testid="checkbox-delete-finals-marks"
+        />
+        <Label htmlFor="delete-finals-marks" className="text-sm">
+          Also delete finals marks (attempts 4+)
+        </Label>
+      </div>
+      <div className="flex gap-2">
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={() => setShowConfirm(false)}
+          className="flex-1"
+          data-testid="button-cancel-delete-finals"
+        >
+          Cancel
+        </Button>
+        <Button 
+          variant="destructive" 
+          size="sm"
+          onClick={() => deleteFinalsMutation.mutate()}
+          disabled={deleteFinalsMutation.isPending}
+          className="flex-1"
+          data-testid="button-confirm-delete-finals"
+        >
+          {deleteFinalsMutation.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin mr-1" />
+          ) : null}
+          Delete
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function EventSettingsDialog({
   isOpen,
   onClose,
@@ -2637,6 +2724,14 @@ function EventSettingsDialog({
                 />
                 <Label htmlFor="record-wind">Record Wind</Label>
               </div>
+              
+              {/* Delete Finals Button - only show if session is in finals */}
+              {session.isInFinals && (
+                <div className="border-t pt-4 mt-4">
+                  <p className="text-sm font-medium mb-2 text-destructive">Danger Zone</p>
+                  <DeleteFinalsButton sessionId={session.id} onClose={onClose} />
+                </div>
+              )}
             </>
           ) : (
             <>

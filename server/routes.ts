@@ -7381,6 +7381,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Delete finals - reset session and athletes back to prelims mode
+  app.delete("/api/field-sessions/:sessionId/finals", async (req, res) => {
+    try {
+      const sessionId = parseInt(req.params.sessionId);
+      if (isNaN(sessionId)) {
+        return res.status(400).json({ error: "Invalid session ID" });
+      }
+      
+      const { deleteFinalsMarks } = req.body || {};
+      
+      // Get session info
+      const session = await storage.getFieldEventSession(sessionId);
+      if (!session) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+      
+      // Get all athletes for this session
+      const athletes = await storage.getFieldEventAthletes(sessionId);
+      
+      // Reset all athletes - clear finalist status
+      for (const athlete of athletes) {
+        await storage.updateFieldEventAthlete(athlete.id, { 
+          isFinalist: false, 
+          finalsOrder: null 
+        });
+      }
+      
+      // If requested, delete marks made during finals (attemptNumber > prelimAttempts)
+      if (deleteFinalsMarks) {
+        const prelimAttempts = session.prelimAttempts || 3;
+        const marks = await storage.getFieldEventMarks(sessionId);
+        for (const mark of marks) {
+          if (mark.attemptNumber > prelimAttempts) {
+            await storage.deleteFieldEventMark(mark.id);
+          }
+        }
+      }
+      
+      // Update session to exit finals mode
+      await storage.updateFieldEventSession(sessionId, {
+        isInFinals: false,
+      });
+      
+      // Broadcast field event update
+      broadcastFieldEventUpdate(sessionId).catch(console.error);
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // ===============================
   // FIELD EVENT MARKS ROUTES
   // ===============================
