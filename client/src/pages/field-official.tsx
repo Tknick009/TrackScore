@@ -914,19 +914,19 @@ function StandingsView({
       {rankedAthletes.map((item, index) => {
         const info = getAthleteDisplayInfo(item.athlete);
         return (
-          <div key={item.athlete.id} className="flex items-center gap-3 p-3">
-            <div className="w-8 text-center font-bold text-lg">
+          <div key={item.athlete.id} className="flex items-center gap-3 p-4 md:p-5">
+            <div className="w-10 md:w-12 text-center font-bold text-lg md:text-xl">
               {item.best !== null ? index + 1 : "-"}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold truncate">{info.name}</p>
-              <p className="text-xs text-muted-foreground">{info.team || info.bib}</p>
+              <p className="font-semibold text-base md:text-lg truncate">{info.name}</p>
+              <p className="text-sm text-muted-foreground">{info.team || info.bib}</p>
             </div>
             <div className="text-right">
-              <p className="font-mono font-bold text-lg">
+              <p className="font-mono font-bold text-lg md:text-xl">
                 {item.best !== null ? item.best.toFixed(2) : "-"}
               </p>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 {item.marks.filter(m => m.markType === "mark").length} marks
               </p>
             </div>
@@ -954,14 +954,14 @@ function ReviewMarksView({
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm">
+      <table className="w-full text-sm md:text-base">
         <thead>
           <tr className="border-b">
-            <th className="text-left p-2 sticky left-0 bg-background">Athlete</th>
+            <th className="text-left p-3 md:p-4 sticky left-0 bg-background">Athlete</th>
             {Array.from({ length: totalAttempts }).map((_, i) => (
-              <th key={i} className="text-center p-2 min-w-16">{i + 1}</th>
+              <th key={i} className="text-center p-3 md:p-4 min-w-16 md:min-w-20">{i + 1}</th>
             ))}
-            <th className="text-center p-2">Best</th>
+            <th className="text-center p-3 md:p-4">Best</th>
           </tr>
         </thead>
         <tbody>
@@ -973,8 +973,8 @@ function ReviewMarksView({
 
             return (
               <tr key={athlete.id} className="border-b">
-                <td className="p-2 sticky left-0 bg-background">
-                  <div className="font-semibold truncate max-w-32">{info.name}</div>
+                <td className="p-3 md:p-4 sticky left-0 bg-background">
+                  <div className="font-semibold text-base md:text-lg truncate max-w-32 md:max-w-48">{info.name}</div>
                 </td>
                 {Array.from({ length: totalAttempts }).map((_, i) => {
                   const mark = athleteMarks.find(m => m.attemptNumber === i + 1);
@@ -995,18 +995,18 @@ function ReviewMarksView({
                   return (
                     <td 
                       key={i} 
-                      className={`text-center p-2 ${className} ${mark ? 'cursor-pointer hover:bg-muted/50' : ''}`}
+                      className={`text-center p-3 md:p-4 ${className} ${mark ? 'cursor-pointer hover:bg-muted/50' : ''}`}
                       onClick={() => mark && onEditMark(mark)}
                       data-testid={mark ? `cell-mark-${athlete.id}-${i + 1}` : undefined}
                     >
                       <div className="flex items-center justify-center gap-1">
                         {content}
-                        {mark && <Pencil className="h-3 w-3 text-muted-foreground opacity-50" />}
+                        {mark && <Pencil className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground opacity-50" />}
                       </div>
                     </td>
                   );
                 })}
-                <td className="text-center p-2 font-mono font-bold">
+                <td className="text-center p-3 md:p-4 font-mono font-bold text-base md:text-lg">
                   {best !== null ? best.toFixed(2) : "-"}
                 </td>
               </tr>
@@ -1439,28 +1439,28 @@ function VerticalStandingsView({
         return (
           <div 
             key={item.athlete.id} 
-            className={`flex items-center gap-3 p-3 ${item.eliminated ? 'opacity-50' : ''}`}
+            className={`flex items-center gap-3 p-4 md:p-5 ${item.eliminated ? 'opacity-50' : ''}`}
           >
-            <div className="w-8 text-center font-bold text-lg">
+            <div className="w-10 md:w-12 text-center font-bold text-lg md:text-xl">
               {item.place ?? "-"}
             </div>
             <div className="flex-1 min-w-0">
-              <p className={`font-semibold truncate ${item.eliminated ? 'line-through' : ''}`}>
+              <p className={`font-semibold text-base md:text-lg truncate ${item.eliminated ? 'line-through' : ''}`}>
                 {info.name}
               </p>
-              <p className="text-xs text-muted-foreground">{info.team || info.bib}</p>
+              <p className="text-sm text-muted-foreground">{info.team || info.bib}</p>
             </div>
             <div className="text-right">
-              <p className="font-mono font-bold text-lg">
+              <p className="font-mono font-bold text-lg md:text-xl">
                 {item.highestCleared ? formatHeightMark(item.highestCleared.heightMeters) : "-"}
               </p>
               {item.highestCleared && (
-                <p className="text-xs text-muted-foreground">
+                <p className="text-sm text-muted-foreground">
                   {item.missesAtBest}x @ best, {item.totalMisses} total
                 </p>
               )}
               {item.eliminated && (
-                <Badge variant="outline" className="text-xs mt-1">Eliminated</Badge>
+                <Badge variant="outline" className="text-sm mt-1">Eliminated</Badge>
               )}
             </div>
           </div>
@@ -1485,16 +1485,16 @@ function VerticalReviewMarksView({
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm">
+      <table className="w-full text-sm md:text-base">
         <thead>
           <tr className="border-b">
-            <th className="text-left p-2 sticky left-0 bg-background">Athlete</th>
+            <th className="text-left p-3 md:p-4 sticky left-0 bg-background">Athlete</th>
             {sortedHeights.map((height) => (
-              <th key={height.id} className="text-center p-2 min-w-16">
+              <th key={height.id} className="text-center p-3 md:p-4 min-w-16 md:min-w-20">
                 {formatHeightMark(height.heightMeters)}
               </th>
             ))}
-            <th className="text-center p-2">Best</th>
+            <th className="text-center p-3 md:p-4">Best</th>
           </tr>
         </thead>
         <tbody>
@@ -1505,8 +1505,8 @@ function VerticalReviewMarksView({
 
             return (
               <tr key={athlete.id} className={`border-b ${eliminated ? 'opacity-50' : ''}`}>
-                <td className="p-2 sticky left-0 bg-background">
-                  <div className={`font-semibold truncate max-w-32 ${eliminated ? 'line-through' : ''}`}>
+                <td className="p-3 md:p-4 sticky left-0 bg-background">
+                  <div className={`font-semibold text-base md:text-lg truncate max-w-32 md:max-w-48 ${eliminated ? 'line-through' : ''}`}>
                     {info.name}
                   </div>
                 </td>
@@ -1528,11 +1528,11 @@ function VerticalReviewMarksView({
                   return (
                     <td 
                       key={height.id} 
-                      className={`text-center p-2 font-mono ${className} ${hasMarks ? 'cursor-pointer hover:bg-muted/50' : ''}`}
+                      className={`text-center p-3 md:p-4 font-mono text-base md:text-lg ${className} ${hasMarks ? 'cursor-pointer hover:bg-muted/50' : ''}`}
                       data-testid={hasMarks ? `cell-vertical-${athlete.id}-${height.heightIndex}` : undefined}
                     >
                       {hasMarks ? (
-                        <div className="space-y-0.5">
+                        <div className="space-y-1">
                           {heightMarks.map((m, idx) => {
                             let symbol = '-';
                             let symbolClass = 'text-muted-foreground';
@@ -1550,11 +1550,11 @@ function VerticalReviewMarksView({
                               <button
                                 key={m.id}
                                 onClick={() => onEditMark(m)}
-                                className={`inline-flex items-center gap-0.5 px-1 rounded hover:bg-muted ${symbolClass}`}
+                                className={`inline-flex items-center gap-0.5 px-1.5 md:px-2 py-0.5 rounded hover:bg-muted ${symbolClass}`}
                                 data-testid={`button-edit-mark-${m.id}`}
                               >
                                 {symbol}
-                                <Pencil className="h-2.5 w-2.5 opacity-50" />
+                                <Pencil className="h-3 w-3 md:h-4 md:w-4 opacity-50" />
                               </button>
                             );
                           })}
@@ -1563,7 +1563,7 @@ function VerticalReviewMarksView({
                     </td>
                   );
                 })}
-                <td className="text-center p-2 font-mono font-bold">
+                <td className="text-center p-3 md:p-4 font-mono font-bold text-base md:text-lg">
                   {highestCleared ? formatHeightMark(highestCleared.heightMeters) : "-"}
                 </td>
               </tr>
