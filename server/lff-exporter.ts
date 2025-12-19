@@ -148,6 +148,9 @@ export function generateVerticalLFF(
     
     const athleteMarks = marks.filter(m => m.athleteId === standing.athleteId);
     
+    // Skip athletes with no marks at all (DNS/scratch) - they shouldn't be in LFF output
+    if (athleteMarks.length === 0) continue;
+    
     // Athletes with no cleared heights (NH) should have empty place fields
     const hasCleared = standing.highestCleared !== null && standing.highestCleared !== undefined;
     const place = hasCleared ? (standing.place || "") : "";
@@ -176,13 +179,10 @@ export function generateVerticalLFF(
         .filter(m => m.heightIndex === heightIndex)
         .sort((a, b) => (a.attemptAtHeight || 0) - (b.attemptAtHeight || 0));
       
-      // Heights before athlete's first attempt: show PPP (passed)
+      // No marks at this height - either before first attempt or passed in middle
+      // Since we break after lastHeightIndex, any height with no marks must be PPP
       if (heightMarks.length === 0) {
-        if (firstHeightIndex >= 0 && heightIndex < firstHeightIndex) {
-          attemptParts.push("PPP");
-        } else {
-          attemptParts.push("");
-        }
+        attemptParts.push("PPP");
         continue;
       }
       
