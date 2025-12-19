@@ -1313,8 +1313,8 @@ function StandingsView({
     });
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm md:text-base">
+    <div className="w-full overflow-x-auto">
+      <table className="w-full min-w-max text-sm md:text-base">
         <thead>
           <tr className="border-b">
             <th className="text-center p-3 md:p-4 w-12 md:w-14">Pl</th>
@@ -1997,13 +1997,13 @@ function VerticalStandingsView({
   });
 
   return (
-    <div className="divide-y">
+    <div className="divide-y w-full">
       {rankedStandings.map((item) => {
         const info = getAthleteDisplayInfo(item.athlete);
         return (
           <div 
             key={item.athlete.id} 
-            className={`flex items-center gap-4 p-5 md:p-6 ${item.eliminated ? 'opacity-50' : ''}`}
+            className={`flex items-center gap-4 p-3 sm:p-5 md:p-6 w-full ${item.eliminated ? 'opacity-50' : ''}`}
           >
             <div className="w-12 md:w-14 text-center font-bold text-xl md:text-2xl shrink-0">
               {item.place ?? "-"}
@@ -3419,7 +3419,7 @@ function FieldEntryUI({
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="officiate" className="flex-1 m-0 min-h-0 overflow-auto">
+        <TabsContent value="officiate" className="flex-1 m-0 min-h-0 overflow-auto w-full">
           {isVertical ? (
             // Vertical Event UI
             <>
@@ -3556,7 +3556,7 @@ function FieldEntryUI({
               )}
               
               {sortedAthletes.length > 0 ? (
-                <div className="divide-y">
+                <div className="divide-y w-full">
                   {sortedAthletes.map((athlete) => (
                     <VerticalAthleteListItem
                       key={athlete.id}
@@ -3600,7 +3600,7 @@ function FieldEntryUI({
                     <X className="h-4 w-4 text-muted-foreground" />
                     <span className="font-medium text-sm">No Shows ({dnsAthletes.length})</span>
                   </div>
-                  <div className="divide-y opacity-60">
+                  <div className="divide-y opacity-60 w-full">
                     {dnsAthletes.map((athlete) => (
                       <VerticalAthleteListItem
                         key={athlete.id}
@@ -3699,7 +3699,7 @@ function FieldEntryUI({
                   : sortedAthletes.filter(a => (a.flightNumber || 1) === currentFlight);
                 
                 return displayAthletes.length > 0 ? (
-                  <div className="divide-y">
+                  <div className="divide-y w-full">
                     {displayAthletes.map((athlete) => (
                       <AthleteListItem
                         key={athlete.id}
@@ -3754,7 +3754,7 @@ function FieldEntryUI({
                     <X className="h-4 w-4 text-muted-foreground" />
                     <span className="font-medium text-sm">No Shows ({dnsAthletes.length})</span>
                   </div>
-                  <div className="divide-y opacity-60">
+                  <div className="divide-y opacity-60 w-full">
                     {dnsAthletes.map((athlete) => (
                       <AthleteListItem
                         key={athlete.id}
@@ -3783,7 +3783,7 @@ function FieldEntryUI({
           )}
         </TabsContent>
 
-        <TabsContent value="standings" className="flex-1 m-0 min-h-0 overflow-auto">
+        <TabsContent value="standings" className="flex-1 m-0 min-h-0 overflow-auto w-full">
           {isVertical ? (
             <VerticalStandingsView 
               athletes={sortedAthletes} 
@@ -3799,7 +3799,7 @@ function FieldEntryUI({
           )}
         </TabsContent>
 
-        <TabsContent value="review" className="flex-1 m-0 min-h-0 overflow-auto">
+        <TabsContent value="review" className="flex-1 m-0 min-h-0 overflow-auto w-full">
           {isVertical ? (
             <VerticalReviewMarksView 
               athletes={sortedAthletes} 
