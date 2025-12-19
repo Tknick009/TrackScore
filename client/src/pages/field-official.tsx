@@ -3476,6 +3476,7 @@ function FieldEntryUI({
                       onChangeStatus={handleChangeStatus}
                       onEditMark={setEditingMark}
                       onSetOpeningHeight={(athleteId, heightIndex) => setOpeningHeightMutation.mutate({ athleteId, heightIndex })}
+                      showBibNumbers={showBibNumbers}
                     />
                   ))}
                 </div>
@@ -3520,6 +3521,7 @@ function FieldEntryUI({
                         onEditMark={setEditingMark}
                         onSetOpeningHeight={(athleteId, heightIndex) => setOpeningHeightMutation.mutate({ athleteId, heightIndex })}
                         isDns={true}
+                        showBibNumbers={showBibNumbers}
                       />
                     ))}
                   </div>
@@ -3615,6 +3617,7 @@ function FieldEntryUI({
                         onChangeStatus={handleChangeStatus}
                         onEditMark={setEditingMark}
                         onForceFinalist={handleForceFinalist}
+                        showBibNumbers={showBibNumbers}
                       />
                     ))}
                   </div>
@@ -3670,6 +3673,7 @@ function FieldEntryUI({
                         onEditMark={setEditingMark}
                         onForceFinalist={handleForceFinalist}
                         isDns={true}
+                        showBibNumbers={showBibNumbers}
                       />
                     ))}
                   </div>
