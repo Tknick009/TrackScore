@@ -811,6 +811,7 @@ function MarkEntrySheet({
   canDeleteLast,
   recordWind = false,
   showBibNumbers = true,
+  measurementUnit = 'metric',
 }: {
   athlete: EnrichedAthlete;
   attemptNumber: number;
@@ -822,19 +823,34 @@ function MarkEntrySheet({
   canDeleteLast: boolean;
   recordWind?: boolean;
   showBibNumbers?: boolean;
+  measurementUnit?: 'metric' | 'english';
 }) {
   const [meters, setMeters] = useState("");
   const [centimeters, setCentimeters] = useState("");
+  const [feet, setFeet] = useState("");
+  const [inches, setInches] = useState("");
   const [windValue, setWindValue] = useState("");
   const [windSign, setWindSign] = useState<"+" | "-">("+");
   const cmInputRef = useRef<HTMLInputElement>(null);
+  const inchesInputRef = useRef<HTMLInputElement>(null);
   const info = getAthleteDisplayInfo(athlete);
 
+  const isEnglish = measurementUnit === 'english';
+
   const getMeasurement = () => {
-    const m = parseInt(meters) || 0;
-    const cm = parseInt(centimeters) || 0;
-    if (m === 0 && cm === 0) return "";
-    return (m + cm / 100).toFixed(2);
+    if (isEnglish) {
+      const ft = parseInt(feet) || 0;
+      const inch = parseFloat(inches) || 0;
+      if (ft === 0 && inch === 0) return "";
+      const totalInches = ft * 12 + inch;
+      const metersValue = totalInches * 0.0254;
+      return metersValue.toFixed(2);
+    } else {
+      const m = parseInt(meters) || 0;
+      const cm = parseInt(centimeters) || 0;
+      if (m === 0 && cm === 0) return "";
+      return (m + cm / 100).toFixed(2);
+    }
   };
 
   const handleSubmit = (markType: "mark" | "foul" | "pass") => {
@@ -847,6 +863,8 @@ function MarkEntrySheet({
     onRecordMark(markType, markType === "mark" ? measurement : undefined, wind);
     setMeters("");
     setCentimeters("");
+    setFeet("");
+    setInches("");
     setWindValue("");
     setWindSign("+");
   };
@@ -862,6 +880,19 @@ function MarkEntrySheet({
   const handleCentimetersChange = (value: string) => {
     const cleaned = value.replace(/\D/g, '').slice(0, 2);
     setCentimeters(cleaned);
+  };
+
+  const handleFeetChange = (value: string) => {
+    const cleaned = value.replace(/\D/g, '').slice(0, 2);
+    setFeet(cleaned);
+    if (cleaned.length >= 2) {
+      inchesInputRef.current?.focus();
+    }
+  };
+
+  const handleInchesChange = (value: string) => {
+    const cleaned = value.replace(/[^0-9.]/g, '').slice(0, 5);
+    setInches(cleaned);
   };
 
   return (
@@ -904,33 +935,65 @@ function MarkEntrySheet({
           </div>
         </div>
 
-        {/* Input - Two boxes for meters.centimeters */}
+        {/* Input - Two boxes for meters.centimeters or feet/inches */}
         <div className="p-4 md:p-5 space-y-4">
           <div>
-            <div className="flex items-center justify-center gap-2">
-              <Input
-                type="text"
-                inputMode="numeric"
-                placeholder="M"
-                value={meters}
-                onChange={(e) => handleMetersChange(e.target.value)}
-                className="h-16 md:h-20 w-24 md:w-32 text-2xl md:text-3xl text-center font-mono"
-                autoFocus
-                data-testid="input-meters"
-              />
-              <span className="text-3xl md:text-4xl font-bold text-muted-foreground">.</span>
-              <Input
-                ref={cmInputRef}
-                type="text"
-                inputMode="numeric"
-                placeholder="CM"
-                value={centimeters}
-                onChange={(e) => handleCentimetersChange(e.target.value)}
-                className="h-16 md:h-20 w-24 md:w-32 text-2xl md:text-3xl text-center font-mono"
-                data-testid="input-centimeters"
-              />
-            </div>
-            <p className="text-center text-sm text-muted-foreground mt-2">Meters . Centimeters</p>
+            {isEnglish ? (
+              <>
+                <div className="flex items-center justify-center gap-2">
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="FT"
+                    value={feet}
+                    onChange={(e) => handleFeetChange(e.target.value)}
+                    className="h-16 md:h-20 w-24 md:w-32 text-2xl md:text-3xl text-center font-mono"
+                    autoFocus
+                    data-testid="input-feet"
+                  />
+                  <span className="text-3xl md:text-4xl font-bold text-muted-foreground">'</span>
+                  <Input
+                    ref={inchesInputRef}
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="IN"
+                    value={inches}
+                    onChange={(e) => handleInchesChange(e.target.value)}
+                    className="h-16 md:h-20 w-24 md:w-32 text-2xl md:text-3xl text-center font-mono"
+                    data-testid="input-inches"
+                  />
+                  <span className="text-3xl md:text-4xl font-bold text-muted-foreground">"</span>
+                </div>
+                <p className="text-center text-sm text-muted-foreground mt-2">Feet ' Inches "</p>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-center gap-2">
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="M"
+                    value={meters}
+                    onChange={(e) => handleMetersChange(e.target.value)}
+                    className="h-16 md:h-20 w-24 md:w-32 text-2xl md:text-3xl text-center font-mono"
+                    autoFocus
+                    data-testid="input-meters"
+                  />
+                  <span className="text-3xl md:text-4xl font-bold text-muted-foreground">.</span>
+                  <Input
+                    ref={cmInputRef}
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="CM"
+                    value={centimeters}
+                    onChange={(e) => handleCentimetersChange(e.target.value)}
+                    className="h-16 md:h-20 w-24 md:w-32 text-2xl md:text-3xl text-center font-mono"
+                    data-testid="input-centimeters"
+                  />
+                </div>
+                <p className="text-center text-sm text-muted-foreground mt-2">Meters . Centimeters</p>
+              </>
+            )}
           </div>
           
           {recordWind && (
@@ -966,7 +1029,7 @@ function MarkEntrySheet({
         <div className="grid grid-cols-3 gap-3 md:gap-4 p-4 md:p-5 pt-0">
           <Button
             onClick={() => handleSubmit("mark")}
-            disabled={(!meters && !centimeters) || isPending}
+            disabled={(isEnglish ? (!feet && !inches) : (!meters && !centimeters)) || isPending}
             className="h-16 md:h-20 text-lg md:text-xl bg-green-600 hover:bg-green-700"
             data-testid="button-record-mark"
           >
@@ -3744,6 +3807,8 @@ function FieldEntryUI({
           isPending={submitMarkMutation.isPending || deleteMarkMutation.isPending}
           canDeleteLast={!!getLastMarkForAthlete(selectedAthlete.id)}
           recordWind={session?.recordWind || false}
+          showBibNumbers={showBibNumbers}
+          measurementUnit={session?.measurementUnit || 'metric'}
         />
       ) : null}
 
