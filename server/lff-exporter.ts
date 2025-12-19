@@ -25,9 +25,10 @@ function formatMark(meters: number | null, system: "Metric" | "English"): string
 }
 
 function formatWind(wind: number | null | undefined): string {
-  if (wind === null || wind === undefined) return "";
-  const sign = wind >= 0 ? "+" : "";
-  return `${sign}${wind.toFixed(1)}`;
+  if (wind === null || wind === undefined) return "-0.0";
+  if (wind === 0) return "-0.0";
+  const sign = wind >= 0 ? "" : "-";
+  return `${sign}${Math.abs(wind).toFixed(1)}`;
 }
 
 type AthleteWithDetails = FieldEventAthlete & { entry?: any; athlete?: any };
@@ -69,11 +70,11 @@ export function generateHorizontalLFF(
       const mark = athleteMarks.find(m => m.attemptNumber === i);
       if (mark) {
         if (mark.markType === 'foul') {
-          attemptParts.push("FOUL");
-          attemptParts.push("");
+          attemptParts.push("F");
+          attemptParts.push(formatWind(mark.wind));
         } else if (mark.markType === 'pass') {
           attemptParts.push("PASS");
-          attemptParts.push("");
+          attemptParts.push(formatWind(mark.wind));
         } else if (mark.markType === 'scratch') {
           attemptParts.push("DNS");
           attemptParts.push("");
@@ -94,7 +95,7 @@ export function generateHorizontalLFF(
       eventPlace,
       lastName,
       firstName,
-      affiliation,
+      `"${affiliation}"`,
       ...attemptParts
     ].join(",");
     
@@ -180,7 +181,7 @@ export function generateVerticalLFF(
       eventPlace,
       lastName,
       firstName,
-      affiliation,
+      `"${affiliation}"`,
       ...attemptParts
     ].join(",");
     
