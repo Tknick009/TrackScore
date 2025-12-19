@@ -165,6 +165,8 @@ function AthleteListItem({
   currentFlight,
   totalFlights,
   onMoveFlight,
+  onChangeStatus,
+  isDns = false,
 }: { 
   athlete: EnrichedAthlete; 
   isUp: boolean;
@@ -175,6 +177,8 @@ function AthleteListItem({
   currentFlight: number;
   totalFlights: number;
   onMoveFlight: (athleteId: number, newFlight: number) => void;
+  onChangeStatus: (athleteId: number, checkInStatus: string, competitionStatus: string) => void;
+  isDns?: boolean;
 }) {
   const info = getAthleteDisplayInfo(athlete);
   const flightOptions = Array.from({ length: totalFlights + 1 }, (_, i) => i + 1);
@@ -248,6 +252,23 @@ function AthleteListItem({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          {isDns ? (
+            <DropdownMenuItem
+              onClick={() => onChangeStatus(athlete.id, "checked_in", "competing")}
+              data-testid={`menu-check-in-${athlete.id}`}
+            >
+              <Check className="h-4 w-4 mr-2" />
+              Check In
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem
+              onClick={() => onChangeStatus(athlete.id, "dns", "dns")}
+              data-testid={`menu-mark-dns-${athlete.id}`}
+            >
+              <X className="h-4 w-4 mr-2" />
+              Mark as No Show
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>
               <ArrowRightLeft className="h-4 w-4 mr-2" />
@@ -805,6 +826,35 @@ function FieldEntryUI({
     moveFlightMutation.mutate({ athleteId, newFlight });
   };
 
+  // Mutation for changing athlete check-in status
+  const changeStatusMutation = useMutation({
+    mutationFn: async ({ athleteId, checkInStatus, competitionStatus }: { 
+      athleteId: number; 
+      checkInStatus: string; 
+      competitionStatus: string;
+    }) => {
+      return apiRequest("PATCH", `/api/field-athletes/${athleteId}`, {
+        checkInStatus,
+        competitionStatus,
+      });
+    },
+    onSuccess: (_, { competitionStatus }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "athletes"] });
+      if (competitionStatus === "dns") {
+        toast({ title: "Athlete marked as no show" });
+      } else {
+        toast({ title: "Athlete checked in" });
+      }
+    },
+    onError: () => {
+      toast({ title: "Failed to update athlete status", variant: "destructive" });
+    },
+  });
+
+  const handleChangeStatus = (athleteId: number, checkInStatus: string, competitionStatus: string) => {
+    changeStatusMutation.mutate({ athleteId, checkInStatus, competitionStatus });
+  };
+
   const handleLeave = () => {
     sessionStorage.removeItem(SESSION_STORAGE_KEY);
     onLeave();
@@ -812,6 +862,11 @@ function FieldEntryUI({
 
   const activeAthletes = athletes?.filter(
     (a) => a.checkInStatus === "checked_in" && a.competitionStatus !== "completed" && a.competitionStatus !== "dns"
+  ) || [];
+  
+  // DNS athletes that can be checked back in
+  const dnsAthletes = athletes?.filter(
+    (a) => a.checkInStatus === "dns" || a.competitionStatus === "dns"
   ) || [];
   
   const sortedAthletes = [...activeAthletes].sort((a, b) => {
@@ -959,6 +1014,7 @@ function FieldEntryUI({
                   currentFlight={currentFlight}
                   totalFlights={totalFlights}
                   onMoveFlight={handleMoveFlight}
+                  onChangeStatus={handleChangeStatus}
                 />
               ))}
             </div>
@@ -976,6 +1032,34 @@ function FieldEntryUI({
                 <UserPlus className="h-4 w-4 mr-2" />
                 Add Athlete
               </Button>
+            </div>
+          )}
+
+          {/* DNS Athletes Section */}
+          {dnsAthletes.length > 0 && (
+            <div className="mt-4 border-t">
+              <div className="bg-muted/50 px-4 py-2 flex items-center gap-2">
+                <X className="h-4 w-4 text-muted-foreground" />
+                <span className="font-medium text-sm">No Shows ({dnsAthletes.length})</span>
+              </div>
+              <div className="divide-y opacity-60">
+                {dnsAthletes.map((athlete) => (
+                  <AthleteListItem
+                    key={athlete.id}
+                    athlete={athlete}
+                    isUp={false}
+                    marks={getAthleteMarks(athlete.id)}
+                    totalAttempts={totalAttempts}
+                    bestMark={getAthleteBestMark(athlete.id)}
+                    onClick={() => {}}
+                    currentFlight={currentFlight}
+                    totalFlights={totalFlights}
+                    onMoveFlight={handleMoveFlight}
+                    onChangeStatus={handleChangeStatus}
+                    isDns={true}
+                  />
+                ))}
+              </div>
             </div>
           )}
         </TabsContent>
