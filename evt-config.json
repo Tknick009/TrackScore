@@ -1,5 +1,6 @@
 {
   "directoryPath": "attached_assets",
+  "resultsDirectory": "attached_assets/Results",
   "horizontalPrelimAttempts": 3,
   "horizontalFinalists": 8,
   "horizontalFinalAttempts": 3

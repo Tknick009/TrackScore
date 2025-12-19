@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useRoute } from "wouter";
+import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -2411,6 +2411,7 @@ function FieldEntryUI({
   onLeave: () => void;
 }) {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [selectedAthleteId, setSelectedAthleteId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState("officiate");
   const [showAddAthlete, setShowAddAthlete] = useState(false);
@@ -2462,6 +2463,33 @@ function FieldEntryUI({
     (session.evtEventName?.toLowerCase().includes('high jump')) ||
     (session.evtEventName?.toLowerCase().includes('pole vault'))
   ) : false;
+
+  // Auto-check-in all athletes that haven't been checked in yet
+  const autoCheckInRef = useRef<Set<number>>(new Set());
+  
+  useEffect(() => {
+    if (!athletes || athletes.length === 0) return;
+    
+    const uncheckedAthletes = athletes.filter(
+      a => a.checkInStatus !== "checked_in" && 
+           a.checkInStatus !== "dns" && 
+           !autoCheckInRef.current.has(a.id)
+    );
+    
+    if (uncheckedAthletes.length === 0) return;
+    
+    uncheckedAthletes.forEach(athlete => {
+      autoCheckInRef.current.add(athlete.id);
+      apiRequest("PATCH", `/api/field-athletes/${athlete.id}`, {
+        checkInStatus: "checked_in",
+        competitionStatus: "active",
+      }).then(() => {
+        queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "athletes"] });
+      }).catch(() => {
+        autoCheckInRef.current.delete(athlete.id);
+      });
+    });
+  }, [athletes, sessionId]);
 
   const submitMarkMutation = useMutation({
     mutationFn: async (mark: InsertFieldEventMark) => 
@@ -2961,7 +2989,9 @@ function FieldEntryUI({
                       <div
                         key={s.id}
                         onClick={() => {
-                          window.location.href = `/field-official/${s.id}`;
+                          setShowEventsSidebar(false);
+                          sessionStorage.setItem(SESSION_STORAGE_KEY, String(s.id));
+                          setLocation(`/field/${s.id}`);
                         }}
                         className={`p-3 rounded-lg cursor-pointer transition-colors ${
                           isCurrentSession 
