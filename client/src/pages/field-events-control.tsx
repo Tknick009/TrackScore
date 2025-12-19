@@ -41,8 +41,6 @@ import {
   FolderOpen,
   Save,
   RefreshCw,
-  Check,
-  X,
   QrCode,
 } from "lucide-react";
 import type {
@@ -89,24 +87,6 @@ interface EVTEventSummary {
   eventNumber: number;
   eventName: string;
   athleteCount: number;
-}
-
-interface EVTAthlete {
-  bibNumber: string;
-  order: number;
-  lastName: string;
-  firstName: string;
-  team: string;
-  flight: number;
-}
-
-interface CheckInAthleteState {
-  bibNumber: string;
-  firstName: string;
-  lastName: string;
-  team: string;
-  flight: number;
-  status: "checked_in" | "dns";
 }
 
 interface SessionCardProps {
@@ -331,136 +311,6 @@ function SessionCard({ session, athletes, onEdit, onDelete, onUpdateStatus, onEx
   );
 }
 
-interface CheckInDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  eventName: string;
-  athletes: CheckInAthleteState[];
-  onAthleteStatusChange: (bibNumber: string, status: "checked_in" | "dns") => void;
-  onStartEvent: () => void;
-  isPending: boolean;
-}
-
-function CheckInDialog({
-  open,
-  onOpenChange,
-  eventName,
-  athletes,
-  onAthleteStatusChange,
-  onStartEvent,
-  isPending,
-}: CheckInDialogProps) {
-  const checkedInCount = athletes.filter(a => a.status === "checked_in").length;
-  const totalCount = athletes.length;
-
-  // Group athletes by flight
-  const athletesByFlight = athletes.reduce((acc, athlete) => {
-    const flight = athlete.flight || 1;
-    if (!acc[flight]) acc[flight] = [];
-    acc[flight].push(athlete);
-    return acc;
-  }, {} as Record<number, CheckInAthleteState[]>);
-  
-  const flightNumbers = Object.keys(athletesByFlight).map(Number).sort((a, b) => a - b);
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl h-[85vh] flex flex-col">
-        <DialogHeader className="flex-shrink-0">
-          <DialogTitle data-testid="text-checkin-dialog-title">
-            {eventName} - Check In
-          </DialogTitle>
-          <DialogDescription>
-            Mark athletes as checked in or DNS (Did Not Start)
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="flex-1 overflow-y-auto pr-2">
-          <div className="space-y-4">
-            {flightNumbers.map(flightNum => (
-              <div key={flightNum} className="space-y-2">
-                <h3 className="font-semibold text-sm bg-muted px-3 py-2 rounded-md sticky top-0 z-10">
-                  Flight {flightNum} ({athletesByFlight[flightNum].length} athletes)
-                </h3>
-                <div className="space-y-2">
-                  {athletesByFlight[flightNum].map((athlete, idx) => (
-                    <div
-                      key={athlete.bibNumber || idx}
-                      className="flex items-center justify-between gap-4 p-3 rounded-md bg-muted/50"
-                      data-testid={`row-athlete-${athlete.bibNumber}`}
-                    >
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <code className="bg-background px-2 py-1 rounded font-mono text-sm font-bold min-w-[60px] text-center">
-                          {athlete.bibNumber || "-"}
-                        </code>
-                        <span className="font-medium truncate">
-                          {athlete.firstName} {athlete.lastName}
-                        </span>
-                        <span className="text-muted-foreground text-sm truncate">
-                          {athlete.team}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          variant={athlete.status === "checked_in" ? "default" : "outline"}
-                          onClick={() => onAthleteStatusChange(athlete.bibNumber, "checked_in")}
-                          data-testid={`button-checkin-${athlete.bibNumber}`}
-                        >
-                          <Check className="h-4 w-4 mr-1" />
-                          In
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant={athlete.status === "dns" ? "destructive" : "outline"}
-                          onClick={() => onAthleteStatusChange(athlete.bibNumber, "dns")}
-                          data-testid={`button-dns-${athlete.bibNumber}`}
-                        >
-                          <X className="h-4 w-4 mr-1" />
-                          DNS
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex-shrink-0 border-t pt-4 mt-4">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground" data-testid="text-checkin-count">
-              {checkedInCount} of {totalCount} checked in
-            </span>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel-checkin">
-                Cancel
-              </Button>
-              <Button
-                onClick={onStartEvent}
-                disabled={isPending}
-                data-testid="button-start-event-checkin"
-              >
-                {isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Starting...
-                  </>
-                ) : (
-                  <>
-                    <Play className="h-4 w-4 mr-2" />
-                    Start Event
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 export default function FieldEventsControl() {
   const { currentMeetId } = useMeet();
@@ -474,11 +324,6 @@ export default function FieldEventsControl() {
   const [horizontalFinalists, setHorizontalFinalists] = useState(8);
   const [horizontalFinalAttempts, setHorizontalFinalAttempts] = useState(3);
   
-  const [checkInDialogOpen, setCheckInDialogOpen] = useState(false);
-  const [selectedEvtEvent, setSelectedEvtEvent] = useState<EVTEventSummary | null>(null);
-  const [checkInAthletes, setCheckInAthletes] = useState<CheckInAthleteState[]>([]);
-  const [isCreatingSession, setIsCreatingSession] = useState(false);
-  const [createdSessionId, setCreatedSessionId] = useState<number | null>(null);
 
   interface EVTConfigData {
     directoryPath: string;
@@ -611,101 +456,6 @@ export default function FieldEventsControl() {
       });
     } finally {
       setIsSavingConfig(false);
-    }
-  };
-
-  const handleOpenEvent = async (evtEvent: EVTEventSummary) => {
-    try {
-      const response = await fetch(`/api/evt-events/${evtEvent.eventNumber}/athletes`);
-      if (!response.ok) throw new Error("Failed to load athletes");
-      
-      const data = await response.json();
-      const athletes: EVTAthlete[] = data.athletes || [];
-      
-      setCheckInAthletes(athletes.map(a => ({
-        bibNumber: a.bibNumber,
-        firstName: a.firstName,
-        lastName: a.lastName,
-        team: a.team,
-        flight: a.flight || 1,
-        status: "checked_in" as const,
-      })));
-      
-      setSelectedEvtEvent(evtEvent);
-      setCheckInDialogOpen(true);
-    } catch (error: any) {
-      toast({
-        title: "Failed to load athletes",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleAthleteStatusChange = (bibNumber: string, status: "checked_in" | "dns") => {
-    setCheckInAthletes(prev =>
-      prev.map(a => a.bibNumber === bibNumber ? { ...a, status } : a)
-    );
-  };
-
-  const handleStartEventFromCheckIn = async () => {
-    if (!selectedEvtEvent || !currentMeetId) return;
-    
-    setIsCreatingSession(true);
-    try {
-      const accessCode = generateAccessCode();
-      const sessionData: InsertFieldEventSession = {
-        eventId: null,  // EVT-based sessions don't need a database event ID
-        status: "check_in",
-        measurementUnit: "metric",
-        recordWind: false,
-        hasFinals: false,
-        prelimAttempts: 3,
-        finalsAttempts: 3,
-        athletesToFinals: 8,
-        totalAttempts: 6,
-        accessCode,
-        evtEventNumber: selectedEvtEvent.eventNumber,
-        evtEventName: selectedEvtEvent.eventName,
-      };
-      
-      const sessionResponse = await apiRequest("POST", "/api/field-sessions", sessionData);
-      const session = await sessionResponse.json();
-      setCreatedSessionId(session.id);
-      
-      for (const athlete of checkInAthletes) {
-        await apiRequest("POST", `/api/field-sessions/${session.id}/athletes`, {
-          sessionId: session.id,
-          flightNumber: 1,
-          orderInFlight: checkInAthletes.indexOf(athlete) + 1,
-          checkInStatus: athlete.status,
-          competitionStatus: athlete.status === "dns" ? "dns" : "waiting",
-          evtBibNumber: athlete.bibNumber,
-          evtFirstName: athlete.firstName,
-          evtLastName: athlete.lastName,
-          evtTeam: athlete.team,
-        });
-      }
-      
-      await apiRequest("PATCH", `/api/field-sessions/${session.id}`, { status: "in_progress" });
-      
-      queryClient.invalidateQueries({ queryKey: ["/api/field-sessions"] });
-      
-      setCheckInDialogOpen(false);
-      setSelectedEvtEvent(null);
-      setCheckInAthletes([]);
-      
-      toast({ title: "Event started successfully" });
-      
-      window.open(`/field/${accessCode}`, "_blank");
-    } catch (error: any) {
-      toast({
-        title: "Failed to start event",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setIsCreatingSession(false);
     }
   };
 
@@ -909,45 +659,6 @@ export default function FieldEventsControl() {
         </div>
       )}
 
-      {evtEvents.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <Target className="h-5 w-5" />
-            Field Events ({evtEvents.length})
-          </h2>
-          <Card>
-            <CardContent className="p-0">
-              <ul className="divide-y">
-                {evtEvents.map((evt) => (
-                  <li
-                    key={evt.eventNumber}
-                    className="flex items-center justify-between gap-4 p-4"
-                    data-testid={`item-evt-event-${evt.eventNumber}`}
-                  >
-                    <div className="flex items-center gap-3 flex-1">
-                      <Badge variant="outline" className="font-mono min-w-[40px] justify-center">
-                        {evt.eventNumber}
-                      </Badge>
-                      <span className="font-medium">{evt.eventName}</span>
-                      <span className="text-sm text-muted-foreground">
-                        {evt.athleteCount} athletes
-                      </span>
-                    </div>
-                    <Button
-                      size="sm"
-                      onClick={() => handleOpenEvent(evt)}
-                      data-testid={`button-open-event-${evt.eventNumber}`}
-                    >
-                      <Play className="h-4 w-4 mr-2" />
-                      Open Event
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
-        </div>
-      )}
 
       {!evtConfig?.directoryPath && evtEvents.length === 0 && sessions.length === 0 && (
         <Card>
@@ -961,27 +672,17 @@ export default function FieldEventsControl() {
         </Card>
       )}
 
-      {evtConfig?.directoryPath && evtEvents.length === 0 && sessions.length === 0 && (
+      {evtConfig?.directoryPath && sessions.length === 0 && (
         <Card>
           <CardContent className="p-12 text-center">
             <Target className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No EVT Files Found</h3>
+            <h3 className="text-lg font-semibold mb-2">No Field Events</h3>
             <p className="text-muted-foreground">
-              No .evt files found in the configured directory. Make sure FinishLynx is exporting EVT files to this location.
+              No field events found. Make sure FinishLynx is exporting EVT files to the configured directory.
             </p>
           </CardContent>
         </Card>
       )}
-
-      <CheckInDialog
-        open={checkInDialogOpen}
-        onOpenChange={setCheckInDialogOpen}
-        eventName={selectedEvtEvent?.eventName || ""}
-        athletes={checkInAthletes}
-        onAthleteStatusChange={handleAthleteStatusChange}
-        onStartEvent={handleStartEventFromCheckIn}
-        isPending={isCreatingSession}
-      />
 
       <Dialog open={!!editingSession} onOpenChange={(open) => !open && setEditingSession(null)}>
         <DialogContent className="max-w-md">
