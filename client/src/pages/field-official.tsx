@@ -2071,7 +2071,7 @@ function FieldEntryUI({
       return apiRequest("PATCH", `/api/field-sessions/${sessionId}`, { currentHeightIndex: heightIndex });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "full"] });
     },
     onError: (error: Error) => {
       toast({ title: error.message || "Failed to change height", variant: "destructive" });
