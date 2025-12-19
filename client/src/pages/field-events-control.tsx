@@ -127,10 +127,19 @@ interface HeightsDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+// Local height type for client-side state (id and createdAt are optional since backend generates them)
+type LocalHeight = {
+  tempKey: string; // Unique key for React rendering (not sent to backend)
+  heightIndex: number;
+  heightMeters: number; // Always a number
+  isActive: boolean;
+  isJumpOff: boolean;
+};
+
 function HeightsDialog({ sessionId, open, onOpenChange }: HeightsDialogProps) {
   const { toast } = useToast();
   const [newHeightMeters, setNewHeightMeters] = useState("");
-  const [localHeights, setLocalHeights] = useState<FieldHeight[]>([]);
+  const [localHeights, setLocalHeights] = useState<LocalHeight[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
   const { data: heights = [], isLoading, refetch } = useQuery<FieldHeight[]>({
@@ -141,7 +150,15 @@ function HeightsDialog({ sessionId, open, onOpenChange }: HeightsDialogProps) {
 
   useEffect(() => {
     if (open && heights.length > 0) {
-      setLocalHeights([...heights].sort((a, b) => a.heightIndex - b.heightIndex));
+      // Convert server heights to local format
+      const sorted = [...heights].sort((a, b) => a.heightIndex - b.heightIndex);
+      setLocalHeights(sorted.map(h => ({
+        tempKey: `server-${h.id}`,
+        heightIndex: h.heightIndex,
+        heightMeters: typeof h.heightMeters === 'string' ? parseFloat(h.heightMeters) : h.heightMeters,
+        isActive: h.isActive,
+        isJumpOff: h.isJumpOff,
+      })));
     } else if (open && heights.length === 0 && !isLoading) {
       setLocalHeights([]);
     }
@@ -154,18 +171,17 @@ function HeightsDialog({ sessionId, open, onOpenChange }: HeightsDialogProps) {
       return;
     }
     
-    const newHeight: FieldHeight = {
-      id: Date.now(),
-      sessionId,
+    // Create local height without id or createdAt - backend will generate those
+    const newHeight: LocalHeight = {
+      tempKey: `new-${Date.now()}`, // For React key only
       heightIndex: localHeights.length,
-      heightMeters: meters.toString(),
+      heightMeters: meters, // Store as number
       isActive: true,
       isJumpOff: false,
-      createdAt: new Date(),
     };
     
     const updatedHeights = [...localHeights, newHeight].sort((a, b) => 
-      parseFloat(a.heightMeters) - parseFloat(b.heightMeters)
+      a.heightMeters - b.heightMeters
     );
     
     updatedHeights.forEach((h, idx) => { h.heightIndex = idx; });
@@ -196,9 +212,9 @@ function HeightsDialog({ sessionId, open, onOpenChange }: HeightsDialogProps) {
     if (isNaN(meters) || meters <= 0) return;
     
     const updated = [...localHeights];
-    updated[index] = { ...updated[index], heightMeters: meters.toString() };
+    updated[index] = { ...updated[index], heightMeters: meters }; // Store as number
     
-    updated.sort((a, b) => parseFloat(a.heightMeters) - parseFloat(b.heightMeters));
+    updated.sort((a, b) => a.heightMeters - b.heightMeters);
     updated.forEach((h, idx) => { h.heightIndex = idx; });
     setLocalHeights(updated);
   };
@@ -206,20 +222,30 @@ function HeightsDialog({ sessionId, open, onOpenChange }: HeightsDialogProps) {
   const handleSave = async () => {
     setIsSaving(true);
     try {
+      // Send only required fields to backend - no id, no createdAt, no sessionId per height
       const heightsToSave = localHeights.map((h, idx) => ({
-        sessionId,
         heightIndex: idx,
-        heightMeters: h.heightMeters,
+        heightMeters: h.heightMeters, // Already a number
         isActive: h.isActive,
         isJumpOff: h.isJumpOff,
       }));
       
-      await apiRequest("PUT", `/api/field-sessions/${sessionId}/heights`, { heights: heightsToSave });
+      const response = await apiRequest("PUT", `/api/field-sessions/${sessionId}/heights`, { heights: heightsToSave });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || errorData.error || `Server returned ${response.status}`);
+      }
+      
+      // Refetch to get the real IDs from the server
+      await refetch();
+      
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "heights"] });
       toast({ title: "Heights saved successfully" });
       onOpenChange(false);
     } catch (error: any) {
-      toast({ title: "Failed to save heights", description: error.message, variant: "destructive" });
+      console.error("Failed to save heights:", error);
+      toast({ title: "Failed to save heights", description: error.message || "Unknown error", variant: "destructive" });
     } finally {
       setIsSaving(false);
     }
@@ -281,7 +307,7 @@ function HeightsDialog({ sessionId, open, onOpenChange }: HeightsDialogProps) {
               <div className="space-y-2 pr-4">
                 {localHeights.map((height, index) => (
                   <div
-                    key={height.id}
+                    key={height.tempKey}
                     className={`flex items-center gap-2 p-2 rounded-lg border ${
                       height.isActive ? "bg-card" : "bg-muted/50 opacity-60"
                     } ${height.isJumpOff ? "border-yellow-500" : ""}`}
@@ -301,7 +327,7 @@ function HeightsDialog({ sessionId, open, onOpenChange }: HeightsDialogProps) {
                           data-testid={`input-height-${index}`}
                         />
                         <span className="text-sm text-muted-foreground whitespace-nowrap">
-                          {metersToFeetInches(parseFloat(height.heightMeters))}
+                          {metersToFeetInches(height.heightMeters)}
                         </span>
                       </div>
                     </div>

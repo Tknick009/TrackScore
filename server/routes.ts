@@ -62,7 +62,8 @@ import archiver from 'archiver';
 import syncRouter from './sync/routes';
 import { 
   calculateHorizontalStandings, 
-  calculateVerticalStandings 
+  calculateVerticalStandings,
+  isEliminatedVertical 
 } from './field-standings';
 import { exportSessionToLFF, generateLFFContent } from './lff-exporter';
 import { syncAthletesFromEVT, startEVTWatcher, stopEVTWatcher, initEVTWatchers } from './evt-watcher';
@@ -7196,6 +7197,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validated = insertFieldEventMarkSchema.parse(req.body);
       const mark = await storage.createFieldEventMark(validated);
+      
+      // Handle vertical event progression (high_jump, pole_vault)
+      const session = await storage.getFieldEventSession(mark.sessionId);
+      if (session && isHeightEvent(session.eventType)) {
+        const [allMarks, heights, athletes] = await Promise.all([
+          storage.getFieldEventMarks(mark.sessionId),
+          storage.getFieldHeights(mark.sessionId),
+          storage.getFieldEventAthletes(mark.sessionId)
+        ]);
+        
+        // Check if the athlete who just recorded a mark is now eliminated
+        const athleteMarks = allMarks.filter(m => m.athleteId === mark.athleteId);
+        const isEliminated = isEliminatedVertical(athleteMarks, heights);
+        
+        if (isEliminated) {
+          // Update athlete's competition status to completed
+          await storage.updateFieldEventAthlete(mark.athleteId, {
+            competitionStatus: 'completed'
+          });
+        }
+        
+        // Check if bar should advance (all active athletes finished at current height)
+        const currentHeightIndex = session.currentHeightIndex || 0;
+        const activeAthletes = athletes.filter(a => 
+          a.competitionStatus === 'competing' || a.competitionStatus === 'checked_in'
+        );
+        
+        // For bar advancement, we need to check if all active athletes have either:
+        // 1. Cleared the current height, or
+        // 2. Been eliminated (3 consecutive misses), or
+        // 3. Passed the current height
+        let allFinishedAtCurrentHeight = true;
+        
+        for (const athlete of activeAthletes) {
+          // Re-check elimination status with latest data
+          const athleteCurrentMarks = allMarks.filter(m => m.athleteId === athlete.id);
+          const athleteEliminated = isEliminatedVertical(athleteCurrentMarks, heights);
+          
+          if (athleteEliminated) {
+            continue; // Eliminated athletes are done at this height
+          }
+          
+          // Check marks at current height
+          const marksAtCurrentHeight = athleteCurrentMarks.filter(
+            m => m.heightIndex === currentHeightIndex
+          );
+          
+          if (marksAtCurrentHeight.length === 0) {
+            // Athlete hasn't attempted yet at this height
+            allFinishedAtCurrentHeight = false;
+            break;
+          }
+          
+          // Check if athlete cleared, passed, or has 3 misses at this height
+          const hasCleared = marksAtCurrentHeight.some(m => m.markType === 'cleared');
+          const hasPassed = marksAtCurrentHeight.some(m => m.markType === 'pass');
+          const missCount = marksAtCurrentHeight.filter(m => m.markType === 'missed').length;
+          
+          if (!hasCleared && !hasPassed && missCount < 3) {
+            // Athlete still has attempts remaining at this height
+            allFinishedAtCurrentHeight = false;
+            break;
+          }
+        }
+        
+        // Advance bar if all active athletes finished at current height
+        if (allFinishedAtCurrentHeight && activeAthletes.length > 0) {
+          const nextHeightIndex = currentHeightIndex + 1;
+          const hasNextHeight = heights.some(h => h.heightIndex === nextHeightIndex);
+          
+          if (hasNextHeight) {
+            await storage.updateFieldEventSession(mark.sessionId, {
+              currentHeightIndex: nextHeightIndex,
+              currentAttemptNumber: 1
+            });
+          }
+        }
+      }
       
       // Broadcast field event update and auto-export LFF
       broadcastFieldEventUpdate(mark.sessionId).catch(console.error);
