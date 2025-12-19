@@ -6359,6 +6359,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   interface EVTConfig {
     directoryPath: string;
+    // Horizontal event defaults (throws and jumps except high jump/pole vault)
+    horizontalPrelimAttempts?: number;
+    horizontalFinalists?: number;
+    horizontalFinalAttempts?: number;
   }
   
   function loadEVTConfig(): EVTConfig | null {
@@ -6388,11 +6392,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.post("/api/evt-config", async (req, res) => {
     try {
-      const { directoryPath } = req.body;
+      const { directoryPath, horizontalPrelimAttempts, horizontalFinalists, horizontalFinalAttempts } = req.body;
       if (typeof directoryPath !== 'string') {
         return res.status(400).json({ error: "directoryPath must be a string" });
       }
-      const config: EVTConfig = { directoryPath };
+      const config: EVTConfig = { 
+        directoryPath,
+        horizontalPrelimAttempts: horizontalPrelimAttempts ?? 3,
+        horizontalFinalists: horizontalFinalists ?? 8,
+        horizontalFinalAttempts: horizontalFinalAttempts ?? 3,
+      };
       saveEVTConfig(config);
       res.json(config);
     } catch (error: any) {
@@ -6409,6 +6418,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       'hj', 'pv', 'lj', 'tj', 'sp', 'dt', 'jt', 'ht', 'wt'
     ];
     return fieldEventKeywords.some(keyword => name.includes(keyword));
+  }
+
+  // Detect if an event is a vertical event (high jump or pole vault)
+  function isVerticalEventName(eventName: string): boolean {
+    const name = eventName.toLowerCase();
+    const verticalKeywords = ['high jump', 'pole vault', 'hj', 'pv'];
+    return verticalKeywords.some(keyword => name.includes(keyword));
+  }
+
+  // Detect if an event is a horizontal event (throws and jumps except vertical)
+  function isHorizontalEventName(eventName: string): boolean {
+    return isFieldEventName(eventName) && !isVerticalEventName(eventName);
   }
   
   app.get("/api/evt-events", async (req, res) => {
@@ -6482,17 +6503,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
           accessCode += chars.charAt(Math.floor(Math.random() * chars.length));
         }
         
+        // Determine if this is a horizontal event (uses global defaults) or vertical
+        const isHorizontal = isHorizontalEventName(evt.eventName);
+        
+        // Use config defaults for horizontal events, manual config for vertical
+        const prelimAttempts = isHorizontal ? (config.horizontalPrelimAttempts ?? 3) : 3;
+        const finalsAttempts = isHorizontal ? (config.horizontalFinalAttempts ?? 3) : 3;
+        const athletesToFinals = isHorizontal ? (config.horizontalFinalists ?? 8) : 8;
+        const totalAttempts = prelimAttempts + finalsAttempts;
+        
         // Create session with check_in status
         const sessionData = {
           eventId: null,
           status: "check_in" as const,
           measurementUnit: "metric" as const,
           recordWind: false,
-          hasFinals: false,
-          prelimAttempts: 3,
-          finalsAttempts: 3,
-          athletesToFinals: 8,
-          totalAttempts: 6,
+          hasFinals: isHorizontal, // Enable finals for horizontal events by default
+          prelimAttempts,
+          finalsAttempts,
+          athletesToFinals,
+          totalAttempts,
           accessCode,
           evtEventNumber: evt.eventNumber,
           evtEventName: evt.eventName,
