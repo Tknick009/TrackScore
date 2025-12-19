@@ -3530,7 +3530,34 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getFieldEventSessionsByMeetId(meetId: string): Promise<FieldEventSession[]> {
-    return await db.select().from(fieldEventSessions).where(eq(fieldEventSessions.meetId, meetId));
+    // Field sessions connect to events, and events have meetId
+    // Some sessions (EVT-based) don't have eventId, so we get:
+    // 1. Sessions with eventId that matches the meetId's events
+    // 2. Also include EVT-based sessions (no eventId) that are standalone
+    
+    // First get sessions linked to events for this meet
+    const sessionsWithEvents = await db
+      .select({ session: fieldEventSessions })
+      .from(fieldEventSessions)
+      .innerJoin(events, eq(fieldEventSessions.eventId, events.id))
+      .where(eq(events.meetId, meetId));
+    
+    const linkedSessions = sessionsWithEvents.map(r => r.session);
+    
+    // For EVT-based sessions without eventId, include all of them
+    // (they aren't linked to a specific meet but are still valid)
+    const evtSessions = await db
+      .select()
+      .from(fieldEventSessions)
+      .where(isNull(fieldEventSessions.eventId));
+    
+    // Combine and deduplicate by ID
+    const allSessions = [...linkedSessions, ...evtSessions];
+    const uniqueSessions = allSessions.filter((session, index, self) => 
+      index === self.findIndex(s => s.id === session.id)
+    );
+    
+    return uniqueSessions;
   }
 
   async getFieldEventSession(id: number): Promise<FieldEventSession | null> {

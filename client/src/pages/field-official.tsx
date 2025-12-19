@@ -3664,6 +3664,7 @@ export default function FieldOfficialPage() {
   useEffect(() => {
     const codeOrId = params?.codeOrId;
     
+    // If URL has a specific session ID, use it
     if (codeOrId) {
       const numericId = parseInt(codeOrId, 10);
       if (!isNaN(numericId) && String(numericId) === codeOrId) {
@@ -3673,10 +3674,9 @@ export default function FieldOfficialPage() {
       }
     }
     
-    const storedId = sessionStorage.getItem(SESSION_STORAGE_KEY);
-    if (storedId) {
-      setSessionId(parseInt(storedId, 10));
-    }
+    // If navigating to /field without a specific ID, clear storage to force re-selection
+    sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    setSessionId(null);
   }, [params?.codeOrId]);
 
   const handleJoin = (id: number) => {
