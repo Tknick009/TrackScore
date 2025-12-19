@@ -133,8 +133,8 @@ function HeightsDialog({
         tempKey: `server-${h.id}`,
         heightIndex: h.heightIndex,
         heightMeters: typeof h.heightMeters === 'string' ? parseFloat(h.heightMeters) : h.heightMeters,
-        isActive: h.isActive,
-        isJumpOff: h.isJumpOff,
+        isActive: h.isActive ?? true,
+        isJumpOff: h.isJumpOff ?? false,
       })));
     } else if (open && heights.length === 0 && !isLoading) {
       setLocalHeights([]);
@@ -1988,6 +1988,25 @@ function FieldEntryUI({
     advanceHeightMutation.mutate(direction);
   };
 
+  // Mutation to update alive group size
+  const updateAliveGroupMutation = useMutation({
+    mutationFn: async (size: number | null) => {
+      return apiRequest("PATCH", `/api/field-sessions/${sessionId}`, { aliveGroupSize: size });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId] });
+      toast({ title: "Alive group updated" });
+    },
+    onError: (error: Error) => {
+      toast({ title: error.message || "Failed to update alive group", variant: "destructive" });
+    },
+  });
+
+  const handleAliveGroupChange = (value: string) => {
+    const size = value === "all" ? null : parseInt(value, 10);
+    updateAliveGroupMutation.mutate(size);
+  };
+
   const handleLeave = () => {
     sessionStorage.removeItem(SESSION_STORAGE_KEY);
     onLeave();
@@ -2079,24 +2098,72 @@ function FieldEntryUI({
     submitMarkMutation.mutate(markData);
   };
 
-  // For vertical events, find the "Up" athlete differently:
-  // First athlete who hasn't cleared this height and isn't eliminated and has room for more attempts
+  // For vertical events, find the "Up" athlete with proper rotation
+  // Athletes rotate through: after A attempts, B attempts, then C, then back to A if they still need attempts
   const getVerticalUpAthlete = () => {
     if (!heights || heights.length === 0) return null;
     
-    for (const athlete of sortedAthletes) {
+    // Get eligible athletes: not eliminated, not cleared current height, < 3 attempts at this height
+    const eligibleAthletes = sortedAthletes.filter(athlete => {
       const eliminated = isAthleteEliminated(athlete.id, marks || [], heights);
-      if (eliminated) continue;
+      if (eliminated) return false;
       
       const heightAttempts = getAthleteAttemptsAtHeight(athlete.id, currentHeightIndex, marks || []);
       const hasCleared = heightAttempts.includes('O');
-      if (hasCleared) continue;
+      if (hasCleared) return false;
       
-      if (heightAttempts.length < 3) {
-        return athlete;
+      return heightAttempts.length < 3;
+    });
+    
+    if (eligibleAthletes.length === 0) return null;
+    
+    // Apply alive group size limit if set
+    const aliveGroupSize = session?.aliveGroupSize;
+    const activeGroup = aliveGroupSize && aliveGroupSize > 0 
+      ? eligibleAthletes.slice(0, aliveGroupSize) 
+      : eligibleAthletes;
+    
+    if (activeGroup.length === 0) return null;
+    if (activeGroup.length === 1) return activeGroup[0];
+    
+    // Find the last attempt at current height to determine rotation position
+    const heightMarks = (marks || [])
+      .filter(m => m.heightIndex === currentHeightIndex)
+      .sort((a, b) => {
+        // Sort by ID descending (higher ID = more recent)
+        return b.id - a.id;
+      });
+    
+    if (heightMarks.length === 0) {
+      // No attempts at this height yet, first athlete in active group is up
+      return activeGroup[0];
+    }
+    
+    // Find the athlete who last attempted
+    const lastAttemptAthleteId = heightMarks[0]?.athleteId;
+    
+    // Find their original position in the FULL sorted list (not just active group)
+    const lastAthleteOriginalIndex = sortedAthletes.findIndex(a => a.id === lastAttemptAthleteId);
+    
+    if (lastAthleteOriginalIndex === -1) {
+      // Should not happen, but fallback to first
+      return activeGroup[0];
+    }
+    
+    // Walk from the position AFTER the last athlete in sorted order to find the next eligible athlete in active group
+    // This handles cases where last athlete cleared/eliminated - we continue from their position
+    for (let offset = 1; offset <= sortedAthletes.length; offset++) {
+      const nextIndex = (lastAthleteOriginalIndex + offset) % sortedAthletes.length;
+      const candidate = sortedAthletes[nextIndex];
+      
+      // Check if this candidate is in the active group
+      if (activeGroup.some(a => a.id === candidate.id)) {
+        return candidate;
       }
     }
-    return null;
+    
+    // Fallback: shouldn't reach here if activeGroup is non-empty
+    return activeGroup[0];
   };
 
   const verticalUpAthlete = isVertical ? getVerticalUpAthlete() : null;
@@ -2188,53 +2255,82 @@ function FieldEntryUI({
             <>
               {/* Current Height Bar */}
               {heights && heights.length > 0 ? (
-                <div className="bg-muted/50 p-3 border-b flex items-center justify-between gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleAdvanceHeight(-1)}
-                    disabled={currentHeightIndex <= 0 || advanceHeightMutation.isPending}
-                    data-testid="button-previous-height"
-                  >
-                    <ChevronLeft className="h-4 w-4 mr-1" />
-                    Prev
-                  </Button>
-                  <div className="flex items-center gap-2 flex-wrap justify-center">
-                    <span className="text-sm text-muted-foreground">Current Bar:</span>
-                    <span className="font-mono font-bold text-lg">
-                      {currentHeight ? formatHeightMark(currentHeight.heightMeters) : "-"}
-                    </span>
+                <div className="bg-muted/50 border-b">
+                  <div className="p-3 flex items-center justify-between gap-2">
                     <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => setShowHeightsDialog(true)}
-                      className="h-7 w-7"
-                      data-testid="button-edit-heights"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleAdvanceHeight(-1)}
+                      disabled={currentHeightIndex <= 0 || advanceHeightMutation.isPending}
+                      data-testid="button-previous-height"
                     >
-                      <Settings className="h-4 w-4" />
+                      <ChevronLeft className="h-4 w-4 mr-1" />
+                      Prev
                     </Button>
-                    <div className="flex gap-1">
-                      {heights.sort((a, b) => a.heightIndex - b.heightIndex).map((h) => (
-                        <Badge 
-                          key={h.id} 
-                          variant={h.heightIndex === currentHeightIndex ? "default" : "outline"}
-                          className={`text-xs ${h.heightIndex === currentHeightIndex ? 'ring-2 ring-primary ring-offset-1' : ''}`}
-                        >
-                          {formatHeightMark(h.heightMeters)}
-                        </Badge>
-                      ))}
+                    <div className="flex items-center gap-2 flex-wrap justify-center">
+                      <span className="text-sm text-muted-foreground">Current Bar:</span>
+                      <span className="font-mono font-bold text-lg">
+                        {currentHeight ? formatHeightMark(currentHeight.heightMeters) : "-"}
+                      </span>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => setShowHeightsDialog(true)}
+                        className="h-7 w-7"
+                        data-testid="button-edit-heights"
+                      >
+                        <Settings className="h-4 w-4" />
+                      </Button>
+                      <div className="flex gap-1">
+                        {heights.sort((a, b) => a.heightIndex - b.heightIndex).map((h) => (
+                          <Badge 
+                            key={h.id} 
+                            variant={h.heightIndex === currentHeightIndex ? "default" : "outline"}
+                            className={`text-xs ${h.heightIndex === currentHeightIndex ? 'ring-2 ring-primary ring-offset-1' : ''}`}
+                          >
+                            {formatHeightMark(h.heightMeters)}
+                          </Badge>
+                        ))}
+                      </div>
                     </div>
+                    <Button
+                      size="sm"
+                      variant="default"
+                      onClick={() => handleAdvanceHeight(1)}
+                      disabled={currentHeightIndex >= Math.max(...heights.map(h => h.heightIndex)) || advanceHeightMutation.isPending}
+                      data-testid="button-next-height"
+                    >
+                      Next
+                      <ChevronRight className="h-4 w-4 ml-1" />
+                    </Button>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="default"
-                    onClick={() => handleAdvanceHeight(1)}
-                    disabled={currentHeightIndex >= Math.max(...heights.map(h => h.heightIndex)) || advanceHeightMutation.isPending}
-                    data-testid="button-next-height"
-                  >
-                    Next
-                    <ChevronRight className="h-4 w-4 ml-1" />
-                  </Button>
+                  
+                  {/* Alive Group Selector */}
+                  <div className="px-3 pb-3 flex items-center justify-center gap-2">
+                    <span className="text-xs text-muted-foreground">Alive Group:</span>
+                    <Select 
+                      value={session?.aliveGroupSize?.toString() || "all"}
+                      onValueChange={handleAliveGroupChange}
+                    >
+                      <SelectTrigger className="w-24 h-8" data-testid="select-alive-group">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        <SelectItem value="3">3-Alive</SelectItem>
+                        <SelectItem value="4">4-Alive</SelectItem>
+                        <SelectItem value="5">5-Alive</SelectItem>
+                        <SelectItem value="6">6-Alive</SelectItem>
+                        <SelectItem value="8">8-Alive</SelectItem>
+                        <SelectItem value="10">10-Alive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {session?.aliveGroupSize && (
+                      <span className="text-xs text-muted-foreground">
+                        (next {session.aliveGroupSize} athletes rotate)
+                      </span>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="bg-muted/50 p-4 border-b text-center">
