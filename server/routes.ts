@@ -7636,7 +7636,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Use evtEventNumber for EVT sessions, fall back to eventId or session id
       const eventNum = session.evtEventNumber || session.eventId || session.id;
       res.setHeader('Content-Type', 'text/plain');
-      res.setHeader('Content-Disposition', `attachment; filename="${eventNum}-1-1.lff"`);
+      res.setHeader('Content-Disposition', `attachment; filename="${eventNum}-1-01.lff"`);
       res.send(content);
     } catch (error: any) {
       res.status(500).json({ error: error.message });

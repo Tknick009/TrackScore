@@ -220,7 +220,8 @@ export async function exportSessionToLFF(
   
   // Use evtEventNumber for EVT-imported sessions, fall back to eventId or session id
   const eventNum = session.evtEventNumber || session.eventId || session.id;
-  const filename = `${eventNum}-1-1.lff`;
+  // Format: eventNum-round-flight with zero-padded flight number
+  const filename = `${eventNum}-1-01.lff`;
   const filePath = path.join(options.outputDir, filename);
   
   await fs.writeFile(filePath, content, 'utf-8');
