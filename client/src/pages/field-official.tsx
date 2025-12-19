@@ -546,7 +546,7 @@ function getAthleteAttemptsAtHeight(athleteId: number, heightIndex: number, mark
     } else if (mark.markType === 'missed') {
       display += 'X';
     } else if (mark.markType === 'pass') {
-      display += '-';
+      display += 'PASS';
     }
   }
   return display;
@@ -989,7 +989,7 @@ function VerticalReviewMarksView({
                     className = "text-green-600 font-bold";
                   } else if (attempts.includes('X')) {
                     className = "text-red-500";
-                  } else if (attempts.includes('-')) {
+                  } else if (attempts.includes('PASS')) {
                     className = "text-yellow-600";
                   }
                   
