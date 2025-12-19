@@ -6482,17 +6482,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Get all existing sessions to check which EVT events already have sessions
       const existingSessions = await storage.getAllFieldEventSessions();
-      const existingEvtNumbers = new Set(
-        existingSessions
-          .filter(s => s.evtEventNumber !== null)
-          .map(s => s.evtEventNumber)
-      );
+      const existingEvtSessionMap = new Map<number, typeof existingSessions[0]>();
+      for (const s of existingSessions) {
+        if (s.evtEventNumber !== null) {
+          existingEvtSessionMap.set(s.evtEventNumber, s);
+        }
+      }
       
       const createdSessions = [];
+      let updatedCount = 0;
+      
+      // Update any existing check_in sessions to in_progress
+      for (const session of existingSessions) {
+        if (session.status === "check_in") {
+          await storage.updateFieldEventSession(session.id, { status: "in_progress" });
+          // Also update all athletes to checked_in status
+          const athletes = await storage.getFieldEventAthletes(session.id);
+          for (const athlete of athletes) {
+            if (athlete.checkInStatus === "pending") {
+              await storage.updateFieldEventAthlete(athlete.id, { checkInStatus: "checked_in" });
+            }
+          }
+          updatedCount++;
+        }
+      }
       
       for (const evt of fieldEvents) {
         // Skip if session already exists for this EVT event
-        if (existingEvtNumbers.has(evt.eventNumber)) {
+        if (existingEvtSessionMap.has(evt.eventNumber)) {
           continue;
         }
         
@@ -6512,10 +6529,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const athletesToFinals = isHorizontal ? (config.horizontalFinalists ?? 8) : 8;
         const totalAttempts = prelimAttempts + finalsAttempts;
         
-        // Create session with check_in status
+        // Create session with in_progress status (immediately active and configurable)
         const sessionData = {
           eventId: null,
-          status: "check_in" as const,
+          status: "in_progress" as const,
           measurementUnit: "metric" as const,
           recordWind: false,
           hasFinals: isHorizontal, // Enable finals for horizontal events by default
@@ -6542,7 +6559,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             evtTeam: athlete.team,
             order: athlete.order,
             flightNumber: athlete.flight || 1,
-            checkInStatus: "pending",
+            checkInStatus: "checked_in",
             competitionStatus: "competing",
           });
         }
@@ -6551,7 +6568,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       res.json({ 
-        created: createdSessions.length, 
+        created: createdSessions.length,
+        updated: updatedCount,
         sessions: createdSessions,
         total: fieldEvents.length
       });
