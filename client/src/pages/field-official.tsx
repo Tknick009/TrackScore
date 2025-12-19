@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import leoneTimingLogo from "@assets/LTR-Raulli-sm_1766156518063.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -411,13 +412,13 @@ function JoinSession({
   const activeMeets = meets?.filter(m => m.status === "in_progress" || m.status === "upcoming") || [];
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 overflow-auto">
+    <div className="fixed inset-0 flex flex-col bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 overflow-auto">
       {/* Hero section with logo */}
       <div className="flex-1 flex flex-col items-center justify-center p-6">
         {/* Logo */}
         <div className="mb-8">
           <img 
-            src="/attached_assets/LTR-Raulli-sm_1766156518063.png" 
+            src={leoneTimingLogo} 
             alt="Leone Timing" 
             className="h-32 sm:h-40 md:h-48 w-auto drop-shadow-2xl"
           />
@@ -746,8 +747,8 @@ function AthleteListItem({
           {actionsDropdown}
         </div>
 
-        {/* Bottom row: Attempts */}
-        <div className="flex gap-1.5 pl-14">
+        {/* Bottom row: Attempts - full width on mobile */}
+        <div className="flex gap-1.5 w-full overflow-x-auto">
           {Array.from({ length: totalAttempts }).map((_, i) => {
             const mark = marks[i];
             if (mark) {
@@ -1515,148 +1516,212 @@ function VerticalAthleteListItem({
   
   return (
     <div
-      className={`flex items-center gap-2 sm:gap-4 p-2 sm:p-4 md:p-6 border-b border-border ${
+      className={`p-2 sm:p-4 md:p-6 border-b border-border ${
         isUp ? "bg-green-50 dark:bg-green-950/30" : ""
       } ${eliminated ? "opacity-50" : ""}`}
       data-testid={`vertical-athlete-row-${athlete.id}`}
     >
-      <div className="w-18 md:w-24 shrink-0 text-center">
-        {eliminated ? (
-          <Badge variant="outline" className="text-base md:text-lg px-3 py-1">OUT</Badge>
-        ) : isUp ? (
-          <Badge className="bg-green-600 text-white font-bold px-4 py-2 text-base md:text-lg">UP</Badge>
-        ) : hasCleared ? (
-          <Badge variant="secondary" className="text-base md:text-lg px-3 py-1">CLEAR</Badge>
-        ) : (
-          <span className="text-base md:text-lg text-muted-foreground">{currentHeightAttempts || "-"}</span>
-        )}
-      </div>
-
-      <div 
-        className="flex-1 min-w-0 cursor-pointer active:bg-muted/50" 
-        onClick={eliminated || isDns ? undefined : onClick}
-      >
+      {/* Mobile: stacked layout */}
+      <div className="sm:hidden flex flex-col gap-2">
         <div className="flex items-center gap-2">
-          {showBibNumbers !== false && (
-            <span className="font-mono text-base md:text-lg text-muted-foreground">{info.bib}</span>
-          )}
-          <span className={`font-semibold text-lg md:text-xl ${eliminated ? "line-through" : ""}`}>{info.name}</span>
-          <Badge variant="outline" className="text-sm md:text-base">F{athlete.flightNumber || 1}</Badge>
-        </div>
-        {info.team && (
-          <p className="text-base md:text-lg text-muted-foreground">{info.team}</p>
-        )}
-      </div>
-
-      <div className="flex gap-2 md:gap-3 shrink-0 font-mono text-lg md:text-xl font-bold">
-        {(() => {
-          const heightMarks = marks
-            .filter(m => m.athleteId === athlete.id && m.heightIndex === currentHeightIndex)
-            .sort((a, b) => a.attemptNumber - b.attemptNumber);
-          return heightMarks.map((m) => {
-            const char = m.markType === 'cleared' ? 'O' : m.markType === 'missed' ? 'X' : '-';
-            return (
-              <button
-                key={m.id}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEditMark(m);
-                }}
-                className={`px-2 md:px-3 py-1 rounded hover:bg-muted/50 hover:ring-1 hover:ring-primary ${
-                  char === 'O' ? 'text-green-600' : 
-                  char === 'X' ? 'text-red-500' : 
-                  'text-yellow-600'
-                }`}
-                data-testid={`button-edit-vertical-mark-${m.id}`}
-              >
-                {char}
-              </button>
-            );
-          });
-        })()}
-        {!eliminated && !hasCleared && currentHeightAttempts.length < 3 && (
-          <span className="text-muted-foreground">_</span>
-        )}
-      </div>
-
-      <div className="w-20 md:w-24 text-right shrink-0">
-        {highestCleared ? (
-          <span className="font-mono font-semibold text-base md:text-lg">{formatHeightMark(highestCleared.heightMeters)}</span>
-        ) : (
-          <span className="text-muted-foreground text-base md:text-lg">-</span>
-        )}
-      </div>
-
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="h-12 w-12 md:h-14 md:w-14 shrink-0"
-            data-testid={`button-vertical-athlete-menu-${athlete.id}`}
+          <div className="w-14 shrink-0 text-center">
+            {eliminated ? (
+              <Badge variant="outline" className="text-sm px-2 py-0.5">OUT</Badge>
+            ) : isUp ? (
+              <Badge className="bg-green-600 text-white font-bold px-2 py-1 text-sm">UP</Badge>
+            ) : hasCleared ? (
+              <Badge variant="secondary" className="text-sm px-2 py-0.5">CLEAR</Badge>
+            ) : (
+              <span className="text-sm text-muted-foreground">{currentHeightAttempts || "-"}</span>
+            )}
+          </div>
+          <div 
+            className="flex-1 min-w-0 cursor-pointer active:bg-muted/50" 
+            onClick={eliminated || isDns ? undefined : onClick}
           >
-            <MoreVertical className="h-6 w-6 md:h-7 md:w-7" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          {isDns ? (
-            <DropdownMenuItem
-              onClick={() => onChangeStatus(athlete.id, "checked_in", "competing")}
-              data-testid={`menu-vertical-check-in-${athlete.id}`}
-            >
-              <Check className="h-4 w-4 mr-2" />
-              Check In
-            </DropdownMenuItem>
-          ) : (
-            <DropdownMenuItem
-              onClick={() => onChangeStatus(athlete.id, "dns", "dns")}
-              data-testid={`menu-vertical-mark-dns-${athlete.id}`}
-            >
-              <X className="h-4 w-4 mr-2" />
-              Mark as No Show
-            </DropdownMenuItem>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {showBibNumbers !== false && (
+                <span className="font-mono text-sm text-muted-foreground">{info.bib}</span>
+              )}
+              <span className={`font-semibold text-base ${eliminated ? "line-through" : ""}`}>{info.name}</span>
+            </div>
+            {info.team && (
+              <p className="text-sm text-muted-foreground truncate">{info.team}</p>
+            )}
+          </div>
+          {highestCleared && (
+            <div className="text-right shrink-0">
+              <span className="font-mono font-bold text-base">{formatHeightMark(highestCleared.heightMeters)}</span>
+            </div>
           )}
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>
-              <ArrowRightLeft className="h-4 w-4 mr-2" />
-              Move to Flight
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
-              {flightOptions.map((flight) => (
-                <DropdownMenuItem
-                  key={flight}
-                  disabled={flight === (athlete.flightNumber || 1)}
-                  onClick={() => onMoveFlight(athlete.id, flight)}
-                  data-testid={`menu-vertical-move-flight-${flight}`}
+        </div>
+        <div className="flex gap-1.5 overflow-x-auto w-full">
+          {(() => {
+            const heightMarks = marks
+              .filter(m => m.athleteId === athlete.id && m.heightIndex === currentHeightIndex)
+              .sort((a, b) => a.attemptNumber - b.attemptNumber);
+            return heightMarks.map((m) => {
+              const char = m.markType === 'cleared' ? 'O' : m.markType === 'missed' ? 'X' : '-';
+              return (
+                <button
+                  key={m.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEditMark(m);
+                  }}
+                  className={`min-w-[2.5rem] h-8 rounded font-mono text-sm font-bold flex items-center justify-center ${
+                    char === 'O' ? 'bg-green-600 text-white' : char === 'X' ? 'bg-red-600 text-white' : 'bg-yellow-400 text-black'
+                  }`}
+                  data-testid={`button-edit-vertical-mark-mobile-${m.id}`}
                 >
-                  Flight {flight}
-                  {flight === (athlete.flightNumber || 1) && " (current)"}
-                  {flight === totalFlights + 1 && " (new)"}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-          {!isDns && !eliminated && (!athlete.startingHeightIndex || athlete.startingHeightIndex === 0) && heights.length > 0 && (
+                  {char}
+                </button>
+              );
+            });
+          })()}
+        </div>
+      </div>
+
+      {/* Desktop: horizontal layout */}
+      <div className="hidden sm:flex items-center gap-4">
+        <div className="w-18 md:w-24 shrink-0 text-center">
+          {eliminated ? (
+            <Badge variant="outline" className="text-base md:text-lg px-3 py-1">OUT</Badge>
+          ) : isUp ? (
+            <Badge className="bg-green-600 text-white font-bold px-4 py-2 text-base md:text-lg">UP</Badge>
+          ) : hasCleared ? (
+            <Badge variant="secondary" className="text-base md:text-lg px-3 py-1">CLEAR</Badge>
+          ) : (
+            <span className="text-base md:text-lg text-muted-foreground">{currentHeightAttempts || "-"}</span>
+          )}
+        </div>
+
+        <div 
+          className="flex-1 min-w-0 cursor-pointer active:bg-muted/50" 
+          onClick={eliminated || isDns ? undefined : onClick}
+        >
+          <div className="flex items-center gap-2">
+            {showBibNumbers !== false && (
+              <span className="font-mono text-base md:text-lg text-muted-foreground">{info.bib}</span>
+            )}
+            <span className={`font-semibold text-lg md:text-xl ${eliminated ? "line-through" : ""}`}>{info.name}</span>
+            <Badge variant="outline" className="text-sm md:text-base">F{athlete.flightNumber || 1}</Badge>
+          </div>
+          {info.team && (
+            <p className="text-base md:text-lg text-muted-foreground">{info.team}</p>
+          )}
+        </div>
+
+        <div className="flex gap-2 md:gap-3 shrink-0 font-mono text-lg md:text-xl font-bold">
+          {(() => {
+            const heightMarks = marks
+              .filter(m => m.athleteId === athlete.id && m.heightIndex === currentHeightIndex)
+              .sort((a, b) => a.attemptNumber - b.attemptNumber);
+            return heightMarks.map((m) => {
+              const char = m.markType === 'cleared' ? 'O' : m.markType === 'missed' ? 'X' : '-';
+              return (
+                <button
+                  key={m.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEditMark(m);
+                  }}
+                  className={`px-2 md:px-3 py-1 rounded hover:bg-muted/50 hover:ring-1 hover:ring-primary ${
+                    char === 'O' ? 'text-green-600' : 
+                    char === 'X' ? 'text-red-500' : 
+                    'text-yellow-600'
+                  }`}
+                  data-testid={`button-edit-vertical-mark-${m.id}`}
+                >
+                  {char}
+                </button>
+              );
+            });
+          })()}
+          {!eliminated && !hasCleared && currentHeightAttempts.length < 3 && (
+            <span className="text-muted-foreground">_</span>
+          )}
+        </div>
+
+        <div className="w-20 md:w-24 text-right shrink-0">
+          {highestCleared ? (
+            <span className="font-mono font-semibold text-base md:text-lg">{formatHeightMark(highestCleared.heightMeters)}</span>
+          ) : (
+            <span className="text-muted-foreground text-base md:text-lg">-</span>
+          )}
+        </div>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-12 w-12 md:h-14 md:w-14 shrink-0"
+              data-testid={`button-vertical-athlete-menu-${athlete.id}`}
+            >
+              <MoreVertical className="h-6 w-6 md:h-7 md:w-7" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {isDns ? (
+              <DropdownMenuItem
+                onClick={() => onChangeStatus(athlete.id, "checked_in", "competing")}
+                data-testid={`menu-vertical-check-in-${athlete.id}`}
+              >
+                <Check className="h-4 w-4 mr-2" />
+                Check In
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem
+                onClick={() => onChangeStatus(athlete.id, "dns", "dns")}
+                data-testid={`menu-vertical-mark-dns-${athlete.id}`}
+              >
+                <X className="h-4 w-4 mr-2" />
+                Mark as No Show
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSub>
-              <DropdownMenuSubTrigger data-testid={`button-set-opening-height-${athlete.id}`}>
-                <Ruler className="h-4 w-4 mr-2" />
-                Set Opening Height
+              <DropdownMenuSubTrigger>
+                <ArrowRightLeft className="h-4 w-4 mr-2" />
+                Move to Flight
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent>
-                {heights.sort((a, b) => a.heightIndex - b.heightIndex).map((h) => (
+                {flightOptions.map((flight) => (
                   <DropdownMenuItem
-                    key={h.id}
-                    onClick={() => onSetOpeningHeight(athlete.id, h.heightIndex)}
-                    data-testid={`menu-set-opening-height-${h.heightIndex}`}
+                    key={flight}
+                    disabled={flight === (athlete.flightNumber || 1)}
+                    onClick={() => onMoveFlight(athlete.id, flight)}
+                    data-testid={`menu-vertical-move-flight-${flight}`}
                   >
-                    {formatHeightMark(h.heightMeters)}
+                    Flight {flight}
+                    {flight === (athlete.flightNumber || 1) && " (current)"}
+                    {flight === totalFlights + 1 && " (new)"}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuSubContent>
             </DropdownMenuSub>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+            {!isDns && !eliminated && (!athlete.startingHeightIndex || athlete.startingHeightIndex === 0) && heights.length > 0 && (
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger data-testid={`button-set-opening-height-${athlete.id}`}>
+                  <Ruler className="h-4 w-4 mr-2" />
+                  Set Opening Height
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  {heights.sort((a, b) => a.heightIndex - b.heightIndex).map((h) => (
+                    <DropdownMenuItem
+                      key={h.id}
+                      onClick={() => onSetOpeningHeight(athlete.id, h.heightIndex)}
+                      data-testid={`menu-set-opening-height-${h.heightIndex}`}
+                    >
+                      {formatHeightMark(h.heightMeters)}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </div>
   );
 }
@@ -3267,7 +3332,54 @@ function FieldEntryUI({
               {/* Current Height Bar - iPad optimized */}
               {heights && heights.length > 0 ? (
                 <div className="bg-muted/50 border-b">
-                  <div className="p-2 sm:p-4 md:p-5 flex items-center justify-between gap-3">
+                  {/* Mobile: stacked layout */}
+                  <div className="sm:hidden p-2">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleAdvanceHeight(-1)}
+                        disabled={currentHeightIndex <= 0 || advanceHeightMutation.isPending}
+                        data-testid="button-previous-height-mobile"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                        Prev
+                      </Button>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-muted-foreground">Bar:</span>
+                        <span className="font-mono font-bold text-xl">
+                          {currentHeight ? formatHeightMark(currentHeight.heightMeters) : "-"}
+                        </span>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="default"
+                        onClick={() => handleAdvanceHeight(1)}
+                        disabled={currentHeightIndex >= Math.max(...heights.map(h => h.heightIndex)) || advanceHeightMutation.isPending}
+                        data-testid="button-next-height-mobile"
+                      >
+                        Next
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div className="flex gap-1.5 overflow-x-auto pb-1">
+                      {heights.sort((a, b) => a.heightIndex - b.heightIndex).map((h) => (
+                        <Badge 
+                          key={h.id} 
+                          variant={h.heightIndex === currentHeightIndex ? "default" : "outline"}
+                          className={`text-xs px-2 py-0.5 cursor-pointer shrink-0 ${
+                            h.heightIndex === currentHeightIndex ? 'ring-2 ring-primary ring-offset-1' : ''
+                          }`}
+                          onClick={() => handleJumpToHeight(h.heightIndex)}
+                          data-testid={`badge-height-mobile-${h.heightIndex}`}
+                        >
+                          {formatHeightMark(h.heightMeters)}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Desktop: horizontal layout */}
+                  <div className="hidden sm:flex p-4 md:p-5 items-center justify-between gap-3">
                     <Button
                       size="lg"
                       variant="outline"
