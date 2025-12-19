@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { LogOut, Check, X, Minus, Loader2, ChevronDown, ChevronLeft, ChevronRight, Users, Trophy, Grid3X3, Circle, MoreVertical, UserPlus, ArrowRightLeft, Search, Star, Pencil, Trash2, Ruler, GripVertical, Plus, Settings } from "lucide-react";
+import { LogOut, Check, X, Minus, Loader2, ChevronDown, ChevronLeft, ChevronRight, Users, Trophy, Grid3X3, Circle, MoreVertical, UserPlus, ArrowRightLeft, Search, Star, Pencil, Trash2, Ruler, GripVertical, Plus, Settings, Delete } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DialogDescription } from "@/components/ui/dialog";
 import {
@@ -605,15 +605,19 @@ function MarkEntrySheet({
   attemptNumber,
   totalAttempts,
   onRecordMark,
+  onDeleteLastMark,
   onClose,
-  isPending
+  isPending,
+  canDeleteLast
 }: {
   athlete: EnrichedAthlete;
   attemptNumber: number;
   totalAttempts: number;
   onRecordMark: (markType: "mark" | "foul" | "pass", measurement?: string) => void;
+  onDeleteLastMark: () => void;
   onClose: () => void;
   isPending: boolean;
+  canDeleteLast: boolean;
 }) {
   const [measurement, setMeasurement] = useState("");
   const info = getAthleteDisplayInfo(athlete);
@@ -641,9 +645,24 @@ function MarkEntrySheet({
               {info.team && `${info.team} • `}Attempt {attemptNumber} of {totalAttempts}
             </p>
           </div>
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            <ChevronDown className="h-5 w-5" />
-          </Button>
+          <div className="flex items-center gap-2">
+            {canDeleteLast && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={onDeleteLastMark}
+                disabled={isPending}
+                className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground"
+                data-testid="button-undo-last-mark"
+              >
+                <Delete className="h-4 w-4 mr-1" />
+                Undo
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              <ChevronDown className="h-5 w-5" />
+            </Button>
+          </div>
         </div>
 
         {/* Input */}
@@ -1229,16 +1248,20 @@ function VerticalAttemptSheet({
   currentHeightIndex,
   marks,
   onRecordMark,
+  onDeleteLastMark,
   onClose,
-  isPending
+  isPending,
+  canDeleteLast
 }: {
   athlete: EnrichedAthlete;
   heights: FieldHeight[];
   currentHeightIndex: number;
   marks: FieldEventMark[];
   onRecordMark: (markType: "cleared" | "missed" | "pass") => void;
+  onDeleteLastMark: () => void;
   onClose: () => void;
   isPending: boolean;
+  canDeleteLast: boolean;
 }) {
   const info = getAthleteDisplayInfo(athlete);
   const currentHeight = heights.find(h => h.heightIndex === currentHeightIndex);
@@ -1263,9 +1286,24 @@ function VerticalAttemptSheet({
               Attempt {attemptNumber} of 3
             </p>
           </div>
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            <ChevronDown className="h-5 w-5" />
-          </Button>
+          <div className="flex items-center gap-2">
+            {canDeleteLast && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={onDeleteLastMark}
+                disabled={isPending}
+                className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground"
+                data-testid="button-undo-last-vertical-mark"
+              >
+                <Delete className="h-4 w-4 mr-1" />
+                Undo
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              <ChevronDown className="h-5 w-5" />
+            </Button>
+          </div>
         </div>
 
         <div className="p-4">
@@ -2036,6 +2074,21 @@ function FieldEntryUI({
     updateAliveGroupMutation.mutate(size);
   };
 
+  // Mutation to delete a mark (for undo functionality)
+  const deleteMarkMutation = useMutation({
+    mutationFn: async (markId: number) => {
+      return apiRequest("DELETE", `/api/field-marks/${markId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "marks"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "athletes"] });
+      toast({ title: "Last mark deleted" });
+    },
+    onError: (error: Error) => {
+      toast({ title: error.message || "Failed to delete mark", variant: "destructive" });
+    },
+  });
+
   const handleLeave = () => {
     sessionStorage.removeItem(SESSION_STORAGE_KEY);
     onLeave();
@@ -2125,6 +2178,38 @@ function FieldEntryUI({
     };
 
     submitMarkMutation.mutate(markData);
+  };
+
+  // Get last mark for selected athlete (for undo button)
+  const getLastMarkForAthlete = (athleteId: number): FieldEventMark | null => {
+    const athleteMarks = (marks || [])
+      .filter(m => m.athleteId === athleteId)
+      .sort((a, b) => b.id - a.id); // Sort by ID descending to get most recent
+    return athleteMarks[0] || null;
+  };
+
+  // Get last mark at current height for vertical events
+  const getLastVerticalMarkForAthlete = (athleteId: number): FieldEventMark | null => {
+    const athleteMarks = (marks || [])
+      .filter(m => m.athleteId === athleteId && m.heightIndex === currentHeightIndex)
+      .sort((a, b) => b.id - a.id);
+    return athleteMarks[0] || null;
+  };
+
+  const handleDeleteLastMark = () => {
+    if (!selectedAthlete) return;
+    const lastMark = getLastMarkForAthlete(selectedAthlete.id);
+    if (lastMark) {
+      deleteMarkMutation.mutate(lastMark.id);
+    }
+  };
+
+  const handleDeleteLastVerticalMark = () => {
+    if (!selectedAthlete) return;
+    const lastMark = getLastVerticalMarkForAthlete(selectedAthlete.id);
+    if (lastMark) {
+      deleteMarkMutation.mutate(lastMark.id);
+    }
   };
 
   // For vertical events, find the "Up" athlete with proper rotation
@@ -2566,8 +2651,10 @@ function FieldEntryUI({
           currentHeightIndex={currentHeightIndex}
           marks={marks || []}
           onRecordMark={recordVerticalMark}
+          onDeleteLastMark={handleDeleteLastVerticalMark}
           onClose={() => setSelectedAthleteId(null)}
-          isPending={submitMarkMutation.isPending}
+          isPending={submitMarkMutation.isPending || deleteMarkMutation.isPending}
+          canDeleteLast={!!getLastVerticalMarkForAthlete(selectedAthlete.id)}
         />
       ) : selectedAthlete ? (
         <MarkEntrySheet
@@ -2575,8 +2662,10 @@ function FieldEntryUI({
           attemptNumber={nextAttemptNumber}
           totalAttempts={totalAttempts}
           onRecordMark={recordMark}
+          onDeleteLastMark={handleDeleteLastMark}
           onClose={() => setSelectedAthleteId(null)}
-          isPending={submitMarkMutation.isPending}
+          isPending={submitMarkMutation.isPending || deleteMarkMutation.isPending}
+          canDeleteLast={!!getLastMarkForAthlete(selectedAthlete.id)}
         />
       ) : null}
 
