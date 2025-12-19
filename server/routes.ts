@@ -69,6 +69,7 @@ import {
 import { exportSessionToLFF, generateLFFContent } from './lff-exporter';
 import { syncAthletesFromEVT, startEVTWatcher, stopEVTWatcher, initEVTWatchers } from './evt-watcher';
 import { parseEVTDirectory, getAthletesFromDirectory, type EVTEventSummary, type EVTAthlete } from './evt-parser';
+import { externalScoreboardService, buildFieldScoreboardPayload } from './external-scoreboard-service';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -380,6 +381,21 @@ async function broadcastFieldEventUpdate(sessionId: number) {
     // Also broadcast to all display clients
     broadcastToDisplays(message);
     console.log(`[Field Broadcast] Session ${sessionId}: broadcast complete`);
+
+    // Send to external scoreboards
+    try {
+      const lastMark = session.marks && session.marks.length > 0
+        ? session.marks.sort((a, b) => 
+            new Date(b.recordedAt || 0).getTime() - new Date(a.recordedAt || 0).getTime()
+          )[0]
+        : null;
+
+      const scoreboardPayload = buildFieldScoreboardPayload(session, currentAthleteId, lastMark);
+      await externalScoreboardService.sendToSession(sessionId, scoreboardPayload);
+      console.log(`[Field Broadcast] Session ${sessionId}: sent to external scoreboards`);
+    } catch (extError) {
+      console.error(`[Field Broadcast] Error sending to external scoreboards:`, extError);
+    }
   } catch (error) {
     console.error(`[Field Broadcast] Error broadcasting session ${sessionId}:`, error);
   }
@@ -7568,31 +7584,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Start external scoreboard (set isActive=true)
+  // Start external scoreboard - initiates TCP connection
   app.post("/api/external-scoreboards/:id/start", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ error: "Invalid scoreboard ID" });
       }
-      const scoreboard = await storage.updateExternalScoreboard(id, { isActive: true });
-      if (!scoreboard) {
+      const success = await externalScoreboardService.startScoreboard(id);
+      if (!success) {
         return res.status(404).json({ error: "Scoreboard not found" });
       }
+      const scoreboard = await storage.getExternalScoreboard(id);
       res.json(scoreboard);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  // Stop external scoreboard (set isActive=false)
+  // Stop external scoreboard - closes TCP connection
   app.post("/api/external-scoreboards/:id/stop", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ error: "Invalid scoreboard ID" });
       }
-      const scoreboard = await storage.updateExternalScoreboard(id, { isActive: false });
+      await externalScoreboardService.stopScoreboard(id);
+      const scoreboard = await storage.getExternalScoreboard(id);
       if (!scoreboard) {
         return res.status(404).json({ error: "Scoreboard not found" });
       }
@@ -7602,7 +7620,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Trigger immediate send (placeholder)
+  // Trigger immediate send to scoreboard
   app.post("/api/external-scoreboards/:id/send", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
@@ -7612,6 +7630,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const scoreboard = await storage.getExternalScoreboard(id);
       if (!scoreboard) {
         return res.status(404).json({ error: "Scoreboard not found" });
+      }
+      if (scoreboard.sessionId) {
+        await broadcastFieldEventUpdate(scoreboard.sessionId);
       }
       res.json({ success: true, message: "Send triggered" });
     } catch (error: any) {

@@ -409,14 +409,14 @@ export default function ExternalScoreboards() {
             <div className="space-y-2">
               <Label htmlFor="sessionId">Field Event Session</Label>
               <Select
-                value={formData.sessionId}
-                onValueChange={(value) => setFormData({ ...formData, sessionId: value })}
+                value={formData.sessionId || "none"}
+                onValueChange={(value) => setFormData({ ...formData, sessionId: value === "none" ? "" : value })}
               >
                 <SelectTrigger data-testid="select-session">
                   <SelectValue placeholder="Select a session (optional)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="" data-testid="select-session-none">
+                  <SelectItem value="none" data-testid="select-session-none">
                     None
                   </SelectItem>
                   {fieldSessions.map((session) => (
