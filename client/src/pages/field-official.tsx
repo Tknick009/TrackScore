@@ -914,19 +914,19 @@ function StandingsView({
       {rankedAthletes.map((item, index) => {
         const info = getAthleteDisplayInfo(item.athlete);
         return (
-          <div key={item.athlete.id} className="flex items-center gap-3 p-4 md:p-5">
-            <div className="w-10 md:w-12 text-center font-bold text-lg md:text-xl">
+          <div key={item.athlete.id} className="flex items-center gap-4 p-4 md:p-5">
+            <div className="w-10 md:w-12 text-center font-bold text-lg md:text-xl shrink-0">
               {item.best !== null ? index + 1 : "-"}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-base md:text-lg truncate">{info.name}</p>
-              <p className="text-sm text-muted-foreground">{info.team || info.bib}</p>
+              <p className="font-semibold text-base md:text-lg">{info.name}</p>
+              <p className="text-sm md:text-base text-muted-foreground">{info.team || info.bib}</p>
             </div>
-            <div className="text-right">
+            <div className="text-right shrink-0">
               <p className="font-mono font-bold text-lg md:text-xl">
                 {item.best !== null ? item.best.toFixed(2) : "-"}
               </p>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm md:text-base text-muted-foreground">
                 {item.marks.filter(m => m.markType === "mark").length} marks
               </p>
             </div>
@@ -973,8 +973,8 @@ function ReviewMarksView({
 
             return (
               <tr key={athlete.id} className="border-b">
-                <td className="p-3 md:p-4 sticky left-0 bg-background">
-                  <div className="font-semibold text-base md:text-lg truncate max-w-32 md:max-w-48">{info.name}</div>
+                <td className="p-3 md:p-4 sticky left-0 bg-background min-w-[140px] md:min-w-[200px]">
+                  <div className="font-semibold text-base md:text-lg">{info.name}</div>
                 </td>
                 {Array.from({ length: totalAttempts }).map((_, i) => {
                   const mark = athleteMarks.find(m => m.attemptNumber === i + 1);
@@ -1439,28 +1439,28 @@ function VerticalStandingsView({
         return (
           <div 
             key={item.athlete.id} 
-            className={`flex items-center gap-3 p-4 md:p-5 ${item.eliminated ? 'opacity-50' : ''}`}
+            className={`flex items-center gap-4 p-4 md:p-5 ${item.eliminated ? 'opacity-50' : ''}`}
           >
-            <div className="w-10 md:w-12 text-center font-bold text-lg md:text-xl">
+            <div className="w-10 md:w-12 text-center font-bold text-lg md:text-xl shrink-0">
               {item.place ?? "-"}
             </div>
             <div className="flex-1 min-w-0">
-              <p className={`font-semibold text-base md:text-lg truncate ${item.eliminated ? 'line-through' : ''}`}>
+              <p className={`font-semibold text-base md:text-lg ${item.eliminated ? 'line-through' : ''}`}>
                 {info.name}
               </p>
-              <p className="text-sm text-muted-foreground">{info.team || info.bib}</p>
+              <p className="text-sm md:text-base text-muted-foreground">{info.team || info.bib}</p>
             </div>
-            <div className="text-right">
+            <div className="text-right shrink-0">
               <p className="font-mono font-bold text-lg md:text-xl">
                 {item.highestCleared ? formatHeightMark(item.highestCleared.heightMeters) : "-"}
               </p>
               {item.highestCleared && (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm md:text-base text-muted-foreground">
                   {item.missesAtBest}x @ best, {item.totalMisses} total
                 </p>
               )}
               {item.eliminated && (
-                <Badge variant="outline" className="text-sm mt-1">Eliminated</Badge>
+                <Badge variant="outline" className="text-sm md:text-base mt-1">Eliminated</Badge>
               )}
             </div>
           </div>
@@ -1505,8 +1505,8 @@ function VerticalReviewMarksView({
 
             return (
               <tr key={athlete.id} className={`border-b ${eliminated ? 'opacity-50' : ''}`}>
-                <td className="p-3 md:p-4 sticky left-0 bg-background">
-                  <div className={`font-semibold text-base md:text-lg truncate max-w-32 md:max-w-48 ${eliminated ? 'line-through' : ''}`}>
+                <td className="p-3 md:p-4 sticky left-0 bg-background min-w-[140px] md:min-w-[200px]">
+                  <div className={`font-semibold text-base md:text-lg ${eliminated ? 'line-through' : ''}`}>
                     {info.name}
                   </div>
                 </td>
