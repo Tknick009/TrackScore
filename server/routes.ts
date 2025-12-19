@@ -6448,6 +6448,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Auto-provision sessions for all EVT events
+  app.post("/api/evt-events/provision-all", async (req, res) => {
+    try {
+      const config = loadEVTConfig();
+      if (!config || !config.directoryPath) {
+        return res.json({ created: 0, sessions: [] });
+      }
+      
+      const { summaries } = parseEVTDirectory(config.directoryPath);
+      const fieldEvents = summaries.filter(evt => isFieldEventName(evt.eventName));
+      
+      // Get all existing sessions to check which EVT events already have sessions
+      const existingSessions = await storage.getAllFieldEventSessions();
+      const existingEvtNumbers = new Set(
+        existingSessions
+          .filter(s => s.evtEventNumber !== null)
+          .map(s => s.evtEventNumber)
+      );
+      
+      const createdSessions = [];
+      
+      for (const evt of fieldEvents) {
+        // Skip if session already exists for this EVT event
+        if (existingEvtNumbers.has(evt.eventNumber)) {
+          continue;
+        }
+        
+        // Generate access code
+        const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+        let accessCode = "";
+        for (let i = 0; i < 6; i++) {
+          accessCode += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        
+        // Create session with check_in status
+        const sessionData = {
+          eventId: null,
+          status: "check_in" as const,
+          measurementUnit: "metric" as const,
+          recordWind: false,
+          hasFinals: false,
+          prelimAttempts: 3,
+          finalsAttempts: 3,
+          athletesToFinals: 8,
+          totalAttempts: 6,
+          accessCode,
+          evtEventNumber: evt.eventNumber,
+          evtEventName: evt.eventName,
+        };
+        
+        const session = await storage.createFieldEventSession(sessionData);
+        
+        // Also load athletes from EVT file and add them
+        const athletes = getAthletesFromDirectory(config.directoryPath, evt.eventNumber);
+        for (const athlete of athletes) {
+          await storage.createFieldEventAthlete({
+            sessionId: session.id,
+            entryId: null,
+            evtBibNumber: athlete.bibNumber,
+            evtFirstName: athlete.firstName,
+            evtLastName: athlete.lastName,
+            evtTeam: athlete.team,
+            order: athlete.order,
+            flightNumber: athlete.flight || 1,
+            checkInStatus: "pending",
+            competitionStatus: "competing",
+          });
+        }
+        
+        createdSessions.push(session);
+      }
+      
+      res.json({ 
+        created: createdSessions.length, 
+        sessions: createdSessions,
+        total: fieldEvents.length
+      });
+    } catch (error: any) {
+      console.error("Error provisioning EVT sessions:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // ===============================
   // FIELD EVENT SESSION ROUTES
   // ===============================
