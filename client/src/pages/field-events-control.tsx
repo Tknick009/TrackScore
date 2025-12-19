@@ -433,6 +433,28 @@ export default function FieldEventsControl() {
 
   const evtEvents = evtEventsData?.events || [];
 
+  // Auto-provision sessions for all EVT events
+  const [hasProvisioned, setHasProvisioned] = useState(false);
+  
+  useEffect(() => {
+    if (evtEvents.length > 0 && !hasProvisioned) {
+      const provisionSessions = async () => {
+        try {
+          const response = await apiRequest("POST", "/api/evt-events/provision-all", {});
+          const result = await response.json();
+          if (result.created > 0) {
+            toast({ title: `Created ${result.created} event sessions` });
+            queryClient.invalidateQueries({ queryKey: ["/api/field-sessions"] });
+          }
+          setHasProvisioned(true);
+        } catch (error) {
+          console.error("Error provisioning sessions:", error);
+        }
+      };
+      provisionSessions();
+    }
+  }, [evtEvents.length, hasProvisioned]);
+
   const { data: events = [], isLoading: eventsLoading } = useQuery<Event[]>({
     queryKey: ["/api/events", currentMeetId],
     queryFn: () => fetch(`/api/events?meetId=${currentMeetId}`).then(r => r.json()),
