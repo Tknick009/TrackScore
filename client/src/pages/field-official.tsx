@@ -457,6 +457,7 @@ function AthleteListItem({
   totalFlights,
   onMoveFlight,
   onChangeStatus,
+  onEditMark,
   isDns = false,
 }: { 
   athlete: EnrichedAthlete; 
@@ -469,6 +470,7 @@ function AthleteListItem({
   totalFlights: number;
   onMoveFlight: (athleteId: number, newFlight: number) => void;
   onChangeStatus: (athleteId: number, checkInStatus: string, competitionStatus: string) => void;
+  onEditMark: (mark: FieldEventMark) => void;
   isDns?: boolean;
 }) {
   const info = getAthleteDisplayInfo(athlete);
@@ -507,8 +509,8 @@ function AthleteListItem({
         )}
       </div>
 
-      {/* Attempt dots */}
-      <div className="flex gap-0.5 shrink-0">
+      {/* Attempt dots - clickable to edit */}
+      <div className="flex gap-1 shrink-0">
         {Array.from({ length: totalAttempts }).map((_, i) => {
           const mark = marks[i];
           let bgColor = "bg-gray-300 dark:bg-gray-600";
@@ -517,7 +519,19 @@ function AthleteListItem({
             else if (mark.markType === "foul") bgColor = "bg-red-500";
             else if (mark.markType === "pass") bgColor = "bg-yellow-500";
           }
-          return <div key={i} className={`w-2.5 h-2.5 rounded-full ${bgColor}`} />;
+          return mark ? (
+            <button
+              key={i}
+              onClick={(e) => {
+                e.stopPropagation();
+                onEditMark(mark);
+              }}
+              className={`w-4 h-4 rounded-full ${bgColor} hover:ring-2 hover:ring-primary hover:ring-offset-1 transition-all`}
+              data-testid={`button-edit-mark-dot-${mark.id}`}
+            />
+          ) : (
+            <div key={i} className={`w-4 h-4 rounded-full ${bgColor}`} />
+          );
         })}
       </div>
 
@@ -1059,6 +1073,7 @@ function VerticalAthleteListItem({
   totalFlights,
   onMoveFlight,
   onChangeStatus,
+  onEditMark,
   isDns = false,
 }: {
   athlete: EnrichedAthlete;
@@ -1071,6 +1086,7 @@ function VerticalAthleteListItem({
   totalFlights: number;
   onMoveFlight: (athleteId: number, newFlight: number) => void;
   onChangeStatus: (athleteId: number, checkInStatus: string, competitionStatus: string) => void;
+  onEditMark: (mark: FieldEventMark) => void;
   isDns?: boolean;
 }) {
   const info = getAthleteDisplayInfo(athlete);
@@ -1113,19 +1129,32 @@ function VerticalAthleteListItem({
         )}
       </div>
 
-      <div className="flex gap-0.5 shrink-0 font-mono text-sm font-bold">
-        {currentHeightAttempts.split('').map((char, i) => (
-          <span 
-            key={i} 
-            className={
-              char === 'O' ? 'text-green-600' : 
-              char === 'X' ? 'text-red-500' : 
-              'text-yellow-600'
-            }
-          >
-            {char}
-          </span>
-        ))}
+      <div className="flex gap-1 shrink-0 font-mono text-sm font-bold">
+        {(() => {
+          const heightMarks = marks
+            .filter(m => m.athleteId === athlete.id && m.heightIndex === currentHeightIndex)
+            .sort((a, b) => a.attemptNumber - b.attemptNumber);
+          return heightMarks.map((m) => {
+            const char = m.markType === 'cleared' ? 'O' : m.markType === 'missed' ? 'X' : '-';
+            return (
+              <button
+                key={m.id}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEditMark(m);
+                }}
+                className={`px-1 rounded hover:bg-muted/50 hover:ring-1 hover:ring-primary ${
+                  char === 'O' ? 'text-green-600' : 
+                  char === 'X' ? 'text-red-500' : 
+                  'text-yellow-600'
+                }`}
+                data-testid={`button-edit-vertical-mark-${m.id}`}
+              >
+                {char}
+              </button>
+            );
+          });
+        })()}
         {!eliminated && !hasCleared && currentHeightAttempts.length < 3 && (
           <span className="text-muted-foreground">_</span>
         )}
@@ -2361,6 +2390,7 @@ function FieldEntryUI({
                       totalFlights={totalFlights}
                       onMoveFlight={handleMoveFlight}
                       onChangeStatus={handleChangeStatus}
+                      onEditMark={setEditingMark}
                     />
                   ))}
                 </div>
@@ -2402,6 +2432,7 @@ function FieldEntryUI({
                         totalFlights={totalFlights}
                         onMoveFlight={handleMoveFlight}
                         onChangeStatus={handleChangeStatus}
+                        onEditMark={setEditingMark}
                         isDns={true}
                       />
                     ))}
@@ -2427,6 +2458,7 @@ function FieldEntryUI({
                       totalFlights={totalFlights}
                       onMoveFlight={handleMoveFlight}
                       onChangeStatus={handleChangeStatus}
+                      onEditMark={setEditingMark}
                     />
                   ))}
                 </div>
@@ -2468,6 +2500,7 @@ function FieldEntryUI({
                         totalFlights={totalFlights}
                         onMoveFlight={handleMoveFlight}
                         onChangeStatus={handleChangeStatus}
+                        onEditMark={setEditingMark}
                         isDns={true}
                       />
                     ))}
