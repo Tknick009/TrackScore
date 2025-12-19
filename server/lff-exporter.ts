@@ -127,12 +127,15 @@ export function generateVerticalLFF(
   const sortedHeights = [...heights].sort((a, b) => a.heightMeters - b.heightMeters);
   const heightValues = sortedHeights.map(h => formatMark(h.heightMeters, options.measurementSystem));
   
+  // Use lowercase measurement system as per FieldLynx spec
+  const measurementSystem = options.measurementSystem.toLowerCase();
+  
   const headerParts = [
     eventNumber,
     roundNumber,
     flightNumber,
     eventName,
-    options.measurementSystem,
+    measurementSystem,
     "SH",
     ...heightValues,
     "EH"
@@ -145,10 +148,12 @@ export function generateVerticalLFF(
     
     const athleteMarks = marks.filter(m => m.athleteId === standing.athleteId);
     
-    const place = standing.place || "";
+    // Athletes with no cleared heights (NH) should have empty place fields
+    const hasCleared = standing.highestCleared !== null && standing.highestCleared !== undefined;
+    const place = hasCleared ? (standing.place || "") : "";
     const bibNumber = athlete.athlete?.bibNumber || athlete.entry?.athleteBibNumber || athlete.evtBibNumber || "";
     const competePosition = athlete.orderInFlight || "";
-    const eventPlace = standing.place || "";
+    const eventPlace = hasCleared ? (standing.place || "") : "";
     const lastName = athlete.athlete?.lastName || athlete.evtLastName || "";
     const firstName = athlete.athlete?.firstName || athlete.evtFirstName || "";
     const affiliation = athlete.athlete?.school || athlete.athlete?.team || athlete.evtTeam || "";
@@ -228,9 +233,13 @@ export async function exportSessionToLFF(
   const marks = session.marks || [];
   const heights = session.heights || [];
   
-  const eventType = session.event?.eventType || 'horizontal';
-  const isVertical = eventType === 'high_jump' || eventType === 'pole_vault' || 
-                     eventType.includes('high') || eventType.includes('pole');
+  // Detect vertical events: check heights array, event name, or eventType
+  const eventName = (session.evtEventName || session.event?.name || '').toLowerCase();
+  const eventType = session.event?.eventType || '';
+  const isVertical = heights.length > 0 || 
+                     eventType === 'high_jump' || eventType === 'pole_vault' ||
+                     eventName.includes('high jump') || eventName.includes('pole vault') ||
+                     eventName.includes('hj') || eventName.includes('pv');
   
   let content: string;
   if (isVertical) {
@@ -261,9 +270,13 @@ export function generateLFFContent(
   const marks = session.marks || [];
   const heights = session.heights || [];
   
-  const eventType = session.event?.eventType || 'horizontal';
-  const isVertical = eventType === 'high_jump' || eventType === 'pole_vault' || 
-                     eventType.includes('high') || eventType.includes('pole');
+  // Detect vertical events: check heights array, event name, or eventType
+  const evtName = (session.evtEventName || session.event?.name || '').toLowerCase();
+  const eventType = session.event?.eventType || '';
+  const isVertical = heights.length > 0 || 
+                     eventType === 'high_jump' || eventType === 'pole_vault' ||
+                     evtName.includes('high jump') || evtName.includes('pole vault') ||
+                     evtName.includes('hj') || evtName.includes('pv');
   
   const options: LFFExportOptions = {
     outputDir: '',
