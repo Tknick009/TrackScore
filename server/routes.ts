@@ -69,6 +69,7 @@ import { exportSessionToLFF, generateLFFContent } from './lff-exporter';
 import { syncAthletesFromEVT, startEVTWatcher, stopEVTWatcher, initEVTWatchers } from './evt-watcher';
 import { parseEVTDirectory, getAthletesFromDirectory, type EVTEventSummary, type EVTAthlete } from './evt-parser';
 import * as fs from 'fs';
+import * as path from 'path';
 
 // Check-in validation schemas
 const checkInSchema = z.object({
@@ -6602,6 +6603,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const athletesToFinals = isHorizontal ? (config.horizontalFinalists ?? 8) : 8;
         const totalAttempts = prelimAttempts + finalsAttempts;
         
+        // Create results directory under EVT directory for LIF export
+        const resultsDir = path.join(config.directoryPath, 'results');
+        if (!fs.existsSync(resultsDir)) {
+          fs.mkdirSync(resultsDir, { recursive: true });
+        }
+        
         // Create session with in_progress status (immediately active and configurable)
         const sessionData = {
           eventId: null,
@@ -6616,6 +6623,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           accessCode,
           evtEventNumber: evt.eventNumber,
           evtEventName: evt.eventName,
+          lffExportPath: resultsDir, // Auto-export to results subdirectory
         };
         
         const session = await storage.createFieldEventSession(sessionData);
