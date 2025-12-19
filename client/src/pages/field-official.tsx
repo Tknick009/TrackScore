@@ -771,8 +771,8 @@ function AthleteListItem({
           {actionsDropdown}
         </div>
 
-        {/* Bottom row: Attempts - full width on mobile with horizontal scroll */}
-        <div className="w-full overflow-x-auto">
+        {/* Bottom row: Attempts - offset to align under athlete name, not under UP badge */}
+        <div className="w-full overflow-x-auto ml-14">
           <div className="flex gap-1.5 min-w-max">
             {Array.from({ length: totalAttempts }).map((_, i) => {
               const mark = marks[i];
