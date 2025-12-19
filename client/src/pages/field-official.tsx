@@ -2742,6 +2742,9 @@ function FieldEntryUI({
     (session.evtEventName?.toLowerCase().includes('pole vault'))
   ) : false;
 
+  // Read showBibNumbers from session
+  const showBibNumbers = session?.showBibNumbers !== false;
+
   // Auto-check-in all athletes that haven't been checked in yet
   const autoCheckInRef = useRef<Set<number>>(new Set());
   
