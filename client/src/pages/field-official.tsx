@@ -512,7 +512,7 @@ function AddAthleteDialog({
   onClose: () => void;
   sessionId: number;
   totalFlights: number;
-  meetId?: number;
+  meetId?: string;
 }) {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
@@ -523,13 +523,16 @@ function AddAthleteDialog({
   const [team, setTeam] = useState("");
   const [flight, setFlight] = useState("1");
 
+  // Get meetId from props or sessionStorage (fallback for EVT-based sessions)
+  const effectiveMeetId = meetId || sessionStorage.getItem("field_app_meet_id") || undefined;
+
   // Search for athletes in database
   const { data: searchResults = [] } = useQuery<any[]>({
-    queryKey: ["/api/athletes", { meetId, search: searchQuery }],
+    queryKey: ["/api/athletes", { meetId: effectiveMeetId, search: searchQuery }],
     queryFn: async () => {
       if (!searchQuery.trim() || searchQuery.length < 2) return [];
       const params = new URLSearchParams();
-      if (meetId) params.append("meetId", String(meetId));
+      if (effectiveMeetId) params.append("meetId", String(effectiveMeetId));
       params.append("search", searchQuery);
       const res = await fetch(`/api/athletes?${params.toString()}`);
       return res.json();
@@ -1012,7 +1015,7 @@ function FieldEntryUI({
         onClose={() => setShowAddAthlete(false)}
         sessionId={sessionId}
         totalFlights={totalFlights}
-        meetId={session?.meetId || undefined}
+        meetId={session?.event?.meetId || undefined}
       />
     </div>
   );

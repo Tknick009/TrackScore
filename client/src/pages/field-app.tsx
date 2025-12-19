@@ -288,6 +288,8 @@ function CheckInScreen({
 
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions"] });
       toast({ title: "Event started successfully" });
+      // Store meetId in sessionStorage for the Add Athlete search
+      sessionStorage.setItem("field_app_meet_id", meetId);
       onStartEvent(session.id);
     } catch (error: any) {
       toast({
