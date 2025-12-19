@@ -440,11 +440,17 @@ export default function FieldEventsControl() {
     if (evtEvents.length > 0 && !hasProvisioned) {
       const provisionSessions = async () => {
         try {
-          const response = await apiRequest("POST", "/api/evt-events/provision-all", {});
-          const result = await response.json();
-          if (result.created > 0) {
-            toast({ title: `Created ${result.created} event sessions` });
-            queryClient.invalidateQueries({ queryKey: ["/api/field-sessions"] });
+          const response = await fetch("/api/evt-events/provision-all", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+          });
+          if (response.ok) {
+            const result = await response.json();
+            if (result.created > 0) {
+              toast({ title: `Created ${result.created} event sessions` });
+              queryClient.invalidateQueries({ queryKey: ["/api/field-sessions"] });
+            }
           }
           setHasProvisioned(true);
         } catch (error) {
