@@ -97,10 +97,16 @@ The frontend uses React with shadcn/ui on Radix UI and Tailwind CSS for styling,
 - **Directory-Based Import:** Configure an EVT directory path to scan all .evt files in that directory.
 - EVT file format: Event lines start with event number; athlete lines start with comma containing bib/lane/name/team.
 - **API Endpoints:**
-  - `GET /api/evt-config` - Get configured EVT directory path
-  - `POST /api/evt-config` - Save EVT directory path
+  - `GET /api/evt-config` - Get configured EVT directory path and horizontal event defaults
+  - `POST /api/evt-config` - Save EVT directory path and horizontal event defaults
   - `GET /api/evt-events` - List all events from EVT files in the directory
   - `GET /api/evt-events/:eventNumber/athletes` - Get athletes for a specific event
+  - `POST /api/evt-events/provision-all` - Auto-provision sessions for all EVT field events
+- **Global Horizontal Event Defaults:** Configure prelim attempts, athletes to finals, and finals attempts for horizontal events (throws/jumps excluding high jump/pole vault). These defaults are applied when auto-provisioning sessions.
+  - `horizontalPrelimAttempts`: Number of attempts in preliminary round (default: 3)
+  - `horizontalFinalists`: Number of athletes advancing to finals (default: 8)
+  - `horizontalFinalAttempts`: Number of attempts in finals round (default: 3)
+- Vertical events (high jump, pole vault) are configured manually per session.
 - Field event athletes can now exist without database entries (for EVT imports) via nullable `entryId` and EVT-specific fields (`evtBibNumber`, `evtFirstName`, `evtLastName`, `evtTeam`).
 - **"Open Event" Workflow:** Instead of creating sessions manually, users now:
   1. Configure EVT directory path in the Field Events Control page
