@@ -3000,17 +3000,9 @@ function FieldEntryUI({
                         }`}
                         data-testid={`link-event-${s.id}`}
                       >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className={`font-medium truncate ${isCurrentSession ? "" : ""}`}>
-                            {name}
-                          </span>
-                          <Badge 
-                            variant={s.status === "active" ? "default" : "secondary"}
-                            className="shrink-0 text-xs"
-                          >
-                            {s.status || "pending"}
-                          </Badge>
-                        </div>
+                        <span className={`font-medium truncate ${isCurrentSession ? "" : ""}`}>
+                          {name}
+                        </span>
                       </div>
                     );
                   })}
