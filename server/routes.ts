@@ -6600,6 +6600,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const createdSessions = [];
       let updatedCount = 0;
+      let athletesSyncedCount = 0;
       
       // Update any existing check_in sessions to in_progress
       for (const session of existingSessions) {
@@ -6613,6 +6614,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           }
           updatedCount++;
+        }
+      }
+      
+      // Populate athletes for existing EVT sessions that have 0 athletes
+      for (const [evtEventNumber, session] of existingEvtSessionMap) {
+        const existingAthletes = await storage.getFieldEventAthletes(session.id);
+        if (existingAthletes.length === 0) {
+          // Load athletes from EVT files for this event
+          const athletes = getAthletesFromDirectory(config.directoryPath, evtEventNumber);
+          let orderInFlight = 1;
+          for (const athlete of athletes) {
+            await storage.createFieldEventAthlete({
+              sessionId: session.id,
+              entryId: null,
+              evtBibNumber: athlete.bibNumber,
+              evtFirstName: athlete.firstName,
+              evtLastName: athlete.lastName,
+              evtTeam: athlete.team,
+              order: athlete.order,
+              orderInFlight: orderInFlight++,
+              flightNumber: athlete.flight || 1,
+              checkInStatus: "checked_in",
+              competitionStatus: "competing",
+            });
+          }
+          if (athletes.length > 0) {
+            console.log(`[EVT Provision] Synced ${athletes.length} athletes to session ${session.id} (${session.evtEventName})`);
+            athletesSyncedCount++;
+          }
         }
       }
       
@@ -6692,6 +6722,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ 
         created: createdSessions.length,
         updated: updatedCount,
+        athletesSynced: athletesSyncedCount,
         sessions: createdSessions,
         total: fieldEvents.length
       });
