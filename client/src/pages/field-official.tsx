@@ -8,7 +8,31 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { LogOut, Check, X, Minus, Loader2, ChevronDown, Users, Trophy, Grid3X3, Circle } from "lucide-react";
+import { LogOut, Check, X, Minus, Loader2, ChevronDown, Users, Trophy, Grid3X3, Circle, MoreVertical, UserPlus, ArrowRightLeft } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { 
   FieldEventSession, 
   FieldEventSessionWithDetails,
@@ -137,7 +161,10 @@ function AthleteListItem({
   marks,
   totalAttempts,
   bestMark,
-  onClick
+  onClick,
+  currentFlight,
+  totalFlights,
+  onMoveFlight,
 }: { 
   athlete: EnrichedAthlete; 
   isUp: boolean;
@@ -145,13 +172,16 @@ function AthleteListItem({
   totalAttempts: number;
   bestMark: number | null;
   onClick: () => void;
+  currentFlight: number;
+  totalFlights: number;
+  onMoveFlight: (athleteId: number, newFlight: number) => void;
 }) {
   const info = getAthleteDisplayInfo(athlete);
+  const flightOptions = Array.from({ length: totalFlights + 1 }, (_, i) => i + 1);
 
   return (
     <div
-      onClick={onClick}
-      className={`flex items-center gap-3 p-3 border-b border-border cursor-pointer active:bg-muted/50 ${
+      className={`flex items-center gap-3 p-3 border-b border-border ${
         isUp ? "bg-green-50 dark:bg-green-950/30" : ""
       }`}
       data-testid={`athlete-row-${athlete.id}`}
@@ -167,11 +197,15 @@ function AthleteListItem({
         )}
       </div>
 
-      {/* Athlete info */}
-      <div className="flex-1 min-w-0">
+      {/* Athlete info - clickable for mark entry */}
+      <div 
+        className="flex-1 min-w-0 cursor-pointer active:bg-muted/50" 
+        onClick={onClick}
+      >
         <div className="flex items-center gap-2">
           <span className="font-mono text-sm text-muted-foreground">{info.bib}</span>
           <span className="font-semibold truncate">{info.name}</span>
+          <Badge variant="outline" className="text-xs">F{athlete.flightNumber || 1}</Badge>
         </div>
         {info.team && (
           <p className="text-xs text-muted-foreground truncate">{info.team}</p>
@@ -193,13 +227,49 @@ function AthleteListItem({
       </div>
 
       {/* Best mark */}
-      <div className="w-20 text-right shrink-0">
+      <div className="w-16 text-right shrink-0">
         {bestMark !== null ? (
           <span className="font-mono font-semibold text-sm">{bestMark.toFixed(2)}</span>
         ) : (
           <span className="text-muted-foreground text-sm">-</span>
         )}
       </div>
+
+      {/* Actions dropdown */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-8 w-8 shrink-0"
+            data-testid={`button-athlete-menu-${athlete.id}`}
+          >
+            <MoreVertical className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <ArrowRightLeft className="h-4 w-4 mr-2" />
+              Move to Flight
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              {flightOptions.map((flight) => (
+                <DropdownMenuItem
+                  key={flight}
+                  disabled={flight === (athlete.flightNumber || 1)}
+                  onClick={() => onMoveFlight(athlete.id, flight)}
+                  data-testid={`menu-move-flight-${flight}`}
+                >
+                  Flight {flight}
+                  {flight === (athlete.flightNumber || 1) && " (current)"}
+                  {flight === totalFlights + 1 && " (new)"}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }
@@ -431,6 +501,151 @@ function ReviewMarksView({
   );
 }
 
+function AddAthleteDialog({
+  isOpen,
+  onClose,
+  sessionId,
+  totalFlights,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  sessionId: number;
+  totalFlights: number;
+}) {
+  const { toast } = useToast();
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [bibNumber, setBibNumber] = useState("");
+  const [team, setTeam] = useState("");
+  const [flight, setFlight] = useState("1");
+
+  const addAthleteMutation = useMutation({
+    mutationFn: async (data: {
+      evtFirstName: string;
+      evtLastName: string;
+      evtBibNumber: string;
+      evtTeam: string;
+      flightNumber: number;
+      orderInFlight: number;
+    }) => apiRequest("POST", `/api/field-sessions/${sessionId}/athletes`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "athletes"] });
+      toast({ title: "Athlete added" });
+      setFirstName("");
+      setLastName("");
+      setBibNumber("");
+      setTeam("");
+      setFlight("1");
+      onClose();
+    },
+    onError: () => {
+      toast({ title: "Failed to add athlete", variant: "destructive" });
+    },
+  });
+
+  const handleSubmit = async () => {
+    if (!firstName.trim() || !lastName.trim()) {
+      toast({ title: "Name is required", variant: "destructive" });
+      return;
+    }
+    const athletesRes = await fetch(`/api/field-sessions/${sessionId}/athletes`);
+    const athletes = await athletesRes.json();
+    const flightAthletes = athletes.filter((a: any) => (a.flightNumber || 1) === parseInt(flight));
+    const maxOrder = flightAthletes.reduce((max: number, a: any) => Math.max(max, a.orderInFlight || 0), 0);
+    
+    addAthleteMutation.mutate({
+      evtFirstName: firstName.trim(),
+      evtLastName: lastName.trim(),
+      evtBibNumber: bibNumber.trim(),
+      evtTeam: team.trim(),
+      flightNumber: parseInt(flight),
+      orderInFlight: maxOrder + 1,
+    });
+  };
+
+  const flightOptions = Array.from({ length: totalFlights + 1 }, (_, i) => i + 1);
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add Athlete</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>First Name</Label>
+              <Input
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                placeholder="First name"
+                data-testid="input-add-firstname"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Last Name</Label>
+              <Input
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                placeholder="Last name"
+                data-testid="input-add-lastname"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Bib Number</Label>
+              <Input
+                value={bibNumber}
+                onChange={(e) => setBibNumber(e.target.value)}
+                placeholder="Bib #"
+                data-testid="input-add-bib"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Team</Label>
+              <Input
+                value={team}
+                onChange={(e) => setTeam(e.target.value)}
+                placeholder="Team name"
+                data-testid="input-add-team"
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Flight</Label>
+            <Select value={flight} onValueChange={setFlight}>
+              <SelectTrigger data-testid="select-add-flight">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {flightOptions.map((f) => (
+                  <SelectItem key={f} value={String(f)}>
+                    Flight {f} {f === totalFlights + 1 ? "(new)" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} data-testid="button-cancel-add">
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleSubmit} 
+            disabled={addAthleteMutation.isPending}
+            data-testid="button-confirm-add"
+          >
+            {addAthleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            Add Athlete
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function FieldEntryUI({ 
   sessionId, 
   onLeave 
@@ -441,6 +656,7 @@ function FieldEntryUI({
   const { toast } = useToast();
   const [selectedAthleteId, setSelectedAthleteId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState("officiate");
+  const [showAddAthlete, setShowAddAthlete] = useState(false);
 
   const { data: session, isLoading: sessionLoading, error: sessionError } = useQuery<FieldEventSessionWithDetails>({
     queryKey: ["/api/field-sessions", sessionId, "full"],
@@ -479,6 +695,28 @@ function FieldEntryUI({
       });
     },
   });
+
+  const moveFlightMutation = useMutation({
+    mutationFn: async ({ athleteId, newFlight }: { athleteId: number; newFlight: number }) => {
+      const flightAthletes = (athletes || []).filter(a => (a.flightNumber || 1) === newFlight);
+      const maxOrder = flightAthletes.reduce((max, a) => Math.max(max, a.orderInFlight || 0), 0);
+      return apiRequest("PATCH", `/api/field-athletes/${athleteId}`, {
+        flightNumber: newFlight,
+        orderInFlight: maxOrder + 1,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "athletes"] });
+      toast({ title: "Athlete moved to new flight" });
+    },
+    onError: () => {
+      toast({ title: "Failed to move athlete", variant: "destructive" });
+    },
+  });
+
+  const handleMoveFlight = (athleteId: number, newFlight: number) => {
+    moveFlightMutation.mutate({ athleteId, newFlight });
+  };
 
   const handleLeave = () => {
     sessionStorage.removeItem(SESSION_STORAGE_KEY);
@@ -583,7 +821,16 @@ function FieldEntryUI({
           </div>
           <Button 
             variant="ghost" 
-            size="sm"
+            size="icon"
+            onClick={() => setShowAddAthlete(true)}
+            className="shrink-0 text-primary-foreground hover:bg-primary-foreground/20"
+            data-testid="button-add-athlete"
+          >
+            <UserPlus className="h-4 w-4" />
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="icon"
             onClick={handleLeave}
             className="shrink-0 text-primary-foreground hover:bg-primary-foreground/20"
             data-testid="button-leave-session"
@@ -622,6 +869,9 @@ function FieldEntryUI({
                   totalAttempts={totalAttempts}
                   bestMark={getAthleteBestMark(athlete.id)}
                   onClick={() => setSelectedAthleteId(athlete.id)}
+                  currentFlight={currentFlight}
+                  totalFlights={totalFlights}
+                  onMoveFlight={handleMoveFlight}
                 />
               ))}
             </div>
@@ -631,6 +881,14 @@ function FieldEntryUI({
               <p className="text-sm text-muted-foreground mt-2">
                 Athletes will appear here once they check in
               </p>
+              <Button 
+                className="mt-4" 
+                onClick={() => setShowAddAthlete(true)}
+                data-testid="button-add-athlete-empty"
+              >
+                <UserPlus className="h-4 w-4 mr-2" />
+                Add Athlete
+              </Button>
             </div>
           )}
         </TabsContent>
@@ -663,6 +921,14 @@ function FieldEntryUI({
           isPending={submitMarkMutation.isPending}
         />
       )}
+
+      {/* Add Athlete Dialog */}
+      <AddAthleteDialog
+        isOpen={showAddAthlete}
+        onClose={() => setShowAddAthlete(false)}
+        sessionId={sessionId}
+        totalFlights={totalFlights}
+      />
     </div>
   );
 }
