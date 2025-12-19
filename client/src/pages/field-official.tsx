@@ -3061,9 +3061,10 @@ function FieldEntryUI({
 
   return (
     <div className="h-screen max-h-screen bg-background flex flex-col overflow-hidden">
-      {/* Header - optimized for iPad */}
-      <header className="bg-primary text-primary-foreground p-2 sm:p-4 md:p-6 shrink-0">
-        <div className="flex items-center justify-between gap-1.5 sm:gap-3">
+      {/* Header - two rows with title and action buttons */}
+      <header className="bg-primary text-primary-foreground shrink-0">
+        {/* Top row: Menu + Event name */}
+        <div className="flex items-center gap-2 sm:gap-3 p-2 sm:p-3 md:p-4">
           <Sheet open={showEventsSidebar} onOpenChange={setShowEventsSidebar}>
             <SheetTrigger asChild>
               <Button 
@@ -3125,76 +3126,59 @@ function FieldEntryUI({
               {!isVertical && session.isInFinals ? (
                 <>Finals • {sortedAthletes.filter(a => a.isFinalist).length} finalists</>
               ) : (
-                <>Flt {currentFlight}/{totalFlights} • {sortedAthletes.filter(a => (a.flightNumber || 1) === currentFlight).length} athletes</>
+                <>Flight {currentFlight} of {totalFlights} • {sortedAthletes.filter(a => (a.flightNumber || 1) === currentFlight).length} athletes</>
               )}
             </p>
           </div>
+        </div>
+        
+        {/* Bottom row: Action buttons with full text */}
+        <div className="flex items-center gap-2 px-2 pb-2 sm:px-3 sm:pb-3 md:px-4 md:pb-4 flex-wrap">
           {isVertical && (
-            <>
-              <Button 
-                variant="ghost" 
-                size="icon"
-                onClick={() => setShowHeightsDialog(true)}
-                className="sm:hidden shrink-0 text-primary-foreground hover:bg-primary-foreground/20"
-                data-testid="button-add-edit-heights-mobile"
-              >
-                <Ruler className="h-5 w-5" />
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="sm"
-                onClick={() => setShowHeightsDialog(true)}
-                className="hidden sm:flex shrink-0 text-primary-foreground hover:bg-primary-foreground/20"
-                data-testid="button-add-edit-heights"
-              >
-                <Ruler className="h-5 w-5 mr-1.5" />
-                Heights
-              </Button>
-            </>
+            <Button 
+              variant="secondary"
+              size="sm"
+              onClick={() => setShowHeightsDialog(true)}
+              className="text-xs sm:text-sm"
+              data-testid="button-add-edit-heights"
+            >
+              <Ruler className="h-4 w-4 mr-1.5" />
+              Heights
+            </Button>
           )}
           <Button 
-            variant="ghost" 
-            size="icon"
-            onClick={() => setShowAddAthlete(true)}
-            className="sm:hidden shrink-0 text-primary-foreground hover:bg-primary-foreground/20"
-            data-testid="button-add-athlete-mobile"
-          >
-            <UserPlus className="h-5 w-5" />
-          </Button>
-          <Button 
-            variant="ghost" 
+            variant="secondary"
             size="sm"
             onClick={() => setShowAddAthlete(true)}
-            className="hidden sm:flex shrink-0 text-primary-foreground hover:bg-primary-foreground/20"
+            className="text-xs sm:text-sm"
             data-testid="button-add-athlete"
           >
-            <UserPlus className="h-5 w-5 mr-1.5" />
-            Add
+            <UserPlus className="h-4 w-4 mr-1.5" />
+            Add Athlete
           </Button>
           {!isVertical && (
-            <>
-              <Button 
-                variant="ghost" 
-                size="icon"
-                onClick={() => setShowGenerateFinals(true)}
-                className="sm:hidden shrink-0 text-primary-foreground hover:bg-primary-foreground/20"
-                data-testid="button-generate-finals-header-mobile"
-              >
-                <Star className="h-5 w-5" />
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="sm"
-                onClick={() => setShowGenerateFinals(true)}
-                className="hidden sm:flex shrink-0 text-primary-foreground hover:bg-primary-foreground/20"
-                data-testid="button-generate-finals-header"
-              >
-                <Star className="h-5 w-5 mr-1.5" />
-                Finals
-              </Button>
-            </>
+            <Button 
+              variant="secondary"
+              size="sm"
+              onClick={() => setShowGenerateFinals(true)}
+              className="text-xs sm:text-sm"
+              data-testid="button-generate-finals-header"
+            >
+              <Star className="h-4 w-4 mr-1.5" />
+              Generate Finals
+            </Button>
           )}
-          <div className="hidden sm:flex shrink-0 items-center gap-1.5">
+          <Button 
+            variant="secondary"
+            size="sm"
+            onClick={() => setShowSettings(true)}
+            className="text-xs sm:text-sm"
+            data-testid="button-settings"
+          >
+            <Settings className="h-4 w-4 mr-1.5" />
+            Settings
+          </Button>
+          <div className="hidden sm:flex shrink-0 items-center gap-1.5 ml-auto">
             <Label htmlFor="device-name" className="text-xs text-primary-foreground/70 whitespace-nowrap">Device:</Label>
             <Input
               id="device-name"
@@ -3205,24 +3189,6 @@ function FieldEntryUI({
               data-testid="input-device-name"
             />
           </div>
-          <Button 
-            variant="ghost" 
-            size="icon"
-            onClick={() => setShowSettings(true)}
-            className="shrink-0 h-9 w-9 md:h-11 md:w-11 text-primary-foreground hover:bg-primary-foreground/20"
-            data-testid="button-settings"
-          >
-            <Settings className="h-5 w-5 md:h-6 md:w-6" />
-          </Button>
-          <Button 
-            variant="ghost" 
-            size="icon"
-            onClick={handleLeave}
-            className="shrink-0 h-9 w-9 md:h-11 md:w-11 text-primary-foreground hover:bg-primary-foreground/20"
-            data-testid="button-leave-session"
-          >
-            <LogOut className="h-5 w-5 md:h-6 md:w-6" />
-          </Button>
         </div>
       </header>
 
