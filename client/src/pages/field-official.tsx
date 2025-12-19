@@ -685,11 +685,11 @@ function AthleteListItem({
         {/* Top row: Status + Name + Best + Actions */}
         <div className="flex items-center gap-2">
           {/* Status indicator */}
-          <div className="w-10 shrink-0 text-center">
+          <div className="w-12 shrink-0 text-center">
             {isUp ? (
-              <Badge className="bg-green-600 text-white font-bold px-2 py-1 text-xs">UP</Badge>
+              <Badge className="bg-green-600 text-white font-bold px-2 py-1.5 text-sm">UP</Badge>
             ) : (
-              <span className="text-xs text-muted-foreground">
+              <span className="text-sm text-muted-foreground">
                 {marks.length}/{totalAttempts}
               </span>
             )}
@@ -702,21 +702,21 @@ function AthleteListItem({
           >
             <div className="flex items-center gap-1.5">
               {showBibNumbers !== false && (
-                <span className="font-mono text-xs text-muted-foreground">{info.bib}</span>
+                <span className="font-mono text-sm text-muted-foreground">{info.bib}</span>
               )}
-              <span className="font-semibold text-sm">{info.name}</span>
+              <span className="font-semibold text-base">{info.name}</span>
             </div>
             {info.team && (
-              <p className="text-xs text-muted-foreground truncate">{info.team}</p>
+              <p className="text-sm text-muted-foreground truncate">{info.team}</p>
             )}
           </div>
 
           {/* Best mark */}
-          <div className="w-12 text-right shrink-0">
+          <div className="w-14 text-right shrink-0">
             {bestMark !== null ? (
-              <span className="font-mono font-bold text-sm">{bestMark.toFixed(2)}</span>
+              <span className="font-mono font-bold text-base">{bestMark.toFixed(2)}</span>
             ) : (
-              <span className="text-xs text-muted-foreground">-</span>
+              <span className="text-sm text-muted-foreground">-</span>
             )}
           </div>
 
@@ -724,7 +724,7 @@ function AthleteListItem({
         </div>
 
         {/* Bottom row: Attempts */}
-        <div className="flex gap-1 pl-12">
+        <div className="flex gap-1.5 pl-14">
           {Array.from({ length: totalAttempts }).map((_, i) => {
             const mark = marks[i];
             if (mark) {
@@ -751,12 +751,12 @@ function AthleteListItem({
                     e.stopPropagation();
                     onEditMark(mark);
                   }}
-                  className={`min-w-[2.25rem] px-1 py-0.5 rounded ${bgColor} ${textColor} font-mono text-xs font-semibold hover:ring-2 hover:ring-primary hover:ring-offset-1 transition-all flex flex-col items-center`}
+                  className={`min-w-[3rem] px-2 py-1.5 rounded ${bgColor} ${textColor} font-mono text-sm font-semibold hover:ring-2 hover:ring-primary hover:ring-offset-1 transition-all flex flex-col items-center`}
                   data-testid={`button-edit-mark-mobile-${mark.id}`}
                 >
                   <span>{content}</span>
                   {mark.wind !== null && mark.wind !== undefined && (
-                    <span className="text-[9px] opacity-80">{mark.wind > 0 ? '+' : ''}{mark.wind.toFixed(1)}</span>
+                    <span className="text-[10px] opacity-80">{mark.wind > 0 ? '+' : ''}{mark.wind.toFixed(1)}</span>
                   )}
                 </button>
               );
@@ -764,7 +764,7 @@ function AthleteListItem({
             return (
               <div 
                 key={i} 
-                className="min-w-[2.25rem] px-1 py-1 rounded bg-muted text-muted-foreground font-mono text-xs text-center"
+                className="min-w-[3rem] px-2 py-1.5 rounded bg-muted text-muted-foreground font-mono text-sm text-center"
               >
                 -
               </div>
