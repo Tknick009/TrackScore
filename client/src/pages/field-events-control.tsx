@@ -993,7 +993,7 @@ export default function FieldEventsControl() {
           </div>
           
           <div>
-            <Label className="text-sm text-muted-foreground mb-2 block">Results Directory (LIF Export Path)</Label>
+            <Label className="text-sm text-muted-foreground mb-2 block">Results Directory (LFF Export Path)</Label>
             <Input
               placeholder="/path/to/results/directory"
               value={resultsDirectory || evtConfig?.resultsDirectory || ""}
@@ -1002,7 +1002,7 @@ export default function FieldEventsControl() {
               data-testid="input-results-directory"
             />
             <p className="text-xs text-muted-foreground mt-1">
-              LIF files will be automatically exported to this directory when marks are recorded.
+              LFF files will be automatically exported to this directory when marks are recorded.
             </p>
           </div>
           
