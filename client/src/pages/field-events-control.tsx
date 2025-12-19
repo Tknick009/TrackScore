@@ -42,6 +42,9 @@ import {
   Save,
   RefreshCw,
   QrCode,
+  Ruler,
+  GripVertical,
+  X,
 } from "lucide-react";
 import type {
   Event,
@@ -49,6 +52,8 @@ import type {
   FieldEventSessionWithDetails,
   InsertFieldEventSession,
   FieldEventAthlete,
+  FieldHeight,
+  InsertFieldHeight,
 } from "@shared/schema";
 import { isHeightEvent, isDistanceEvent } from "@shared/schema";
 
@@ -83,6 +88,282 @@ function isWindAffectedFieldEvent(eventType: string): boolean {
   return eventType === "long_jump" || eventType === "triple_jump";
 }
 
+function metersToFeetInches(meters: number): string {
+  const totalInches = meters * 39.3701;
+  const feet = Math.floor(totalInches / 12);
+  const inches = totalInches % 12;
+  const wholeInches = Math.floor(inches);
+  const fraction = inches - wholeInches;
+  
+  let fractionStr = "";
+  if (fraction >= 0.875) {
+    fractionStr = "";
+    return `${feet}' ${wholeInches + 1}"`;
+  } else if (fraction >= 0.625) {
+    fractionStr = "3/4";
+  } else if (fraction >= 0.375) {
+    fractionStr = "1/2";
+  } else if (fraction >= 0.125) {
+    fractionStr = "1/4";
+  }
+  
+  if (fractionStr) {
+    return `${feet}' ${wholeInches} ${fractionStr}"`;
+  }
+  return `${feet}' ${wholeInches}"`;
+}
+
+function isVerticalEvent(session: FieldEventSessionWithDetails): boolean {
+  if (session.event?.eventType && isHeightEvent(session.event.eventType)) {
+    return true;
+  }
+  const evtName = (session.evtEventName || "").toLowerCase();
+  return evtName.includes("high jump") || evtName.includes("pole vault");
+}
+
+interface HeightsDialogProps {
+  sessionId: number;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+function HeightsDialog({ sessionId, open, onOpenChange }: HeightsDialogProps) {
+  const { toast } = useToast();
+  const [newHeightMeters, setNewHeightMeters] = useState("");
+  const [localHeights, setLocalHeights] = useState<FieldHeight[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const { data: heights = [], isLoading, refetch } = useQuery<FieldHeight[]>({
+    queryKey: ["/api/field-sessions", sessionId, "heights"],
+    queryFn: () => fetch(`/api/field-sessions/${sessionId}/heights`).then(r => r.json()),
+    enabled: open,
+  });
+
+  useEffect(() => {
+    if (open && heights.length > 0) {
+      setLocalHeights([...heights].sort((a, b) => a.heightIndex - b.heightIndex));
+    } else if (open && heights.length === 0 && !isLoading) {
+      setLocalHeights([]);
+    }
+  }, [heights, open, isLoading]);
+
+  const handleAddHeight = () => {
+    const meters = parseFloat(newHeightMeters);
+    if (isNaN(meters) || meters <= 0) {
+      toast({ title: "Invalid height", description: "Please enter a valid height in meters", variant: "destructive" });
+      return;
+    }
+    
+    const newHeight: FieldHeight = {
+      id: Date.now(),
+      sessionId,
+      heightIndex: localHeights.length,
+      heightMeters: meters.toString(),
+      isActive: true,
+      isJumpOff: false,
+      createdAt: new Date(),
+    };
+    
+    const updatedHeights = [...localHeights, newHeight].sort((a, b) => 
+      parseFloat(a.heightMeters) - parseFloat(b.heightMeters)
+    );
+    
+    updatedHeights.forEach((h, idx) => { h.heightIndex = idx; });
+    setLocalHeights(updatedHeights);
+    setNewHeightMeters("");
+  };
+
+  const handleDeleteHeight = (index: number) => {
+    const updated = localHeights.filter((_, i) => i !== index);
+    updated.forEach((h, idx) => { h.heightIndex = idx; });
+    setLocalHeights(updated);
+  };
+
+  const handleToggleActive = (index: number) => {
+    const updated = [...localHeights];
+    updated[index] = { ...updated[index], isActive: !updated[index].isActive };
+    setLocalHeights(updated);
+  };
+
+  const handleToggleJumpOff = (index: number) => {
+    const updated = [...localHeights];
+    updated[index] = { ...updated[index], isJumpOff: !updated[index].isJumpOff };
+    setLocalHeights(updated);
+  };
+
+  const handleUpdateHeight = (index: number, newMeters: string) => {
+    const meters = parseFloat(newMeters);
+    if (isNaN(meters) || meters <= 0) return;
+    
+    const updated = [...localHeights];
+    updated[index] = { ...updated[index], heightMeters: meters.toString() };
+    
+    updated.sort((a, b) => parseFloat(a.heightMeters) - parseFloat(b.heightMeters));
+    updated.forEach((h, idx) => { h.heightIndex = idx; });
+    setLocalHeights(updated);
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const heightsToSave = localHeights.map((h, idx) => ({
+        sessionId,
+        heightIndex: idx,
+        heightMeters: h.heightMeters,
+        isActive: h.isActive,
+        isJumpOff: h.isJumpOff,
+      }));
+      
+      await apiRequest("PUT", `/api/field-sessions/${sessionId}/heights`, { heights: heightsToSave });
+      queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "heights"] });
+      toast({ title: "Heights saved successfully" });
+      onOpenChange(false);
+    } catch (error: any) {
+      toast({ title: "Failed to save heights", description: error.message, variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg max-h-[80vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Ruler className="h-5 w-5" />
+            Configure Heights
+          </DialogTitle>
+          <DialogDescription>
+            Set the height progression for this vertical event. Heights are automatically sorted in ascending order.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-hidden flex flex-col gap-4">
+          <div className="flex items-center gap-2">
+            <div className="flex-1">
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="Height in meters (e.g., 1.85)"
+                value={newHeightMeters}
+                onChange={(e) => setNewHeightMeters(e.target.value)}
+                data-testid="input-new-height"
+              />
+              {newHeightMeters && !isNaN(parseFloat(newHeightMeters)) && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  = {metersToFeetInches(parseFloat(newHeightMeters))}
+                </p>
+              )}
+            </div>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleAddHeight}
+              data-testid="button-add-height"
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
+
+          <ScrollArea className="flex-1 max-h-[300px]">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : localHeights.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Ruler className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p>No heights configured yet.</p>
+                <p className="text-sm">Add heights above to create a progression.</p>
+              </div>
+            ) : (
+              <div className="space-y-2 pr-4">
+                {localHeights.map((height, index) => (
+                  <div
+                    key={height.id}
+                    className={`flex items-center gap-2 p-2 rounded-lg border ${
+                      height.isActive ? "bg-card" : "bg-muted/50 opacity-60"
+                    } ${height.isJumpOff ? "border-yellow-500" : ""}`}
+                    data-testid={`height-row-${index}`}
+                  >
+                    <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
+                    
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          className="w-24"
+                          value={height.heightMeters}
+                          onChange={(e) => handleUpdateHeight(index, e.target.value)}
+                          data-testid={`input-height-${index}`}
+                        />
+                        <span className="text-sm text-muted-foreground whitespace-nowrap">
+                          {metersToFeetInches(parseFloat(height.heightMeters))}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant={height.isActive ? "secondary" : "ghost"}
+                        size="sm"
+                        onClick={() => handleToggleActive(index)}
+                        className="text-xs px-2"
+                        data-testid={`button-toggle-active-${index}`}
+                      >
+                        {height.isActive ? "Active" : "Inactive"}
+                      </Button>
+                      
+                      <Button
+                        variant={height.isJumpOff ? "default" : "ghost"}
+                        size="sm"
+                        onClick={() => handleToggleJumpOff(index)}
+                        className={`text-xs px-2 ${height.isJumpOff ? "bg-yellow-500 hover:bg-yellow-600 text-black" : ""}`}
+                        data-testid={`button-toggle-jumpoff-${index}`}
+                      >
+                        J/O
+                      </Button>
+                      
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => handleDeleteHeight(index)}
+                        data-testid={`button-delete-height-${index}`}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </ScrollArea>
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel-heights">
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={isSaving} data-testid="button-save-heights">
+            {isSaving ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Save Heights"
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 interface EVTEventSummary {
   eventNumber: number;
   eventName: string;
@@ -101,9 +382,11 @@ interface SessionCardProps {
 function SessionCard({ session, athletes, onEdit, onDelete, onUpdateStatus, onExportLFF }: SessionCardProps) {
   const { toast } = useToast();
   const [showQRDialog, setShowQRDialog] = useState(false);
+  const [showHeightsDialog, setShowHeightsDialog] = useState(false);
   
   // Use database event name if available, otherwise use EVT event name
   const eventName = session.event?.name || session.evtEventName || "Unknown Event";
+  const isVertical = isVerticalEvent(session);
   const checkedInCount = athletes.filter(a => a.checkInStatus === "checked_in").length;
   const totalAthletes = athletes.length;
   
@@ -194,6 +477,24 @@ function SessionCard({ session, athletes, onEdit, onDelete, onUpdateStatus, onEx
             <QrCode className="h-4 w-4 mr-2" />
             QR Code
           </Button>
+
+          {isVertical && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowHeightsDialog(true)}
+              data-testid={`button-configure-heights-${session.id}`}
+            >
+              <Ruler className="h-4 w-4 mr-2" />
+              Configure Heights
+            </Button>
+          )}
+
+          <HeightsDialog
+            sessionId={session.id}
+            open={showHeightsDialog}
+            onOpenChange={setShowHeightsDialog}
+          />
 
           <Dialog open={showQRDialog} onOpenChange={setShowQRDialog}>
             <DialogContent className="sm:max-w-md">
