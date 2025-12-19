@@ -47,6 +47,7 @@ import {
   insertFieldEventFlightSchema,
   insertFieldEventAthleteSchema,
   insertFieldEventMarkSchema,
+  insertExternalScoreboardSchema,
   type DisplayBoardState,
   type WSMessage,
   type EntrySplit,
@@ -7486,6 +7487,133 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       res.json({ success: true, filePath });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ===============================
+  // EXTERNAL SCOREBOARD ROUTES
+  // ===============================
+
+  // List all external scoreboards
+  app.get("/api/external-scoreboards", async (req, res) => {
+    try {
+      const scoreboards = await storage.getExternalScoreboards();
+      res.json(scoreboards);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get single external scoreboard
+  app.get("/api/external-scoreboards/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid scoreboard ID" });
+      }
+      const scoreboard = await storage.getExternalScoreboard(id);
+      if (!scoreboard) {
+        return res.status(404).json({ error: "Scoreboard not found" });
+      }
+      res.json(scoreboard);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Create external scoreboard
+  app.post("/api/external-scoreboards", async (req, res) => {
+    try {
+      const validated = insertExternalScoreboardSchema.parse(req.body);
+      const scoreboard = await storage.createExternalScoreboard(validated);
+      res.status(201).json(scoreboard);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Update external scoreboard
+  app.patch("/api/external-scoreboards/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid scoreboard ID" });
+      }
+      const scoreboard = await storage.updateExternalScoreboard(id, req.body);
+      if (!scoreboard) {
+        return res.status(404).json({ error: "Scoreboard not found" });
+      }
+      res.json(scoreboard);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Delete external scoreboard
+  app.delete("/api/external-scoreboards/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid scoreboard ID" });
+      }
+      const deleted = await storage.deleteExternalScoreboard(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Scoreboard not found" });
+      }
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Start external scoreboard (set isActive=true)
+  app.post("/api/external-scoreboards/:id/start", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid scoreboard ID" });
+      }
+      const scoreboard = await storage.updateExternalScoreboard(id, { isActive: true });
+      if (!scoreboard) {
+        return res.status(404).json({ error: "Scoreboard not found" });
+      }
+      res.json(scoreboard);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Stop external scoreboard (set isActive=false)
+  app.post("/api/external-scoreboards/:id/stop", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid scoreboard ID" });
+      }
+      const scoreboard = await storage.updateExternalScoreboard(id, { isActive: false });
+      if (!scoreboard) {
+        return res.status(404).json({ error: "Scoreboard not found" });
+      }
+      res.json(scoreboard);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Trigger immediate send (placeholder)
+  app.post("/api/external-scoreboards/:id/send", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid scoreboard ID" });
+      }
+      const scoreboard = await storage.getExternalScoreboard(id);
+      if (!scoreboard) {
+        return res.status(404).json({ error: "Scoreboard not found" });
+      }
+      res.json({ success: true, message: "Send triggered" });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

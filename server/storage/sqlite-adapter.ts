@@ -105,6 +105,8 @@ import {
   type InsertMeetIngestionSettings,
   type ProcessedFile,
   type InsertProcessedFile,
+  type ExternalScoreboard,
+  type InsertExternalScoreboard,
   isTimeEvent,
   isDistanceEvent,
   isHeightEvent,
@@ -127,6 +129,8 @@ export class SQLiteStorage implements IStorage {
   private qrCodes: Map<string, QRCodeMeta> = new Map();
   private socialMediaPosts: Map<string, SocialMediaPost> = new Map();
   private resultSignatures: Map<string, Date> = new Map();
+  private externalScoreboards: Map<number, ExternalScoreboard> = new Map();
+  private externalScoreboardIdCounter: number = 1;
 
   constructor(dbPath: string = ':memory:') {
     this.db = new Database(dbPath);
@@ -4182,6 +4186,52 @@ export class SQLiteStorage implements IStorage {
 
   async clearProcessedFiles(meetId: string): Promise<void> {
     this.db.prepare('DELETE FROM processed_ingestion_files WHERE meet_id = ?').run(meetId);
+  }
+
+  // ============= EXTERNAL SCOREBOARDS (in-memory) =============
+  async getExternalScoreboards(): Promise<ExternalScoreboard[]> {
+    return Array.from(this.externalScoreboards.values());
+  }
+
+  async getExternalScoreboard(id: number): Promise<ExternalScoreboard | undefined> {
+    return this.externalScoreboards.get(id);
+  }
+
+  async createExternalScoreboard(data: InsertExternalScoreboard): Promise<ExternalScoreboard> {
+    const id = this.externalScoreboardIdCounter++;
+    const now = new Date();
+    const scoreboard: ExternalScoreboard = {
+      id,
+      name: data.name,
+      lssDirectory: data.lssDirectory ?? null,
+      targetIp: data.targetIp,
+      targetPort: data.targetPort,
+      sessionId: data.sessionId ?? null,
+      isActive: false,
+      lastStatus: null,
+      lastSentAt: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.externalScoreboards.set(id, scoreboard);
+    return scoreboard;
+  }
+
+  async updateExternalScoreboard(id: number, data: Partial<ExternalScoreboard>): Promise<ExternalScoreboard | undefined> {
+    const existing = this.externalScoreboards.get(id);
+    if (!existing) return undefined;
+    const updated: ExternalScoreboard = {
+      ...existing,
+      ...data,
+      id: existing.id,
+      updatedAt: new Date(),
+    };
+    this.externalScoreboards.set(id, updated);
+    return updated;
+  }
+
+  async deleteExternalScoreboard(id: number): Promise<boolean> {
+    return this.externalScoreboards.delete(id);
   }
 
   public close(): void {

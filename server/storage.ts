@@ -173,6 +173,8 @@ import {
   type FieldEventMark,
   type InsertFieldEventMark,
   type FieldEventSessionWithDetails,
+  type ExternalScoreboard,
+  type InsertExternalScoreboard,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql, and, not, inArray, count, isNull, isNotNull, desc } from "drizzle-orm";
@@ -562,12 +564,21 @@ export interface IStorage {
   isFileHashProcessed(meetId: string, filePath: string, fileHash: string): Promise<boolean>;
   addProcessedFile(file: InsertProcessedFile): Promise<ProcessedFile>;
   clearProcessedFiles(meetId: string): Promise<void>;
+
+  // External Scoreboards
+  getExternalScoreboards(): Promise<ExternalScoreboard[]>;
+  getExternalScoreboard(id: number): Promise<ExternalScoreboard | undefined>;
+  createExternalScoreboard(data: InsertExternalScoreboard): Promise<ExternalScoreboard>;
+  updateExternalScoreboard(id: number, data: Partial<ExternalScoreboard>): Promise<ExternalScoreboard | undefined>;
+  deleteExternalScoreboard(id: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
   private qrCodes: Map<string, QRCodeMeta> = new Map();
   private socialMediaPosts: Map<string, SocialMediaPost> = new Map();
   private resultSignatures: Map<string, Date> = new Map();
+  private externalScoreboards: Map<number, ExternalScoreboard> = new Map();
+  private externalScoreboardIdCounter: number = 1;
 
   // Events
   async getEvents(): Promise<Event[]> {
@@ -3703,6 +3714,52 @@ export class DatabaseStorage implements IStorage {
 
   async deleteFieldEventMark(id: number): Promise<void> {
     await db.delete(fieldEventMarks).where(eq(fieldEventMarks.id, id));
+  }
+
+  // External Scoreboards (in-memory)
+  async getExternalScoreboards(): Promise<ExternalScoreboard[]> {
+    return Array.from(this.externalScoreboards.values());
+  }
+
+  async getExternalScoreboard(id: number): Promise<ExternalScoreboard | undefined> {
+    return this.externalScoreboards.get(id);
+  }
+
+  async createExternalScoreboard(data: InsertExternalScoreboard): Promise<ExternalScoreboard> {
+    const id = this.externalScoreboardIdCounter++;
+    const now = new Date();
+    const scoreboard: ExternalScoreboard = {
+      id,
+      name: data.name,
+      lssDirectory: data.lssDirectory ?? null,
+      targetIp: data.targetIp,
+      targetPort: data.targetPort,
+      sessionId: data.sessionId ?? null,
+      isActive: false,
+      lastStatus: null,
+      lastSentAt: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.externalScoreboards.set(id, scoreboard);
+    return scoreboard;
+  }
+
+  async updateExternalScoreboard(id: number, data: Partial<ExternalScoreboard>): Promise<ExternalScoreboard | undefined> {
+    const existing = this.externalScoreboards.get(id);
+    if (!existing) return undefined;
+    const updated: ExternalScoreboard = {
+      ...existing,
+      ...data,
+      id: existing.id,
+      updatedAt: new Date(),
+    };
+    this.externalScoreboards.set(id, updated);
+    return updated;
+  }
+
+  async deleteExternalScoreboard(id: number): Promise<boolean> {
+    return this.externalScoreboards.delete(id);
   }
 }
 
