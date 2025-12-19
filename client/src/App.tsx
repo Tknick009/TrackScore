@@ -43,6 +43,7 @@ import MeetSetup from "@/pages/meet-setup";
 import FieldOfficialPage from "@/pages/field-official";
 import FieldApp from "@/pages/field-app";
 import FieldEventsControl from "@/pages/field-events-control";
+import ExternalScoreboards from "@/pages/external-scoreboards";
 import NotFound from "@/pages/not-found";
 
 function MeetSyncWrapper({ meetId, children }: { meetId: string; children: React.ReactNode }) {
@@ -116,6 +117,7 @@ function MeetControlRouter() {
     if (subPath === "displays") return <DisplayHub />;
     if (subPath === "setup") return <MeetSetup />;
     if (subPath === "field-events") return <FieldEventsControl />;
+    if (subPath === "external-scoreboards") return <ExternalScoreboards />;
     return <NotFound />;
   };
   

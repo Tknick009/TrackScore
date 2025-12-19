@@ -9,7 +9,8 @@ import {
   Home,
   Settings,
   LayoutTemplate,
-  Target
+  Target,
+  Send
 } from "lucide-react";
 import {
   Sidebar,
@@ -125,6 +126,14 @@ export function AppSidebar() {
                   <Link href={`${basePath}/scene-editor`} data-testid="link-scene-editor">
                     <LayoutTemplate />
                     <span>Layout Designer</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location === `${basePath}/external-scoreboards`}>
+                  <Link href={`${basePath}/external-scoreboards`} data-testid="link-external-scoreboards">
+                    <Send />
+                    <span>External Scoreboards</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
