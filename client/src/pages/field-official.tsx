@@ -1025,29 +1025,72 @@ function StandingsView({
     });
 
   return (
-    <div className="divide-y">
-      {rankedAthletes.map((item, index) => {
-        const info = getAthleteDisplayInfo(item.athlete);
-        return (
-          <div key={item.athlete.id} className="flex items-center gap-4 p-5 md:p-6">
-            <div className="w-12 md:w-14 text-center font-bold text-xl md:text-2xl shrink-0">
-              {item.best !== null ? index + 1 : "-"}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold text-lg md:text-xl">{info.name}</p>
-              <p className="text-base md:text-lg text-muted-foreground">{info.team || info.bib}</p>
-            </div>
-            <div className="text-right shrink-0">
-              <p className="font-mono font-bold text-xl md:text-2xl">
-                {item.best !== null ? item.best.toFixed(2) : "-"}
-              </p>
-              <p className="text-base md:text-lg text-muted-foreground">
-                {item.marks.filter(m => m.markType === "mark").length} marks
-              </p>
-            </div>
-          </div>
-        );
-      })}
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm md:text-base">
+        <thead>
+          <tr className="border-b">
+            <th className="text-center p-3 md:p-4 w-12 md:w-14">Pl</th>
+            <th className="text-left p-3 md:p-4 sticky left-0 bg-background">Athlete</th>
+            {Array.from({ length: totalAttempts }).map((_, i) => (
+              <th key={i} className="text-center p-3 md:p-4 min-w-16 md:min-w-20">{i + 1}</th>
+            ))}
+            <th className="text-center p-3 md:p-4">Best</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rankedAthletes.map((item, index) => {
+            const info = getAthleteDisplayInfo(item.athlete);
+            const place = item.best !== null ? index + 1 : null;
+
+            return (
+              <tr key={item.athlete.id} className="border-b">
+                <td className="text-center p-3 md:p-4 font-bold text-lg md:text-xl">
+                  {place !== null ? place : "-"}
+                </td>
+                <td className="p-3 md:p-4 sticky left-0 bg-background min-w-[140px] md:min-w-[200px]">
+                  <div className="font-semibold text-base md:text-lg">{info.name}</div>
+                  <div className="text-sm text-muted-foreground">{info.team || info.bib}</div>
+                </td>
+                {Array.from({ length: totalAttempts }).map((_, i) => {
+                  const mark = item.marks.find(m => m.attemptNumber === i + 1);
+                  let content: React.ReactNode = "-";
+                  let className = "text-muted-foreground";
+                  let isBest = false;
+                  
+                  if (mark) {
+                    if (mark.markType === "mark" && mark.measurement) {
+                      content = mark.measurement.toFixed(2);
+                      className = "font-mono";
+                      // Check if this is the best mark
+                      if (item.best !== null && mark.measurement === item.best) {
+                        isBest = true;
+                      }
+                    } else if (mark.markType === "foul") {
+                      content = "X";
+                      className = "text-red-500 font-bold";
+                    } else if (mark.markType === "pass") {
+                      content = "P";
+                      className = "text-yellow-600 font-bold";
+                    }
+                  }
+                  
+                  return (
+                    <td 
+                      key={i} 
+                      className={`text-center p-3 md:p-4 ${className} ${isBest ? 'bg-green-100 dark:bg-green-900/30 font-bold' : ''}`}
+                    >
+                      {content}
+                    </td>
+                  );
+                })}
+                <td className="text-center p-3 md:p-4 font-mono font-bold text-base md:text-lg">
+                  {item.best !== null ? item.best.toFixed(2) : "-"}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }
