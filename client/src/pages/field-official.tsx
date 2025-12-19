@@ -3244,7 +3244,7 @@ function FieldEntryUI({
 
   if (sessionLoading || athletesLoading) {
     return (
-      <div className="h-screen max-h-screen flex items-center justify-center overflow-hidden">
+      <div className="h-screen max-h-screen w-full flex-1 flex items-center justify-center overflow-hidden">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
     );
@@ -3252,7 +3252,7 @@ function FieldEntryUI({
 
   if (sessionError || !session) {
     return (
-      <div className="h-screen max-h-screen flex items-center justify-center p-4 overflow-hidden">
+      <div className="h-screen max-h-screen w-full flex-1 flex items-center justify-center p-4 overflow-hidden">
         <Card className="w-full max-w-md">
           <CardContent className="p-6 text-center">
             <p className="text-destructive mb-4">Failed to load session</p>
@@ -3270,7 +3270,7 @@ function FieldEntryUI({
   const currentFlight = session.currentFlightNumber || 1;
 
   return (
-    <div className="h-screen max-h-screen bg-background flex flex-col overflow-hidden">
+    <div className="h-screen max-h-screen w-full flex-1 bg-background flex flex-col overflow-hidden">
       {/* Header - two rows with title and action buttons */}
       <header className="bg-primary text-primary-foreground shrink-0">
         {/* Top row: Menu + Event name */}
