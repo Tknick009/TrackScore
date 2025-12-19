@@ -644,6 +644,7 @@ export default function FieldEventsControl() {
   const { toast } = useToast();
   const [editingSession, setEditingSession] = useState<FieldEventSession | null>(null);
   const [evtDirectoryPath, setEvtDirectoryPath] = useState("");
+  const [resultsDirectory, setResultsDirectory] = useState("");
   const [isSavingConfig, setIsSavingConfig] = useState(false);
   
   // Horizontal event defaults
@@ -654,6 +655,7 @@ export default function FieldEventsControl() {
 
   interface EVTConfigData {
     directoryPath: string;
+    resultsDirectory?: string;
     horizontalPrelimAttempts?: number;
     horizontalFinalists?: number;
     horizontalFinalAttempts?: number;
@@ -669,6 +671,9 @@ export default function FieldEventsControl() {
     if (evtConfig) {
       if (evtConfig.directoryPath && !evtDirectoryPath) {
         setEvtDirectoryPath(evtConfig.directoryPath);
+      }
+      if (evtConfig.resultsDirectory && !resultsDirectory) {
+        setResultsDirectory(evtConfig.resultsDirectory);
       }
       if (evtConfig.horizontalPrelimAttempts !== undefined) {
         setHorizontalPrelimAttempts(evtConfig.horizontalPrelimAttempts);
@@ -794,6 +799,7 @@ export default function FieldEventsControl() {
     try {
       const response = await apiRequest("POST", "/api/evt-config", { 
         directoryPath: evtDirectoryPath,
+        resultsDirectory,
         horizontalPrelimAttempts,
         horizontalFinalists,
         horizontalFinalAttempts,
@@ -933,6 +939,20 @@ export default function FieldEventsControl() {
                 <RefreshCw className="h-4 w-4" />
               </Button>
             </div>
+          </div>
+          
+          <div>
+            <Label className="text-sm text-muted-foreground mb-2 block">Results Directory (LIF Export Path)</Label>
+            <Input
+              placeholder="/path/to/results/directory"
+              value={resultsDirectory || evtConfig?.resultsDirectory || ""}
+              onChange={(e) => setResultsDirectory(e.target.value)}
+              className="flex-1"
+              data-testid="input-results-directory"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              LIF files will be automatically exported to this directory when marks are recorded.
+            </p>
           </div>
           
           <div className="border-t pt-4">

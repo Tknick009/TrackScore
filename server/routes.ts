@@ -6386,6 +6386,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   interface EVTConfig {
     directoryPath: string;
+    resultsDirectory?: string; // Path for LIF export output
     // Horizontal event defaults (throws and jumps except high jump/pole vault)
     horizontalPrelimAttempts?: number;
     horizontalFinalists?: number;
@@ -6419,7 +6420,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.post("/api/evt-config", async (req, res) => {
     try {
-      const { directoryPath, horizontalPrelimAttempts, horizontalFinalists, horizontalFinalAttempts } = req.body;
+      const { directoryPath, resultsDirectory, horizontalPrelimAttempts, horizontalFinalists, horizontalFinalAttempts } = req.body;
       if (typeof directoryPath !== 'string') {
         return res.status(400).json({ error: "directoryPath must be a string" });
       }
@@ -6429,30 +6430,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const config: EVTConfig = { 
         directoryPath,
+        resultsDirectory: resultsDirectory || undefined,
         horizontalPrelimAttempts: prelimAttempts,
         horizontalFinalists: finalists,
         horizontalFinalAttempts: finalAttempts,
       };
       saveEVTConfig(config);
       
-      // Apply the new defaults to all existing horizontal field event sessions
+      // Ensure results directory exists if specified
+      if (resultsDirectory && !fs.existsSync(resultsDirectory)) {
+        fs.mkdirSync(resultsDirectory, { recursive: true });
+      }
+      
+      // Apply the new defaults to all existing field event sessions
       const allSessions = await storage.getAllFieldEventSessions();
       let updatedCount = 0;
       
       for (const session of allSessions) {
-        // Check if this is a horizontal event (not vertical like high jump/pole vault)
         const eventName = session.evtEventName || '';
+        const updates: Record<string, any> = {};
+        
+        // Update results directory for all sessions
+        if (resultsDirectory) {
+          updates.lffExportPath = resultsDirectory;
+        }
+        
+        // Apply horizontal event defaults
         if (isHorizontalEventName(eventName)) {
-          await storage.updateFieldEventSession(session.id, {
-            prelimAttempts: prelimAttempts,
-            finalsAttempts: finalAttempts,
-            advanceToFinalsCount: finalists,
-          });
+          updates.prelimAttempts = prelimAttempts;
+          updates.finalsAttempts = finalAttempts;
+          updates.athletesToFinals = finalists;
+        }
+        
+        if (Object.keys(updates).length > 0) {
+          await storage.updateFieldEventSession(session.id, updates);
           updatedCount++;
         }
       }
       
-      console.log(`[EVT Config] Applied defaults to ${updatedCount} horizontal event sessions`);
+      console.log(`[EVT Config] Applied config to ${updatedCount} sessions`);
       res.json({ ...config, updatedSessions: updatedCount });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -6603,10 +6619,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const athletesToFinals = isHorizontal ? (config.horizontalFinalists ?? 8) : 8;
         const totalAttempts = prelimAttempts + finalsAttempts;
         
-        // Create results directory under EVT directory for LIF export
-        const resultsDir = path.join(config.directoryPath, 'results');
-        if (!fs.existsSync(resultsDir)) {
-          fs.mkdirSync(resultsDir, { recursive: true });
+        // Use configured results directory for LIF export if specified
+        let lffExportPath: string | undefined;
+        if (config.resultsDirectory) {
+          lffExportPath = config.resultsDirectory;
+          // Ensure the directory exists
+          if (!fs.existsSync(lffExportPath)) {
+            fs.mkdirSync(lffExportPath, { recursive: true });
+          }
         }
         
         // Create session with in_progress status (immediately active and configurable)
@@ -6623,7 +6643,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           accessCode,
           evtEventNumber: evt.eventNumber,
           evtEventName: evt.eventName,
-          lffExportPath: resultsDir, // Auto-export to results subdirectory
+          lffExportPath, // Use configured results directory
         };
         
         const session = await storage.createFieldEventSession(sessionData);
