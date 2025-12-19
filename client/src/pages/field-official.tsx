@@ -3456,14 +3456,14 @@ function FieldEntryUI({
                         <ChevronRight className="h-4 w-4" />
                       </Button>
                     </div>
-                    <div className="w-full overflow-x-auto -mx-2 px-2">
-                      <div className="flex gap-2 min-w-max pb-1">
+                    <div className="w-full overflow-x-auto -mx-2 px-2 mt-3">
+                      <div className="flex gap-2 min-w-max pt-1 pb-2">
                         {heights.sort((a, b) => a.heightIndex - b.heightIndex).map((h) => (
                           <Badge 
                             key={h.id} 
                             variant={h.heightIndex === currentHeightIndex ? "default" : "outline"}
                             className={`text-sm px-3 py-1.5 cursor-pointer shrink-0 min-h-[2.5rem] flex items-center ${
-                              h.heightIndex === currentHeightIndex ? 'ring-2 ring-primary ring-offset-1' : ''
+                              h.heightIndex === currentHeightIndex ? 'ring-2 ring-primary ring-offset-2' : ''
                             }`}
                             onClick={() => handleJumpToHeight(h.heightIndex)}
                             data-testid={`badge-height-mobile-${h.heightIndex}`}
