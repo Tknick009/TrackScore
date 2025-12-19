@@ -413,7 +413,9 @@ function SessionCard({ session, athletes, onEdit, onDelete, onUpdateStatus, onEx
   const [showHeightsDialog, setShowHeightsDialog] = useState(false);
   
   // Use database event name if available, otherwise use EVT event name
-  const eventName = session.event?.name || session.evtEventName || "Unknown Event";
+  // Prepend event number if available from EVT import
+  const baseName = session.event?.name || session.evtEventName || "Unknown Event";
+  const eventName = session.evtEventNumber ? `#${session.evtEventNumber} ${baseName}` : baseName;
   const isVertical = isVerticalEvent(session);
   const checkedInCount = athletes.filter(a => a.checkInStatus === "checked_in").length;
   const totalAthletes = athletes.length;
