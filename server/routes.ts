@@ -6479,6 +6479,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           updates.prelimAttempts = prelimAttempts;
           updates.finalsAttempts = finalAttempts;
           updates.athletesToFinals = finalists;
+          updates.totalAttempts = prelimAttempts + finalAttempts;
         }
         
         if (Object.keys(updates).length > 0) {
