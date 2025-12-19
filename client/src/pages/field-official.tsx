@@ -1667,7 +1667,7 @@ function VerticalAthleteListItem({
             ) : isUp ? (
               <Badge className="bg-green-600 text-white font-bold px-2 py-1 text-sm">UP</Badge>
             ) : hasCleared ? (
-              <Badge variant="secondary" className="text-sm px-2 py-0.5">CLEAR</Badge>
+              <Badge variant="secondary" className="text-xs px-1.5 py-0.5">CLR</Badge>
             ) : allPasses ? (
               <span className="text-sm text-muted-foreground">-</span>
             ) : (
@@ -1744,7 +1744,7 @@ function VerticalAthleteListItem({
           ) : isUp ? (
             <Badge className="bg-green-600 text-white font-bold px-4 py-2 text-base md:text-lg">UP</Badge>
           ) : hasCleared ? (
-            <Badge variant="secondary" className="text-base md:text-lg px-3 py-1">CLEAR</Badge>
+            <Badge variant="secondary" className="text-sm md:text-base px-2 py-1">CLR</Badge>
           ) : allPasses ? (
             <span className="text-base md:text-lg text-muted-foreground">-</span>
           ) : (
