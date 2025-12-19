@@ -666,7 +666,8 @@ function MarkEntrySheet({
 }) {
   const [meters, setMeters] = useState("");
   const [centimeters, setCentimeters] = useState("");
-  const [wind, setWind] = useState("");
+  const [windValue, setWindValue] = useState("");
+  const [windSign, setWindSign] = useState<"+" | "-">("+");
   const cmInputRef = useRef<HTMLInputElement>(null);
   const info = getAthleteDisplayInfo(athlete);
 
@@ -679,11 +680,16 @@ function MarkEntrySheet({
 
   const handleSubmit = (markType: "mark" | "foul" | "pass") => {
     const measurement = getMeasurement();
-    const windValue = wind ? parseFloat(wind) : undefined;
-    onRecordMark(markType, markType === "mark" ? measurement : undefined, windValue);
+    let wind: number | undefined;
+    if (windValue) {
+      const absWind = Math.abs(parseFloat(windValue));
+      wind = windSign === "-" ? -absWind : absWind;
+    }
+    onRecordMark(markType, markType === "mark" ? measurement : undefined, wind);
     setMeters("");
     setCentimeters("");
-    setWind("");
+    setWindValue("");
+    setWindSign("+");
   };
 
   const handleMetersChange = (value: string) => {
@@ -770,13 +776,23 @@ function MarkEntrySheet({
             <div>
               <div className="flex items-center justify-center gap-2">
                 <span className="text-lg md:text-xl text-muted-foreground">Wind:</span>
+                <Button
+                  type="button"
+                  variant={windSign === "+" ? "default" : "outline"}
+                  size="icon"
+                  className="h-12 w-12 md:h-14 md:w-14 text-2xl font-bold"
+                  onClick={() => setWindSign(windSign === "+" ? "-" : "+")}
+                  data-testid="button-wind-sign"
+                >
+                  {windSign}
+                </Button>
                 <Input
                   type="text"
                   inputMode="decimal"
-                  placeholder="+0.0"
-                  value={wind}
-                  onChange={(e) => setWind(e.target.value)}
-                  className="h-12 md:h-14 w-24 md:w-28 text-xl md:text-2xl text-center font-mono"
+                  placeholder="0.0"
+                  value={windValue}
+                  onChange={(e) => setWindValue(e.target.value.replace(/[^0-9.]/g, ''))}
+                  className="h-12 md:h-14 w-20 md:w-24 text-xl md:text-2xl text-center font-mono"
                   data-testid="input-wind"
                 />
                 <span className="text-lg md:text-xl text-muted-foreground">m/s</span>
@@ -843,13 +859,20 @@ function EditMarkDialog({
   const { toast } = useToast();
   const [markType, setMarkType] = useState<string>("");
   const [measurement, setMeasurement] = useState<string>("");
-  const [wind, setWind] = useState<string>("");
+  const [windValue, setWindValue] = useState<string>("");
+  const [windSign, setWindSign] = useState<"+" | "-">("+");
 
   useEffect(() => {
     if (mark) {
       setMarkType(mark.markType || "");
       setMeasurement(mark.measurement?.toString() || "");
-      setWind(mark.wind?.toString() || "");
+      if (mark.wind !== null && mark.wind !== undefined) {
+        setWindValue(Math.abs(mark.wind).toString());
+        setWindSign(mark.wind < 0 ? "-" : "+");
+      } else {
+        setWindValue("");
+        setWindSign("+");
+      }
     }
   }, [mark]);
 
@@ -890,8 +913,9 @@ function EditMarkDialog({
       data.measurement = parseFloat(measurement);
     }
     // Include wind value (can be cleared by setting to null)
-    if (wind.trim() !== "") {
-      data.wind = parseFloat(wind);
+    if (windValue.trim() !== "") {
+      const absWind = Math.abs(parseFloat(windValue));
+      data.wind = windSign === "-" ? -absWind : absWind;
     } else {
       data.wind = null;
     }
@@ -957,14 +981,26 @@ function EditMarkDialog({
           {!isVertical && (
             <div className="space-y-2">
               <Label>Wind (m/s)</Label>
-              <Input
-                type="number"
-                step="0.1"
-                value={wind}
-                onChange={(e) => setWind(e.target.value)}
-                placeholder="e.g. +1.2 or -0.5"
-                data-testid="input-edit-wind"
-              />
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant={windSign === "+" ? "default" : "outline"}
+                  size="icon"
+                  onClick={() => setWindSign(windSign === "+" ? "-" : "+")}
+                  data-testid="button-edit-wind-sign"
+                >
+                  {windSign}
+                </Button>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  value={windValue}
+                  onChange={(e) => setWindValue(e.target.value.replace(/[^0-9.]/g, ''))}
+                  placeholder="0.0"
+                  className="flex-1"
+                  data-testid="input-edit-wind"
+                />
+              </div>
             </div>
           )}
         </div>
