@@ -420,7 +420,7 @@ function JoinSession({
   }, [initialCode]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-background">
+    <div className="h-screen max-h-screen flex items-center justify-center p-4 bg-background overflow-hidden">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold">Field Official Entry</CardTitle>
@@ -2313,7 +2313,7 @@ function FieldEntryUI({
 
   if (sessionLoading || athletesLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="h-screen max-h-screen flex items-center justify-center overflow-hidden">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
     );
@@ -2321,7 +2321,7 @@ function FieldEntryUI({
 
   if (sessionError || !session) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="h-screen max-h-screen flex items-center justify-center p-4 overflow-hidden">
         <Card className="w-full max-w-md">
           <CardContent className="p-6 text-center">
             <p className="text-destructive mb-4">Failed to load session</p>
@@ -2339,9 +2339,9 @@ function FieldEntryUI({
   const currentFlight = session.currentFlightNumber || 1;
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="h-screen max-h-screen bg-background flex flex-col overflow-hidden">
       {/* Header - optimized for iPad */}
-      <header className="bg-primary text-primary-foreground p-4 md:p-6 sticky top-0 z-40">
+      <header className="bg-primary text-primary-foreground p-4 md:p-6 shrink-0">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0 flex-1">
             <h1 className="font-bold text-xl md:text-2xl truncate" data-testid="text-event-name">
