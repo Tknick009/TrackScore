@@ -470,6 +470,7 @@ function AthleteListItem({
   onMoveFlight,
   onChangeStatus,
   onEditMark,
+  onForceFinalist,
   isDns = false,
 }: { 
   athlete: EnrichedAthlete; 
@@ -483,6 +484,7 @@ function AthleteListItem({
   onMoveFlight: (athleteId: number, newFlight: number) => void;
   onChangeStatus: (athleteId: number, checkInStatus: string, competitionStatus: string) => void;
   onEditMark: (mark: FieldEventMark) => void;
+  onForceFinalist: (athleteId: number, isFinalist: boolean) => void;
   isDns?: boolean;
 }) {
   const info = getAthleteDisplayInfo(athlete);
@@ -515,6 +517,12 @@ function AthleteListItem({
           <span className="font-mono text-sm md:text-base text-muted-foreground">{info.bib}</span>
           <span className="font-semibold text-base md:text-lg truncate">{info.name}</span>
           <Badge variant="outline" className="text-xs md:text-sm">F{athlete.flightNumber || 1}</Badge>
+          {athlete.isFinalist && (
+            <Badge className="text-xs md:text-sm bg-amber-500 text-white border-amber-500">
+              <Star className="h-3 w-3 mr-0.5" />
+              Finals
+            </Badge>
+          )}
         </div>
         {info.team && (
           <p className="text-sm text-muted-foreground truncate">{info.team}</p>
@@ -606,6 +614,13 @@ function AthleteListItem({
               ))}
             </DropdownMenuSubContent>
           </DropdownMenuSub>
+          <DropdownMenuItem
+            onClick={() => onForceFinalist(athlete.id, !athlete.isFinalist)}
+            data-testid={`menu-toggle-finalist-${athlete.id}`}
+          >
+            <Star className={`h-4 w-4 mr-2 ${athlete.isFinalist ? 'text-amber-500 fill-amber-500' : ''}`} />
+            {athlete.isFinalist ? "Remove from Finals" : "Force to Finals"}
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
@@ -2019,6 +2034,24 @@ function FieldEntryUI({
     moveFlightMutation.mutate({ athleteId, newFlight });
   };
 
+  // Mutation for forcing/removing finalist status
+  const forceFinalistMutation = useMutation({
+    mutationFn: async ({ athleteId, isFinalist }: { athleteId: number; isFinalist: boolean }) => {
+      return apiRequest("PATCH", `/api/field-athletes/${athleteId}`, { isFinalist });
+    },
+    onSuccess: (_, { isFinalist }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "athletes"] });
+      toast({ title: isFinalist ? "Athlete added to finals" : "Athlete removed from finals" });
+    },
+    onError: () => {
+      toast({ title: "Failed to update finalist status", variant: "destructive" });
+    },
+  });
+
+  const handleForceFinalist = (athleteId: number, isFinalist: boolean) => {
+    forceFinalistMutation.mutate({ athleteId, isFinalist });
+  };
+
   // Mutation for changing athlete check-in status
   const changeStatusMutation = useMutation({
     mutationFn: async ({ athleteId, checkInStatus, competitionStatus }: { 
@@ -2700,6 +2733,7 @@ function FieldEntryUI({
                         onMoveFlight={handleMoveFlight}
                         onChangeStatus={handleChangeStatus}
                         onEditMark={setEditingMark}
+                        onForceFinalist={handleForceFinalist}
                       />
                     ))}
                   </div>
@@ -2753,6 +2787,7 @@ function FieldEntryUI({
                         onMoveFlight={handleMoveFlight}
                         onChangeStatus={handleChangeStatus}
                         onEditMark={setEditingMark}
+                        onForceFinalist={handleForceFinalist}
                         isDns={true}
                       />
                     ))}
