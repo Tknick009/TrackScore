@@ -792,15 +792,25 @@ export default function FieldEventsControl() {
   const handleSaveEvtConfig = async () => {
     setIsSavingConfig(true);
     try {
-      await apiRequest("POST", "/api/evt-config", { 
+      const response = await apiRequest("POST", "/api/evt-config", { 
         directoryPath: evtDirectoryPath,
         horizontalPrelimAttempts,
         horizontalFinalists,
         horizontalFinalAttempts,
       });
+      const result = await response.json();
       queryClient.invalidateQueries({ queryKey: ["/api/evt-config"] });
       queryClient.invalidateQueries({ queryKey: ["/api/evt-events"] });
-      toast({ title: "Configuration saved" });
+      queryClient.invalidateQueries({ queryKey: ["/api/field-sessions"] });
+      
+      if (result.updatedSessions > 0) {
+        toast({ 
+          title: "Configuration saved",
+          description: `Updated ${result.updatedSessions} existing horizontal event session(s) with new defaults.`
+        });
+      } else {
+        toast({ title: "Configuration saved" });
+      }
     } catch (error: any) {
       toast({
         title: "Failed to save config",

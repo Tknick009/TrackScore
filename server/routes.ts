@@ -6422,14 +6422,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (typeof directoryPath !== 'string') {
         return res.status(400).json({ error: "directoryPath must be a string" });
       }
+      const prelimAttempts = horizontalPrelimAttempts ?? 3;
+      const finalists = horizontalFinalists ?? 8;
+      const finalAttempts = horizontalFinalAttempts ?? 3;
+      
       const config: EVTConfig = { 
         directoryPath,
-        horizontalPrelimAttempts: horizontalPrelimAttempts ?? 3,
-        horizontalFinalists: horizontalFinalists ?? 8,
-        horizontalFinalAttempts: horizontalFinalAttempts ?? 3,
+        horizontalPrelimAttempts: prelimAttempts,
+        horizontalFinalists: finalists,
+        horizontalFinalAttempts: finalAttempts,
       };
       saveEVTConfig(config);
-      res.json(config);
+      
+      // Apply the new defaults to all existing horizontal field event sessions
+      const allSessions = await storage.getAllFieldEventSessions();
+      let updatedCount = 0;
+      
+      for (const session of allSessions) {
+        // Check if this is a horizontal event (not vertical like high jump/pole vault)
+        const eventName = session.evtEventName || '';
+        if (isHorizontalEventName(eventName)) {
+          await storage.updateFieldEventSession(session.id, {
+            prelimAttempts: prelimAttempts,
+            finalsAttempts: finalAttempts,
+            advanceToFinalsCount: finalists,
+          });
+          updatedCount++;
+        }
+      }
+      
+      console.log(`[EVT Config] Applied defaults to ${updatedCount} horizontal event sessions`);
+      res.json({ ...config, updatedSessions: updatedCount });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
