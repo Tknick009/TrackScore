@@ -2122,17 +2122,35 @@ function FieldEntryUI({
     switchFlightMutation.mutate(flightNumber);
   };
 
-  // Mutation to exit finals mode (go back to prelims/flights)
-  const exitFinalsMutation = useMutation({
-    mutationFn: async () => {
-      return apiRequest("PATCH", `/api/field-sessions/${sessionId}`, { isInFinals: false });
+  // Mutation to exit finals mode and switch to a flight
+  const exitFinalsAndSwitchFlightMutation = useMutation({
+    mutationFn: async (flightNumber: number) => {
+      // First exit finals, then switch flight in one PATCH request
+      return apiRequest("PATCH", `/api/field-sessions/${sessionId}`, { 
+        isInFinals: false,
+        currentFlightNumber: flightNumber 
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "full"] });
-      toast({ title: "Exited finals mode" });
+      toast({ title: "Switched to flight" });
     },
     onError: (error: Error) => {
-      toast({ title: error.message || "Failed to exit finals", variant: "destructive" });
+      toast({ title: error.message || "Failed to switch flight", variant: "destructive" });
+    },
+  });
+
+  // Mutation to enter finals mode
+  const enterFinalsMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("PATCH", `/api/field-sessions/${sessionId}`, { isInFinals: true });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "full"] });
+      toast({ title: "Switched to Finals" });
+    },
+    onError: (error: Error) => {
+      toast({ title: error.message || "Failed to enter finals", variant: "destructive" });
     },
   });
 
@@ -2384,7 +2402,11 @@ function FieldEntryUI({
               {isVertical && currentHeight ? (
                 <>Bar: {formatHeightMark(currentHeight.heightMeters)} • </>
               ) : null}
-              Flight {currentFlight} of {totalFlights} • {sortedAthletes.length} athletes
+              {!isVertical && session.isInFinals ? (
+                <>Finals • {sortedAthletes.filter(a => a.isFinalist).length} finalists</>
+              ) : (
+                <>Flight {currentFlight} of {totalFlights} • {sortedAthletes.filter(a => (a.flightNumber || 1) === currentFlight).length} athletes</>
+              )}
             </p>
           </div>
           {isVertical && (
@@ -2602,18 +2624,22 @@ function FieldEntryUI({
                     <span className="text-base md:text-lg text-muted-foreground">Flight:</span>
                     {Array.from({ length: totalFlights }, (_, i) => i + 1).map((flightNum) => {
                       const athletesInFlight = sortedAthletes.filter(a => (a.flightNumber || 1) === flightNum);
+                      const isSelected = !session.isInFinals && currentFlight === flightNum;
+                      const isSwitching = switchFlightMutation.isPending || exitFinalsAndSwitchFlightMutation.isPending;
                       return (
                         <Badge
                           key={flightNum}
-                          variant={!session.isInFinals && currentFlight === flightNum ? "default" : "outline"}
-                          className={`text-sm md:text-base px-3 py-1.5 cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all ${
-                            !session.isInFinals && currentFlight === flightNum ? 'ring-2 ring-primary ring-offset-1' : ''
-                          }`}
+                          variant={isSelected ? "default" : "outline"}
+                          className={`text-sm md:text-base px-3 py-1.5 transition-all ${
+                            isSwitching ? 'opacity-50 cursor-wait' : 'cursor-pointer hover:ring-2 hover:ring-primary/50'
+                          } ${isSelected ? 'ring-2 ring-primary ring-offset-1' : ''}`}
                           onClick={() => {
+                            if (isSwitching) return;
                             if (session.isInFinals) {
-                              exitFinalsMutation.mutate();
+                              exitFinalsAndSwitchFlightMutation.mutate(flightNum);
+                            } else if (currentFlight !== flightNum) {
+                              handleSwitchFlight(flightNum);
                             }
-                            handleSwitchFlight(flightNum);
                           }}
                           data-testid={`badge-flight-${flightNum}`}
                         >
@@ -2625,16 +2651,15 @@ function FieldEntryUI({
                     {sortedAthletes.some(a => a.isFinalist) && (
                       <Badge
                         variant={session.isInFinals ? "default" : "outline"}
-                        className={`text-sm md:text-base px-3 py-1.5 cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all ${
+                        className={`text-sm md:text-base px-3 py-1.5 transition-all ${
+                          enterFinalsMutation.isPending ? 'opacity-50 cursor-wait' : 'cursor-pointer hover:ring-2 hover:ring-primary/50'
+                        } ${
                           session.isInFinals ? 'ring-2 ring-primary ring-offset-1 bg-amber-500 border-amber-500 text-white hover:bg-amber-600' : 'border-amber-500 text-amber-600'
                         }`}
                         onClick={() => {
+                          if (enterFinalsMutation.isPending) return;
                           if (!session.isInFinals) {
-                            apiRequest("PATCH", `/api/field-sessions/${sessionId}`, { isInFinals: true })
-                              .then(() => {
-                                queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "full"] });
-                                toast({ title: "Switched to Finals" });
-                              });
+                            enterFinalsMutation.mutate();
                           }
                         }}
                         data-testid="badge-finals"
