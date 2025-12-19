@@ -496,7 +496,7 @@ function AthleteListItem({
 
   return (
     <div
-      className={`flex items-center gap-3 p-4 md:p-5 border-b border-border ${
+      className={`flex items-center gap-2 sm:gap-3 p-2 sm:p-4 md:p-5 border-b border-border ${
         isUp ? "bg-green-50 dark:bg-green-950/30" : ""
       }`}
       data-testid={`athlete-row-${athlete.id}`}
@@ -1365,7 +1365,7 @@ function VerticalAthleteListItem({
   
   return (
     <div
-      className={`flex items-center gap-4 p-4 md:p-6 border-b border-border ${
+      className={`flex items-center gap-2 sm:gap-4 p-2 sm:p-4 md:p-6 border-b border-border ${
         isUp ? "bg-green-50 dark:bg-green-950/30" : ""
       } ${eliminated ? "opacity-50" : ""}`}
       data-testid={`vertical-athlete-row-${athlete.id}`}
@@ -2935,17 +2935,17 @@ function FieldEntryUI({
   return (
     <div className="h-screen max-h-screen bg-background flex flex-col overflow-hidden">
       {/* Header - optimized for iPad */}
-      <header className="bg-primary text-primary-foreground p-4 md:p-6 shrink-0">
-        <div className="flex items-center justify-between gap-3">
+      <header className="bg-primary text-primary-foreground p-2 sm:p-4 md:p-6 shrink-0">
+        <div className="flex items-center justify-between gap-1.5 sm:gap-3">
           <Sheet open={showEventsSidebar} onOpenChange={setShowEventsSidebar}>
             <SheetTrigger asChild>
               <Button 
                 variant="ghost" 
                 size="icon"
-                className="shrink-0 h-11 w-11 md:h-14 md:w-14 bg-primary text-primary-foreground hover:bg-primary-foreground/20"
+                className="shrink-0 h-9 w-9 md:h-11 md:w-11 bg-primary text-primary-foreground hover:bg-primary-foreground/20"
                 data-testid="button-menu-events"
               >
-                <Menu className="h-6 w-6 md:h-7 md:w-7" />
+                <Menu className="h-5 w-5 md:h-6 md:w-6" />
               </Button>
             </SheetTrigger>
             <SheetContent side="left" data-testid="sidebar-field-events">
@@ -3045,7 +3045,7 @@ function FieldEntryUI({
               <span className="sm:hidden">Finals</span>
             </Button>
           )}
-          <div className="shrink-0 flex items-center gap-1.5">
+          <div className="hidden sm:flex shrink-0 items-center gap-1.5">
             <Label htmlFor="device-name" className="text-xs text-primary-foreground/70 whitespace-nowrap">Device:</Label>
             <Input
               id="device-name"
@@ -3060,36 +3060,36 @@ function FieldEntryUI({
             variant="ghost" 
             size="icon"
             onClick={() => setShowSettings(true)}
-            className="shrink-0 h-11 w-11 md:h-14 md:w-14 text-primary-foreground hover:bg-primary-foreground/20"
+            className="shrink-0 h-9 w-9 md:h-11 md:w-11 text-primary-foreground hover:bg-primary-foreground/20"
             data-testid="button-settings"
           >
-            <Settings className="h-6 w-6 md:h-7 md:w-7" />
+            <Settings className="h-5 w-5 md:h-6 md:w-6" />
           </Button>
           <Button 
             variant="ghost" 
             size="icon"
             onClick={handleLeave}
-            className="shrink-0 h-11 w-11 md:h-14 md:w-14 text-primary-foreground hover:bg-primary-foreground/20"
+            className="shrink-0 h-9 w-9 md:h-11 md:w-11 text-primary-foreground hover:bg-primary-foreground/20"
             data-testid="button-leave-session"
           >
-            <LogOut className="h-6 w-6 md:h-7 md:w-7" />
+            <LogOut className="h-5 w-5 md:h-6 md:w-6" />
           </Button>
         </div>
       </header>
 
       {/* Tabs - always show labels for iPad */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 min-h-0 flex flex-col">
-        <TabsList className="w-full rounded-none border-b h-16 md:h-20 bg-background">
-          <TabsTrigger value="officiate" className="flex-1 gap-2.5 text-base md:text-lg data-[state=active]:bg-muted">
-            <Users className="h-5 w-5 md:h-6 md:w-6" />
+        <TabsList className="w-full rounded-none border-b h-12 sm:h-16 md:h-20 bg-background">
+          <TabsTrigger value="officiate" className="flex-1 gap-2.5 text-sm sm:text-base md:text-lg data-[state=active]:bg-muted">
+            <Users className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />
             <span>Officiate</span>
           </TabsTrigger>
-          <TabsTrigger value="standings" className="flex-1 gap-2.5 text-base md:text-lg data-[state=active]:bg-muted">
-            <Trophy className="h-5 w-5 md:h-6 md:w-6" />
+          <TabsTrigger value="standings" className="flex-1 gap-2.5 text-sm sm:text-base md:text-lg data-[state=active]:bg-muted">
+            <Trophy className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />
             <span>Standings</span>
           </TabsTrigger>
-          <TabsTrigger value="review" className="flex-1 gap-2.5 text-base md:text-lg data-[state=active]:bg-muted">
-            <Grid3X3 className="h-5 w-5 md:h-6 md:w-6" />
+          <TabsTrigger value="review" className="flex-1 gap-2.5 text-sm sm:text-base md:text-lg data-[state=active]:bg-muted">
+            <Grid3X3 className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />
             <span>Review</span>
           </TabsTrigger>
         </TabsList>
@@ -3101,7 +3101,7 @@ function FieldEntryUI({
               {/* Current Height Bar - iPad optimized */}
               {heights && heights.length > 0 ? (
                 <div className="bg-muted/50 border-b">
-                  <div className="p-4 md:p-5 flex items-center justify-between gap-3">
+                  <div className="p-2 sm:p-4 md:p-5 flex items-center justify-between gap-3">
                     <Button
                       size="lg"
                       variant="outline"
@@ -3148,7 +3148,7 @@ function FieldEntryUI({
                   </div>
                   
                   {/* Alive Group Selector */}
-                  <div className="px-4 md:px-5 pb-4 md:pb-5 flex items-center justify-center gap-3 md:gap-4">
+                  <div className="px-2 sm:px-4 md:px-5 pb-2 sm:pb-4 md:pb-5 flex items-center justify-center gap-2 sm:gap-3 md:gap-4">
                     <span className="text-base md:text-lg text-muted-foreground">Alive Group:</span>
                     <Select 
                       value={session?.aliveGroupSize?.toString() || "all"}
