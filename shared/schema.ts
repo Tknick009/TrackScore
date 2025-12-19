@@ -2466,6 +2466,9 @@ export const externalScoreboards = pgTable('external_scoreboards', {
   // Field event session association
   sessionId: integer('session_id').references(() => fieldEventSessions.id, { onDelete: 'set null' }),
   
+  // Device following - only receive updates from this specific device name
+  followDeviceName: text('follow_device_name'), // null = receive from all devices
+  
   // Status
   isActive: boolean('is_active').default(false),
   lastStatus: text('last_status'), // JSON string with connection status info

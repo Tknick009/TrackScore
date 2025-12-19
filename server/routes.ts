@@ -306,7 +306,8 @@ async function broadcastCurrentEvent() {
 }
 
 // Broadcast field event update to subscribers and all displays
-async function broadcastFieldEventUpdate(sessionId: number) {
+// deviceName is optional - used for device-specific scoreboard routing
+async function broadcastFieldEventUpdate(sessionId: number, deviceName?: string) {
   try {
     const session = await storage.getFieldEventSessionWithDetails(sessionId);
     if (!session) {
@@ -391,8 +392,9 @@ async function broadcastFieldEventUpdate(sessionId: number) {
         : null;
 
       const scoreboardPayload = buildFieldScoreboardPayload(session, currentAthleteId, lastMark);
-      await externalScoreboardService.sendToSession(sessionId, scoreboardPayload);
-      console.log(`[Field Broadcast] Session ${sessionId}: sent to external scoreboards`);
+      scoreboardPayload.deviceName = deviceName;
+      await externalScoreboardService.sendToSession(sessionId, scoreboardPayload, deviceName);
+      console.log(`[Field Broadcast] Session ${sessionId}: sent to external scoreboards (device: ${deviceName || 'all'})`);
     } catch (extError) {
       console.error(`[Field Broadcast] Error sending to external scoreboards:`, extError);
     }
@@ -6834,8 +6836,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid session ID" });
       }
       
+      // Extract deviceName before validation (not part of session schema)
+      const { deviceName, ...sessionData } = req.body;
+      
       const oldSession = await storage.getFieldEventSession(id);
-      const validated = insertFieldEventSessionSchema.partial().parse(req.body);
+      const validated = insertFieldEventSessionSchema.partial().parse(sessionData);
       const session = await storage.updateFieldEventSession(id, validated);
       if (!session) {
         return res.status(404).json({ error: "Session not found" });
@@ -6850,8 +6855,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // Broadcast field event update
-      broadcastFieldEventUpdate(id).catch(console.error);
+      // Broadcast field event update (with device name for scoreboard routing)
+      broadcastFieldEventUpdate(id, deviceName).catch(console.error);
       
       res.json(session);
     } catch (error: any) {
@@ -6867,6 +6872,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid session ID" });
       }
       
+      const { deviceName, direction: reqDirection } = req.body || {};
+      
       const session = await storage.getFieldEventSession(id);
       if (!session) {
         return res.status(404).json({ error: "Session not found" });
@@ -6881,7 +6888,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const maxIndex = Math.max(...heights.map(h => h.heightIndex));
       
       // Allow direction: 1 for next, -1 for previous
-      const direction = req.body.direction === -1 ? -1 : 1;
+      const direction = reqDirection === -1 ? -1 : 1;
       const newIndex = currentIndex + direction;
       
       if (direction === 1 && newIndex > maxIndex) {
@@ -6896,7 +6903,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       // Broadcast update
-      broadcastFieldEventUpdate(id).catch(console.error);
+      broadcastFieldEventUpdate(id, deviceName).catch(console.error);
       
       res.json({ success: true, currentHeightIndex: newIndex });
     } catch (error: any) {
@@ -7164,13 +7171,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (isNaN(id)) {
         return res.status(400).json({ error: "Invalid athlete ID" });
       }
+      const { deviceName } = req.body || {};
       const athlete = await storage.checkInFieldAthlete(id);
       if (!athlete) {
         return res.status(404).json({ error: "Athlete not found" });
       }
       
       // Broadcast field event update
-      broadcastFieldEventUpdate(athlete.sessionId).catch(console.error);
+      broadcastFieldEventUpdate(athlete.sessionId, deviceName).catch(console.error);
       
       res.json(athlete);
     } catch (error: any) {
@@ -7185,13 +7193,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (isNaN(id)) {
         return res.status(400).json({ error: "Invalid athlete ID" });
       }
+      const { deviceName } = req.body || {};
       const athlete = await storage.scratchFieldAthlete(id);
       if (!athlete) {
         return res.status(404).json({ error: "Athlete not found" });
       }
       
       // Broadcast field event update
-      broadcastFieldEventUpdate(athlete.sessionId).catch(console.error);
+      broadcastFieldEventUpdate(athlete.sessionId, deviceName).catch(console.error);
       
       res.json(athlete);
     } catch (error: any) {
@@ -7313,7 +7322,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create field mark
   app.post("/api/field-marks", async (req, res) => {
     try {
-      const validated = insertFieldEventMarkSchema.parse(req.body);
+      // Extract deviceName before validation (not part of mark schema)
+      const { deviceName, ...markData } = req.body;
+      const validated = insertFieldEventMarkSchema.parse(markData);
       const mark = await storage.createFieldEventMark(validated);
       
       // Handle vertical event progression (high_jump, pole_vault)
@@ -7395,7 +7406,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Broadcast field event update and auto-export LFF
-      broadcastFieldEventUpdate(mark.sessionId).catch(console.error);
+      broadcastFieldEventUpdate(mark.sessionId, deviceName).catch(console.error);
       autoExportLFF(mark.sessionId).catch(console.error);
       
       res.status(201).json(mark);
@@ -7411,14 +7422,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (isNaN(id)) {
         return res.status(400).json({ error: "Invalid mark ID" });
       }
-      const validated = insertFieldEventMarkSchema.partial().parse(req.body);
+      // Extract deviceName before validation
+      const { deviceName, ...updateData } = req.body;
+      const validated = insertFieldEventMarkSchema.partial().parse(updateData);
       const mark = await storage.updateFieldEventMark(id, validated);
       if (!mark) {
         return res.status(404).json({ error: "Mark not found" });
       }
       
       // Broadcast field event update and auto-export LFF
-      broadcastFieldEventUpdate(mark.sessionId).catch(console.error);
+      broadcastFieldEventUpdate(mark.sessionId, deviceName).catch(console.error);
       autoExportLFF(mark.sessionId).catch(console.error);
       
       res.json(mark);

@@ -32,6 +32,7 @@ interface FieldScoreboardPayload {
   eventName: string;
   eventType: string;
   sessionId: number;
+  deviceName?: string;
 }
 
 class ExternalScoreboardService {
@@ -135,13 +136,25 @@ class ExternalScoreboardService {
     socket.connect(scoreboard.targetPort, scoreboard.targetIp);
   }
 
-  async sendToSession(sessionId: number, payload: FieldScoreboardPayload): Promise<void> {
+  async sendToSession(sessionId: number, payload: FieldScoreboardPayload, deviceName?: string): Promise<void> {
     const scoreboards = await storage.getExternalScoreboards();
     const sessionScoreboards = scoreboards.filter(
       (sb) => sb.sessionId === sessionId && sb.isActive
     );
 
     for (const scoreboard of sessionScoreboards) {
+      // Filter by device name if scoreboard is configured to follow a specific device
+      if (scoreboard.followDeviceName && deviceName) {
+        // Only send if the device name matches what this scoreboard is following
+        if (scoreboard.followDeviceName.toLowerCase() !== deviceName.toLowerCase()) {
+          continue;
+        }
+      } else if (scoreboard.followDeviceName && !deviceName) {
+        // Scoreboard wants a specific device but no device name was provided - skip
+        continue;
+      }
+      // If scoreboard.followDeviceName is null, it receives from all devices
+
       const connection = this.connections.get(scoreboard.id);
       if (connection) {
         await this.sendPayload(connection, payload);
