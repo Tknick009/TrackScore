@@ -2669,6 +2669,12 @@ function FieldEntryUI({
 
   const recordMark = (markType: "mark" | "foul" | "pass", measurement?: string, wind?: number) => {
     if (!selectedAthlete) return;
+    
+    // In finals mode, only finalists can record marks
+    if (session?.isInFinals && !selectedAthlete.isFinalist) {
+      toast({ title: "Only finalists can record marks in finals", variant: "destructive" });
+      return;
+    }
 
     const markData: InsertFieldEventMark = {
       sessionId,
