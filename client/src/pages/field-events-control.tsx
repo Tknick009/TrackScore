@@ -581,32 +581,33 @@ function SessionCard({ session, athletes, onEdit, onDelete, onUpdateStatus, onEx
             </Button>
           )}
 
+          {athletes.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onCheckInAll}
+              disabled={isCheckingInAll || athletes.every(a => a.checkInStatus === "checked_in")}
+              data-testid={`button-checkin-all-${session.id}`}
+            >
+              {isCheckingInAll ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+              )}
+              Check In All
+            </Button>
+          )}
+
           {session.status === "check_in" && (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onCheckInAll}
-                disabled={isCheckingInAll || athletes.every(a => a.checkInStatus === "checked_in")}
-                data-testid={`button-checkin-all-${session.id}`}
-              >
-                {isCheckingInAll ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Users className="h-4 w-4 mr-2" />
-                )}
-                Check In All
-              </Button>
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => onUpdateStatus("in_progress")}
-                data-testid={`button-start-event-${session.id}`}
-              >
-                <Play className="h-4 w-4 mr-2" />
-                Start Event
-              </Button>
-            </>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => onUpdateStatus("in_progress")}
+              data-testid={`button-start-event-${session.id}`}
+            >
+              <Play className="h-4 w-4 mr-2" />
+              Start Event
+            </Button>
           )}
 
           {session.status === "in_progress" && (
