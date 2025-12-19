@@ -248,8 +248,8 @@ function HeightsDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-hidden flex flex-col gap-4">
-          <div className="flex items-center gap-2">
+        <div className="flex-1 min-h-0 flex flex-col gap-4">
+          <div className="flex items-center gap-2 shrink-0">
             <div className="flex-1">
               <Input
                 type="number"
@@ -276,7 +276,7 @@ function HeightsDialog({
             </Button>
           </div>
 
-          <ScrollArea className="flex-1 max-h-[400px]">
+          <ScrollArea className="flex-1 min-h-0">
             {isLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
