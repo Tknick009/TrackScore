@@ -57,12 +57,12 @@ export function generateHorizontalLFF(
       .sort((a, b) => a.attemptNumber - b.attemptNumber);
     
     const place = standing.place || "";
-    const bibNumber = athlete.athlete?.bibNumber || athlete.entry?.athleteBibNumber || "";
+    const bibNumber = athlete.athlete?.bibNumber || athlete.entry?.athleteBibNumber || athlete.evtBibNumber || "";
     const competePosition = athlete.orderInFlight || "";
     const eventPlace = standing.place || "";
-    const lastName = athlete.athlete?.lastName || "";
-    const firstName = athlete.athlete?.firstName || "";
-    const affiliation = athlete.athlete?.school || athlete.athlete?.team || "";
+    const lastName = athlete.athlete?.lastName || athlete.evtLastName || "";
+    const firstName = athlete.athlete?.firstName || athlete.evtFirstName || "";
+    const affiliation = athlete.athlete?.school || athlete.athlete?.team || athlete.evtTeam || "";
     
     const attemptParts: string[] = [];
     for (let i = 1; i <= 6; i++) {
@@ -141,12 +141,12 @@ export function generateVerticalLFF(
     const athleteMarks = marks.filter(m => m.athleteId === standing.athleteId);
     
     const place = standing.place || "";
-    const bibNumber = athlete.athlete?.bibNumber || athlete.entry?.athleteBibNumber || "";
+    const bibNumber = athlete.athlete?.bibNumber || athlete.entry?.athleteBibNumber || athlete.evtBibNumber || "";
     const competePosition = athlete.orderInFlight || "";
     const eventPlace = standing.place || "";
-    const lastName = athlete.athlete?.lastName || "";
-    const firstName = athlete.athlete?.firstName || "";
-    const affiliation = athlete.athlete?.school || athlete.athlete?.team || "";
+    const lastName = athlete.athlete?.lastName || athlete.evtLastName || "";
+    const firstName = athlete.athlete?.firstName || athlete.evtFirstName || "";
+    const affiliation = athlete.athlete?.school || athlete.athlete?.team || athlete.evtTeam || "";
     
     const attemptParts: string[] = [];
     for (const height of sortedHeights) {
