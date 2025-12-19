@@ -110,6 +110,52 @@ type LocalHeight = {
   isJumpOff: boolean;
 };
 
+// Opening Height Button Component - appears next to athlete name until height is set
+function OpeningHeightButton({
+  athleteId,
+  heights,
+  onSetOpeningHeight,
+  size = "default",
+}: {
+  athleteId: number;
+  heights: FieldHeight[];
+  onSetOpeningHeight: (athleteId: number, heightIndex: number) => void;
+  size?: "sm" | "default";
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const sortedHeights = [...heights].sort((a, b) => a.heightIndex - b.heightIndex);
+  
+  return (
+    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
+      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+        <Button 
+          variant="outline" 
+          size={size}
+          className={size === "sm" ? "h-7 px-2 text-xs" : "h-8 px-3 text-sm"}
+          data-testid={`button-set-opening-height-inline-${athleteId}`}
+        >
+          <Ruler className={size === "sm" ? "h-3 w-3 mr-1" : "h-4 w-4 mr-1"} />
+          Set Height
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" onClick={(e) => e.stopPropagation()}>
+        {sortedHeights.map((h) => (
+          <DropdownMenuItem
+            key={h.id}
+            onClick={() => {
+              onSetOpeningHeight(athleteId, h.heightIndex);
+              setIsOpen(false);
+            }}
+            data-testid={`menu-opening-height-${athleteId}-${h.heightIndex}`}
+          >
+            {formatHeightMark(h.heightMeters)}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 function HeightsDialog({ 
   sessionId, 
   open, 
@@ -1633,6 +1679,15 @@ function VerticalAthleteListItem({
                 <span className="font-mono text-sm text-muted-foreground">{info.bib}</span>
               )}
               <span className={`font-semibold text-base ${eliminated ? "line-through" : ""}`}>{info.name}</span>
+              {/* Opening Height Button - only show for checked-in athletes without opening height set */}
+              {!isDns && !eliminated && (!athlete.startingHeightIndex || athlete.startingHeightIndex === 0) && heights.length > 0 && (
+                <OpeningHeightButton
+                  athleteId={athlete.id}
+                  heights={heights}
+                  onSetOpeningHeight={onSetOpeningHeight}
+                  size="sm"
+                />
+              )}
             </div>
             {info.team && (
               <p className="text-sm text-muted-foreground truncate">{info.team}</p>
@@ -1697,6 +1752,15 @@ function VerticalAthleteListItem({
             )}
             <span className={`font-semibold text-lg md:text-xl ${eliminated ? "line-through" : ""}`}>{info.name}</span>
             <Badge variant="outline" className="text-sm md:text-base">F{athlete.flightNumber || 1}</Badge>
+            {/* Opening Height Button - only show for checked-in athletes without opening height set */}
+            {!isDns && !eliminated && (!athlete.startingHeightIndex || athlete.startingHeightIndex === 0) && heights.length > 0 && (
+              <OpeningHeightButton
+                athleteId={athlete.id}
+                heights={heights}
+                onSetOpeningHeight={onSetOpeningHeight}
+                size="default"
+              />
+            )}
           </div>
           {info.team && (
             <p className="text-base md:text-lg text-muted-foreground">{info.team}</p>
