@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { LogOut, Check, X, Minus, Loader2, ChevronDown, Users, Trophy, Grid3X3, Circle, MoreVertical, UserPlus, ArrowRightLeft, Search } from "lucide-react";
+import { LogOut, Check, X, Minus, Loader2, ChevronDown, Users, Trophy, Grid3X3, Circle, MoreVertical, UserPlus, ArrowRightLeft, Search, Star } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -522,6 +522,128 @@ function ReviewMarksView({
   );
 }
 
+function GenerateFinalsDialog({
+  isOpen,
+  onClose,
+  sessionId,
+  athletes,
+  marks,
+  defaultCount,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  sessionId: number;
+  athletes: EnrichedAthlete[];
+  marks: FieldEventMark[];
+  defaultCount: number;
+}) {
+  const { toast } = useToast();
+  const [count, setCount] = useState(defaultCount);
+
+  const getBestMark = (athleteId: number): number | null => {
+    const athleteMarks = marks.filter(m => m.athleteId === athleteId);
+    const validMarks = athleteMarks.filter(m => m.markType === "mark" && m.measurement).map(m => m.measurement as number);
+    return validMarks.length > 0 ? Math.max(...validMarks) : null;
+  };
+
+  const rankedAthletes = [...athletes]
+    .filter(a => a.checkInStatus === "checked_in" && a.competitionStatus !== "dns")
+    .map(a => ({ athlete: a, best: getBestMark(a.id) }))
+    .sort((a, b) => {
+      if (a.best === null && b.best === null) return 0;
+      if (a.best === null) return 1;
+      if (b.best === null) return -1;
+      return b.best - a.best;
+    });
+
+  const finalists = rankedAthletes.slice(0, count);
+
+  const generateFinalsMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", `/api/field-sessions/${sessionId}/generate-finals`, { count });
+    },
+    onSuccess: () => {
+      toast({ title: "Finals generated", description: `${count} athletes marked as finalists` });
+      queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "athletes"] });
+      onClose();
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  });
+
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Star className="h-5 w-5" />
+            Generate Finals
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="finalist-count">Number of Finalists</Label>
+            <Input
+              id="finalist-count"
+              type="number"
+              min={1}
+              max={rankedAthletes.length}
+              value={count}
+              onChange={(e) => setCount(Math.max(1, Math.min(rankedAthletes.length, parseInt(e.target.value) || 1)))}
+              className="mt-1"
+              data-testid="input-finalist-count"
+            />
+          </div>
+          
+          <div className="max-h-64 overflow-y-auto border rounded-md">
+            <div className="p-2 bg-muted text-sm font-medium sticky top-0">
+              Athletes Advancing to Finals
+            </div>
+            {finalists.map((item, index) => {
+              const info = getAthleteDisplayInfo(item.athlete);
+              return (
+                <div 
+                  key={item.athlete.id} 
+                  className="flex items-center gap-2 p-2 border-t"
+                  data-testid={`finalist-preview-${item.athlete.id}`}
+                >
+                  <div className="w-6 text-center font-bold text-sm">{index + 1}</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{info.name}</p>
+                  </div>
+                  <div className="text-sm font-mono">
+                    {item.best !== null ? item.best.toFixed(2) : "-"}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          
+          {rankedAthletes.length > count && (
+            <p className="text-xs text-muted-foreground">
+              {rankedAthletes.length - count} athletes will not advance
+            </p>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} data-testid="button-cancel-finals">
+            Cancel
+          </Button>
+          <Button 
+            onClick={() => generateFinalsMutation.mutate()}
+            disabled={generateFinalsMutation.isPending || finalists.length === 0}
+            data-testid="button-confirm-finals"
+          >
+            {generateFinalsMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            Generate Finals
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function AddAthleteDialog({
   isOpen,
   onClose,
@@ -765,6 +887,7 @@ function FieldEntryUI({
   const [selectedAthleteId, setSelectedAthleteId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState("officiate");
   const [showAddAthlete, setShowAddAthlete] = useState(false);
+  const [showGenerateFinals, setShowGenerateFinals] = useState(false);
 
   const { data: session, isLoading: sessionLoading, error: sessionError } = useQuery<FieldEventSessionWithDetails>({
     queryKey: ["/api/field-sessions", sessionId, "full"],
@@ -1065,6 +1188,16 @@ function FieldEntryUI({
         </TabsContent>
 
         <TabsContent value="standings" className="flex-1 m-0 overflow-auto">
+          <div className="p-2 border-b flex justify-end">
+            <Button 
+              size="sm" 
+              onClick={() => setShowGenerateFinals(true)}
+              data-testid="button-generate-finals"
+            >
+              <Star className="h-4 w-4 mr-1" />
+              Generate Finals
+            </Button>
+          </div>
           <StandingsView 
             athletes={sortedAthletes} 
             marks={marks || []} 
@@ -1100,6 +1233,15 @@ function FieldEntryUI({
         sessionId={sessionId}
         totalFlights={totalFlights}
         meetId={session?.event?.meetId || undefined}
+      />
+
+      <GenerateFinalsDialog
+        isOpen={showGenerateFinals}
+        onClose={() => setShowGenerateFinals(false)}
+        sessionId={sessionId}
+        athletes={sortedAthletes}
+        marks={marks || []}
+        defaultCount={session?.athletesToFinals || 8}
       />
     </div>
   );
