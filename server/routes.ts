@@ -6791,6 +6791,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Advance to next height (vertical events)
+  app.post("/api/field-sessions/:id/advance-height", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid session ID" });
+      }
+      
+      const session = await storage.getFieldEventSession(id);
+      if (!session) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+      
+      const heights = await storage.getFieldHeights(id);
+      if (heights.length === 0) {
+        return res.status(400).json({ error: "No heights configured" });
+      }
+      
+      const currentIndex = session.currentHeightIndex || 0;
+      const maxIndex = Math.max(...heights.map(h => h.heightIndex));
+      
+      // Allow direction: 1 for next, -1 for previous
+      const direction = req.body.direction === -1 ? -1 : 1;
+      const newIndex = currentIndex + direction;
+      
+      if (direction === 1 && newIndex > maxIndex) {
+        return res.status(400).json({ error: "Already at last height" });
+      }
+      if (direction === -1 && newIndex < 0) {
+        return res.status(400).json({ error: "Already at first height" });
+      }
+      
+      const updated = await storage.updateFieldEventSession(id, {
+        currentHeightIndex: newIndex,
+      });
+      
+      // Broadcast update
+      broadcastFieldEventUpdate(id).catch(console.error);
+      
+      res.json({ success: true, currentHeightIndex: newIndex });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Sync athletes from EVT file
   app.post("/api/field-sessions/:id/sync-evt", async (req, res) => {
     try {

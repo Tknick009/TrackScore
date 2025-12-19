@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { LogOut, Check, X, Minus, Loader2, ChevronDown, Users, Trophy, Grid3X3, Circle, MoreVertical, UserPlus, ArrowRightLeft, Search, Star } from "lucide-react";
+import { LogOut, Check, X, Minus, Loader2, ChevronDown, ChevronLeft, ChevronRight, Users, Trophy, Grid3X3, Circle, MoreVertical, UserPlus, ArrowRightLeft, Search, Star } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1481,6 +1481,24 @@ function FieldEntryUI({
     changeStatusMutation.mutate({ athleteId, checkInStatus, competitionStatus });
   };
 
+  // Mutation for advancing to next/previous height
+  const advanceHeightMutation = useMutation({
+    mutationFn: async (direction: 1 | -1) => {
+      return apiRequest("POST", `/api/field-sessions/${sessionId}/advance-height`, { direction });
+    },
+    onSuccess: (_, direction) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId] });
+      toast({ title: direction === 1 ? "Advanced to next height" : "Returned to previous height" });
+    },
+    onError: (error: Error) => {
+      toast({ title: error.message || "Failed to change height", variant: "destructive" });
+    },
+  });
+
+  const handleAdvanceHeight = (direction: 1 | -1) => {
+    advanceHeightMutation.mutate(direction);
+  };
+
   const handleLeave = () => {
     sessionStorage.removeItem(SESSION_STORAGE_KEY);
     onLeave();
@@ -1681,22 +1699,44 @@ function FieldEntryUI({
             <>
               {/* Current Height Bar */}
               {heights && heights.length > 0 && (
-                <div className="bg-muted/50 p-3 border-b flex items-center justify-center gap-2">
-                  <span className="text-sm text-muted-foreground">Current Bar:</span>
-                  <span className="font-mono font-bold text-lg">
-                    {currentHeight ? formatHeightMark(currentHeight.heightMeters) : "-"}
-                  </span>
-                  <div className="flex gap-1 ml-4">
-                    {heights.sort((a, b) => a.heightIndex - b.heightIndex).map((h) => (
-                      <Badge 
-                        key={h.id} 
-                        variant={h.heightIndex === currentHeightIndex ? "default" : "outline"}
-                        className={`text-xs ${h.heightIndex === currentHeightIndex ? 'ring-2 ring-primary ring-offset-1' : ''}`}
-                      >
-                        {formatHeightMark(h.heightMeters)}
-                      </Badge>
-                    ))}
+                <div className="bg-muted/50 p-3 border-b flex items-center justify-between gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleAdvanceHeight(-1)}
+                    disabled={currentHeightIndex <= 0 || advanceHeightMutation.isPending}
+                    data-testid="button-previous-height"
+                  >
+                    <ChevronLeft className="h-4 w-4 mr-1" />
+                    Prev
+                  </Button>
+                  <div className="flex items-center gap-2 flex-wrap justify-center">
+                    <span className="text-sm text-muted-foreground">Current Bar:</span>
+                    <span className="font-mono font-bold text-lg">
+                      {currentHeight ? formatHeightMark(currentHeight.heightMeters) : "-"}
+                    </span>
+                    <div className="flex gap-1">
+                      {heights.sort((a, b) => a.heightIndex - b.heightIndex).map((h) => (
+                        <Badge 
+                          key={h.id} 
+                          variant={h.heightIndex === currentHeightIndex ? "default" : "outline"}
+                          className={`text-xs ${h.heightIndex === currentHeightIndex ? 'ring-2 ring-primary ring-offset-1' : ''}`}
+                        >
+                          {formatHeightMark(h.heightMeters)}
+                        </Badge>
+                      ))}
+                    </div>
                   </div>
+                  <Button
+                    size="sm"
+                    variant="default"
+                    onClick={() => handleAdvanceHeight(1)}
+                    disabled={currentHeightIndex >= Math.max(...heights.map(h => h.heightIndex)) || advanceHeightMutation.isPending}
+                    data-testid="button-next-height"
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4 ml-1" />
+                  </Button>
                 </div>
               )}
               
