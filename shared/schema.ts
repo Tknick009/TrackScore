@@ -2375,6 +2375,10 @@ export const fieldEventAthletes = pgTable('field_event_athletes', {
   evtLastName: varchar('evt_last_name', { length: 100 }),
   evtTeam: varchar('evt_team', { length: 100 }),
   
+  // Finals tracking
+  isFinalist: boolean('is_finalist').default(false),
+  finalsOrder: integer('finals_order'), // Order in finals flight
+  
   notes: text('notes'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
