@@ -214,7 +214,8 @@ export async function exportSessionToLFF(
     content = generateHorizontalLFF(session, athletes, marks, standings, options);
   }
   
-  const eventNum = session.eventId || "event";
+  // Use evtEventNumber for EVT-imported sessions, fall back to eventId or session id
+  const eventNum = session.evtEventNumber || session.eventId || session.id;
   const filename = `${eventNum}-1-1.lff`;
   const filePath = path.join(options.outputDir, filename);
   
