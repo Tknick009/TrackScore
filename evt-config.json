@@ -1,3 +1,6 @@
 {
-  "directoryPath": "attached_assets"
+  "directoryPath": "attached_assets",
+  "horizontalPrelimAttempts": 4,
+  "horizontalFinalists": 9,
+  "horizontalFinalAttempts": 3
 }
