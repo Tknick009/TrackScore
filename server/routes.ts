@@ -5889,6 +5889,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Skip creating a new record for just clock updates with no existing data
         // The actual event data will come later with proper eventName
         console.log(`[Lynx] Skipping running mode update - no existing data and no event info for Event ${eventNumber}`);
+      } else if (mode === 'start_list') {
+        // Skip upserting entries for start_list mode - the 'start-list' handler
+        // already handles aggregation of individual athlete entries from FinishLynx
+        // We only update non-entry fields here if needed (eventName, distance, etc.)
+        if (data.eventName || data.distance) {
+          await storage.upsertLiveEventData({
+            eventNumber,
+            eventType: 'track',
+            mode,
+            heat: data.heat || existingData?.heat || 1,
+            totalHeats: existingData?.totalHeats || 1,
+            round: data.round || existingData?.round || 1,
+            flight: 1,
+            wind: data.wind ?? existingData?.wind,
+            status: data.status ?? existingData?.status,
+            distance: distanceToUse,
+            eventName: data.eventName || existingData?.eventName,
+            entries: existingData?.entries || [], // PRESERVE existing aggregated entries
+            runningTime: data.time,
+            isArmed: data.armed || false,
+            isRunning: false,
+          });
+        }
       } else {
         // Get total heats from database for this event
         let dbTotalHeats = 1;
@@ -6331,14 +6354,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Store aggregated start list to database
+      // Store aggregated start list to database - preserve existing fields like eventName
       await storage.upsertLiveEventData({
         eventNumber,
         eventType: 'track',
         mode: 'start_list',
         heat,
-        round: 1,
+        totalHeats: existing?.totalHeats || 1,
+        round: existing?.round || 1,
         flight: 1,
+        distance: existing?.distance,
+        eventName: existing?.eventName, // Preserve eventName from track-mode-change
         entries: aggregatedEntries,
         isArmed: true,
         isRunning: false,
