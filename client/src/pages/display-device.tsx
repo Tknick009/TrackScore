@@ -954,12 +954,27 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
       )
     );
 
-    if (isSingleAthleteDisplay && currentEvent) {
-      // Always override event name with live FinishLynx data
-      const eventWithLiveName = {
-        ...currentEvent,
-        name: liveEventData?.eventName || '', // Always use live data for event name
-      };
+    if (isSingleAthleteDisplay && (currentEvent || liveEventData)) {
+      // Use live FinishLynx data directly when currentEvent isn't loaded yet
+      const eventWithLiveName = currentEvent 
+        ? { ...currentEvent, name: liveEventData?.eventName || '' }
+        : {
+            id: 0,
+            name: liveEventData?.eventName || '',
+            eventType: 'track',
+            status: liveEventData?.mode === 'results' ? 'completed' : 'in_progress',
+            entries: (liveEventData?.entries || []).map((entry: any, idx: number) => ({
+              id: idx,
+              lane: entry.lane || idx + 1,
+              place: entry.place,
+              time: entry.time,
+              athlete: {
+                firstName: entry.name?.split(' ')[0] || '',
+                lastName: entry.name?.split(' ').slice(1).join(' ') || entry.name || '',
+                team: entry.team || entry.affiliation || '',
+              },
+            })),
+          };
       if (isFieldResults || isFieldStandings) {
         return <SingleAthleteField event={eventWithLiveName as any} meet={meet} focusIndex={0} />;
       }
@@ -967,9 +982,16 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     }
 
     if (isRunningTimeTemplate) {
-      // Always override event name with live FinishLynx data
+      // Use live FinishLynx data directly - always available before currentEvent loads
       const eventWithLiveName = currentEvent 
         ? { ...currentEvent, name: liveEventData?.eventName || '' }
+        : liveEventData ? {
+            id: 0,
+            name: liveEventData.eventName || '',
+            eventType: 'track',
+            status: liveEventData.mode === 'results' ? 'completed' : 'in_progress',
+            entries: [],
+          }
         : null;
       return <RunningTime event={eventWithLiveName as any} meet={meet} liveTime={liveClockTime || undefined} />;
     }
@@ -1019,7 +1041,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
       return waitingState;
     }
 
-    if (isSingleAthleteDisplay && !currentEvent) {
+    if (isSingleAthleteDisplay && !currentEvent && !liveEventData) {
       return waitingState;
     }
 

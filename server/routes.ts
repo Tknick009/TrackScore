@@ -6022,13 +6022,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // If time has exactly 2 colons or is very long, it's likely time-of-day
     const isTimeOfDay = time.split(':').length >= 3 || time.length > 10;
     
+    // Build live event data for instant template switching - fetch stored data
+    const storedLiveData = await storage.getLiveEventData(eventNumber);
+    const liveEventData = storedLiveData ? {
+      eventNumber,
+      eventName: storedLiveData.eventName || '',
+      heat: storedLiveData.heat || 1,
+      totalHeats: storedLiveData.totalHeats || 1,
+      round: storedLiveData.round || 1,
+      entries: storedLiveData.entries || [],
+      wind: storedLiveData.wind,
+      distance: storedLiveData.distance,
+      status: storedLiveData.mode,
+      mode: storedLiveData.mode,
+    } : null;
+    
     if (isTimeOfDay) {
       // Time of day shown - switch to logo for all meets
       connectedDisplayDevices.forEach((device, deviceId) => {
         if (device.autoMode) {
           const currentState = autoModeDeviceStates.get(deviceId);
           if (currentState !== 'time_of_day') {
-            sendAutoModeUpdate(deviceId, 'time_of_day');
+            sendAutoModeUpdate(deviceId, 'time_of_day', liveEventData);
           }
         }
       });
@@ -6047,7 +6062,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (device.meetId === meetId && device.autoMode) {
               const currentState = autoModeDeviceStates.get(deviceId);
               if (currentState !== 'armed') {
-                sendAutoModeUpdate(deviceId, 'armed');
+                sendAutoModeUpdate(deviceId, 'armed', liveEventData);
               }
             }
           });
@@ -6057,7 +6072,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (device.autoMode) {
               const currentState = autoModeDeviceStates.get(deviceId);
               if (currentState !== 'armed') {
-                sendAutoModeUpdate(deviceId, 'armed');
+                sendAutoModeUpdate(deviceId, 'armed', liveEventData);
               }
             }
           });
@@ -6071,7 +6086,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (device.meetId === meetId && device.autoMode) {
               const currentState = autoModeDeviceStates.get(deviceId);
               if (currentState !== 'running') {
-                sendAutoModeUpdate(deviceId, 'running');
+                sendAutoModeUpdate(deviceId, 'running', liveEventData);
               }
             }
           });
@@ -6081,7 +6096,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (device.autoMode) {
               const currentState = autoModeDeviceStates.get(deviceId);
               if (currentState !== 'running') {
-                sendAutoModeUpdate(deviceId, 'running');
+                sendAutoModeUpdate(deviceId, 'running', liveEventData);
               }
             }
           });
