@@ -6304,7 +6304,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.log(`[Lynx] Start list: Event ${eventNumber}, Heat ${heat}, ${entries.length} entries`);
     
     try {
-      // Store start list to database
+      // Get existing entries for this event to merge (FinishLynx often sends one athlete at a time)
+      const existing = await storage.getLiveEventData(eventNumber);
+      let aggregatedEntries = [...entries];
+      
+      // If we have existing entries for the same heat, merge them
+      if (existing && existing.heat === heat && Array.isArray(existing.entries)) {
+        const existingEntries = existing.entries as any[];
+        // Merge: update existing lanes, add new ones
+        for (const newEntry of entries) {
+          const laneKey = newEntry.lane || newEntry.bib;
+          const existingIdx = existingEntries.findIndex((e: any) => 
+            (e.lane && e.lane === newEntry.lane) || (e.bib && e.bib === newEntry.bib)
+          );
+          if (existingIdx >= 0) {
+            existingEntries[existingIdx] = { ...existingEntries[existingIdx], ...newEntry };
+          } else {
+            existingEntries.push(newEntry);
+          }
+        }
+        // Sort by lane number
+        aggregatedEntries = existingEntries.sort((a: any, b: any) => {
+          const laneA = parseInt(a.lane) || 0;
+          const laneB = parseInt(b.lane) || 0;
+          return laneA - laneB;
+        });
+      }
+      
+      // Store aggregated start list to database
       await storage.upsertLiveEventData({
         eventNumber,
         eventType: 'track',
@@ -6312,23 +6339,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         heat,
         round: 1,
         flight: 1,
-        entries,
+        entries: aggregatedEntries,
         isArmed: true,
         isRunning: false,
       });
+      
+      // Broadcast aggregated start list
+      broadcastToDisplays({
+        type: 'start_list',
+        data: {
+          eventNumber,
+          heat,
+          entries: aggregatedEntries,
+        }
+      } as WSMessage);
     } catch (error) {
       console.error('[Lynx] Error storing start list:', error);
+      
+      // Still broadcast what we received even if storage fails
+      broadcastToDisplays({
+        type: 'start_list',
+        data: {
+          eventNumber,
+          heat,
+          entries,
+        }
+      } as WSMessage);
     }
-    
-    // Broadcast start list
-    broadcastToDisplays({
-      type: 'start_list',
-      data: {
-        eventNumber,
-        heat,
-        entries,
-      }
-    } as WSMessage);
   });
 
   lynxListener.on('connection', (portType, connected) => {
