@@ -6074,19 +6074,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       mode: storedLiveData.mode,
     } : null;
     
-    // Check if there's active event data - if so, don't switch to time_of_day
-    // This prevents flickering when track-mode-change sets 'armed' but clock shows time-of-day format
-    const hasActiveEvent = storedLiveData && 
-      (storedLiveData.mode === 'start_list' || storedLiveData.mode === 'running' || storedLiveData.mode === 'results') &&
-      Array.isArray(storedLiveData.entries) && storedLiveData.entries.length > 0;
-    
-    if (isTimeOfDay && !hasActiveEvent) {
-      // Time of day shown AND no active event - switch to logo for all meets
+    if (isTimeOfDay) {
+      // Time of day shown - switch to logo, but only if device isn't in an active event state
+      // Active states (armed, running, results) take priority over time_of_day display
       connectedDisplayDevices.forEach((device, deviceId) => {
         if (device.autoMode) {
           const currentState = autoModeDeviceStates.get(deviceId);
-          if (currentState !== 'time_of_day') {
-            sendAutoModeUpdate(deviceId, 'time_of_day', liveEventData);
+          // Only switch to time_of_day if currently idle or already showing time_of_day
+          // Don't override armed/running/results states
+          if (!currentState || currentState === 'idle' || currentState === 'time_of_day') {
+            if (currentState !== 'time_of_day') {
+              sendAutoModeUpdate(deviceId, 'time_of_day', liveEventData);
+            }
           }
         }
       });
