@@ -184,12 +184,26 @@ async function prefetchSceneData(sceneId: number): Promise<{ scene: any; objects
   }
 }
 
+// Track last auto-mode update time per device for debouncing
+const lastAutoModeUpdateTime = new Map<string, number>();
+const AUTO_MODE_DEBOUNCE_MS = 500; // Minimum time between auto-mode updates per device
+
 // Send auto-mode template update to a device
 async function sendAutoModeUpdate(deviceId: string, state: TrackAutoState, liveData?: any) {
   const device = connectedDisplayDevices.get(deviceId);
   if (device && device.autoMode && device.ws.readyState === WebSocket.OPEN) {
+    const now = Date.now();
+    const lastUpdate = lastAutoModeUpdateTime.get(deviceId) || 0;
+    const currentState = autoModeDeviceStates.get(deviceId);
+    
+    // Debounce: Skip if same state was sent recently
+    if (currentState === state && (now - lastUpdate) < AUTO_MODE_DEBOUNCE_MS) {
+      return; // Skip redundant update
+    }
+    
     const defaultTemplate = getTemplateForAutoState(state, device.displayType);
     autoModeDeviceStates.set(deviceId, state);
+    lastAutoModeUpdateTime.set(deviceId, now);
     
     // Check for custom scene mapping
     let sceneId: number | null = null;
@@ -6060,8 +6074,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       mode: storedLiveData.mode,
     } : null;
     
-    if (isTimeOfDay) {
-      // Time of day shown - switch to logo for all meets
+    // Check if there's active event data - if so, don't switch to time_of_day
+    // This prevents flickering when track-mode-change sets 'armed' but clock shows time-of-day format
+    const hasActiveEvent = storedLiveData && 
+      (storedLiveData.mode === 'start_list' || storedLiveData.mode === 'running' || storedLiveData.mode === 'results') &&
+      Array.isArray(storedLiveData.entries) && storedLiveData.entries.length > 0;
+    
+    if (isTimeOfDay && !hasActiveEvent) {
+      // Time of day shown AND no active event - switch to logo for all meets
       connectedDisplayDevices.forEach((device, deviceId) => {
         if (device.autoMode) {
           const currentState = autoModeDeviceStates.get(deviceId);
