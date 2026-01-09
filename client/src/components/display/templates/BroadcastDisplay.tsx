@@ -47,9 +47,9 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
   // Use results with times if available, otherwise show all entries with names for scrolling
   const hasTimesEntered = resultsWithTimes.length > 0;
   const results = hasTimesEntered ? resultsWithPlaces : [];
-  // Accept entries with name, firstName/lastName, or bib
+  // Accept entries with name, firstName/lastName, bib, or lane
   const entriesForScrolling = rawEntries.filter((entry: ResultEntry) => 
-    entry.name || entry.firstName || entry.lastName || entry.bib
+    entry.name || entry.firstName || entry.lastName || entry.bib || entry.lane
   );
   
   // Detect ties - find times that appear more than once (to hundredths)
@@ -221,9 +221,9 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
     return (
       <div className="flex-1 min-w-0 flex flex-col items-center justify-start px-1 py-1 uppercase">
         <div className="flex items-center justify-center gap-2 w-full">
-          {entry.bib && (
+          {entry.lane && (
             <span className="text-2xl font-semibold text-gray-600">
-              #{entry.bib}
+              {entry.lane}
             </span>
           )}
           <span className="text-3xl font-bold text-black text-center truncate">
