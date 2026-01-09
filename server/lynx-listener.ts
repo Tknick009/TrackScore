@@ -48,6 +48,7 @@ interface LynxTrackResult {
 
 interface LynxFieldResult {
   place?: string;
+  lane?: string;  // Lane number from field messages
   name?: string;
   affiliation?: string;
   bib?: string;
@@ -888,6 +889,7 @@ export class LynxListener extends EventEmitter {
       
       const entry: LynxFieldResult = {
         place: place,
+        lane: data.L || '',  // Capture lane from field messages
         name: name,
         affiliation: data.AF,
         bib: data.BIB,
