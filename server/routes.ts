@@ -5987,9 +5987,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Build live event data for displays - use preserved eventName
       // For start_list mode, fetch stored entries from database (aggregated by start-list handler)
       const storedData = await storage.getLiveEventData(eventNumber);
-      const entriesToBroadcast = mode === 'start_list' 
+      let entriesToBroadcast = mode === 'start_list' 
         ? (storedData?.entries || data.entries || [])
         : (data.entries || data.results || storedData?.entries || []);
+      
+      // If no entries yet and we have matching events, fetch from imported entries table
+      if ((!entriesToBroadcast || (entriesToBroadcast as any[]).length === 0) && matchingEvents.length > 0) {
+        const heat = data.heat || storedData?.heat || 1;
+        try {
+          // Fetch entries from the imported data for this event/heat
+          const importedEntries = await storage.getEntriesWithDetails(matchingEvents[0].id);
+          if (importedEntries.length > 0) {
+            // Filter by heat if applicable and convert to broadcast format
+            const heatEntries = importedEntries.filter(e => !e.heat || e.heat === heat);
+            entriesToBroadcast = heatEntries.map(e => ({
+              lane: e.lane?.toString() || '',
+              bib: e.athlete?.bibNumber || '',
+              name: e.athlete ? `${e.athlete.firstName} ${e.athlete.lastName}` : '',
+              firstName: e.athlete?.firstName || '',
+              lastName: e.athlete?.lastName || '',
+              affiliation: e.athlete?.school || e.athlete?.teamName || '',
+            }));
+            console.log(`[Lynx] Fetched ${entriesToBroadcast.length} entries from imported data for event ${eventNumber}, heat ${heat}`);
+          }
+        } catch (err) {
+          console.error('[Lynx] Error fetching imported entries:', err);
+        }
+      }
       
       const liveEventData = {
         eventNumber,
@@ -6067,13 +6091,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     // Build live event data for instant template switching - fetch stored data
     const storedLiveData = await storage.getLiveEventData(eventNumber);
+    let clockLiveEntries: any[] = storedLiveData?.entries as any[] || [];
+    
+    // If no entries in liveEventData, try to fetch from imported data
+    if (clockLiveEntries.length === 0) {
+      try {
+        const matchingEventsForEntries = await storage.getEventsByLynxEventNumber(eventNumber);
+        if (matchingEventsForEntries.length > 0) {
+          const heat = storedLiveData?.heat || 1;
+          const importedEntries = await storage.getEntriesWithDetails(matchingEventsForEntries[0].id);
+          if (importedEntries.length > 0) {
+            const heatEntries = importedEntries.filter(e => !e.heat || e.heat === heat);
+            clockLiveEntries = heatEntries.map(e => ({
+              lane: e.lane?.toString() || '',
+              bib: e.athlete?.bibNumber || '',
+              name: e.athlete ? `${e.athlete.firstName} ${e.athlete.lastName}` : '',
+              firstName: e.athlete?.firstName || '',
+              lastName: e.athlete?.lastName || '',
+              affiliation: e.athlete?.school || e.athlete?.teamName || '',
+            }));
+            console.log(`[Lynx Clock] Fetched ${clockLiveEntries.length} entries from imported data for event ${eventNumber}`);
+          }
+        }
+      } catch (err) {
+        console.error('[Lynx Clock] Error fetching imported entries:', err);
+      }
+    }
+    
     const liveEventData = storedLiveData ? {
       eventNumber,
       eventName: storedLiveData.eventName || '',
       heat: storedLiveData.heat || 1,
       totalHeats: storedLiveData.totalHeats || 1,
       round: storedLiveData.round || 1,
-      entries: storedLiveData.entries || [],
+      entries: clockLiveEntries,
       wind: storedLiveData.wind,
       distance: storedLiveData.distance,
       status: storedLiveData.mode,
