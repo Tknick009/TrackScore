@@ -26,7 +26,7 @@ import {
   type InsertDisplayAssignment,
   type DisplayTheme,
   type InsertDisplayTheme,
-  type BoardConfig,
+  type SelectBoardConfig,
   type InsertBoardConfig,
   type DisplayLayout,
   type InsertDisplayLayout,
@@ -358,6 +358,10 @@ export class SQLiteStorage implements IStorage {
         display_mode TEXT DEFAULT 'track',
         status TEXT DEFAULT 'offline',
         assigned_event_id TEXT,
+        assigned_layout_id INTEGER,
+        auto_mode INTEGER DEFAULT 1,
+        paging_size INTEGER DEFAULT 8,
+        paging_interval INTEGER DEFAULT 5,
         current_template TEXT,
         last_ip TEXT,
         last_seen_at TEXT,
@@ -370,13 +374,19 @@ export class SQLiteStorage implements IStorage {
         id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
         meet_id TEXT NOT NULL REFERENCES meets(id) ON DELETE CASCADE,
         name TEXT NOT NULL,
-        primary_color TEXT NOT NULL,
-        secondary_color TEXT NOT NULL,
-        accent_color TEXT NOT NULL,
-        background_color TEXT NOT NULL,
-        text_color TEXT NOT NULL,
-        font_family TEXT DEFAULT 'Inter',
         is_default INTEGER DEFAULT 0,
+        accent_color TEXT DEFAULT '165 95% 50%',
+        bg_color TEXT DEFAULT '220 15% 8%',
+        bg_elevated_color TEXT DEFAULT '220 15% 12%',
+        bg_border_color TEXT DEFAULT '220 15% 18%',
+        fg_color TEXT DEFAULT '0 0% 95%',
+        muted_color TEXT DEFAULT '0 0% 60%',
+        heading_font TEXT DEFAULT 'Barlow Semi Condensed',
+        body_font TEXT DEFAULT 'Roboto',
+        numbers_font TEXT DEFAULT 'Barlow Semi Condensed',
+        logo_url TEXT,
+        sponsor_logos TEXT,
+        features TEXT,
         created_at TEXT DEFAULT (datetime('now')),
         updated_at TEXT DEFAULT (datetime('now'))
       );
@@ -384,14 +394,10 @@ export class SQLiteStorage implements IStorage {
       -- Board Configs
       CREATE TABLE IF NOT EXISTS board_configs (
         id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-        board_id TEXT NOT NULL,
         meet_id TEXT NOT NULL REFERENCES meets(id) ON DELETE CASCADE,
-        board_type TEXT NOT NULL,
-        title TEXT,
-        event_id TEXT,
-        binding_type TEXT DEFAULT 'current-event',
-        style_preset TEXT DEFAULT 'none',
-        config TEXT,
+        board_id TEXT NOT NULL,
+        theme_id TEXT,
+        overrides TEXT,
         created_at TEXT DEFAULT (datetime('now')),
         updated_at TEXT DEFAULT (datetime('now'))
       );
@@ -401,11 +407,12 @@ export class SQLiteStorage implements IStorage {
         id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
         meet_id TEXT NOT NULL REFERENCES meets(id) ON DELETE CASCADE,
         name TEXT NOT NULL,
-        rows INTEGER NOT NULL DEFAULT 1,
-        columns INTEGER NOT NULL DEFAULT 1,
-        gap INTEGER DEFAULT 8,
-        padding INTEGER DEFAULT 16,
-        background_color TEXT DEFAULT '#000000',
+        description TEXT,
+        rows INTEGER NOT NULL DEFAULT 2,
+        cols INTEGER NOT NULL DEFAULT 2,
+        is_template INTEGER DEFAULT 0,
+        template_id TEXT,
+        version INTEGER DEFAULT 1,
         created_at TEXT DEFAULT (datetime('now')),
         updated_at TEXT DEFAULT (datetime('now'))
       );
@@ -418,7 +425,10 @@ export class SQLiteStorage implements IStorage {
         col INTEGER NOT NULL,
         row_span INTEGER DEFAULT 1,
         col_span INTEGER DEFAULT 1,
-        board_id TEXT
+        event_id TEXT,
+        event_type TEXT,
+        board_type TEXT NOT NULL DEFAULT 'live_time',
+        settings TEXT
       );
 
       -- Athlete Photos
@@ -940,7 +950,6 @@ export class SQLiteStorage implements IStorage {
       isScored: this.toBoolean(row.is_scored),
       lastResultSource: row.last_result_source,
       lastResultAt: row.last_result_at ? new Date(row.last_result_at) : null,
-      lynxEventNumber: row.lynx_event_number,
     };
   }
 
@@ -1672,6 +1681,10 @@ export class SQLiteStorage implements IStorage {
       displayMode: row.display_mode,
       status: row.status,
       assignedEventId: row.assigned_event_id,
+      assignedLayoutId: row.assigned_layout_id ?? null,
+      autoMode: this.toBoolean(row.auto_mode ?? true),
+      pagingSize: row.paging_size ?? 8,
+      pagingInterval: row.paging_interval ?? 5,
       currentTemplate: row.current_template,
       lastIp: row.last_ip,
       lastSeenAt: row.last_seen_at ? new Date(row.last_seen_at) : null,
@@ -1784,15 +1797,21 @@ export class SQLiteStorage implements IStorage {
       id: row.id,
       meetId: row.meet_id,
       name: row.name,
-      primaryColor: row.primary_color,
-      secondaryColor: row.secondary_color,
-      accentColor: row.accent_color,
-      backgroundColor: row.background_color,
-      textColor: row.text_color,
-      fontFamily: row.font_family,
       isDefault: this.toBoolean(row.is_default),
-      createdAt: row.created_at ? new Date(row.created_at) : new Date(),
-      updatedAt: row.updated_at ? new Date(row.updated_at) : new Date(),
+      accentColor: row.accent_color ?? "165 95% 50%",
+      bgColor: row.bg_color ?? row.background_color ?? "220 15% 8%",
+      bgElevatedColor: row.bg_elevated_color ?? "220 15% 12%",
+      bgBorderColor: row.bg_border_color ?? "220 15% 18%",
+      fgColor: row.fg_color ?? row.text_color ?? "0 0% 95%",
+      mutedColor: row.muted_color ?? "0 0% 60%",
+      headingFont: row.heading_font ?? row.font_family ?? "Barlow Semi Condensed",
+      bodyFont: row.body_font ?? "Roboto",
+      numbersFont: row.numbers_font ?? "Barlow Semi Condensed",
+      logoUrl: row.logo_url ?? null,
+      sponsorLogos: row.sponsor_logos ? this.parseJson(row.sponsor_logos) : null,
+      features: row.features ? this.parseJson(row.features) : { showTeamColors: true, showReactionTimes: true, showSplits: true },
+      createdAt: row.created_at ? new Date(row.created_at) : null,
+      updatedAt: row.updated_at ? new Date(row.updated_at) : null,
     };
   }
 
@@ -1803,9 +1822,26 @@ export class SQLiteStorage implements IStorage {
     
     const id = this.generateId();
     this.db.prepare(`
-      INSERT INTO display_themes (id, meet_id, name, primary_color, secondary_color, accent_color, background_color, text_color, font_family, is_default)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, theme.meetId, theme.name, theme.primaryColor, theme.secondaryColor, theme.accentColor, theme.backgroundColor, theme.textColor, theme.fontFamily ?? 'Inter', this.fromBoolean(theme.isDefault ?? false));
+      INSERT INTO display_themes (id, meet_id, name, accent_color, bg_color, bg_elevated_color, bg_border_color, fg_color, muted_color, heading_font, body_font, numbers_font, logo_url, sponsor_logos, features, is_default)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id, 
+      theme.meetId, 
+      theme.name, 
+      theme.accentColor ?? "165 95% 50%",
+      theme.bgColor ?? "220 15% 8%",
+      theme.bgElevatedColor ?? "220 15% 12%",
+      theme.bgBorderColor ?? "220 15% 18%",
+      theme.fgColor ?? "0 0% 95%",
+      theme.mutedColor ?? "0 0% 60%",
+      theme.headingFont ?? "Barlow Semi Condensed",
+      theme.bodyFont ?? "Roboto",
+      theme.numbersFont ?? "Barlow Semi Condensed",
+      theme.logoUrl ?? null,
+      theme.sponsorLogos ? this.toJson(theme.sponsorLogos) : null,
+      theme.features ? this.toJson(theme.features) : this.toJson({ showTeamColors: true, showReactionTimes: true, showSplits: true }),
+      this.fromBoolean(theme.isDefault ?? false)
+    );
     
     const row = this.db.prepare('SELECT * FROM display_themes WHERE id = ?').get(id);
     return this.mapDisplayThemeRow(row);
@@ -1838,12 +1874,18 @@ export class SQLiteStorage implements IStorage {
     const values: any[] = [];
 
     if (theme.name !== undefined) { setClause.push('name = ?'); values.push(theme.name); }
-    if (theme.primaryColor !== undefined) { setClause.push('primary_color = ?'); values.push(theme.primaryColor); }
-    if (theme.secondaryColor !== undefined) { setClause.push('secondary_color = ?'); values.push(theme.secondaryColor); }
     if (theme.accentColor !== undefined) { setClause.push('accent_color = ?'); values.push(theme.accentColor); }
-    if (theme.backgroundColor !== undefined) { setClause.push('background_color = ?'); values.push(theme.backgroundColor); }
-    if (theme.textColor !== undefined) { setClause.push('text_color = ?'); values.push(theme.textColor); }
-    if (theme.fontFamily !== undefined) { setClause.push('font_family = ?'); values.push(theme.fontFamily); }
+    if (theme.bgColor !== undefined) { setClause.push('bg_color = ?'); values.push(theme.bgColor); }
+    if (theme.bgElevatedColor !== undefined) { setClause.push('bg_elevated_color = ?'); values.push(theme.bgElevatedColor); }
+    if (theme.bgBorderColor !== undefined) { setClause.push('bg_border_color = ?'); values.push(theme.bgBorderColor); }
+    if (theme.fgColor !== undefined) { setClause.push('fg_color = ?'); values.push(theme.fgColor); }
+    if (theme.mutedColor !== undefined) { setClause.push('muted_color = ?'); values.push(theme.mutedColor); }
+    if (theme.headingFont !== undefined) { setClause.push('heading_font = ?'); values.push(theme.headingFont); }
+    if (theme.bodyFont !== undefined) { setClause.push('body_font = ?'); values.push(theme.bodyFont); }
+    if (theme.numbersFont !== undefined) { setClause.push('numbers_font = ?'); values.push(theme.numbersFont); }
+    if (theme.logoUrl !== undefined) { setClause.push('logo_url = ?'); values.push(theme.logoUrl); }
+    if (theme.sponsorLogos !== undefined) { setClause.push('sponsor_logos = ?'); values.push(theme.sponsorLogos ? this.toJson(theme.sponsorLogos) : null); }
+    if (theme.features !== undefined) { setClause.push('features = ?'); values.push(theme.features ? this.toJson(theme.features) : null); }
     if (theme.isDefault !== undefined) { setClause.push('is_default = ?'); values.push(this.fromBoolean(theme.isDefault)); }
     
     setClause.push("updated_at = datetime('now')");
@@ -1861,51 +1903,41 @@ export class SQLiteStorage implements IStorage {
   }
 
   // ============= BOARD CONFIGS =============
-  async createBoardConfig(config: InsertBoardConfig): Promise<BoardConfig> {
+  private mapBoardConfigRow(row: any): SelectBoardConfig {
+    return {
+      id: row.id,
+      meetId: row.meet_id,
+      boardId: row.board_id,
+      themeId: row.theme_id ?? null,
+      overrides: row.overrides ? this.parseJson(row.overrides) : null,
+      createdAt: row.created_at ? new Date(row.created_at) : null,
+      updatedAt: row.updated_at ? new Date(row.updated_at) : null,
+    };
+  }
+
+  async createBoardConfig(config: InsertBoardConfig): Promise<SelectBoardConfig> {
     const id = this.generateId();
     this.db.prepare(`
-      INSERT INTO board_configs (id, board_id, meet_id, board_type, title, event_id, binding_type, style_preset, config)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, config.boardId, config.meetId, config.boardType, config.title ?? null, config.eventId ?? null, config.bindingType ?? 'current-event', config.stylePreset ?? 'none', config.config ? this.toJson(config.config) : null);
+      INSERT INTO board_configs (id, board_id, meet_id, theme_id, overrides)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(id, config.boardId, config.meetId, config.themeId ?? null, config.overrides ? this.toJson(config.overrides) : null);
     
     const row = this.db.prepare('SELECT * FROM board_configs WHERE id = ?').get(id);
-    return {
-      boardId: (row as any).board_id,
-      meetId: (row as any).meet_id,
-      boardType: (row as any).board_type,
-      title: (row as any).title,
-      eventId: (row as any).event_id,
-      bindingType: (row as any).binding_type,
-      stylePreset: (row as any).style_preset,
-      config: this.parseJson((row as any).config),
-    } as BoardConfig;
+    return this.mapBoardConfigRow(row);
   }
 
-  async getBoardConfig(boardId: string, meetId: string): Promise<BoardConfig | null> {
+  async getBoardConfig(boardId: string, meetId: string): Promise<SelectBoardConfig | null> {
     const row = this.db.prepare('SELECT * FROM board_configs WHERE board_id = ? AND meet_id = ?').get(boardId, meetId);
     if (!row) return null;
-    return {
-      boardId: (row as any).board_id,
-      meetId: (row as any).meet_id,
-      boardType: (row as any).board_type,
-      title: (row as any).title,
-      eventId: (row as any).event_id,
-      bindingType: (row as any).binding_type,
-      stylePreset: (row as any).style_preset,
-      config: this.parseJson((row as any).config),
-    } as BoardConfig;
+    return this.mapBoardConfigRow(row);
   }
 
-  async updateBoardConfig(id: string, config: Partial<InsertBoardConfig>): Promise<BoardConfig | null> {
+  async updateBoardConfig(id: string, config: Partial<InsertBoardConfig>): Promise<SelectBoardConfig | null> {
     const setClause: string[] = [];
     const values: any[] = [];
 
-    if (config.boardType !== undefined) { setClause.push('board_type = ?'); values.push(config.boardType); }
-    if (config.title !== undefined) { setClause.push('title = ?'); values.push(config.title); }
-    if (config.eventId !== undefined) { setClause.push('event_id = ?'); values.push(config.eventId); }
-    if (config.bindingType !== undefined) { setClause.push('binding_type = ?'); values.push(config.bindingType); }
-    if (config.stylePreset !== undefined) { setClause.push('style_preset = ?'); values.push(config.stylePreset); }
-    if (config.config !== undefined) { setClause.push('config = ?'); values.push(this.toJson(config.config)); }
+    if (config.themeId !== undefined) { setClause.push('theme_id = ?'); values.push(config.themeId); }
+    if (config.overrides !== undefined) { setClause.push('overrides = ?'); values.push(config.overrides ? this.toJson(config.overrides) : null); }
     
     setClause.push("updated_at = datetime('now')");
 
@@ -1916,16 +1948,7 @@ export class SQLiteStorage implements IStorage {
 
     const row = this.db.prepare('SELECT * FROM board_configs WHERE id = ?').get(id);
     if (!row) return null;
-    return {
-      boardId: (row as any).board_id,
-      meetId: (row as any).meet_id,
-      boardType: (row as any).board_type,
-      title: (row as any).title,
-      eventId: (row as any).event_id,
-      bindingType: (row as any).binding_type,
-      stylePreset: (row as any).style_preset,
-      config: this.parseJson((row as any).config),
-    } as BoardConfig;
+    return this.mapBoardConfigRow(row);
   }
 
   async deleteBoardConfig(id: string): Promise<void> {
@@ -1938,11 +1961,12 @@ export class SQLiteStorage implements IStorage {
       id: row.id,
       meetId: row.meet_id,
       name: row.name,
-      rows: row.rows,
-      columns: row.columns,
-      gap: row.gap,
-      padding: row.padding,
-      backgroundColor: row.background_color,
+      description: row.description ?? null,
+      rows: row.rows ?? 2,
+      cols: row.cols ?? row.columns ?? 2,
+      isTemplate: this.toBoolean(row.is_template ?? false),
+      templateId: row.template_id ?? null,
+      version: row.version ?? 1,
       createdAt: row.created_at ? new Date(row.created_at) : new Date(),
       updatedAt: row.updated_at ? new Date(row.updated_at) : new Date(),
     };
@@ -1951,9 +1975,19 @@ export class SQLiteStorage implements IStorage {
   async createDisplayLayout(layout: InsertDisplayLayout): Promise<DisplayLayout> {
     const id = this.generateId();
     this.db.prepare(`
-      INSERT INTO display_layouts (id, meet_id, name, rows, columns, gap, padding, background_color)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, layout.meetId, layout.name, layout.rows ?? 1, layout.columns ?? 1, layout.gap ?? 8, layout.padding ?? 16, layout.backgroundColor ?? '#000000');
+      INSERT INTO display_layouts (id, meet_id, name, description, rows, cols, is_template, template_id, version)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id, 
+      layout.meetId, 
+      layout.name, 
+      layout.description ?? null, 
+      layout.rows ?? 2, 
+      layout.cols ?? 2, 
+      this.fromBoolean(layout.isTemplate ?? false), 
+      layout.templateId ?? null, 
+      layout.version ?? 1
+    );
     
     const row = this.db.prepare('SELECT * FROM display_layouts WHERE id = ?').get(id);
     return this.mapDisplayLayoutRow(row);
@@ -1974,11 +2008,12 @@ export class SQLiteStorage implements IStorage {
     const values: any[] = [];
 
     if (layout.name !== undefined) { setClause.push('name = ?'); values.push(layout.name); }
+    if (layout.description !== undefined) { setClause.push('description = ?'); values.push(layout.description); }
     if (layout.rows !== undefined) { setClause.push('rows = ?'); values.push(layout.rows); }
-    if (layout.columns !== undefined) { setClause.push('columns = ?'); values.push(layout.columns); }
-    if (layout.gap !== undefined) { setClause.push('gap = ?'); values.push(layout.gap); }
-    if (layout.padding !== undefined) { setClause.push('padding = ?'); values.push(layout.padding); }
-    if (layout.backgroundColor !== undefined) { setClause.push('background_color = ?'); values.push(layout.backgroundColor); }
+    if (layout.cols !== undefined) { setClause.push('cols = ?'); values.push(layout.cols); }
+    if (layout.isTemplate !== undefined) { setClause.push('is_template = ?'); values.push(this.fromBoolean(layout.isTemplate)); }
+    if (layout.templateId !== undefined) { setClause.push('template_id = ?'); values.push(layout.templateId); }
+    if (layout.version !== undefined) { setClause.push('version = ?'); values.push(layout.version); }
     
     setClause.push("updated_at = datetime('now')");
 
@@ -1999,18 +2034,32 @@ export class SQLiteStorage implements IStorage {
       layoutId: row.layout_id,
       row: row.row,
       col: row.col,
-      rowSpan: row.row_span,
-      colSpan: row.col_span,
-      boardId: row.board_id,
+      rowSpan: row.row_span ?? 1,
+      colSpan: row.col_span ?? 1,
+      eventId: row.event_id ?? null,
+      eventType: row.event_type ?? null,
+      boardType: row.board_type ?? "live_time",
+      settings: row.settings ? this.parseJson(row.settings) : null,
     };
   }
 
   async createLayoutCell(cell: InsertLayoutCell): Promise<LayoutCell> {
     const id = this.generateId();
     this.db.prepare(`
-      INSERT INTO layout_cells (id, layout_id, row, col, row_span, col_span, board_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(id, cell.layoutId, cell.row, cell.col, cell.rowSpan ?? 1, cell.colSpan ?? 1, cell.boardId ?? null);
+      INSERT INTO layout_cells (id, layout_id, row, col, row_span, col_span, event_id, event_type, board_type, settings)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id, 
+      cell.layoutId, 
+      cell.row, 
+      cell.col, 
+      cell.rowSpan ?? 1, 
+      cell.colSpan ?? 1, 
+      cell.eventId ?? null,
+      cell.eventType ?? null,
+      cell.boardType ?? "live_time",
+      cell.settings ? this.toJson(cell.settings) : null
+    );
     
     const row = this.db.prepare('SELECT * FROM layout_cells WHERE id = ?').get(id);
     return this.mapLayoutCellRow(row);
@@ -2029,7 +2078,10 @@ export class SQLiteStorage implements IStorage {
     if (cell.col !== undefined) { setClause.push('col = ?'); values.push(cell.col); }
     if (cell.rowSpan !== undefined) { setClause.push('row_span = ?'); values.push(cell.rowSpan); }
     if (cell.colSpan !== undefined) { setClause.push('col_span = ?'); values.push(cell.colSpan); }
-    if (cell.boardId !== undefined) { setClause.push('board_id = ?'); values.push(cell.boardId); }
+    if (cell.eventId !== undefined) { setClause.push('event_id = ?'); values.push(cell.eventId); }
+    if (cell.eventType !== undefined) { setClause.push('event_type = ?'); values.push(cell.eventType); }
+    if (cell.boardType !== undefined) { setClause.push('board_type = ?'); values.push(cell.boardType); }
+    if (cell.settings !== undefined) { setClause.push('settings = ?'); values.push(cell.settings ? this.toJson(cell.settings) : null); }
 
     if (setClause.length > 0) {
       values.push(id);
@@ -2047,6 +2099,7 @@ export class SQLiteStorage implements IStorage {
   // ============= ATHLETE PHOTOS =============
   private mapAthletePhotoRow(row: any): AthletePhoto {
     return {
+      id: row.id ?? row.athlete_id,
       athleteId: row.athlete_id,
       meetId: row.meet_id,
       storageKey: row.storage_key,
@@ -2093,6 +2146,7 @@ export class SQLiteStorage implements IStorage {
   // ============= TEAM LOGOS =============
   private mapTeamLogoRow(row: any): TeamLogo {
     return {
+      id: row.id ?? row.team_id,
       teamId: row.team_id,
       meetId: row.meet_id,
       storageKey: row.storage_key,
