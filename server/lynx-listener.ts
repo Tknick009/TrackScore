@@ -858,9 +858,10 @@ export class LynxListener extends EventEmitter {
         lastName: data.LN,
       };
       
+      // Match by lane OR by non-empty bib (empty bib shouldn't match everything)
       const existingIdx = aggregated.entries.findIndex(
         e => (e as LynxTrackResult).lane === entry.lane || 
-             (e as LynxTrackResult).bib === entry.bib
+             (entry.bib && entry.bib !== '' && (e as LynxTrackResult).bib === entry.bib)
       );
       
       if (existingIdx >= 0) {
