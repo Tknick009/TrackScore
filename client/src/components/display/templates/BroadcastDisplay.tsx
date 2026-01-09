@@ -118,9 +118,9 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
     <div className="relative w-full h-full overflow-hidden" style={{ fontFamily: "'Oswald', sans-serif", backgroundColor: 'transparent' }}>
       <div className="absolute inset-x-0 bottom-0 h-auto min-h-[200px] py-4 px-6 mx-4 mb-4 bg-white/95 rounded-lg" style={{ border: '1px solid rgba(200, 200, 200, 0.5)' }}>
         <div className="flex gap-8 h-full">
-          <div className="flex flex-col items-center justify-start flex-shrink-0">
+          <div className="flex items-center gap-4 flex-shrink-0">
             {meet?.logoUrl && (
-              <div className="h-16 w-32 flex items-center justify-center mb-2">
+              <div className="h-20 w-24 flex items-center justify-center">
                 <img 
                   src={meet.logoUrl} 
                   alt={meet.name || 'Meet Logo'}
@@ -129,21 +129,23 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
               </div>
             )}
             
-            {eventName && (
-              <div className="text-center mb-1">
-                <div className="text-lg font-bold uppercase tracking-wide text-black">
-                  {eventName}
-                </div>
-                {heatInfo && (
-                  <div className="text-sm text-gray-600">
-                    {heatInfo}
+            <div className="flex flex-col items-center justify-center">
+              {eventName && (
+                <div className="text-center mb-1">
+                  <div className="text-lg font-bold uppercase tracking-wide text-black">
+                    {eventName}
                   </div>
-                )}
+                  {heatInfo && (
+                    <div className="text-sm text-gray-600">
+                      {heatInfo}
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              <div className="text-5xl font-bold tracking-wider text-black">
+                {displayClock}
               </div>
-            )}
-            
-            <div className="text-5xl font-bold tracking-wider text-black">
-              {displayClock}
             </div>
           </div>
           
