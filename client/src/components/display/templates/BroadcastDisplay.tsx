@@ -36,46 +36,8 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
   const [displayClock, setDisplayClock] = useState("00:00:00");
   const lastSecondsRef = useRef<number>(-1);
   
-  // Stabilize entries to prevent flashing when FinishLynx sends one entry at a time
-  // Only update displayed entries when we have MORE entries than before, or after a timeout
-  const [stableEntries, setStableEntries] = useState<ResultEntry[]>([]);
-  const entriesTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastEntryCountRef = useRef<number>(0);
-  
-  const incomingEntries = liveEventData?.entries || (liveEventData as any)?.results || [];
-  
-  useEffect(() => {
-    // Clear any pending timeout
-    if (entriesTimeoutRef.current) {
-      clearTimeout(entriesTimeoutRef.current);
-    }
-    
-    // Immediately update if we have more entries than before (accumulating)
-    // or if the event changed (new event number or heat)
-    if (incomingEntries.length > lastEntryCountRef.current || incomingEntries.length === 0) {
-      setStableEntries(incomingEntries);
-      lastEntryCountRef.current = incomingEntries.length;
-    } else {
-      // For same or fewer entries, debounce to avoid flashing during rapid updates
-      entriesTimeoutRef.current = setTimeout(() => {
-        setStableEntries(incomingEntries);
-        lastEntryCountRef.current = incomingEntries.length;
-      }, 500);
-    }
-    
-    return () => {
-      if (entriesTimeoutRef.current) {
-        clearTimeout(entriesTimeoutRef.current);
-      }
-    };
-  }, [incomingEntries]);
-  
-  // Reset entry count when event changes
-  useEffect(() => {
-    lastEntryCountRef.current = 0;
-  }, [liveEventData?.eventNumber, liveEventData?.heat]);
-  
-  const rawEntries = stableEntries;
+  // Use entries directly from props - the server already aggregates them
+  const rawEntries = liveEventData?.entries || (liveEventData as any)?.results || [];
   
   const resultsWithTimes = rawEntries.filter(
     (entry: ResultEntry) => entry.place && entry.name && (entry.time || entry.mark)
@@ -188,11 +150,42 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
     return `${num}${suffix}`;
   };
   
+  // Detect if this is a relay entry (team name, no individual athlete)
+  const isRelayEntry = (entry: ResultEntry) => {
+    // Relay entries typically have: no bib, firstName empty but lastName = team name
+    // Or name equals lastName (both are team names)
+    if (!entry.bib || entry.bib === '') {
+      // No firstName but has lastName suggests team name in lastName field
+      if (!entry.firstName && entry.lastName) {
+        return true;
+      }
+      // If name and lastName are the same, it's a team name
+      if (entry.name && entry.lastName && entry.name.trim() === entry.lastName.trim()) {
+        return true;
+      }
+    }
+    return false;
+  };
+  
   const formatName = (entry: ResultEntry) => {
+    // For relay entries, show the team name without abbreviating
+    if (isRelayEntry(entry)) {
+      // Use lastName (team name) or name field directly
+      const teamName = entry.lastName || entry.name || '';
+      if (teamName) {
+        return teamName;
+      }
+      // Fall back to affiliation
+      if (entry.affiliation) {
+        return entry.affiliation;
+      }
+    }
+    
+    // For individual athletes with firstName and lastName
     if (entry.firstName && entry.lastName) {
       return `${entry.firstName.charAt(0)}. ${entry.lastName}`;
     }
-    // Parse "FirstName LastName" format from name field
+    // Parse "FirstName LastName" format from name field (for individual athletes)
     const name = entry.name?.trim();
     if (name) {
       const parts = name.split(/\s+/);
@@ -283,10 +276,13 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
       );
     }
     
+    const isRelay = isRelayEntry(entry);
     const displayName = formatName(entry);
-    // Don't show affiliation separately if it's already being used as the display name (relays)
-    const hasIndividualName = entry.name || entry.firstName || entry.lastName;
-    const showAffiliation = entry.affiliation && hasIndividualName;
+    // For relays: show team abbreviation (affiliation) below the full team name
+    // For individuals: show school/team affiliation below the athlete name
+    const showAffiliation = entry.affiliation && !isRelay;
+    // For relays, show the team code as secondary info
+    const showTeamCode = isRelay && entry.affiliation;
     
     return (
       <div className="flex-1 min-w-0 flex flex-col items-center justify-start px-1 py-1 uppercase">
@@ -305,6 +301,11 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
             {entry.affiliation}
           </span>
         )}
+        {showTeamCode && (
+          <span className="text-lg text-gray-500 truncate w-full text-center leading-tight">
+            {entry.affiliation}
+          </span>
+        )}
       </div>
     );
   };
@@ -318,10 +319,12 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
       );
     }
     
+    const isRelay = isRelayEntry(entry);
     const displayName = formatName(entry);
-    // Don't show affiliation separately if it's already being used as the display name (relays)
-    const hasIndividualName = entry.name || entry.firstName || entry.lastName;
-    const showAffiliation = entry.affiliation && hasIndividualName;
+    // For relays: show team abbreviation below, for individuals: show school affiliation
+    const showAffiliation = entry.affiliation && !isRelay;
+    // For relays, show the team code as secondary info
+    const showTeamCode = isRelay && entry.affiliation;
     
     return (
       <div className="flex-1 min-w-0 flex flex-col items-center justify-start px-1 py-1 uppercase">
@@ -335,6 +338,11 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
         </div>
         {showAffiliation && (
           <span className="text-xl text-gray-600 truncate w-full text-center leading-tight">
+            {entry.affiliation}
+          </span>
+        )}
+        {showTeamCode && (
+          <span className="text-lg text-gray-500 truncate w-full text-center leading-tight">
             {entry.affiliation}
           </span>
         )}
