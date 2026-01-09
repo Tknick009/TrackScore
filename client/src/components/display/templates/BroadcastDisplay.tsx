@@ -100,7 +100,7 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
     currentPageResults.push(null as any);
   }
 
-  const renderAthleteColumn = (entry: ResultEntry | null, isFirstPlace: boolean = false) => {
+  const renderAthleteColumn = (entry: ResultEntry | null) => {
     if (!entry) {
       return (
         <div className="flex-1 min-w-0 flex flex-col items-center justify-center px-2 py-3 bg-gray-50/50 rounded">
@@ -110,7 +110,7 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
     }
     
     return (
-      <div className={`flex-1 min-w-0 flex flex-col items-center justify-center px-3 py-3 ${isFirstPlace ? 'bg-yellow-50/80 border-2 border-yellow-400' : 'bg-gray-50/50'} rounded`}>
+      <div className="flex-1 min-w-0 flex flex-col items-center justify-center px-3 py-3 bg-gray-50/50 rounded">
         <span className={`text-2xl font-bold ${getPlaceColor(entry.place || '')}`}>
           {formatPlace(entry.place || '')}
         </span>
@@ -132,62 +132,70 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
   return (
     <div className="relative w-full h-full overflow-hidden" style={{ fontFamily: "'Oswald', sans-serif", backgroundColor: 'transparent' }}>
       <div className="absolute inset-x-0 bottom-0 py-4 px-6 mx-4 mb-4 bg-white/95 rounded-lg" style={{ border: '1px solid rgba(200, 200, 200, 0.5)' }}>
-        <div className="flex items-center gap-4 mb-4">
-          {meet?.logoUrl && (
-            <div className="h-16 w-24 flex-shrink-0 flex items-center justify-center">
-              <img 
-                src={meet.logoUrl} 
-                alt={meet.name || 'Meet Logo'}
-                className="max-h-full max-w-full object-contain"
-              />
-            </div>
-          )}
-          
-          <div className="flex flex-col justify-center flex-shrink-0">
-            {eventName && (
-              <div className="text-lg font-bold uppercase tracking-wide text-black">
-                {eventName}
+        <div className="flex gap-6">
+          <div className="flex items-center gap-4 flex-shrink-0">
+            {meet?.logoUrl && (
+              <div className="h-32 w-48 flex items-center justify-center">
+                <img 
+                  src={meet.logoUrl} 
+                  alt={meet.name || 'Meet Logo'}
+                  className="max-h-full max-w-full object-contain"
+                />
               </div>
             )}
-            {heatInfo && (
-              <div className="text-sm text-gray-600">
-                {heatInfo}
-              </div>
-            )}
-          </div>
-          
-          <div className="text-4xl font-bold tracking-wider text-black ml-auto">
-            {displayClock}
-          </div>
-        </div>
-        
-        <div className="flex gap-3 overflow-hidden">
-          {firstPlace && renderAthleteColumn(firstPlace, true)}
-          
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={pageIndex}
-              initial={{ opacity: 0, x: 50 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -50 }}
-              transition={{ duration: 0.4, ease: "easeInOut" }}
-              className="flex gap-3 flex-1"
-            >
-              {currentPageResults.map((entry: ResultEntry | null, idx: number) => (
-                <div key={`col-${pageIndex}-${idx}`} className="flex-1 min-w-0">
-                  {renderAthleteColumn(entry)}
+            
+            <div className="flex flex-col items-center justify-center">
+              {eventName && (
+                <div className="text-center mb-1">
+                  <div className="text-lg font-bold uppercase tracking-wide text-black">
+                    {eventName}
+                  </div>
+                  {heatInfo && (
+                    <div className="text-sm text-gray-600">
+                      {heatInfo}
+                    </div>
+                  )}
                 </div>
-              ))}
-            </motion.div>
-          </AnimatePresence>
-          
-          {!firstPlace && results.length === 0 && (
-            <div className="flex-1 flex items-center justify-center py-8">
-              <span className="text-xl text-gray-500">
-                {eventName ? `${eventName} - Waiting for results...` : 'Waiting for results...'}
-              </span>
+              )}
+              
+              <div className="text-5xl font-bold tracking-wider text-black">
+                {displayClock}
+              </div>
             </div>
-          )}
+          </div>
+          
+          <div className="flex-1 flex gap-2 overflow-hidden">
+            {firstPlace && (
+              <div className="flex-1 min-w-0">
+                {renderAthleteColumn(firstPlace)}
+              </div>
+            )}
+            
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={pageIndex}
+                initial={{ opacity: 0, x: 50 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -50 }}
+                transition={{ duration: 0.4, ease: "easeInOut" }}
+                className="flex gap-2 flex-[5]"
+              >
+                {currentPageResults.map((entry: ResultEntry | null, idx: number) => (
+                  <div key={`col-${pageIndex}-${idx}`} className="flex-1 min-w-0">
+                    {renderAthleteColumn(entry)}
+                  </div>
+                ))}
+              </motion.div>
+            </AnimatePresence>
+            
+            {!firstPlace && results.length === 0 && (
+              <div className="flex-1 flex items-center justify-center py-8">
+                <span className="text-xl text-gray-500">
+                  {eventName ? `${eventName} - Waiting for results...` : 'Waiting for results...'}
+                </span>
+              </div>
+            )}
+          </div>
         </div>
         
         {totalPages > 1 && (
