@@ -46,7 +46,14 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
   
   useEffect(() => {
     if (liveClockTime) {
-      setDisplayClock(liveClockTime);
+      // Truncate to tenths (remove hundredths and beyond)
+      // Format: "MM:SS.t" or "H:MM:SS.t"
+      const dotIndex = liveClockTime.indexOf('.');
+      if (dotIndex !== -1 && liveClockTime.length > dotIndex + 2) {
+        setDisplayClock(liveClockTime.substring(0, dotIndex + 2));
+      } else {
+        setDisplayClock(liveClockTime);
+      }
     }
   }, [liveClockTime]);
   
