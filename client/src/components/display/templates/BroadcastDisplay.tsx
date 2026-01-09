@@ -200,12 +200,12 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
           const timeHundredths = getTimeToHundredths(entry);
           const isTied = tiedTimes.has(timeHundredths);
           return (
-            <div className="flex flex-col items-center">
-              <span className="text-3xl font-bold text-black mt-1">
+            <div className="flex flex-col items-center flex-shrink-0">
+              <span className="text-3xl font-bold text-black mt-1 whitespace-nowrap">
                 {formatTimeToHundredths(fullTime)}
               </span>
               {isTied && fullTime.length > timeHundredths.length && (
-                <span className="text-lg text-gray-500">
+                <span className="text-lg text-gray-500 whitespace-nowrap">
                   {fullTime}
                 </span>
               )}
