@@ -118,7 +118,7 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
     }
     
     return (
-      <div className="flex-1 min-w-0 flex flex-col items-center justify-center px-3 py-4 bg-gray-50/50 rounded">
+      <div className="flex-1 min-w-0 flex flex-col items-center justify-center px-3 py-4 bg-gray-50/50 rounded uppercase">
         <span className="text-3xl font-bold text-black text-center truncate w-full">
           {formatName(entry)}
         </span>
@@ -200,7 +200,7 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
             
             {!firstPlace && results.length === 0 && (
               <div className="flex-1 flex items-center justify-center py-8">
-                <span className="text-xl text-gray-500">
+                <span className="text-xl text-gray-500 uppercase">
                   {eventName ? `${eventName} - Waiting for results...` : 'Waiting for results...'}
                 </span>
               </div>
