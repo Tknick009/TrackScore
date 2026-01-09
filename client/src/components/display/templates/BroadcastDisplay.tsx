@@ -36,7 +36,46 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
   const [displayClock, setDisplayClock] = useState("00:00:00");
   const lastSecondsRef = useRef<number>(-1);
   
-  const rawEntries = liveEventData?.entries || (liveEventData as any)?.results || [];
+  // Stabilize entries to prevent flashing when FinishLynx sends one entry at a time
+  // Only update displayed entries when we have MORE entries than before, or after a timeout
+  const [stableEntries, setStableEntries] = useState<ResultEntry[]>([]);
+  const entriesTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastEntryCountRef = useRef<number>(0);
+  
+  const incomingEntries = liveEventData?.entries || (liveEventData as any)?.results || [];
+  
+  useEffect(() => {
+    // Clear any pending timeout
+    if (entriesTimeoutRef.current) {
+      clearTimeout(entriesTimeoutRef.current);
+    }
+    
+    // Immediately update if we have more entries than before (accumulating)
+    // or if the event changed (new event number or heat)
+    if (incomingEntries.length > lastEntryCountRef.current || incomingEntries.length === 0) {
+      setStableEntries(incomingEntries);
+      lastEntryCountRef.current = incomingEntries.length;
+    } else {
+      // For same or fewer entries, debounce to avoid flashing during rapid updates
+      entriesTimeoutRef.current = setTimeout(() => {
+        setStableEntries(incomingEntries);
+        lastEntryCountRef.current = incomingEntries.length;
+      }, 500);
+    }
+    
+    return () => {
+      if (entriesTimeoutRef.current) {
+        clearTimeout(entriesTimeoutRef.current);
+      }
+    };
+  }, [incomingEntries]);
+  
+  // Reset entry count when event changes
+  useEffect(() => {
+    lastEntryCountRef.current = 0;
+  }, [liveEventData?.eventNumber, liveEventData?.heat]);
+  
+  const rawEntries = stableEntries;
   
   const resultsWithTimes = rawEntries.filter(
     (entry: ResultEntry) => entry.place && entry.name && (entry.time || entry.mark)
