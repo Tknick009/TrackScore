@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Meet } from "@shared/schema";
 
@@ -34,6 +34,7 @@ interface BroadcastDisplayProps {
 export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: BroadcastDisplayProps) {
   const [pageIndex, setPageIndex] = useState(0);
   const [displayClock, setDisplayClock] = useState("00:00:00");
+  const lastSecondsRef = useRef<number>(-1);
   
   const rawEntries = liveEventData?.entries || (liveEventData as any)?.results || [];
   const results = rawEntries.filter(
@@ -44,15 +45,32 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
   const remainingResults = results.slice(1);
   const totalPages = Math.max(1, Math.ceil(remainingResults.length / 5));
   
+  // Parse clock string to total seconds
+  const parseClockToSeconds = (clock: string): number => {
+    const dotIndex = clock.indexOf('.');
+    const timeOnly = dotIndex !== -1 ? clock.substring(0, dotIndex) : clock;
+    const parts = timeOnly.split(':').map(Number);
+    if (parts.length === 3) {
+      return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    } else if (parts.length === 2) {
+      return parts[0] * 60 + parts[1];
+    }
+    return parts[0] || 0;
+  };
+  
   useEffect(() => {
     if (liveClockTime) {
-      // Truncate to seconds only (remove tenths and beyond)
-      // Format: "MM:SS" or "H:MM:SS"
-      const dotIndex = liveClockTime.indexOf('.');
-      if (dotIndex !== -1) {
-        setDisplayClock(liveClockTime.substring(0, dotIndex));
-      } else {
-        setDisplayClock(liveClockTime);
+      const currentSeconds = parseClockToSeconds(liveClockTime);
+      // Only update display if seconds have advanced (monotonic)
+      // or if clock was reset (new race started - seconds dropped significantly)
+      if (currentSeconds > lastSecondsRef.current || currentSeconds < lastSecondsRef.current - 5) {
+        lastSecondsRef.current = currentSeconds;
+        const dotIndex = liveClockTime.indexOf('.');
+        if (dotIndex !== -1) {
+          setDisplayClock(liveClockTime.substring(0, dotIndex));
+        } else {
+          setDisplayClock(liveClockTime);
+        }
       }
     }
   }, [liveClockTime]);
