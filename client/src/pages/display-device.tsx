@@ -420,6 +420,24 @@ export default function DisplayDevice() {
               }));
             }
           }
+          
+          // Handle start_list updates from FinishLynx (pre-race athlete list)
+          if (message.type === 'start_list') {
+            const data = message.data;
+            if (data) {
+              console.log(`[Display] Start list: Event ${data.eventNumber}, Heat ${data.heat}, ${data.entries?.length || 0} entries`);
+              setState(prev => ({
+                ...prev,
+                liveEventData: {
+                  ...prev.liveEventData,
+                  eventNumber: data.eventNumber,
+                  heat: data.heat,
+                  mode: 'start_list',
+                  entries: data.entries || [],
+                },
+              }));
+            }
+          }
         } catch (e) {
           console.error('Error parsing WebSocket message:', e);
         }
