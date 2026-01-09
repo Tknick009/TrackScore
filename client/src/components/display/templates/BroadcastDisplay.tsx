@@ -90,14 +90,14 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
         backgroundColor: '#000000',
       }}
     >
-      <div className="absolute inset-x-0 bottom-0 h-24 flex items-center"
+      <div className="absolute inset-x-0 bottom-0 h-32 flex items-center"
         style={{ 
           background: `linear-gradient(to right, ${meet?.primaryColor || '#1e3a5f'}, ${meet?.secondaryColor || '#0f1f33'})`,
         }}
       >
         <div className="flex items-center h-full w-full px-4 gap-6">
           {meet?.logoUrl && (
-            <div className="h-16 w-32 flex-shrink-0 flex items-center justify-center">
+            <div className="h-20 w-40 flex-shrink-0 flex items-center justify-center">
               <img 
                 src={meet.logoUrl} 
                 alt={meet.name || 'Meet Logo'}
@@ -106,8 +106,8 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
             </div>
           )}
           
-          <div className="flex-shrink-0 bg-black/30 rounded-lg px-4 py-2">
-            <div className="text-3xl font-mono font-bold tracking-wider"
+          <div className="flex-shrink-0 bg-black/30 rounded-lg px-5 py-3">
+            <div className="text-4xl font-mono font-bold tracking-wider"
               style={{ color: meet?.textColor || '#FFFFFF' }}
             >
               {displayClock}
@@ -145,20 +145,20 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
                   )}
                   
                   <div className="flex items-center gap-4">
-                    <span className={`text-4xl font-bold ${getPlaceColor(results[tickerIndex]?.place || '')}`}>
+                    <span className={`text-5xl font-bold ${getPlaceColor(results[tickerIndex]?.place || '')}`}>
                       {formatPlace(results[tickerIndex]?.place || '')}
                     </span>
                     
                     <div className="flex flex-col">
                       <span 
-                        className="text-2xl font-bold"
+                        className="text-3xl font-bold"
                         style={{ color: meet?.textColor || '#FFFFFF' }}
                       >
                         {formatName(results[tickerIndex])}
                       </span>
                       {results[tickerIndex]?.affiliation && (
                         <span 
-                          className="text-sm opacity-70"
+                          className="text-base opacity-70"
                           style={{ color: meet?.textColor || '#FFFFFF' }}
                         >
                           {results[tickerIndex].affiliation}
@@ -167,7 +167,7 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
                     </div>
                     
                     <span 
-                      className="text-3xl font-mono font-bold ml-4"
+                      className="text-4xl font-mono font-bold ml-4"
                       style={{ color: meet?.textColor || '#FFFFFF' }}
                     >
                       {results[tickerIndex]?.time || results[tickerIndex]?.mark || ''}
