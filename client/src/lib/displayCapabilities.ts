@@ -1,7 +1,7 @@
 import type { ComponentType } from "react";
 import type { EventWithEntries, Meet } from "@shared/schema";
 
-export type DisplayType = 'P10' | 'P6' | 'BigBoard';
+export type DisplayType = 'P10' | 'P6' | 'BigBoard' | 'Broadcast';
 export type LayoutKind = 'single' | 'multi';
 
 export interface DisplayCapability {
@@ -29,6 +29,12 @@ export const DISPLAY_CAPABILITIES: Record<DisplayType, DisplayCapability> = {
     resolution: { width: 1920, height: 1080 },
     allowedLayoutKinds: ['single', 'multi'],
     description: 'Full screen display - up to 8 athletes',
+  },
+  Broadcast: {
+    maxAthletes: 20,
+    resolution: { width: 1920, height: 1080 },
+    allowedLayoutKinds: ['multi'],
+    description: 'Broadcast overlay with ticker, clock, and logo',
   },
 };
 
@@ -112,6 +118,15 @@ export const TEMPLATE_REGISTRY: TemplateMetadata[] = [
     supportedDisplays: ['BigBoard'],
     maxAthletes: 8,
     category: 'field',
+  },
+  {
+    id: 'BroadcastTicker',
+    name: 'Broadcast Ticker',
+    description: 'Scrolling results ticker with clock and logo for broadcast',
+    layoutKind: 'multi',
+    supportedDisplays: ['Broadcast'],
+    maxAthletes: 20,
+    category: 'both',
   },
 ];
 

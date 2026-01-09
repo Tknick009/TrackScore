@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Monitor, Tv, LayoutGrid, Calendar } from "lucide-react";
+import { Monitor, Tv, LayoutGrid, Calendar, Radio } from "lucide-react";
 import type { Meet, Event } from "@shared/schema";
 
 // Transition duration in milliseconds - smooth but fast for live stadium use
@@ -136,6 +136,7 @@ import {
   SingleAthleteTrack,
   SingleAthleteField,
 } from "@/components/display/templates";
+import { BroadcastDisplay } from "@/components/display/templates/BroadcastDisplay";
 import { 
   type DisplayType, 
   DISPLAY_CAPABILITIES,
@@ -551,6 +552,22 @@ export default function DisplayDevice() {
                 </CardDescription>
               </CardHeader>
             </Card>
+
+            <Card 
+              className={`bg-gray-900 border-2 cursor-pointer transition-all hover:bg-gray-800 ${
+                state.displayType === 'Broadcast' ? 'border-orange-500 bg-gray-800' : 'border-gray-700 hover:border-orange-500'
+              }`}
+              onClick={() => selectDisplayType('Broadcast')}
+              data-testid="select-broadcast"
+            >
+              <CardHeader className="text-center">
+                <Radio className={`w-12 h-12 mx-auto mb-2 ${state.displayType === 'Broadcast' ? 'text-orange-400' : 'text-gray-400'}`} />
+                <CardTitle className="text-white text-xl">Broadcast</CardTitle>
+                <CardDescription className="text-gray-400">
+                  Ticker, Clock & Logo
+                </CardDescription>
+              </CardHeader>
+            </Card>
           </div>
           
           {/* Device Name Input */}
@@ -732,6 +749,19 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     const isTeamScores = templateId === 'team-scores' || templateId.includes('team-scores');
     const isMeetLogo = templateId === 'meet-logo' || templateId.includes('meet-logo') || !effectiveTemplate;
     const isBigBoard = templateId.includes('live-results') || templateId.includes('BigBoard');
+    const isBroadcast = displayType === 'Broadcast';
+
+    if (isBroadcast) {
+      return (
+        <div className="w-screen h-screen">
+          <BroadcastDisplay 
+            meet={meet} 
+            liveClockTime={liveClockTime || undefined}
+            liveEventData={liveEventData}
+          />
+        </div>
+      );
+    }
 
     if (isMeetLogo || !effectiveTemplate) {
       // Get color scheme from meet or use defaults
