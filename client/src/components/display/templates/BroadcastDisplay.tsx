@@ -122,6 +122,21 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
     return 'text-black';
   };
   
+  // Round time to hundredths (e.g., "8:52.024" -> "8:52.02")
+  const formatTimeToHundredths = (timeStr: string) => {
+    if (!timeStr) return timeStr;
+    const match = timeStr.match(/^(\d+:\d+)\.(\d{2})\d*$/);
+    if (match) {
+      return `${match[1]}.${match[2]}`;
+    }
+    // Handle seconds only format (e.g., "10.234" -> "10.23")
+    const secMatch = timeStr.match(/^(\d+)\.(\d{2})\d*$/);
+    if (secMatch) {
+      return `${secMatch[1]}.${secMatch[2]}`;
+    }
+    return timeStr;
+  };
+  
   const eventName = liveEventData?.eventName || '';
   const heatInfo = liveEventData?.heat && liveEventData.heat > 0
     ? `Heat ${liveEventData.heat}`
@@ -157,7 +172,7 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
         </span>
         {(entry.time || entry.mark) && (
           <span className="text-3xl font-bold text-black mt-1">
-            {entry.time || entry.mark}
+            {formatTimeToHundredths(entry.time || entry.mark || '')}
           </span>
         )}
       </div>
