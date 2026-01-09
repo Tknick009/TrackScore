@@ -676,16 +676,16 @@ export class LynxListener extends EventEmitter {
   }
 
   private handleFieldMessage(data: any, packet: LynxPacket, portName?: string) {
-    // Debug: log all fields in the F message
-    console.log('[Lynx:Debug] F message fields:', JSON.stringify(data));
-    
     const eventNum = parseInt(data.EN) || this.currentEventNumber;
     const flight = parseInt(data.F) || 1;
     const round = parseInt(data.R) || 1;
     const place = data.P;
-    // M is mark field, DS is distance/standing field, T is time field - use any if valid
-    const rawMark = data.M || data.DS || data.T;
-    const mark = (rawMark && rawMark !== '0' && rawMark !== '') ? rawMark : undefined;
+    // M is mark field, DS is distance/standing field, T is time field
+    // Check each field for valid value (not "0", not empty)
+    const isValidMark = (val: any) => val && val !== '0' && val !== '';
+    const mark = isValidMark(data.M) ? data.M : 
+                 isValidMark(data.T) ? data.T : 
+                 isValidMark(data.DS) ? data.DS : undefined;
     const attemptNum = parseInt(data.AN) || 1;
     const attempts = data.A;
     const name = data.N;
