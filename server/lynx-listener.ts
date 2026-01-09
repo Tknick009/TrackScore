@@ -680,7 +680,9 @@ export class LynxListener extends EventEmitter {
     const flight = parseInt(data.F) || 1;
     const round = parseInt(data.R) || 1;
     const place = data.P;
-    const mark = data.M;
+    // M is mark field, DS is distance/standing field - use either one if valid (not "0" or empty)
+    const rawMark = data.M || data.DS;
+    const mark = (rawMark && rawMark !== '0' && rawMark !== '') ? rawMark : undefined;
     const attemptNum = parseInt(data.AN) || 1;
     const attempts = data.A;
     const name = data.N;
