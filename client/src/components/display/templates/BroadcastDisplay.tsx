@@ -197,8 +197,8 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
     }
     
     return (
-      <div className="flex-1 min-w-0 flex flex-col items-center justify-center px-3 py-4 bg-gray-50/50 rounded uppercase">
-        <div className="flex items-center justify-center gap-4 w-full">
+      <div className="flex-1 min-w-0 flex flex-col items-center justify-start px-2 py-2 bg-gray-50/50 rounded uppercase">
+        <div className="flex items-center justify-center gap-2 w-full">
           <span className={`text-2xl font-semibold ${getPlaceColor(entry.place || '')}`}>
             {entry.place}.
           </span>
@@ -207,7 +207,7 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
           </span>
         </div>
         {entry.affiliation && (
-          <span className="text-xl text-gray-600 truncate w-full text-center">
+          <span className="text-lg text-gray-600 truncate w-full text-center">
             {entry.affiliation}
           </span>
         )}
@@ -217,7 +217,7 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
           const isTied = tiedTimes.has(timeHundredths) && fullTime.length > timeHundredths.length;
           return (
             <div className="relative flex-shrink-0 overflow-visible">
-              <span className="text-3xl font-bold text-black mt-1 whitespace-nowrap block">
+              <span className="text-3xl font-bold text-black whitespace-nowrap block">
                 {formatTimeToHundredths(fullTime)}
               </span>
               {isTied && (
