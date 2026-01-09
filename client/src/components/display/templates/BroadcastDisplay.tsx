@@ -42,7 +42,7 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
   
   const firstPlace = results.length > 0 ? results[0] : null;
   const remainingResults = results.slice(1);
-  const totalPages = Math.ceil(remainingResults.length / 5);
+  const totalPages = Math.max(1, Math.ceil(remainingResults.length / 5));
   
   useEffect(() => {
     if (liveClockTime) {
@@ -78,7 +78,7 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
     if (entry.firstName && entry.lastName) {
       return `${entry.firstName} ${entry.lastName}`;
     }
-    return entry.name || 'Unknown';
+    return entry.name?.trim() || 'Unknown';
   };
   
   const getPlaceColor = (place: string) => {
@@ -95,113 +95,106 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
     : '';
 
   const currentPageResults = remainingResults.slice(pageIndex * 5, (pageIndex + 1) * 5);
+  
+  while (currentPageResults.length < 5) {
+    currentPageResults.push(null as any);
+  }
 
-  const renderResultRow = (entry: ResultEntry, index: number) => (
-    <div key={`${entry.place}-${index}`} className="flex items-center gap-4 py-1">
-      <span className={`text-3xl font-bold w-16 text-right ${getPlaceColor(entry.place || '')}`}>
-        {formatPlace(entry.place || '')}
-      </span>
-      <span className="text-2xl font-semibold flex-1 text-black">
-        {formatName(entry)}
-      </span>
-      {entry.affiliation && (
-        <span className="text-lg text-gray-600 w-32 truncate">
-          {entry.affiliation}
+  const renderAthleteColumn = (entry: ResultEntry | null, isFirstPlace: boolean = false) => {
+    if (!entry) {
+      return (
+        <div className="flex-1 min-w-0 flex flex-col items-center justify-center px-2 py-3 bg-gray-50/50 rounded">
+          <span className="text-gray-300 text-lg">-</span>
+        </div>
+      );
+    }
+    
+    return (
+      <div className={`flex-1 min-w-0 flex flex-col items-center justify-center px-3 py-3 ${isFirstPlace ? 'bg-yellow-50/80 border-2 border-yellow-400' : 'bg-gray-50/50'} rounded`}>
+        <span className={`text-2xl font-bold ${getPlaceColor(entry.place || '')}`}>
+          {formatPlace(entry.place || '')}
         </span>
-      )}
-      <span className="text-2xl font-bold text-black w-32 text-right">
-        {entry.time || entry.mark || ''}
-      </span>
-    </div>
-  );
+        <span className="text-lg font-semibold text-black text-center truncate w-full mt-1">
+          {formatName(entry)}
+        </span>
+        {entry.affiliation && (
+          <span className="text-sm text-gray-600 truncate w-full text-center">
+            {entry.affiliation}
+          </span>
+        )}
+        <span className="text-xl font-bold text-black mt-1">
+          {entry.time || entry.mark || '-'}
+        </span>
+      </div>
+    );
+  };
 
   return (
     <div className="relative w-full h-full overflow-hidden" style={{ fontFamily: "'Oswald', sans-serif", backgroundColor: 'transparent' }}>
-      <div className="absolute inset-x-0 bottom-0 h-auto min-h-[200px] py-4 px-6 mx-4 mb-4 bg-white/95 rounded-lg" style={{ border: '1px solid rgba(200, 200, 200, 0.5)' }}>
-        <div className="flex gap-8 h-full">
-          <div className="flex items-center gap-4 flex-shrink-0">
-            {meet?.logoUrl && (
-              <div className="h-32 w-48 flex items-center justify-center">
-                <img 
-                  src={meet.logoUrl} 
-                  alt={meet.name || 'Meet Logo'}
-                  className="max-h-full max-w-full object-contain"
-                />
+      <div className="absolute inset-x-0 bottom-0 py-4 px-6 mx-4 mb-4 bg-white/95 rounded-lg" style={{ border: '1px solid rgba(200, 200, 200, 0.5)' }}>
+        <div className="flex items-center gap-4 mb-4">
+          {meet?.logoUrl && (
+            <div className="h-16 w-24 flex-shrink-0 flex items-center justify-center">
+              <img 
+                src={meet.logoUrl} 
+                alt={meet.name || 'Meet Logo'}
+                className="max-h-full max-w-full object-contain"
+              />
+            </div>
+          )}
+          
+          <div className="flex flex-col justify-center flex-shrink-0">
+            {eventName && (
+              <div className="text-lg font-bold uppercase tracking-wide text-black">
+                {eventName}
               </div>
             )}
-            
-            <div className="flex flex-col items-center justify-center">
-              {eventName && (
-                <div className="text-center mb-1">
-                  <div className="text-lg font-bold uppercase tracking-wide text-black">
-                    {eventName}
-                  </div>
-                  {heatInfo && (
-                    <div className="text-sm text-gray-600">
-                      {heatInfo}
-                    </div>
-                  )}
-                </div>
-              )}
-              
-              <div className="text-5xl font-bold tracking-wider text-black">
-                {displayClock}
+            {heatInfo && (
+              <div className="text-sm text-gray-600">
+                {heatInfo}
               </div>
-            </div>
+            )}
           </div>
           
-          <div className="flex-1 overflow-hidden">
-            {firstPlace && (
-              <div className="flex items-center gap-4 py-2 border-b-2 border-gray-200 mb-2">
-                <span className={`text-4xl font-bold w-20 text-right ${getPlaceColor(firstPlace.place || '')}`}>
-                  {formatPlace(firstPlace.place || '')}
-                </span>
-                <span className="text-3xl font-bold flex-1 text-black">
-                  {formatName(firstPlace)}
-                </span>
-                {firstPlace.affiliation && (
-                  <span className="text-xl text-gray-600 w-40 truncate">
-                    {firstPlace.affiliation}
-                  </span>
-                )}
-                <span className="text-3xl font-bold text-black w-36 text-right">
-                  {firstPlace.time || firstPlace.mark || ''}
-                </span>
-              </div>
-            )}
-            
-            <AnimatePresence mode="wait">
-              {currentPageResults.length > 0 ? (
-                <motion.div
-                  key={pageIndex}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  transition={{ duration: 0.4, ease: "easeInOut" }}
-                  className="space-y-1"
-                >
-                  {currentPageResults.map((entry: ResultEntry, idx: number) => renderResultRow(entry, idx))}
-                </motion.div>
-              ) : !firstPlace ? (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="flex items-center justify-center h-full"
-                >
-                  <span className="text-2xl text-gray-500">
-                    {eventName ? `${eventName} - Waiting for results...` : 'Waiting for results...'}
-                  </span>
-                </motion.div>
-              ) : null}
-            </AnimatePresence>
-            
-            {totalPages > 1 && (
-              <div className="absolute bottom-2 right-6 text-sm text-gray-400">
-                Page {pageIndex + 1} of {totalPages}
-              </div>
-            )}
+          <div className="text-4xl font-bold tracking-wider text-black ml-auto">
+            {displayClock}
           </div>
         </div>
+        
+        <div className="flex gap-3 overflow-hidden">
+          {firstPlace && renderAthleteColumn(firstPlace, true)}
+          
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={pageIndex}
+              initial={{ opacity: 0, x: 50 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -50 }}
+              transition={{ duration: 0.4, ease: "easeInOut" }}
+              className="flex gap-3 flex-1"
+            >
+              {currentPageResults.map((entry: ResultEntry | null, idx: number) => (
+                <div key={`col-${pageIndex}-${idx}`} className="flex-1 min-w-0">
+                  {renderAthleteColumn(entry)}
+                </div>
+              ))}
+            </motion.div>
+          </AnimatePresence>
+          
+          {!firstPlace && results.length === 0 && (
+            <div className="flex-1 flex items-center justify-center py-8">
+              <span className="text-xl text-gray-500">
+                {eventName ? `${eventName} - Waiting for results...` : 'Waiting for results...'}
+              </span>
+            </div>
+          )}
+        </div>
+        
+        {totalPages > 1 && (
+          <div className="absolute bottom-2 right-6 text-xs text-gray-400">
+            {pageIndex + 1} / {totalPages}
+          </div>
+        )}
       </div>
     </div>
   );
