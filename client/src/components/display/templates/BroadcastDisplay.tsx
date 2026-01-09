@@ -35,8 +35,9 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
   const [pageIndex, setPageIndex] = useState(0);
   const [displayClock, setDisplayClock] = useState("00:00:00");
   
-  const results = (liveEventData?.entries || []).filter(
-    (entry) => entry.place && entry.name
+  const rawEntries = liveEventData?.entries || (liveEventData as any)?.results || [];
+  const results = rawEntries.filter(
+    (entry: ResultEntry) => entry.place && entry.name
   );
   
   const firstPlace = results.length > 0 ? results[0] : null;
@@ -179,7 +180,7 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
                   transition={{ duration: 0.4, ease: "easeInOut" }}
                   className="space-y-1"
                 >
-                  {currentPageResults.map((entry, idx) => renderResultRow(entry, idx))}
+                  {currentPageResults.map((entry: ResultEntry, idx: number) => renderResultRow(entry, idx))}
                 </motion.div>
               ) : !firstPlace ? (
                 <motion.div
