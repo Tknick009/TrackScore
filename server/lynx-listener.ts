@@ -178,7 +178,32 @@ export class LynxListener extends EventEmitter {
         });
         break;
       case 'T':
-        if (sortedEntries.some(e => (e as LynxTrackResult).place && (e as LynxTrackResult).time)) {
+        // Check if any entries have times - if none do, emit a synthetic start_list
+        const trackEntriesWithTimes = sortedEntries.filter((e: any) => e.time);
+        const hasAnyTimes = trackEntriesWithTimes.length > 0;
+        
+        if (sortedEntries.length > 0 && !hasAnyTimes && !this.isRunning) {
+          console.log(`[Lynx] Synthesizing start_list from ${sortedEntries.length} track entries without times (event ${event.eventNumber})`);
+          
+          // Convert track entries to start list format
+          const startListEntries = sortedEntries.map((e: any) => ({
+            lane: e.lane || '',
+            bib: e.bib || '',
+            name: e.name || '',
+            affiliation: e.affiliation || '',
+            firstName: e.firstName || '',
+            lastName: e.lastName || '',
+          }));
+          
+          this.emit('start-list', event.eventNumber, event.heat, startListEntries as LynxStartListEntry[]);
+          this.emit('track-mode-change', event.eventNumber, 'start_list', {
+            eventNumber: event.eventNumber,
+            heat: event.heat,
+            distance: event.distance,
+            eventName: event.eventName,
+            entries: startListEntries,
+          });
+        } else if (sortedEntries.some(e => (e as LynxTrackResult).place && (e as LynxTrackResult).time)) {
           this.emit('track-mode-change', event.eventNumber, 'results', {
             eventNumber: event.eventNumber,
             heat: event.heat,
@@ -190,6 +215,42 @@ export class LynxListener extends EventEmitter {
         }
         break;
       case 'F':
+        // Check if any entries have marks/times - if none do, also emit a synthetic start_list
+        const entriesWithMarks = sortedEntries.filter((e: any) => e.mark || e.time);
+        const hasAnyMarks = entriesWithMarks.length > 0;
+        
+        // If we have entries but none have marks yet, emit a synthetic start_list
+        // This handles FinishLynx setups that don't send type "S" packets
+        if (sortedEntries.length > 0 && !hasAnyMarks && !this.isRunning) {
+          console.log(`[Lynx] Synthesizing start_list from ${sortedEntries.length} entries without marks (event ${event.eventNumber})`);
+          
+          // Convert field entries to start list format
+          const startListEntries = sortedEntries.map((e: any) => ({
+            lane: e.lane || '',
+            bib: e.bib || '',
+            name: e.name || '',
+            affiliation: e.affiliation || '',
+            firstName: e.firstName || '',
+            lastName: e.lastName || '',
+          }));
+          
+          // Sort by lane for start list
+          startListEntries.sort((a: any, b: any) => {
+            const laneA = parseInt(a.lane) || 999;
+            const laneB = parseInt(b.lane) || 999;
+            return laneA - laneB;
+          });
+          
+          this.emit('start-list', event.eventNumber, event.heat, startListEntries as LynxStartListEntry[]);
+          this.emit('track-mode-change', event.eventNumber, 'start_list', {
+            eventNumber: event.eventNumber,
+            heat: event.heat,
+            eventName: event.eventName,
+            entries: startListEntries,
+          });
+        }
+        
+        // Always emit field-mode-change with standings
         this.emit('field-mode-change', event.eventNumber, 'standings', {
           eventNumber: event.eventNumber,
           flight: event.heat,
