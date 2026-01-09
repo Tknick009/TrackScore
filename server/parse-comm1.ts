@@ -60,27 +60,4 @@ export function parseComm1(text: string): ParsedComm1 {
   };
 }
 
-if (process.argv[1]?.includes('parse-comm1')) {
-  const testCases = [
-    "Heat 3 Invite Heat to be run at 8:45",
-    "Heats 7, 8, 9 Invite Heats to be run at 8:30",
-    "1.51 - 1.56 - 1.61",
-    "2.97 - 3.12 -3.27 - 3.42 - 3.57 - 3.72",
-    "4.20 - 4.35 - 4.50 - 4.65 - 4.80",
-    "1.51 - 1.56 - 1.61 - 1.66 - 1.71 - 1.76",
-    "1.84 - 1.89 - 1.94 - 1.99 - 2.04",
-  ];
-
-  console.log('parseComm1 Test Results:');
-  console.log('='.repeat(70));
-  console.log();
-
-  testCases.forEach((test, index) => {
-    const result = parseComm1(test);
-    console.log(`Test ${index + 1}:`);
-    console.log(`  Input:   "${test}"`);
-    console.log(`  Time:    ${result.time || 'null'}`);
-    console.log(`  Notes:   "${result.notes}"`);
-    console.log();
-  });
-}
+// Test runner moved to tools/parse-comm1-test.ts to avoid bundling issues

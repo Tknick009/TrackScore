@@ -873,25 +873,5 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
   return stats;
 }
 
-// Run import when executed directly (CLI mode)
-// In ES modules, use import.meta.url to detect direct execution
-if (import.meta.url === `file://${process.argv[1]}`) {
-  const filePath = process.argv[2] || "attached_assets/BisonOutdoorClassic2024_1762991952128.mdb";
-  const meetId = process.argv[3];
-  
-  if (!meetId) {
-    console.error("❌ Usage: tsx server/import-mdb-complete.ts <filePath> <meetId>");
-    console.error("Example: tsx server/import-mdb-complete.ts data.mdb abc123-def456-...");
-    process.exit(1);
-  }
-  
-  importCompleteMDB(filePath, meetId)
-    .then(() => {
-      console.log("\n🎉 Import script finished successfully!");
-      process.exit(0);
-    })
-    .catch((err) => {
-      console.error("\n❌ Import failed:", err);
-      process.exit(1);
-    });
-}
+// CLI runner moved to tools/import-mdb-cli.ts to avoid bundling issues
+// Run with: npx tsx tools/import-mdb-cli.ts <filePath> <meetId>
