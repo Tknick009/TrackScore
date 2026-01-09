@@ -198,17 +198,15 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
         {(entry.time || entry.mark) && (() => {
           const fullTime = entry.time || entry.mark || '';
           const timeHundredths = getTimeToHundredths(entry);
-          const isTied = tiedTimes.has(timeHundredths);
+          const isTied = tiedTimes.has(timeHundredths) && fullTime.length > timeHundredths.length;
           return (
             <div className="flex flex-col items-center flex-shrink-0">
               <span className="text-3xl font-bold text-black mt-1 whitespace-nowrap">
                 {formatTimeToHundredths(fullTime)}
               </span>
-              {isTied && fullTime.length > timeHundredths.length && (
-                <span className="text-lg text-gray-500 whitespace-nowrap">
-                  {fullTime}
-                </span>
-              )}
+              <span className={`text-lg text-gray-500 whitespace-nowrap ${isTied ? '' : 'invisible'}`}>
+                {fullTime}
+              </span>
             </div>
           );
         })()}
