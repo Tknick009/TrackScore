@@ -37,9 +37,17 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
   const lastSecondsRef = useRef<number>(-1);
   
   const rawEntries = liveEventData?.entries || (liveEventData as any)?.results || [];
-  const results = rawEntries.filter(
+  const resultsWithTimes = rawEntries.filter(
+    (entry: ResultEntry) => entry.place && entry.name && (entry.time || entry.mark)
+  );
+  const resultsWithPlaces = rawEntries.filter(
     (entry: ResultEntry) => entry.place && entry.name
   );
+  
+  // Use results with times if available, otherwise show all entries with names for scrolling
+  const hasTimesEntered = resultsWithTimes.length > 0;
+  const results = hasTimesEntered ? resultsWithPlaces : [];
+  const entriesForScrolling = rawEntries.filter((entry: ResultEntry) => entry.name);
   
   // Detect ties - find times that appear more than once (to hundredths)
   const getTimeToHundredths = (entry: ResultEntry) => {
@@ -66,7 +74,12 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
   
   const firstPlace = results.length > 0 ? results[0] : null;
   const remainingResults = results.slice(1);
-  const totalPages = Math.max(1, Math.ceil(remainingResults.length / 5));
+  
+  // For scrolling mode (no times), paginate all entries
+  const scrollingTotalPages = Math.max(1, Math.ceil(entriesForScrolling.length / 6));
+  const totalPages = hasTimesEntered 
+    ? Math.max(1, Math.ceil(remainingResults.length / 5))
+    : scrollingTotalPages;
   
   // Parse clock string to total seconds
   const parseClockToSeconds = (clock: string): number => {
@@ -186,6 +199,42 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
   while (currentPageResults.length < 5) {
     currentPageResults.push(null as any);
   }
+  
+  // For scrolling mode (no times entered yet)
+  const currentScrollingEntries = entriesForScrolling.slice(pageIndex * 6, (pageIndex + 1) * 6);
+  while (currentScrollingEntries.length < 6) {
+    currentScrollingEntries.push(null as any);
+  }
+  
+  const renderScrollingEntry = (entry: ResultEntry | null) => {
+    if (!entry) {
+      return (
+        <div className="flex-1 min-w-0 flex flex-col items-center justify-center px-2 py-3">
+          <span className="text-gray-300 text-lg">-</span>
+        </div>
+      );
+    }
+    
+    return (
+      <div className="flex-1 min-w-0 flex flex-col items-center justify-start px-1 py-1 uppercase">
+        <div className="flex items-center justify-center gap-2 w-full">
+          {entry.bib && (
+            <span className="text-2xl font-semibold text-gray-600">
+              #{entry.bib}
+            </span>
+          )}
+          <span className="text-3xl font-bold text-black text-center truncate">
+            {formatName(entry)}
+          </span>
+        </div>
+        {entry.affiliation && (
+          <span className="text-xl text-gray-600 truncate w-full text-center leading-tight">
+            {entry.affiliation}
+          </span>
+        )}
+      </div>
+    );
+  };
 
   const renderAthleteColumn = (entry: ResultEntry | null) => {
     if (!entry) {
@@ -268,30 +317,49 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
           </div>
           
           <div className="flex-1 flex gap-2 overflow-hidden">
-            {firstPlace && (
-              <div className="flex-1 min-w-0">
-                {renderAthleteColumn(firstPlace)}
-              </div>
-            )}
-            
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={pageIndex}
-                initial={{ opacity: 0, x: 50 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -50 }}
-                transition={{ duration: 0.4, ease: "easeInOut" }}
-                className="flex gap-2 flex-[5]"
-              >
-                {currentPageResults.map((entry: ResultEntry | null, idx: number) => (
-                  <div key={`col-${pageIndex}-${idx}`} className="flex-1 min-w-0">
-                    {renderAthleteColumn(entry)}
+            {hasTimesEntered ? (
+              <>
+                {firstPlace && (
+                  <div className="flex-1 min-w-0">
+                    {renderAthleteColumn(firstPlace)}
                   </div>
-                ))}
-              </motion.div>
-            </AnimatePresence>
-            
-            {!firstPlace && results.length === 0 && (
+                )}
+                
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={pageIndex}
+                    initial={{ opacity: 0, x: 50 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -50 }}
+                    transition={{ duration: 0.4, ease: "easeInOut" }}
+                    className="flex gap-2 flex-[5]"
+                  >
+                    {currentPageResults.map((entry: ResultEntry | null, idx: number) => (
+                      <div key={`col-${pageIndex}-${idx}`} className="flex-1 min-w-0">
+                        {renderAthleteColumn(entry)}
+                      </div>
+                    ))}
+                  </motion.div>
+                </AnimatePresence>
+              </>
+            ) : entriesForScrolling.length > 0 ? (
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={pageIndex}
+                  initial={{ opacity: 0, x: 50 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -50 }}
+                  transition={{ duration: 0.4, ease: "easeInOut" }}
+                  className="flex gap-2 flex-1"
+                >
+                  {currentScrollingEntries.map((entry: ResultEntry | null, idx: number) => (
+                    <div key={`scroll-${pageIndex}-${idx}`} className="flex-1 min-w-0">
+                      {renderScrollingEntry(entry)}
+                    </div>
+                  ))}
+                </motion.div>
+              </AnimatePresence>
+            ) : (
               <div className="flex-1 flex items-center justify-center py-8">
                 <span className="text-xl text-gray-500 uppercase">
                   {eventName ? `${eventName} - Waiting for results...` : 'Waiting for results...'}
