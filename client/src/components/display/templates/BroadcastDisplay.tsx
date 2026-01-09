@@ -41,6 +41,29 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
     (entry: ResultEntry) => entry.place && entry.name
   );
   
+  // Detect ties - find times that appear more than once (to hundredths)
+  const getTimeToHundredths = (entry: ResultEntry) => {
+    const time = entry.time || entry.mark || '';
+    const match = time.match(/^(\d+:\d+\.\d{2})/);
+    if (match) return match[1];
+    const secMatch = time.match(/^(\d+\.\d{2})/);
+    if (secMatch) return secMatch[1];
+    return time;
+  };
+  
+  const timeCounts = new Map<string, number>();
+  results.forEach((entry: ResultEntry) => {
+    const timeHundredths = getTimeToHundredths(entry);
+    if (timeHundredths) {
+      timeCounts.set(timeHundredths, (timeCounts.get(timeHundredths) || 0) + 1);
+    }
+  });
+  
+  const tiedTimes = new Set<string>();
+  timeCounts.forEach((count, time) => {
+    if (count > 1) tiedTimes.add(time);
+  });
+  
   const firstPlace = results.length > 0 ? results[0] : null;
   const remainingResults = results.slice(1);
   const totalPages = Math.max(1, Math.ceil(remainingResults.length / 5));
@@ -170,11 +193,23 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
         <span className={`text-2xl font-semibold mt-1 ${getPlaceColor(entry.place || '')}`}>
           {formatPlace(entry.place || '')}
         </span>
-        {(entry.time || entry.mark) && (
-          <span className="text-3xl font-bold text-black mt-1">
-            {formatTimeToHundredths(entry.time || entry.mark || '')}
-          </span>
-        )}
+        {(entry.time || entry.mark) && (() => {
+          const fullTime = entry.time || entry.mark || '';
+          const timeHundredths = getTimeToHundredths(entry);
+          const isTied = tiedTimes.has(timeHundredths);
+          return (
+            <div className="flex flex-col items-center">
+              <span className="text-3xl font-bold text-black mt-1">
+                {formatTimeToHundredths(fullTime)}
+              </span>
+              {isTied && fullTime.length > timeHundredths.length && (
+                <span className="text-lg text-gray-500">
+                  {fullTime}
+                </span>
+              )}
+            </div>
+          );
+        })()}
       </div>
     );
   };
