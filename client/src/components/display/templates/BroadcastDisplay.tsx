@@ -47,7 +47,10 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
   // Use results with times if available, otherwise show all entries with names for scrolling
   const hasTimesEntered = resultsWithTimes.length > 0;
   const results = hasTimesEntered ? resultsWithPlaces : [];
-  const entriesForScrolling = rawEntries.filter((entry: ResultEntry) => entry.name);
+  // Accept entries with name, firstName/lastName, or bib
+  const entriesForScrolling = rawEntries.filter((entry: ResultEntry) => 
+    entry.name || entry.firstName || entry.lastName || entry.bib
+  );
   
   // Detect ties - find times that appear more than once (to hundredths)
   const getTimeToHundredths = (entry: ResultEntry) => {
