@@ -411,6 +411,28 @@ export default function DisplayDevice() {
             }
           }
           
+          // Handle track mode change updates from FinishLynx (event switching)
+          if (message.type === 'track_mode_change') {
+            const data = message.data;
+            if (data) {
+              console.log(`[Display] Track mode change: Event ${data.eventNumber}, mode=${data.mode}, ${data.entries?.length || 0} entries`);
+              setState(prev => ({
+                ...prev,
+                liveEventData: {
+                  ...prev.liveEventData,
+                  eventNumber: data.eventNumber,
+                  eventName: data.eventName || prev.liveEventData?.eventName,
+                  heat: data.heat ?? prev.liveEventData?.heat,
+                  totalHeats: data.totalHeats ?? prev.liveEventData?.totalHeats,
+                  round: data.round ?? prev.liveEventData?.round,
+                  mode: data.mode,
+                  wind: data.wind,
+                  entries: data.entries || data.results || prev.liveEventData?.entries || [],
+                },
+              }));
+            }
+          }
+          
           // Handle field mode change updates from FinishLynx
           if (message.type === 'field_mode_change') {
             const data = message.data;
