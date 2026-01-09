@@ -115,8 +115,8 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
   );
 
   return (
-    <div className="relative w-full h-full overflow-hidden bg-white" style={{ fontFamily: "'Oswald', sans-serif" }}>
-      <div className="absolute inset-x-0 bottom-0 h-auto min-h-[200px] py-4 px-6">
+    <div className="relative w-full h-full overflow-hidden" style={{ fontFamily: "'Oswald', sans-serif", backgroundColor: 'transparent' }}>
+      <div className="absolute inset-x-0 bottom-0 h-auto min-h-[200px] py-4 px-6 mx-4 mb-4 bg-white/95 rounded-lg" style={{ border: '1px solid rgba(200, 200, 200, 0.5)' }}>
         <div className="flex gap-8 h-full">
           <div className="flex flex-col items-center justify-start flex-shrink-0">
             {meet?.logoUrl && (
@@ -200,12 +200,6 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
           </div>
         </div>
       </div>
-      
-      {meet?.name && (
-        <div className="absolute top-4 left-4 text-lg font-semibold text-gray-600">
-          {meet.name}
-        </div>
-      )}
     </div>
   );
 }
