@@ -235,6 +235,11 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
               {entry.lane}
             </span>
           )}
+          {entry.bib && (
+            <span className="text-2xl font-bold text-gray-800 bg-gray-200 px-2 py-0.5 min-w-[3rem] text-center">
+              {entry.bib}
+            </span>
+          )}
           <span className="text-3xl font-bold text-black text-center truncate">
             {formatName(entry)}
           </span>

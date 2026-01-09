@@ -487,22 +487,79 @@ export class LynxListener extends EventEmitter {
     }
   }
 
-  // Extract multiple JSON objects from a concatenated string
-  private extractJsonObjects(input: string): any[] {
+  // Parse multiple JSON objects from a concatenated string (for HTTP forward)
+  // FinishLynx often sends concatenated JSON without delimiters: {...}{...}
+  private parseJsonObjectsFromLine(input: string): any[] {
     const results: any[] = [];
     let remaining = input.trim();
     
+    // First, try splitting on }{ boundary (common FinishLynx pattern)
+    // This handles cases like: {"T":"T",...}{"T":"T",...}
+    const splitPattern = /\}\s*\{/g;
+    if (splitPattern.test(remaining)) {
+      // Reset regex
+      splitPattern.lastIndex = 0;
+      
+      // Split and reconstruct individual JSON objects
+      const parts = remaining.split(/\}(\s*)\{/);
+      let currentJson = '';
+      
+      for (let i = 0; i < parts.length; i++) {
+        if (i === 0) {
+          currentJson = parts[i] + '}';
+        } else if (i % 2 === 0) {
+          // This is content after a }{ split
+          currentJson = '{' + parts[i];
+          if (i < parts.length - 1) {
+            currentJson += '}';
+          }
+        } else {
+          // This is the whitespace between } and {, skip it
+          continue;
+        }
+        
+        // Try to parse and add if valid
+        try {
+          // Clean up: ensure proper closing
+          let jsonStr = currentJson.trim();
+          if (!jsonStr.endsWith('}')) {
+            jsonStr += '}';
+          }
+          if (!jsonStr.endsWith('}}')) {
+            // FinishLynx messages have nested D object
+            jsonStr = jsonStr.replace(/\}$/, '}}');
+          }
+          const parsed = JSON.parse(jsonStr);
+          if (parsed && parsed.T) {
+            results.push(parsed);
+          }
+        } catch {
+          // Try without the extra brace fix
+          try {
+            const parsed = JSON.parse(currentJson);
+            if (parsed && parsed.T) {
+              results.push(parsed);
+            }
+          } catch {
+            // Still invalid, skip
+          }
+        }
+      }
+      
+      if (results.length > 0) {
+        return results;
+      }
+    }
+    
+    // Fallback: brace-counting method for single or well-formed JSON
     while (remaining.length > 0) {
-      // Skip whitespace
       remaining = remaining.trim();
       if (!remaining.startsWith('{')) {
-        // Skip non-JSON prefix until we find a '{'
         const nextBrace = remaining.indexOf('{');
         if (nextBrace === -1) break;
         remaining = remaining.substring(nextBrace);
       }
       
-      // Find matching closing brace by tracking depth
       let depth = 0;
       let inString = false;
       let escape = false;
@@ -556,7 +613,7 @@ export class LynxListener extends EventEmitter {
 
   private parseJsonLine(line: string, packet: LynxPacket, config: PortConfig) {
     // Handle concatenated JSON objects
-    const jsonObjects = this.extractJsonObjects(line);
+    const jsonObjects = this.parseJsonObjectsFromLine(line);
     
     if (jsonObjects.length === 0) {
       // Try legacy single JSON parse as fallback
