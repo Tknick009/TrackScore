@@ -779,6 +779,11 @@ export class LynxListener extends EventEmitter {
     const place = data.P;
     const lane = data.L;
     
+    // Verbose logging for debugging - log each entry received
+    if (lane || data.N || data.BIB) {
+      console.log(`[Lynx:Track] Event ${eventNum} Heat ${heat}: Lane=${lane} Name=${data.N || data.LN} Bib=${data.BIB} Time=${time} Place=${place}`);
+    }
+    
     // Persist event name by event number so it's available for results
     if (eventName) {
       this.eventNamesByNumber.set(eventNum, eventName);
