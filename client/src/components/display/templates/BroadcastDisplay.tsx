@@ -184,7 +184,7 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
       <div className="flex-1 min-w-0 flex flex-col items-center justify-center px-3 py-4 bg-gray-50/50 rounded uppercase">
         <div className="flex items-center justify-center gap-4 w-full">
           <span className={`text-2xl font-semibold ${getPlaceColor(entry.place || '')}`}>
-            {formatPlace(entry.place || '')}
+            {entry.place}.
           </span>
           <span className="text-3xl font-bold text-black text-center truncate">
             {formatName(entry)}
