@@ -182,17 +182,19 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
     
     return (
       <div className="flex-1 min-w-0 flex flex-col items-center justify-center px-3 py-4 bg-gray-50/50 rounded uppercase">
-        <span className="text-3xl font-bold text-black text-center truncate w-full">
-          {formatName(entry)}
-        </span>
+        <div className="flex items-center justify-center gap-4 w-full">
+          <span className={`text-2xl font-semibold ${getPlaceColor(entry.place || '')}`}>
+            {formatPlace(entry.place || '')}
+          </span>
+          <span className="text-3xl font-bold text-black text-center truncate">
+            {formatName(entry)}
+          </span>
+        </div>
         {entry.affiliation && (
           <span className="text-xl text-gray-600 truncate w-full text-center">
             {entry.affiliation}
           </span>
         )}
-        <span className={`text-2xl font-semibold mt-1 ${getPlaceColor(entry.place || '')}`}>
-          {formatPlace(entry.place || '')}
-        </span>
         {(entry.time || entry.mark) && (() => {
           const fullTime = entry.time || entry.mark || '';
           const timeHundredths = getTimeToHundredths(entry);
