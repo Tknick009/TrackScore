@@ -254,7 +254,7 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
                     {eventName}
                   </div>
                   {heatInfo && (
-                    <div className="text-sm text-gray-600">
+                    <div className="text-xl text-gray-600">
                       {heatInfo}
                     </div>
                   )}
