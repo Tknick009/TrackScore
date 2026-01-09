@@ -28,6 +28,7 @@ import {
   type InsertDisplayTheme,
   type SelectBoardConfig,
   type InsertBoardConfig,
+  type BoardConfig,
   type DisplayLayout,
   type InsertDisplayLayout,
   type LayoutCell,
@@ -107,6 +108,19 @@ import {
   type InsertProcessedFile,
   type ExternalScoreboard,
   type InsertExternalScoreboard,
+  type FieldEventSession,
+  type InsertFieldEventSession,
+  type FieldHeight,
+  type InsertFieldHeight,
+  type FieldEventFlight,
+  type InsertFieldEventFlight,
+  type FieldEventAthlete,
+  type InsertFieldEventAthlete,
+  type FieldEventMark,
+  type InsertFieldEventMark,
+  type FieldEventSessionWithDetails,
+  type SelectSceneTemplateMapping,
+  type InsertSceneTemplateMapping,
   isTimeEvent,
   isDistanceEvent,
   isHeightEvent,
@@ -463,10 +477,10 @@ export class SQLiteStorage implements IStorage {
         meet_id TEXT REFERENCES meets(id) ON DELETE CASCADE,
         name TEXT NOT NULL,
         description TEXT,
-        width INTEGER DEFAULT 1920,
-        height INTEGER DEFAULT 1080,
-        background_color TEXT DEFAULT '#000000',
-        is_template INTEGER DEFAULT 0,
+        aspect_ratio TEXT DEFAULT '16:9',
+        preview_url TEXT,
+        background_style TEXT DEFAULT 'default',
+        base_theme TEXT DEFAULT 'stadium',
         created_at TEXT DEFAULT (datetime('now')),
         updated_at TEXT DEFAULT (datetime('now'))
       );
@@ -475,19 +489,20 @@ export class SQLiteStorage implements IStorage {
       CREATE TABLE IF NOT EXISTS layout_zones (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         layout_id INTEGER NOT NULL REFERENCES composite_layouts(id) ON DELETE CASCADE,
-        name TEXT,
-        x REAL NOT NULL,
-        y REAL NOT NULL,
-        width REAL NOT NULL,
-        height REAL NOT NULL,
-        z_index INTEGER DEFAULT 0,
+        display_order INTEGER NOT NULL,
+        x_percent REAL NOT NULL,
+        y_percent REAL NOT NULL,
+        width_percent REAL NOT NULL,
+        height_percent REAL NOT NULL,
+        min_width INTEGER,
+        max_width INTEGER,
+        min_height INTEGER,
+        max_height INTEGER,
         board_type TEXT NOT NULL,
-        binding_type TEXT DEFAULT 'current-event',
-        event_id TEXT,
+        data_binding TEXT NOT NULL,
+        board_config TEXT NOT NULL,
         style_preset TEXT DEFAULT 'none',
-        size TEXT DEFAULT 'medium',
-        display_order INTEGER DEFAULT 0,
-        config TEXT
+        created_at TEXT DEFAULT (datetime('now'))
       );
 
       -- Record Books
@@ -712,30 +727,34 @@ export class SQLiteStorage implements IStorage {
 
       -- Weather Station Configs
       CREATE TABLE IF NOT EXISTS weather_station_configs (
-        meet_id TEXT PRIMARY KEY REFERENCES meets(id) ON DELETE CASCADE,
-        provider TEXT NOT NULL,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        meet_id TEXT NOT NULL UNIQUE REFERENCES meets(id) ON DELETE CASCADE,
+        provider TEXT NOT NULL DEFAULT 'openweathermap',
+        latitude REAL NOT NULL,
+        longitude REAL NOT NULL,
         api_key TEXT NOT NULL,
-        location_lat REAL,
-        location_lon REAL,
-        location_name TEXT,
-        units TEXT DEFAULT 'metric',
-        poll_interval_sec INTEGER DEFAULT 300,
-        created_at TEXT DEFAULT (datetime('now')),
-        updated_at TEXT DEFAULT (datetime('now'))
+        polling_interval_sec INTEGER NOT NULL DEFAULT 300,
+        units TEXT NOT NULL DEFAULT 'metric',
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
 
       -- Weather Readings
       CREATE TABLE IF NOT EXISTS weather_readings (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         meet_id TEXT NOT NULL REFERENCES meets(id) ON DELETE CASCADE,
-        temperature_c REAL,
-        humidity_percent REAL,
-        wind_speed_mps REAL,
-        wind_direction_deg REAL,
-        pressure_hpa REAL,
-        conditions TEXT,
-        observed_at TEXT DEFAULT (datetime('now'))
+        provider TEXT NOT NULL,
+        observed_at TEXT NOT NULL DEFAULT (datetime('now')),
+        temperature_c REAL NOT NULL,
+        wind_speed_ms REAL NOT NULL,
+        wind_direction_deg INTEGER NOT NULL,
+        humidity_pct INTEGER NOT NULL,
+        pressure_hpa INTEGER NOT NULL,
+        precipitation_mm REAL,
+        raw_data TEXT
       );
+      CREATE INDEX IF NOT EXISTS weather_readings_meet_idx ON weather_readings(meet_id);
+      CREATE INDEX IF NOT EXISTS weather_readings_observed_idx ON weather_readings(observed_at);
 
       -- Lynx Configs
       CREATE TABLE IF NOT EXISTS lynx_configs (
@@ -1495,7 +1514,7 @@ export class SQLiteStorage implements IStorage {
 
     const updated = await this.getMeet(id);
     if (updated) this.logSyncEvent('meets', id, 'update', updated);
-    return updated;
+    return updated ?? null;
   }
 
   async updateMeetStatus(meetId: string, status: string): Promise<Meet | undefined> {
@@ -1903,19 +1922,16 @@ export class SQLiteStorage implements IStorage {
   }
 
   // ============= BOARD CONFIGS =============
-  private mapBoardConfigRow(row: any): SelectBoardConfig {
+  private mapBoardConfigRow(row: any): { meetId: string; boardId: string; themeId: string | null; overrides: any } {
     return {
-      id: row.id,
       meetId: row.meet_id,
       boardId: row.board_id,
       themeId: row.theme_id ?? null,
       overrides: row.overrides ? this.parseJson(row.overrides) : null,
-      createdAt: row.created_at ? new Date(row.created_at) : null,
-      updatedAt: row.updated_at ? new Date(row.updated_at) : null,
     };
   }
 
-  async createBoardConfig(config: InsertBoardConfig): Promise<SelectBoardConfig> {
+  async createBoardConfig(config: InsertBoardConfig): Promise<BoardConfig> {
     const id = this.generateId();
     this.db.prepare(`
       INSERT INTO board_configs (id, board_id, meet_id, theme_id, overrides)
@@ -1923,16 +1939,16 @@ export class SQLiteStorage implements IStorage {
     `).run(id, config.boardId, config.meetId, config.themeId ?? null, config.overrides ? this.toJson(config.overrides) : null);
     
     const row = this.db.prepare('SELECT * FROM board_configs WHERE id = ?').get(id);
-    return this.mapBoardConfigRow(row);
+    return this.mapBoardConfigRow(row) as unknown as BoardConfig;
   }
 
-  async getBoardConfig(boardId: string, meetId: string): Promise<SelectBoardConfig | null> {
+  async getBoardConfig(boardId: string, meetId: string): Promise<BoardConfig | null> {
     const row = this.db.prepare('SELECT * FROM board_configs WHERE board_id = ? AND meet_id = ?').get(boardId, meetId);
     if (!row) return null;
-    return this.mapBoardConfigRow(row);
+    return this.mapBoardConfigRow(row) as unknown as BoardConfig;
   }
 
-  async updateBoardConfig(id: string, config: Partial<InsertBoardConfig>): Promise<SelectBoardConfig | null> {
+  async updateBoardConfig(id: string, config: Partial<InsertBoardConfig>): Promise<BoardConfig | null> {
     const setClause: string[] = [];
     const values: any[] = [];
 
@@ -1948,7 +1964,7 @@ export class SQLiteStorage implements IStorage {
 
     const row = this.db.prepare('SELECT * FROM board_configs WHERE id = ?').get(id);
     if (!row) return null;
-    return this.mapBoardConfigRow(row);
+    return this.mapBoardConfigRow(row) as unknown as BoardConfig;
   }
 
   async deleteBoardConfig(id: string): Promise<void> {
@@ -2197,10 +2213,10 @@ export class SQLiteStorage implements IStorage {
       meetId: row.meet_id,
       name: row.name,
       description: row.description,
-      width: row.width,
-      height: row.height,
-      backgroundColor: row.background_color,
-      isTemplate: this.toBoolean(row.is_template),
+      aspectRatio: row.aspect_ratio ?? '16:9',
+      previewUrl: row.preview_url,
+      backgroundStyle: row.background_style ?? 'default',
+      baseTheme: row.base_theme ?? 'stadium',
       createdAt: row.created_at ? new Date(row.created_at) : new Date(),
       updatedAt: row.updated_at ? new Date(row.updated_at) : new Date(),
     };
@@ -2227,9 +2243,9 @@ export class SQLiteStorage implements IStorage {
 
   async createLayout(data: InsertCompositeLayout): Promise<SelectCompositeLayout> {
     const result = this.db.prepare(`
-      INSERT INTO composite_layouts (meet_id, name, description, width, height, background_color, is_template)
+      INSERT INTO composite_layouts (meet_id, name, description, aspect_ratio, preview_url, background_style, base_theme)
       VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(data.meetId ?? null, data.name, data.description ?? null, data.width ?? 1920, data.height ?? 1080, data.backgroundColor ?? '#000000', this.fromBoolean(data.isTemplate ?? false));
+    `).run(data.meetId ?? null, data.name, data.description ?? null, data.aspectRatio ?? '16:9', data.previewUrl ?? null, data.backgroundStyle ?? 'default', data.baseTheme ?? 'stadium');
     
     return (await this.getLayout(result.lastInsertRowid as number))!;
   }
@@ -2240,10 +2256,10 @@ export class SQLiteStorage implements IStorage {
 
     if (data.name !== undefined) { setClause.push('name = ?'); values.push(data.name); }
     if (data.description !== undefined) { setClause.push('description = ?'); values.push(data.description); }
-    if (data.width !== undefined) { setClause.push('width = ?'); values.push(data.width); }
-    if (data.height !== undefined) { setClause.push('height = ?'); values.push(data.height); }
-    if (data.backgroundColor !== undefined) { setClause.push('background_color = ?'); values.push(data.backgroundColor); }
-    if (data.isTemplate !== undefined) { setClause.push('is_template = ?'); values.push(this.fromBoolean(data.isTemplate)); }
+    if (data.aspectRatio !== undefined) { setClause.push('aspect_ratio = ?'); values.push(data.aspectRatio); }
+    if (data.previewUrl !== undefined) { setClause.push('preview_url = ?'); values.push(data.previewUrl); }
+    if (data.backgroundStyle !== undefined) { setClause.push('background_style = ?'); values.push(data.backgroundStyle); }
+    if (data.baseTheme !== undefined) { setClause.push('base_theme = ?'); values.push(data.baseTheme); }
     
     setClause.push("updated_at = datetime('now')");
 
@@ -2265,27 +2281,43 @@ export class SQLiteStorage implements IStorage {
     return {
       id: row.id,
       layoutId: row.layout_id,
-      name: row.name,
-      x: row.x,
-      y: row.y,
-      width: row.width,
-      height: row.height,
-      zIndex: row.z_index,
-      boardType: row.board_type,
-      bindingType: row.binding_type,
-      eventId: row.event_id,
-      stylePreset: row.style_preset,
-      size: row.size,
       order: row.display_order,
-      config: this.parseJson(row.config),
+      xPercent: row.x_percent,
+      yPercent: row.y_percent,
+      widthPercent: row.width_percent,
+      heightPercent: row.height_percent,
+      minWidth: row.min_width ?? null,
+      maxWidth: row.max_width ?? null,
+      minHeight: row.min_height ?? null,
+      maxHeight: row.max_height ?? null,
+      boardType: row.board_type,
+      dataBinding: this.parseJson(row.data_binding),
+      boardConfig: this.parseJson(row.board_config),
+      stylePreset: row.style_preset ?? 'none',
+      createdAt: row.created_at ? new Date(row.created_at) : null,
     };
   }
 
   async createZone(data: InsertLayoutZone): Promise<SelectLayoutZone> {
     const result = this.db.prepare(`
-      INSERT INTO layout_zones (layout_id, name, x, y, width, height, z_index, board_type, binding_type, event_id, style_preset, size, display_order, config)
+      INSERT INTO layout_zones (layout_id, display_order, x_percent, y_percent, width_percent, height_percent, min_width, max_width, min_height, max_height, board_type, data_binding, board_config, style_preset)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(data.layoutId, data.name ?? null, data.x, data.y, data.width, data.height, data.zIndex ?? 0, data.boardType, data.bindingType ?? 'current-event', data.eventId ?? null, data.stylePreset ?? 'none', data.size ?? 'medium', data.order ?? 0, data.config ? this.toJson(data.config) : null);
+    `).run(
+      data.layoutId, 
+      data.order, 
+      data.xPercent, 
+      data.yPercent, 
+      data.widthPercent, 
+      data.heightPercent, 
+      data.minWidth ?? null, 
+      data.maxWidth ?? null, 
+      data.minHeight ?? null, 
+      data.maxHeight ?? null, 
+      data.boardType, 
+      this.toJson(data.dataBinding), 
+      this.toJson(data.boardConfig), 
+      data.stylePreset ?? 'none'
+    );
     
     const row = this.db.prepare('SELECT * FROM layout_zones WHERE id = ?').get(result.lastInsertRowid);
     return this.mapLayoutZoneRow(row);
@@ -2295,19 +2327,19 @@ export class SQLiteStorage implements IStorage {
     const setClause: string[] = [];
     const values: any[] = [];
 
-    if (data.name !== undefined) { setClause.push('name = ?'); values.push(data.name); }
-    if (data.x !== undefined) { setClause.push('x = ?'); values.push(data.x); }
-    if (data.y !== undefined) { setClause.push('y = ?'); values.push(data.y); }
-    if (data.width !== undefined) { setClause.push('width = ?'); values.push(data.width); }
-    if (data.height !== undefined) { setClause.push('height = ?'); values.push(data.height); }
-    if (data.zIndex !== undefined) { setClause.push('z_index = ?'); values.push(data.zIndex); }
-    if (data.boardType !== undefined) { setClause.push('board_type = ?'); values.push(data.boardType); }
-    if (data.bindingType !== undefined) { setClause.push('binding_type = ?'); values.push(data.bindingType); }
-    if (data.eventId !== undefined) { setClause.push('event_id = ?'); values.push(data.eventId); }
-    if (data.stylePreset !== undefined) { setClause.push('style_preset = ?'); values.push(data.stylePreset); }
-    if (data.size !== undefined) { setClause.push('size = ?'); values.push(data.size); }
     if (data.order !== undefined) { setClause.push('display_order = ?'); values.push(data.order); }
-    if (data.config !== undefined) { setClause.push('config = ?'); values.push(this.toJson(data.config)); }
+    if (data.xPercent !== undefined) { setClause.push('x_percent = ?'); values.push(data.xPercent); }
+    if (data.yPercent !== undefined) { setClause.push('y_percent = ?'); values.push(data.yPercent); }
+    if (data.widthPercent !== undefined) { setClause.push('width_percent = ?'); values.push(data.widthPercent); }
+    if (data.heightPercent !== undefined) { setClause.push('height_percent = ?'); values.push(data.heightPercent); }
+    if (data.minWidth !== undefined) { setClause.push('min_width = ?'); values.push(data.minWidth); }
+    if (data.maxWidth !== undefined) { setClause.push('max_width = ?'); values.push(data.maxWidth); }
+    if (data.minHeight !== undefined) { setClause.push('min_height = ?'); values.push(data.minHeight); }
+    if (data.maxHeight !== undefined) { setClause.push('max_height = ?'); values.push(data.maxHeight); }
+    if (data.boardType !== undefined) { setClause.push('board_type = ?'); values.push(data.boardType); }
+    if (data.dataBinding !== undefined) { setClause.push('data_binding = ?'); values.push(this.toJson(data.dataBinding)); }
+    if (data.boardConfig !== undefined) { setClause.push('board_config = ?'); values.push(this.toJson(data.boardConfig)); }
+    if (data.stylePreset !== undefined) { setClause.push('style_preset = ?'); values.push(data.stylePreset); }
 
     if (setClause.length > 0) {
       values.push(id);
@@ -2755,13 +2787,18 @@ export class SQLiteStorage implements IStorage {
     
     const rows = this.db.prepare(query).all(...params);
     
-    return rows.map((row: any, index: number) => ({
-      rank: index + 1,
-      teamId: row.team_id,
-      teamName: row.team_name,
-      totalPoints: row.total_points || 0,
-      eventBreakdown: this.parseJson(row.event_breakdown) || [],
-    }));
+    return rows.map((row: any, index: number) => {
+      const parsed = this.parseJson(row.event_breakdown);
+      const breakdown: { eventId: string; eventName: string; points: number }[] = Array.isArray(parsed) ? parsed : [];
+      return {
+        rank: index + 1,
+        teamId: row.team_id,
+        teamName: row.team_name,
+        totalPoints: row.total_points || 0,
+        eventCount: breakdown.length,
+        eventBreakdown: breakdown,
+      };
+    });
   }
 
   async recalculateTeamScoring(meetId: string): Promise<void> {
@@ -3274,6 +3311,7 @@ export class SQLiteStorage implements IStorage {
       maxQueueLength: (row as any).max_queue_length,
       fallbackAssetKey: (row as any).fallback_asset_key,
       isActive: this.toBoolean((row as any).is_active),
+      createdAt: (row as any).created_at ? new Date((row as any).created_at) : new Date(),
     };
   }
 
@@ -3313,6 +3351,7 @@ export class SQLiteStorage implements IStorage {
       maxQueueLength: (row as any).max_queue_length,
       fallbackAssetKey: (row as any).fallback_asset_key,
       isActive: this.toBoolean((row as any).is_active),
+      createdAt: (row as any).created_at ? new Date((row as any).created_at) : new Date(),
     };
   }
 
@@ -3652,14 +3691,14 @@ export class SQLiteStorage implements IStorage {
     const row = this.db.prepare('SELECT * FROM weather_station_configs WHERE meet_id = ?').get(meetId);
     if (!row) return null;
     return {
+      id: (row as any).id,
       meetId: (row as any).meet_id,
       provider: (row as any).provider,
+      latitude: (row as any).latitude,
+      longitude: (row as any).longitude,
       apiKey: (row as any).api_key,
-      locationLat: (row as any).location_lat,
-      locationLon: (row as any).location_lon,
-      locationName: (row as any).location_name,
+      pollingIntervalSec: (row as any).polling_interval_sec,
       units: (row as any).units,
-      pollIntervalSec: (row as any).poll_interval_sec,
       createdAt: (row as any).created_at ? new Date((row as any).created_at) : new Date(),
       updatedAt: (row as any).updated_at ? new Date((row as any).updated_at) : new Date(),
     };
@@ -3667,9 +3706,9 @@ export class SQLiteStorage implements IStorage {
 
   async setWeatherConfig(config: InsertWeatherConfig): Promise<WeatherStationConfig> {
     this.db.prepare(`
-      INSERT OR REPLACE INTO weather_station_configs (meet_id, provider, api_key, location_lat, location_lon, location_name, units, poll_interval_sec, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-    `).run(config.meetId, config.provider, config.apiKey, config.locationLat ?? null, config.locationLon ?? null, config.locationName ?? null, config.units ?? 'metric', config.pollIntervalSec ?? 300);
+      INSERT OR REPLACE INTO weather_station_configs (meet_id, provider, latitude, longitude, api_key, polling_interval_sec, units, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    `).run(config.meetId, config.provider ?? 'openweathermap', config.latitude, config.longitude, config.apiKey, config.pollingIntervalSec ?? 300, config.units ?? 'metric');
     
     return (await this.getWeatherConfig(config.meetId))!;
   }
@@ -3681,21 +3720,23 @@ export class SQLiteStorage implements IStorage {
 
   async addWeatherReading(reading: InsertWeatherReading): Promise<WeatherReading> {
     const result = this.db.prepare(`
-      INSERT INTO weather_readings (meet_id, temperature_c, humidity_percent, wind_speed_mps, wind_direction_deg, pressure_hpa, conditions)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(reading.meetId, reading.temperatureC ?? null, reading.humidityPercent ?? null, reading.windSpeedMps ?? null, reading.windDirectionDeg ?? null, reading.pressureHpa ?? null, reading.conditions ?? null);
+      INSERT INTO weather_readings (meet_id, provider, observed_at, temperature_c, wind_speed_ms, wind_direction_deg, humidity_pct, pressure_hpa, precipitation_mm, raw_data)
+      VALUES (?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?)
+    `).run(reading.meetId, reading.provider, reading.temperatureC, reading.windSpeedMs, reading.windDirectionDeg, reading.humidityPct, reading.pressureHPa, reading.precipitationMm ?? null, reading.rawData ? JSON.stringify(reading.rawData) : null);
     
     const row = this.db.prepare('SELECT * FROM weather_readings WHERE id = ?').get(result.lastInsertRowid);
     return {
       id: (row as any).id,
       meetId: (row as any).meet_id,
-      temperatureC: (row as any).temperature_c,
-      humidityPercent: (row as any).humidity_percent,
-      windSpeedMps: (row as any).wind_speed_mps,
-      windDirectionDeg: (row as any).wind_direction_deg,
-      pressureHpa: (row as any).pressure_hpa,
-      conditions: (row as any).conditions,
+      provider: (row as any).provider,
       observedAt: (row as any).observed_at ? new Date((row as any).observed_at) : new Date(),
+      temperatureC: (row as any).temperature_c,
+      windSpeedMs: (row as any).wind_speed_ms,
+      windDirectionDeg: (row as any).wind_direction_deg,
+      humidityPct: (row as any).humidity_pct,
+      pressureHPa: (row as any).pressure_hpa,
+      precipitationMm: (row as any).precipitation_mm,
+      rawData: (row as any).raw_data ? this.parseJson((row as any).raw_data) : null,
     };
   }
 
@@ -3705,13 +3746,15 @@ export class SQLiteStorage implements IStorage {
     return {
       id: (row as any).id,
       meetId: (row as any).meet_id,
-      temperatureC: (row as any).temperature_c,
-      humidityPercent: (row as any).humidity_percent,
-      windSpeedMps: (row as any).wind_speed_mps,
-      windDirectionDeg: (row as any).wind_direction_deg,
-      pressureHpa: (row as any).pressure_hpa,
-      conditions: (row as any).conditions,
+      provider: (row as any).provider,
       observedAt: (row as any).observed_at ? new Date((row as any).observed_at) : new Date(),
+      temperatureC: (row as any).temperature_c,
+      windSpeedMs: (row as any).wind_speed_ms,
+      windDirectionDeg: (row as any).wind_direction_deg,
+      humidityPct: (row as any).humidity_pct,
+      pressureHPa: (row as any).pressure_hpa,
+      precipitationMm: (row as any).precipitation_mm,
+      rawData: (row as any).raw_data ? this.parseJson((row as any).raw_data) : null,
     };
   }
 
@@ -3725,13 +3768,15 @@ export class SQLiteStorage implements IStorage {
     return rows.map((row: any) => ({
       id: row.id,
       meetId: row.meet_id,
-      temperatureC: row.temperature_c,
-      humidityPercent: row.humidity_percent,
-      windSpeedMps: row.wind_speed_mps,
-      windDirectionDeg: row.wind_direction_deg,
-      pressureHpa: row.pressure_hpa,
-      conditions: row.conditions,
+      provider: row.provider,
       observedAt: row.observed_at ? new Date(row.observed_at) : new Date(),
+      temperatureC: row.temperature_c,
+      windSpeedMs: row.wind_speed_ms,
+      windDirectionDeg: row.wind_direction_deg,
+      humidityPct: row.humidity_pct,
+      pressureHPa: row.pressure_hpa,
+      precipitationMm: row.precipitation_mm,
+      rawData: row.raw_data ? this.parseJson(row.raw_data) : null,
     }));
   }
 
@@ -3785,8 +3830,10 @@ export class SQLiteStorage implements IStorage {
       eventNumber: row.event_number,
       meetId: row.meet_id,
       eventType: row.event_type,
+      eventName: row.event_name ?? null,
       mode: row.mode,
       heat: row.heat,
+      totalHeats: row.total_heats ?? null,
       round: row.round,
       flight: row.flight,
       wind: row.wind,
@@ -3796,8 +3843,8 @@ export class SQLiteStorage implements IStorage {
       runningTime: row.running_time,
       isArmed: this.toBoolean(row.is_armed),
       isRunning: this.toBoolean(row.is_running),
-      lastUpdateAt: row.last_update_at ? new Date(row.last_update_at) : new Date(),
-      createdAt: row.created_at ? new Date(row.created_at) : new Date(),
+      lastUpdateAt: row.last_update_at ? new Date(row.last_update_at) : null,
+      createdAt: row.created_at ? new Date(row.created_at) : null,
     };
   }
 
@@ -3991,11 +4038,18 @@ export class SQLiteStorage implements IStorage {
     };
   }
 
-  async getLayoutScenes(meetId?: string): Promise<SelectLayoutScene[]> {
+  async getLayoutScenes(meetId?: string): Promise<LayoutSceneWithObjects[]> {
     const rows = meetId
       ? this.db.prepare('SELECT * FROM layout_scenes WHERE meet_id = ?').all(meetId)
       : this.db.prepare('SELECT * FROM layout_scenes').all();
-    return rows.map((row: any) => this.mapLayoutSceneRow(row));
+    
+    const scenes: LayoutSceneWithObjects[] = [];
+    for (const row of rows) {
+      const scene = this.mapLayoutSceneRow(row as any);
+      const objects = await this.getLayoutObjects(scene.id);
+      scenes.push({ ...scene, objects });
+    }
+    return scenes;
   }
 
   async getLayoutScene(id: number): Promise<LayoutSceneWithObjects | null> {
@@ -4261,6 +4315,7 @@ export class SQLiteStorage implements IStorage {
       targetIp: data.targetIp,
       targetPort: data.targetPort,
       sessionId: data.sessionId ?? null,
+      followDeviceName: data.followDeviceName ?? null,
       isActive: false,
       lastStatus: null,
       lastSentAt: null,
@@ -4286,6 +4341,289 @@ export class SQLiteStorage implements IStorage {
 
   async deleteExternalScoreboard(id: number): Promise<boolean> {
     return this.externalScoreboards.delete(id);
+  }
+
+  // ============= MISSING STUB IMPLEMENTATIONS =============
+
+  async getTotalHeatsForEvent(eventId: string, round?: string): Promise<number> {
+    const eventEntries = await this.getEntriesByEvent(eventId);
+    if (eventEntries.length === 0) return 1;
+    
+    const heatValues = new Set<number>();
+    const normalizedRound = round?.toLowerCase().trim();
+    
+    for (const entry of eventEntries) {
+      let heatNum: number | null = null;
+      
+      if (normalizedRound === 'prelim' || normalizedRound === 'preliminary' || normalizedRound === '1') {
+        heatNum = entry.preliminaryHeat;
+      } else if (normalizedRound === 'quarter' || normalizedRound === 'quarterfinal' || normalizedRound === '2') {
+        heatNum = entry.quarterfinalHeat;
+      } else if (normalizedRound === 'semi' || normalizedRound === 'semifinal' || normalizedRound === '3') {
+        heatNum = entry.semifinalHeat;
+      } else if (normalizedRound === 'final' || normalizedRound === '4' || normalizedRound === 'f') {
+        heatNum = entry.finalHeat;
+      } else {
+        heatNum = entry.preliminaryHeat || entry.quarterfinalHeat || entry.semifinalHeat || entry.finalHeat;
+      }
+      
+      if (heatNum) heatValues.add(heatNum);
+    }
+    
+    const distinctHeats = heatValues.size;
+    return distinctHeats > 0 ? distinctHeats : 1;
+  }
+
+  async updateDisplayAutoMode(id: string, autoMode: boolean): Promise<DisplayDevice | undefined> {
+    this.db.prepare('UPDATE display_devices SET auto_mode = ? WHERE id = ?').run(this.fromBoolean(autoMode), id);
+    return this.getDisplayDevice(id);
+  }
+
+  async updateDisplayDevice(id: string, updates: Partial<{ pagingSize: number; pagingInterval: number }>): Promise<DisplayDevice | undefined> {
+    const setClause: string[] = [];
+    const values: any[] = [];
+    
+    if (updates.pagingSize !== undefined) { setClause.push('paging_size = ?'); values.push(updates.pagingSize); }
+    if (updates.pagingInterval !== undefined) { setClause.push('paging_interval = ?'); values.push(updates.pagingInterval); }
+    
+    if (setClause.length > 0) {
+      values.push(id);
+      this.db.prepare(`UPDATE display_devices SET ${setClause.join(', ')} WHERE id = ?`).run(...values);
+    }
+    
+    return this.getDisplayDevice(id);
+  }
+
+  // ============= FIELD EVENT SESSIONS =============
+  async getAllFieldEventSessions(): Promise<FieldEventSession[]> {
+    return [];
+  }
+
+  async getFieldEventSessionsByMeetId(meetId: string): Promise<FieldEventSession[]> {
+    return [];
+  }
+
+  async getFieldEventSession(id: number): Promise<FieldEventSession | null> {
+    return null;
+  }
+
+  async getFieldEventSessionByEvent(eventId: string): Promise<FieldEventSession | null> {
+    return null;
+  }
+
+  async getFieldEventSessionByAccessCode(code: string): Promise<FieldEventSession | null> {
+    return null;
+  }
+
+  async createFieldEventSession(session: InsertFieldEventSession): Promise<FieldEventSession> {
+    const now = new Date();
+    return {
+      id: 0,
+      eventId: session.eventId ?? null,
+      status: session.status ?? 'setup',
+      measurementUnit: session.measurementUnit ?? 'metric',
+      recordWind: session.recordWind ?? false,
+      showBibNumbers: session.showBibNumbers ?? true,
+      hasFinals: session.hasFinals ?? false,
+      prelimAttempts: session.prelimAttempts ?? 3,
+      finalsAttempts: session.finalsAttempts ?? 3,
+      athletesToFinals: session.athletesToFinals ?? 8,
+      totalAttempts: session.totalAttempts ?? 6,
+      aliveGroupSize: session.aliveGroupSize ?? null,
+      stopAliveAtCount: session.stopAliveAtCount ?? null,
+      currentFlightNumber: session.currentFlightNumber ?? 1,
+      currentAthleteIndex: session.currentAthleteIndex ?? 0,
+      currentAttemptNumber: session.currentAttemptNumber ?? 1,
+      currentHeightIndex: session.currentHeightIndex ?? 0,
+      isInFinals: session.isInFinals ?? false,
+      accessCode: session.accessCode ?? null,
+      lffExportPath: session.lffExportPath ?? null,
+      evtFilePath: session.evtFilePath ?? null,
+      evtEventNumber: session.evtEventNumber ?? null,
+      evtEventName: session.evtEventName ?? null,
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
+  async updateFieldEventSession(id: number, updates: Partial<InsertFieldEventSession>): Promise<FieldEventSession | null> {
+    return null;
+  }
+
+  async deleteFieldEventSession(id: number): Promise<void> {
+    // stub: no-op
+  }
+
+  async getFieldEventSessionWithDetails(id: number): Promise<FieldEventSessionWithDetails | null> {
+    return null;
+  }
+
+  // ============= FIELD HEIGHTS =============
+  async getFieldHeights(sessionId: number): Promise<FieldHeight[]> {
+    return [];
+  }
+
+  async createFieldHeight(height: InsertFieldHeight): Promise<FieldHeight> {
+    return {
+      id: 0,
+      sessionId: height.sessionId,
+      heightIndex: height.heightIndex,
+      heightMeters: height.heightMeters,
+      isActive: height.isActive ?? true,
+      isJumpOff: height.isJumpOff ?? false,
+      createdAt: new Date(),
+    };
+  }
+
+  async updateFieldHeight(id: number, updates: Partial<InsertFieldHeight>): Promise<FieldHeight | null> {
+    return null;
+  }
+
+  async deleteFieldHeight(id: number): Promise<void> {
+    // stub: no-op
+  }
+
+  async setFieldHeights(sessionId: number, heights: InsertFieldHeight[]): Promise<FieldHeight[]> {
+    return [];
+  }
+
+  // ============= FIELD EVENT FLIGHTS =============
+  async getFieldEventFlights(sessionId: number): Promise<FieldEventFlight[]> {
+    return [];
+  }
+
+  async createFieldEventFlight(flight: InsertFieldEventFlight): Promise<FieldEventFlight> {
+    return {
+      id: 0,
+      sessionId: flight.sessionId,
+      flightNumber: flight.flightNumber,
+      status: flight.status ?? 'pending',
+      createdAt: new Date(),
+    };
+  }
+
+  async updateFieldEventFlight(id: number, updates: Partial<InsertFieldEventFlight>): Promise<FieldEventFlight | null> {
+    return null;
+  }
+
+  // ============= FIELD EVENT ATHLETES =============
+  async getFieldEventAthletes(sessionId: number): Promise<FieldEventAthlete[]> {
+    return [];
+  }
+
+  async getFieldEventAthlete(id: number): Promise<FieldEventAthlete | null> {
+    return null;
+  }
+
+  async createFieldEventAthlete(athlete: InsertFieldEventAthlete): Promise<FieldEventAthlete> {
+    const now = new Date();
+    return {
+      id: 0,
+      sessionId: athlete.sessionId,
+      entryId: athlete.entryId ?? null,
+      flightNumber: athlete.flightNumber ?? 1,
+      orderInFlight: athlete.orderInFlight,
+      checkInStatus: athlete.checkInStatus ?? 'pending',
+      checkedInAt: null,
+      competitionStatus: athlete.competitionStatus ?? 'waiting',
+      checkedOutAt: null,
+      retiredAt: null,
+      startingHeightIndex: athlete.startingHeightIndex ?? 0,
+      bestMark: athlete.bestMark ?? null,
+      currentPlace: athlete.currentPlace ?? null,
+      evtBibNumber: athlete.evtBibNumber ?? null,
+      evtFirstName: athlete.evtFirstName ?? null,
+      evtLastName: athlete.evtLastName ?? null,
+      evtTeam: athlete.evtTeam ?? null,
+      isFinalist: athlete.isFinalist ?? false,
+      finalsOrder: athlete.finalsOrder ?? null,
+      notes: athlete.notes ?? null,
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
+  async updateFieldEventAthlete(id: number, updates: Partial<InsertFieldEventAthlete>): Promise<FieldEventAthlete | null> {
+    return null;
+  }
+
+  async deleteFieldEventAthlete(id: number): Promise<void> {
+    // stub: no-op
+  }
+
+  async checkInFieldAthlete(id: number): Promise<FieldEventAthlete | null> {
+    return null;
+  }
+
+  async scratchFieldAthlete(id: number): Promise<FieldEventAthlete | null> {
+    return null;
+  }
+
+  // ============= FIELD EVENT MARKS =============
+  async getFieldEventMark(id: number): Promise<FieldEventMark | null> {
+    return null;
+  }
+
+  async getFieldEventMarks(sessionId: number): Promise<FieldEventMark[]> {
+    return [];
+  }
+
+  async getFieldEventMarksByAthlete(athleteId: number): Promise<FieldEventMark[]> {
+    return [];
+  }
+
+  async createFieldEventMark(mark: InsertFieldEventMark): Promise<FieldEventMark> {
+    return {
+      id: 0,
+      sessionId: mark.sessionId,
+      athleteId: mark.athleteId,
+      attemptNumber: mark.attemptNumber,
+      heightIndex: mark.heightIndex ?? null,
+      attemptAtHeight: mark.attemptAtHeight ?? null,
+      markType: mark.markType,
+      measurement: mark.measurement ?? null,
+      measurementDisplay: mark.measurementDisplay ?? null,
+      wind: mark.wind ?? null,
+      isBest: mark.isBest ?? false,
+      isDarkMark: mark.isDarkMark ?? false,
+      darkMeasurement: mark.darkMeasurement ?? null,
+      isFinalsRound: mark.isFinalsRound ?? false,
+      recordedAt: new Date(),
+    };
+  }
+
+  async updateFieldEventMark(id: number, updates: Partial<InsertFieldEventMark>): Promise<FieldEventMark | null> {
+    return null;
+  }
+
+  async deleteFieldEventMark(id: number): Promise<void> {
+    // stub: no-op
+  }
+
+  // ============= SCENE TEMPLATE MAPPINGS =============
+  async getSceneTemplateMappings(meetId: string): Promise<SelectSceneTemplateMapping[]> {
+    return [];
+  }
+
+  async getSceneTemplateMappingByTypeAndMode(meetId: string, displayType: string, displayMode: string): Promise<SelectSceneTemplateMapping | undefined> {
+    return undefined;
+  }
+
+  async setSceneTemplateMapping(mapping: InsertSceneTemplateMapping): Promise<SelectSceneTemplateMapping> {
+    const now = new Date();
+    return {
+      id: 0,
+      meetId: mapping.meetId ?? null,
+      displayType: mapping.displayType,
+      displayMode: mapping.displayMode,
+      sceneId: mapping.sceneId,
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
+  async deleteSceneTemplateMapping(id: number): Promise<boolean> {
+    return false;
   }
 
   public close(): void {

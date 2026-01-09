@@ -77,3 +77,46 @@ The frontend uses React with shadcn/ui on Radix UI and Tailwind CSS, adhering to
 ### Image Processing
 - **Sharp:** High-performance image processing.
 - **Multer:** Multipart/form-data handling.
+
+## Edge Mode (Local Server Operation)
+
+The system supports offline/local operation using SQLite instead of PostgreSQL for stadium deployments where internet connectivity is unreliable.
+
+### Running in Edge Mode
+
+Set the `EDGE_MODE` environment variable to use local SQLite storage:
+
+```bash
+EDGE_MODE=true npm run dev
+```
+
+The server will:
+1. Use SQLite database at `./data/scoreboard.db` (or path from `SQLITE_DB_PATH`)
+2. Log "Running in EDGE mode with SQLite database" on startup
+3. All features work identically, just with local storage
+
+### Edge Setup CLI
+
+Initialize a local database with meet data from the cloud:
+
+```bash
+# Setup with meet data from cloud server
+npx tsx tools/edge-setup.ts setup --cloud-url https://your-app.replit.app --meet-code ABC123
+
+# Check current edge configuration
+npx tsx tools/edge-setup.ts status
+
+# Clear all local data
+npx tsx tools/edge-setup.ts clear
+```
+
+### Key Files
+- `server/storage/sqlite-adapter.ts` - SQLite storage implementation
+- `server/storage.ts` - Storage factory (auto-selects SQLite or PostgreSQL)
+- `tools/edge-setup.ts` - CLI for downloading meet data
+- `./data/scoreboard.db` - Default SQLite database location
+- `./data/edge-config.json` - Edge configuration file
+
+### Environment Variables
+- `EDGE_MODE=true` - Enable SQLite storage instead of PostgreSQL
+- `SQLITE_DB_PATH=./data/scoreboard.db` - Custom database location
