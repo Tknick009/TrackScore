@@ -777,11 +777,15 @@ export class LynxListener extends EventEmitter {
     const eventName = cleanEventName(data.DN || '');
     const time = data.T;
     const place = data.P;
-    const lane = data.L;
+    // FinishLynx relay packets use HIP field instead of L for lane
+    const lane = data.L || data.HIP;
+    
+    // Accept entries with lane/hip, name, bib, or first/last name (relay format)
+    const hasEntryData = lane || data.N || data.BIB || data.FN || data.LN || data.HIP;
     
     // Verbose logging for debugging - log each entry received
-    if (lane || data.N || data.BIB) {
-      console.log(`[Lynx:Track] Event ${eventNum} Heat ${heat}: Lane=${lane} Name=${data.N || data.LN} Bib=${data.BIB} Time=${time} Place=${place}`);
+    if (hasEntryData) {
+      console.log(`[Lynx:Track] Event ${eventNum} Heat ${heat}: Lane=${lane} HIP=${data.HIP} Name=${data.N || ''} FN=${data.FN || ''} LN=${data.LN || ''} Bib=${data.BIB || ''}`);
     }
     
     // Persist event name by event number so it's available for results
@@ -813,7 +817,7 @@ export class LynxListener extends EventEmitter {
       // Don't return - continue to aggregate athlete entries with running times
     }
     
-    if (lane || data.N || data.BIB) {
+    if (hasEntryData) {
       const key = this.getAggregationKey(eventNum, heat, 'T', round, portName);
       let aggregated = this.aggregatedEvents.get(key);
       
