@@ -145,18 +145,34 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
     return 'text-black';
   };
   
-  // Round time to hundredths (e.g., "8:52.024" -> "8:52.02")
+  // Round time UP to hundredths (e.g., "8:52.024" -> "8:52.03", "9:17.071" -> "9:17.08")
   const formatTimeToHundredths = (timeStr: string) => {
     if (!timeStr) return timeStr;
-    const match = timeStr.match(/^(\d+:\d+)\.(\d{2})\d*$/);
+    
+    // Handle MM:SS.xxx format
+    const match = timeStr.match(/^(\d+):(\d+)\.(\d+)$/);
     if (match) {
-      return `${match[1]}.${match[2]}`;
+      const mins = match[1];
+      const secs = match[2];
+      const fraction = match[3];
+      // Convert fraction to a decimal and round up to 2 places
+      const decimalValue = parseFloat(`0.${fraction}`);
+      const roundedUp = Math.ceil(decimalValue * 100) / 100;
+      const hundredths = roundedUp.toFixed(2).substring(2);
+      return `${mins}:${secs}.${hundredths}`;
     }
-    // Handle seconds only format (e.g., "10.234" -> "10.23")
-    const secMatch = timeStr.match(/^(\d+)\.(\d{2})\d*$/);
+    
+    // Handle SS.xxx format (seconds only)
+    const secMatch = timeStr.match(/^(\d+)\.(\d+)$/);
     if (secMatch) {
-      return `${secMatch[1]}.${secMatch[2]}`;
+      const secs = secMatch[1];
+      const fraction = secMatch[2];
+      const decimalValue = parseFloat(`0.${fraction}`);
+      const roundedUp = Math.ceil(decimalValue * 100) / 100;
+      const hundredths = roundedUp.toFixed(2).substring(2);
+      return `${secs}.${hundredths}`;
     }
+    
     return timeStr;
   };
   
