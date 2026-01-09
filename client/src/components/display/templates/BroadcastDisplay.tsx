@@ -190,14 +190,14 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
   const renderAthleteColumn = (entry: ResultEntry | null) => {
     if (!entry) {
       return (
-        <div className="flex-1 min-w-0 flex flex-col items-center justify-center px-2 py-3 bg-gray-50/50 rounded">
+        <div className="flex-1 min-w-0 flex flex-col items-center justify-center px-2 py-3">
           <span className="text-gray-300 text-lg">-</span>
         </div>
       );
     }
     
     return (
-      <div className="flex-1 min-w-0 flex flex-col items-center justify-start px-1 py-1 bg-gray-50/50 rounded uppercase">
+      <div className="flex-1 min-w-0 flex flex-col items-center justify-start px-1 py-1 uppercase">
         <div className="flex items-center justify-center gap-2 w-full">
           <span className={`text-2xl font-semibold ${getPlaceColor(entry.place || '')}`}>
             {entry.place}.
@@ -234,7 +234,7 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
 
   return (
     <div className="relative w-full h-full overflow-hidden" style={{ fontFamily: "'Oswald', sans-serif", backgroundColor: 'transparent' }}>
-      <div className="absolute inset-x-0 bottom-0 py-4 px-6 mx-4 mb-4 bg-white/95 rounded-lg" style={{ border: '1px solid rgba(200, 200, 200, 0.5)' }}>
+      <div className="absolute inset-x-0 bottom-0 py-4 px-6 mx-4 mb-4 bg-white/95" style={{ border: '1px solid rgba(200, 200, 200, 0.5)' }}>
         <div className="flex gap-6">
           <div className="flex items-center gap-4 flex-shrink-0">
             {meet?.logoUrl && (
