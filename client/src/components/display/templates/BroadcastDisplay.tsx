@@ -90,7 +90,7 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
   };
   
   const eventName = liveEventData?.eventName || '';
-  const heatInfo = liveEventData?.heat && liveEventData?.totalHeats 
+  const heatInfo = liveEventData?.heat && liveEventData?.totalHeats && liveEventData.totalHeats > 1
     ? `Heat ${liveEventData.heat} of ${liveEventData.totalHeats}`
     : '';
 
