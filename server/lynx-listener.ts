@@ -486,9 +486,96 @@ export class LynxListener extends EventEmitter {
     }
   }
 
+  // Extract multiple JSON objects from a concatenated string
+  private extractJsonObjects(input: string): any[] {
+    const results: any[] = [];
+    let remaining = input.trim();
+    
+    while (remaining.length > 0) {
+      // Skip whitespace
+      remaining = remaining.trim();
+      if (!remaining.startsWith('{')) {
+        // Skip non-JSON prefix until we find a '{'
+        const nextBrace = remaining.indexOf('{');
+        if (nextBrace === -1) break;
+        remaining = remaining.substring(nextBrace);
+      }
+      
+      // Find matching closing brace by tracking depth
+      let depth = 0;
+      let inString = false;
+      let escape = false;
+      let endIndex = -1;
+      
+      for (let i = 0; i < remaining.length; i++) {
+        const char = remaining[i];
+        
+        if (escape) {
+          escape = false;
+          continue;
+        }
+        
+        if (char === '\\') {
+          escape = true;
+          continue;
+        }
+        
+        if (char === '"') {
+          inString = !inString;
+          continue;
+        }
+        
+        if (inString) continue;
+        
+        if (char === '{') depth++;
+        else if (char === '}') {
+          depth--;
+          if (depth === 0) {
+            endIndex = i + 1;
+            break;
+          }
+        }
+      }
+      
+      if (endIndex === -1) break;
+      
+      const jsonStr = remaining.substring(0, endIndex);
+      remaining = remaining.substring(endIndex);
+      
+      try {
+        const parsed = JSON.parse(jsonStr);
+        results.push(parsed);
+      } catch {
+        // Skip invalid JSON
+      }
+    }
+    
+    return results;
+  }
+
   private parseJsonLine(line: string, packet: LynxPacket, config: PortConfig) {
+    // Handle concatenated JSON objects
+    const jsonObjects = this.extractJsonObjects(line);
+    
+    if (jsonObjects.length === 0) {
+      // Try legacy single JSON parse as fallback
+      try {
+        const data = JSON.parse(line);
+        jsonObjects.push(data);
+      } catch {
+        console.error(`[Lynx] No valid JSON found in line: ${line.substring(0, 100)}...`);
+        return;
+      }
+    }
+    
+    // Process each JSON object
+    for (const data of jsonObjects) {
+      this.processJsonData(data, packet, config);
+    }
+  }
+
+  private processJsonData(data: any, packet: LynxPacket, config: PortConfig) {
     try {
-      const data = JSON.parse(line);
       const msgType = data.T;
       const msgData = data.D || data;
       

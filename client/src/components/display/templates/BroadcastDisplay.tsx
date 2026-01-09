@@ -37,6 +37,15 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
   const lastSecondsRef = useRef<number>(-1);
   
   const rawEntries = liveEventData?.entries || (liveEventData as any)?.results || [];
+  
+  // Debug logging for entries
+  useEffect(() => {
+    const entriesWithMarks = rawEntries.filter((e: ResultEntry) => e.time || e.mark);
+    console.log(`[BroadcastDisplay] rawEntries: ${rawEntries.length}, with marks: ${entriesWithMarks.length}, mode: ${liveEventData?.mode}`);
+    if (rawEntries.length > 0 && rawEntries.length <= 3) {
+      console.log('[BroadcastDisplay] First entries:', rawEntries.slice(0, 3));
+    }
+  }, [rawEntries, liveEventData?.mode]);
   const resultsWithTimes = rawEntries.filter(
     (entry: ResultEntry) => entry.place && entry.name && (entry.time || entry.mark)
   );
