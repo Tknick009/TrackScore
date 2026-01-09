@@ -76,9 +76,17 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
   
   const formatName = (entry: ResultEntry) => {
     if (entry.firstName && entry.lastName) {
-      return `${entry.firstName} ${entry.lastName}`;
+      return `${entry.firstName.charAt(0)}. ${entry.lastName}`;
     }
-    return entry.name?.trim() || 'Unknown';
+    // Parse "FirstName LastName" format from name field
+    const name = entry.name?.trim() || 'Unknown';
+    const parts = name.split(/\s+/);
+    if (parts.length >= 2) {
+      const firstName = parts[0];
+      const lastName = parts.slice(1).join(' ');
+      return `${firstName.charAt(0)}. ${lastName}`;
+    }
+    return name;
   };
   
   const getPlaceColor = (place: string) => {
@@ -111,19 +119,19 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
     
     return (
       <div className="flex-1 min-w-0 flex flex-col items-center justify-center px-3 py-4 bg-gray-50/50 rounded">
-        <span className="text-2xl font-bold text-black text-center truncate w-full">
+        <span className="text-3xl font-bold text-black text-center truncate w-full">
           {formatName(entry)}
         </span>
         {entry.affiliation && (
-          <span className="text-lg text-gray-600 truncate w-full text-center">
+          <span className="text-xl text-gray-600 truncate w-full text-center">
             {entry.affiliation}
           </span>
         )}
-        <span className={`text-xl font-semibold mt-1 ${getPlaceColor(entry.place || '')}`}>
+        <span className={`text-2xl font-semibold mt-1 ${getPlaceColor(entry.place || '')}`}>
           {formatPlace(entry.place || '')}
         </span>
         {(entry.time || entry.mark) && (
-          <span className="text-2xl font-bold text-black mt-1">
+          <span className="text-3xl font-bold text-black mt-1">
             {entry.time || entry.mark}
           </span>
         )}
