@@ -121,7 +121,7 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
         <div className="flex gap-8 h-full">
           <div className="flex items-center gap-4 flex-shrink-0">
             {meet?.logoUrl && (
-              <div className="h-20 w-24 flex items-center justify-center">
+              <div className="h-32 w-48 flex items-center justify-center">
                 <img 
                   src={meet.logoUrl} 
                   alt={meet.name || 'Meet Logo'}

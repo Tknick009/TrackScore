@@ -193,6 +193,7 @@ export class LynxListener extends EventEmitter {
         this.emit('field-mode-change', event.eventNumber, 'standings', {
           eventNumber: event.eventNumber,
           flight: event.heat,
+          eventName: event.eventName,
           results: sortedEntries,
         });
         break;
@@ -685,6 +686,12 @@ export class LynxListener extends EventEmitter {
     const name = data.N;
     const wind = data.W || '';
     const officialStatus = data.U || '';
+    const eventName = cleanEventName(data.DN || '');
+    
+    // Persist event name by event number so it's available for results
+    if (eventName) {
+      this.eventNamesByNumber.set(eventNum, eventName);
+    }
     
     packet.eventNumber = eventNum;
     if (place) packet.place = parseInt(place);
@@ -696,6 +703,9 @@ export class LynxListener extends EventEmitter {
       const key = this.getAggregationKey(eventNum, flight, 'F', round, portName);
       let aggregated = this.aggregatedEvents.get(key);
       
+      // Use persisted event name if DN not in this message
+      const resolvedEventName = eventName || this.eventNamesByNumber.get(eventNum);
+      
       if (!aggregated) {
         const now = Date.now();
         aggregated = {
@@ -704,12 +714,15 @@ export class LynxListener extends EventEmitter {
           round,
           status: officialStatus,
           wind,
+          eventName: resolvedEventName,
           entries: [],
           lastUpdate: now,
           firstUpdate: now,
           type: 'F',
         };
         this.aggregatedEvents.set(key, aggregated);
+      } else if (resolvedEventName && !aggregated.eventName) {
+        aggregated.eventName = resolvedEventName;
       }
       
       const attemptMarks: string[] = [];

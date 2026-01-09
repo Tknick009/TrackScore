@@ -401,6 +401,25 @@ export default function DisplayDevice() {
               }
             }
           }
+          
+          // Handle field mode change updates from FinishLynx
+          if (message.type === 'field_mode_change') {
+            const data = message.data;
+            if (data) {
+              console.log(`[Display] Field mode change: Event ${data.eventNumber}, ${data.results?.length || 0} results`);
+              setState(prev => ({
+                ...prev,
+                liveEventData: {
+                  ...prev.liveEventData,
+                  eventNumber: data.eventNumber,
+                  eventName: data.eventName,
+                  mode: data.mode,
+                  wind: data.wind,
+                  entries: data.results || [],
+                },
+              }));
+            }
+          }
         } catch (e) {
           console.error('Error parsing WebSocket message:', e);
         }

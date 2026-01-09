@@ -6223,6 +6223,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       mark: data.mark,
     });
     
+    let accumulatedResults = data.results || [];
+    
     try {
       // Auto-activate event when data arrives (set to in_progress if scheduled)
       const matchingEvents = await storage.getEventsByLynxEventNumber(eventNumber);
@@ -6234,7 +6236,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // Store field event data to database
+      // Store field event data to database (accumulate results, don't overwrite)
+      const existing = await storage.getLiveEventData(eventNumber);
+      
+      // Merge with existing results if available
+      if (existing?.entries && Array.isArray(existing.entries)) {
+        const existingResults = existing.entries as any[];
+        for (const newResult of (data.results || [])) {
+          const existingIdx = existingResults.findIndex((e: any) => 
+            (e.bib && e.bib === newResult.bib) || (e.name && e.name === newResult.name)
+          );
+          if (existingIdx >= 0) {
+            existingResults[existingIdx] = { ...existingResults[existingIdx], ...newResult };
+          } else {
+            existingResults.push(newResult);
+          }
+        }
+        accumulatedResults = existingResults;
+      }
+      
       await storage.upsertLiveEventData({
         eventNumber,
         eventType: 'field',
@@ -6244,19 +6264,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         flight: data.flight || 1,
         wind: data.wind,
         status: data.officialStatus,
-        entries: data.results || [],
+        eventName: data.eventName,
+        entries: accumulatedResults,
       });
     } catch (error) {
       console.error('[Lynx] Error storing field mode change:', error);
     }
     
-    // Broadcast field event update
+    // Broadcast field event update with accumulated results
     broadcastToDisplays({
       type: 'field_mode_change',
       data: {
         eventNumber,
         mode,
-        ...data,
+        eventName: data.eventName,
+        flight: data.flight,
+        wind: data.wind,
+        results: accumulatedResults,
       }
     } as WSMessage);
   });
