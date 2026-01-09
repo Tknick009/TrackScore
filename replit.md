@@ -30,6 +30,7 @@ The frontend uses React with shadcn/ui on Radix UI and Tailwind CSS, adhering to
 - **HyTek MDB Import System:** Parses HyTek MDB files for event scheduling and naming.
 - **Lynx Protocol Integration:** Parses JSON-based messages ("S", "T", "F") from Lynx systems, auto-starts listeners, stores live event data, and aggregates athlete entries. Includes HTTP Forward Endpoint and TCP Forwarder Scripts. Enhanced JSON Clock Handler for auto-mode switching. Displays heat numbers in "X OF Y" format.
 - **Auto-Mode Track Display System:** Displays automatically switch templates based on live Lynx timing data without pre-configured events. Persistence of auto-mode state, four auto states (idle, armed, running, results), and template mapping per display type.
+- **Broadcast Display Type:** Full-screen overlay display for streaming/broadcast with animated ticker showing race winners (scrolling every 4 seconds using framer-motion), running clock from FinishLynx, and meet logo. Uses meet colors for gradient background.
 - **Athlete Bests (Personal Records):** Stores college and season personal records with API and UI integration.
 - **Data Ingestion System:** Uses `chokidar` to monitor directories for FinishLynx LIF and FieldLynx LFF files, parsing and mapping results. Configurable polling for HyTek MDB changes.
 - **LFF Export System:** Exports field event results in FieldLynx LFF format, supporting horizontal and vertical events. Includes API endpoints for download/export and auto-export functionality.
