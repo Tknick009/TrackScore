@@ -371,12 +371,6 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
             )}
           </div>
         </div>
-        
-        {totalPages > 1 && (
-          <div className="absolute bottom-2 right-6 text-xs text-gray-400">
-            {pageIndex + 1} / {totalPages}
-          </div>
-        )}
       </div>
     </div>
   );
