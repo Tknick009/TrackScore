@@ -108,14 +108,14 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
           {entry.affiliation}
         </span>
       )}
-      <span className="text-2xl font-mono font-bold text-black w-32 text-right">
+      <span className="text-2xl font-bold text-black w-32 text-right">
         {entry.time || entry.mark || ''}
       </span>
     </div>
   );
 
   return (
-    <div className="relative w-full h-full overflow-hidden bg-white">
+    <div className="relative w-full h-full overflow-hidden bg-white" style={{ fontFamily: "'Oswald', sans-serif" }}>
       <div className="absolute inset-x-0 bottom-0 h-auto min-h-[200px] py-4 px-6">
         <div className="flex gap-8 h-full">
           <div className="flex flex-col items-center justify-start flex-shrink-0">
@@ -142,7 +142,7 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
               </div>
             )}
             
-            <div className="text-5xl font-mono font-bold tracking-wider text-black">
+            <div className="text-5xl font-bold tracking-wider text-black">
               {displayClock}
             </div>
           </div>
@@ -161,7 +161,7 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
                     {firstPlace.affiliation}
                   </span>
                 )}
-                <span className="text-3xl font-mono font-bold text-black w-36 text-right">
+                <span className="text-3xl font-bold text-black w-36 text-right">
                   {firstPlace.time || firstPlace.mark || ''}
                 </span>
               </div>
