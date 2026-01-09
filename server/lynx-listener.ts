@@ -843,6 +843,9 @@ export class LynxListener extends EventEmitter {
       
       const athleteName = data.N || (data.FN && data.LN ? `${data.FN} ${data.LN}` : undefined);
       
+      // Verbose logging for debugging relay entry issues
+      console.log(`[Lynx:Track] Event ${eventNum} Heat ${heat}: Lane=${lane} Bib="${data.BIB || ''}" Name="${athleteName || ''}" AF="${data.AF || ''}"`);
+      
       const entry: LynxTrackResult = {
         place: place,
         lane: lane,
