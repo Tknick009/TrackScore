@@ -5985,13 +5985,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Build live event data for displays - use preserved eventName
+      // For start_list mode, fetch stored entries from database (aggregated by start-list handler)
+      const storedData = await storage.getLiveEventData(eventNumber);
+      const entriesToBroadcast = mode === 'start_list' 
+        ? (storedData?.entries || data.entries || [])
+        : (data.entries || data.results || storedData?.entries || []);
+      
       const liveEventData = {
         eventNumber,
         eventName: eventNameToUse,
-        heat: data.heat || 1,
+        heat: data.heat || storedData?.heat || 1,
         totalHeats, // Total heats from database for "Heat X of Y" display
-        round: data.round || 1,
-        entries: data.entries || data.results || [],
+        round: data.round || storedData?.round || 1,
+        entries: entriesToBroadcast,
         wind: data.wind,
         distance: distanceToUse,
         status: data.status,

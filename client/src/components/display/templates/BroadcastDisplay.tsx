@@ -38,14 +38,6 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
   
   const rawEntries = liveEventData?.entries || (liveEventData as any)?.results || [];
   
-  // Debug logging for entries
-  useEffect(() => {
-    const entriesWithMarks = rawEntries.filter((e: ResultEntry) => e.time || e.mark);
-    console.log(`[BroadcastDisplay] rawEntries: ${rawEntries.length}, with marks: ${entriesWithMarks.length}, mode: ${liveEventData?.mode}`);
-    if (rawEntries.length > 0 && rawEntries.length <= 3) {
-      console.log('[BroadcastDisplay] First entries:', rawEntries.slice(0, 3));
-    }
-  }, [rawEntries, liveEventData?.mode]);
   const resultsWithTimes = rawEntries.filter(
     (entry: ResultEntry) => entry.place && entry.name && (entry.time || entry.mark)
   );
@@ -60,6 +52,16 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
   const entriesForScrolling = rawEntries.filter((entry: ResultEntry) => 
     entry.name || entry.firstName || entry.lastName || entry.bib || entry.lane
   );
+  
+  // Debug logging for entries
+  useEffect(() => {
+    console.log(`[BroadcastDisplay] rawEntries: ${rawEntries.length}, scrolling: ${entriesForScrolling.length}, mode: ${liveEventData?.mode}, hasTimesEntered: ${hasTimesEntered}`);
+    if (rawEntries.length > 0) {
+      console.log('[BroadcastDisplay] Sample entries:', rawEntries.slice(0, 2).map((e: ResultEntry) => ({
+        lane: e.lane, bib: e.bib, name: e.name, affiliation: e.affiliation, time: e.time
+      })));
+    }
+  }, [rawEntries.length, liveEventData?.mode, entriesForScrolling.length, hasTimesEntered]);
   
   // Detect ties - find times that appear more than once (to hundredths)
   const getTimeToHundredths = (entry: ResultEntry) => {
@@ -152,14 +154,29 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
       return `${entry.firstName.charAt(0)}. ${entry.lastName}`;
     }
     // Parse "FirstName LastName" format from name field
-    const name = entry.name?.trim() || 'Unknown';
-    const parts = name.split(/\s+/);
-    if (parts.length >= 2) {
-      const firstName = parts[0];
-      const lastName = parts.slice(1).join(' ');
-      return `${firstName.charAt(0)}. ${lastName}`;
+    const name = entry.name?.trim();
+    if (name) {
+      const parts = name.split(/\s+/);
+      if (parts.length >= 2) {
+        const firstName = parts[0];
+        const lastName = parts.slice(1).join(' ');
+        return `${firstName.charAt(0)}. ${lastName}`;
+      }
+      return name;
     }
-    return name;
+    // For relays or entries without names, show affiliation (team) as primary
+    if (entry.affiliation) {
+      return entry.affiliation;
+    }
+    // Fallback to bib if available
+    if (entry.bib) {
+      return `#${entry.bib}`;
+    }
+    // Last resort: show lane indicator
+    if (entry.lane) {
+      return `Lane ${entry.lane}`;
+    }
+    return '';
   };
   
   const getPlaceColor = (place: string) => {
@@ -227,6 +244,11 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
       );
     }
     
+    const displayName = formatName(entry);
+    // Don't show affiliation separately if it's already being used as the display name (relays)
+    const hasIndividualName = entry.name || entry.firstName || entry.lastName;
+    const showAffiliation = entry.affiliation && hasIndividualName;
+    
     return (
       <div className="flex-1 min-w-0 flex flex-col items-center justify-start px-1 py-1 uppercase">
         <div className="flex items-center justify-center gap-2 w-full">
@@ -236,10 +258,10 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
             </span>
           )}
           <span className="text-3xl font-bold text-black text-center truncate">
-            {formatName(entry)}
+            {displayName}
           </span>
         </div>
-        {entry.affiliation && (
+        {showAffiliation && (
           <span className="text-xl text-gray-600 truncate w-full text-center leading-tight">
             {entry.affiliation}
           </span>
@@ -257,6 +279,11 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
       );
     }
     
+    const displayName = formatName(entry);
+    // Don't show affiliation separately if it's already being used as the display name (relays)
+    const hasIndividualName = entry.name || entry.firstName || entry.lastName;
+    const showAffiliation = entry.affiliation && hasIndividualName;
+    
     return (
       <div className="flex-1 min-w-0 flex flex-col items-center justify-start px-1 py-1 uppercase">
         <div className="flex items-center justify-center gap-2 w-full">
@@ -264,10 +291,10 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
             {entry.place}.
           </span>
           <span className="text-3xl font-bold text-black text-center truncate">
-            {formatName(entry)}
+            {displayName}
           </span>
         </div>
-        {entry.affiliation && (
+        {showAffiliation && (
           <span className="text-xl text-gray-600 truncate w-full text-center leading-tight">
             {entry.affiliation}
           </span>
