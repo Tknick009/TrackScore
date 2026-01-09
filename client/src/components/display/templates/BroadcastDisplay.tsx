@@ -110,20 +110,20 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
     }
     
     return (
-      <div className="flex-1 min-w-0 flex flex-col items-center justify-center px-3 py-3 bg-gray-50/50 rounded">
-        <span className="text-lg font-semibold text-black text-center truncate w-full">
+      <div className="flex-1 min-w-0 flex flex-col items-center justify-center px-3 py-4 bg-gray-50/50 rounded">
+        <span className="text-2xl font-bold text-black text-center truncate w-full">
           {formatName(entry)}
         </span>
         {entry.affiliation && (
-          <span className="text-sm text-gray-600 truncate w-full text-center">
+          <span className="text-lg text-gray-600 truncate w-full text-center">
             {entry.affiliation}
           </span>
         )}
-        <span className={`text-base font-medium mt-1 ${getPlaceColor(entry.place || '')}`}>
+        <span className={`text-xl font-semibold mt-1 ${getPlaceColor(entry.place || '')}`}>
           {formatPlace(entry.place || '')}
         </span>
         {(entry.time || entry.mark) && (
-          <span className="text-xl font-bold text-black mt-1">
+          <span className="text-2xl font-bold text-black mt-1">
             {entry.time || entry.mark}
           </span>
         )}
