@@ -285,7 +285,7 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
   };
 
   return (
-    <div className="relative w-full h-full overflow-hidden" style={{ fontFamily: "'Oswald', sans-serif", backgroundColor: 'transparent' }}>
+    <div className="relative w-full h-full overflow-hidden" style={{ fontFamily: "'Oswald', sans-serif", backgroundColor: 'white' }}>
       <div className="absolute inset-x-0 bottom-0 py-4 px-6 mx-4 mb-4 bg-white/95" style={{ border: '1px solid rgba(200, 200, 200, 0.5)' }}>
         <div className="flex gap-6">
           <div className="flex items-center gap-4 flex-shrink-0">
