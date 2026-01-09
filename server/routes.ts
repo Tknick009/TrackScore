@@ -6255,6 +6255,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         accumulatedResults = existingResults;
       }
       
+      // Sort results by place number
+      accumulatedResults.sort((a: any, b: any) => {
+        const placeA = parseInt(a.place) || 999;
+        const placeB = parseInt(b.place) || 999;
+        return placeA - placeB;
+      });
+      
       await storage.upsertLiveEventData({
         eventNumber,
         eventType: 'field',
