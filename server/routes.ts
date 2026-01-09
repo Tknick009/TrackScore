@@ -6544,6 +6544,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Auto-start Lynx listeners from saved configs or environment variables
+  // NOTE: Requires Reserved VM deployment (not Autoscale) to expose multiple ports
   (async () => {
     try {
       // First try to load saved configs from database
