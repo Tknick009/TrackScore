@@ -95,6 +95,16 @@ The server will:
 2. Log "Running in EDGE mode with SQLite database" on startup
 3. All features work identically, just with local storage
 
+### Web UI Cloud Sync
+
+Download meet data from a cloud server using the web interface:
+
+1. Navigate to `/cloud-sync` (or click "Download from Cloud" on the homepage)
+2. Enter the cloud server URL (must be HTTPS)
+3. Enter the 6-character meet code
+4. Click "Preview Meet" to see what will be downloaded
+5. Click "Download Meet" to sync all data including layouts and logos
+
 ### Edge Setup CLI
 
 Initialize a local database with meet data from the cloud:
@@ -113,6 +123,8 @@ npx tsx tools/edge-setup.ts clear
 ### Key Files
 - `server/storage/sqlite-adapter.ts` - SQLite storage implementation
 - `server/storage.ts` - Storage factory (auto-selects SQLite or PostgreSQL)
+- `server/cloud-sync.ts` - Cloud sync logic for downloading meets
+- `client/src/pages/cloud-sync.tsx` - Web UI for cloud sync
 - `tools/edge-setup.ts` - CLI for downloading meet data
 - `./data/scoreboard.db` - Default SQLite database location
 - `./data/edge-config.json` - Edge configuration file
