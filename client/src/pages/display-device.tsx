@@ -404,21 +404,25 @@ export default function DisplayDevice() {
           }
           
           // Layout command from FinishLynx - switch templates based on ResulTV commands
-          // Maps layout names to templates: Running->running_time, Results->results, StartList->start_list, Idle->logo
+          // Maps FinishLynx layout names to template IDs that match renderer pattern checks
           if (message.type === 'layout_command') {
             const layoutName = message.data?.layoutName?.toLowerCase() || '';
-            console.log(`[Display] Layout command from FinishLynx: ${layoutName}`);
+            console.log(`[Display] Layout command from FinishLynx: "${layoutName}"`);
             
-            // Map FinishLynx layout names to our template names
+            // Map FinishLynx layout names to template IDs that match renderer checks:
+            // - 'running-time' matches templateId.includes('running-time')
+            // - 'live-results' matches templateId.includes('results') and templateId.includes('live-results')  
+            // - 'BigBoard' matches templateId.includes('BigBoard') for start lists
+            // - 'meet-logo' matches isMeetLogo check
             let template: string | null = null;
             if (layoutName.includes('running') || layoutName.includes('time')) {
-              template = 'running_time';
+              template = 'running-time';
             } else if (layoutName.includes('result')) {
-              template = 'results';
-            } else if (layoutName.includes('start')) {
-              template = 'start_list';
+              template = 'live-results';
+            } else if (layoutName.includes('start') || layoutName.includes('draw')) {
+              template = 'BigBoard'; // Start list uses BigBoard to show athlete grid
             } else if (layoutName.includes('idle') || layoutName.includes('meettitle') || layoutName.includes('logo')) {
-              template = 'logo';
+              template = 'meet-logo';
             }
             
             if (template) {
