@@ -882,7 +882,8 @@ export function SceneCanvas({
   const { data: fetchedLiveEventData } = useLiveEventData(eventNumber);
   const { data: latestLiveEventData } = useLatestLiveEventData();
   
-  const rawLiveData = propLiveEventData || fetchedLiveEventData;
+  // Priority: WebSocket prop > REST by eventNumber > REST latest
+  const rawLiveData = propLiveEventData || fetchedLiveEventData || latestLiveEventData;
   
   // Use entries in arrival order for start_list (FinishLynx controls display order)
   // Only sort results mode by place
@@ -1024,7 +1025,7 @@ export function SceneCanvas({
             eventNumber={eventNumber}
             pageIndex={currentPageIndex}
             pageSize={pagingSize}
-            sharedLatestLiveData={propLiveEventData || latestLiveEventData}
+            sharedLatestLiveData={liveData}
             liveClockTime={liveClockTime}
           />
         ))}
@@ -1084,7 +1085,7 @@ export function SceneCanvas({
             eventNumber={eventNumber}
             pageIndex={currentPageIndex}
             pageSize={pagingSize}
-            sharedLatestLiveData={propLiveEventData || latestLiveEventData}
+            sharedLatestLiveData={liveData}
             liveClockTime={liveClockTime}
           />
         ))}
