@@ -8,8 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Monitor, Tv, LayoutGrid, Calendar, Radio } from "lucide-react";
 import type { Meet, Event } from "@shared/schema";
 
-// Transition duration in milliseconds - smooth but fast for live stadium use
-const TRANSITION_DURATION_MS = 200;
+// Transition duration in milliseconds - crisp and fast for live stadium use
+const TRANSITION_DURATION_MS = 150;
 
 // Robust transition hook with proper race condition handling
 interface TransitionState {
@@ -164,6 +164,7 @@ interface DisplayDeviceState {
   currentSceneId: number | null;
   currentSceneData: { scene: any; objects: any[] } | null; // Pre-fetched scene data for instant switching
   currentEventId: number | null;
+  currentLayoutMode: string | null; // Track current layout mode to debounce duplicate commands
   isConnected: boolean;
   setupComplete: boolean;
   liveClockTime: string | null;
@@ -236,6 +237,7 @@ export default function DisplayDevice() {
     currentSceneId: null,
     currentSceneData: null,
     currentEventId: null,
+    currentLayoutMode: null,
     isConnected: false,
     setupComplete: false,
     liveClockTime: null,
@@ -284,6 +286,9 @@ export default function DisplayDevice() {
   const selectedMeetIdRef = useRef<string | null>(null);
   const isConnectingRef = useRef(false);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Track current layout mode for debouncing duplicate commands from FinishLynx
+  const currentLayoutModeRef = useRef<string | null>(null);
 
   // Update meetId ref when selected meet changes
   useEffect(() => {
@@ -432,9 +437,9 @@ export default function DisplayDevice() {
           
           // Layout command from FinishLynx - switch scenes based on Scene Layout Mapping
           // Maps FinishLynx layout names to displayMode, then looks up scene from mappings
+          // DEBOUNCING: Ignore duplicate layout commands to prevent glitchy transitions
           if (message.type === 'layout_command') {
             const layoutName = message.data?.layoutName?.toLowerCase() || '';
-            console.log(`[Display] Layout command from FinishLynx: "${layoutName}"`);
             
             // Map FinishLynx layout names to displayMode values used in Scene Layout Mappings:
             // start_list, running_time, track_results, field_results, field_standings, team_scores
@@ -451,30 +456,58 @@ export default function DisplayDevice() {
               displayMode = 'field_results';
             } else if (layoutName.includes('team') || layoutName.includes('score')) {
               displayMode = 'team_scores';
+            } else if (layoutName.includes('idle') || layoutName.includes('meettitle') || layoutName.includes('logo')) {
+              displayMode = 'idle';
             }
             
-            if (displayMode && displayType) {
+            // Debounce: Skip if same mode as current (FinishLynx sends commands every 2s)
+            if (displayMode && currentLayoutModeRef.current === displayMode) {
+              return; // Ignore duplicate - already on this mode
+            }
+            
+            // Log the transition
+            console.log(`[Display] Layout command: "${layoutName}" → mode: ${displayMode} (was: ${currentLayoutModeRef.current})`);
+            
+            if (displayMode === 'idle') {
+              // Logo/idle mode - use meet-logo template
+              currentLayoutModeRef.current = displayMode;
+              setState(prev => ({
+                ...prev,
+                currentLayoutMode: displayMode,
+                currentTemplate: 'meet-logo',
+                currentSceneId: null,
+              }));
+            } else if (displayMode && displayType) {
+              // Update mode ref immediately for debouncing
+              currentLayoutModeRef.current = displayMode;
+              
               // Look up the scene from Scene Layout Mappings (use ref for current values)
               const sceneId = getSceneForModeRef.current(displayType, displayMode);
               console.log(`[Display] Mode "${displayMode}" → Scene ID: ${sceneId || 'none (using default template)'}`);
               
               if (sceneId) {
                 // Use the configured scene - prefetch scene data for instant rendering
+                const capturedMode = displayMode;
                 (async () => {
                   try {
                     const [sceneRes, objectsRes] = await Promise.all([
                       fetch(`/api/layout-scenes/${sceneId}`),
                       fetch(`/api/layout-objects?sceneId=${sceneId}`),
                     ]);
+                    // Verify we're still on this mode (in case a new command came in during fetch)
+                    if (currentLayoutModeRef.current !== capturedMode) {
+                      console.log(`[Display] Mode changed during fetch, ignoring stale data`);
+                      return;
+                    }
                     if (sceneRes.ok && objectsRes.ok) {
                       const scene = await sceneRes.json();
                       const objects = await objectsRes.json();
                       // Hydrate React Query cache for instant SceneCanvas rendering
                       queryClient.setQueryData(['/api/layout-scenes', sceneId], scene);
                       queryClient.setQueryData(['/api/layout-objects', { sceneId }], objects);
-                      console.log(`[Display] Prefetched scene ${sceneId} data for instant switch`);
                       setState(prev => ({
                         ...prev,
+                        currentLayoutMode: capturedMode,
                         currentSceneId: sceneId,
                         currentSceneData: { scene, objects },
                         currentTemplate: null,
@@ -482,11 +515,14 @@ export default function DisplayDevice() {
                     }
                   } catch (e) {
                     console.warn('[Display] Failed to prefetch scene data:', e);
-                    setState(prev => ({
-                      ...prev,
-                      currentSceneId: sceneId,
-                      currentTemplate: null,
-                    }));
+                    if (currentLayoutModeRef.current === capturedMode) {
+                      setState(prev => ({
+                        ...prev,
+                        currentLayoutMode: capturedMode,
+                        currentSceneId: sceneId,
+                        currentTemplate: null,
+                      }));
+                    }
                   }
                 })();
               } else {
@@ -499,18 +535,12 @@ export default function DisplayDevice() {
                 if (fallbackTemplate) {
                   setState(prev => ({
                     ...prev,
+                    currentLayoutMode: displayMode,
                     currentTemplate: fallbackTemplate,
                     currentSceneId: null,
                   }));
                 }
               }
-            } else if (layoutName.includes('idle') || layoutName.includes('meettitle') || layoutName.includes('logo')) {
-              // Logo/idle mode - use meet-logo template
-              setState(prev => ({
-                ...prev,
-                currentTemplate: 'meet-logo',
-                currentSceneId: null,
-              }));
             }
           }
           
@@ -1340,35 +1370,11 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     return () => layer.removeEventListener('transitionend', handleTransitionEnd);
   }, [transitionState.phase, transitionState.version, completeTransition]);
 
-  // Render with smooth crossfade transitions when FinishLynx switches layouts
-  // Uses two layers: outgoing (fading out) and incoming (fading in)
+  // Render content - instant layout switching for crisp transitions
+  // Debouncing in the layout command handler prevents glitchy rapid switches
   const renderWithTransition = () => {
-    const isTransitioning = transitionState.phase === 'transitioning' && transitionState.fadeStarted;
-    
-    if (isTransitioning && snapshot) {
-      // During transition: show both layers with crossfade
-      return (
-        <>
-          {/* Outgoing layer - fades out */}
-          <div 
-            className="absolute inset-0 transition-opacity duration-500 ease-in-out"
-            style={{ opacity: 0, zIndex: 1 }}
-          >
-            {renderContent(snapshot)}
-          </div>
-          {/* Incoming layer - fades in */}
-          <div 
-            ref={incomingLayerRef}
-            className="absolute inset-0 transition-opacity duration-500 ease-in-out"
-            style={{ opacity: 1, zIndex: 2 }}
-          >
-            {renderContent()}
-          </div>
-        </>
-      );
-    }
-    
-    // Not transitioning - just render current content
+    // Just render current content directly - no crossfade animation
+    // The debouncing logic ensures we only switch when the layout actually changes
     return renderContent();
   };
 
