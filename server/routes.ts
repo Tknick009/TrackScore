@@ -519,6 +519,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===== CLOUD SYNC API =====
+  // Preview a meet from cloud before downloading
+  app.post("/api/cloud-sync/preview", async (req, res) => {
+    try {
+      const { cloudSyncPreviewSchema, CloudSyncError } = await import('./cloud-sync');
+      
+      // Validate request body
+      const validation = cloudSyncPreviewSchema.safeParse(req.body);
+      if (!validation.success) {
+        const errorMessages = validation.error.errors
+          .map(err => `${err.path.join('.')}: ${err.message}`)
+          .join('; ');
+        return res.status(400).json({ 
+          error: `Invalid request: ${errorMessages}`,
+          details: validation.error.errors
+        });
+      }
+      
+      const { cloudUrl, meetCode } = validation.data;
+      const { previewCloudMeet } = await import('./cloud-sync');
+      
+      try {
+        const result = await previewCloudMeet(cloudUrl, meetCode);
+        res.json(result);
+      } catch (error: any) {
+        // Handle CloudSyncError with proper status codes
+        if (error instanceof CloudSyncError) {
+          const statusCode = error.statusCode || 500;
+          return res.status(statusCode).json({ 
+            error: error.message,
+            ...(error.details && { details: error.details })
+          });
+        }
+        throw error;
+      }
+    } catch (error: any) {
+      console.error('[Cloud Sync Preview Error]', error);
+      res.status(500).json({ error: 'Internal server error while previewing meet' });
+    }
+  });
+
+  // Download a meet from cloud
+  app.post("/api/cloud-sync/download", async (req, res) => {
+    try {
+      const { cloudSyncDownloadSchema, CloudSyncError } = await import('./cloud-sync');
+      
+      // Validate request body
+      const validation = cloudSyncDownloadSchema.safeParse(req.body);
+      if (!validation.success) {
+        const errorMessages = validation.error.errors
+          .map(err => `${err.path.join('.')}: ${err.message}`)
+          .join('; ');
+        return res.status(400).json({ 
+          error: `Invalid request: ${errorMessages}`,
+          details: validation.error.errors
+        });
+      }
+      
+      const { cloudUrl, meetCode } = validation.data;
+      const { syncFromCloud } = await import('./cloud-sync');
+      
+      try {
+        const result = await syncFromCloud(cloudUrl, meetCode);
+        
+        if (result.success) {
+          res.json(result);
+        } else {
+          // Check if this is a user error (4xx) or server error (5xx)
+          // Based on the error message, determine appropriate status code
+          const error = result.error || '';
+          let statusCode = 500;
+          
+          if (error.includes('not found') || error.includes('Meet with code')) {
+            statusCode = 404;
+          } else if (error.includes('Invalid') || error.includes('Failed to connect')) {
+            statusCode = 400;
+          }
+          
+          res.status(statusCode).json({ error: result.error });
+        }
+      } catch (error: any) {
+        // Handle CloudSyncError with proper status codes
+        if (error instanceof CloudSyncError) {
+          const statusCode = error.statusCode || 500;
+          return res.status(statusCode).json({ 
+            error: error.message,
+            ...(error.details && { details: error.details })
+          });
+        }
+        throw error;
+      }
+    } catch (error: any) {
+      console.error('[Cloud Sync Download Error]', error);
+      res.status(500).json({ error: 'Internal server error while syncing meet' });
+    }
+  });
+
   // ===== PUBLIC SPECTATOR API =====
 
   // Get current meet (public info only)

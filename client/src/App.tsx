@@ -45,6 +45,7 @@ import FieldOfficialPage from "@/pages/field-official";
 import FieldApp from "@/pages/field-app";
 import FieldEventsControl from "@/pages/field-events-control";
 import ExternalScoreboards from "@/pages/external-scoreboards";
+import CloudSync from "@/pages/cloud-sync";
 import NotFound from "@/pages/not-found";
 
 function MeetSyncWrapper({ meetId, children }: { meetId: string; children: React.ReactNode }) {
@@ -133,6 +134,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={MeetsList} />
+      <Route path="/cloud-sync" component={CloudSync} />
       <Route path="/meets/:id" component={MeetDetail} />
       <Route path="/seasons" component={SeasonManager} />
       <Route path="/records" component={RecordBooks} />

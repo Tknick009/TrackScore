@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format, isPast, isToday, isFuture } from "date-fns";
-import { Calendar as CalendarIcon, MapPin, Plus, Calendar, Settings, Monitor, Copy, Check, Search, Filter, Trash2, MoreVertical } from "lucide-react";
+import { Calendar as CalendarIcon, MapPin, Plus, Calendar, Settings, Monitor, Copy, Check, Search, Filter, Trash2, MoreVertical, Cloud } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { LogIn } from "lucide-react";
 import { insertMeetSchema, type Meet } from "@shared/schema";
@@ -503,9 +503,15 @@ function EmptyState() {
           Create your first track and field meet or join an existing one using a meet code. You'll be able to manage events, 
           record results, and broadcast live to display boards.
         </p>
-        <div className="flex gap-3">
+        <div className="flex gap-3 flex-wrap justify-center">
           <JoinMeetDialog />
           <CreateMeetDialog />
+          <Link href="/cloud-sync">
+            <Button variant="outline" size="lg" data-testid="button-cloud-sync">
+              <Cloud className="w-4 h-4 mr-2" />
+              Download from Cloud
+            </Button>
+          </Link>
         </div>
         <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4 text-left max-w-2xl">
           <div className="p-4 bg-muted rounded-md">
@@ -588,9 +594,15 @@ export default function MeetsList() {
                 Manage your track and field competitions with professional scoreboard control
               </p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex gap-3 flex-wrap">
               <JoinMeetDialog />
               <CreateMeetDialog />
+              <Link href="/cloud-sync">
+                <Button variant="outline" size="lg" data-testid="button-cloud-sync-header">
+                  <Cloud className="w-4 h-4 mr-2" />
+                  Download from Cloud
+                </Button>
+              </Link>
             </div>
           </div>
 
