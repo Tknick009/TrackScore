@@ -107,6 +107,11 @@ export class LynxListener extends EventEmitter {
   
   // Track last status per event to debounce layout-command emissions
   private lastStatusByEvent: Map<number, string> = new Map();
+  
+  // Accumulate entries by line number for each event/heat
+  // Key: "eventNum-heat", Value: Map of lineNumber -> entry
+  private lineAccumulators: Map<string, Map<string, LynxStartListEntry | LynxTrackResult>> = new Map();
+  private lineEmitTimers: Map<string, NodeJS.Timeout> = new Map();
 
   constructor() {
     super();
@@ -738,12 +743,13 @@ export class LynxListener extends EventEmitter {
       this.emit('layout-command', layoutName, { eventNum, status });
     }
     
-    // NO AGGREGATION - pass through immediately
-    // FinishLynx controls all paging and sends line numbers that match layout placeholders
-    // Each packet is authoritative for its specific line number
-    const entry: LynxStartListEntry | null = (data.L || data.N || data.BIB) ? {
+    // Extract line number from FinishLynx (L field is the line/lane number)
+    const lineNum = data.L || data.P || '';
+    
+    // Build entry if we have athlete data
+    const entry: LynxStartListEntry | null = (lineNum || data.N || data.BIB) ? {
       place: data.P,
-      lane: data.L,  // This is the line number from FinishLynx
+      lane: lineNum,  // This is the line number from FinishLynx
       bib: data.BIB,
       name: data.N,
       affiliation: data.AF,
@@ -751,11 +757,55 @@ export class LynxListener extends EventEmitter {
       lastName: data.LN,
     } : null;
     
-    // Emit immediately with single entry - display updates that line slot
-    this.emit('start-list', eventNum, heat, entry ? [entry] : [], {
-      eventName: resolvedEventName,
-      distance,
-    });
+    if (!entry) {
+      // No athlete data in this message, just metadata update
+      return;
+    }
+    
+    // ACCUMULATE entries by line number
+    // FinishLynx sends one athlete per packet with line numbers 1-8 for paging
+    // We accumulate all lines and emit them together with a short debounce
+    const accumulatorKey = `${eventNum}-${heat}`;
+    
+    if (!this.lineAccumulators.has(accumulatorKey)) {
+      this.lineAccumulators.set(accumulatorKey, new Map());
+    }
+    
+    const accumulator = this.lineAccumulators.get(accumulatorKey)!;
+    
+    // Store entry by its line number (lane field contains line position 1-8)
+    accumulator.set(lineNum, entry);
+    
+    // Clear existing timer and set a new one (debounce)
+    const existingTimer = this.lineEmitTimers.get(accumulatorKey);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
+    }
+    
+    // Short debounce - emit after 100ms of no new entries
+    // This allows all 8 lines to accumulate before emitting
+    const timer = setTimeout(() => {
+      const entries = Array.from(accumulator.values());
+      
+      // Sort by line number for consistent ordering
+      entries.sort((a, b) => {
+        const laneA = parseInt(a.lane || '0') || 0;
+        const laneB = parseInt(b.lane || '0') || 0;
+        return laneA - laneB;
+      });
+      
+      console.log(`[Lynx] Start list: Event ${eventNum}, Heat ${heat}, ${entries.length} entries (accumulated)`);
+      
+      this.emit('start-list', eventNum, heat, entries, {
+        eventName: resolvedEventName,
+        distance,
+      });
+      
+      this.lineEmitTimers.delete(accumulatorKey);
+      // Keep accumulator for updates - clear on event change
+    }, 100);
+    
+    this.lineEmitTimers.set(accumulatorKey, timer);
   }
 
   private handleTrackMessage(data: any, packet: LynxPacket, portName?: string) {
@@ -799,39 +849,80 @@ export class LynxListener extends EventEmitter {
       }
     }
     
-    // Build single entry from this packet (NO AGGREGATION - just pass through raw data)
-    if (lane || data.N || data.BIB) {
-      const athleteName = data.N || (data.FN && data.LN ? `${data.FN} ${data.LN}` : undefined);
+    // Build entry if we have athlete data
+    if (!(lane || data.N || data.BIB)) {
+      return; // No athlete data
+    }
+    
+    const athleteName = data.N || (data.FN && data.LN ? `${data.FN} ${data.LN}` : undefined);
+    
+    const entry: LynxTrackResult = {
+      place: place,
+      lane: lane,
+      bib: data.BIB,
+      name: athleteName,
+      affiliation: data.AF,
+      time: time,
+      reactionTime: data.RT,
+      lapsToGo: data.L2G,
+      cumulativeSplit: data.CS,
+      lastSplit: data.LS,
+      firstName: data.FN,
+      lastName: data.LN,
+    };
+    
+    // Emit result event for individual results (for logging/storage)
+    if (place && time) {
+      this.isRunning = false;
+      this.emit('result', 
+        eventNum, 
+        lane ? parseInt(lane) : 0, 
+        parseInt(place), 
+        time, 
+        athleteName
+      );
+    }
+    
+    // ACCUMULATE track entries by line number (same approach as start list)
+    // Use lane for running mode, place for results mode
+    const lineNum = lane || place || '';
+    const accumulatorKey = `T-${eventNum}-${heat}`;
+    
+    if (!this.lineAccumulators.has(accumulatorKey)) {
+      this.lineAccumulators.set(accumulatorKey, new Map());
+    }
+    
+    const accumulator = this.lineAccumulators.get(accumulatorKey)!;
+    accumulator.set(lineNum, entry);
+    
+    // Clear existing timer and set a new one (debounce)
+    const timerKey = `T-${accumulatorKey}`;
+    const existingTimer = this.lineEmitTimers.get(timerKey);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
+    }
+    
+    // Capture mode for the timer callback
+    const mode = (place && time) ? 'results' : (this.isRunning ? 'running' : 'start_list');
+    
+    const timer = setTimeout(() => {
+      const entries = Array.from(accumulator.values()) as LynxTrackResult[];
       
-      const entry: LynxTrackResult = {
-        place: place,
-        lane: lane,
-        bib: data.BIB,
-        name: athleteName,
-        affiliation: data.AF,
-        time: time,
-        reactionTime: data.RT,
-        lapsToGo: data.L2G,
-        cumulativeSplit: data.CS,
-        lastSplit: data.LS,
-        firstName: data.FN,
-        lastName: data.LN,
-      };
+      // Sort by place for results, by lane for running/start_list
+      entries.sort((a, b) => {
+        if (mode === 'results') {
+          const placeA = parseInt(a.place || '999') || 999;
+          const placeB = parseInt(b.place || '999') || 999;
+          return placeA - placeB;
+        } else {
+          const laneA = parseInt(a.lane || '0') || 0;
+          const laneB = parseInt(b.lane || '0') || 0;
+          return laneA - laneB;
+        }
+      });
       
-      // Emit result event for individual results
-      if (place && time) {
-        this.isRunning = false;
-        this.emit('result', 
-          eventNum, 
-          lane ? parseInt(lane) : 0, 
-          parseInt(place), 
-          time, 
-          athleteName
-        );
-      }
+      console.log(`[Lynx] Track ${mode}: Event ${eventNum}, Heat ${heat}, ${entries.length} entries (accumulated)`);
       
-      // Emit track-mode-change immediately with single entry (NO AGGREGATION)
-      const mode = (place && time) ? 'results' : (this.isRunning ? 'running' : 'start_list');
       this.emit('track-mode-change', eventNum, mode, {
         eventNumber: eventNum,
         heat,
@@ -839,9 +930,13 @@ export class LynxListener extends EventEmitter {
         distance,
         wind,
         eventName: resolvedEventName,
-        entries: [entry],
+        entries,
       });
-    }
+      
+      this.lineEmitTimers.delete(timerKey);
+    }, 100);
+    
+    this.lineEmitTimers.set(timerKey, timer);
   }
 
   private handleFieldMessage(data: any, packet: LynxPacket, portName?: string) {
