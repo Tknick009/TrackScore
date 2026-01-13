@@ -491,7 +491,7 @@ export default function DisplayDevice() {
           }
           
           // Handle start_list updates from FinishLynx (pre-race athlete list)
-          // NO SMART LOGIC - just pass through exactly what FinishLynx sends
+          // Pure pass-through: show exactly what FinishLynx sends, no accumulation
           if (message.type === 'start_list') {
             const data = message.data;
             if (data) {
