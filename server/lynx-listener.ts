@@ -777,16 +777,7 @@ export class LynxListener extends EventEmitter {
     const eventName = cleanEventName(data.DN || '');
     const time = data.T;
     const place = data.P;
-    // FinishLynx relay packets use HIP field instead of L for lane
-    const lane = data.L || data.HIP;
-    
-    // Accept entries with lane/hip, name, bib, or first/last name (relay format)
-    const hasEntryData = lane || data.N || data.BIB || data.FN || data.LN || data.HIP;
-    
-    // Verbose logging for debugging - log each entry received
-    if (hasEntryData) {
-      console.log(`[Lynx:Track] Event ${eventNum} Heat ${heat}: Lane=${lane} HIP=${data.HIP} Name=${data.N || ''} FN=${data.FN || ''} LN=${data.LN || ''} Bib=${data.BIB || ''}`);
-    }
+    const lane = data.L;
     
     // Persist event name by event number so it's available for results
     if (eventName) {
@@ -817,7 +808,7 @@ export class LynxListener extends EventEmitter {
       // Don't return - continue to aggregate athlete entries with running times
     }
     
-    if (hasEntryData) {
+    if (lane || data.N || data.BIB) {
       const key = this.getAggregationKey(eventNum, heat, 'T', round, portName);
       let aggregated = this.aggregatedEvents.get(key);
       
@@ -847,9 +838,6 @@ export class LynxListener extends EventEmitter {
       
       const athleteName = data.N || (data.FN && data.LN ? `${data.FN} ${data.LN}` : undefined);
       
-      // Verbose logging for debugging relay entry issues
-      console.log(`[Lynx:Track] Event ${eventNum} Heat ${heat}: Lane=${lane} Bib="${data.BIB || ''}" Name="${athleteName || ''}" AF="${data.AF || ''}"`);
-      
       const entry: LynxTrackResult = {
         place: place,
         lane: lane,
@@ -865,10 +853,9 @@ export class LynxListener extends EventEmitter {
         lastName: data.LN,
       };
       
-      // Match by lane OR by non-empty bib (empty bib shouldn't match everything)
       const existingIdx = aggregated.entries.findIndex(
         e => (e as LynxTrackResult).lane === entry.lane || 
-             (entry.bib && entry.bib !== '' && (e as LynxTrackResult).bib === entry.bib)
+             (e as LynxTrackResult).bib === entry.bib
       );
       
       if (existingIdx >= 0) {

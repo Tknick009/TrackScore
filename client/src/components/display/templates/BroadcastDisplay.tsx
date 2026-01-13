@@ -261,10 +261,20 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
     currentPageResults.push(null as any);
   }
   
-  // For scrolling mode (no times entered yet) - don't pad with nulls
+  // For scrolling mode (no times entered yet)
   const currentScrollingEntries = entriesForScrolling.slice(pageIndex * 6, (pageIndex + 1) * 6);
+  while (currentScrollingEntries.length < 6) {
+    currentScrollingEntries.push(null as any);
+  }
   
-  const renderScrollingEntry = (entry: ResultEntry) => {
+  const renderScrollingEntry = (entry: ResultEntry | null) => {
+    if (!entry) {
+      return (
+        <div className="flex-1 min-w-0 flex flex-col items-center justify-center px-2 py-3">
+          <span className="text-gray-300 text-lg">-</span>
+        </div>
+      );
+    }
     
     const isRelay = isRelayEntry(entry);
     const displayName = formatName(entry);
@@ -426,10 +436,10 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -50 }}
                   transition={{ duration: 0.4, ease: "easeInOut" }}
-                  className="flex gap-4 flex-1 justify-around items-stretch"
+                  className="flex gap-2 flex-1"
                 >
-                  {currentScrollingEntries.map((entry: ResultEntry, idx: number) => (
-                    <div key={`scroll-${pageIndex}-${idx}`} className="flex-1 min-w-0 max-w-[200px]">
+                  {currentScrollingEntries.map((entry: ResultEntry | null, idx: number) => (
+                    <div key={`scroll-${pageIndex}-${idx}`} className="flex-1 min-w-0">
                       {renderScrollingEntry(entry)}
                     </div>
                   ))}
