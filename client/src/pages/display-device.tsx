@@ -254,6 +254,33 @@ export default function DisplayDevice() {
     queryKey: ['/api/meets'],
   });
 
+  // Fetch scene template mappings for the current meet
+  // These map (displayType, displayMode) → sceneId
+  const { data: sceneMappings = [] } = useQuery<Array<{
+    id: number;
+    meetId: string;
+    displayType: string;
+    displayMode: string;
+    sceneId: number;
+  }>>({
+    queryKey: [`/api/scene-template-mappings/${state.meetId}`],
+    enabled: !!state.meetId && state.setupComplete,
+  });
+
+  // Keep mappings in a ref so WebSocket handler can access latest values
+  const sceneMappingsRef = useRef(sceneMappings);
+  useEffect(() => {
+    sceneMappingsRef.current = sceneMappings;
+  }, [sceneMappings]);
+
+  // Helper to look up sceneId from mappings (uses ref for WebSocket handler access)
+  const getSceneForModeRef = useRef((displayType: string, displayMode: string): number | null => {
+    const mapping = sceneMappingsRef.current.find(
+      m => m.displayType === displayType && m.displayMode === displayMode
+    );
+    return mapping?.sceneId || null;
+  });
+
   const selectedMeetIdRef = useRef<string | null>(null);
   const isConnectingRef = useRef(false);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -403,33 +430,86 @@ export default function DisplayDevice() {
             }
           }
           
-          // Layout command from FinishLynx - switch templates based on ResulTV commands
-          // Maps FinishLynx layout names to template IDs that match renderer pattern checks
+          // Layout command from FinishLynx - switch scenes based on Scene Layout Mapping
+          // Maps FinishLynx layout names to displayMode, then looks up scene from mappings
           if (message.type === 'layout_command') {
             const layoutName = message.data?.layoutName?.toLowerCase() || '';
             console.log(`[Display] Layout command from FinishLynx: "${layoutName}"`);
             
-            // Map FinishLynx layout names to template IDs that match renderer checks:
-            // - 'running-time' matches templateId.includes('running-time')
-            // - 'live-results' matches templateId.includes('results') and templateId.includes('live-results')  
-            // - 'BigBoard' matches templateId.includes('BigBoard') for start lists
-            // - 'meet-logo' matches isMeetLogo check
-            let template: string | null = null;
+            // Map FinishLynx layout names to displayMode values used in Scene Layout Mappings:
+            // start_list, running_time, track_results, field_results, field_standings, team_scores
+            let displayMode: string | null = null;
             if (layoutName.includes('running') || layoutName.includes('time')) {
-              template = 'running-time';
+              displayMode = 'running_time';
             } else if (layoutName.includes('result')) {
-              template = 'live-results';
+              displayMode = 'track_results';
             } else if (layoutName.includes('start') || layoutName.includes('draw')) {
-              template = 'BigBoard'; // Start list uses BigBoard to show athlete grid
-            } else if (layoutName.includes('idle') || layoutName.includes('meettitle') || layoutName.includes('logo')) {
-              template = 'meet-logo';
+              displayMode = 'start_list';
+            } else if (layoutName.includes('field') && layoutName.includes('standing')) {
+              displayMode = 'field_standings';
+            } else if (layoutName.includes('field')) {
+              displayMode = 'field_results';
+            } else if (layoutName.includes('team') || layoutName.includes('score')) {
+              displayMode = 'team_scores';
             }
             
-            if (template) {
-              console.log(`[Display] Switching to template: ${template}`);
+            if (displayMode && displayType) {
+              // Look up the scene from Scene Layout Mappings (use ref for current values)
+              const sceneId = getSceneForModeRef.current(displayType, displayMode);
+              console.log(`[Display] Mode "${displayMode}" → Scene ID: ${sceneId || 'none (using default template)'}`);
+              
+              if (sceneId) {
+                // Use the configured scene - prefetch scene data for instant rendering
+                (async () => {
+                  try {
+                    const [sceneRes, objectsRes] = await Promise.all([
+                      fetch(`/api/layout-scenes/${sceneId}`),
+                      fetch(`/api/layout-objects?sceneId=${sceneId}`),
+                    ]);
+                    if (sceneRes.ok && objectsRes.ok) {
+                      const scene = await sceneRes.json();
+                      const objects = await objectsRes.json();
+                      // Hydrate React Query cache for instant SceneCanvas rendering
+                      queryClient.setQueryData(['/api/layout-scenes', sceneId], scene);
+                      queryClient.setQueryData(['/api/layout-objects', { sceneId }], objects);
+                      console.log(`[Display] Prefetched scene ${sceneId} data for instant switch`);
+                      setState(prev => ({
+                        ...prev,
+                        currentSceneId: sceneId,
+                        currentSceneData: { scene, objects },
+                        currentTemplate: null,
+                      }));
+                    }
+                  } catch (e) {
+                    console.warn('[Display] Failed to prefetch scene data:', e);
+                    setState(prev => ({
+                      ...prev,
+                      currentSceneId: sceneId,
+                      currentTemplate: null,
+                    }));
+                  }
+                })();
+              } else {
+                // No scene configured - fall back to default template behavior
+                let fallbackTemplate: string | null = null;
+                if (displayMode === 'running_time') fallbackTemplate = 'running-time';
+                else if (displayMode === 'track_results') fallbackTemplate = 'live-results';
+                else if (displayMode === 'start_list') fallbackTemplate = 'BigBoard';
+                
+                if (fallbackTemplate) {
+                  setState(prev => ({
+                    ...prev,
+                    currentTemplate: fallbackTemplate,
+                    currentSceneId: null,
+                  }));
+                }
+              }
+            } else if (layoutName.includes('idle') || layoutName.includes('meettitle') || layoutName.includes('logo')) {
+              // Logo/idle mode - use meet-logo template
               setState(prev => ({
                 ...prev,
-                currentTemplate: template,
+                currentTemplate: 'meet-logo',
+                currentSceneId: null,
               }));
             }
           }
