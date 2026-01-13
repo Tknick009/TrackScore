@@ -706,33 +706,13 @@ export class LynxListener extends EventEmitter {
     
     this.isRunning = false;
     
-    const key = this.getAggregationKey(eventNum, heat, 'S', round, portName);
-    let aggregated = this.aggregatedEvents.get(key);
-    
     // Use persisted event name if DN not in this message
     const resolvedEventName = eventName || this.eventNamesByNumber.get(eventNum);
     
-    if (!aggregated) {
-      const now = Date.now();
-      aggregated = {
-        eventNumber: eventNum,
-        heat,
-        round,
-        distance,
-        eventName: resolvedEventName,
-        status,
-        entries: [],
-        lastUpdate: now,
-        firstUpdate: now,
-        type: 'S',
-      };
-      this.aggregatedEvents.set(key, aggregated);
-    } else if (resolvedEventName && !aggregated.eventName) {
-      aggregated.eventName = resolvedEventName;
-    }
-    
+    // Build single entry from this packet (NO AGGREGATION - just pass through raw data)
+    const entries: LynxStartListEntry[] = [];
     if (data.L || data.N || data.BIB) {
-      const entry: LynxStartListEntry = {
+      entries.push({
         place: data.P,
         lane: data.L,
         bib: data.BIB,
@@ -740,23 +720,14 @@ export class LynxListener extends EventEmitter {
         affiliation: data.AF,
         firstName: data.FN,
         lastName: data.LN,
-      };
-      
-      const existingIdx = aggregated.entries.findIndex(
-        e => (e as LynxStartListEntry).lane === entry.lane || 
-             (e as LynxStartListEntry).bib === entry.bib
-      );
-      
-      if (existingIdx >= 0) {
-        aggregated.entries[existingIdx] = entry;
-      } else {
-        aggregated.entries.push(entry);
-      }
-      
-      aggregated.lastUpdate = Date.now();
+      });
     }
     
-    this.scheduleAggregationEmit(key);
+    // Emit immediately - let FinishLynx control paging, no aggregation
+    this.emit('start-list', eventNum, heat, entries, {
+      eventName: resolvedEventName,
+      distance,
+    });
   }
 
   private handleTrackMessage(data: any, packet: LynxPacket, portName?: string) {
@@ -782,6 +753,7 @@ export class LynxListener extends EventEmitter {
     if (lane) packet.laneNumber = parseInt(lane);
     
     const wasRunning = this.isRunning;
+    const resolvedEventName = eventName || this.eventNamesByNumber.get(eventNum);
     
     if (status === 'ARMED') {
       this.isRunning = false;
@@ -797,37 +769,10 @@ export class LynxListener extends EventEmitter {
       if (time) {
         this.emit('clock-update', eventNum, time, true);
       }
-      // Don't return - continue to aggregate athlete entries with running times
     }
     
+    // Build single entry from this packet (NO AGGREGATION - just pass through raw data)
     if (lane || data.N || data.BIB) {
-      const key = this.getAggregationKey(eventNum, heat, 'T', round, portName);
-      let aggregated = this.aggregatedEvents.get(key);
-      
-      // Use persisted event name if DN not in this message
-      const resolvedEventName = eventName || this.eventNamesByNumber.get(eventNum);
-      
-      if (!aggregated) {
-        const now = Date.now();
-        aggregated = {
-          eventNumber: eventNum,
-          heat,
-          round,
-          distance,
-          eventName: resolvedEventName,
-          status,
-          wind,
-          entries: [],
-          lastUpdate: now,
-          firstUpdate: now,
-          type: 'T',
-        };
-        this.aggregatedEvents.set(key, aggregated);
-      } else if (resolvedEventName && !aggregated.eventName) {
-        // Update eventName if we have it now and didn't before
-        aggregated.eventName = resolvedEventName;
-      }
-      
       const athleteName = data.N || (data.FN && data.LN ? `${data.FN} ${data.LN}` : undefined);
       
       const entry: LynxTrackResult = {
@@ -845,19 +790,7 @@ export class LynxListener extends EventEmitter {
         lastName: data.LN,
       };
       
-      const existingIdx = aggregated.entries.findIndex(
-        e => (e as LynxTrackResult).lane === entry.lane || 
-             (e as LynxTrackResult).bib === entry.bib
-      );
-      
-      if (existingIdx >= 0) {
-        aggregated.entries[existingIdx] = entry;
-      } else {
-        aggregated.entries.push(entry);
-      }
-      
-      aggregated.lastUpdate = Date.now();
-      
+      // Emit result event for individual results
       if (place && time) {
         this.isRunning = false;
         this.emit('result', 
@@ -869,7 +802,17 @@ export class LynxListener extends EventEmitter {
         );
       }
       
-      this.scheduleAggregationEmit(key);
+      // Emit track-mode-change immediately with single entry (NO AGGREGATION)
+      const mode = (place && time) ? 'results' : (this.isRunning ? 'running' : 'start_list');
+      this.emit('track-mode-change', eventNum, mode, {
+        eventNumber: eventNum,
+        heat,
+        round,
+        distance,
+        wind,
+        eventName: resolvedEventName,
+        entries: [entry],
+      });
     }
   }
 

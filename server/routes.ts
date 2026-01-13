@@ -6020,9 +6020,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Set up Lynx listener event handlers - store data by event number
+  // Set up Lynx listener event handlers - SIMPLIFIED: just pass through raw data from FinishLynx
   lynxListener.on('track-mode-change', async (eventNumber, mode, data) => {
-    console.log(`[Lynx] Track mode change: Event ${eventNumber} → ${mode}`, data);
+    console.log(`[Lynx] Track mode change: Event ${eventNumber} → ${mode} (raw pass-through)`);
     liveState.trackMode = mode;
     liveState.currentEventNumber = eventNumber;
     liveState.isArmed = data.armed || false;
@@ -6037,147 +6037,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await broadcastCurrentEvent();
         }
       }
-      
-      // Get existing data to preserve eventName if not provided (e.g., running mode)
-      const existingData = await storage.getLiveEventData(eventNumber);
-      
-      // Compute values for display/broadcast - only use actual names from FinishLynx, no fallbacks
-      const eventNameToUse = data.eventName || existingData?.eventName || '';
-      const distanceToUse = data.distance || existingData?.distance;
-      
-      // For running mode with no event data, only update if record exists - don't create with fallback
-      if (mode === 'running' && !data.eventName && !data.entries && !data.results && !existingData) {
-        // Skip creating a new record for just clock updates with no existing data
-        // The actual event data will come later with proper eventName
-        console.log(`[Lynx] Skipping running mode update - no existing data and no event info for Event ${eventNumber}`);
-      } else if (mode === 'start_list') {
-        // Skip upserting entries for start_list mode - the 'start-list' handler
-        // already handles aggregation of individual athlete entries from FinishLynx
-        // We only update non-entry fields here if needed (eventName, distance, etc.)
-        if (data.eventName || data.distance) {
-          await storage.upsertLiveEventData({
-            eventNumber,
-            eventType: 'track',
-            mode,
-            heat: data.heat || existingData?.heat || 1,
-            totalHeats: existingData?.totalHeats || 1,
-            round: data.round || existingData?.round || 1,
-            flight: 1,
-            wind: data.wind ?? existingData?.wind,
-            status: data.status ?? existingData?.status,
-            distance: distanceToUse,
-            eventName: data.eventName || existingData?.eventName,
-            entries: existingData?.entries || [], // PRESERVE existing aggregated entries
-            runningTime: data.time,
-            isArmed: data.armed || false,
-            isRunning: false,
-          });
-        }
-      } else {
-        // Get total heats from database for this event
-        let dbTotalHeats = 1;
-        if (matchingEvents.length > 0) {
-          const roundStr = data.round ? String(data.round).toLowerCase() : undefined;
-          dbTotalHeats = await storage.getTotalHeatsForEvent(matchingEvents[0].id, roundStr);
-        }
-        
-        // Store live event data to database
-        await storage.upsertLiveEventData({
-          eventNumber,
-          eventType: 'track',
-          mode,
-          heat: data.heat || existingData?.heat || 1,
-          totalHeats: dbTotalHeats, // Total heats from database for "Heat X of Y" display
-          round: data.round || existingData?.round || 1,
-          flight: 1,
-          wind: data.wind ?? existingData?.wind,
-          status: data.status ?? existingData?.status,
-          distance: distanceToUse,
-          eventName: data.eventName || existingData?.eventName, // Only use existing/provided, not fallback
-          entries: data.entries || data.results || existingData?.entries || [],
-          runningTime: data.time,
-          isArmed: data.armed || false,
-          isRunning: mode === 'running',
-        });
-      }
 
-      // Broadcast display mode change
+      // Broadcast display mode change with raw data from FinishLynx - NO AGGREGATION
       broadcastToDisplays({
         type: 'track_mode_change',
         data: {
           eventNumber,
           mode,
-          ...data,
+          ...data, // Pass through all raw data from FinishLynx
         }
       });
       
       // Auto-mode: Switch display templates based on track mode
-      // Determine the auto state from the incoming data
       let autoState: TrackAutoState = 'idle';
-      
       if (mode === 'start_list') {
-        autoState = 'armed'; // Start list = armed state
+        autoState = 'armed';
       } else if (mode === 'running') {
         autoState = 'running';
       } else if (mode === 'results') {
         autoState = 'results';
       }
       
-      // Get total heats from database for "Heat X of Y" display
-      let totalHeats = 1;
-      if (matchingEvents.length > 0) {
-        // Normalize round to string (could be number or string from FinishLynx)
-        const roundStr = data.round ? String(data.round).toLowerCase() : undefined;
-        totalHeats = await storage.getTotalHeatsForEvent(matchingEvents[0].id, roundStr);
-      }
-      
-      // Build live event data for displays - use preserved eventName
-      // For start_list mode, fetch stored entries from database (aggregated by start-list handler)
-      const storedData = await storage.getLiveEventData(eventNumber);
-      let entriesToBroadcast = mode === 'start_list' 
-        ? (storedData?.entries || data.entries || [])
-        : (data.entries || data.results || storedData?.entries || []);
-      
-      // If no entries yet and we have matching events, fetch from imported entries table
-      if ((!entriesToBroadcast || (entriesToBroadcast as any[]).length === 0) && matchingEvents.length > 0) {
-        const heat = data.heat || storedData?.heat || 1;
-        try {
-          // Fetch entries from the imported data for this event/heat
-          const importedEntries = await storage.getEntriesWithDetails(matchingEvents[0].id);
-          if (importedEntries.length > 0) {
-            // Filter by heat if applicable and convert to broadcast format
-            // Use finalHeat or preliminaryHeat based on availability
-            const heatEntries = importedEntries.filter(e => {
-              const entryHeat = e.finalHeat || e.preliminaryHeat;
-              return !entryHeat || entryHeat === heat;
-            });
-            entriesToBroadcast = heatEntries.map(e => {
-              const lane = e.finalLane || e.preliminaryLane;
-              return {
-                lane: lane?.toString() || '',
-                bib: e.athlete?.bibNumber || '',
-                name: e.athlete ? `${e.athlete.firstName} ${e.athlete.lastName}` : '',
-                firstName: e.athlete?.firstName || '',
-                lastName: e.athlete?.lastName || '',
-                affiliation: e.team?.name || '',
-              };
-            });
-            console.log(`[Lynx] Fetched ${entriesToBroadcast.length} entries from imported data for event ${eventNumber}, heat ${heat}`);
-          }
-        } catch (err) {
-          console.error('[Lynx] Error fetching imported entries:', err);
-        }
-      }
-      
+      // Build live event data with raw entries from FinishLynx - NO AGGREGATION
       const liveEventData = {
         eventNumber,
-        eventName: eventNameToUse,
-        heat: data.heat || storedData?.heat || 1,
-        totalHeats, // Total heats from database for "Heat X of Y" display
-        round: data.round || storedData?.round || 1,
-        entries: entriesToBroadcast,
+        eventName: data.eventName || '',
+        heat: data.heat || 1,
+        totalHeats: 1,
+        round: data.round || 1,
+        entries: data.entries || [], // Raw entries from FinishLynx
         wind: data.wind,
-        distance: distanceToUse,
+        distance: data.distance,
         status: data.status,
         mode,
       };
@@ -6185,10 +6075,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Broadcast to matching meet if events exist, otherwise broadcast to ALL auto-mode displays
       if (matchingEvents.length > 0) {
         const meetId = matchingEvents[0].meetId;
-        // Event name comes from FinishLynx (eventNameToUse) - never override with database name
         broadcastAutoModeUpdate(meetId, autoState, liveEventData);
       } else {
-        // No matching events configured - broadcast to all auto-mode enabled displays
         console.log(`[Auto-Mode] No event config for event #${eventNumber}, broadcasting to all auto-mode displays: ${autoState}`);
         connectedDisplayDevices.forEach((device, deviceId) => {
           if (device.autoMode) {
@@ -6591,82 +6479,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   lynxListener.on('start-list', async (eventNumber, heat, entries, metadata) => {
-    console.log(`[Lynx] Start list: Event ${eventNumber}, Heat ${heat}, ${entries.length} entries`);
+    console.log(`[Lynx] Start list: Event ${eventNumber}, Heat ${heat}, ${entries.length} entries (raw pass-through)`);
     
-    try {
-      // Get existing entries for this event to merge (FinishLynx often sends one athlete at a time)
-      const existing = await storage.getLiveEventData(eventNumber);
-      let aggregatedEntries = [...entries];
-      
-      // If we have existing entries for the same heat, merge them
-      if (existing && existing.heat === heat && Array.isArray(existing.entries)) {
-        const existingEntries = existing.entries as any[];
-        // Merge: update existing lanes, add new ones
-        for (const newEntry of entries) {
-          const laneKey = newEntry.lane || newEntry.bib;
-          const existingIdx = existingEntries.findIndex((e: any) => 
-            (e.lane && e.lane === newEntry.lane) || (e.bib && e.bib === newEntry.bib)
-          );
-          if (existingIdx >= 0) {
-            existingEntries[existingIdx] = { ...existingEntries[existingIdx], ...newEntry };
-          } else {
-            existingEntries.push(newEntry);
-          }
-        }
-        // Sort by lane number
-        aggregatedEntries = existingEntries.sort((a: any, b: any) => {
-          const laneA = parseInt(a.lane) || 0;
-          const laneB = parseInt(b.lane) || 0;
-          return laneA - laneB;
-        });
-      }
-      
-      // Use metadata for eventName/distance if provided, otherwise preserve from existing
-      const eventName = metadata?.eventName || existing?.eventName;
-      const distance = metadata?.distance || existing?.distance;
-      
-      // Store aggregated start list to database
-      await storage.upsertLiveEventData({
+    // NO AGGREGATION - just broadcast exactly what FinishLynx sends
+    // FinishLynx controls paging, we just display what it sends
+    const eventName = metadata?.eventName || '';
+    const distance = metadata?.distance || '';
+    
+    // Broadcast raw data immediately - let FinishLynx control the display
+    broadcastToDisplays({
+      type: 'start_list',
+      data: {
         eventNumber,
-        eventType: 'track',
-        mode: 'start_list',
         heat,
-        totalHeats: existing?.totalHeats || 1,
-        round: existing?.round || 1,
-        flight: 1,
-        distance,
+        entries, // Raw entries from FinishLynx, no aggregation
         eventName,
-        entries: aggregatedEntries,
-        isArmed: true,
-        isRunning: false,
-      });
-      
-      // Broadcast aggregated start list
-      broadcastToDisplays({
-        type: 'start_list',
-        data: {
-          eventNumber,
-          heat,
-          entries: aggregatedEntries,
-        }
-      } as WSMessage);
-      
-      // Trigger auto-mode update AFTER aggregation is complete
-      // This fixes the race condition where track-mode-change triggered auto-mode
-      // before the start-list aggregation finished writing to storage
-      const liveEventData = {
-        eventNumber,
-        eventName: eventName || '',
-        heat,
-        totalHeats: existing?.totalHeats || 1,
-        round: existing?.round || 1,
-        entries: aggregatedEntries,
         distance,
-        status: 'start_list',
-        mode: 'start_list',
-      };
-      
-      // Find matching events to get meetId for auto-mode targeting
+      }
+    } as WSMessage);
+    
+    // Build live event data with raw entries for auto-mode
+    const liveEventData = {
+      eventNumber,
+      eventName,
+      heat,
+      totalHeats: 1,
+      round: 1,
+      entries, // Raw entries
+      distance,
+      status: 'start_list',
+      mode: 'start_list',
+    };
+    
+    // Trigger auto-mode update with raw data
+    try {
       const matchingEvents = await storage.getEventsByLynxEventNumber(eventNumber);
       if (matchingEvents.length > 0) {
         const meetId = matchingEvents[0].meetId;
@@ -6684,17 +6530,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
     } catch (error) {
-      console.error('[Lynx] Error storing start list:', error);
-      
-      // Still broadcast what we received even if storage fails
-      broadcastToDisplays({
-        type: 'start_list',
-        data: {
-          eventNumber,
-          heat,
-          entries,
-        }
-      } as WSMessage);
+      console.error('[Lynx] Error in start-list handler:', error);
     }
   });
 
