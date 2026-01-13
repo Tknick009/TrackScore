@@ -6049,15 +6049,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const importedEntries = await storage.getEntriesWithDetails(matchingEvents[0].id);
           if (importedEntries.length > 0) {
             // Filter by heat if applicable and convert to broadcast format
-            const heatEntries = importedEntries.filter(e => !e.heat || e.heat === heat);
-            entriesToBroadcast = heatEntries.map(e => ({
-              lane: e.lane?.toString() || '',
-              bib: e.athlete?.bibNumber || '',
-              name: e.athlete ? `${e.athlete.firstName} ${e.athlete.lastName}` : '',
-              firstName: e.athlete?.firstName || '',
-              lastName: e.athlete?.lastName || '',
-              affiliation: e.athlete?.school || e.athlete?.teamName || '',
-            }));
+            // Use finalHeat or preliminaryHeat based on availability
+            const heatEntries = importedEntries.filter(e => {
+              const entryHeat = e.finalHeat || e.preliminaryHeat;
+              return !entryHeat || entryHeat === heat;
+            });
+            entriesToBroadcast = heatEntries.map(e => {
+              const lane = e.finalLane || e.preliminaryLane;
+              return {
+                lane: lane?.toString() || '',
+                bib: e.athlete?.bibNumber || '',
+                name: e.athlete ? `${e.athlete.firstName} ${e.athlete.lastName}` : '',
+                firstName: e.athlete?.firstName || '',
+                lastName: e.athlete?.lastName || '',
+                affiliation: e.team?.name || '',
+              };
+            });
             console.log(`[Lynx] Fetched ${entriesToBroadcast.length} entries from imported data for event ${eventNumber}, heat ${heat}`);
           }
         } catch (err) {
@@ -6151,15 +6158,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const heat = storedLiveData?.heat || 1;
           const importedEntries = await storage.getEntriesWithDetails(matchingEventsForEntries[0].id);
           if (importedEntries.length > 0) {
-            const heatEntries = importedEntries.filter(e => !e.heat || e.heat === heat);
-            clockLiveEntries = heatEntries.map(e => ({
-              lane: e.lane?.toString() || '',
-              bib: e.athlete?.bibNumber || '',
-              name: e.athlete ? `${e.athlete.firstName} ${e.athlete.lastName}` : '',
-              firstName: e.athlete?.firstName || '',
-              lastName: e.athlete?.lastName || '',
-              affiliation: e.athlete?.school || e.athlete?.teamName || '',
-            }));
+            const heatEntries = importedEntries.filter(e => {
+              const entryHeat = e.finalHeat || e.preliminaryHeat;
+              return !entryHeat || entryHeat === heat;
+            });
+            clockLiveEntries = heatEntries.map(e => {
+              const lane = e.finalLane || e.preliminaryLane;
+              return {
+                lane: lane?.toString() || '',
+                bib: e.athlete?.bibNumber || '',
+                name: e.athlete ? `${e.athlete.firstName} ${e.athlete.lastName}` : '',
+                firstName: e.athlete?.firstName || '',
+                lastName: e.athlete?.lastName || '',
+                affiliation: e.team?.name || '',
+              };
+            });
             console.log(`[Lynx Clock] Fetched ${clockLiveEntries.length} entries from imported data for event ${eventNumber}`);
           }
         }

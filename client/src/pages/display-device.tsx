@@ -419,14 +419,14 @@ export default function DisplayDevice() {
               setState(prev => ({
                 ...prev,
                 liveEventData: {
-                  ...prev.liveEventData,
                   eventNumber: data.eventNumber,
-                  eventName: data.eventName || prev.liveEventData?.eventName,
+                  eventName: data.eventName || prev.liveEventData?.eventName || '',
                   heat: data.heat ?? prev.liveEventData?.heat,
                   totalHeats: data.totalHeats ?? prev.liveEventData?.totalHeats,
                   round: data.round ?? prev.liveEventData?.round,
                   mode: data.mode,
                   wind: data.wind,
+                  distance: data.distance || prev.liveEventData?.distance,
                   entries: data.entries || data.results || prev.liveEventData?.entries || [],
                 },
               }));
@@ -441,11 +441,14 @@ export default function DisplayDevice() {
               setState(prev => ({
                 ...prev,
                 liveEventData: {
-                  ...prev.liveEventData,
                   eventNumber: data.eventNumber,
-                  eventName: data.eventName,
+                  eventName: data.eventName || prev.liveEventData?.eventName || '',
+                  heat: prev.liveEventData?.heat,
+                  totalHeats: prev.liveEventData?.totalHeats,
+                  round: prev.liveEventData?.round,
                   mode: data.mode,
                   wind: data.wind,
+                  distance: prev.liveEventData?.distance,
                   entries: data.results || [],
                 },
               }));
@@ -460,11 +463,15 @@ export default function DisplayDevice() {
               setState(prev => ({
                 ...prev,
                 liveEventData: {
-                  ...prev.liveEventData,
                   eventNumber: data.eventNumber,
+                  eventName: data.eventName || prev.liveEventData?.eventName || '',
                   heat: data.heat,
+                  totalHeats: data.totalHeats || prev.liveEventData?.totalHeats,
+                  round: data.round || prev.liveEventData?.round,
                   mode: 'start_list',
                   entries: data.entries || [],
+                  wind: prev.liveEventData?.wind,
+                  distance: prev.liveEventData?.distance,
                 },
               }));
             }
