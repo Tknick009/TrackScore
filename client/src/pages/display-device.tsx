@@ -403,6 +403,33 @@ export default function DisplayDevice() {
             }
           }
           
+          // Layout command from FinishLynx - switch templates based on ResulTV commands
+          // Maps layout names to templates: Running->running_time, Results->results, StartList->start_list, Idle->logo
+          if (message.type === 'layout_command') {
+            const layoutName = message.data?.layoutName?.toLowerCase() || '';
+            console.log(`[Display] Layout command from FinishLynx: ${layoutName}`);
+            
+            // Map FinishLynx layout names to our template names
+            let template: string | null = null;
+            if (layoutName.includes('running') || layoutName.includes('time')) {
+              template = 'running_time';
+            } else if (layoutName.includes('result')) {
+              template = 'results';
+            } else if (layoutName.includes('start')) {
+              template = 'start_list';
+            } else if (layoutName.includes('idle') || layoutName.includes('meettitle') || layoutName.includes('logo')) {
+              template = 'logo';
+            }
+            
+            if (template) {
+              console.log(`[Display] Switching to template: ${template}`);
+              setState(prev => ({
+                ...prev,
+                currentTemplate: template,
+              }));
+            }
+          }
+          
           // Handle scene updates for real-time layout changes
           if (message.type === 'scene_update') {
             const sceneId = message.data?.sceneId;

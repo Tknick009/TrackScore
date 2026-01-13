@@ -13,6 +13,7 @@ interface LynxListenerEvents {
   'track-mode-change': (eventNumber: number, mode: TrackDisplayMode, data: any) => void;
   'field-mode-change': (eventNumber: number, mode: FieldDisplayMode, data: any) => void;
   'clock-update': (eventNumber: number, time: string, command: string) => void;
+  'layout-command': (layoutName: string) => void;  // ResulTV layout switching command
   'result': (eventNumber: number, lane: number, place: number, time: string, athleteName?: string) => void;
   'field-result': (eventNumber: number, athleteName: string, place: number, mark: string, attemptNumber: number, attempts?: string) => void;
   'field-athlete-up': (eventNumber: number, athleteName: string, attemptNumber: number, mark?: string) => void;
@@ -446,6 +447,17 @@ export class LynxListener extends EventEmitter {
   
   private parseLine(line: string, config: PortConfig) {
     const sanitized = this.sanitizeForJson(line);
+    
+    // Check for ResulTV layout command: Command=LayoutDraw;Name=XXX;
+    // This tells us when FinishLynx wants the display to switch layouts
+    const layoutMatch = sanitized.match(/Command=LayoutDraw;Name=([^;]+)/i);
+    if (layoutMatch) {
+      const layoutName = layoutMatch[1].trim();
+      console.log(`[Lynx] Layout command from FinishLynx: ${layoutName}`);
+      this.emit('layout-command', layoutName);
+      // Don't return - continue processing in case there's other data on this line
+    }
+    
     const packet: LynxPacket = {
       sourcePort: config.port,
       portType: config.portType,

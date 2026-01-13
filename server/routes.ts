@@ -6102,6 +6102,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } as WSMessage);
   });
 
+  // Layout command handler - FinishLynx tells us when to switch layouts
+  // Uses ResulTV-style Command=LayoutDraw;Name=XXX; format
+  lynxListener.on('layout-command', (layoutName) => {
+    console.log(`[Lynx] Broadcasting layout command: ${layoutName}`);
+    
+    // Broadcast layout switch command to all connected displays
+    broadcastToDisplays({
+      type: 'layout_command',
+      data: {
+        layoutName,
+      }
+    } as any);
+  });
+
   lynxListener.on('result', async (eventNumber, lane, place, time, athleteName) => {
     console.log(`[Lynx] Result: Event ${eventNumber}, Lane ${lane}, Place ${place}, Time ${time}`);
     
