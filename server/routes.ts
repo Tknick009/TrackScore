@@ -5873,20 +5873,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Helper to sanitize entries for start list - remove timing/place fields
-  function sanitizeStartListEntries(entries: any[]): any[] {
-    if (!entries || !Array.isArray(entries)) return [];
-    return entries.map(e => ({
-      lane: e.lane || '',
-      bib: e.bib || '',
-      name: e.name || '',
-      firstName: e.firstName || '',
-      lastName: e.lastName || '',
-      affiliation: e.affiliation || '',
-      // Explicitly exclude: time, place, result, delta, status, mark
-    }));
-  }
-
   // Set up Lynx listener event handlers - store data by event number
   lynxListener.on('track-mode-change', async (eventNumber, mode, data) => {
     console.log(`[Lynx] Track mode change: Event ${eventNumber} → ${mode}`, data);
@@ -5918,28 +5904,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // The actual event data will come later with proper eventName
         console.log(`[Lynx] Skipping running mode update - no existing data and no event info for Event ${eventNumber}`);
       } else if (mode === 'start_list') {
-        // For start_list mode, ALWAYS sanitize entries to remove any times/places from previous heats
-        // Sanitize any existing entries to strip time/place data
-        const sanitizedEntries = sanitizeStartListEntries(existingData?.entries as any[] || []);
-        
-        await storage.upsertLiveEventData({
-          eventNumber,
-          eventType: 'track',
-          mode,
-          heat: data.heat || existingData?.heat || 1,
-          totalHeats: existingData?.totalHeats || 1,
-          round: data.round || existingData?.round || 1,
-          flight: 1,
-          wind: data.wind ?? existingData?.wind,
-          status: data.status ?? existingData?.status,
-          distance: distanceToUse,
-          eventName: data.eventName || existingData?.eventName,
-          entries: sanitizedEntries, // SANITIZED entries - no times/places
-          runningTime: undefined, // Clear running time for start list
-          isArmed: data.armed || false,
-          isRunning: false,
-        });
-        console.log(`[Lynx] Sanitized ${sanitizedEntries.length} entries for start_list mode (removed times/places)`);
+        // Skip upserting entries for start_list mode - the 'start-list' handler
+        // already handles aggregation of individual athlete entries from FinishLynx
+        // We only update non-entry fields here if needed (eventName, distance, etc.)
+        if (data.eventName || data.distance) {
+          await storage.upsertLiveEventData({
+            eventNumber,
+            eventType: 'track',
+            mode,
+            heat: data.heat || existingData?.heat || 1,
+            totalHeats: existingData?.totalHeats || 1,
+            round: data.round || existingData?.round || 1,
+            flight: 1,
+            wind: data.wind ?? existingData?.wind,
+            status: data.status ?? existingData?.status,
+            distance: distanceToUse,
+            eventName: data.eventName || existingData?.eventName,
+            entries: existingData?.entries || [], // PRESERVE existing aggregated entries
+            runningTime: data.time,
+            isArmed: data.armed || false,
+            isRunning: false,
+          });
+        }
       } else {
         // Get total heats from database for this event
         let dbTotalHeats = 1;
@@ -6027,11 +6013,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } catch (err) {
           console.error('[Lynx] Error fetching imported entries:', err);
         }
-      }
-      
-      // For start_list/armed mode, always sanitize entries to remove any residual times/places
-      if (mode === 'start_list') {
-        entriesToBroadcast = sanitizeStartListEntries(entriesToBroadcast as any[]);
       }
       
       const liveEventData = {
@@ -6137,22 +6118,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
     
-    // Determine if we're in armed state (clock at zero)
-    const timeValue = parseFloat(time.replace(/[^\d.]/g, '')) || 0;
-    const clockIsAtZero = timeValue < 0.5;
-    
-    // If armed state, sanitize entries to remove any times/places from previous events
-    const entriesToUse = clockIsAtZero 
-      ? sanitizeStartListEntries(clockLiveEntries)
-      : clockLiveEntries;
-    
     const liveEventData = storedLiveData ? {
       eventNumber,
       eventName: storedLiveData.eventName || '',
       heat: storedLiveData.heat || 1,
       totalHeats: storedLiveData.totalHeats || 1,
       round: storedLiveData.round || 1,
-      entries: entriesToUse,
+      entries: clockLiveEntries,
       wind: storedLiveData.wind,
       distance: storedLiveData.distance,
       status: storedLiveData.mode,
@@ -6176,9 +6148,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } else if (isRunning) {
       // Check if clock is at 0.0 (armed/ready state) - stay on start list
-      // clockIsAtZero was already computed above for entry sanitization
+      // Parse time to check if it's essentially zero (0.0, 0:00.0, etc.)
+      const timeValue = parseFloat(time.replace(/[^\d.]/g, '')) || 0;
+      const isAtZero = timeValue < 0.5; // Consider anything under 0.5 seconds as "at zero"
       
-      if (clockIsAtZero) {
+      if (isAtZero) {
         // Clock at 0.0 = armed state, show start list
         const matchingEvents = await storage.getEventsByLynxEventNumber(eventNumber);
         if (matchingEvents.length > 0) {
@@ -6544,7 +6518,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Auto-start Lynx listeners from saved configs or environment variables
-  // NOTE: Requires Reserved VM deployment (not Autoscale) to expose multiple ports
   (async () => {
     try {
       // First try to load saved configs from database

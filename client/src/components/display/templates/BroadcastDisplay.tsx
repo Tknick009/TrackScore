@@ -36,7 +36,6 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
   const [displayClock, setDisplayClock] = useState("00:00:00");
   const lastSecondsRef = useRef<number>(-1);
   
-  // Use entries directly from props - the server already aggregates them
   const rawEntries = liveEventData?.entries || (liveEventData as any)?.results || [];
   
   const resultsWithTimes = rawEntries.filter(
@@ -150,42 +149,11 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
     return `${num}${suffix}`;
   };
   
-  // Detect if this is a relay entry (team name, no individual athlete)
-  const isRelayEntry = (entry: ResultEntry) => {
-    // Relay entries typically have: no bib, firstName empty but lastName = team name
-    // Or name equals lastName (both are team names)
-    if (!entry.bib || entry.bib === '') {
-      // No firstName but has lastName suggests team name in lastName field
-      if (!entry.firstName && entry.lastName) {
-        return true;
-      }
-      // If name and lastName are the same, it's a team name
-      if (entry.name && entry.lastName && entry.name.trim() === entry.lastName.trim()) {
-        return true;
-      }
-    }
-    return false;
-  };
-  
   const formatName = (entry: ResultEntry) => {
-    // For relay entries, show the team name without abbreviating
-    if (isRelayEntry(entry)) {
-      // Use lastName (team name) or name field directly
-      const teamName = entry.lastName || entry.name || '';
-      if (teamName) {
-        return teamName;
-      }
-      // Fall back to affiliation
-      if (entry.affiliation) {
-        return entry.affiliation;
-      }
-    }
-    
-    // For individual athletes with firstName and lastName
     if (entry.firstName && entry.lastName) {
       return `${entry.firstName.charAt(0)}. ${entry.lastName}`;
     }
-    // Parse "FirstName LastName" format from name field (for individual athletes)
+    // Parse "FirstName LastName" format from name field
     const name = entry.name?.trim();
     if (name) {
       const parts = name.split(/\s+/);
@@ -276,13 +244,10 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
       );
     }
     
-    const isRelay = isRelayEntry(entry);
     const displayName = formatName(entry);
-    // For relays: show team abbreviation (affiliation) below the full team name
-    // For individuals: show school/team affiliation below the athlete name
-    const showAffiliation = entry.affiliation && !isRelay;
-    // For relays, show the team code as secondary info
-    const showTeamCode = isRelay && entry.affiliation;
+    // Don't show affiliation separately if it's already being used as the display name (relays)
+    const hasIndividualName = entry.name || entry.firstName || entry.lastName;
+    const showAffiliation = entry.affiliation && hasIndividualName;
     
     return (
       <div className="flex-1 min-w-0 flex flex-col items-center justify-start px-1 py-1 uppercase">
@@ -301,11 +266,6 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
             {entry.affiliation}
           </span>
         )}
-        {showTeamCode && (
-          <span className="text-lg text-gray-500 truncate w-full text-center leading-tight">
-            {entry.affiliation}
-          </span>
-        )}
       </div>
     );
   };
@@ -319,12 +279,10 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
       );
     }
     
-    const isRelay = isRelayEntry(entry);
     const displayName = formatName(entry);
-    // For relays: show team abbreviation below, for individuals: show school affiliation
-    const showAffiliation = entry.affiliation && !isRelay;
-    // For relays, show the team code as secondary info
-    const showTeamCode = isRelay && entry.affiliation;
+    // Don't show affiliation separately if it's already being used as the display name (relays)
+    const hasIndividualName = entry.name || entry.firstName || entry.lastName;
+    const showAffiliation = entry.affiliation && hasIndividualName;
     
     return (
       <div className="flex-1 min-w-0 flex flex-col items-center justify-start px-1 py-1 uppercase">
@@ -338,11 +296,6 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
         </div>
         {showAffiliation && (
           <span className="text-xl text-gray-600 truncate w-full text-center leading-tight">
-            {entry.affiliation}
-          </span>
-        )}
-        {showTeamCode && (
-          <span className="text-lg text-gray-500 truncate w-full text-center leading-tight">
             {entry.affiliation}
           </span>
         )}
