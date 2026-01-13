@@ -157,22 +157,10 @@ export class ResulTVParser extends EventEmitter {
       return;
     }
     
-    if (data.length < 2) {
-      // Try parsing as plain text clock
-      if (portType === 'clock') {
-        this.parseClockText(text);
-      }
-      return;
-    }
+    if (data.length < 2) return;
     
     const groupCode = data[0];
     const varCode = data[1];
-    
-    // Debug logging for first few bytes
-    if (process.env.DEBUG_LYNX) {
-      const hexBytes = Array.from(data.slice(0, 10)).map(b => b.toString(16).padStart(2, '0')).join(' ');
-      console.log(`[ResulTV] ${portType}: group=0x${groupCode.toString(16)} var=0x${varCode.toString(16)} bytes=[${hexBytes}] text="${text.slice(0, 30)}"`);
-    }
     
     switch (groupCode) {
       case 0x10:  // Initialize
@@ -206,8 +194,6 @@ export class ResulTVParser extends EventEmitter {
         // May be plain text data - check for time format
         if (portType === 'clock') {
           this.parseClockText(text);
-        } else if (process.env.DEBUG_LYNX) {
-          console.log(`[ResulTV] Unknown group code 0x${groupCode.toString(16)} from ${portType}`);
         }
     }
   }

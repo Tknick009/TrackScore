@@ -8,7 +8,6 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { MeetProvider, useMeet } from "@/contexts/MeetContext";
 import { UpdateNotification } from "@/components/update-notification";
 import { WebSocketProvider } from "@/contexts/WebSocketContext";
-import { LynxDataProvider } from "@/contexts/LynxDataContext";
 import { useEffect } from "react";
 import MeetsList from "@/pages/meets-list";
 import MeetDetail from "@/pages/meet-detail";
@@ -47,7 +46,6 @@ import FieldApp from "@/pages/field-app";
 import FieldEventsControl from "@/pages/field-events-control";
 import ExternalScoreboards from "@/pages/external-scoreboards";
 import CloudSync from "@/pages/cloud-sync";
-import LynxLiveDisplay from "@/pages/lynx-live-display";
 import NotFound from "@/pages/not-found";
 
 function MeetSyncWrapper({ meetId, children }: { meetId: string; children: React.ReactNode }) {
@@ -153,7 +151,6 @@ function Router() {
       <Route path="/scene-display" component={SceneDisplay} />
       <Route path="/preset-display/:templateId" component={PresetDisplay} />
       <Route path="/display" component={DisplayDevice} />
-      <Route path="/lynx-live" component={LynxLiveDisplay} />
       <Route path="/field-app" component={FieldApp} />
       <Route path="/field/:accessCode" component={FieldOfficialPage} />
       <Route path="/field" component={FieldOfficialPage} />
@@ -204,14 +201,12 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <WebSocketProvider>
-          <LynxDataProvider>
-            <MeetProvider>
-              <SidebarProvider style={sidebarStyle as React.CSSProperties}>
-                <AppContent />
-              </SidebarProvider>
-              <Toaster />
-            </MeetProvider>
-          </LynxDataProvider>
+          <MeetProvider>
+            <SidebarProvider style={sidebarStyle as React.CSSProperties}>
+              <AppContent />
+            </SidebarProvider>
+            <Toaster />
+          </MeetProvider>
         </WebSocketProvider>
       </TooltipProvider>
     </QueryClientProvider>

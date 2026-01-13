@@ -5284,17 +5284,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } as WSMessage);
   });
 
-  // Broadcast clock updates - send both new and legacy formats
+  // Broadcast clock updates
   resultvParser.on('clock', (time: string, isRunning: boolean) => {
-    // New format
     broadcastToDisplays({
       type: 'lynx_clock',
       data: { time, isRunning }
-    } as WSMessage);
-    // Legacy format for existing displays
-    broadcastToDisplays({
-      type: 'live_time',
-      time: time
     } as WSMessage);
   });
 
