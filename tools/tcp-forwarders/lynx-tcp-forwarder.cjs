@@ -164,7 +164,15 @@ function processResultsData(line) {
   try {
     const jsonString = cleanLynxJson(line);
     if (!jsonString) {
-      console.log(`[${new Date().toLocaleTimeString()}] [RESULTS] Non-JSON: ${line.substring(0, 50)}...`);
+      // Forward non-JSON lines too - they may contain layout commands like:
+      // Command=LayoutDraw;Name=Running;
+      // Command=LayoutDraw;Name=Results;
+      if (line.includes('Command=') || line.includes('LayoutDraw')) {
+        console.log(`[${new Date().toLocaleTimeString()}] [RESULTS] Layout command: ${line.substring(0, 60)}...`);
+        forwardToServer(line.trim(), 'results', 'FinishLynx Results');
+      } else {
+        console.log(`[${new Date().toLocaleTimeString()}] [RESULTS] Non-JSON: ${line.substring(0, 50)}...`);
+      }
       return;
     }
     
