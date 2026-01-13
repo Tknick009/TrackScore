@@ -160,26 +160,17 @@ function cleanLynxJson(line) {
 }
 
 // Process race results data from FinishLynx
+// IMPORTANT: Forward the ENTIRE raw line - don't strip layout commands!
 function processResultsData(line) {
   try {
-    const jsonString = cleanLynxJson(line);
-    if (!jsonString) {
-      // Forward non-JSON lines too - they may contain layout commands like:
-      // Command=LayoutDraw;Name=Running;
-      // Command=LayoutDraw;Name=Results;
-      if (line.includes('Command=') || line.includes('LayoutDraw')) {
-        console.log(`[${new Date().toLocaleTimeString()}] [RESULTS] Layout command: ${line.substring(0, 60)}...`);
-        forwardToServer(line.trim(), 'results', 'FinishLynx Results');
-      } else {
-        console.log(`[${new Date().toLocaleTimeString()}] [RESULTS] Non-JSON: ${line.substring(0, 50)}...`);
-      }
-      return;
-    }
-    
-    // Forward to online server
-    forwardToServer(jsonString, 'results', 'FinishLynx Results');
+    // Always forward the complete raw line - server will parse it
+    // This ensures layout commands like "Command=LayoutDraw;Name=StartList;" are not lost
+    // even if they're mixed with JSON on the same line
+    const preview = line.length > 80 ? line.substring(0, 80) + '...' : line;
+    console.log(`[${new Date().toLocaleTimeString()}] [RESULTS] RAW: ${preview}`);
+    forwardToServer(line.trim(), 'results', 'FinishLynx Results');
   } catch (err) {
-    console.error('[RESULTS] Parse error:', err.message);
+    console.error('[RESULTS] Forward error:', err.message);
     console.error('[RESULTS] Raw line:', line.substring(0, 150));
   }
 }
