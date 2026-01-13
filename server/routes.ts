@@ -6018,10 +6018,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   lynxListener.on('layout-command', (layoutName) => {
     console.log(`[Lynx] Layout command: ${layoutName}`);
     
-    // Clear accumulated entries when a new page starts (layout command received)
+    // Clear accumulated entries ONLY on exact "Start List" command (page boundary)
     // FinishLynx sends "Command=LayoutDraw;Name=Start List;" before each page of entries
+    // Don't clear on "Results" or other commands - that's a different display mode
     const normalizedLayout = layoutName.toLowerCase().trim();
-    if (normalizedLayout.includes('start') || normalizedLayout.includes('list') || normalizedLayout.includes('result')) {
+    if (normalizedLayout === 'start list' || normalizedLayout === 'startlist') {
       console.log(`[Lynx] Clearing entry accumulator for new page (${entryAccumulator.entries.length} entries cleared)`);
       entryAccumulator.entries = [];
       entryAccumulator.lastLayoutCommand = layoutName;
@@ -6265,6 +6266,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Start list handler - ACCUMULATES entries as they arrive one-by-one
   // Layout command "Start List" clears the accumulator, then entries fill in
   // Display reads entries[0] for Line 1, entries[1] for Line 2, etc.
+  // IMPORTANT: FinishLynx sends entries in display order - DO NOT sort!
   lynxListener.on('start-list', (eventNumber, heat, entries, metadata) => {
     // Update accumulator metadata
     entryAccumulator.eventNumber = eventNumber;
@@ -6272,21 +6274,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     entryAccumulator.eventName = metadata?.eventName || entryAccumulator.eventName;
     entryAccumulator.distance = metadata?.distance || entryAccumulator.distance;
     
-    // Accumulate new entries (typically comes one at a time from FinishLynx)
+    // Accumulate new entries in arrival order (FinishLynx sends them in display order)
+    // Skip empty entries (blank lane, bib, name)
     for (const entry of entries) {
-      entryAccumulator.entries.push(entry);
+      const hasContent = entry.lane || entry.bib || entry.name;
+      if (hasContent) {
+        entryAccumulator.entries.push(entry);
+      }
     }
     
     console.log(`[Lynx] Start list: Event ${eventNumber}, Heat ${heat}, +${entries.length} entries, total: ${entryAccumulator.entries.length}`);
     
-    // Broadcast the FULL accumulated entries array
+    // Broadcast entries in arrival order (FinishLynx controls display order)
     // Display maps by array position: Line 1 = entries[0], Line 2 = entries[1], etc.
     broadcastToDisplays({
       type: 'start_list',
       data: {
         eventNumber,
         heat,
-        entries: entryAccumulator.entries, // Full accumulated array
+        entries: entryAccumulator.entries, // Arrival order = display order
         eventName: entryAccumulator.eventName,
         distance: entryAccumulator.distance,
       }
