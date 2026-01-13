@@ -448,6 +448,22 @@ export async function syncFromCloud(
     
     onProgress?.({ stage: 'complete', message: 'Sync complete!' });
     
+    // Save the cloud URL for update checking
+    try {
+      const configPath = path.join(DATA_DIR, 'edge-config.json');
+      if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+      }
+      const config = {
+        cloudUrl: normalizedUrl,
+        edgeId: `edge-${Date.now()}`,
+        lastSync: new Date().toISOString(),
+      };
+      fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+    } catch (e) {
+      // Non-critical - continue even if config save fails
+    }
+    
     return {
       success: true,
       meetName: meet.name,
