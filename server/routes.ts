@@ -5323,6 +5323,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     activeFieldEvents: new Map<number, { mode: FieldDisplayMode; athleteName?: string; attemptNumber?: number; mark?: string }>(),
   };
 
+  // Entry accumulator: FinishLynx sends entries one-by-one, we accumulate them
+  // Reset on layout-command "Start List", then accumulate entries as they arrive
+  // Display reads entries[0] for Line 1, entries[1] for Line 2, etc.
+  const entryAccumulator = {
+    entries: [] as any[],
+    eventNumber: 0,
+    heat: 1,
+    eventName: '',
+    distance: '',
+    lastLayoutCommand: '',
+  };
+
   // Get Lynx connection status (used by UI)
   app.get("/api/lynx/status", async (req, res) => {
     try {
@@ -6002,8 +6014,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Layout command handler - FinishLynx tells us when to switch layouts
   // Uses ResulTV-style Command=LayoutDraw;Name=XXX; format
+  // IMPORTANT: "Start List" command signals start of a new page - clear accumulated entries
   lynxListener.on('layout-command', (layoutName) => {
-    console.log(`[Lynx] Broadcasting layout command: ${layoutName}`);
+    console.log(`[Lynx] Layout command: ${layoutName}`);
+    
+    // Clear accumulated entries when a new page starts (layout command received)
+    // FinishLynx sends "Command=LayoutDraw;Name=Start List;" before each page of entries
+    const normalizedLayout = layoutName.toLowerCase().trim();
+    if (normalizedLayout.includes('start') || normalizedLayout.includes('list') || normalizedLayout.includes('result')) {
+      console.log(`[Lynx] Clearing entry accumulator for new page (${entryAccumulator.entries.length} entries cleared)`);
+      entryAccumulator.entries = [];
+      entryAccumulator.lastLayoutCommand = layoutName;
+    }
     
     // Broadcast layout switch command to all connected displays
     broadcastToDisplays({
@@ -6240,21 +6262,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } as WSMessage);
   });
   
-  // Start list handler - SIMPLIFIED: just pass through raw data from FinishLynx
-  // Layout switching is now controlled by FinishLynx via layout-command events
+  // Start list handler - ACCUMULATES entries as they arrive one-by-one
+  // Layout command "Start List" clears the accumulator, then entries fill in
+  // Display reads entries[0] for Line 1, entries[1] for Line 2, etc.
   lynxListener.on('start-list', (eventNumber, heat, entries, metadata) => {
-    console.log(`[Lynx] Start list: Event ${eventNumber}, Heat ${heat}, ${entries.length} entries (raw pass-through)`);
+    // Update accumulator metadata
+    entryAccumulator.eventNumber = eventNumber;
+    entryAccumulator.heat = heat;
+    entryAccumulator.eventName = metadata?.eventName || entryAccumulator.eventName;
+    entryAccumulator.distance = metadata?.distance || entryAccumulator.distance;
     
-    // NO AGGREGATION - just broadcast exactly what FinishLynx sends
-    // FinishLynx controls paging and layout switching via layout-command
+    // Accumulate new entries (typically comes one at a time from FinishLynx)
+    for (const entry of entries) {
+      entryAccumulator.entries.push(entry);
+    }
+    
+    console.log(`[Lynx] Start list: Event ${eventNumber}, Heat ${heat}, +${entries.length} entries, total: ${entryAccumulator.entries.length}`);
+    
+    // Broadcast the FULL accumulated entries array
+    // Display maps by array position: Line 1 = entries[0], Line 2 = entries[1], etc.
     broadcastToDisplays({
       type: 'start_list',
       data: {
         eventNumber,
         heat,
-        entries, // Raw entries from FinishLynx, no aggregation
-        eventName: metadata?.eventName || '',
-        distance: metadata?.distance || '',
+        entries: entryAccumulator.entries, // Full accumulated array
+        eventName: entryAccumulator.eventName,
+        distance: entryAccumulator.distance,
       }
     } as WSMessage);
   });
