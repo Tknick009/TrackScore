@@ -58,11 +58,17 @@ export function LiveResultsBoard({ event, meet, mode }: LiveResultsBoardProps) {
 }
 
 function TrackResultsDisplay({ event, mode }: { event: EventWithEntries; mode: string }) {
-  const sortedResults = [...event.entries].sort((a, b) => {
-    const aPos = a.finalPlace ?? 999;
-    const bPos = b.finalPlace ?? 999;
-    return aPos - bPos;
-  });
+  // CRITICAL: For start_list/running modes, preserve FinishLynx arrival order
+  // entries[0] = display Line 1, entries[1] = display Line 2, etc.
+  // Only sort for results/completed modes
+  const isStartListOrRunning = mode === 'start_list' || mode === 'running' || mode === 'armed';
+  const sortedResults = isStartListOrRunning 
+    ? [...event.entries]  // Preserve arrival order
+    : [...event.entries].sort((a, b) => {
+        const aPos = a.finalPlace ?? 999;
+        const bPos = b.finalPlace ?? 999;
+        return aPos - bPos;
+      });
 
   return (
     <div className="space-y-8">
@@ -165,11 +171,15 @@ function TrackResultsDisplay({ event, mode }: { event: EventWithEntries; mode: s
 }
 
 function FieldResultsDisplay({ event, mode }: { event: EventWithEntries; mode: string }) {
-  const sortedResults = [...event.entries].sort((a, b) => {
-    const aPos = a.finalPlace ?? 999;
-    const bPos = b.finalPlace ?? 999;
-    return aPos - bPos;
-  });
+  // CRITICAL: For start_list/running modes, preserve arrival order
+  const isStartListOrRunning = mode === 'start_list' || mode === 'running' || mode === 'armed';
+  const sortedResults = isStartListOrRunning 
+    ? [...event.entries]  // Preserve arrival order
+    : [...event.entries].sort((a, b) => {
+        const aPos = a.finalPlace ?? 999;
+        const bPos = b.finalPlace ?? 999;
+        return aPos - bPos;
+      });
 
   const headers = generateAttemptHeaders(sortedResults);
 
