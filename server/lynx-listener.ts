@@ -709,22 +709,21 @@ export class LynxListener extends EventEmitter {
     // Use persisted event name if DN not in this message
     const resolvedEventName = eventName || this.eventNamesByNumber.get(eventNum);
     
-    // Build single entry from this packet (NO AGGREGATION - just pass through raw data)
-    const entries: LynxStartListEntry[] = [];
-    if (data.L || data.N || data.BIB) {
-      entries.push({
-        place: data.P,
-        lane: data.L,
-        bib: data.BIB,
-        name: data.N,
-        affiliation: data.AF,
-        firstName: data.FN,
-        lastName: data.LN,
-      });
-    }
+    // NO AGGREGATION - pass through immediately
+    // FinishLynx controls all paging and sends line numbers that match layout placeholders
+    // Each packet is authoritative for its specific line number
+    const entry: LynxStartListEntry | null = (data.L || data.N || data.BIB) ? {
+      place: data.P,
+      lane: data.L,  // This is the line number from FinishLynx
+      bib: data.BIB,
+      name: data.N,
+      affiliation: data.AF,
+      firstName: data.FN,
+      lastName: data.LN,
+    } : null;
     
-    // Emit immediately - let FinishLynx control paging, no aggregation
-    this.emit('start-list', eventNum, heat, entries, {
+    // Emit immediately with single entry - display updates that line slot
+    this.emit('start-list', eventNum, heat, entry ? [entry] : [], {
       eventName: resolvedEventName,
       distance,
     });
