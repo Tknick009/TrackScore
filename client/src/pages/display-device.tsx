@@ -412,6 +412,7 @@ export default function DisplayDevice() {
           }
           
           // Handle track mode change updates from FinishLynx (event switching)
+          // NO SMART LOGIC - just pass through exactly what FinishLynx sends
           if (message.type === 'track_mode_change') {
             const data = message.data;
             if (data) {
@@ -427,7 +428,7 @@ export default function DisplayDevice() {
                   mode: data.mode,
                   wind: data.wind,
                   distance: data.distance || prev.liveEventData?.distance,
-                  entries: data.entries || data.results || prev.liveEventData?.entries || [],
+                  entries: data.entries || data.results || [],
                 },
               }));
             }
@@ -456,6 +457,7 @@ export default function DisplayDevice() {
           }
           
           // Handle start_list updates from FinishLynx (pre-race athlete list)
+          // NO SMART LOGIC - just pass through exactly what FinishLynx sends
           if (message.type === 'start_list') {
             const data = message.data;
             if (data) {
@@ -471,7 +473,7 @@ export default function DisplayDevice() {
                   mode: 'start_list',
                   entries: data.entries || [],
                   wind: prev.liveEventData?.wind,
-                  distance: prev.liveEventData?.distance,
+                  distance: data.distance || prev.liveEventData?.distance,
                 },
               }));
             }
