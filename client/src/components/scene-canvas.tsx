@@ -43,23 +43,29 @@ function StaticRunningClock({
 }
 
 // Robust logo component with proper error handling
-// Uses React state to track load failures instead of DOM manipulation
+// Falls back to 0.png when logo fails to load
 const LogoImage = memo(function LogoImage({ logoUrl, objectFit }: { logoUrl: string; objectFit: string }) {
-  const [failedUrls, setFailedUrls] = useState<Set<string>>(new Set());
+  const [currentUrl, setCurrentUrl] = useState(logoUrl);
+  const triedFallback = useRef(false);
+  
+  // Reset when logoUrl prop changes
+  useEffect(() => {
+    setCurrentUrl(logoUrl);
+    triedFallback.current = false;
+  }, [logoUrl]);
   
   const handleError = () => {
-    setFailedUrls(prev => new Set(prev).add(logoUrl));
+    // If the original URL failed and we haven't tried fallback yet, use 0.png
+    if (!triedFallback.current && currentUrl !== '/logos/NCAA/0.png') {
+      triedFallback.current = true;
+      setCurrentUrl('/logos/NCAA/0.png');
+    }
   };
-  
-  if (failedUrls.has(logoUrl)) {
-    // Show empty space when logo fails to load
-    return <div className="h-full" />;
-  }
   
   return (
     <div className="flex items-center justify-center h-full p-2">
       <img 
-        src={logoUrl} 
+        src={currentUrl} 
         alt="Logo" 
         className="max-w-full max-h-full object-contain"
         style={{ objectFit: objectFit as any }}
