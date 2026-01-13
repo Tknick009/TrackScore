@@ -711,16 +711,22 @@ export class LynxListener extends EventEmitter {
     // Use persisted event name if DN not in this message
     const resolvedEventName = eventName || this.eventNamesByNumber.get(eventNum);
     
+    // Log ALL status values to understand what FinishLynx sends
+    if (status) {
+      console.log(`[Lynx] Raw status for Event ${eventNum}: "${status}"`);
+    }
+    
     // Emit layout-command based on status field (FinishLynx tells us what to show)
     // Status values: ARMED = start list, RUNNING = running clock, UNOFFICIAL/OFFICIAL = results
     let layoutName: string | null = null;
-    if (status === 'ARMED') {
+    if (status === 'ARMED' || status === 'Armed' || status.toUpperCase() === 'ARMED') {
       layoutName = 'StartList';
       this.isRunning = false;
-    } else if (status === 'RUNNING') {
+    } else if (status === 'RUNNING' || status === 'Running' || status.toUpperCase() === 'RUNNING') {
       layoutName = 'Running';
       this.isRunning = true;
-    } else if (status === 'UNOFFICIAL' || status === 'OFFICIAL') {
+    } else if (status === 'UNOFFICIAL' || status === 'OFFICIAL' || 
+               status.toUpperCase() === 'UNOFFICIAL' || status.toUpperCase() === 'OFFICIAL') {
       layoutName = 'Results';
       this.isRunning = false;
     }
