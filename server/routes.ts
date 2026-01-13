@@ -72,6 +72,7 @@ import { parseEVTDirectory, getAthletesFromDirectory, type EVTEventSummary, type
 import { externalScoreboardService, buildFieldScoreboardPayload } from './external-scoreboard-service';
 import * as fs from 'fs';
 import * as path from 'path';
+import { APP_VERSION, VERSION_DATE, RELEASE_NOTES } from '@shared/version';
 
 // Check-in validation schemas
 const checkInSchema = z.object({
@@ -468,6 +469,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Register sync routes for edge-cloud synchronization
   app.use('/api/sync', syncRouter);
+
+  // ===== VERSION API =====
+  // Version endpoint for Edge Mode update checking
+  app.get("/api/version", (req, res) => {
+    res.json({
+      version: APP_VERSION,
+      date: VERSION_DATE,
+      releaseNotes: RELEASE_NOTES,
+      edgeMode: process.env.EDGE_MODE === 'true',
+    });
+  });
+
+  // Edge config endpoint - returns cloud URL for update checking
+  app.get("/api/edge-config", (req, res) => {
+    try {
+      const configPath = './data/edge-config.json';
+      if (fs.existsSync(configPath)) {
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+        res.json({ cloudUrl: config.cloudUrl || '', edgeId: config.edgeId || '' });
+      } else {
+        res.json({ cloudUrl: '', edgeId: '' });
+      }
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.put("/api/edge-config", (req, res) => {
+    try {
+      const { cloudUrl } = req.body;
+      const configPath = './data/edge-config.json';
+      const dataDir = './data';
+      
+      if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir, { recursive: true });
+      }
+      
+      let config: any = {};
+      if (fs.existsSync(configPath)) {
+        config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      }
+      
+      config.cloudUrl = cloudUrl || '';
+      fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+      res.json({ success: true, cloudUrl: config.cloudUrl });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
 
   // ===== PUBLIC SPECTATOR API =====
 

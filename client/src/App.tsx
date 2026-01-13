@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { MeetProvider, useMeet } from "@/contexts/MeetContext";
+import { UpdateNotification } from "@/components/update-notification";
 import { WebSocketProvider } from "@/contexts/WebSocketContext";
 import { useEffect } from "react";
 import MeetsList from "@/pages/meets-list";
@@ -179,7 +180,8 @@ function AppContent() {
         <header className="flex items-center justify-between p-2 border-b">
           <SidebarTrigger data-testid="button-sidebar-toggle" />
         </header>
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-auto p-4">
+          <UpdateNotification />
           <Router />
         </main>
       </div>
