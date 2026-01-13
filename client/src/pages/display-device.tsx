@@ -418,15 +418,89 @@ export default function DisplayDevice() {
             }));
           }
           
-          // Clock update - just pass through exactly what FinishLynx sends
+          // Clock update - pass through clock data and trigger layout switching
+          // When clock is running → switch to running_time layout
+          // When clock stops → clear clock (results layout triggered separately by layout_command)
           if (message.type === 'clock_update') {
             const data = message.data;
             if (data) {
-              setState(prev => ({
-                ...prev,
-                liveClockTime: data.time || '',
-                liveClockCommand: data.command || '',
-              }));
+              const command = (data.command || '').toLowerCase();
+              const time = data.time || '';
+              
+              // Detect if clock is actively running (has time data and not stopped/armed)
+              const isClockRunning = time && 
+                !command.includes('stop') && 
+                !command.includes('armed') &&
+                !command.includes('idle') &&
+                time !== '0:00.00' &&
+                time !== '00:00.00';
+              
+              // Detect if clock has stopped
+              const isClockStopped = command.includes('stop') || command.includes('finished');
+              
+              if (isClockRunning && displayType) {
+                // Clock is running - switch to running_time layout
+                const sceneId = getSceneForModeRef.current(displayType, 'running_time');
+                console.log(`[Display] Clock running - switching to running_time (Scene: ${sceneId || 'default'})`);
+                
+                if (sceneId) {
+                  // Fetch and switch to the running_time scene
+                  (async () => {
+                    try {
+                      const [sceneRes, objectsRes] = await Promise.all([
+                        fetch(`/api/layout-scenes/${sceneId}`),
+                        fetch(`/api/layout-objects?sceneId=${sceneId}`),
+                      ]);
+                      if (sceneRes.ok && objectsRes.ok) {
+                        const scene = await sceneRes.json();
+                        const objects = await objectsRes.json();
+                        queryClient.setQueryData(['/api/layout-scenes', sceneId], scene);
+                        queryClient.setQueryData(['/api/layout-objects', { sceneId }], objects);
+                        setState(prev => ({
+                          ...prev,
+                          liveClockTime: time,
+                          liveClockCommand: command,
+                          currentSceneId: sceneId,
+                          currentSceneData: { scene, objects },
+                          currentTemplate: null,
+                        }));
+                      }
+                    } catch (e) {
+                      setState(prev => ({
+                        ...prev,
+                        liveClockTime: time,
+                        liveClockCommand: command,
+                        currentSceneId: sceneId,
+                        currentTemplate: null,
+                      }));
+                    }
+                  })();
+                } else {
+                  // Fall back to running-time template
+                  setState(prev => ({
+                    ...prev,
+                    liveClockTime: time,
+                    liveClockCommand: command,
+                    currentTemplate: 'running-time',
+                    currentSceneId: null,
+                  }));
+                }
+              } else if (isClockStopped) {
+                // Clock stopped - clear the clock time (results will show via layout_command)
+                console.log(`[Display] Clock stopped - clearing clock display`);
+                setState(prev => ({
+                  ...prev,
+                  liveClockTime: null, // Clear clock so results can show
+                  liveClockCommand: command,
+                }));
+              } else {
+                // Just update the clock data without changing layout
+                setState(prev => ({
+                  ...prev,
+                  liveClockTime: time,
+                  liveClockCommand: command,
+                }));
+              }
             }
           }
           
