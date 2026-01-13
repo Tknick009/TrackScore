@@ -167,6 +167,7 @@ interface DisplayDeviceState {
   isConnected: boolean;
   setupComplete: boolean;
   liveClockTime: string | null;
+  liveClockCommand: string | null;  // Command from FinishLynx (e.g., 'armed')
   liveEventData: LiveEventData | null;
   pagingSize: number;
   pagingInterval: number;
@@ -238,6 +239,7 @@ export default function DisplayDevice() {
     isConnected: false,
     setupComplete: false,
     liveClockTime: null,
+    liveClockCommand: null,
     liveEventData: null,
     pagingSize: 8,
     pagingInterval: 5,
@@ -389,11 +391,16 @@ export default function DisplayDevice() {
             }));
           }
           
+          // Clock update - just pass through exactly what FinishLynx sends
           if (message.type === 'clock_update') {
-            setState(prev => ({
-              ...prev,
-              liveClockTime: message.data?.time || prev.liveClockTime,
-            }));
+            const data = message.data;
+            if (data) {
+              setState(prev => ({
+                ...prev,
+                liveClockTime: data.time || '',
+                liveClockCommand: data.command || '',
+              }));
+            }
           }
           
           // Handle scene updates for real-time layout changes

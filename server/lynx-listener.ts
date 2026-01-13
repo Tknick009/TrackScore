@@ -12,7 +12,7 @@ interface LynxListenerEvents {
   'packet': (packet: LynxPacket) => void;
   'track-mode-change': (eventNumber: number, mode: TrackDisplayMode, data: any) => void;
   'field-mode-change': (eventNumber: number, mode: FieldDisplayMode, data: any) => void;
-  'clock-update': (eventNumber: number, time: string, isRunning: boolean) => void;
+  'clock-update': (eventNumber: number, time: string, command: string) => void;
   'result': (eventNumber: number, lane: number, place: number, time: string, athleteName?: string) => void;
   'field-result': (eventNumber: number, athleteName: string, place: number, mark: string, attemptNumber: number, attempts?: string) => void;
   'field-athlete-up': (eventNumber: number, athleteName: string, attemptNumber: number, mark?: string) => void;
@@ -641,33 +641,13 @@ export class LynxListener extends EventEmitter {
       }
 
       // Handle clock data without a type field (e.g., {t: "0:12.34"} or {time: "0:12.34"})
+      // NO SMART LOGIC - just pass through exactly what FinishLynx sends
       if (!msgType && config.portType === 'clock') {
         const timeValue = data.t || data.time;
         const command = data.c;
         
-        if (command === 'armed') {
-          this.isRunning = false;
-          this.lastClockTime = '0:00.00';
-          this.emit('track-mode-change', this.currentEventNumber, 'start_list', { armed: true });
-          this.emit('clock-update', this.currentEventNumber, '0:00.00', false);
-        } else if (timeValue) {
-          const wasRunning = this.isRunning;
-          const isZero = timeValue === '0:00.00' || timeValue === '0.00' || timeValue === '00.00';
-          
-          if (!isZero && timeValue !== this.lastClockTime) {
-            this.isRunning = true;
-          } else if (isZero) {
-            this.isRunning = false;
-          }
-          
-          // Emit track-mode-change when transitioning to running
-          if (this.isRunning && !wasRunning) {
-            this.emit('track-mode-change', this.currentEventNumber, 'running', { time: timeValue });
-          }
-          
-          this.lastClockTime = timeValue;
-          this.emit('clock-update', this.currentEventNumber, timeValue, this.isRunning);
-        }
+        // Pass through raw clock data - no state tracking, no mode transitions
+        this.emit('clock-update', this.currentEventNumber, timeValue || '', command || '');
         return;
       }
 
@@ -766,7 +746,7 @@ export class LynxListener extends EventEmitter {
         this.emit('track-mode-change', eventNum, 'running', { heat, time });
       }
       if (time) {
-        this.emit('clock-update', eventNum, time, true);
+        this.emit('clock-update', eventNum, time, '');
       }
     }
     
@@ -942,23 +922,8 @@ export class LynxListener extends EventEmitter {
     const timeMatch = line.match(/(\d{1,2}:)?\d{1,2}\.\d{2,3}/);
     if (timeMatch) {
       packet.time = timeMatch[0];
-      const previousTime = this.lastClockTime;
-      const wasRunning = this.isRunning;
-      
-      const isZero = packet.time === '0:00.00' || packet.time === '0.00' || packet.time === '00.00';
-      
-      if (!isZero && packet.time !== previousTime) {
-        this.isRunning = true;
-      } else if (isZero) {
-        this.isRunning = false;
-      }
-      
-      if (this.isRunning && !wasRunning) {
-        this.emit('track-mode-change', this.currentEventNumber, 'running', { time: packet.time });
-      }
-      
-      this.lastClockTime = packet.time;
-      this.emit('clock-update', this.currentEventNumber, packet.time, this.isRunning);
+      // Just pass through the raw time - no smart logic
+      this.emit('clock-update', this.currentEventNumber, packet.time, '');
     }
 
     if (line.includes('ARM') || line.toLowerCase().includes('armed')) {

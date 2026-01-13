@@ -1775,7 +1775,7 @@ export type WSMessage =
   | { type: "devices_updated"; data: { meetId: string } }
   | { type: "display_assignment"; data: { deviceId: string; deviceName: string; eventId: string | null; event: any; meet: any } }
   | { type: "track_mode_change"; data: { eventNumber: number; mode: TrackDisplayMode; eventId?: string; [key: string]: any } }
-  | { type: "clock_update"; data: { eventNumber: number; time: string; isRunning: boolean } }
+  | { type: "clock_update"; data: { eventNumber: number; time: string; command?: string } }
   | { type: "result_received"; data: { eventNumber: number; lane: number; place: number; time: string; athleteName?: string } }
   | { type: "field_mode_change"; data: { eventNumber: number; mode: FieldDisplayMode; [key: string]: any } }
   | { type: "field_athlete_up"; data: { eventNumber: number; athleteName: string; attemptNumber: number; mark?: string } }

@@ -6089,167 +6089,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  lynxListener.on('clock-update', async (eventNumber, time, isRunning) => {
-    liveState.runningTime = time;
-    liveState.isRunning = isRunning;
-    
-    try {
-      // Update live event data with running time - preserve eventName and totalHeats from existing data
-      const existing = await storage.getLiveEventData(eventNumber);
-      if (existing) {
-        await storage.upsertLiveEventData({
-          eventNumber,
-          eventType: 'track',
-          mode: 'running',
-          heat: existing.heat || 1,
-          totalHeats: existing.totalHeats || 1, // Preserve totalHeats from previous data
-          round: existing.round || 1,
-          flight: 1,
-          runningTime: time,
-          isRunning,
-          entries: existing.entries || [],
-          eventName: existing.eventName, // Preserve eventName from previous data
-          distance: existing.distance, // Preserve distance
-        });
-      }
-    } catch (error) {
-      console.error('[Lynx] Error updating clock:', error);
-    }
-    
-    // Broadcast clock update
+  // Clock handler - NO SMART LOGIC, just pass through exactly what FinishLynx sends
+  lynxListener.on('clock-update', (eventNumber, time, command) => {
+    // Just broadcast the raw clock data to all displays
     broadcastToDisplays({
       type: 'clock_update',
       data: {
         eventNumber,
         time,
-        isRunning,
+        command,
       }
     } as WSMessage);
-    
-    // Auto-mode: Detect time-of-day vs running time
-    // Time of day format: HH:MM:SS (or longer), Running time format: M:SS.hh
-    // If time has exactly 2 colons or is very long, it's likely time-of-day
-    const isTimeOfDay = time.split(':').length >= 3 || time.length > 10;
-    
-    // Build live event data for instant template switching - fetch stored data
-    const storedLiveData = await storage.getLiveEventData(eventNumber);
-    let clockLiveEntries: any[] = storedLiveData?.entries as any[] || [];
-    
-    // If no entries in liveEventData, try to fetch from imported data
-    if (clockLiveEntries.length === 0) {
-      try {
-        const matchingEventsForEntries = await storage.getEventsByLynxEventNumber(eventNumber);
-        if (matchingEventsForEntries.length > 0) {
-          const heat = storedLiveData?.heat || 1;
-          const importedEntries = await storage.getEntriesWithDetails(matchingEventsForEntries[0].id);
-          if (importedEntries.length > 0) {
-            const heatEntries = importedEntries.filter(e => {
-              const entryHeat = e.finalHeat || e.preliminaryHeat;
-              return !entryHeat || entryHeat === heat;
-            });
-            clockLiveEntries = heatEntries.map(e => {
-              const lane = e.finalLane || e.preliminaryLane;
-              return {
-                lane: lane?.toString() || '',
-                bib: e.athlete?.bibNumber || '',
-                name: e.athlete ? `${e.athlete.firstName} ${e.athlete.lastName}` : '',
-                firstName: e.athlete?.firstName || '',
-                lastName: e.athlete?.lastName || '',
-                affiliation: e.team?.name || '',
-              };
-            });
-            console.log(`[Lynx Clock] Fetched ${clockLiveEntries.length} entries from imported data for event ${eventNumber}`);
-          }
-        }
-      } catch (err) {
-        console.error('[Lynx Clock] Error fetching imported entries:', err);
-      }
-    }
-    
-    const liveEventData = storedLiveData ? {
-      eventNumber,
-      eventName: storedLiveData.eventName || '',
-      heat: storedLiveData.heat || 1,
-      totalHeats: storedLiveData.totalHeats || 1,
-      round: storedLiveData.round || 1,
-      entries: clockLiveEntries,
-      wind: storedLiveData.wind,
-      distance: storedLiveData.distance,
-      status: storedLiveData.mode,
-      mode: storedLiveData.mode,
-    } : null;
-    
-    if (isTimeOfDay) {
-      // Time of day shown - switch to logo, but only if device isn't in an active event state
-      // Active states (armed, running, results) take priority over time_of_day display
-      connectedDisplayDevices.forEach((device, deviceId) => {
-        if (device.autoMode) {
-          const currentState = autoModeDeviceStates.get(deviceId);
-          // Only switch to time_of_day if currently idle or already showing time_of_day
-          // Don't override armed/running/results states
-          if (!currentState || currentState === 'idle' || currentState === 'time_of_day') {
-            if (currentState !== 'time_of_day') {
-              sendAutoModeUpdate(deviceId, 'time_of_day', liveEventData);
-            }
-          }
-        }
-      });
-    } else if (isRunning) {
-      // Check if clock is at 0.0 (armed/ready state) - stay on start list
-      // Parse time to check if it's essentially zero (0.0, 0:00.0, etc.)
-      const timeValue = parseFloat(time.replace(/[^\d.]/g, '')) || 0;
-      const isAtZero = timeValue < 0.5; // Consider anything under 0.5 seconds as "at zero"
-      
-      if (isAtZero) {
-        // Clock at 0.0 = armed state, show start list
-        const matchingEvents = await storage.getEventsByLynxEventNumber(eventNumber);
-        if (matchingEvents.length > 0) {
-          const meetId = matchingEvents[0].meetId;
-          connectedDisplayDevices.forEach((device, deviceId) => {
-            if (device.meetId === meetId && device.autoMode) {
-              const currentState = autoModeDeviceStates.get(deviceId);
-              if (currentState !== 'armed') {
-                sendAutoModeUpdate(deviceId, 'armed', liveEventData);
-              }
-            }
-          });
-        } else {
-          // No matching events - broadcast to all auto-mode displays
-          connectedDisplayDevices.forEach((device, deviceId) => {
-            if (device.autoMode) {
-              const currentState = autoModeDeviceStates.get(deviceId);
-              if (currentState !== 'armed') {
-                sendAutoModeUpdate(deviceId, 'armed', liveEventData);
-              }
-            }
-          });
-        }
-      } else {
-        // Clock is actually running (> 0) - switch to running time
-        const matchingEvents = await storage.getEventsByLynxEventNumber(eventNumber);
-        if (matchingEvents.length > 0) {
-          const meetId = matchingEvents[0].meetId;
-          connectedDisplayDevices.forEach((device, deviceId) => {
-            if (device.meetId === meetId && device.autoMode) {
-              const currentState = autoModeDeviceStates.get(deviceId);
-              if (currentState !== 'running') {
-                sendAutoModeUpdate(deviceId, 'running', liveEventData);
-              }
-            }
-          });
-        } else {
-          // No matching events - broadcast to all auto-mode displays
-          connectedDisplayDevices.forEach((device, deviceId) => {
-            if (device.autoMode) {
-              const currentState = autoModeDeviceStates.get(deviceId);
-              if (currentState !== 'running') {
-                sendAutoModeUpdate(deviceId, 'running', liveEventData);
-              }
-            }
-          });
-        }
-      }
-    }
   });
 
   lynxListener.on('result', async (eventNumber, lane, place, time, athleteName) => {
