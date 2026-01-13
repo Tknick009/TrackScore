@@ -8,6 +8,7 @@ import QRCode from "qrcode";
 import { storage } from "./storage";
 import { FileStorage } from "./file-storage";
 import { lynxListener } from "./lynx-listener";
+import { getResulTVParser } from "./parsers/resultv-parser";
 import type { TrackDisplayMode, FieldDisplayMode, LynxPortType, MeetLiveState, Meet, FieldEventUpdatePayload } from "@shared/schema";
 import {
   isHeightEvent,
@@ -5270,6 +5271,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===== RESULTV PARSER EVENT WIRING =====
+  // Wire up the ResulTV parser to broadcast events via WebSocket
+  const resultvParser = getResulTVParser();
+
+  // Broadcast layout commands to displays (scene switching)
+  resultvParser.on('layout-command', (layoutName: string, cmd: any) => {
+    console.log(`[ResulTV] Broadcasting layout-command: ${layoutName}`);
+    broadcastToDisplays({
+      type: 'layout-command',
+      data: { layout: layoutName, command: cmd }
+    } as WSMessage);
+  });
+
+  // Broadcast clock updates
+  resultvParser.on('clock', (time: string, isRunning: boolean) => {
+    broadcastToDisplays({
+      type: 'lynx_clock',
+      data: { time, isRunning }
+    } as WSMessage);
+  });
+
+  // Broadcast wind readings
+  resultvParser.on('wind', (wind: string) => {
+    broadcastToDisplays({
+      type: 'lynx_wind',
+      data: { wind }
+    } as WSMessage);
+  });
+
+  // Broadcast complete page state (debounced, with all entries)
+  resultvParser.on('page', (page: any) => {
+    broadcastToDisplays({
+      type: 'lynx_page',
+      data: page
+    } as WSMessage);
+  });
+
+  console.log('✅ ResulTV parser event handlers registered');
+
   // ===== LYNX DATA INGEST API =====
 
   // In-memory live state (will be persisted when we add database support)
@@ -5465,7 +5505,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Receive forwarded Lynx data from remote TCP forwarders
+  // Receive forwarded Lynx data from remote TCP forwarders (legacy JSON format)
   // This endpoint allows FinishLynx/FieldLynx data to be sent via HTTP
   // when direct TCP connection isn't possible (e.g., different networks)
   app.post("/api/lynx/forward", async (req, res) => {
@@ -5487,6 +5527,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true, processed: data.length });
     } catch (error: any) {
       console.error('[Lynx Forward] Error:', error.message);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // NEW: Receive raw bytes from TCP forwarder (ResulTV/LSS binary format)
+  // This is the new endpoint for the base64-encoded raw data
+  app.post("/api/lynx/raw", async (req, res) => {
+    try {
+      const { data, encoding, portType, timestamp } = req.body;
+      
+      if (!data || typeof data !== 'string') {
+        return res.status(400).json({ error: 'Missing or invalid data' });
+      }
+      
+      if (encoding !== 'base64') {
+        return res.status(400).json({ error: 'Invalid encoding. Must be base64' });
+      }
+      
+      const validPortTypes = ['clock', 'results', 'field'];
+      if (!portType || !validPortTypes.includes(portType)) {
+        return res.status(400).json({ error: 'Invalid portType. Must be one of: clock, results, field' });
+      }
+      
+      // Decode base64 to buffer
+      const rawBytes = Buffer.from(data, 'base64');
+      
+      // Process through the ResulTV parser
+      const parser = getResulTVParser();
+      parser.processRawData(rawBytes, portType);
+      
+      res.json({ success: true, bytesProcessed: rawBytes.length });
+    } catch (error: any) {
+      console.error('[Lynx Raw] Error:', error.message);
       res.status(500).json({ error: error.message });
     }
   });

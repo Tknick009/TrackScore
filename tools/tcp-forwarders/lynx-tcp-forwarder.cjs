@@ -1,19 +1,23 @@
 #!/usr/bin/env node
 
 /**
- * FinishLynx Dual TCP-to-HTTP Forwarder
+ * FinishLynx TCP-to-HTTP Forwarder
  * 
  * This script runs on the same computer as FinishLynx and:
- * 1. Listens for TCP race results on port 5555 (from FinishLynx)
- * 2. Listens for TCP clock data on port 5556 (from FinishLynx)
- * 3. Listens for TCP field results on port 5557 (from FieldLynx)
- * 4. Forwards all to your online scoring system via HTTP
+ * 1. Listens for TCP connections on configured ports
+ * 2. Forwards ALL raw data to the remote server via HTTP
+ * 3. Does NOT parse or modify the data - just forwards it
+ * 
+ * The server handles all parsing of the ResulTV/LSS format.
  * 
  * Usage:
  *   node lynx-tcp-forwarder.cjs
  *   
- * Or on Windows:
- *   lynx-forwarder.bat
+ * Environment variables:
+ *   FORWARD_URL - The server URL (default: http://localhost:5000)
+ *   RESULTS_PORT - Port for race results (default: 5555)
+ *   CLOCK_PORT - Port for clock data (default: 5556)
+ *   FIELD_PORT - Port for field results (default: 5557)
  */
 
 const net = require('net');
@@ -22,12 +26,7 @@ const https = require('https');
 
 // ========== CONFIGURATION ==========
 
-// Your online scoring system BASE URL
-// For local testing: http://localhost:5000
-// For Replit: https://your-app.replit.app
 const BASE_URL = process.env.FORWARD_URL || 'http://localhost:5000';
-
-// Ports - matching FinishLynx scoreboard settings
 const RESULTS_PORT = parseInt(process.env.RESULTS_PORT) || 5555;
 const CLOCK_PORT = parseInt(process.env.CLOCK_PORT) || 5556;
 const FIELD_PORT = parseInt(process.env.FIELD_PORT) || 5557;
@@ -37,282 +36,104 @@ const FIELD_PORT = parseInt(process.env.FIELD_PORT) || 5557;
 console.log('==============================================');
 console.log('  FinishLynx TCP-to-HTTP Forwarder');
 console.log('==============================================');
-console.log(`Results Port: ${RESULTS_PORT} → ${BASE_URL}/api/lynx/forward`);
-console.log(`Clock Port:   ${CLOCK_PORT} → ${BASE_URL}/api/lynx/forward`);
-console.log(`Field Port:   ${FIELD_PORT} → ${BASE_URL}/api/lynx/forward`);
+console.log(`Server URL: ${BASE_URL}`);
+console.log(`Results Port: ${RESULTS_PORT}`);
+console.log(`Clock Port:   ${CLOCK_PORT}`);
+console.log(`Field Port:   ${FIELD_PORT}`);
 console.log('');
 console.log('Waiting for FinishLynx connections...');
 console.log('==============================================');
 console.log('');
 
-// Parse the base URL
 const baseUrl = new URL(BASE_URL);
 const isHttps = baseUrl.protocol === 'https:';
 const httpModule = isHttps ? https : http;
 
-// ========== RESULTS SERVER (PORT 5555) ==========
-
-const resultsServer = net.createServer((socket) => {
-  console.log(`[${new Date().toLocaleTimeString()}] [RESULTS] FinishLynx connected from ${socket.remoteAddress}`);
-  
-  let buffer = '';
-  
-  socket.on('data', (data) => {
-    buffer += data.toString();
-    
-    const lines = buffer.split('\n');
-    buffer = lines.pop() || '';
-    
-    lines.forEach((line) => {
-      if (line.trim()) {
-        processResultsData(line.trim());
-      }
-    });
-  });
-  
-  socket.on('end', () => {
-    console.log(`[${new Date().toLocaleTimeString()}] [RESULTS] FinishLynx disconnected`);
-  });
-  
-  socket.on('error', (err) => {
-    console.error('[RESULTS] Socket error:', err.message);
-  });
-});
-
-// ========== CLOCK SERVER (PORT 5556) ==========
-
-const clockServer = net.createServer((socket) => {
-  console.log(`[${new Date().toLocaleTimeString()}] [CLOCK] FinishLynx connected from ${socket.remoteAddress}`);
-  
-  let buffer = '';
-  
-  socket.on('data', (data) => {
-    buffer += data.toString();
-    
-    const lines = buffer.split('\n');
-    buffer = lines.pop() || '';
-    
-    lines.forEach((line) => {
-      if (line.trim()) {
-        processClockData(line.trim());
-      }
-    });
-  });
-  
-  socket.on('end', () => {
-    console.log(`[${new Date().toLocaleTimeString()}] [CLOCK] FinishLynx disconnected`);
-  });
-  
-  socket.on('error', (err) => {
-    console.error('[CLOCK] Socket error:', err.message);
-  });
-});
-
-// ========== FIELD SERVER (PORT 5557) ==========
-
-const fieldServer = net.createServer((socket) => {
-  console.log(`[${new Date().toLocaleTimeString()}] [FIELD] FieldLynx connected from ${socket.remoteAddress}`);
-  
-  let buffer = '';
-  
-  socket.on('data', (data) => {
-    buffer += data.toString();
-    
-    const lines = buffer.split('\n');
-    buffer = lines.pop() || '';
-    
-    lines.forEach((line) => {
-      if (line.trim()) {
-        processFieldData(line.trim());
-      }
-    });
-  });
-  
-  socket.on('end', () => {
-    console.log(`[${new Date().toLocaleTimeString()}] [FIELD] FieldLynx disconnected`);
-  });
-  
-  socket.on('error', (err) => {
-    console.error('[FIELD] Socket error:', err.message);
-  });
-});
-
-// ========== DATA PROCESSORS ==========
-
-// Clean up FinishLynx formatting codes from JSON
-function cleanLynxJson(line) {
-  // Extract JSON from FinishLynx format
-  const jsonMatch = line.match(/\{.*\}/);
-  if (!jsonMatch) {
-    return null;
-  }
-  
-  // Clean up FinishLynx formatting codes
-  let jsonString = jsonMatch[0].replace(/\\[A-Z][0-9]+/g, '');
-  
-  // Fix common JSON issues from FinishLynx split data
-  jsonString = jsonString.replace(/\{\s*,/g, '{');
-  jsonString = jsonString.replace(/\[\s*,/g, '[');
-  jsonString = jsonString.replace(/,(\s*[}\]])/g, '$1');
-  jsonString = jsonString.replace(/:\s*,/g, ':null,');
-  
-  return jsonString;
-}
-
-// Process race results data from FinishLynx
-// IMPORTANT: Forward the ENTIRE raw line - don't strip layout commands!
-function processResultsData(line) {
-  try {
-    // Always forward the complete raw line - server will parse it
-    // This ensures layout commands like "Command=LayoutDraw;Name=StartList;" are not lost
-    // even if they're mixed with JSON on the same line
-    const preview = line.length > 80 ? line.substring(0, 80) + '...' : line;
-    console.log(`[${new Date().toLocaleTimeString()}] [RESULTS] RAW: ${preview}`);
-    forwardToServer(line.trim(), 'results', 'FinishLynx Results');
-  } catch (err) {
-    console.error('[RESULTS] Forward error:', err.message);
-    console.error('[RESULTS] Raw line:', line.substring(0, 150));
-  }
-}
-
-// Process clock data from FinishLynx
-function processClockData(line) {
-  try {
-    const jsonString = cleanLynxJson(line);
-    if (!jsonString) {
-      // Clock data might be plain text time like "12:34.56"
-      forwardToServer(line.trim(), 'clock', 'FinishLynx Clock');
-      return;
-    }
-    
-    // Forward JSON clock data
-    forwardToServer(jsonString, 'clock', 'FinishLynx Clock');
-  } catch (err) {
-    console.error('[CLOCK] Parse error:', err.message);
-  }
-}
-
-// Process field results data from FieldLynx
-function processFieldData(line) {
-  try {
-    const jsonString = cleanLynxJson(line);
-    if (!jsonString) {
-      console.log(`[${new Date().toLocaleTimeString()}] [FIELD] Non-JSON: ${line.substring(0, 50)}...`);
-      return;
-    }
-    
-    // Forward to online server
-    forwardToServer(jsonString, 'field', 'FieldLynx Results');
-  } catch (err) {
-    console.error('[FIELD] Parse error:', err.message);
-    console.error('[FIELD] Raw line:', line.substring(0, 150));
-  }
-}
-
-// ========== HTTP FORWARDER ==========
-
-// Forward data to remote HTTP server
-function forwardToServer(data, portType, portName) {
+/**
+ * Forward raw data to the server
+ * No parsing - just send the raw bytes as base64
+ */
+function forwardToServer(rawData, portType) {
   const payload = JSON.stringify({
-    data: data,
+    data: rawData.toString('base64'),
+    encoding: 'base64',
     portType: portType,
-    portName: portName
+    timestamp: Date.now()
   });
   
   const options = {
     hostname: baseUrl.hostname,
     port: baseUrl.port || (isHttps ? 443 : 80),
-    path: '/api/lynx/forward',
+    path: '/api/lynx/raw',
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Content-Length': Buffer.byteLength(payload)
     }
   };
-  
+
   const req = httpModule.request(options, (res) => {
-    let responseData = '';
-    
-    res.on('data', (chunk) => {
-      responseData += chunk;
-    });
-    
-    res.on('end', () => {
-      if (res.statusCode === 200) {
-        const preview = data.length > 60 ? data.substring(0, 60) + '...' : data;
-        console.log(`[${new Date().toLocaleTimeString()}] [${portType.toUpperCase()}] ✓ Forwarded: ${preview}`);
-      } else {
-        console.error(`[${new Date().toLocaleTimeString()}] [${portType.toUpperCase()}] ✗ Server error ${res.statusCode}: ${responseData}`);
-      }
-    });
+    // Silently consume response
+    res.on('data', () => {});
   });
-  
+
   req.on('error', (err) => {
-    console.error(`[${new Date().toLocaleTimeString()}] [${portType.toUpperCase()}] ✗ Forward failed: ${err.message}`);
+    console.error(`[${portType.toUpperCase()}] Forward error:`, err.message);
   });
-  
+
   req.write(payload);
   req.end();
 }
 
-// ========== START SERVERS ==========
-
-resultsServer.listen(RESULTS_PORT, '0.0.0.0', () => {
-  console.log(`✓ Results forwarder ready on port ${RESULTS_PORT}`);
-});
-
-clockServer.listen(CLOCK_PORT, '0.0.0.0', () => {
-  console.log(`✓ Clock forwarder ready on port ${CLOCK_PORT}`);
-});
-
-fieldServer.listen(FIELD_PORT, '0.0.0.0', () => {
-  console.log(`✓ Field forwarder ready on port ${FIELD_PORT}`);
-  console.log('');
-});
-
-// ========== SHUTDOWN HANDLING ==========
-
-process.on('SIGINT', () => {
-  console.log('\n\nShutting down...');
-  resultsServer.close(() => {
-    console.log('Results server closed');
-    clockServer.close(() => {
-      console.log('Clock server closed');
-      fieldServer.close(() => {
-        console.log('Field server closed');
-        process.exit(0);
-      });
+/**
+ * Create a TCP server that forwards all data to the remote server
+ */
+function createForwarder(port, portType) {
+  const server = net.createServer((socket) => {
+    console.log(`[${new Date().toLocaleTimeString()}] [${portType.toUpperCase()}] Connected from ${socket.remoteAddress}`);
+    
+    socket.on('data', (data) => {
+      // Log the size of data received
+      console.log(`[${new Date().toLocaleTimeString()}] [${portType.toUpperCase()}] Received ${data.length} bytes`);
+      
+      // Forward raw data immediately - no parsing
+      forwardToServer(data, portType);
+    });
+    
+    socket.on('end', () => {
+      console.log(`[${new Date().toLocaleTimeString()}] [${portType.toUpperCase()}] Disconnected`);
+    });
+    
+    socket.on('error', (err) => {
+      console.error(`[${portType.toUpperCase()}] Socket error:`, err.message);
     });
   });
-});
 
-// Handle errors
-resultsServer.on('error', (err) => {
-  if (err.code === 'EADDRINUSE') {
-    console.error(`\nERROR: Port ${RESULTS_PORT} is already in use!`);
-    console.error('Make sure nothing else is using this port.\n');
-  } else {
-    console.error('Results server error:', err.message);
-  }
-  process.exit(1);
-});
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`[${portType.toUpperCase()}] Port ${port} already in use`);
+    } else {
+      console.error(`[${portType.toUpperCase()}] Server error:`, err.message);
+    }
+  });
 
-clockServer.on('error', (err) => {
-  if (err.code === 'EADDRINUSE') {
-    console.error(`\nERROR: Port ${CLOCK_PORT} is already in use!`);
-    console.error('Make sure nothing else is using this port.\n');
-  } else {
-    console.error('Clock server error:', err.message);
-  }
-  process.exit(1);
-});
+  server.listen(port, () => {
+    console.log(`[${portType.toUpperCase()}] Listening on port ${port}`);
+  });
 
-fieldServer.on('error', (err) => {
-  if (err.code === 'EADDRINUSE') {
-    console.error(`\nERROR: Port ${FIELD_PORT} is already in use!`);
-    console.error('Make sure nothing else is using this port.\n');
-  } else {
-    console.error('Field server error:', err.message);
-  }
-  process.exit(1);
+  return server;
+}
+
+// Create forwarders for each port
+const resultsServer = createForwarder(RESULTS_PORT, 'results');
+const clockServer = createForwarder(CLOCK_PORT, 'clock');
+const fieldServer = createForwarder(FIELD_PORT, 'field');
+
+// Handle graceful shutdown
+process.on('SIGINT', () => {
+  console.log('\nShutting down...');
+  resultsServer.close();
+  clockServer.close();
+  fieldServer.close();
+  process.exit(0);
 });
