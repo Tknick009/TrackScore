@@ -80,15 +80,19 @@ async function fetchRelatedData(cloudUrl: string, meetId: string): Promise<{
   entries: any[];
   teams: any[];
   divisions: any[];
+  layoutScenes: any[];
+  sceneDisplayMappings: any[];
 }> {
   console.log('Fetching related data...');
   
-  const [eventsRes, athletesRes, entriesRes, teamsRes, divisionsRes] = await Promise.all([
+  const [eventsRes, athletesRes, entriesRes, teamsRes, divisionsRes, scenesRes, mappingsRes] = await Promise.all([
     fetch(`${cloudUrl}/api/events?meetId=${meetId}`),
     fetch(`${cloudUrl}/api/athletes?meetId=${meetId}`),
     fetch(`${cloudUrl}/api/entries?meetId=${meetId}`),
     fetch(`${cloudUrl}/api/teams?meetId=${meetId}`),
     fetch(`${cloudUrl}/api/divisions?meetId=${meetId}`),
+    fetch(`${cloudUrl}/api/layout-scenes?meetId=${meetId}`),
+    fetch(`${cloudUrl}/api/scene-template-mappings/${meetId}`),
   ]);
 
   return {
@@ -97,36 +101,53 @@ async function fetchRelatedData(cloudUrl: string, meetId: string): Promise<{
     entries: entriesRes.ok ? await entriesRes.json() : [],
     teams: teamsRes.ok ? await teamsRes.json() : [],
     divisions: divisionsRes.ok ? await divisionsRes.json() : [],
+    layoutScenes: scenesRes.ok ? await scenesRes.json() : [],
+    sceneDisplayMappings: mappingsRes.ok ? await mappingsRes.json() : [],
   };
 }
 
-async function downloadLogo(cloudUrl: string, logoUrl: string): Promise<string | null> {
+async function downloadLogo(cloudUrl: string, logoUrl: string, subdir: string = 'logos'): Promise<string | null> {
   if (!logoUrl) return null;
   
   try {
     const fullUrl = logoUrl.startsWith('http') ? logoUrl : `${cloudUrl}${logoUrl}`;
-    console.log(`Downloading logo from ${fullUrl}...`);
     
     const response = await fetch(fullUrl);
     if (!response.ok) {
-      console.warn('Failed to download logo');
       return null;
     }
     
     const buffer = await response.arrayBuffer();
-    const logoDir = path.join(DATA_DIR, 'logos');
+    const logoDir = path.join(DATA_DIR, subdir);
     fs.mkdirSync(logoDir, { recursive: true });
     
-    const filename = path.basename(logoUrl) || 'meet-logo.png';
+    const filename = path.basename(logoUrl) || 'logo.png';
     const localPath = path.join(logoDir, filename);
     fs.writeFileSync(localPath, Buffer.from(buffer));
     
-    console.log(`Logo saved to ${localPath}`);
-    return `/data/logos/${filename}`;
+    return `/data/${subdir}/${filename}`;
   } catch (error) {
-    console.warn('Error downloading logo:', error);
     return null;
   }
+}
+
+async function downloadTeamLogos(cloudUrl: string, teams: any[]): Promise<Map<number, string>> {
+  const logoMap = new Map<number, string>();
+  const teamsWithLogos = teams.filter(t => t.logoUrl);
+  
+  if (teamsWithLogos.length === 0) return logoMap;
+  
+  console.log(`Downloading ${teamsWithLogos.length} team logos...`);
+  
+  for (const team of teamsWithLogos) {
+    const localUrl = await downloadLogo(cloudUrl, team.logoUrl, 'team-logos');
+    if (localUrl) {
+      logoMap.set(team.id, localUrl);
+    }
+  }
+  
+  console.log(`  Downloaded ${logoMap.size} team logos`);
+  return logoMap;
 }
 
 async function initializeDatabase(meet: any, data: any): Promise<void> {
@@ -238,6 +259,82 @@ async function initializeDatabase(meet: any, data: any): Promise<void> {
     }
   }
   
+  // Insert layout scenes and their objects
+  console.log(`  - Inserting ${data.layoutScenes.length} layout scenes`);
+  const sceneIdMap = new Map<number, number>(); // Map cloud scene IDs to local scene IDs
+  for (const scene of data.layoutScenes) {
+    try {
+      const newScene = await storage.createLayoutScene({
+        name: scene.name,
+        meetId: meet.id,
+        canvasWidth: scene.canvasWidth || scene.width || 1920,
+        canvasHeight: scene.canvasHeight || scene.height || 1080,
+        aspectRatio: scene.aspectRatio || '16:9',
+        backgroundColor: scene.backgroundColor,
+      });
+      sceneIdMap.set(scene.id, newScene.id);
+      
+      // Insert objects for this scene
+      const objects = scene.objects || [];
+      for (const obj of objects) {
+        try {
+          await storage.createLayoutObject({
+            sceneId: newScene.id,
+            type: obj.type,
+            x: obj.x,
+            y: obj.y,
+            width: obj.width,
+            height: obj.height,
+            rotation: obj.rotation,
+            zIndex: obj.zIndex,
+            visible: obj.visible,
+            locked: obj.locked,
+            name: obj.name,
+            fieldCode: obj.fieldCode,
+            text: obj.text,
+            fontFamily: obj.fontFamily,
+            fontSize: obj.fontSize,
+            fontWeight: obj.fontWeight,
+            fontStyle: obj.fontStyle,
+            textAlign: obj.textAlign,
+            verticalAlign: obj.verticalAlign,
+            color: obj.color,
+            backgroundColor: obj.backgroundColor,
+            borderColor: obj.borderColor,
+            borderWidth: obj.borderWidth,
+            borderRadius: obj.borderRadius,
+            padding: obj.padding,
+            imageUrl: obj.imageUrl,
+            imageFit: obj.imageFit,
+            opacity: obj.opacity,
+          });
+        } catch (e) {
+          // Ignore duplicate errors
+        }
+      }
+    } catch (e) {
+      // Ignore duplicate errors
+    }
+  }
+  
+  // Insert scene template mappings
+  console.log(`  - Inserting ${data.sceneDisplayMappings.length} scene template mappings`);
+  for (const mapping of data.sceneDisplayMappings) {
+    try {
+      const localSceneId = sceneIdMap.get(mapping.sceneId);
+      if (localSceneId) {
+        await storage.setSceneTemplateMapping({
+          meetId: meet.id,
+          displayType: mapping.displayType,
+          displayMode: mapping.displayMode,
+          sceneId: localSceneId,
+        });
+      }
+    } catch (e) {
+      // Ignore duplicate errors
+    }
+  }
+  
   console.log('\nDatabase initialized successfully!');
 }
 
@@ -289,12 +386,25 @@ async function setupCommand(args: string[]): Promise<void> {
     console.log(`  Events: ${data.events.length}`);
     console.log(`  Athletes: ${data.athletes.length}`);
     console.log(`  Teams: ${data.teams.length}`);
+    console.log(`  Layout Scenes: ${data.layoutScenes.length}`);
+    console.log(`  Scene Mappings: ${data.sceneDisplayMappings.length}`);
     
-    // Download logo if present
+    // Download meet logo if present
     if (meet.logoUrl) {
+      console.log('Downloading meet logo...');
       const localLogoUrl = await downloadLogo(cloudUrl, meet.logoUrl);
       if (localLogoUrl) {
         meet.logoUrl = localLogoUrl;
+        console.log(`  Meet logo saved`);
+      }
+    }
+    
+    // Download team logos
+    const teamLogoMap = await downloadTeamLogos(cloudUrl, data.teams);
+    // Update team data with local logo URLs
+    for (const team of data.teams) {
+      if (teamLogoMap.has(team.id)) {
+        team.logoUrl = teamLogoMap.get(team.id);
       }
     }
     
