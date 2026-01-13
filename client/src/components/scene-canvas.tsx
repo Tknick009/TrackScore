@@ -193,12 +193,17 @@ export function SceneObjectRenderer({
   );
   const { data: meet } = useMeet(meetId);
   
+  // IMPORTANT: Disable REST polling when WebSocket prop (sharedLatestLiveData) is provided
+  // This prevents stale REST data from overwriting the correct WebSocket-accumulated entries
+  const shouldPollRest = dataBinding.sourceType === "live-data" && liveEventKey && !sharedLatestLiveData;
+  
   const { data: specificLiveData } = useLiveEventData(
-    dataBinding.sourceType === "live-data" && liveEventKey ? liveEventKey : null
+    shouldPollRest ? liveEventKey : null
   );
   
-  // Always get live data for event name - it should come from FinishLynx, never database
-  const liveData = specificLiveData || sharedLatestLiveData;
+  // PRIORITY: WebSocket prop (sharedLatestLiveData) > REST polling (specificLiveData)
+  // WebSocket receives accumulated entries in correct display order from FinishLynx
+  const liveData = sharedLatestLiveData || specificLiveData;
   
   const { data: standings } = useTeamStandings(
     dataBinding.sourceType === "standings" ? meetId : null
