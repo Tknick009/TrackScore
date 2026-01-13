@@ -239,10 +239,25 @@ export function SceneObjectRenderer({
         const liveEntries = liveData?.entries || [];
         const isStartListOrRunning = liveData?.mode === 'start_list' || liveData?.mode === 'running' || liveData?.mode === 'armed';
         
+        // Build base event info for entry references
+        const baseEventInfo = {
+          id: event?.id || 0,
+          eventType: event?.eventType || 'track',
+          name: liveData?.eventName || event?.name || '',
+        };
+        
+        // Parse time string to numeric value (e.g., "10.52" -> 10.52)
+        const parseTimeToNumber = (timeStr: string | undefined): number | null => {
+          if (!timeStr) return null;
+          const parsed = parseFloat(timeStr);
+          return isNaN(parsed) ? null : parsed;
+        };
+        
         // Build mapped entries from live data with complete structure for templates
         const mapLiveEntries = (entries: any[]) => entries.map((e: any, idx: number) => {
           const placeNum = e.place ? parseInt(e.place, 10) : undefined;
           const laneNum = e.lane ? parseInt(e.lane, 10) : undefined;
+          const markNum = parseTimeToNumber(e.time || e.mark);
           return {
             id: e.bib || `live-${idx}`,
             athlete: { 
@@ -251,9 +266,10 @@ export function SceneObjectRenderer({
               lastName: e.lastName || e.name || '',
             },
             team: { name: e.affiliation || e.team || '' },
-            finalLane: !isNaN(laneNum as number) ? laneNum : undefined,
-            finalPlace: !isNaN(placeNum as number) ? placeNum : undefined,
-            finalMark: e.time || e.mark || '',
+            event: baseEventInfo,
+            finalLane: (laneNum !== undefined && !isNaN(laneNum)) ? laneNum : undefined,
+            finalPlace: (placeNum !== undefined && !isNaN(placeNum)) ? placeNum : undefined,
+            finalMark: markNum,
             resultType: 'time' as const,
             status: 'active',
             inFinals: true,
@@ -264,7 +280,6 @@ export function SceneObjectRenderer({
         const eventWithLiveData = {
           ...(event || { id: 0, eventType: 'track', gender: 'mixed' }),
           name: liveData?.eventName || event?.name || '',
-          eventName: liveData?.eventName || event?.eventName || '',
           eventType: event?.eventType || 'track',
           // Use live entries for start_list/running modes (preserve arrival order)
           // Only use database entries for results mode
