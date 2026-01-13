@@ -348,8 +348,10 @@ export function SceneObjectRenderer({
         } else if (logoFieldKey === "school-logo" && liveData) {
           const athleteIndex = dataBinding.athleteIndex || 0;
           const entries = Array.isArray(liveData.entries) ? liveData.entries : [];
-          const entryIndex = pageIndex * pageSize + athleteIndex;
-          const firstEntry = entries.length > entryIndex ? entries[entryIndex] : null;
+          // Line number is 1-indexed (Line 1, Line 2, etc.) while athleteIndex is 0-indexed
+          // Find entry by lane (which is the FinishLynx line number), not by array position
+          const targetLine = athleteIndex + 1;
+          const firstEntry = entries.find((e: any) => parseInt(e.lane) === targetLine) || null;
           const schoolName = firstEntry?.affiliation || firstEntry?.team;
           if (schoolName) {
             logoUrl = `/logos/NCAA/${schoolName}.png`;
@@ -406,8 +408,10 @@ export function SceneObjectRenderer({
           
           const athleteIndex = dataBinding.athleteIndex || 0;
           const entries = Array.isArray(liveData.entries) ? liveData.entries : [];
-          const entryIndex = pageIndex * pageSize + athleteIndex;
-          const firstEntry = entries.length > entryIndex ? entries[entryIndex] : null;
+          // Line number is 1-indexed (Line 1, Line 2, etc.) while athleteIndex is 0-indexed
+          // Find entry by lane (which is the FinishLynx line number), not by array position
+          const targetLine = athleteIndex + 1;
+          const firstEntry = entries.find((e: any) => parseInt(e.lane) === targetLine) || null;
           
           // Format name as "First Initial. Last Name"
           const formatName = (firstName?: string, lastName?: string, fullName?: string) => {
