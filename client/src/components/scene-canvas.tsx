@@ -879,7 +879,8 @@ export function SceneCanvas({
   
   const rawLiveData = propLiveEventData || fetchedLiveEventData;
   
-  // Sort entries based on mode: lane for start_list/running, place for results
+  // Use entries in arrival order for start_list (FinishLynx controls display order)
+  // Only sort results mode by place
   const liveData = useMemo(() => {
     if (!rawLiveData) return rawLiveData;
     
@@ -887,32 +888,26 @@ export function SceneCanvas({
     if (entries.length === 0) return rawLiveData;
     
     const mode = rawLiveData.mode || '';
-    const isStartList = mode === 'start_list' || mode === 'armed';
-    const isRunning = mode === 'running';
     const isResults = mode === 'results' || mode === 'finished';
     
-    let sortedEntries = [...entries];
-    
-    if (isStartList || isRunning) {
-      // Sort by lane number for start lists and running mode
-      sortedEntries.sort((a: any, b: any) => {
-        const laneA = parseInt(a.lane) || 999;
-        const laneB = parseInt(b.lane) || 999;
-        return laneA - laneB;
-      });
-    } else if (isResults) {
-      // Sort by place for finished results
-      sortedEntries.sort((a: any, b: any) => {
+    // IMPORTANT: Do NOT sort start_list or running mode entries
+    // FinishLynx sends entries in the exact order they should appear on display
+    // Line 1 = entries[0], Line 2 = entries[1], etc.
+    if (isResults) {
+      // Only sort finished results by place
+      const sortedEntries = [...entries].sort((a: any, b: any) => {
         const placeA = parseInt(a.place) || 999;
         const placeB = parseInt(b.place) || 999;
         return placeA - placeB;
       });
+      return {
+        ...rawLiveData,
+        entries: sortedEntries,
+      };
     }
     
-    return {
-      ...rawLiveData,
-      entries: sortedEntries,
-    };
+    // For start_list and running modes, keep entries in arrival order
+    return rawLiveData;
   }, [rawLiveData]);
   
   const totalEntries = useMemo(() => {
