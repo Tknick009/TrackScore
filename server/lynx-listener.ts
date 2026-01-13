@@ -16,7 +16,7 @@ interface LynxListenerEvents {
   'result': (eventNumber: number, lane: number, place: number, time: string, athleteName?: string) => void;
   'field-result': (eventNumber: number, athleteName: string, place: number, mark: string, attemptNumber: number, attempts?: string) => void;
   'field-athlete-up': (eventNumber: number, athleteName: string, attemptNumber: number, mark?: string) => void;
-  'start-list': (eventNumber: number, heat: number, entries: LynxStartListEntry[]) => void;
+  'start-list': (eventNumber: number, heat: number, entries: LynxStartListEntry[], metadata?: { eventName?: string; distance?: string }) => void;
   'connection': (portType: LynxPortType, connected: boolean) => void;
   'error': (error: Error, portType: LynxPortType) => void;
 }
@@ -169,13 +169,11 @@ export class LynxListener extends EventEmitter {
           console.log(`[Lynx] Suppressing start_list emission - race is running (event ${event.eventNumber})`);
           return;
         }
-        this.emit('start-list', event.eventNumber, event.heat, sortedEntries as LynxStartListEntry[]);
-        this.emit('track-mode-change', event.eventNumber, 'start_list', {
-          eventNumber: event.eventNumber,
-          heat: event.heat,
-          distance: event.distance,
+        // Only emit start-list - the handler in routes.ts will trigger auto-mode after aggregation
+        // This prevents race conditions where auto-mode reads storage before aggregation completes
+        this.emit('start-list', event.eventNumber, event.heat, sortedEntries as LynxStartListEntry[], {
           eventName: event.eventName,
-          entries: sortedEntries,
+          distance: event.distance,
         });
         break;
       case 'T':
@@ -196,13 +194,10 @@ export class LynxListener extends EventEmitter {
             lastName: e.lastName || '',
           }));
           
-          this.emit('start-list', event.eventNumber, event.heat, startListEntries as LynxStartListEntry[]);
-          this.emit('track-mode-change', event.eventNumber, 'start_list', {
-            eventNumber: event.eventNumber,
-            heat: event.heat,
-            distance: event.distance,
+          // Only emit start-list - the handler will trigger auto-mode after aggregation
+          this.emit('start-list', event.eventNumber, event.heat, startListEntries as LynxStartListEntry[], {
             eventName: event.eventName,
-            entries: startListEntries,
+            distance: event.distance,
           });
         } else if (sortedEntries.some(e => (e as LynxTrackResult).place && (e as LynxTrackResult).time)) {
           this.emit('track-mode-change', event.eventNumber, 'results', {
@@ -242,12 +237,9 @@ export class LynxListener extends EventEmitter {
             return laneA - laneB;
           });
           
-          this.emit('start-list', event.eventNumber, event.heat, startListEntries as LynxStartListEntry[]);
-          this.emit('track-mode-change', event.eventNumber, 'start_list', {
-            eventNumber: event.eventNumber,
-            heat: event.heat,
+          // Only emit start-list - the handler will trigger auto-mode after aggregation
+          this.emit('start-list', event.eventNumber, event.heat, startListEntries as LynxStartListEntry[], {
             eventName: event.eventName,
-            entries: startListEntries,
           });
         }
         

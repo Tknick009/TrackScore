@@ -6590,7 +6590,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } as WSMessage);
   });
   
-  lynxListener.on('start-list', async (eventNumber, heat, entries) => {
+  lynxListener.on('start-list', async (eventNumber, heat, entries, metadata) => {
     console.log(`[Lynx] Start list: Event ${eventNumber}, Heat ${heat}, ${entries.length} entries`);
     
     try {
@@ -6621,7 +6621,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Store aggregated start list to database - preserve existing fields like eventName
+      // Use metadata for eventName/distance if provided, otherwise preserve from existing
+      const eventName = metadata?.eventName || existing?.eventName;
+      const distance = metadata?.distance || existing?.distance;
+      
+      // Store aggregated start list to database
       await storage.upsertLiveEventData({
         eventNumber,
         eventType: 'track',
@@ -6630,8 +6634,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalHeats: existing?.totalHeats || 1,
         round: existing?.round || 1,
         flight: 1,
-        distance: existing?.distance,
-        eventName: existing?.eventName, // Preserve eventName from track-mode-change
+        distance,
+        eventName,
         entries: aggregatedEntries,
         isArmed: true,
         isRunning: false,
@@ -6646,6 +6650,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
           entries: aggregatedEntries,
         }
       } as WSMessage);
+      
+      // Trigger auto-mode update AFTER aggregation is complete
+      // This fixes the race condition where track-mode-change triggered auto-mode
+      // before the start-list aggregation finished writing to storage
+      const liveEventData = {
+        eventNumber,
+        eventName: eventName || '',
+        heat,
+        totalHeats: existing?.totalHeats || 1,
+        round: existing?.round || 1,
+        entries: aggregatedEntries,
+        distance,
+        status: 'start_list',
+        mode: 'start_list',
+      };
+      
+      // Find matching events to get meetId for auto-mode targeting
+      const matchingEvents = await storage.getEventsByLynxEventNumber(eventNumber);
+      if (matchingEvents.length > 0) {
+        const meetId = matchingEvents[0].meetId;
+        connectedDisplayDevices.forEach((device, deviceId) => {
+          if (device.meetId === meetId && device.autoMode) {
+            sendAutoModeUpdate(deviceId, 'armed', liveEventData);
+          }
+        });
+      } else {
+        // No matching events - broadcast to all auto-mode displays
+        connectedDisplayDevices.forEach((device, deviceId) => {
+          if (device.autoMode) {
+            sendAutoModeUpdate(deviceId, 'armed', liveEventData);
+          }
+        });
+      }
     } catch (error) {
       console.error('[Lynx] Error storing start list:', error);
       
