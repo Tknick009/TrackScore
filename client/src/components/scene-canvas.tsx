@@ -348,10 +348,9 @@ export function SceneObjectRenderer({
         } else if (logoFieldKey === "school-logo" && liveData) {
           const athleteIndex = dataBinding.athleteIndex || 0;
           const entries = Array.isArray(liveData.entries) ? liveData.entries : [];
-          // Line number is 1-indexed (Line 1, Line 2, etc.) while athleteIndex is 0-indexed
-          // Find entry by lane (which is the FinishLynx line number), not by array position
-          const targetLine = athleteIndex + 1;
-          const firstEntry = entries.find((e: any) => parseInt(e.lane) === targetLine) || null;
+          // FinishLynx sends batched entries - display maps by array position
+          // Line 1 = entries[0], Line 2 = entries[1], etc.
+          const firstEntry = entries.length > athleteIndex ? entries[athleteIndex] : null;
           const schoolName = firstEntry?.affiliation || firstEntry?.team;
           if (schoolName) {
             logoUrl = `/logos/NCAA/${schoolName}.png`;
@@ -408,10 +407,9 @@ export function SceneObjectRenderer({
           
           const athleteIndex = dataBinding.athleteIndex || 0;
           const entries = Array.isArray(liveData.entries) ? liveData.entries : [];
-          // Line number is 1-indexed (Line 1, Line 2, etc.) while athleteIndex is 0-indexed
-          // Find entry by lane (which is the FinishLynx line number), not by array position
-          const targetLine = athleteIndex + 1;
-          const firstEntry = entries.find((e: any) => parseInt(e.lane) === targetLine) || null;
+          // FinishLynx sends batched entries - display maps by array position
+          // Line 1 = entries[0], Line 2 = entries[1], etc.
+          const firstEntry = entries.length > athleteIndex ? entries[athleteIndex] : null;
           
           // Format name as "First Initial. Last Name"
           const formatName = (firstName?: string, lastName?: string, fullName?: string) => {
