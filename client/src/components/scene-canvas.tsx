@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, memo } from "react";
+import { useState, useEffect, useMemo, memo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { 
   SelectLayoutScene, 
@@ -44,17 +44,14 @@ function StaticRunningClock({
 
 // Robust logo component with proper error handling
 // Uses React state to track load failures instead of DOM manipulation
-function LogoImage({ logoUrl, objectFit }: { logoUrl: string; objectFit: string }) {
-  const [hasError, setHasError] = useState(false);
-  const [key, setKey] = useState(0);
+const LogoImage = memo(function LogoImage({ logoUrl, objectFit }: { logoUrl: string; objectFit: string }) {
+  const [failedUrls, setFailedUrls] = useState<Set<string>>(new Set());
   
-  // Reset error state when URL changes
-  useEffect(() => {
-    setHasError(false);
-    setKey(prev => prev + 1);
-  }, [logoUrl]);
+  const handleError = () => {
+    setFailedUrls(prev => new Set(prev).add(logoUrl));
+  };
   
-  if (hasError) {
+  if (failedUrls.has(logoUrl)) {
     // Show empty space when logo fails to load
     return <div className="h-full" />;
   }
@@ -62,18 +59,17 @@ function LogoImage({ logoUrl, objectFit }: { logoUrl: string; objectFit: string 
   return (
     <div className="flex items-center justify-center h-full p-2">
       <img 
-        key={key}
         src={logoUrl} 
         alt="Logo" 
         className="max-w-full max-h-full object-contain"
         style={{ objectFit: objectFit as any }}
         loading="eager"
         decoding="async"
-        onError={() => setHasError(true)}
+        onError={handleError}
       />
     </div>
   );
-}
+});
 
 export interface SceneCanvasProps {
   sceneId: number;
