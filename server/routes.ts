@@ -117,47 +117,8 @@ interface ConnectedDisplayDevice {
 }
 const connectedDisplayDevices = new Map<string, ConnectedDisplayDevice>();
 
-// Auto-mode state tracking - maps device states based on Lynx events
-type TrackAutoState = 'idle' | 'armed' | 'running' | 'results' | 'time_of_day';
-const autoModeDeviceStates = new Map<string, TrackAutoState>();
-
 // Track field event session subscribers (sessionId -> Set of WebSocket clients)
 const fieldSessionSubscribers = new Map<number, Set<WebSocket>>();
-
-// Template mapping for auto-mode states
-function getTemplateForAutoState(state: TrackAutoState, displayType: string): string {
-  switch (state) {
-    case 'armed':
-      return 'start-list';
-    case 'running':
-      // BigBoard: Keep lane rows visible with running times in each row
-      // P10/P6: Show running clock (single athlete displays)
-      return displayType === 'BigBoard' ? 'live-results' : 'running-time';
-    case 'results':
-      return displayType === 'BigBoard' ? 'live-results' : 'results';
-    case 'time_of_day':
-    case 'idle':
-    default:
-      return 'meet-logo';
-  }
-}
-
-// Map auto-mode states to scene display modes (for custom scene lookup)
-function getSceneDisplayModeForAutoState(state: TrackAutoState): string | null {
-  switch (state) {
-    case 'armed':
-      return 'start_list';
-    case 'running':
-      return 'running_time';
-    case 'results':
-      return 'track_results';
-    case 'time_of_day':
-    case 'idle':
-      return 'meet_logo';
-    default:
-      return null;
-  }
-}
 
 // Map template names to display modes (for manual mode scene lookup)
 function getDisplayModeFromTemplate(template: string): string | null {
@@ -185,80 +146,7 @@ async function prefetchSceneData(sceneId: number): Promise<{ scene: any; objects
   }
 }
 
-// Track last auto-mode update time per device for debouncing
-const lastAutoModeUpdateTime = new Map<string, number>();
-const AUTO_MODE_DEBOUNCE_MS = 500; // Minimum time between auto-mode updates per device
-
-// Send auto-mode template update to a device
-async function sendAutoModeUpdate(deviceId: string, state: TrackAutoState, liveData?: any) {
-  const device = connectedDisplayDevices.get(deviceId);
-  if (device && device.autoMode && device.ws.readyState === WebSocket.OPEN) {
-    const now = Date.now();
-    const lastUpdate = lastAutoModeUpdateTime.get(deviceId) || 0;
-    const currentState = autoModeDeviceStates.get(deviceId);
-    
-    // Debounce: Skip if same state was sent recently
-    if (currentState === state && (now - lastUpdate) < AUTO_MODE_DEBOUNCE_MS) {
-      return; // Skip redundant update
-    }
-    
-    const defaultTemplate = getTemplateForAutoState(state, device.displayType);
-    autoModeDeviceStates.set(deviceId, state);
-    lastAutoModeUpdateTime.set(deviceId, now);
-    
-    // Check for custom scene mapping
-    let sceneId: number | null = null;
-    let sceneData: { scene: any; objects: any[] } | null = null;
-    const sceneDisplayMode = getSceneDisplayModeForAutoState(state);
-    
-    if (sceneDisplayMode) {
-      try {
-        const mapping = await storage.getSceneTemplateMappingByTypeAndMode(
-          device.meetId, 
-          device.displayType, 
-          sceneDisplayMode
-        );
-        if (mapping) {
-          sceneId = mapping.sceneId;
-          // Pre-fetch scene data for instant switching
-          sceneData = await prefetchSceneData(sceneId);
-          console.log(`[Auto-Mode] ${device.deviceName}: Using custom scene ${sceneId} for ${sceneDisplayMode}`);
-        }
-      } catch (err) {
-        console.error(`[Auto-Mode] Error looking up scene mapping:`, err);
-      }
-    }
-    
-    device.ws.send(JSON.stringify({
-      type: 'display_command',
-      template: sceneId ? null : defaultTemplate, // Use template only if no custom scene
-      sceneId: sceneId, // Custom scene ID (if mapped)
-      sceneData: sceneData, // Pre-fetched scene data for instant switching
-      eventId: null,
-      autoMode: true,
-      liveEventData: liveData || null,
-      pagingSize: device.pagingSize,
-      pagingInterval: device.pagingInterval,
-    }));
-    
-    if (sceneId) {
-      console.log(`[Auto-Mode] ${device.deviceName}: ${state} -> scene:${sceneId}`);
-    } else {
-      console.log(`[Auto-Mode] ${device.deviceName}: ${state} -> ${defaultTemplate}`);
-    }
-  }
-}
-
-// Broadcast auto-mode update to all devices in a meet with auto-mode enabled
-function broadcastAutoModeUpdate(meetId: string, state: TrackAutoState, liveData?: any) {
-  connectedDisplayDevices.forEach((device, deviceId) => {
-    if (device.meetId === meetId && device.autoMode) {
-      sendAutoModeUpdate(deviceId, state, liveData);
-    }
-  });
-}
-
-// Broadcast function
+// Broadcast function - Layout switching is now controlled by FinishLynx via layout-command events
 function broadcastToDisplays(message: WSMessage) {
   const messageStr = JSON.stringify(message);
   displayClients.forEach((client) => {
@@ -2321,40 +2209,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         connectedDevice.autoMode = autoModeValue;
         
         // Notify the device of auto-mode status
+        // Layout switching is now controlled by FinishLynx via layout-command events
         if (connectedDevice.ws.readyState === WebSocket.OPEN) {
           connectedDevice.ws.send(JSON.stringify({
             type: 'auto_mode_update',
             autoMode: connectedDevice.autoMode,
           }));
-          
-          // If auto-mode is being enabled, immediately send current state
-          if (autoModeValue) {
-            // Get the current auto-mode state from the global state
-            const currentState = autoModeDeviceStates.get(deviceId) || 'idle';
-            
-            // Get live event data if available
-            let liveData: any = null;
-            try {
-              const allLiveData = await storage.getLiveEventsByMeet();
-              if (allLiveData.length > 0) {
-                const latestEntry = allLiveData[0];
-                liveData = {
-                  eventNumber: latestEntry.eventNumber,
-                  eventType: latestEntry.eventType,
-                  mode: latestEntry.mode,
-                  heat: latestEntry.heat,
-                  runningTime: latestEntry.runningTime,
-                  entries: latestEntry.entries,
-                };
-              }
-            } catch (err) {
-              console.error('[Auto-Mode] Error fetching live data:', err);
-            }
-            
-            // Send the initial display command
-            sendAutoModeUpdate(deviceId, currentState as TrackAutoState, liveData);
-            console.log(`[Auto-Mode] ${updatedDevice.deviceName}: Sent initial state -> ${currentState}`);
-          }
         }
       }
       
@@ -6020,7 +5880,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Set up Lynx listener event handlers - SIMPLIFIED: just pass through raw data from FinishLynx
+  // Track mode change handler - SIMPLIFIED: just pass through raw data from FinishLynx
+  // Layout switching is now controlled by FinishLynx via layout-command events
   lynxListener.on('track-mode-change', async (eventNumber, mode, data) => {
     console.log(`[Lynx] Track mode change: Event ${eventNumber} → ${mode} (raw pass-through)`);
     liveState.trackMode = mode;
@@ -6039,6 +5900,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Broadcast display mode change with raw data from FinishLynx - NO AGGREGATION
+      // Layout switching is handled by layout-command, this just provides the data
       broadcastToDisplays({
         type: 'track_mode_change',
         data: {
@@ -6047,43 +5909,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ...data, // Pass through all raw data from FinishLynx
         }
       });
-      
-      // Auto-mode: Switch display templates based on track mode
-      let autoState: TrackAutoState = 'idle';
-      if (mode === 'start_list') {
-        autoState = 'armed';
-      } else if (mode === 'running') {
-        autoState = 'running';
-      } else if (mode === 'results') {
-        autoState = 'results';
-      }
-      
-      // Build live event data with raw entries from FinishLynx - NO AGGREGATION
-      const liveEventData = {
-        eventNumber,
-        eventName: data.eventName || '',
-        heat: data.heat || 1,
-        totalHeats: 1,
-        round: data.round || 1,
-        entries: data.entries || [], // Raw entries from FinishLynx
-        wind: data.wind,
-        distance: data.distance,
-        status: data.status,
-        mode,
-      };
-      
-      // Broadcast to matching meet if events exist, otherwise broadcast to ALL auto-mode displays
-      if (matchingEvents.length > 0) {
-        const meetId = matchingEvents[0].meetId;
-        broadcastAutoModeUpdate(meetId, autoState, liveEventData);
-      } else {
-        console.log(`[Auto-Mode] No event config for event #${eventNumber}, broadcasting to all auto-mode displays: ${autoState}`);
-        connectedDisplayDevices.forEach((device, deviceId) => {
-          if (device.autoMode) {
-            sendAutoModeUpdate(deviceId, autoState, liveEventData);
-          }
-        });
-      }
     } catch (error) {
       console.error('[Lynx] Error handling track mode change:', error);
     }
@@ -6342,60 +6167,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } as WSMessage);
   });
   
-  lynxListener.on('start-list', async (eventNumber, heat, entries, metadata) => {
+  // Start list handler - SIMPLIFIED: just pass through raw data from FinishLynx
+  // Layout switching is now controlled by FinishLynx via layout-command events
+  lynxListener.on('start-list', (eventNumber, heat, entries, metadata) => {
     console.log(`[Lynx] Start list: Event ${eventNumber}, Heat ${heat}, ${entries.length} entries (raw pass-through)`);
     
     // NO AGGREGATION - just broadcast exactly what FinishLynx sends
-    // FinishLynx controls paging, we just display what it sends
-    const eventName = metadata?.eventName || '';
-    const distance = metadata?.distance || '';
-    
-    // Broadcast raw data immediately - let FinishLynx control the display
+    // FinishLynx controls paging and layout switching via layout-command
     broadcastToDisplays({
       type: 'start_list',
       data: {
         eventNumber,
         heat,
         entries, // Raw entries from FinishLynx, no aggregation
-        eventName,
-        distance,
+        eventName: metadata?.eventName || '',
+        distance: metadata?.distance || '',
       }
     } as WSMessage);
-    
-    // Build live event data with raw entries for auto-mode
-    const liveEventData = {
-      eventNumber,
-      eventName,
-      heat,
-      totalHeats: 1,
-      round: 1,
-      entries, // Raw entries
-      distance,
-      status: 'start_list',
-      mode: 'start_list',
-    };
-    
-    // Trigger auto-mode update with raw data
-    try {
-      const matchingEvents = await storage.getEventsByLynxEventNumber(eventNumber);
-      if (matchingEvents.length > 0) {
-        const meetId = matchingEvents[0].meetId;
-        connectedDisplayDevices.forEach((device, deviceId) => {
-          if (device.meetId === meetId && device.autoMode) {
-            sendAutoModeUpdate(deviceId, 'armed', liveEventData);
-          }
-        });
-      } else {
-        // No matching events - broadcast to all auto-mode displays
-        connectedDisplayDevices.forEach((device, deviceId) => {
-          if (device.autoMode) {
-            sendAutoModeUpdate(deviceId, 'armed', liveEventData);
-          }
-        });
-      }
-    } catch (error) {
-      console.error('[Lynx] Error in start-list handler:', error);
-    }
   });
 
   lynxListener.on('connection', (portType, connected) => {
