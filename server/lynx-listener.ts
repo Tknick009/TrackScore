@@ -104,6 +104,9 @@ export class LynxListener extends EventEmitter {
   
   // Persist event names by event number so results can use start list's event name
   private eventNamesByNumber: Map<number, string> = new Map();
+  
+  // Track last status per event to debounce layout-command emissions
+  private lastStatusByEvent: Map<number, string> = new Map();
 
   constructor() {
     super();
@@ -705,10 +708,29 @@ export class LynxListener extends EventEmitter {
       this.eventNamesByNumber.set(eventNum, eventName);
     }
     
-    this.isRunning = false;
-    
     // Use persisted event name if DN not in this message
     const resolvedEventName = eventName || this.eventNamesByNumber.get(eventNum);
+    
+    // Emit layout-command based on status field (FinishLynx tells us what to show)
+    // Status values: ARMED = start list, RUNNING = running clock, UNOFFICIAL/OFFICIAL = results
+    let layoutName: string | null = null;
+    if (status === 'ARMED') {
+      layoutName = 'StartList';
+      this.isRunning = false;
+    } else if (status === 'RUNNING') {
+      layoutName = 'Running';
+      this.isRunning = true;
+    } else if (status === 'UNOFFICIAL' || status === 'OFFICIAL') {
+      layoutName = 'Results';
+      this.isRunning = false;
+    }
+    
+    // Emit layout command if status changed (debounced by tracking last status per event)
+    if (layoutName && status !== this.lastStatusByEvent.get(eventNum)) {
+      this.lastStatusByEvent.set(eventNum, status);
+      console.log(`[Lynx] Status change: Event ${eventNum} → ${status} → Layout: ${layoutName}`);
+      this.emit('layout-command', layoutName, { eventNum, status });
+    }
     
     // NO AGGREGATION - pass through immediately
     // FinishLynx controls all paging and sends line numbers that match layout placeholders
