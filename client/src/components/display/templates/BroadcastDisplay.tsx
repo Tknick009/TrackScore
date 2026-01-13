@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import type { Meet } from "@shared/schema";
 
 interface ResultEntry {
@@ -32,7 +31,6 @@ interface BroadcastDisplayProps {
 }
 
 export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: BroadcastDisplayProps) {
-  const [pageIndex, setPageIndex] = useState(0);
   const [displayClock, setDisplayClock] = useState("00:00:00");
   const lastSecondsRef = useRef<number>(-1);
   
@@ -45,15 +43,12 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
     (entry: ResultEntry) => entry.place && entry.name
   );
   
-  // Use results with times if available, otherwise show all entries with names for scrolling
   const hasTimesEntered = resultsWithTimes.length > 0;
   const results = hasTimesEntered ? resultsWithPlaces : [];
-  // Accept entries with name, firstName/lastName, bib, or lane
   const entriesForScrolling = rawEntries.filter((entry: ResultEntry) => 
     entry.name || entry.firstName || entry.lastName || entry.bib || entry.lane
   );
   
-  // Debug logging for entries
   useEffect(() => {
     console.log(`[BroadcastDisplay] rawEntries: ${rawEntries.length}, scrolling: ${entriesForScrolling.length}, mode: ${liveEventData?.mode}, hasTimesEntered: ${hasTimesEntered}`);
     if (rawEntries.length > 0) {
@@ -63,7 +58,6 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
     }
   }, [rawEntries.length, liveEventData?.mode, entriesForScrolling.length, hasTimesEntered]);
   
-  // Detect ties - find times that appear more than once (to hundredths)
   const getTimeToHundredths = (entry: ResultEntry) => {
     const time = entry.time || entry.mark || '';
     const match = time.match(/^(\d+:\d+\.\d{2})/);
@@ -89,13 +83,6 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
   const firstPlace = results.length > 0 ? results[0] : null;
   const remainingResults = results.slice(1);
   
-  // For scrolling mode (no times), paginate all entries
-  const scrollingTotalPages = Math.max(1, Math.ceil(entriesForScrolling.length / 6));
-  const totalPages = hasTimesEntered 
-    ? Math.max(1, Math.ceil(remainingResults.length / 5))
-    : scrollingTotalPages;
-  
-  // Parse clock string to total seconds
   const parseClockToSeconds = (clock: string): number => {
     const dotIndex = clock.indexOf('.');
     const timeOnly = dotIndex !== -1 ? clock.substring(0, dotIndex) : clock;
@@ -111,8 +98,6 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
   useEffect(() => {
     if (liveClockTime) {
       const currentSeconds = parseClockToSeconds(liveClockTime);
-      // Only update display if seconds have advanced (monotonic)
-      // or if clock was reset (new race started - seconds dropped significantly)
       if (currentSeconds > lastSecondsRef.current || currentSeconds < lastSecondsRef.current - 5) {
         lastSecondsRef.current = currentSeconds;
         const dotIndex = liveClockTime.indexOf('.');
@@ -125,23 +110,6 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
     }
   }, [liveClockTime]);
   
-  useEffect(() => {
-    if (totalPages <= 1) {
-      setPageIndex(0);
-      return;
-    }
-    
-    const interval = setInterval(() => {
-      setPageIndex((prev) => (prev + 1) % totalPages);
-    }, 4000);
-    
-    return () => clearInterval(interval);
-  }, [totalPages]);
-  
-  useEffect(() => {
-    setPageIndex(0);
-  }, [results.length]);
-  
   const formatPlace = (place: string) => {
     const num = parseInt(place);
     if (isNaN(num)) return place;
@@ -153,7 +121,6 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
     if (entry.firstName && entry.lastName) {
       return `${entry.firstName.charAt(0)}. ${entry.lastName}`;
     }
-    // Parse "FirstName LastName" format from name field
     const name = entry.name?.trim();
     if (name) {
       const parts = name.split(/\s+/);
@@ -164,15 +131,12 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
       }
       return name;
     }
-    // For relays or entries without names, show affiliation (team) as primary
     if (entry.affiliation) {
       return entry.affiliation;
     }
-    // Fallback to bib if available
     if (entry.bib) {
       return `#${entry.bib}`;
     }
-    // Last resort: show lane indicator
     if (entry.lane) {
       return `Lane ${entry.lane}`;
     }
@@ -187,24 +151,20 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
     return 'text-black';
   };
   
-  // Round time UP to hundredths (e.g., "8:52.024" -> "8:52.03", "9:17.071" -> "9:17.08")
   const formatTimeToHundredths = (timeStr: string) => {
     if (!timeStr) return timeStr;
     
-    // Handle MM:SS.xxx format
     const match = timeStr.match(/^(\d+):(\d+)\.(\d+)$/);
     if (match) {
       const mins = match[1];
       const secs = match[2];
       const fraction = match[3];
-      // Convert fraction to a decimal and round up to 2 places
       const decimalValue = parseFloat(`0.${fraction}`);
       const roundedUp = Math.ceil(decimalValue * 100) / 100;
       const hundredths = roundedUp.toFixed(2).substring(2);
       return `${mins}:${secs}.${hundredths}`;
     }
     
-    // Handle SS.xxx format (seconds only)
     const secMatch = timeStr.match(/^(\d+)\.(\d+)$/);
     if (secMatch) {
       const secs = secMatch[1];
@@ -223,18 +183,6 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
     ? `Heat ${liveEventData.heat}`
     : '';
 
-  const currentPageResults = remainingResults.slice(pageIndex * 5, (pageIndex + 1) * 5);
-  
-  while (currentPageResults.length < 5) {
-    currentPageResults.push(null as any);
-  }
-  
-  // For scrolling mode (no times entered yet)
-  const currentScrollingEntries = entriesForScrolling.slice(pageIndex * 6, (pageIndex + 1) * 6);
-  while (currentScrollingEntries.length < 6) {
-    currentScrollingEntries.push(null as any);
-  }
-  
   const renderScrollingEntry = (entry: ResultEntry | null) => {
     if (!entry) {
       return (
@@ -245,7 +193,6 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
     }
     
     const displayName = formatName(entry);
-    // Don't show affiliation separately if it's already being used as the display name (relays)
     const hasIndividualName = entry.name || entry.firstName || entry.lastName;
     const showAffiliation = entry.affiliation && hasIndividualName;
     
@@ -280,7 +227,6 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
     }
     
     const displayName = formatName(entry);
-    // Don't show affiliation separately if it's already being used as the display name (relays)
     const hasIndividualName = entry.name || entry.firstName || entry.lastName;
     const showAffiliation = entry.affiliation && hasIndividualName;
     
@@ -364,40 +310,22 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
                   </div>
                 )}
                 
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={pageIndex}
-                    initial={{ opacity: 0, x: 50 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -50 }}
-                    transition={{ duration: 0.4, ease: "easeInOut" }}
-                    className="flex gap-2 flex-[5]"
-                  >
-                    {currentPageResults.map((entry: ResultEntry | null, idx: number) => (
-                      <div key={`col-${pageIndex}-${idx}`} className="flex-1 min-w-0">
-                        {renderAthleteColumn(entry)}
-                      </div>
-                    ))}
-                  </motion.div>
-                </AnimatePresence>
-              </>
-            ) : entriesForScrolling.length > 0 ? (
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={pageIndex}
-                  initial={{ opacity: 0, x: 50 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -50 }}
-                  transition={{ duration: 0.4, ease: "easeInOut" }}
-                  className="flex gap-2 flex-1"
-                >
-                  {currentScrollingEntries.map((entry: ResultEntry | null, idx: number) => (
-                    <div key={`scroll-${pageIndex}-${idx}`} className="flex-1 min-w-0">
-                      {renderScrollingEntry(entry)}
+                <div className="flex gap-2 flex-[5]">
+                  {remainingResults.map((entry: ResultEntry, idx: number) => (
+                    <div key={`col-${idx}`} className="flex-1 min-w-0">
+                      {renderAthleteColumn(entry)}
                     </div>
                   ))}
-                </motion.div>
-              </AnimatePresence>
+                </div>
+              </>
+            ) : entriesForScrolling.length > 0 ? (
+              <div className="flex gap-2 flex-1">
+                {entriesForScrolling.map((entry: ResultEntry, idx: number) => (
+                  <div key={`scroll-${idx}`} className="flex-1 min-w-0">
+                    {renderScrollingEntry(entry)}
+                  </div>
+                ))}
+              </div>
             ) : (
               <div className="flex-1 flex items-center justify-center py-8">
                 <span className="text-xl text-gray-500 uppercase">

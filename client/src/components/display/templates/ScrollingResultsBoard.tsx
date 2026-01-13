@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { EventWithEntries, Meet, EntryWithDetails } from "@shared/schema";
 import { isTrackEvent as checkIsTrackEvent } from "@shared/event-catalog";
 import { EventHeader } from "../shared";
@@ -6,16 +6,13 @@ import {
   formatResult, 
   getTeamColor, 
   getPodiumColor,
-  generateAttemptHeaders
 } from "../utils";
-import { Trophy, ChevronRight } from "lucide-react";
+import { Trophy } from "lucide-react";
 
 interface ScrollingResultsBoardProps {
   event: EventWithEntries;
   meet?: Meet;
   mode: string;
-  resultsPerPage?: number;
-  scrollIntervalMs?: number;
 }
 
 function determineDisplayMode(event: EventWithEntries): 'track' | 'field' {
@@ -32,11 +29,7 @@ export function ScrollingResultsBoard({
   event, 
   meet, 
   mode,
-  resultsPerPage = 5,
-  scrollIntervalMs = 5000
 }: ScrollingResultsBoardProps) {
-  const [currentPage, setCurrentPage] = useState(0);
-  
   const displayMode = determineDisplayMode(event);
   const showTrackResults = displayMode === 'track';
   
@@ -47,31 +40,6 @@ export function ScrollingResultsBoard({
       return aPos - bPos;
     });
   }, [event.entries]);
-  
-  const totalPages = Math.ceil(sortedResults.length / resultsPerPage);
-  
-  // Reset page when event changes or when entries change significantly
-  useEffect(() => {
-    setCurrentPage(0);
-  }, [event.id, sortedResults.length]);
-  
-  // Ensure currentPage is within bounds
-  const safeCurrentPage = Math.min(currentPage, Math.max(0, totalPages - 1));
-  
-  const currentPageResults = useMemo(() => {
-    const startIndex = safeCurrentPage * resultsPerPage;
-    return sortedResults.slice(startIndex, startIndex + resultsPerPage);
-  }, [sortedResults, safeCurrentPage, resultsPerPage]);
-  
-  useEffect(() => {
-    if (totalPages <= 1) return;
-    
-    const timer = setInterval(() => {
-      setCurrentPage((prev) => (prev + 1) % totalPages);
-    }, scrollIntervalMs);
-    
-    return () => clearInterval(timer);
-  }, [totalPages, scrollIntervalMs]);
 
   return (
     <div className="min-h-screen w-full bg-[hsl(var(--display-bg))] relative overflow-hidden display-layout">
@@ -95,39 +63,14 @@ export function ScrollingResultsBoard({
         </div>
 
         <div className="flex-1 p-8 relative">
-          <div 
-            className="animate-fade-in"
-            key={safeCurrentPage}
-          >
+          <div className="animate-fade-in">
             {showTrackResults ? (
-              <TrackResultsPage results={currentPageResults} />
+              <TrackResultsPage results={sortedResults} />
             ) : (
-              <FieldResultsPage results={currentPageResults} />
+              <FieldResultsPage results={sortedResults} />
             )}
           </div>
         </div>
-
-        {totalPages > 1 && (
-          <div className="absolute bottom-8 left-0 right-0 flex justify-center items-center gap-4">
-            <div className="flex gap-3">
-              {Array.from({ length: totalPages }).map((_, idx) => (
-                <div
-                  key={idx}
-                  className={`w-4 h-4 rounded-full transition-all duration-300 ${
-                    idx === safeCurrentPage 
-                      ? "bg-[hsl(var(--display-accent))] scale-125" 
-                      : "bg-[hsl(var(--display-muted))] opacity-50"
-                  }`}
-                  data-testid={`page-indicator-${idx}`}
-                />
-              ))}
-            </div>
-            <div className="flex items-center gap-2 text-[hsl(var(--display-muted))] text-[24px] font-stadium">
-              <span>Page {safeCurrentPage + 1} of {totalPages}</span>
-              <ChevronRight className="w-6 h-6 animate-pulse" />
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
