@@ -42,6 +42,39 @@ function StaticRunningClock({
   );
 }
 
+// Robust logo component with proper error handling
+// Uses React state to track load failures instead of DOM manipulation
+function LogoImage({ logoUrl, objectFit }: { logoUrl: string; objectFit: string }) {
+  const [hasError, setHasError] = useState(false);
+  const [key, setKey] = useState(0);
+  
+  // Reset error state when URL changes
+  useEffect(() => {
+    setHasError(false);
+    setKey(prev => prev + 1);
+  }, [logoUrl]);
+  
+  if (hasError) {
+    // Show empty space when logo fails to load
+    return <div className="h-full" />;
+  }
+  
+  return (
+    <div className="flex items-center justify-center h-full p-2">
+      <img 
+        key={key}
+        src={logoUrl} 
+        alt="Logo" 
+        className="max-w-full max-h-full object-contain"
+        style={{ objectFit: objectFit as any }}
+        loading="eager"
+        decoding="async"
+        onError={() => setHasError(true)}
+      />
+    </div>
+  );
+}
+
 export interface SceneCanvasProps {
   sceneId: number;
   scene?: SelectLayoutScene;
@@ -328,17 +361,10 @@ export function SceneObjectRenderer({
           return <div className="h-full" />;
         }
         return (
-          <div className="flex items-center justify-center h-full p-2">
-            <img 
-              src={logoUrl} 
-              alt="Logo" 
-              className="max-w-full max-h-full object-contain"
-              style={{ objectFit: componentConfig.objectFit || componentConfig.imageFit || "contain" }}
-              loading="eager"
-              decoding="async"
-              onError={(e) => { e.currentTarget.style.display = 'none'; }}
-            />
-          </div>
+          <LogoImage 
+            logoUrl={logoUrl} 
+            objectFit={componentConfig.objectFit || componentConfig.imageFit || "contain"} 
+          />
         );
         
       case "text":
