@@ -279,6 +279,15 @@ export class LynxListener extends EventEmitter {
       name: portName,
     };
     
+    // Check for ResulTV layout command in raw data: Command=LayoutDraw;Name=XXX;
+    // This enables layout switching when using HTTP forward endpoint
+    const layoutMatch = data.match(/Command=LayoutDraw;Name=([^;]+)/i);
+    if (layoutMatch) {
+      const layoutName = layoutMatch[1].trim();
+      console.log(`[Lynx:Forward] Layout command detected: ${layoutName}`);
+      this.emit('layout-command', layoutName);
+    }
+    
     // Process each line of data
     const lines = data.split(/\r?\n/).filter(l => l.trim());
     // Log non-clock data for debugging (skip frequent clock updates)
