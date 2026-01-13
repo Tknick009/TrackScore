@@ -1256,9 +1256,35 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     return () => layer.removeEventListener('transitionend', handleTransitionEnd);
   }, [transitionState.phase, transitionState.version, completeTransition]);
 
-  // Render content directly - instant switching for live stadium use
-  // Crossfade transitions were causing glitchy behavior with rapid mode changes
+  // Render with smooth crossfade transitions when FinishLynx switches layouts
+  // Uses two layers: outgoing (fading out) and incoming (fading in)
   const renderWithTransition = () => {
+    const isTransitioning = transitionState.phase === 'transitioning' && transitionState.fadeStarted;
+    
+    if (isTransitioning && snapshot) {
+      // During transition: show both layers with crossfade
+      return (
+        <>
+          {/* Outgoing layer - fades out */}
+          <div 
+            className="absolute inset-0 transition-opacity duration-500 ease-in-out"
+            style={{ opacity: 0, zIndex: 1 }}
+          >
+            {renderContent(snapshot)}
+          </div>
+          {/* Incoming layer - fades in */}
+          <div 
+            ref={incomingLayerRef}
+            className="absolute inset-0 transition-opacity duration-500 ease-in-out"
+            style={{ opacity: 1, zIndex: 2 }}
+          >
+            {renderContent()}
+          </div>
+        </>
+      );
+    }
+    
+    // Not transitioning - just render current content
     return renderContent();
   };
 
