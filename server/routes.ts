@@ -5567,6 +5567,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ entries, lastId: rawLogId });
   });
 
+  // NEW: Batch endpoint - receives ordered array of messages
+  // CRITICAL: Processes messages in exact array order (index 0 first, then 1, 2, ...)
+  app.post("/api/lynx/batch", async (req, res) => {
+    try {
+      const { batchId, messages, timestamp } = req.body;
+      
+      if (!messages || !Array.isArray(messages)) {
+        return res.status(400).json({ error: 'Missing or invalid messages array' });
+      }
+      
+      console.log(`[Lynx Batch] Received batch #${batchId} with ${messages.length} messages`);
+      
+      // Process each message IN ORDER (array index order)
+      for (let i = 0; i < messages.length; i++) {
+        const message = messages[i];
+        
+        // Log for debugging
+        rawForwarderLog.push({
+          id: ++rawLogId,
+          timestamp: new Date().toISOString(),
+          portType: 'batch',
+          seqNum: i,
+          data: typeof message === 'string' ? message.substring(0, 500) : JSON.stringify(message).substring(0, 500)
+        });
+        if (rawForwarderLog.length > MAX_RAW_LOG_ENTRIES) {
+          rawForwarderLog.shift();
+        }
+        
+        // Process through the Lynx listener (handles JSON and layout commands)
+        if (typeof message === 'string' && message.trim()) {
+          lynxListener.processForwardedData(message, 'results', 'HTTP Batch');
+        }
+      }
+      
+      res.json({ success: true, processed: messages.length, batchId });
+    } catch (error: any) {
+      console.error('[Lynx Batch] Error:', error.message);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // NEW: Receive raw bytes from TCP forwarder (ResulTV/LSS binary format)
   // This is the new endpoint for the base64-encoded raw data
   app.post("/api/lynx/raw", async (req, res) => {
