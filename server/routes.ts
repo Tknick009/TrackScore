@@ -6266,8 +6266,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Start list handler - ACCUMULATES entries as they arrive one-by-one
   // Layout command "Start List" clears the accumulator, then entries fill in
   // Display reads entries[0] for Line 1, entries[1] for Line 2, etc.
-  // CRITICAL: FinishLynx sends entries in display order - we preserve arrival order!
-  // The L field = physical track lane number (data to display), NOT display line position
+  // CRITICAL: L field = physical track lane number - we SORT BY LANE for display order
   lynxListener.on('start-list', (eventNumber, heat, entries, metadata) => {
     // Update accumulator metadata
     entryAccumulator.eventNumber = eventNumber;
@@ -6275,30 +6274,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     entryAccumulator.eventName = metadata?.eventName || entryAccumulator.eventName;
     entryAccumulator.distance = metadata?.distance || entryAccumulator.distance;
     
-    // ARRIVAL ORDER: Push entries in the order they arrive from FinishLynx
-    // FinishLynx controls display order through paging - first entry sent = Line 1
-    // The forwarder now uses a sequential queue to preserve this order
+    // Accumulate entries as they arrive
     for (const entry of entries) {
       const hasContent = entry.lane || entry.bib || entry.name;
       if (hasContent) {
-        const lineNum = entryAccumulator.entries.length + 1; // 1-based line number
-        console.log(`[Lynx] ENTRY #${lineNum}: Lane=${entry.lane}, bib=${entry.bib}, name=${entry.name?.substring(0, 20)}`);
+        console.log(`[Lynx] ENTRY received: Lane=${entry.lane}, bib=${entry.bib}, name=${entry.name?.substring(0, 20)}`);
         entryAccumulator.entries.push(entry);
       }
     }
     
-    // Log order for debugging
-    const entryOrder = entryAccumulator.entries.map((e: any, i: number) => `Line${i + 1}=Lane${e?.lane || '?'}`).join(' ');
-    console.log(`[Lynx] Start list: Event ${eventNumber}, Heat ${heat}, ${entryAccumulator.entries.length} entries | ${entryOrder}`);
+    // SORT BY LANE NUMBER for display order
+    // L = physical lane, and we want Lane 1 on Line 1, Lane 2 on Line 2, etc.
+    const sortedEntries = [...entryAccumulator.entries].sort((a: any, b: any) => {
+      const laneA = parseInt(a.lane) || 999;
+      const laneB = parseInt(b.lane) || 999;
+      return laneA - laneB;
+    });
     
-    // Broadcast entries in arrival order (FinishLynx controls display order)
-    // Display maps by array position: Line 1 = entries[0], Line 2 = entries[1], etc.
+    // Log sorted order for debugging
+    const entryOrder = sortedEntries.map((e: any, i: number) => `Line${i + 1}=Lane${e?.lane || '?'}`).join(' ');
+    console.log(`[Lynx] Start list: Event ${eventNumber}, Heat ${heat}, ${sortedEntries.length} entries (sorted by lane) | ${entryOrder}`);
+    
+    // Broadcast entries SORTED BY LANE
+    // Display maps by array position: Line 1 = entries[0] (lowest lane), Line 2 = entries[1], etc.
     broadcastToDisplays({
       type: 'start_list',
       data: {
         eventNumber,
         heat,
-        entries: entryAccumulator.entries, // Arrival order = display order
+        entries: sortedEntries, // Sorted by lane number
         eventName: entryAccumulator.eventName,
         distance: entryAccumulator.distance,
       }
