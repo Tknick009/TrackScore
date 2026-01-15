@@ -1,234 +1,285 @@
 #!/usr/bin/env node
 
 /**
- * FinishLynx TCP Client Forwarder
+ * Track & Field Lynx TCP Client Forwarder
  * 
- * SIMPLE APPROACH: Collect all messages in order, send as ordered batch.
- * The batch array maintains exact arrival order.
+ * This version CONNECTS TO FinishLynx/FieldLynx (when they're in "accept" mode)
+ * instead of waiting for them to connect.
  * 
- * Usage: node lynx-client-forwarder.cjs
+ * Use this when FinishLynx is configured with "Network (accept)" 
+ * instead of "Network (connect)"
  * 
- * Environment variables:
- *   FORWARD_URL - Server URL (default: http://localhost:5000)
- *   LYNX_HOST - FinishLynx IP (default: 127.0.0.1)
- *   RESULTS_PORT - Results port (default: 5055)
+ * Usage:
+ *   node lynx-client-forwarder.cjs
  */
 
 const net = require('net');
 const http = require('http');
 const https = require('https');
 
+// ========== CONFIGURATION ==========
+
+// Your online scoring system URL
 const BASE_URL = process.env.FORWARD_URL || 'http://localhost:5000';
+
+// FinishLynx/FieldLynx IP address (where they're running)
 const LYNX_HOST = process.env.LYNX_HOST || '127.0.0.1';
+
+// Ports that FinishLynx is listening on (in accept mode)
+const CLOCK_PORT = parseInt(process.env.CLOCK_PORT) || 5056;
 const RESULTS_PORT = parseInt(process.env.RESULTS_PORT) || 5055;
-const BATCH_DELAY_MS = 100; // Wait 100ms for batch to complete
+const FIELD_PORT = parseInt(process.env.FIELD_PORT) || 5057;
+
+// Reconnection settings
+const RECONNECT_DELAY = 3000; // 3 seconds
+const MAX_RECONNECT_DELAY = 30000; // 30 seconds max
+
+// ====================================
 
 console.log('==============================================');
-console.log('  FinishLynx Client Forwarder (Batch Mode)');
+console.log('  Lynx TCP Client Forwarder (Connect Mode)');
 console.log('==============================================');
-console.log(`Connecting to: ${LYNX_HOST}:${RESULTS_PORT}`);
-console.log(`Forwarding to: ${BASE_URL}/api/lynx/batch`);
+console.log(`Connecting TO FinishLynx at: ${LYNX_HOST}`);
+console.log(`  Clock:   ${LYNX_HOST}:${CLOCK_PORT}`);
+console.log(`  Results: ${LYNX_HOST}:${RESULTS_PORT}`);
+console.log(`  Field:   ${LYNX_HOST}:${FIELD_PORT}`);
+console.log(`Forwarding to: ${BASE_URL}/api/lynx/forward`);
 console.log('==============================================\n');
 
 const baseUrl = new URL(BASE_URL);
 const isHttps = baseUrl.protocol === 'https:';
 const httpModule = isHttps ? https : http;
 
-// Message batch - array maintains insertion order
-let messageBatch = [];
-let batchTimer = null;
-let isSending = false;
-let batchNumber = 0;
+// Connection state
+const connections = {
+  clock: { socket: null, connected: false, reconnectDelay: RECONNECT_DELAY },
+  results: { socket: null, connected: false, reconnectDelay: RECONNECT_DELAY },
+  field: { socket: null, connected: false, reconnectDelay: RECONNECT_DELAY }
+};
+
+// Sequential request queue to preserve order
+const requestQueue = [];
+let isProcessingQueue = false;
+
+async function processQueue() {
+  if (isProcessingQueue || requestQueue.length === 0) return;
+  isProcessingQueue = true;
+  
+  while (requestQueue.length > 0) {
+    const { data, portType, portName, seqNum } = requestQueue.shift();
+    await forwardDataAsync(data, portType, portName, seqNum);
+  }
+  
+  isProcessingQueue = false;
+}
+
+let globalSeqNum = 0;
+
+function queueForward(data, portType, portName) {
+  const seqNum = ++globalSeqNum;
+  requestQueue.push({ data, portType, portName, seqNum });
+  processQueue();
+}
 
 function timestamp() {
   return new Date().toLocaleTimeString();
 }
 
-// Send the batch to server
-function sendBatch() {
-  if (messageBatch.length === 0 || isSending) return;
+// Clean FinishLynx formatting codes
+function cleanLynxData(data) {
+  let cleaned = data.replace(/\\[A-Z][0-9]+/g, '');
+  cleaned = cleaned.replace(/\{\s*,/g, '{');
+  cleaned = cleaned.replace(/\[\s*,/g, '[');
+  cleaned = cleaned.replace(/,(\s*[}\]])/g, '$1');
+  cleaned = cleaned.replace(/:\s*,/g, ':null,');
+  return cleaned;
+}
+
+// Forward data via HTTP (async version for sequential queue)
+function forwardDataAsync(data, portType, portName, seqNum) {
+  return new Promise((resolve) => {
+    const cleanedData = cleanLynxData(data);
+    
+    const payload = JSON.stringify({
+      data: cleanedData,
+      portType: portType,
+      portName: portName,
+      seqNum: seqNum  // Include sequence number for server-side ordering verification
+    });
+
+    const options = {
+      hostname: baseUrl.hostname,
+      port: baseUrl.port || (isHttps ? 443 : 80),
+      path: '/api/lynx/forward',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload)
+      }
+    };
+
+    const req = httpModule.request(options, (res) => {
+      let responseData = '';
+      res.on('data', (chunk) => { responseData += chunk; });
+      res.on('end', () => {
+        if (res.statusCode === 200) {
+          const preview = cleanedData.length > 60 ? cleanedData.substring(0, 60) + '...' : cleanedData;
+          console.log(`[${timestamp()}] [${portType.toUpperCase()}] #${seqNum} ✓ ${preview}`);
+        } else {
+          console.error(`[${timestamp()}] [${portType.toUpperCase()}] #${seqNum} ✗ Error ${res.statusCode}`);
+        }
+        resolve(); // Always resolve to continue queue processing
+      });
+    });
+
+    req.on('error', (err) => {
+      console.error(`[${timestamp()}] [${portType.toUpperCase()}] #${seqNum} ✗ Forward failed: ${err.message}`);
+      resolve(); // Resolve even on error to continue queue
+    });
+
+    req.write(payload);
+    req.end();
+  });
+}
+
+// Extract complete JSON objects or lines
+function extractCompleteData(buffer) {
+  const complete = [];
+  let remaining = buffer;
+
+  while (remaining.length > 0) {
+    const startIdx = remaining.indexOf('{');
+    
+    if (startIdx === -1) {
+      const lines = remaining.split(/\r?\n/);
+      remaining = lines.pop() || '';
+      complete.push(...lines.filter(l => l.trim()));
+      break;
+    }
+
+    if (startIdx > 0) {
+      const preContent = remaining.slice(0, startIdx);
+      const lines = preContent.split(/\r?\n/).filter(l => l.trim());
+      complete.push(...lines);
+      remaining = remaining.slice(startIdx);
+    }
+
+    let braceDepth = 0;
+    let endIdx = -1;
+    let inString = false;
+    let escape = false;
+
+    for (let i = 0; i < remaining.length; i++) {
+      const char = remaining[i];
+      if (escape) { escape = false; continue; }
+      if (char === '\\' && inString) { escape = true; continue; }
+      if (char === '"') { inString = !inString; continue; }
+      if (!inString) {
+        if (char === '{') braceDepth++;
+        else if (char === '}') {
+          braceDepth--;
+          if (braceDepth === 0) { endIdx = i; break; }
+        }
+      }
+    }
+
+    if (endIdx !== -1) {
+      complete.push(remaining.slice(0, endIdx + 1));
+      remaining = remaining.slice(endIdx + 1).replace(/^[\r\n]+/, '');
+    } else {
+      break;
+    }
+  }
+
+  return { complete, remaining };
+}
+
+// Connect to a FinishLynx port
+function connectToLynx(portType, host, port, portName) {
+  const conn = connections[portType];
   
-  isSending = true;
-  batchNumber++;
+  console.log(`[${timestamp()}] [${portType.toUpperCase()}] Connecting to ${host}:${port}...`);
   
-  // Take current batch and reset
-  const batch = messageBatch.slice();
-  messageBatch = [];
+  const socket = new net.Socket();
+  conn.socket = socket;
   
-  const payload = JSON.stringify({
-    batchId: batchNumber,
-    messages: batch,  // Array in exact arrival order
-    timestamp: Date.now()
+  let buffer = '';
+
+  socket.connect(port, host, () => {
+    console.log(`[${timestamp()}] [${portType.toUpperCase()}] ✓ Connected to FinishLynx`);
+    conn.connected = true;
+    conn.reconnectDelay = RECONNECT_DELAY; // Reset delay on success
   });
 
-  console.log(`[${timestamp()}] Sending batch #${batchNumber} with ${batch.length} messages...`);
-  
-  const options = {
-    hostname: baseUrl.hostname,
-    port: baseUrl.port || (isHttps ? 443 : 80),
-    path: '/api/lynx/batch',
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Content-Length': Buffer.byteLength(payload)
-    }
-  };
-
-  const req = httpModule.request(options, (res) => {
-    let data = '';
-    res.on('data', chunk => data += chunk);
-    res.on('end', () => {
-      if (res.statusCode === 200) {
-        console.log(`[${timestamp()}] Batch #${batchNumber} sent successfully`);
-        // Show first few messages
-        batch.slice(0, 3).forEach((msg, i) => {
-          const preview = msg.length > 60 ? msg.substring(0, 60) + '...' : msg;
-          console.log(`  [${i}] ${preview}`);
-        });
-        if (batch.length > 3) {
-          console.log(`  ... and ${batch.length - 3} more`);
-        }
-      } else {
-        console.error(`[${timestamp()}] Batch #${batchNumber} failed: ${res.statusCode}`);
-      }
-      isSending = false;
-      
-      // If more messages came in while sending, send them
-      if (messageBatch.length > 0) {
-        scheduleBatchSend();
+  socket.on('data', (data) => {
+    buffer += data.toString();
+    const { complete, remaining } = extractCompleteData(buffer);
+    buffer = remaining;
+    
+    // Queue items sequentially to preserve FinishLynx send order
+    complete.forEach((item) => {
+      if (item.trim()) {
+        queueForward(item.trim(), portType, portName);
       }
     });
   });
 
-  req.on('error', (err) => {
-    console.error(`[${timestamp()}] Batch #${batchNumber} error: ${err.message}`);
-    isSending = false;
-  });
-
-  req.write(payload);
-  req.end();
-}
-
-function scheduleBatchSend() {
-  if (batchTimer) clearTimeout(batchTimer);
-  batchTimer = setTimeout(sendBatch, BATCH_DELAY_MS);
-}
-
-// Add message to batch (maintains order)
-function addToBatch(message) {
-  messageBatch.push(message);
-  scheduleBatchSend();
-}
-
-// Parse complete messages from buffer
-function parseMessages(buffer) {
-  const messages = [];
-  let remaining = buffer;
-
-  while (remaining.length > 0) {
-    const newlineIdx = remaining.indexOf('\n');
-    const braceIdx = remaining.indexOf('{');
-    
-    // No more complete content
-    if (newlineIdx === -1 && braceIdx === -1) break;
-    
-    // Simple line (no JSON or newline comes first)
-    if (newlineIdx !== -1 && (braceIdx === -1 || newlineIdx < braceIdx)) {
-      const line = remaining.slice(0, newlineIdx).trim();
-      remaining = remaining.slice(newlineIdx + 1);
-      if (line) messages.push(line);
-      continue;
-    }
-    
-    // JSON object - find matching closing brace
-    if (braceIdx !== -1) {
-      // Any text before the brace on its own lines
-      if (braceIdx > 0) {
-        const before = remaining.slice(0, braceIdx);
-        const lastNL = before.lastIndexOf('\n');
-        if (lastNL !== -1) {
-          before.slice(0, lastNL).split('\n').forEach(l => {
-            if (l.trim()) messages.push(l.trim());
-          });
-          remaining = remaining.slice(lastNL + 1);
-          continue;
-        }
-      }
-      
-      // Find end of JSON
-      let depth = 0, end = -1, inStr = false, esc = false;
-      for (let i = braceIdx; i < remaining.length; i++) {
-        const c = remaining[i];
-        if (esc) { esc = false; continue; }
-        if (c === '\\' && inStr) { esc = true; continue; }
-        if (c === '"') { inStr = !inStr; continue; }
-        if (!inStr) {
-          if (c === '{') depth++;
-          else if (c === '}' && --depth === 0) { end = i; break; }
-        }
-      }
-      
-      if (end !== -1) {
-        messages.push(remaining.slice(braceIdx, end + 1));
-        remaining = remaining.slice(end + 1).replace(/^[\r\n]+/, '');
-      } else {
-        break; // Incomplete JSON, wait for more
-      }
-    }
-  }
-
-  return { messages, remaining };
-}
-
-// Connect to FinishLynx
-let buffer = '';
-let reconnectDelay = 3000;
-
-function connect() {
-  console.log(`[${timestamp()}] Connecting to ${LYNX_HOST}:${RESULTS_PORT}...`);
-  
-  const socket = new net.Socket();
-  
-  socket.connect(RESULTS_PORT, LYNX_HOST, () => {
-    console.log(`[${timestamp()}] Connected to FinishLynx!`);
-    reconnectDelay = 3000;
-    buffer = '';
-  });
-
-  socket.on('data', (data) => {
-    // Add to buffer
-    buffer += data.toString();
-    
-    // Parse complete messages
-    const { messages, remaining } = parseMessages(buffer);
-    buffer = remaining;
-    
-    // Add each message to batch IN ORDER
-    messages.forEach(msg => addToBatch(msg));
-  });
-
   socket.on('close', () => {
-    console.log(`[${timestamp()}] Connection closed. Reconnecting in ${reconnectDelay/1000}s...`);
-    setTimeout(connect, reconnectDelay);
-    reconnectDelay = Math.min(reconnectDelay * 1.5, 30000);
+    console.log(`[${timestamp()}] [${portType.toUpperCase()}] Connection closed`);
+    conn.connected = false;
+    scheduleReconnect(portType, host, port, portName);
   });
 
   socket.on('error', (err) => {
     if (err.code === 'ECONNREFUSED') {
-      console.log(`[${timestamp()}] FinishLynx not ready. Retrying...`);
+      console.log(`[${timestamp()}] [${portType.toUpperCase()}] FinishLynx not ready (connection refused)`);
     } else {
-      console.error(`[${timestamp()}] Error: ${err.message}`);
+      console.error(`[${timestamp()}] [${portType.toUpperCase()}] Error: ${err.message}`);
     }
+    conn.connected = false;
   });
 }
 
-connect();
+// Schedule reconnection with exponential backoff
+function scheduleReconnect(portType, host, port, portName) {
+  const conn = connections[portType];
+  
+  console.log(`[${timestamp()}] [${portType.toUpperCase()}] Reconnecting in ${conn.reconnectDelay / 1000}s...`);
+  
+  setTimeout(() => {
+    connectToLynx(portType, host, port, portName);
+  }, conn.reconnectDelay);
+  
+  // Exponential backoff
+  conn.reconnectDelay = Math.min(conn.reconnectDelay * 1.5, MAX_RECONNECT_DELAY);
+}
 
-process.on('SIGINT', () => {
-  console.log('\nShutting down...');
-  if (messageBatch.length > 0) {
-    console.log(`Sending final batch of ${messageBatch.length} messages...`);
-    sendBatch();
+// Start all connections
+console.log('Connecting to FinishLynx/FieldLynx...\n');
+
+connectToLynx('clock', LYNX_HOST, CLOCK_PORT, 'FinishLynx Clock');
+connectToLynx('results', LYNX_HOST, RESULTS_PORT, 'FinishLynx Results');
+connectToLynx('field', LYNX_HOST, FIELD_PORT, 'FieldLynx Results');
+
+// Status display
+setInterval(() => {
+  const status = Object.entries(connections).map(([type, info]) => {
+    return `${type}: ${info.connected ? '●' : '○'}`;
+  }).join(' | ');
+  
+  const anyConnected = Object.values(connections).some(c => c.connected);
+  if (anyConnected) {
+    process.stdout.write(`\r[Status] ${status}   `);
   }
-  setTimeout(() => process.exit(0), 500);
+}, 5000);
+
+// Graceful shutdown
+process.on('SIGINT', () => {
+  console.log('\n\nShutting down...');
+  Object.values(connections).forEach(conn => {
+    if (conn.socket) conn.socket.destroy();
+  });
+  process.exit(0);
 });
+
+console.log('Press Ctrl+C to stop\n');

@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 
 /**
- * FinishLynx TCP-to-HTTP Forwarder (JSON Format)
+ * FinishLynx TCP-to-HTTP Forwarder
  * 
  * This script runs on the same computer as FinishLynx and:
  * 1. Listens for TCP connections on configured ports
- * 2. Parses JSON messages and layout commands
- * 3. Forwards to the remote server via HTTP in order
+ * 2. Forwards ALL raw data to the remote server via HTTP
+ * 3. Does NOT parse or modify the data - just forwards it
+ * 
+ * The server handles all parsing of the ResulTV/LSS format.
  * 
  * Usage:
  *   node lynx-tcp-forwarder.cjs
@@ -32,7 +34,7 @@ const FIELD_PORT = parseInt(process.env.FIELD_PORT) || 5557;
 // ====================================
 
 console.log('==============================================');
-console.log('  FinishLynx TCP-to-HTTP Forwarder (JSON)');
+console.log('  FinishLynx TCP-to-HTTP Forwarder');
 console.log('==============================================');
 console.log(`Server URL: ${BASE_URL}`);
 console.log(`Results Port: ${RESULTS_PORT}`);
@@ -57,50 +59,37 @@ async function processQueue() {
   isProcessingQueue = true;
   
   while (requestQueue.length > 0) {
-    const { data, portType, seqNum } = requestQueue.shift();
-    await forwardToServerAsync(data, portType, seqNum);
+    const { rawData, portType, seqNum } = requestQueue.shift();
+    await forwardToServerAsync(rawData, portType, seqNum);
   }
   
   isProcessingQueue = false;
 }
 
-function queueForward(data, portType) {
+function queueForward(rawData, portType) {
   const seqNum = ++globalSeqNum;
-  requestQueue.push({ data, portType, seqNum });
+  requestQueue.push({ rawData, portType, seqNum });
   processQueue();
 }
 
-function timestamp() {
-  return new Date().toLocaleTimeString();
-}
-
-// Clean FinishLynx formatting codes from JSON
-function cleanLynxData(data) {
-  let cleaned = data.replace(/\\[A-Z][0-9]+/g, '');
-  cleaned = cleaned.replace(/\{\s*,/g, '{');
-  cleaned = cleaned.replace(/\[\s*,/g, '[');
-  cleaned = cleaned.replace(/,(\s*[}\]])/g, '$1');
-  cleaned = cleaned.replace(/:\s*,/g, ':null,');
-  return cleaned;
-}
-
 /**
- * Forward data to the server (async for sequential queue)
+ * Forward raw data to the server (async for sequential queue)
+ * No parsing - just send the raw bytes as base64
  */
-function forwardToServerAsync(data, portType, seqNum) {
+function forwardToServerAsync(rawData, portType, seqNum) {
   return new Promise((resolve) => {
-    const cleanedData = cleanLynxData(data);
-    
     const payload = JSON.stringify({
-      data: cleanedData,
+      data: rawData.toString('base64'),
+      encoding: 'base64',
       portType: portType,
-      seqNum: seqNum
+      seqNum: seqNum,
+      timestamp: Date.now()
     });
     
     const options = {
       hostname: baseUrl.hostname,
       port: baseUrl.port || (isHttps ? 443 : 80),
-      path: '/api/lynx/forward',
+      path: '/api/lynx/raw',
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -111,14 +100,13 @@ function forwardToServerAsync(data, portType, seqNum) {
     const req = httpModule.request(options, (res) => {
       res.on('data', () => {});
       res.on('end', () => {
-        const preview = cleanedData.length > 80 ? cleanedData.substring(0, 80) + '...' : cleanedData;
-        console.log(`[${timestamp()}] [${portType.toUpperCase()}] #${seqNum} ✓ ${preview}`);
+        console.log(`[${new Date().toLocaleTimeString()}] [${portType.toUpperCase()}] #${seqNum} Forwarded ${rawData.length} bytes`);
         resolve();
       });
     });
 
     req.on('error', (err) => {
-      console.error(`[${timestamp()}] [${portType.toUpperCase()}] #${seqNum} ✗ ${err.message}`);
+      console.error(`[${portType.toUpperCase()}] #${seqNum} Forward error:`, err.message);
       resolve(); // Continue queue on error
     });
 
@@ -127,143 +115,40 @@ function forwardToServerAsync(data, portType, seqNum) {
   });
 }
 
-// Extract complete JSON objects or newline-terminated lines IN ORDER
-// CRITICAL: Never emit content until we know its boundaries are complete
-function extractCompleteData(buffer) {
-  const complete = [];
-  let remaining = buffer;
-
-  while (remaining.length > 0) {
-    // Check if buffer starts with a JSON object
-    const firstBrace = remaining.indexOf('{');
-    const firstNewline = remaining.indexOf('\n');
-    
-    // No JSON and no newlines - keep everything in buffer
-    if (firstBrace === -1 && firstNewline === -1) {
-      break;
-    }
-    
-    // If there's a complete line BEFORE any JSON, emit it first
-    if (firstNewline !== -1 && (firstBrace === -1 || firstNewline < firstBrace)) {
-      const line = remaining.slice(0, firstNewline).trim();
-      remaining = remaining.slice(firstNewline + 1);
-      if (line) {
-        complete.push(line);
-      }
-      continue;
-    }
-    
-    // JSON object starts here - find its end
-    if (firstBrace !== -1) {
-      // If there's content before the brace on the same line, it's part of the JSON line
-      if (firstBrace > 0) {
-        const beforeBrace = remaining.slice(0, firstBrace);
-        // Check if there are complete lines before the brace
-        const lastNewline = beforeBrace.lastIndexOf('\n');
-        if (lastNewline !== -1) {
-          // Emit complete lines before the JSON
-          const lines = beforeBrace.slice(0, lastNewline).split('\n');
-          lines.forEach(line => {
-            const trimmed = line.trim();
-            if (trimmed) complete.push(trimmed);
-          });
-          remaining = remaining.slice(lastNewline + 1);
-          continue;
-        }
-      }
-      
-      // Now parse the JSON object
-      let braceDepth = 0;
-      let endIdx = -1;
-      let inString = false;
-      let escape = false;
-
-      for (let i = firstBrace; i < remaining.length; i++) {
-        const char = remaining[i];
-        if (escape) { escape = false; continue; }
-        if (char === '\\' && inString) { escape = true; continue; }
-        if (char === '"') { inString = !inString; continue; }
-        if (!inString) {
-          if (char === '{') braceDepth++;
-          else if (char === '}') {
-            braceDepth--;
-            if (braceDepth === 0) { endIdx = i; break; }
-          }
-        }
-      }
-
-      if (endIdx !== -1) {
-        // Complete JSON found - emit everything from start to end
-        const jsonStr = remaining.slice(firstBrace, endIdx + 1);
-        
-        // Also emit any content before the JSON on the same "line"
-        const beforeJson = remaining.slice(0, firstBrace).trim();
-        if (beforeJson) {
-          // Prepend to the JSON (some commands have prefix text)
-          complete.push(beforeJson + jsonStr);
-        } else {
-          complete.push(jsonStr);
-        }
-        
-        remaining = remaining.slice(endIdx + 1).replace(/^[\r\n]+/, '');
-      } else {
-        // Incomplete JSON - wait for more data
-        break;
-      }
-    }
-  }
-
-  return { complete, remaining };
-}
-
 /**
  * Create a TCP server that forwards all data to the remote server
  */
 function createForwarder(port, portType) {
   const server = net.createServer((socket) => {
-    console.log(`[${timestamp()}] [${portType.toUpperCase()}] Connected from ${socket.remoteAddress}`);
-    
-    let buffer = '';
+    console.log(`[${new Date().toLocaleTimeString()}] [${portType.toUpperCase()}] Connected from ${socket.remoteAddress}`);
     
     socket.on('data', (data) => {
-      // Convert to string for JSON parsing
-      buffer += data.toString();
+      // Log the size of data received
+      console.log(`[${new Date().toLocaleTimeString()}] [${portType.toUpperCase()}] Received ${data.length} bytes`);
       
-      const { complete, remaining } = extractCompleteData(buffer);
-      buffer = remaining;
-      
-      // Queue each complete message in arrival order
-      complete.forEach((msg) => {
-        if (msg.trim()) {
-          queueForward(msg.trim(), portType);
-        }
-      });
+      // Queue for sequential forwarding to preserve order
+      queueForward(data, portType);
     });
     
     socket.on('end', () => {
-      console.log(`[${timestamp()}] [${portType.toUpperCase()}] Disconnected`);
-      // Flush any remaining data
-      if (buffer.trim()) {
-        queueForward(buffer.trim(), portType);
-        buffer = '';
-      }
+      console.log(`[${new Date().toLocaleTimeString()}] [${portType.toUpperCase()}] Disconnected`);
     });
     
     socket.on('error', (err) => {
-      console.error(`[${timestamp()}] [${portType.toUpperCase()}] Socket error: ${err.message}`);
+      console.error(`[${portType.toUpperCase()}] Socket error:`, err.message);
     });
   });
 
   server.on('error', (err) => {
     if (err.code === 'EADDRINUSE') {
-      console.error(`[${timestamp()}] [${portType.toUpperCase()}] Port ${port} already in use`);
+      console.error(`[${portType.toUpperCase()}] Port ${port} already in use`);
     } else {
-      console.error(`[${timestamp()}] [${portType.toUpperCase()}] Server error: ${err.message}`);
+      console.error(`[${portType.toUpperCase()}] Server error:`, err.message);
     }
   });
 
   server.listen(port, () => {
-    console.log(`[${timestamp()}] [${portType.toUpperCase()}] Listening on port ${port}`);
+    console.log(`[${portType.toUpperCase()}] Listening on port ${port}`);
   });
 
   return server;

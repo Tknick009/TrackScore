@@ -7,27 +7,10 @@ echo ================================================
 echo   Track and Field Lynx TCP-to-HTTP Forwarder
 echo ================================================
 echo.
-
-REM Check if the forwarder script exists in same folder
-if not exist "lynx-tcp-forwarder.cjs" (
-    echo ERROR: lynx-tcp-forwarder.cjs not found!
-    echo.
-    echo SOLUTION: Both files must be in the SAME folder:
-    echo   - lynx-forwarder.bat  (this file)
-    echo   - lynx-tcp-forwarder.cjs  (the forwarder script)
-    echo.
-    echo Current folder: %~dp0
-    echo.
-    echo Download both files to the same folder and try again.
-    echo.
-    pause
-    exit /b 1
-)
-
 echo This script forwards FinishLynx/FieldLynx TCP data
 echo to your online scoring system via HTTP.
 echo.
-echo PORTS (FinishLynx should connect to 127.0.0.1):
+echo PORTS:
 echo   Results: 5555 (FinishLynx timing results)
 echo   Clock:   5556 (FinishLynx running time)
 echo   Field:   5557 (FieldLynx field results)
