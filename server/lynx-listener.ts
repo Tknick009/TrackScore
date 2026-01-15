@@ -139,31 +139,32 @@ export class LynxListener extends EventEmitter {
   }
   
   private emitAggregatedEvent(key: string, event: AggregatedEvent) {
-    // Sort entries before emitting: by lane for start list, by place for results
-    const sortedEntries = [...event.entries].sort((a: any, b: any) => {
-      if (event.type === 'S') {
-        // Start list: sort by lane number
-        const laneA = parseInt(a.lane) || 999;
-        const laneB = parseInt(b.lane) || 999;
-        return laneA - laneB;
-      } else if (event.type === 'T') {
-        // Track results: sort by place if available, otherwise by lane
+    // IMPORTANT: For start lists (type 'S'), preserve arrival order - FinishLynx controls display order
+    // Line 1 = entries[0], Line 2 = entries[1], etc. - DO NOT SORT start lists
+    // Only sort for results (type 'T') when places are available
+    let sortedEntries: any[];
+    
+    if (event.type === 'S') {
+      // Start list: PRESERVE arrival order - FinishLynx sends entries in display order
+      sortedEntries = [...event.entries];
+    } else if (event.type === 'T') {
+      // Track results: sort by place if available (finished race), preserve order otherwise (running)
+      sortedEntries = [...event.entries].sort((a: any, b: any) => {
         const hasPlaceA = a.place && a.place !== '';
         const hasPlaceB = b.place && b.place !== '';
         if (hasPlaceA && hasPlaceB) {
-          // Both have places - sort by place
+          // Both have places - sort by place (finished race)
           const placeA = parseInt(a.place) || 999;
           const placeB = parseInt(b.place) || 999;
           return placeA - placeB;
-        } else {
-          // Running mode - sort by lane
-          const laneA = parseInt(a.lane) || 999;
-          const laneB = parseInt(b.lane) || 999;
-          return laneA - laneB;
         }
-      }
-      return 0;
-    });
+        // Running mode - preserve order
+        return 0;
+      });
+    } else {
+      // Field and other types - preserve order
+      sortedEntries = [...event.entries];
+    }
     
     switch (event.type) {
       case 'S':
