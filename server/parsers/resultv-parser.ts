@@ -453,9 +453,8 @@ export class ResulTVParser extends EventEmitter {
       this.saveCurrentEntry();
     }
     
-    // Build entries array sorted by line number
-    const entries: ResulTVEntry[] = Array.from(this.currentEntries.values())
-      .sort((a, b) => (a.line || 0) - (b.line || 0));
+    // Build entries array - preserve Map insertion order (arrival order from FinishLynx)
+    const entries: ResulTVEntry[] = Array.from(this.currentEntries.values());
     
     const page: ResulTVPage = {
       mode: this.currentMode,
@@ -475,8 +474,8 @@ export class ResulTVParser extends EventEmitter {
    * Get current page state (for direct access)
    */
   getCurrentPage(): ResulTVPage {
-    const entries: ResulTVEntry[] = Array.from(this.currentEntries.values())
-      .sort((a, b) => (a.line || 0) - (b.line || 0));
+    // Preserve Map insertion order (arrival order from FinishLynx)
+    const entries: ResulTVEntry[] = Array.from(this.currentEntries.values());
     
     return {
       mode: this.currentMode,

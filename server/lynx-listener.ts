@@ -235,12 +235,7 @@ export class LynxListener extends EventEmitter {
             lastName: e.lastName || '',
           }));
           
-          // Sort by lane for start list
-          startListEntries.sort((a: any, b: any) => {
-            const laneA = parseInt(a.lane) || 999;
-            const laneB = parseInt(b.lane) || 999;
-            return laneA - laneB;
-          });
+          // DO NOT SORT - preserve arrival order from FinishLynx
           
           // Only emit start-list - the handler will trigger auto-mode after aggregation
           this.emit('start-list', event.eventNumber, event.heat, startListEntries as LynxStartListEntry[], {
