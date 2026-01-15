@@ -5518,11 +5518,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Receive forwarded Lynx data from remote TCP forwarders (legacy JSON format)
+  // Raw forwarder log buffer for debugging
+  const rawForwarderLog: Array<{id: number, timestamp: string, portType: string, seqNum?: number, data: string}> = [];
+  let rawLogId = 0;
+  const MAX_RAW_LOG_ENTRIES = 200;
+
   // This endpoint allows FinishLynx/FieldLynx data to be sent via HTTP
   // when direct TCP connection isn't possible (e.g., different networks)
   app.post("/api/lynx/forward", async (req, res) => {
     try {
-      const { data, portType, portName } = req.body;
+      const { data, portType, portName, seqNum } = req.body;
       
       if (!data || typeof data !== 'string') {
         return res.status(400).json({ error: 'Missing or invalid data' });
@@ -5533,6 +5538,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Invalid portType. Must be one of: clock, results, field, start_list' });
       }
       
+      // Log raw data for debugging terminal
+      rawForwarderLog.push({
+        id: ++rawLogId,
+        timestamp: new Date().toISOString(),
+        portType,
+        seqNum,
+        data: data.substring(0, 500) // Truncate for memory
+      });
+      if (rawForwarderLog.length > MAX_RAW_LOG_ENTRIES) {
+        rawForwarderLog.shift();
+      }
+      
       // Process the forwarded data through the Lynx listener
       lynxListener.processForwardedData(data, portType as LynxPortType, portName || 'HTTP Forward');
       
@@ -5541,6 +5558,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('[Lynx Forward] Error:', error.message);
       res.status(500).json({ error: error.message });
     }
+  });
+
+  // Get raw forwarder logs for debugging terminal
+  app.get("/api/lynx/raw-log", (req, res) => {
+    const since = parseInt(req.query.since as string) || 0;
+    const entries = rawForwarderLog.filter(e => e.id > since);
+    res.json({ entries, lastId: rawLogId });
   });
 
   // NEW: Receive raw bytes from TCP forwarder (ResulTV/LSS binary format)
