@@ -36,7 +36,7 @@ import {
   AlignLeft, AlignCenter, AlignRight, AlignVerticalJustifyStart,
   AlignVerticalJustifyCenter, AlignVerticalJustifyEnd,
   AlignHorizontalSpaceAround, AlignVerticalSpaceAround,
-  LayoutTemplate, Upload, AlertCircle, Check
+  LayoutTemplate, Upload, AlertCircle, Check, Download, FolderUp
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -241,6 +241,13 @@ export default function SceneEditor() {
     editedFieldCode: string;
   }>>([]);
   const [rtvImportWarnings, setRtvImportWarnings] = useState<string[]>([]);
+  
+  // Scene Export/Import state
+  const [showSceneImportDialog, setShowSceneImportDialog] = useState(false);
+  const [sceneImportFile, setSceneImportFile] = useState<File | null>(null);
+  const [sceneImportData, setSceneImportData] = useState<any>(null);
+  const [sceneImportLoading, setSceneImportLoading] = useState(false);
+  const sceneImportInputRef = useRef<HTMLInputElement>(null);
   
   // Fetch scenes for current meet
   const { data: scenes = [], isLoading: loadingScenes } = useQuery<SelectLayoutScene[]>({
@@ -1085,6 +1092,87 @@ export default function SceneEditor() {
     ));
   }, []);
 
+  // Export all scenes
+  const handleExportScenes = useCallback(async () => {
+    try {
+      const meetIdParam = currentMeet?.id ? `?meetId=${currentMeet.id}` : '';
+      const response = await fetch(`/api/scenes/export${meetIdParam}`);
+      if (!response.ok) throw new Error('Failed to export scenes');
+      
+      const data = await response.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `scenes-${currentMeet?.name || 'all'}-${Date.now()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      toast({ title: `Exported ${data.scenes?.length || 0} scenes` });
+    } catch (error: any) {
+      toast({ title: 'Export failed', description: error.message, variant: 'destructive' });
+    }
+  }, [currentMeet, toast]);
+
+  // Handle scene import file selection
+  const handleSceneImportFileChange = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    
+    setSceneImportFile(file);
+    setSceneImportLoading(true);
+    
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      
+      if (!data.scenes || !Array.isArray(data.scenes)) {
+        throw new Error('Invalid scene file format');
+      }
+      
+      setSceneImportData(data);
+      setShowSceneImportDialog(true);
+    } catch (error: any) {
+      toast({ title: 'Invalid file', description: error.message, variant: 'destructive' });
+      setSceneImportFile(null);
+    } finally {
+      setSceneImportLoading(false);
+      if (sceneImportInputRef.current) {
+        sceneImportInputRef.current.value = '';
+      }
+    }
+  }, [toast]);
+
+  // Import scenes
+  const handleImportScenes = useCallback(async (replaceExisting: boolean) => {
+    if (!sceneImportData || !currentMeet?.id) return;
+    
+    setSceneImportLoading(true);
+    
+    try {
+      const response = await apiRequest('POST', '/api/scenes/import', {
+        scenes: sceneImportData.scenes,
+        targetMeetId: currentMeet.id,
+        replaceExisting,
+      });
+      
+      const result = await response.json();
+      
+      queryClient.invalidateQueries({ queryKey: ['/api/layout-scenes'] });
+      setShowSceneImportDialog(false);
+      setSceneImportData(null);
+      setSceneImportFile(null);
+      
+      toast({ title: `Imported ${result.imported} scenes` });
+    } catch (error: any) {
+      toast({ title: 'Import failed', description: error.message, variant: 'destructive' });
+    } finally {
+      setSceneImportLoading(false);
+    }
+  }, [sceneImportData, currentMeet, toast]);
+
   // Filter objects by category
   const filteredObjectTypes = Object.entries(OBJECT_TYPE_INFO).filter(([_, info]) => 
     objectPaletteCategory === 'all' || info.category === objectPaletteCategory
@@ -1144,6 +1232,33 @@ export default function SceneEditor() {
             <Plus className="w-4 h-4 mr-1" />
             New Scene
           </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleExportScenes}
+            disabled={scenes.length === 0}
+            data-testid="button-export-scenes"
+          >
+            <Download className="w-4 h-4 mr-1" />
+            Export
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => sceneImportInputRef.current?.click()}
+            disabled={!currentMeet?.id}
+            data-testid="button-import-scenes"
+          >
+            <FolderUp className="w-4 h-4 mr-1" />
+            Import
+          </Button>
+          <input
+            ref={sceneImportInputRef}
+            type="file"
+            accept=".json"
+            className="hidden"
+            onChange={handleSceneImportFileChange}
+          />
         </div>
       </div>
       
@@ -2035,6 +2150,71 @@ export default function SceneEditor() {
             >
               <Plus className="w-4 h-4 mr-1" />
               Import {rtvParsedObjects.filter(o => o.selected).length} Objects
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Scene Import Dialog */}
+      <Dialog open={showSceneImportDialog} onOpenChange={setShowSceneImportDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Import Scenes</DialogTitle>
+            <DialogDescription>
+              Import scenes from a previously exported file
+            </DialogDescription>
+          </DialogHeader>
+          
+          {sceneImportData && (
+            <div className="space-y-4">
+              <div className="p-3 bg-muted rounded-md">
+                <div className="text-sm font-medium">File Summary</div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  <p>Scenes: {sceneImportData.scenes?.length || 0}</p>
+                  <p>Total Objects: {sceneImportData.scenes?.reduce((acc: number, s: any) => acc + (s.objects?.length || 0), 0) || 0}</p>
+                  {sceneImportData.exportedAt && (
+                    <p>Exported: {new Date(sceneImportData.exportedAt).toLocaleString()}</p>
+                  )}
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  How would you like to import these scenes?
+                </p>
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowSceneImportDialog(false);
+                setSceneImportData(null);
+                setSceneImportFile(null);
+              }}
+              disabled={sceneImportLoading}
+              data-testid="button-import-cancel"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => handleImportScenes(false)}
+              disabled={sceneImportLoading}
+              data-testid="button-import-add"
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              Add to Existing
+            </Button>
+            <Button
+              onClick={() => handleImportScenes(true)}
+              disabled={sceneImportLoading}
+              data-testid="button-import-replace"
+            >
+              <FolderUp className="w-4 h-4 mr-1" />
+              Replace All
             </Button>
           </DialogFooter>
         </DialogContent>

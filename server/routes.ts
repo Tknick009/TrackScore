@@ -3800,6 +3800,100 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===== SCENE EXPORT/IMPORT =====
+  
+  // Export all scenes for a meet (or all scenes if no meetId provided)
+  app.get('/api/scenes/export', async (req, res) => {
+    try {
+      const meetId = req.query.meetId as string | undefined;
+      const scenes = await storage.getLayoutScenes(meetId);
+      
+      // Get objects for each scene
+      const scenesWithObjects = await Promise.all(
+        scenes.map(async (scene) => {
+          const objects = await storage.getLayoutObjects(scene.id);
+          return {
+            ...scene,
+            objects,
+          };
+        })
+      );
+      
+      const exportData = {
+        version: '1.0',
+        exportedAt: new Date().toISOString(),
+        meetId: meetId || null,
+        scenes: scenesWithObjects,
+      };
+      
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename="scenes-export-${Date.now()}.json"`);
+      res.json(exportData);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Import scenes from JSON
+  app.post('/api/scenes/import', async (req, res) => {
+    try {
+      const { scenes, targetMeetId, replaceExisting } = req.body;
+      
+      if (!scenes || !Array.isArray(scenes)) {
+        return res.status(400).json({ error: 'Invalid import data: scenes array required' });
+      }
+      
+      const importResults: Array<{ originalId: number; newId: number; name: string; objectCount: number }> = [];
+      
+      // If replaceExisting, delete existing scenes for this meet first
+      if (replaceExisting && targetMeetId) {
+        const existingScenes = await storage.getLayoutScenes(targetMeetId);
+        for (const scene of existingScenes) {
+          await storage.deleteLayoutScene(scene.id);
+        }
+      }
+      
+      for (const sceneData of scenes) {
+        const { objects, id: originalId, ...sceneFields } = sceneData;
+        
+        // Create the scene with the target meet ID if provided
+        const newScene = await storage.createLayoutScene({
+          ...sceneFields,
+          meetId: targetMeetId || sceneFields.meetId,
+        });
+        
+        let objectCount = 0;
+        
+        // Create objects for this scene
+        if (objects && Array.isArray(objects)) {
+          for (const objData of objects) {
+            const { id: _objId, sceneId: _sceneId, ...objectFields } = objData;
+            await storage.createLayoutObject({
+              ...objectFields,
+              sceneId: newScene.id,
+            });
+            objectCount++;
+          }
+        }
+        
+        importResults.push({
+          originalId,
+          newId: newScene.id,
+          name: newScene.name,
+          objectCount,
+        });
+      }
+      
+      res.json({
+        success: true,
+        imported: importResults.length,
+        scenes: importResults,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Record Books
   app.get('/api/record-books', async (req, res) => {
     try {
