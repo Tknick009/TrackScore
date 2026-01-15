@@ -6274,16 +6274,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     entryAccumulator.eventName = metadata?.eventName || entryAccumulator.eventName;
     entryAccumulator.distance = metadata?.distance || entryAccumulator.distance;
     
-    // Accumulate new entries in arrival order (FinishLynx sends them in display order)
-    // Skip empty entries (blank lane, bib, name)
+    // INDEX entries by their L (lane/line) field - this is the slot position from FinishLynx
+    // Network packets can arrive out of order, so we use L as the index instead of arrival order
+    // L=1 → slot 0, L=2 → slot 1, etc. (1-based to 0-based conversion)
     for (const entry of entries) {
       const hasContent = entry.lane || entry.bib || entry.name;
-      if (hasContent) {
-        entryAccumulator.entries.push(entry);
+      if (hasContent && entry.lane) {
+        const lineNum = parseInt(entry.lane);
+        if (!isNaN(lineNum) && lineNum >= 1) {
+          const slotIndex = lineNum - 1; // Convert 1-based line to 0-based index
+          console.log(`[Lynx] ENTRY SLOT: L=${entry.lane} → slot[${slotIndex}], bib=${entry.bib}, name=${entry.name?.substring(0, 20)}`);
+          
+          // Expand array if needed and place entry at correct slot
+          while (entryAccumulator.entries.length <= slotIndex) {
+            entryAccumulator.entries.push(null);
+          }
+          entryAccumulator.entries[slotIndex] = entry;
+        }
       }
     }
     
-    console.log(`[Lynx] Start list: Event ${eventNumber}, Heat ${heat}, +${entries.length} entries, total: ${entryAccumulator.entries.length}`);
+    // Filter out null slots and log order
+    const filledEntries = entryAccumulator.entries.filter((e: any) => e !== null);
+    const slotOrder = entryAccumulator.entries.map((e: any, i: number) => e ? `[${i}]=L${e.lane}` : `[${i}]=_`).join(' ');
+    console.log(`[Lynx] Start list: Event ${eventNumber}, Heat ${heat}, slots: ${entryAccumulator.entries.length}, filled: ${filledEntries.length} | ${slotOrder}`);
     
     // Broadcast entries in arrival order (FinishLynx controls display order)
     // Display maps by array position: Line 1 = entries[0], Line 2 = entries[1], etc.
