@@ -328,6 +328,65 @@ async function autoExportLFF(sessionId: number) {
   }
 }
 
+// Load default scenes template from built-in JSON file
+let defaultScenesTemplate: { scenes: any[] } | null = null;
+function loadDefaultScenesTemplate(): { scenes: any[] } | null {
+  if (defaultScenesTemplate !== null) {
+    return defaultScenesTemplate;
+  }
+  try {
+    // Use import.meta.url for ESM compatibility
+    const currentDir = path.dirname(new URL(import.meta.url).pathname);
+    const templatePath = path.join(currentDir, 'default-scenes.json');
+    if (fs.existsSync(templatePath)) {
+      const content = fs.readFileSync(templatePath, 'utf-8');
+      const data = JSON.parse(content);
+      defaultScenesTemplate = { scenes: data.scenes || [] };
+      console.log(`✅ Loaded ${defaultScenesTemplate.scenes.length} default scene templates`);
+      return defaultScenesTemplate;
+    } else {
+      console.log(`[Default Scenes] Template file not found at: ${templatePath}`);
+    }
+  } catch (error) {
+    console.error('[Default Scenes] Error loading template:', error);
+  }
+  defaultScenesTemplate = { scenes: [] };
+  return defaultScenesTemplate;
+}
+
+// Seed default scenes for a new meet
+async function seedDefaultScenes(meetId: string): Promise<number> {
+  const template = loadDefaultScenesTemplate();
+  if (!template || template.scenes.length === 0) {
+    return 0;
+  }
+  
+  let seededCount = 0;
+  for (const sceneData of template.scenes) {
+    const { objects, id: _id, meetId: _meetId, createdAt: _createdAt, updatedAt: _updatedAt, ...sceneFields } = sceneData;
+    
+    const newScene = await storage.createLayoutScene({
+      ...sceneFields,
+      meetId: meetId,
+    });
+    
+    // Create objects for this scene
+    if (objects && Array.isArray(objects)) {
+      for (const objData of objects) {
+        const { id: _objId, sceneId: _sceneId, createdAt: _objCreated, ...objectFields } = objData;
+        await storage.createLayoutObject({
+          ...objectFields,
+          sceneId: newScene.id,
+        });
+      }
+    }
+    seededCount++;
+  }
+  
+  console.log(`✅ Seeded ${seededCount} default scenes for meet ${meetId}`);
+  return seededCount;
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Configure multer for file uploads (disk storage for large files like MDB)
   const upload = multer({
@@ -1470,6 +1529,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const data = insertMeetSchema.parse(req.body);
       const meet = await storage.createMeet(data);
+      
+      // Seed default scenes for new meet
+      await seedDefaultScenes(meet.id);
+      
       await broadcastCurrentEvent();
       res.json(meet);
     } catch (error: any) {
