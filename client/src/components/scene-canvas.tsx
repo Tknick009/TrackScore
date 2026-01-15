@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, memo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { motion, AnimatePresence } from "framer-motion";
 import type { 
   SelectLayoutScene, 
   SelectLayoutObject, 
@@ -998,20 +999,31 @@ export function SceneCanvas({
         data-testid="scene-canvas"
         key={`scene-${sceneId}`}
       >
-        {sortedObjects.map((obj) => (
-          <SceneObjectRenderer 
-            key={obj.id} 
-            object={obj} 
-            meetId={meetId}
-            canvasWidth={canvasWidth}
-            canvasHeight={canvasHeight}
-            eventNumber={eventNumber}
-            pageIndex={currentPageIndex}
-            pageSize={pagingSize}
-            sharedLatestLiveData={liveData}
-            liveClockTime={liveClockTime}
-          />
-        ))}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={`page-${currentPageIndex}`}
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+            style={{ position: 'absolute', inset: 0 }}
+          >
+            {sortedObjects.map((obj) => (
+              <SceneObjectRenderer 
+                key={obj.id} 
+                object={obj} 
+                meetId={meetId}
+                canvasWidth={canvasWidth}
+                canvasHeight={canvasHeight}
+                eventNumber={eventNumber}
+                pageIndex={currentPageIndex}
+                pageSize={pagingSize}
+                sharedLatestLiveData={liveData}
+                liveClockTime={liveClockTime}
+              />
+            ))}
+          </motion.div>
+        </AnimatePresence>
         
         {sortedObjects.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center">
@@ -1058,20 +1070,31 @@ export function SceneCanvas({
           backgroundColor,
         }}
       >
-        {sortedObjects.map((obj) => (
-          <SceneObjectRenderer 
-            key={obj.id} 
-            object={obj} 
-            meetId={meetId}
-            canvasWidth={designWidth}
-            canvasHeight={designHeight}
-            eventNumber={eventNumber}
-            pageIndex={currentPageIndex}
-            pageSize={pagingSize}
-            sharedLatestLiveData={liveData}
-            liveClockTime={liveClockTime}
-          />
-        ))}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={`page-${currentPageIndex}`}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.35, ease: "easeInOut" }}
+            style={{ position: 'absolute', inset: 0 }}
+          >
+            {sortedObjects.map((obj) => (
+              <SceneObjectRenderer 
+                key={obj.id} 
+                object={obj} 
+                meetId={meetId}
+                canvasWidth={designWidth}
+                canvasHeight={designHeight}
+                eventNumber={eventNumber}
+                pageIndex={currentPageIndex}
+                pageSize={pagingSize}
+                sharedLatestLiveData={liveData}
+                liveClockTime={liveClockTime}
+              />
+            ))}
+          </motion.div>
+        </AnimatePresence>
         
         {sortedObjects.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center">

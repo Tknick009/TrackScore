@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Pause, Play } from "lucide-react";
+import { Trash2, Pause, Play, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useQuery } from "@tanstack/react-query";
 
 interface Entry {
   lane?: string;
