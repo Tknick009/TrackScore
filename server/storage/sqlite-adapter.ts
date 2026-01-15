@@ -883,6 +883,19 @@ export class SQLiteStorage implements IStorage {
         synced_at TEXT
       );
       CREATE INDEX IF NOT EXISTS sync_events_pending_idx ON sync_events(synced_at) WHERE synced_at IS NULL;
+
+      -- Scene Template Mappings (maps display type + mode to scene)
+      CREATE TABLE IF NOT EXISTS scene_template_mappings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        meet_id TEXT REFERENCES meets(id) ON DELETE CASCADE,
+        display_type TEXT NOT NULL,
+        display_mode TEXT NOT NULL,
+        scene_id INTEGER NOT NULL REFERENCES layout_scenes(id) ON DELETE CASCADE,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now')),
+        UNIQUE(meet_id, display_type, display_mode)
+      );
+      CREATE INDEX IF NOT EXISTS scene_template_mappings_meet_id_idx ON scene_template_mappings(meet_id);
     `);
   }
 
@@ -4613,28 +4626,75 @@ export class SQLiteStorage implements IStorage {
 
   // ============= SCENE TEMPLATE MAPPINGS =============
   async getSceneTemplateMappings(meetId: string): Promise<SelectSceneTemplateMapping[]> {
-    return [];
+    const rows = this.db.prepare(`
+      SELECT id, meet_id, display_type, display_mode, scene_id, created_at, updated_at
+      FROM scene_template_mappings
+      WHERE meet_id = ?
+    `).all(meetId) as any[];
+    
+    return rows.map(row => ({
+      id: row.id,
+      meetId: row.meet_id,
+      displayType: row.display_type,
+      displayMode: row.display_mode,
+      sceneId: row.scene_id,
+      createdAt: row.created_at ? new Date(row.created_at) : null,
+      updatedAt: row.updated_at ? new Date(row.updated_at) : null,
+    }));
   }
 
   async getSceneTemplateMappingByTypeAndMode(meetId: string, displayType: string, displayMode: string): Promise<SelectSceneTemplateMapping | undefined> {
-    return undefined;
+    const row = this.db.prepare(`
+      SELECT id, meet_id, display_type, display_mode, scene_id, created_at, updated_at
+      FROM scene_template_mappings
+      WHERE meet_id = ? AND display_type = ? AND display_mode = ?
+    `).get(meetId, displayType, displayMode) as any;
+    
+    if (!row) return undefined;
+    
+    return {
+      id: row.id,
+      meetId: row.meet_id,
+      displayType: row.display_type,
+      displayMode: row.display_mode,
+      sceneId: row.scene_id,
+      createdAt: row.created_at ? new Date(row.created_at) : null,
+      updatedAt: row.updated_at ? new Date(row.updated_at) : null,
+    };
   }
 
   async setSceneTemplateMapping(mapping: InsertSceneTemplateMapping): Promise<SelectSceneTemplateMapping> {
-    const now = new Date();
+    // Use INSERT OR REPLACE to handle upsert (unique constraint on meet_id, display_type, display_mode)
+    const result = this.db.prepare(`
+      INSERT INTO scene_template_mappings (meet_id, display_type, display_mode, scene_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
+      ON CONFLICT(meet_id, display_type, display_mode) 
+      DO UPDATE SET scene_id = excluded.scene_id, updated_at = datetime('now')
+    `).run(mapping.meetId, mapping.displayType, mapping.displayMode, mapping.sceneId);
+    
+    const id = result.lastInsertRowid as number;
+    
+    // Fetch the record (might be updated, not inserted)
+    const row = this.db.prepare(`
+      SELECT id, meet_id, display_type, display_mode, scene_id, created_at, updated_at
+      FROM scene_template_mappings
+      WHERE meet_id = ? AND display_type = ? AND display_mode = ?
+    `).get(mapping.meetId, mapping.displayType, mapping.displayMode) as any;
+    
     return {
-      id: 0,
-      meetId: mapping.meetId ?? null,
-      displayType: mapping.displayType,
-      displayMode: mapping.displayMode,
-      sceneId: mapping.sceneId,
-      createdAt: now,
-      updatedAt: now,
+      id: row.id,
+      meetId: row.meet_id,
+      displayType: row.display_type,
+      displayMode: row.display_mode,
+      sceneId: row.scene_id,
+      createdAt: row.created_at ? new Date(row.created_at) : null,
+      updatedAt: row.updated_at ? new Date(row.updated_at) : null,
     };
   }
 
   async deleteSceneTemplateMapping(id: number): Promise<boolean> {
-    return false;
+    const result = this.db.prepare('DELETE FROM scene_template_mappings WHERE id = ?').run(id);
+    return result.changes > 0;
   }
 
   public close(): void {
