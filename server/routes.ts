@@ -6294,18 +6294,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     
     startListBroadcastTimer = setTimeout(() => {
-      // Log order for debugging
-      const entryOrder = entryAccumulator.entries.map((e: any, i: number) => `L${i + 1}=Lane${e?.lane || '?'}`).join(' ');
-      console.log(`[Lynx] Broadcasting start list: Event ${eventNumber}, Heat ${heat}, ${entryAccumulator.entries.length} entries | ${entryOrder}`);
+      // SORT by lane number BEFORE broadcasting (user requirement: sort then page)
+      const sortedEntries = [...entryAccumulator.entries].sort((a, b) => {
+        const laneA = parseInt(a?.lane) || 999;
+        const laneB = parseInt(b?.lane) || 999;
+        return laneA - laneB;
+      });
       
-      // Broadcast entries in ARRIVAL ORDER (FinishLynx transmission order = display order)
-      // Display maps by array position: Line 1 = entries[0], Line 2 = entries[1], etc.
+      // Log order for debugging
+      const entryOrder = sortedEntries.map((e: any, i: number) => `L${i + 1}=Lane${e?.lane || '?'}`).join(' ');
+      console.log(`[Lynx] Broadcasting start list: Event ${eventNumber}, Heat ${heat}, ${sortedEntries.length} entries (SORTED by lane) | ${entryOrder}`);
+      
+      // Broadcast SORTED entries - displays will receive them in lane order
       broadcastToDisplays({
         type: 'start_list',
         data: {
           eventNumber,
           heat,
-          entries: entryAccumulator.entries, // Arrival order preserved
+          entries: sortedEntries, // Sorted by lane number
           eventName: entryAccumulator.eventName,
           distance: entryAccumulator.distance,
         }
