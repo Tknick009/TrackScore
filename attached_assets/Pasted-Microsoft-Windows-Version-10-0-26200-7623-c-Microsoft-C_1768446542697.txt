@@ -1,0 +1,100 @@
+Microsoft Windows [Version 10.0.26200.7623]
+(c) Microsoft Corporation. All rights reserved.
+
+C:\Users\LTR-48>cd cd C:\Users\LTR-48\Downloads\TrackScore\TrackScore
+The filename, directory name, or volume label syntax is incorrect.
+
+C:\Users\LTR-48>set EDGE_MODE=true
+
+C:\Users\LTR-48>set NODE_ENV=development
+
+C:\Users\LTR-48>npx tsx server/index.ts
+
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+Error [ERR_MODULE_NOT_FOUND]: Cannot find module 'C:\Users\LTR-48\server\index.ts' imported from C:\Users\LTR-48\
+    at finalizeResolution (node:internal/modules/esm/resolve:274:11)
+    at moduleResolve (node:internal/modules/esm/resolve:859:10)
+    at defaultResolve (node:internal/modules/esm/resolve:983:11)
+    at nextResolve (node:internal/modules/esm/hooks:748:28)
+    at resolveBase (file:///C:/Users/LTR-48/AppData/Local/npm-cache/_npx/fd45a72a545557e9/node_modules/tsx/dist/esm/index.mjs?1768446390901:2:3744)
+    at resolveDirectory (file:///C:/Users/LTR-48/AppData/Local/npm-cache/_npx/fd45a72a545557e9/node_modules/tsx/dist/esm/index.mjs?1768446390901:2:4243)
+    at resolveTsPaths (file:///C:/Users/LTR-48/AppData/Local/npm-cache/_npx/fd45a72a545557e9/node_modules/tsx/dist/esm/index.mjs?1768446390901:2:4984)
+    at resolve (file:///C:/Users/LTR-48/AppData/Local/npm-cache/_npx/fd45a72a545557e9/node_modules/tsx/dist/esm/index.mjs?1768446390901:2:5361)
+    at nextResolve (node:internal/modules/esm/hooks:748:28)
+    at Hooks.resolve (node:internal/modules/esm/hooks:240:30) {
+  code: 'ERR_MODULE_NOT_FOUND',
+  url: 'file:///C:/Users/LTR-48/server/index.ts'
+}
+
+Node.js v22.20.0
+
+C:\Users\LTR-48>cd C:\Users\LTR-48\Downloads\TrackScore\TrackScore
+
+C:\Users\LTR-48\Downloads\TrackScore\TrackScore>set EDGE_MODE=true
+
+C:\Users\LTR-48\Downloads\TrackScore\TrackScore>set NODE_ENV=development
+
+C:\Users\LTR-48\Downloads\TrackScore\TrackScore>npx tsx server/index.ts
+
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'express' imported from C:\Users\LTR-48\Downloads\TrackScore\TrackScore\server\index.ts
+    at Object.getPackageJSONURL (node:internal/modules/package_json_reader:266:9)
+    at packageResolve (node:internal/modules/esm/resolve:767:81)
+    at moduleResolve (node:internal/modules/esm/resolve:853:18)
+    at defaultResolve (node:internal/modules/esm/resolve:983:11)
+    at nextResolve (node:internal/modules/esm/hooks:748:28)
+    at resolveBase (file:///C:/Users/LTR-48/AppData/Local/npm-cache/_npx/fd45a72a545557e9/node_modules/tsx/dist/esm/index.mjs?1768446462922:2:3744)
+    at resolveDirectory (file:///C:/Users/LTR-48/AppData/Local/npm-cache/_npx/fd45a72a545557e9/node_modules/tsx/dist/esm/index.mjs?1768446462922:2:4243)
+    at resolveTsPaths (file:///C:/Users/LTR-48/AppData/Local/npm-cache/_npx/fd45a72a545557e9/node_modules/tsx/dist/esm/index.mjs?1768446462922:2:4984)
+    at async resolve (file:///C:/Users/LTR-48/AppData/Local/npm-cache/_npx/fd45a72a545557e9/node_modules/tsx/dist/esm/index.mjs?1768446462922:2:5355)
+    at async nextResolve (node:internal/modules/esm/hooks:748:22) {
+  code: 'ERR_MODULE_NOT_FOUND'
+}
+
+Node.js v22.20.0
+
+C:\Users\LTR-48\Downloads\TrackScore\TrackScore>npm install
+npm warn deprecated @esbuild-kit/esm-loader@2.6.5: Merged into tsx: https://tsx.is
+npm warn deprecated @esbuild-kit/core-utils@3.3.2: Merged into tsx: https://tsx.is
+
+added 647 packages, and audited 648 packages in 12s
+
+87 packages are looking for funding
+  run `npm fund` for details
+
+12 vulnerabilities (3 low, 5 moderate, 4 high)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+
+C:\Users\LTR-48\Downloads\TrackScore\TrackScore>set EDGE_MODE=true
+
+C:\Users\LTR-48\Downloads\TrackScore\TrackScore>set NODE_ENV=development
+
+C:\Users\LTR-48\Downloads\TrackScore\TrackScore>npx tsx server/index.ts
+🔄 Running in EDGE mode with SQLite database: ./data/scoreboard.db
+C:\Users\LTR-48\Downloads\TrackScore\TrackScore\node_modules\better-sqlite3\lib\database.js:65
+                throw new TypeError('Cannot open database because the directory does not exist');
+                      ^
+
+TypeError: Cannot open database because the directory does not exist
+    at new Database (C:\Users\LTR-48\Downloads\TrackScore\TrackScore\node_modules\better-sqlite3\lib\database.js:65:9)
+    at new SQLiteStorage (C:\Users\LTR-48\Downloads\TrackScore\TrackScore\server\storage\sqlite-adapter.ts:150:15)
+    at createStorage (C:\Users\LTR-48\Downloads\TrackScore\TrackScore\server\storage.ts:3813:12)
+    at <anonymous> (C:\Users\LTR-48\Downloads\TrackScore\TrackScore\server\storage.ts:3820:24)
+    at ModuleJob.run (node:internal/modules/esm/module_job:345:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:665:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+
+Node.js v22.20.0
+
+C:\Users\LTR-48\Downloads\TrackScore\TrackScore>

@@ -127,6 +127,8 @@ import {
   parsePerformanceToSeconds,
 } from "@shared/schema";
 import type { IStorage, RecordBookWithRecords } from "../storage";
+import * as fs from "fs";
+import * as path from "path";
 
 export interface SyncEvent {
   id: number;
@@ -147,6 +149,15 @@ export class SQLiteStorage implements IStorage {
   private externalScoreboardIdCounter: number = 1;
 
   constructor(dbPath: string = ':memory:') {
+    // Create the directory if it doesn't exist (for file-based databases)
+    if (dbPath !== ':memory:') {
+      const dir = path.dirname(dbPath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+        console.log(`📁 Created directory: ${dir}`);
+      }
+    }
+    
     this.db = new Database(dbPath);
     this.db.pragma('journal_mode = WAL');
     this.db.pragma('foreign_keys = ON');
