@@ -109,9 +109,34 @@ function useMeet(meetId: string | null | undefined) {
   });
 }
 
-// CLEANUP: Removed useLiveEventData and useLatestLiveEventData hooks
-// All live data now comes from WebSocket via propLiveEventData prop
-// This eliminates competing data sources that were reordering entries
+function useLiveEventData(eventNumber: string | number | null | undefined) {
+  return useQuery({
+    queryKey: ["/api/live-events", eventNumber],
+    queryFn: async () => {
+      if (!eventNumber) return null;
+      const res = await fetch(`/api/live-events/${eventNumber}`);
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!eventNumber,
+    staleTime: 500,
+    refetchInterval: 1000,
+  });
+}
+
+function useLatestLiveEventData() {
+  return useQuery({
+    queryKey: ["/api/live-events/latest"],
+    queryFn: async () => {
+      const res = await fetch(`/api/live-events`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return Array.isArray(data) && data.length > 0 ? data[0] : null;
+    },
+    staleTime: 500,
+    refetchInterval: 1000,
+  });
+}
 
 function useTeamStandings(meetId: string | null | undefined) {
   return useQuery({
@@ -159,16 +184,26 @@ export function SceneObjectRenderer({
   
   const eventIds = dataBinding.eventIds;
   const eventId = eventIds?.[0];
+  const lynxPort = dataBinding.lynxPort;
+  
+  const liveEventKey = lynxPort || eventNumber;
   
   const { data: event, isLoading: eventLoading } = useEventWithEntries(
     dataBinding.sourceType === "events" ? eventId : null
   );
   const { data: meet } = useMeet(meetId);
   
-  // CLEANUP: Use ONLY the WebSocket prop for live-data
-  // NO REST polling - sharedLatestLiveData contains the correct entry order from FinishLynx
-  // entries[0] = Line 1, entries[1] = Line 2, etc.
-  const liveData = sharedLatestLiveData;
+  // IMPORTANT: Disable REST polling when WebSocket prop (sharedLatestLiveData) is provided
+  // This prevents stale REST data from overwriting the correct WebSocket-accumulated entries
+  const shouldPollRest = dataBinding.sourceType === "live-data" && liveEventKey && !sharedLatestLiveData;
+  
+  const { data: specificLiveData } = useLiveEventData(
+    shouldPollRest ? liveEventKey : null
+  );
+  
+  // PRIORITY: WebSocket prop (sharedLatestLiveData) > REST polling (specificLiveData)
+  // WebSocket receives accumulated entries in correct display order from FinishLynx
+  const liveData = sharedLatestLiveData || specificLiveData;
   
   const { data: standings } = useTeamStandings(
     dataBinding.sourceType === "standings" ? meetId : null
@@ -224,7 +259,7 @@ export function SceneObjectRenderer({
             </div>
           );
         }
-        if (!event && !liveData) {
+        if (!event) {
           return (
             <div className="flex items-center justify-center h-full bg-[hsl(var(--display-bg))]">
               <div className="text-center text-[hsl(var(--display-muted))]">
@@ -234,82 +269,33 @@ export function SceneObjectRenderer({
             </div>
           );
         }
-        // PRIORITY: Use liveData (WebSocket) for entries when available
-        // This preserves FinishLynx arrival order: entries[0] = Line 1, entries[1] = Line 2
-        const liveEntries = liveData?.entries || [];
-        const isStartListOrRunning = liveData?.mode === 'start_list' || liveData?.mode === 'running' || liveData?.mode === 'armed';
-        
-        // Build base event info for entry references
-        const baseEventInfo = {
-          id: event?.id || 0,
-          eventType: event?.eventType || 'track',
-          name: liveData?.eventName || event?.name || '',
-        };
-        
-        // Parse time string to numeric value (e.g., "10.52" -> 10.52)
-        const parseTimeToNumber = (timeStr: string | undefined): number | null => {
-          if (!timeStr) return null;
-          const parsed = parseFloat(timeStr);
-          return isNaN(parsed) ? null : parsed;
-        };
-        
-        // Build mapped entries from live data with complete structure for templates
-        const mapLiveEntries = (entries: any[]) => entries.map((e: any, idx: number) => {
-          const placeNum = e.place ? parseInt(e.place, 10) : undefined;
-          const laneNum = e.lane ? parseInt(e.lane, 10) : undefined;
-          const markNum = parseTimeToNumber(e.time || e.mark);
-          return {
-            id: e.bib || `live-${idx}`,
-            athlete: { 
-              id: e.bib || `athlete-${idx}`,
-              firstName: e.firstName || '',
-              lastName: e.lastName || e.name || '',
-            },
-            team: { name: e.affiliation || e.team || '' },
-            event: baseEventInfo,
-            finalLane: (laneNum !== undefined && !isNaN(laneNum)) ? laneNum : undefined,
-            finalPlace: (placeNum !== undefined && !isNaN(placeNum)) ? placeNum : undefined,
-            finalMark: markNum,
-            resultType: 'time' as const,
-            status: 'active',
-            inFinals: true,
-          };
-        });
-        
-        // Build event object with WebSocket data taking priority
-        const eventWithLiveData = {
-          ...(event || { id: 0, eventType: 'track', gender: 'mixed' }),
-          name: liveData?.eventName || event?.name || '',
-          eventType: event?.eventType || 'track',
-          // Use live entries for start_list/running modes (preserve arrival order)
-          // Only use database entries for results mode
-          entries: isStartListOrRunning && liveEntries.length > 0 
-            ? mapLiveEntries(liveEntries)
-            : (event?.entries || []),
-          status: isStartListOrRunning ? liveData?.mode : (event?.status || 'pending'),
+        // Override event name with live FinishLynx data - NEVER use database name
+        const eventWithLiveName = {
+          ...event,
+          name: liveData?.eventName || '', // Event name MUST come from FinishLynx only
         };
         const boardType = componentConfig.boardType || "live-results";
-        const displayMode = isStartListOrRunning ? 'start_list' : (liveData?.mode || 'live');
-        
-        if (eventWithLiveData.status === "completed" && componentConfig.scrollOnComplete !== false) {
+        if (eventWithLiveName.status === "completed" && componentConfig.scrollOnComplete !== false) {
           return (
             <ScrollingResultsBoard 
-              event={eventWithLiveData as any} 
+              event={eventWithLiveName} 
               meet={meet} 
               mode="results" 
+              resultsPerPage={componentConfig.resultsPerPage || 5}
+              scrollIntervalMs={(componentConfig.pageDurationSeconds || 5) * 1000}
             />
           );
         }
         if (boardType === "field-event") {
-          return <FieldEventBoard event={eventWithLiveData as any} meet={meet} mode={displayMode} />;
+          return <FieldEventBoard event={eventWithLiveName} meet={meet} mode="live" />;
         }
         if (boardType === "live-time") {
-          return <LiveTimeBoard event={eventWithLiveData as any} meet={meet} mode={displayMode} />;
+          return <LiveTimeBoard event={eventWithLiveName} meet={meet} mode="live" />;
         }
         if (boardType === "standings") {
-          return <StandingsBoard event={eventWithLiveData as any} meet={meet} mode={displayMode} />;
+          return <StandingsBoard event={eventWithLiveName} meet={meet} mode="live" />;
         }
-        return <LiveResultsBoard event={eventWithLiveData as any} meet={meet} mode={displayMode} />;
+        return <LiveResultsBoard event={eventWithLiveName} meet={meet} mode="live" />;
         
       case "timer":
         // Use numeric fontSize from style, or fall back to componentConfig string mapping
@@ -893,11 +879,42 @@ export function SceneCanvas({
   const scene = propScene || fetchedScene;
   const objects = propObjects || fetchedObjects;
   
-  // CLEANUP: Use WebSocket prop ONLY - no REST polling
-  // propLiveEventData comes from display-device.tsx via WebSocket with correct entry order
-  // entries[0] = Line 1 (first entry FinishLynx sent), entries[1] = Line 2, etc.
-  // DO NOT SORT for start_list mode - FinishLynx controls the display order
-  const liveData = propLiveEventData;
+  const { data: fetchedLiveEventData } = useLiveEventData(eventNumber);
+  const { data: latestLiveEventData } = useLatestLiveEventData();
+  
+  // Priority: WebSocket prop > REST by eventNumber > REST latest
+  const rawLiveData = propLiveEventData || fetchedLiveEventData || latestLiveEventData;
+  
+  // Use entries in arrival order for start_list (FinishLynx controls display order)
+  // Only sort results mode by place
+  const liveData = useMemo(() => {
+    if (!rawLiveData) return rawLiveData;
+    
+    const entries = rawLiveData.entries || rawLiveData.results || [];
+    if (entries.length === 0) return rawLiveData;
+    
+    const mode = rawLiveData.mode || '';
+    const isResults = mode === 'results' || mode === 'finished';
+    
+    // IMPORTANT: Do NOT sort start_list or running mode entries
+    // FinishLynx sends entries in the exact order they should appear on display
+    // Line 1 = entries[0], Line 2 = entries[1], etc.
+    if (isResults) {
+      // Only sort finished results by place
+      const sortedEntries = [...entries].sort((a: any, b: any) => {
+        const placeA = parseInt(a.place) || 999;
+        const placeB = parseInt(b.place) || 999;
+        return placeA - placeB;
+      });
+      return {
+        ...rawLiveData,
+        entries: sortedEntries,
+      };
+    }
+    
+    // For start_list and running modes, keep entries in arrival order
+    return rawLiveData;
+  }, [rawLiveData]);
   
   const totalEntries = useMemo(() => {
     if (!liveData) return 0;
