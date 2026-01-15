@@ -1,6 +1,4 @@
-import { db } from "./db";
-import { meets } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { storage } from "./storage";
 import { importCompleteMDB } from "./import-mdb-complete";
 import { existsSync } from "fs";
 
@@ -13,9 +11,9 @@ export function startAutoRefresh() {
   
   pollingInterval = setInterval(async () => {
     try {
-      const meetsToRefresh = await db.query.meets.findMany({
-        where: (meets, { eq }) => eq(meets.autoRefresh, true)
-      });
+      // Use storage abstraction instead of direct db access
+      const allMeets = await storage.getMeets();
+      const meetsToRefresh = allMeets.filter(m => m.autoRefresh === true);
       
       for (const meet of meetsToRefresh) {
         const now = new Date();
@@ -34,9 +32,8 @@ export function startAutoRefresh() {
           try {
             await importCompleteMDB(meet.mdbPath, meet.id);
             
-            await db.update(meets)
-              .set({ lastImportAt: now })
-              .where(eq(meets.id, meet.id));
+            // Use storage abstraction to update the meet
+            await storage.updateMeet(meet.id, { lastImportAt: now });
               
             console.log(`✅ Auto-refresh complete for ${meet.name}`);
           } catch (error) {
