@@ -5,11 +5,16 @@ import * as schema from "@shared/schema";
 
 neonConfig.webSocketConstructor = ws;
 
-if (!process.env.DATABASE_URL) {
+// In Edge Mode, we use SQLite instead of PostgreSQL
+// So we don't require DATABASE_URL when EDGE_MODE is enabled
+const isEdgeMode = process.env.EDGE_MODE === 'true';
+
+if (!isEdgeMode && !process.env.DATABASE_URL) {
   throw new Error(
     "DATABASE_URL must be set. Did you forget to provision a database?",
   );
 }
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-export const db = drizzle({ client: pool, schema });
+// Only create PostgreSQL pool/db when not in Edge Mode
+export const pool = isEdgeMode ? null : new Pool({ connectionString: process.env.DATABASE_URL });
+export const db = isEdgeMode ? null : drizzle({ client: pool!, schema });
