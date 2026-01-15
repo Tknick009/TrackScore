@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo, memo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { motion, AnimatePresence } from "framer-motion";
 import type { 
   SelectLayoutScene, 
   SelectLayoutObject, 
@@ -366,7 +365,7 @@ export function SceneObjectRenderer({
         if (componentConfig.logoType === "meet") {
           logoUrl = meet?.logoUrl;
         } else if (logoFieldKey === "school-logo" && liveData) {
-          const athleteIndex = dataBinding.athleteIndex ?? 0;
+          const athleteIndex = dataBinding.athleteIndex || 0;
           const entries = Array.isArray(liveData.entries) ? liveData.entries : [];
           // FinishLynx sends batched entries - display maps by array position
           // Line 1 = entries[0], Line 2 = entries[1], etc.
@@ -425,7 +424,7 @@ export function SceneObjectRenderer({
           // Only use actual event name from FinishLynx - no fallbacks
           const eventName = liveData.eventName || '';
           
-          const athleteIndex = dataBinding.athleteIndex ?? 0;
+          const athleteIndex = dataBinding.athleteIndex || 0;
           const entries = Array.isArray(liveData.entries) ? liveData.entries : [];
           // FinishLynx sends batched entries - display maps by array position
           // Line 1 = entries[0], Line 2 = entries[1], etc.
@@ -999,31 +998,20 @@ export function SceneCanvas({
         data-testid="scene-canvas"
         key={`scene-${sceneId}`}
       >
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={`page-${currentPageIndex}`}
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -15 }}
-            transition={{ duration: 0.3, ease: "easeInOut" }}
-            style={{ position: 'absolute', inset: 0 }}
-          >
-            {sortedObjects.map((obj) => (
-              <SceneObjectRenderer 
-                key={obj.id} 
-                object={obj} 
-                meetId={meetId}
-                canvasWidth={canvasWidth}
-                canvasHeight={canvasHeight}
-                eventNumber={eventNumber}
-                pageIndex={currentPageIndex}
-                pageSize={pagingSize}
-                sharedLatestLiveData={liveData}
-                liveClockTime={liveClockTime}
-              />
-            ))}
-          </motion.div>
-        </AnimatePresence>
+        {sortedObjects.map((obj) => (
+          <SceneObjectRenderer 
+            key={obj.id} 
+            object={obj} 
+            meetId={meetId}
+            canvasWidth={canvasWidth}
+            canvasHeight={canvasHeight}
+            eventNumber={eventNumber}
+            pageIndex={currentPageIndex}
+            pageSize={pagingSize}
+            sharedLatestLiveData={liveData}
+            liveClockTime={liveClockTime}
+          />
+        ))}
         
         {sortedObjects.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center">
@@ -1070,31 +1058,20 @@ export function SceneCanvas({
           backgroundColor,
         }}
       >
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={`page-${currentPageIndex}`}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.35, ease: "easeInOut" }}
-            style={{ position: 'absolute', inset: 0 }}
-          >
-            {sortedObjects.map((obj) => (
-              <SceneObjectRenderer 
-                key={obj.id} 
-                object={obj} 
-                meetId={meetId}
-                canvasWidth={designWidth}
-                canvasHeight={designHeight}
-                eventNumber={eventNumber}
-                pageIndex={currentPageIndex}
-                pageSize={pagingSize}
-                sharedLatestLiveData={liveData}
-                liveClockTime={liveClockTime}
-              />
-            ))}
-          </motion.div>
-        </AnimatePresence>
+        {sortedObjects.map((obj) => (
+          <SceneObjectRenderer 
+            key={obj.id} 
+            object={obj} 
+            meetId={meetId}
+            canvasWidth={designWidth}
+            canvasHeight={designHeight}
+            eventNumber={eventNumber}
+            pageIndex={currentPageIndex}
+            pageSize={pagingSize}
+            sharedLatestLiveData={liveData}
+            liveClockTime={liveClockTime}
+          />
+        ))}
         
         {sortedObjects.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center">

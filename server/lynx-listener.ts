@@ -139,32 +139,31 @@ export class LynxListener extends EventEmitter {
   }
   
   private emitAggregatedEvent(key: string, event: AggregatedEvent) {
-    // IMPORTANT: For start lists (type 'S'), preserve arrival order - FinishLynx controls display order
-    // Line 1 = entries[0], Line 2 = entries[1], etc. - DO NOT SORT start lists
-    // Only sort for results (type 'T') when places are available
-    let sortedEntries: any[];
-    
-    if (event.type === 'S') {
-      // Start list: PRESERVE arrival order - FinishLynx sends entries in display order
-      sortedEntries = [...event.entries];
-    } else if (event.type === 'T') {
-      // Track results: sort by place if available (finished race), preserve order otherwise (running)
-      sortedEntries = [...event.entries].sort((a: any, b: any) => {
+    // Sort entries before emitting: by lane for start list, by place for results
+    const sortedEntries = [...event.entries].sort((a: any, b: any) => {
+      if (event.type === 'S') {
+        // Start list: sort by lane number
+        const laneA = parseInt(a.lane) || 999;
+        const laneB = parseInt(b.lane) || 999;
+        return laneA - laneB;
+      } else if (event.type === 'T') {
+        // Track results: sort by place if available, otherwise by lane
         const hasPlaceA = a.place && a.place !== '';
         const hasPlaceB = b.place && b.place !== '';
         if (hasPlaceA && hasPlaceB) {
-          // Both have places - sort by place (finished race)
+          // Both have places - sort by place
           const placeA = parseInt(a.place) || 999;
           const placeB = parseInt(b.place) || 999;
           return placeA - placeB;
+        } else {
+          // Running mode - sort by lane
+          const laneA = parseInt(a.lane) || 999;
+          const laneB = parseInt(b.lane) || 999;
+          return laneA - laneB;
         }
-        // Running mode - preserve order
-        return 0;
-      });
-    } else {
-      // Field and other types - preserve order
-      sortedEntries = [...event.entries];
-    }
+      }
+      return 0;
+    });
     
     switch (event.type) {
       case 'S':
@@ -235,7 +234,12 @@ export class LynxListener extends EventEmitter {
             lastName: e.lastName || '',
           }));
           
-          // DO NOT SORT - preserve arrival order from FinishLynx
+          // Sort by lane for start list
+          startListEntries.sort((a: any, b: any) => {
+            const laneA = parseInt(a.lane) || 999;
+            const laneB = parseInt(b.lane) || 999;
+            return laneA - laneB;
+          });
           
           // Only emit start-list - the handler will trigger auto-mode after aggregation
           this.emit('start-list', event.eventNumber, event.heat, startListEntries as LynxStartListEntry[], {
@@ -281,7 +285,6 @@ export class LynxListener extends EventEmitter {
     // Check for ResulTV layout command in raw data: Command=LayoutDraw;Name=XXX;
     // This enables layout switching when using HTTP forward endpoint
     const layoutMatch = data.match(/Command=LayoutDraw;Name=([^;]+)/i);
-    const hasLayoutCommand = !!layoutMatch;
     if (layoutMatch) {
       const layoutName = layoutMatch[1].trim();
       console.log(`[Lynx:Forward] Layout command detected: ${layoutName}`);
@@ -295,8 +298,7 @@ export class LynxListener extends EventEmitter {
       console.log(`[Lynx:Forward] ${portType}: ${lines[0].substring(0, 150)}`);
     }
     for (const line of lines) {
-      // Skip layout command detection in parseLine since we already handled it above
-      this.parseLine(line, config, hasLayoutCommand);
+      this.parseLine(line, config);
     }
   }
 
@@ -455,20 +457,17 @@ export class LynxListener extends EventEmitter {
     return result;
   }
   
-  private parseLine(line: string, config: PortConfig, skipLayoutCommand: boolean = false) {
+  private parseLine(line: string, config: PortConfig) {
     const sanitized = this.sanitizeForJson(line);
     
     // Check for ResulTV layout command: Command=LayoutDraw;Name=XXX;
     // This tells us when FinishLynx wants the display to switch layouts
-    // Skip if already processed by processForwardedData to avoid duplicate emission
-    if (!skipLayoutCommand) {
-      const layoutMatch = sanitized.match(/Command=LayoutDraw;Name=([^;]+)/i);
-      if (layoutMatch) {
-        const layoutName = layoutMatch[1].trim();
-        console.log(`[Lynx] Layout command from FinishLynx: ${layoutName}`);
-        this.emit('layout-command', layoutName);
-        // Don't return - continue processing in case there's other data on this line
-      }
+    const layoutMatch = sanitized.match(/Command=LayoutDraw;Name=([^;]+)/i);
+    if (layoutMatch) {
+      const layoutName = layoutMatch[1].trim();
+      console.log(`[Lynx] Layout command from FinishLynx: ${layoutName}`);
+      this.emit('layout-command', layoutName);
+      // Don't return - continue processing in case there's other data on this line
     }
     
     const packet: LynxPacket = {

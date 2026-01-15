@@ -57,30 +57,6 @@ const connections = {
   field: { socket: null, connected: false, reconnectDelay: RECONNECT_DELAY }
 };
 
-// Sequential request queue to preserve order
-const requestQueue = [];
-let isProcessingQueue = false;
-
-async function processQueue() {
-  if (isProcessingQueue || requestQueue.length === 0) return;
-  isProcessingQueue = true;
-  
-  while (requestQueue.length > 0) {
-    const { data, portType, portName, seqNum } = requestQueue.shift();
-    await forwardDataAsync(data, portType, portName, seqNum);
-  }
-  
-  isProcessingQueue = false;
-}
-
-let globalSeqNum = 0;
-
-function queueForward(data, portType, portName) {
-  const seqNum = ++globalSeqNum;
-  requestQueue.push({ data, portType, portName, seqNum });
-  processQueue();
-}
-
 function timestamp() {
   return new Date().toLocaleTimeString();
 }
@@ -95,51 +71,46 @@ function cleanLynxData(data) {
   return cleaned;
 }
 
-// Forward data via HTTP (async version for sequential queue)
-function forwardDataAsync(data, portType, portName, seqNum) {
-  return new Promise((resolve) => {
-    const cleanedData = cleanLynxData(data);
-    
-    const payload = JSON.stringify({
-      data: cleanedData,
-      portType: portType,
-      portName: portName,
-      seqNum: seqNum  // Include sequence number for server-side ordering verification
-    });
-
-    const options = {
-      hostname: baseUrl.hostname,
-      port: baseUrl.port || (isHttps ? 443 : 80),
-      path: '/api/lynx/forward',
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(payload)
-      }
-    };
-
-    const req = httpModule.request(options, (res) => {
-      let responseData = '';
-      res.on('data', (chunk) => { responseData += chunk; });
-      res.on('end', () => {
-        if (res.statusCode === 200) {
-          const preview = cleanedData.length > 60 ? cleanedData.substring(0, 60) + '...' : cleanedData;
-          console.log(`[${timestamp()}] [${portType.toUpperCase()}] #${seqNum} ✓ ${preview}`);
-        } else {
-          console.error(`[${timestamp()}] [${portType.toUpperCase()}] #${seqNum} ✗ Error ${res.statusCode}`);
-        }
-        resolve(); // Always resolve to continue queue processing
-      });
-    });
-
-    req.on('error', (err) => {
-      console.error(`[${timestamp()}] [${portType.toUpperCase()}] #${seqNum} ✗ Forward failed: ${err.message}`);
-      resolve(); // Resolve even on error to continue queue
-    });
-
-    req.write(payload);
-    req.end();
+// Forward data via HTTP
+function forwardData(data, portType, portName) {
+  const cleanedData = cleanLynxData(data);
+  
+  const payload = JSON.stringify({
+    data: cleanedData,
+    portType: portType,
+    portName: portName
   });
+
+  const options = {
+    hostname: baseUrl.hostname,
+    port: baseUrl.port || (isHttps ? 443 : 80),
+    path: '/api/lynx/forward',
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(payload)
+    }
+  };
+
+  const req = httpModule.request(options, (res) => {
+    let responseData = '';
+    res.on('data', (chunk) => { responseData += chunk; });
+    res.on('end', () => {
+      if (res.statusCode === 200) {
+        const preview = cleanedData.length > 60 ? cleanedData.substring(0, 60) + '...' : cleanedData;
+        console.log(`[${timestamp()}] [${portType.toUpperCase()}] ✓ ${preview}`);
+      } else {
+        console.error(`[${timestamp()}] [${portType.toUpperCase()}] ✗ Error ${res.statusCode}`);
+      }
+    });
+  });
+
+  req.on('error', (err) => {
+    console.error(`[${timestamp()}] [${portType.toUpperCase()}] ✗ Forward failed: ${err.message}`);
+  });
+
+  req.write(payload);
+  req.end();
 }
 
 // Extract complete JSON objects or lines
@@ -216,10 +187,9 @@ function connectToLynx(portType, host, port, portName) {
     const { complete, remaining } = extractCompleteData(buffer);
     buffer = remaining;
     
-    // Queue items sequentially to preserve FinishLynx send order
     complete.forEach((item) => {
       if (item.trim()) {
-        queueForward(item.trim(), portType, portName);
+        forwardData(item.trim(), portType, portName);
       }
     });
   });

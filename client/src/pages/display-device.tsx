@@ -398,16 +398,13 @@ export default function DisplayDevice() {
                 // Scene data: use new data, or preserved data for same scene, or null for template
                 currentSceneData: isSwitchingToTemplate ? null : sceneData,
                 currentEventId: message.eventId ?? prev.currentEventId,
-                // Merge live data with careful entries handling:
-                // - If incoming data has 'entries' field, use it (even if empty)
-                // - If incoming data lacks 'entries' field, preserve previous entries
-                // This prevents blanking during layout transitions while respecting explicit updates
+                // Merge live data - preserve entries if incoming data doesn't have them
                 liveEventData: message.liveEventData 
                   ? {
                       ...prev.liveEventData,
                       ...message.liveEventData,
-                      // Only replace entries if explicitly provided in incoming data
-                      entries: 'entries' in message.liveEventData 
+                      // Preserve entries if new data doesn't include them
+                      entries: message.liveEventData.entries?.length > 0 
                         ? message.liveEventData.entries 
                         : prev.liveEventData?.entries || [],
                     }

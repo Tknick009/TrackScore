@@ -49,70 +49,40 @@ const baseUrl = new URL(BASE_URL);
 const isHttps = baseUrl.protocol === 'https:';
 const httpModule = isHttps ? https : http;
 
-// Sequential request queue to preserve order
-const requestQueue = [];
-let isProcessingQueue = false;
-let globalSeqNum = 0;
-
-async function processQueue() {
-  if (isProcessingQueue || requestQueue.length === 0) return;
-  isProcessingQueue = true;
-  
-  while (requestQueue.length > 0) {
-    const { rawData, portType, seqNum } = requestQueue.shift();
-    await forwardToServerAsync(rawData, portType, seqNum);
-  }
-  
-  isProcessingQueue = false;
-}
-
-function queueForward(rawData, portType) {
-  const seqNum = ++globalSeqNum;
-  requestQueue.push({ rawData, portType, seqNum });
-  processQueue();
-}
-
 /**
- * Forward raw data to the server (async for sequential queue)
+ * Forward raw data to the server
  * No parsing - just send the raw bytes as base64
  */
-function forwardToServerAsync(rawData, portType, seqNum) {
-  return new Promise((resolve) => {
-    const payload = JSON.stringify({
-      data: rawData.toString('base64'),
-      encoding: 'base64',
-      portType: portType,
-      seqNum: seqNum,
-      timestamp: Date.now()
-    });
-    
-    const options = {
-      hostname: baseUrl.hostname,
-      port: baseUrl.port || (isHttps ? 443 : 80),
-      path: '/api/lynx/raw',
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(payload)
-      }
-    };
-
-    const req = httpModule.request(options, (res) => {
-      res.on('data', () => {});
-      res.on('end', () => {
-        console.log(`[${new Date().toLocaleTimeString()}] [${portType.toUpperCase()}] #${seqNum} Forwarded ${rawData.length} bytes`);
-        resolve();
-      });
-    });
-
-    req.on('error', (err) => {
-      console.error(`[${portType.toUpperCase()}] #${seqNum} Forward error:`, err.message);
-      resolve(); // Continue queue on error
-    });
-
-    req.write(payload);
-    req.end();
+function forwardToServer(rawData, portType) {
+  const payload = JSON.stringify({
+    data: rawData.toString('base64'),
+    encoding: 'base64',
+    portType: portType,
+    timestamp: Date.now()
   });
+  
+  const options = {
+    hostname: baseUrl.hostname,
+    port: baseUrl.port || (isHttps ? 443 : 80),
+    path: '/api/lynx/raw',
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(payload)
+    }
+  };
+
+  const req = httpModule.request(options, (res) => {
+    // Silently consume response
+    res.on('data', () => {});
+  });
+
+  req.on('error', (err) => {
+    console.error(`[${portType.toUpperCase()}] Forward error:`, err.message);
+  });
+
+  req.write(payload);
+  req.end();
 }
 
 /**
@@ -126,8 +96,8 @@ function createForwarder(port, portType) {
       // Log the size of data received
       console.log(`[${new Date().toLocaleTimeString()}] [${portType.toUpperCase()}] Received ${data.length} bytes`);
       
-      // Queue for sequential forwarding to preserve order
-      queueForward(data, portType);
+      // Forward raw data immediately - no parsing
+      forwardToServer(data, portType);
     });
     
     socket.on('end', () => {

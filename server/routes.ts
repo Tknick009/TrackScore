@@ -6266,10 +6266,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Start list handler - ACCUMULATES entries as they arrive one-by-one
   // Layout command "Start List" clears the accumulator, then entries fill in
   // Display reads entries[0] for Line 1, entries[1] for Line 2, etc.
-  // CRITICAL: Preserve FinishLynx transmission order - entries[0] = first received = Line 1
-  // L field = physical track lane (data to display), NOT display line position
-  let startListBroadcastTimer: NodeJS.Timeout | null = null;
-  
+  // IMPORTANT: FinishLynx sends entries in display order - DO NOT sort!
   lynxListener.on('start-list', (eventNumber, heat, entries, metadata) => {
     // Update accumulator metadata
     entryAccumulator.eventNumber = eventNumber;
@@ -6277,41 +6274,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     entryAccumulator.eventName = metadata?.eventName || entryAccumulator.eventName;
     entryAccumulator.distance = metadata?.distance || entryAccumulator.distance;
     
-    // Accumulate entries as they arrive - PRESERVE ARRIVAL ORDER (FinishLynx controls display order)
+    // Accumulate new entries in arrival order (FinishLynx sends them in display order)
+    // Skip empty entries (blank lane, bib, name)
     for (const entry of entries) {
       const hasContent = entry.lane || entry.bib || entry.name;
       if (hasContent) {
-        const lineNum = entryAccumulator.entries.length + 1;
-        console.log(`[Lynx] ENTRY #${lineNum}: Lane=${entry.lane}, bib=${entry.bib}, name=${entry.name?.substring(0, 20)}`);
         entryAccumulator.entries.push(entry);
       }
     }
     
-    // Debounce broadcasting - wait 100ms for more entries before sending
-    // This batches rapid entry arrivals into a single update
-    if (startListBroadcastTimer) {
-      clearTimeout(startListBroadcastTimer);
-    }
+    console.log(`[Lynx] Start list: Event ${eventNumber}, Heat ${heat}, +${entries.length} entries, total: ${entryAccumulator.entries.length}`);
     
-    startListBroadcastTimer = setTimeout(() => {
-      // Log order for debugging - preserve FinishLynx transmission order (NO SORTING)
-      const entryOrder = entryAccumulator.entries.map((e: any, i: number) => `L${i + 1}=Lane${e?.lane || '?'}`).join(' ');
-      console.log(`[Lynx] Broadcasting start list: Event ${eventNumber}, Heat ${heat}, ${entryAccumulator.entries.length} entries | ${entryOrder}`);
-      
-      // Broadcast entries in ARRIVAL ORDER - FinishLynx controls the display order
-      broadcastToDisplays({
-        type: 'start_list',
-        data: {
-          eventNumber,
-          heat,
-          entries: entryAccumulator.entries, // Preserve transmission order
-          eventName: entryAccumulator.eventName,
-          distance: entryAccumulator.distance,
-        }
-      } as WSMessage);
-      
-      startListBroadcastTimer = null;
-    }, 100); // 100ms debounce
+    // Broadcast entries in arrival order (FinishLynx controls display order)
+    // Display maps by array position: Line 1 = entries[0], Line 2 = entries[1], etc.
+    broadcastToDisplays({
+      type: 'start_list',
+      data: {
+        eventNumber,
+        heat,
+        entries: entryAccumulator.entries, // Arrival order = display order
+        eventName: entryAccumulator.eventName,
+        distance: entryAccumulator.distance,
+      }
+    } as WSMessage);
   });
 
   lynxListener.on('connection', (portType, connected) => {
