@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import multer from "multer";
 import { unlink } from "fs/promises";
+import { fileURLToPath } from "url";
 import { z } from "zod";
 import QRCode from "qrcode";
 import { storage } from "./storage";
@@ -335,9 +336,15 @@ function loadDefaultScenesTemplate(): { scenes: any[]; sceneMappings?: any[] } |
     return defaultScenesTemplate;
   }
   try {
-    // Use import.meta.url for ESM compatibility
-    const currentDir = path.dirname(new URL(import.meta.url).pathname);
-    const templatePath = path.join(currentDir, 'default-scenes.json');
+    // Use fileURLToPath for proper Windows compatibility
+    const currentDir = path.dirname(fileURLToPath(import.meta.url));
+    let templatePath = path.join(currentDir, 'default-scenes.json');
+    
+    // Fallback to process.cwd() if not found (for bundled/compiled scenarios)
+    if (!fs.existsSync(templatePath)) {
+      templatePath = path.resolve(process.cwd(), 'server', 'default-scenes.json');
+    }
+    
     if (fs.existsSync(templatePath)) {
       const content = fs.readFileSync(templatePath, 'utf-8');
       const data = JSON.parse(content);
@@ -1606,6 +1613,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(meet);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Seed default scenes for an existing meet (useful for meets created before default scenes were added)
+  app.post("/api/meets/:id/seed-default-scenes", async (req, res) => {
+    try {
+      const meetId = req.params.id;
+      const meet = await storage.getMeet(meetId);
+      
+      if (!meet) {
+        return res.status(404).json({ error: "Meet not found" });
+      }
+      
+      // Check if meet already has scenes
+      const existingScenes = await storage.getLayoutScenes(meetId);
+      if (existingScenes.length > 0) {
+        return res.status(400).json({ 
+          error: "Meet already has scenes", 
+          sceneCount: existingScenes.length,
+          message: "Delete existing scenes first if you want to re-seed defaults"
+        });
+      }
+      
+      const seededCount = await seedDefaultScenes(meetId);
+      res.json({ 
+        success: true, 
+        message: `Seeded ${seededCount} default scenes for meet`,
+        seededCount 
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
   });
 
