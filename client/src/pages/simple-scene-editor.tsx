@@ -306,14 +306,19 @@ export default function SimpleSceneEditor() {
     if (!currentMeet?.id || !sceneImportData) return;
     setSceneImportLoading(true);
     try {
-      const formData = new FormData();
-      const blob = new Blob([JSON.stringify(sceneImportData)], { type: 'application/json' });
-      formData.append('file', blob, 'scenes.json');
-      formData.append('meetId', currentMeet.id);
-      formData.append('replaceAll', String(replaceAll));
-      
-      const response = await fetch('/api/scenes/import', { method: 'POST', body: formData });
-      if (!response.ok) throw new Error('Import failed');
+      const response = await fetch('/api/scenes/import', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scenes: sceneImportData.scenes || [],
+          targetMeetId: currentMeet.id,
+          replaceExisting: replaceAll,
+        }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Import failed');
+      }
       const result = await response.json();
       
       toast({ title: 'Scenes imported', description: `${result.imported} scenes imported successfully` });
