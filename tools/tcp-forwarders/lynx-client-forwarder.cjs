@@ -142,52 +142,90 @@ function forwardDataAsync(data, portType, portName, seqNum) {
   });
 }
 
-// Extract complete JSON objects or lines
+// Extract complete JSON objects or newline-terminated lines IN ORDER
+// CRITICAL: Never emit content until we know its boundaries are complete
 function extractCompleteData(buffer) {
   const complete = [];
   let remaining = buffer;
 
   while (remaining.length > 0) {
-    const startIdx = remaining.indexOf('{');
+    // Check if buffer starts with a JSON object
+    const firstBrace = remaining.indexOf('{');
+    const firstNewline = remaining.indexOf('\n');
     
-    if (startIdx === -1) {
-      const lines = remaining.split(/\r?\n/);
-      remaining = lines.pop() || '';
-      complete.push(...lines.filter(l => l.trim()));
+    // No JSON and no newlines - keep everything in buffer
+    if (firstBrace === -1 && firstNewline === -1) {
       break;
     }
-
-    if (startIdx > 0) {
-      const preContent = remaining.slice(0, startIdx);
-      const lines = preContent.split(/\r?\n/).filter(l => l.trim());
-      complete.push(...lines);
-      remaining = remaining.slice(startIdx);
+    
+    // If there's a complete line BEFORE any JSON, emit it first
+    if (firstNewline !== -1 && (firstBrace === -1 || firstNewline < firstBrace)) {
+      const line = remaining.slice(0, firstNewline).trim();
+      remaining = remaining.slice(firstNewline + 1);
+      if (line) {
+        complete.push(line);
+      }
+      continue;
     }
-
-    let braceDepth = 0;
-    let endIdx = -1;
-    let inString = false;
-    let escape = false;
-
-    for (let i = 0; i < remaining.length; i++) {
-      const char = remaining[i];
-      if (escape) { escape = false; continue; }
-      if (char === '\\' && inString) { escape = true; continue; }
-      if (char === '"') { inString = !inString; continue; }
-      if (!inString) {
-        if (char === '{') braceDepth++;
-        else if (char === '}') {
-          braceDepth--;
-          if (braceDepth === 0) { endIdx = i; break; }
+    
+    // JSON object starts here - find its end
+    if (firstBrace !== -1) {
+      // If there's content before the brace on the same line, it's part of the JSON line
+      // Skip any whitespace/newlines before the brace
+      if (firstBrace > 0) {
+        const beforeBrace = remaining.slice(0, firstBrace);
+        // Check if there are complete lines before the brace
+        const lastNewline = beforeBrace.lastIndexOf('\n');
+        if (lastNewline !== -1) {
+          // Emit complete lines before the JSON
+          const lines = beforeBrace.slice(0, lastNewline).split('\n');
+          lines.forEach(line => {
+            const trimmed = line.trim();
+            if (trimmed) complete.push(trimmed);
+          });
+          remaining = remaining.slice(lastNewline + 1);
+          continue;
         }
       }
-    }
+      
+      // Now parse the JSON object
+      let braceDepth = 0;
+      let endIdx = -1;
+      let inString = false;
+      let escape = false;
 
-    if (endIdx !== -1) {
-      complete.push(remaining.slice(0, endIdx + 1));
-      remaining = remaining.slice(endIdx + 1).replace(/^[\r\n]+/, '');
-    } else {
-      break;
+      for (let i = firstBrace; i < remaining.length; i++) {
+        const char = remaining[i];
+        if (escape) { escape = false; continue; }
+        if (char === '\\' && inString) { escape = true; continue; }
+        if (char === '"') { inString = !inString; continue; }
+        if (!inString) {
+          if (char === '{') braceDepth++;
+          else if (char === '}') {
+            braceDepth--;
+            if (braceDepth === 0) { endIdx = i; break; }
+          }
+        }
+      }
+
+      if (endIdx !== -1) {
+        // Complete JSON found - emit everything from start to end
+        const jsonStr = remaining.slice(firstBrace, endIdx + 1);
+        
+        // Also emit any content before the JSON on the same "line"
+        const beforeJson = remaining.slice(0, firstBrace).trim();
+        if (beforeJson) {
+          // Prepend to the JSON (some commands have prefix text)
+          complete.push(beforeJson + jsonStr);
+        } else {
+          complete.push(jsonStr);
+        }
+        
+        remaining = remaining.slice(endIdx + 1).replace(/^[\r\n]+/, '');
+      } else {
+        // Incomplete JSON - wait for more data
+        break;
+      }
     }
   }
 
