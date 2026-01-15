@@ -6557,9 +6557,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } else if (process.env.EDGE_MODE === 'true') {
           // In Edge Mode, auto-start with default ports for FinishLynx
           const edgeDefaultConfig = [
-            { port: 5555, portType: 'results' as LynxPortType, name: 'FinishLynx Results' },
-            { port: 5556, portType: 'clock' as LynxPortType, name: 'FinishLynx Clock' },
-            { port: 5557, portType: 'field' as LynxPortType, name: 'FieldLynx' },
+            { port: 4555, portType: 'results' as LynxPortType, name: 'FinishLynx Results' },
+            { port: 4556, portType: 'clock' as LynxPortType, name: 'FinishLynx Clock' },
+            { port: 4557, portType: 'field' as LynxPortType, name: 'FieldLynx' },
           ];
           lynxListener.configure(edgeDefaultConfig);
           lynxListener.start();
