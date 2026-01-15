@@ -365,7 +365,7 @@ export function SceneObjectRenderer({
         if (componentConfig.logoType === "meet") {
           logoUrl = meet?.logoUrl;
         } else if (logoFieldKey === "school-logo" && liveData) {
-          const athleteIndex = dataBinding.athleteIndex || 0;
+          const athleteIndex = dataBinding.athleteIndex ?? 0;
           const entries = Array.isArray(liveData.entries) ? liveData.entries : [];
           // FinishLynx sends batched entries - display maps by array position
           // Line 1 = entries[0], Line 2 = entries[1], etc.
@@ -424,7 +424,7 @@ export function SceneObjectRenderer({
           // Only use actual event name from FinishLynx - no fallbacks
           const eventName = liveData.eventName || '';
           
-          const athleteIndex = dataBinding.athleteIndex || 0;
+          const athleteIndex = dataBinding.athleteIndex ?? 0;
           const entries = Array.isArray(liveData.entries) ? liveData.entries : [];
           // FinishLynx sends batched entries - display maps by array position
           // Line 1 = entries[0], Line 2 = entries[1], etc.
