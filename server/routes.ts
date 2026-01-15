@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import multer from "multer";
 import { unlink } from "fs/promises";
-import { fileURLToPath } from "url";
+import { DEFAULT_SCENES_DATA } from "./default-scenes-data";
 import { z } from "zod";
 import QRCode from "qrcode";
 import { storage } from "./storage";
@@ -329,38 +329,19 @@ async function autoExportLFF(sessionId: number) {
   }
 }
 
-// Load default scenes template from built-in JSON file
+// Load default scenes template from embedded data (baked into the code)
 let defaultScenesTemplate: { scenes: any[]; sceneMappings?: any[] } | null = null;
 function loadDefaultScenesTemplate(): { scenes: any[]; sceneMappings?: any[] } | null {
   if (defaultScenesTemplate !== null) {
     return defaultScenesTemplate;
   }
-  try {
-    // Use fileURLToPath for proper Windows compatibility
-    const currentDir = path.dirname(fileURLToPath(import.meta.url));
-    let templatePath = path.join(currentDir, 'default-scenes.json');
-    
-    // Fallback to process.cwd() if not found (for bundled/compiled scenarios)
-    if (!fs.existsSync(templatePath)) {
-      templatePath = path.resolve(process.cwd(), 'server', 'default-scenes.json');
-    }
-    
-    if (fs.existsSync(templatePath)) {
-      const content = fs.readFileSync(templatePath, 'utf-8');
-      const data = JSON.parse(content);
-      defaultScenesTemplate = { 
-        scenes: data.scenes || [],
-        sceneMappings: data.sceneMappings || [],
-      };
-      console.log(`✅ Loaded ${defaultScenesTemplate.scenes.length} default scene templates with ${defaultScenesTemplate.sceneMappings?.length || 0} mappings`);
-      return defaultScenesTemplate;
-    } else {
-      console.log(`[Default Scenes] Template file not found at: ${templatePath}`);
-    }
-  } catch (error) {
-    console.error('[Default Scenes] Error loading template:', error);
-  }
-  defaultScenesTemplate = { scenes: [] };
+  
+  // Use embedded data - no file reading required
+  defaultScenesTemplate = { 
+    scenes: DEFAULT_SCENES_DATA.scenes as any[] || [],
+    sceneMappings: DEFAULT_SCENES_DATA.sceneMappings as any[] || [],
+  };
+  console.log(`✅ Loaded ${defaultScenesTemplate.scenes.length} default scene templates with ${defaultScenesTemplate.sceneMappings?.length || 0} mappings (embedded)`);
   return defaultScenesTemplate;
 }
 

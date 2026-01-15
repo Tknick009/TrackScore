@@ -1,3 +1,4 @@
+export const DEFAULT_SCENES_DATA = 
 {
   "version": "1.0",
   "exportedAt": "2026-01-15T03:59:42.108Z",
@@ -5093,4 +5094,4 @@
       "sceneName": "Big Board Lynx-Results"
     }
   ]
-}
+} as const;
