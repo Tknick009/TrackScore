@@ -6266,7 +6266,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Start list handler - ACCUMULATES entries as they arrive one-by-one
   // Layout command "Start List" clears the accumulator, then entries fill in
   // Display reads entries[0] for Line 1, entries[1] for Line 2, etc.
-  // IMPORTANT: FinishLynx sends entries in display order - DO NOT sort!
+  // CRITICAL: FinishLynx sends entries in display order - we preserve arrival order!
+  // The L field = physical track lane number (data to display), NOT display line position
   lynxListener.on('start-list', (eventNumber, heat, entries, metadata) => {
     // Update accumulator metadata
     entryAccumulator.eventNumber = eventNumber;
@@ -6274,30 +6275,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     entryAccumulator.eventName = metadata?.eventName || entryAccumulator.eventName;
     entryAccumulator.distance = metadata?.distance || entryAccumulator.distance;
     
-    // INDEX entries by their L (lane/line) field - this is the slot position from FinishLynx
-    // Network packets can arrive out of order, so we use L as the index instead of arrival order
-    // L=1 → slot 0, L=2 → slot 1, etc. (1-based to 0-based conversion)
+    // ARRIVAL ORDER: Push entries in the order they arrive from FinishLynx
+    // FinishLynx controls display order through paging - first entry sent = Line 1
+    // The forwarder now uses a sequential queue to preserve this order
     for (const entry of entries) {
       const hasContent = entry.lane || entry.bib || entry.name;
-      if (hasContent && entry.lane) {
-        const lineNum = parseInt(entry.lane);
-        if (!isNaN(lineNum) && lineNum >= 1) {
-          const slotIndex = lineNum - 1; // Convert 1-based line to 0-based index
-          console.log(`[Lynx] ENTRY SLOT: L=${entry.lane} → slot[${slotIndex}], bib=${entry.bib}, name=${entry.name?.substring(0, 20)}`);
-          
-          // Expand array if needed and place entry at correct slot
-          while (entryAccumulator.entries.length <= slotIndex) {
-            entryAccumulator.entries.push(null);
-          }
-          entryAccumulator.entries[slotIndex] = entry;
-        }
+      if (hasContent) {
+        const lineNum = entryAccumulator.entries.length + 1; // 1-based line number
+        console.log(`[Lynx] ENTRY #${lineNum}: Lane=${entry.lane}, bib=${entry.bib}, name=${entry.name?.substring(0, 20)}`);
+        entryAccumulator.entries.push(entry);
       }
     }
     
-    // Filter out null slots and log order
-    const filledEntries = entryAccumulator.entries.filter((e: any) => e !== null);
-    const slotOrder = entryAccumulator.entries.map((e: any, i: number) => e ? `[${i}]=L${e.lane}` : `[${i}]=_`).join(' ');
-    console.log(`[Lynx] Start list: Event ${eventNumber}, Heat ${heat}, slots: ${entryAccumulator.entries.length}, filled: ${filledEntries.length} | ${slotOrder}`);
+    // Log order for debugging
+    const entryOrder = entryAccumulator.entries.map((e: any, i: number) => `Line${i + 1}=Lane${e?.lane || '?'}`).join(' ');
+    console.log(`[Lynx] Start list: Event ${eventNumber}, Heat ${heat}, ${entryAccumulator.entries.length} entries | ${entryOrder}`);
     
     // Broadcast entries in arrival order (FinishLynx controls display order)
     // Display maps by array position: Line 1 = entries[0], Line 2 = entries[1], etc.
