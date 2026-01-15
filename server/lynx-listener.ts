@@ -286,6 +286,7 @@ export class LynxListener extends EventEmitter {
     // Check for ResulTV layout command in raw data: Command=LayoutDraw;Name=XXX;
     // This enables layout switching when using HTTP forward endpoint
     const layoutMatch = data.match(/Command=LayoutDraw;Name=([^;]+)/i);
+    const hasLayoutCommand = !!layoutMatch;
     if (layoutMatch) {
       const layoutName = layoutMatch[1].trim();
       console.log(`[Lynx:Forward] Layout command detected: ${layoutName}`);
@@ -299,7 +300,8 @@ export class LynxListener extends EventEmitter {
       console.log(`[Lynx:Forward] ${portType}: ${lines[0].substring(0, 150)}`);
     }
     for (const line of lines) {
-      this.parseLine(line, config);
+      // Skip layout command detection in parseLine since we already handled it above
+      this.parseLine(line, config, hasLayoutCommand);
     }
   }
 
@@ -458,17 +460,20 @@ export class LynxListener extends EventEmitter {
     return result;
   }
   
-  private parseLine(line: string, config: PortConfig) {
+  private parseLine(line: string, config: PortConfig, skipLayoutCommand: boolean = false) {
     const sanitized = this.sanitizeForJson(line);
     
     // Check for ResulTV layout command: Command=LayoutDraw;Name=XXX;
     // This tells us when FinishLynx wants the display to switch layouts
-    const layoutMatch = sanitized.match(/Command=LayoutDraw;Name=([^;]+)/i);
-    if (layoutMatch) {
-      const layoutName = layoutMatch[1].trim();
-      console.log(`[Lynx] Layout command from FinishLynx: ${layoutName}`);
-      this.emit('layout-command', layoutName);
-      // Don't return - continue processing in case there's other data on this line
+    // Skip if already processed by processForwardedData to avoid duplicate emission
+    if (!skipLayoutCommand) {
+      const layoutMatch = sanitized.match(/Command=LayoutDraw;Name=([^;]+)/i);
+      if (layoutMatch) {
+        const layoutName = layoutMatch[1].trim();
+        console.log(`[Lynx] Layout command from FinishLynx: ${layoutName}`);
+        this.emit('layout-command', layoutName);
+        // Don't return - continue processing in case there's other data on this line
+      }
     }
     
     const packet: LynxPacket = {
