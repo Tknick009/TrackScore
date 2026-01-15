@@ -329,8 +329,8 @@ async function autoExportLFF(sessionId: number) {
 }
 
 // Load default scenes template from built-in JSON file
-let defaultScenesTemplate: { scenes: any[] } | null = null;
-function loadDefaultScenesTemplate(): { scenes: any[] } | null {
+let defaultScenesTemplate: { scenes: any[]; sceneMappings?: any[] } | null = null;
+function loadDefaultScenesTemplate(): { scenes: any[]; sceneMappings?: any[] } | null {
   if (defaultScenesTemplate !== null) {
     return defaultScenesTemplate;
   }
@@ -341,8 +341,11 @@ function loadDefaultScenesTemplate(): { scenes: any[] } | null {
     if (fs.existsSync(templatePath)) {
       const content = fs.readFileSync(templatePath, 'utf-8');
       const data = JSON.parse(content);
-      defaultScenesTemplate = { scenes: data.scenes || [] };
-      console.log(`✅ Loaded ${defaultScenesTemplate.scenes.length} default scene templates`);
+      defaultScenesTemplate = { 
+        scenes: data.scenes || [],
+        sceneMappings: data.sceneMappings || [],
+      };
+      console.log(`✅ Loaded ${defaultScenesTemplate.scenes.length} default scene templates with ${defaultScenesTemplate.sceneMappings?.length || 0} mappings`);
       return defaultScenesTemplate;
     } else {
       console.log(`[Default Scenes] Template file not found at: ${templatePath}`);
@@ -361,6 +364,9 @@ async function seedDefaultScenes(meetId: string): Promise<number> {
     return 0;
   }
   
+  // Map to track scene name -> new scene ID for mapping creation
+  const sceneNameToId: Record<string, number> = {};
+  
   let seededCount = 0;
   for (const sceneData of template.scenes) {
     const { objects, id: _id, meetId: _meetId, createdAt: _createdAt, updatedAt: _updatedAt, ...sceneFields } = sceneData;
@@ -369,6 +375,9 @@ async function seedDefaultScenes(meetId: string): Promise<number> {
       ...sceneFields,
       meetId: meetId,
     });
+    
+    // Track scene name to new ID mapping
+    sceneNameToId[newScene.name] = newScene.id;
     
     // Create objects for this scene
     if (objects && Array.isArray(objects)) {
@@ -381,6 +390,22 @@ async function seedDefaultScenes(meetId: string): Promise<number> {
       }
     }
     seededCount++;
+  }
+  
+  // Create scene template mappings
+  if (template.sceneMappings && Array.isArray(template.sceneMappings)) {
+    for (const mapping of template.sceneMappings) {
+      const sceneId = sceneNameToId[mapping.sceneName];
+      if (sceneId) {
+        await storage.setSceneTemplateMapping({
+          meetId: meetId,
+          displayType: mapping.displayType,
+          displayMode: mapping.displayMode,
+          sceneId: sceneId,
+        });
+      }
+    }
+    console.log(`✅ Seeded ${template.sceneMappings.length} scene template mappings for meet ${meetId}`);
   }
   
   console.log(`✅ Seeded ${seededCount} default scenes for meet ${meetId}`);
