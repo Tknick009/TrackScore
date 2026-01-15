@@ -1,16 +1,22 @@
 #!/usr/bin/env node
 
 /**
- * Track & Field Lynx TCP Client Forwarder
+ * Track & Field Lynx TCP Client Forwarder (Binary Mode)
  * 
- * This version CONNECTS TO FinishLynx/FieldLynx (when they're in "accept" mode)
- * instead of waiting for them to connect.
+ * CRITICAL: This forwards RAW BINARY data exactly as received from FinishLynx.
+ * ResulTV is a binary protocol - we must NOT convert to string or parse.
  * 
- * Use this when FinishLynx is configured with "Network (accept)" 
- * instead of "Network (connect)"
+ * Each complete message (terminated by LF or 0x03 0x04) is sent as base64.
  * 
  * Usage:
  *   node lynx-client-forwarder.cjs
+ * 
+ * Environment variables:
+ *   FORWARD_URL - Cloud server URL (default: http://localhost:5000)
+ *   LYNX_HOST - FinishLynx IP address (default: 127.0.0.1)
+ *   CLOCK_PORT - Clock data port (default: 5056)
+ *   RESULTS_PORT - Results data port (default: 5055)
+ *   FIELD_PORT - Field data port (default: 5057)
  */
 
 const net = require('net');
@@ -19,65 +25,56 @@ const https = require('https');
 
 // ========== CONFIGURATION ==========
 
-// Your online scoring system URL
 const BASE_URL = process.env.FORWARD_URL || 'http://localhost:5000';
-
-// FinishLynx/FieldLynx IP address (where they're running)
 const LYNX_HOST = process.env.LYNX_HOST || '127.0.0.1';
-
-// Ports that FinishLynx is listening on (in accept mode)
 const CLOCK_PORT = parseInt(process.env.CLOCK_PORT) || 5056;
 const RESULTS_PORT = parseInt(process.env.RESULTS_PORT) || 5055;
 const FIELD_PORT = parseInt(process.env.FIELD_PORT) || 5057;
-
-// Reconnection settings
-const RECONNECT_DELAY = 3000; // 3 seconds
-const MAX_RECONNECT_DELAY = 30000; // 30 seconds max
+const RECONNECT_DELAY = 3000;
+const MAX_RECONNECT_DELAY = 30000;
 
 // ====================================
 
 console.log('==============================================');
-console.log('  Lynx TCP Client Forwarder (Connect Mode)');
+console.log('  Lynx TCP Client Forwarder (BINARY Mode)');
 console.log('==============================================');
 console.log(`Connecting TO FinishLynx at: ${LYNX_HOST}`);
 console.log(`  Clock:   ${LYNX_HOST}:${CLOCK_PORT}`);
 console.log(`  Results: ${LYNX_HOST}:${RESULTS_PORT}`);
 console.log(`  Field:   ${LYNX_HOST}:${FIELD_PORT}`);
-console.log(`Forwarding to: ${BASE_URL}/api/lynx/forward`);
+console.log(`Forwarding to: ${BASE_URL}/api/lynx/raw`);
 console.log('==============================================\n');
 
 const baseUrl = new URL(BASE_URL);
 const isHttps = baseUrl.protocol === 'https:';
 const httpModule = isHttps ? https : http;
 
-// Connection state
 const connections = {
-  clock: { socket: null, connected: false, reconnectDelay: RECONNECT_DELAY },
-  results: { socket: null, connected: false, reconnectDelay: RECONNECT_DELAY },
-  field: { socket: null, connected: false, reconnectDelay: RECONNECT_DELAY }
+  clock: { socket: null, connected: false, reconnectDelay: RECONNECT_DELAY, buffer: Buffer.alloc(0) },
+  results: { socket: null, connected: false, reconnectDelay: RECONNECT_DELAY, buffer: Buffer.alloc(0) },
+  field: { socket: null, connected: false, reconnectDelay: RECONNECT_DELAY, buffer: Buffer.alloc(0) }
 };
 
-// Sequential request queue to preserve order
+// Sequential queue to preserve order
 const requestQueue = [];
 let isProcessingQueue = false;
+let globalSeqNum = 0;
 
 async function processQueue() {
   if (isProcessingQueue || requestQueue.length === 0) return;
   isProcessingQueue = true;
   
   while (requestQueue.length > 0) {
-    const { data, portType, portName, seqNum } = requestQueue.shift();
-    await forwardDataAsync(data, portType, portName, seqNum);
+    const { data, portType, seqNum } = requestQueue.shift();
+    await forwardBinaryData(data, portType, seqNum);
   }
   
   isProcessingQueue = false;
 }
 
-let globalSeqNum = 0;
-
-function queueForward(data, portType, portName) {
+function queueForward(data, portType) {
   const seqNum = ++globalSeqNum;
-  requestQueue.push({ data, portType, portName, seqNum });
+  requestQueue.push({ data, portType, seqNum });
   processQueue();
 }
 
@@ -85,32 +82,42 @@ function timestamp() {
   return new Date().toLocaleTimeString();
 }
 
-// Clean FinishLynx formatting codes
-function cleanLynxData(data) {
-  let cleaned = data.replace(/\\[A-Z][0-9]+/g, '');
-  cleaned = cleaned.replace(/\{\s*,/g, '{');
-  cleaned = cleaned.replace(/\[\s*,/g, '[');
-  cleaned = cleaned.replace(/,(\s*[}\]])/g, '$1');
-  cleaned = cleaned.replace(/:\s*,/g, ':null,');
-  return cleaned;
+// Format buffer for display (show hex of control chars, ascii for printable)
+function formatForDisplay(buf, maxLen = 80) {
+  let result = '';
+  for (let i = 0; i < buf.length && result.length < maxLen; i++) {
+    const b = buf[i];
+    if (b >= 32 && b <= 126) {
+      result += String.fromCharCode(b);
+    } else if (b === 0x0a) {
+      result += '\\n';
+    } else if (b === 0x0d) {
+      result += '\\r';
+    } else {
+      result += `\\x${b.toString(16).padStart(2, '0')}`;
+    }
+  }
+  if (buf.length > maxLen) result += '...';
+  return result;
 }
 
-// Forward data via HTTP (async version for sequential queue)
-function forwardDataAsync(data, portType, portName, seqNum) {
+// Forward raw binary data as base64
+function forwardBinaryData(data, portType, seqNum) {
   return new Promise((resolve) => {
-    const cleanedData = cleanLynxData(data);
+    const base64Data = data.toString('base64');
     
     const payload = JSON.stringify({
-      data: cleanedData,
+      data: base64Data,
+      encoding: 'base64',
       portType: portType,
-      portName: portName,
-      seqNum: seqNum  // Include sequence number for server-side ordering verification
+      seqNum: seqNum,
+      timestamp: Date.now()
     });
 
     const options = {
       hostname: baseUrl.hostname,
       port: baseUrl.port || (isHttps ? 443 : 80),
-      path: '/api/lynx/forward',
+      path: '/api/lynx/raw',
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -122,19 +129,19 @@ function forwardDataAsync(data, portType, portName, seqNum) {
       let responseData = '';
       res.on('data', (chunk) => { responseData += chunk; });
       res.on('end', () => {
+        const preview = formatForDisplay(data, 60);
         if (res.statusCode === 200) {
-          const preview = cleanedData.length > 60 ? cleanedData.substring(0, 60) + '...' : cleanedData;
-          console.log(`[${timestamp()}] [${portType.toUpperCase()}] #${seqNum} ✓ ${preview}`);
+          console.log(`[${timestamp()}] [${portType.toUpperCase()}] #${seqNum} ✓ ${data.length}b: ${preview}`);
         } else {
-          console.error(`[${timestamp()}] [${portType.toUpperCase()}] #${seqNum} ✗ Error ${res.statusCode}`);
+          console.error(`[${timestamp()}] [${portType.toUpperCase()}] #${seqNum} ✗ ${res.statusCode}: ${preview}`);
         }
-        resolve(); // Always resolve to continue queue processing
+        resolve();
       });
     });
 
     req.on('error', (err) => {
-      console.error(`[${timestamp()}] [${portType.toUpperCase()}] #${seqNum} ✗ Forward failed: ${err.message}`);
-      resolve(); // Resolve even on error to continue queue
+      console.error(`[${timestamp()}] [${portType.toUpperCase()}] #${seqNum} ✗ ${err.message}`);
+      resolve();
     });
 
     req.write(payload);
@@ -142,182 +149,125 @@ function forwardDataAsync(data, portType, portName, seqNum) {
   });
 }
 
-// Extract complete JSON objects or newline-terminated lines IN ORDER
-// CRITICAL: Never emit content until we know its boundaries are complete
-function extractCompleteData(buffer) {
+// Extract complete binary messages from buffer
+// ResulTV messages are terminated by LF (0x0A) or 0x03 0x04
+function extractCompleteMessages(buffer) {
   const complete = [];
   let remaining = buffer;
 
   while (remaining.length > 0) {
-    // Check if buffer starts with a JSON object
-    const firstBrace = remaining.indexOf('{');
-    const firstNewline = remaining.indexOf('\n');
+    // Look for LF terminator
+    const lfIndex = remaining.indexOf(0x0a);
     
-    // No JSON and no newlines - keep everything in buffer
-    if (firstBrace === -1 && firstNewline === -1) {
-      break;
-    }
-    
-    // If there's a complete line BEFORE any JSON, emit it first
-    if (firstNewline !== -1 && (firstBrace === -1 || firstNewline < firstBrace)) {
-      const line = remaining.slice(0, firstNewline).trim();
-      remaining = remaining.slice(firstNewline + 1);
-      if (line) {
-        complete.push(line);
-      }
-      continue;
-    }
-    
-    // JSON object starts here - find its end
-    if (firstBrace !== -1) {
-      // If there's content before the brace on the same line, it's part of the JSON line
-      // Skip any whitespace/newlines before the brace
-      if (firstBrace > 0) {
-        const beforeBrace = remaining.slice(0, firstBrace);
-        // Check if there are complete lines before the brace
-        const lastNewline = beforeBrace.lastIndexOf('\n');
-        if (lastNewline !== -1) {
-          // Emit complete lines before the JSON
-          const lines = beforeBrace.slice(0, lastNewline).split('\n');
-          lines.forEach(line => {
-            const trimmed = line.trim();
-            if (trimmed) complete.push(trimmed);
-          });
-          remaining = remaining.slice(lastNewline + 1);
-          continue;
-        }
-      }
-      
-      // Now parse the JSON object
-      let braceDepth = 0;
-      let endIdx = -1;
-      let inString = false;
-      let escape = false;
-
-      for (let i = firstBrace; i < remaining.length; i++) {
-        const char = remaining[i];
-        if (escape) { escape = false; continue; }
-        if (char === '\\' && inString) { escape = true; continue; }
-        if (char === '"') { inString = !inString; continue; }
-        if (!inString) {
-          if (char === '{') braceDepth++;
-          else if (char === '}') {
-            braceDepth--;
-            if (braceDepth === 0) { endIdx = i; break; }
-          }
-        }
-      }
-
-      if (endIdx !== -1) {
-        // Complete JSON found - emit everything from start to end
-        const jsonStr = remaining.slice(firstBrace, endIdx + 1);
-        
-        // Also emit any content before the JSON on the same "line"
-        const beforeJson = remaining.slice(0, firstBrace).trim();
-        if (beforeJson) {
-          // Prepend to the JSON (some commands have prefix text)
-          complete.push(beforeJson + jsonStr);
-        } else {
-          complete.push(jsonStr);
-        }
-        
-        remaining = remaining.slice(endIdx + 1).replace(/^[\r\n]+/, '');
-      } else {
-        // Incomplete JSON - wait for more data
+    // Look for 0x03 0x04 terminator
+    let etxEotIndex = -1;
+    for (let i = 0; i < remaining.length - 1; i++) {
+      if (remaining[i] === 0x03 && remaining[i + 1] === 0x04) {
+        etxEotIndex = i;
         break;
       }
     }
+    
+    // Find the earliest terminator
+    let terminatorIndex = -1;
+    let terminatorLen = 0;
+    
+    if (lfIndex !== -1 && (etxEotIndex === -1 || lfIndex < etxEotIndex)) {
+      terminatorIndex = lfIndex;
+      terminatorLen = 1; // LF is 1 byte
+    } else if (etxEotIndex !== -1) {
+      terminatorIndex = etxEotIndex;
+      terminatorLen = 2; // 0x03 0x04 is 2 bytes
+    }
+    
+    if (terminatorIndex === -1) {
+      // No complete message yet
+      break;
+    }
+    
+    // Extract the complete message (including terminator for proper parsing)
+    const message = remaining.slice(0, terminatorIndex + terminatorLen);
+    if (message.length > 0) {
+      complete.push(message);
+    }
+    
+    remaining = remaining.slice(terminatorIndex + terminatorLen);
   }
 
   return { complete, remaining };
 }
 
 // Connect to a FinishLynx port
-function connectToLynx(portType, host, port, portName) {
+function connectToLynx(portType, host, port) {
   const conn = connections[portType];
   
   console.log(`[${timestamp()}] [${portType.toUpperCase()}] Connecting to ${host}:${port}...`);
   
   const socket = new net.Socket();
   conn.socket = socket;
-  
-  let buffer = '';
+  conn.buffer = Buffer.alloc(0);
 
   socket.connect(port, host, () => {
     console.log(`[${timestamp()}] [${portType.toUpperCase()}] ✓ Connected to FinishLynx`);
     conn.connected = true;
-    conn.reconnectDelay = RECONNECT_DELAY; // Reset delay on success
+    conn.reconnectDelay = RECONNECT_DELAY;
   });
 
   socket.on('data', (data) => {
-    buffer += data.toString();
-    const { complete, remaining } = extractCompleteData(buffer);
-    buffer = remaining;
+    // CRITICAL: Keep as Buffer, do NOT convert to string!
+    conn.buffer = Buffer.concat([conn.buffer, data]);
     
-    // Queue items sequentially to preserve FinishLynx send order
-    complete.forEach((item) => {
-      if (item.trim()) {
-        queueForward(item.trim(), portType, portName);
-      }
+    const { complete, remaining } = extractCompleteMessages(conn.buffer);
+    conn.buffer = remaining;
+    
+    // Queue each complete message in order
+    complete.forEach((msg) => {
+      queueForward(msg, portType);
     });
   });
 
   socket.on('close', () => {
     console.log(`[${timestamp()}] [${portType.toUpperCase()}] Connection closed`);
     conn.connected = false;
-    scheduleReconnect(portType, host, port, portName);
+    scheduleReconnect(portType, host, port);
   });
 
   socket.on('error', (err) => {
     if (err.code === 'ECONNREFUSED') {
-      console.log(`[${timestamp()}] [${portType.toUpperCase()}] FinishLynx not ready (connection refused)`);
+      console.log(`[${timestamp()}] [${portType.toUpperCase()}] Waiting for FinishLynx...`);
     } else {
       console.error(`[${timestamp()}] [${portType.toUpperCase()}] Error: ${err.message}`);
     }
-    conn.connected = false;
   });
 }
 
-// Schedule reconnection with exponential backoff
-function scheduleReconnect(portType, host, port, portName) {
+function scheduleReconnect(portType, host, port) {
   const conn = connections[portType];
-  
-  console.log(`[${timestamp()}] [${portType.toUpperCase()}] Reconnecting in ${conn.reconnectDelay / 1000}s...`);
+  const delay = conn.reconnectDelay;
   
   setTimeout(() => {
-    connectToLynx(portType, host, port, portName);
-  }, conn.reconnectDelay);
-  
-  // Exponential backoff
-  conn.reconnectDelay = Math.min(conn.reconnectDelay * 1.5, MAX_RECONNECT_DELAY);
+    if (!conn.connected) {
+      conn.reconnectDelay = Math.min(conn.reconnectDelay * 1.5, MAX_RECONNECT_DELAY);
+      connectToLynx(portType, host, port);
+    }
+  }, delay);
 }
 
 // Start all connections
-console.log('Connecting to FinishLynx/FieldLynx...\n');
-
-connectToLynx('clock', LYNX_HOST, CLOCK_PORT, 'FinishLynx Clock');
-connectToLynx('results', LYNX_HOST, RESULTS_PORT, 'FinishLynx Results');
-connectToLynx('field', LYNX_HOST, FIELD_PORT, 'FieldLynx Results');
-
-// Status display
-setInterval(() => {
-  const status = Object.entries(connections).map(([type, info]) => {
-    return `${type}: ${info.connected ? '●' : '○'}`;
-  }).join(' | ');
-  
-  const anyConnected = Object.values(connections).some(c => c.connected);
-  if (anyConnected) {
-    process.stdout.write(`\r[Status] ${status}   `);
-  }
-}, 5000);
+console.log(`[${timestamp()}] Starting connections...`);
+connectToLynx('clock', LYNX_HOST, CLOCK_PORT);
+connectToLynx('results', LYNX_HOST, RESULTS_PORT);
+connectToLynx('field', LYNX_HOST, FIELD_PORT);
 
 // Graceful shutdown
 process.on('SIGINT', () => {
-  console.log('\n\nShutting down...');
+  console.log('\nShutting down...');
   Object.values(connections).forEach(conn => {
-    if (conn.socket) conn.socket.destroy();
+    if (conn.socket) {
+      conn.socket.destroy();
+    }
   });
   process.exit(0);
 });
 
-console.log('Press Ctrl+C to stop\n');
+console.log(`[${timestamp()}] Forwarder running. Press Ctrl+C to stop.`);
