@@ -1,0 +1,64 @@
+============================================
+  Track and Field Scoreboard
+============================================
+
+Checking for Node.js...
+Node.js found.
+
+Starting server...
+Server will run at http://localhost:5000
+Press Ctrl+C to stop.
+
+🔄 Running in EDGE mode with SQLite database: ./data/scoreboard.db
+✅ Scoring presets initialized
+✅ Split defaults initialized
+✅ ResulTV parser event handlers registered
+[Lynx] Started 3 listeners
+✅ Lynx listeners auto-started for Edge Mode on default ports
+   - FinishLynx Results: port 5555 (results)
+   - FinishLynx Clock: port 5556 (clock)
+   - FieldLynx: port 5557 (field)
+[Lynx:FinishLynx Results] Server error on port 5555: listen EADDRINUSE: address already in use 0.0.0.0:5555
+[Lynx] Error on results: listen EADDRINUSE: address already in use 0.0.0.0:5555
+[Lynx:FinishLynx Clock] Listening on port 5556
+[Lynx:FieldLynx] Listening on port 5557
+2:28:17 PM [express] serving on port 5000
+🔄 Starting auto-refresh service...
+[EVT Watcher] Initialized 0 watchers
+[Lynx:FinishLynx Clock] Client connected from 192.168.0.5
+[Lynx] Connection clock: connected
+
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+2:28:55 PM [express] GET /api/meets 304 in 3ms :: [{"id":"b7eb8fa0-c2f8-4551-953a-edc8d368dbc4","sea…
+2:28:55 PM [express] GET /api/meets/b7eb8fa0-c2f8-4551-953a-edc8d368dbc4 304 in 2ms :: {"id":"b7eb8f…
+WebSocket client connected
+2:28:57 PM [express] GET /api/edge-config 304 in 2ms :: {"cloudUrl":"","edgeId":""}
+2:28:58 PM [express] GET /api/version 304 in 2ms :: {"version":"1.1.0","date":"2026-01-13","releaseN…
+2:28:58 PM [express] GET /api/events 304 in 3ms :: []
+2:29:08 PM [express] GET /api/meets 304 in 1ms :: [{"id":"b7eb8fa0-c2f8-4551-953a-edc8d368dbc4","sea…
+2:29:08 PM [express] GET /api/meets/b7eb8fa0-c2f8-4551-953a-edc8d368dbc4 304 in 2ms :: {"id":"b7eb8f…
+WebSocket client connected
+2:29:14 PM [express] GET /api/scene-template-mappings/b7eb8fa0-c2f8-4551-953a-edc8d368dbc4 304 in 2m…
+2:29:14 PM [express] GET /api/meets/b7eb8fa0-c2f8-4551-953a-edc8d368dbc4/scoring/standings 304 in 3m…
+2:29:14 PM [express] GET /api/events/current/b7eb8fa0-c2f8-4551-953a-edc8d368dbc4 200 in 18ms
+WebSocket client connected
+Display device registering: LTR-52 (P10) for meet b7eb8fa0-c2f8-4551-953a-edc8d368dbc4, clientDeviceId: 49e9027a-da59-4baa-b07b-ee44efe9e3c1
+Reconnected existing device: LTR-52 (49e9027a-da59-4baa-b07b-ee44efe9e3c1)
+Display device registered: LTR-52 (49e9027a-da59-4baa-b07b-ee44efe9e3c1)
+2:29:19 PM [express] GET /api/events/current/b7eb8fa0-c2f8-4551-953a-edc8d368dbc4 200 in 8ms
+2:29:24 PM [express] GET /api/meets/b7eb8fa0-c2f8-4551-953a-edc8d368dbc4/scoring/standings 304 in 1m…
+2:29:24 PM [express] GET /api/events/current/b7eb8fa0-c2f8-4551-953a-edc8d368dbc4 200 in 4ms
+2:29:29 PM [express] GET /api/events/current/b7eb8fa0-c2f8-4551-953a-edc8d368dbc4 200 in 6ms
+2:29:34 PM [express] GET /api/meets/b7eb8fa0-c2f8-4551-953a-edc8d368dbc4/scoring/standings 304 in 2m…
+2:29:34 PM [express] GET /api/events/current/b7eb8fa0-c2f8-4551-953a-edc8d368dbc4 200 in 6ms
+2:29:39 PM [express] GET /api/events/current/b7eb8fa0-c2f8-4551-953a-edc8d368dbc4 200 in 9ms
+2:29:44 PM [express] GET /api/meets/b7eb8fa0-c2f8-4551-953a-edc8d368dbc4/scoring/standings 304 in 1m…
+2:29:44 PM [express] GET /api/events/current/b7eb8fa0-c2f8-4551-953a-edc8d368dbc4 200 in 12ms
+2:29:49 PM [express] GET /api/events/current/b7eb8fa0-c2f8-4551-953a-edc8d368dbc4 200 in 4ms
+
+
+
+
+
+
+
