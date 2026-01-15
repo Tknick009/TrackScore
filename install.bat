@@ -28,9 +28,10 @@ if %ERRORLEVEL% neq 0 (
 echo Dependencies installed
 echo.
 
-:: Create data directory
+:: Create data directory for SQLite database
 if not exist "data" mkdir data
-echo Data directory created
+if not exist "uploads" mkdir uploads
+echo Data directories created
 
 :: Create .env file if it doesn't exist
 if not exist ".env" (
