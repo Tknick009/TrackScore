@@ -49,6 +49,7 @@ interface LayoutBox {
   fieldKey: string | null;
   staticText?: string;
   staticImageUrl?: string;
+  hideWhenFieldNonNumeric?: string;  // Hide this element when the specified field contains non-numeric data (DNF, DNS, DQ)
   zIndex: number;
   athleteIndex?: number;  // ResulTV-style line number (0-indexed). Line 1 = 0, Line 2 = 1, etc.
   style?: {
@@ -352,6 +353,7 @@ export default function SimpleSceneEditor() {
       config: {
         dynamicText: box.staticText,
         staticImageUrl: box.staticImageUrl,
+        hideWhenFieldNonNumeric: box.hideWhenFieldNonNumeric,
       },
       style: box.style as any,
     };
@@ -368,6 +370,7 @@ export default function SimpleSceneEditor() {
     fieldKey: (obj.dataBinding as any)?.fieldKey || null,
     staticText: (obj.config as any)?.dynamicText,
     staticImageUrl: (obj.config as any)?.staticImageUrl,
+    hideWhenFieldNonNumeric: (obj.config as any)?.hideWhenFieldNonNumeric,
     athleteIndex: (obj.dataBinding as any)?.athleteIndex,
     zIndex: obj.zIndex,
     style: obj.style as any,
@@ -1435,6 +1438,56 @@ export default function SimpleSceneEditor() {
                     placeholder="Enter text..."
                     data-testid="input-static-text"
                   />
+                </div>
+              )}
+              
+              {/* Hide When Field Non-Numeric - for hiding labels when DNF/DNS/DQ */}
+              {selectedBox.type === 'text' && (
+                <div className="space-y-2 p-3 bg-muted/50 rounded-md">
+                  <Label className="text-sm font-medium">Conditional Visibility</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Hide this element when a field shows non-numeric data (DNF, DNS, DQ, etc.)
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Check Field</Label>
+                      <Select
+                        value={selectedBox.hideWhenFieldNonNumeric || 'none'}
+                        onValueChange={(value) => updateSelectedBox({ 
+                          hideWhenFieldNonNumeric: value === 'none' ? undefined : value 
+                        })}
+                      >
+                        <SelectTrigger data-testid="select-hide-field">
+                          <SelectValue placeholder="None" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">None (always visible)</SelectItem>
+                          <SelectItem value="place">Place</SelectItem>
+                          <SelectItem value="time">Time/Mark</SelectItem>
+                          <SelectItem value="lane">Lane</SelectItem>
+                          <SelectItem value="bib">Bib</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {selectedBox.hideWhenFieldNonNumeric && selectedBox.hideWhenFieldNonNumeric !== 'none' && (
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Line #</Label>
+                        <Select
+                          value={String(selectedBox.athleteIndex ?? 0)}
+                          onValueChange={(value) => updateSelectedBox({ athleteIndex: parseInt(value) })}
+                        >
+                          <SelectTrigger data-testid="select-hide-line">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {[0,1,2,3,4,5,6,7,8,9].map((idx) => (
+                              <SelectItem key={idx} value={String(idx)}>Line {idx + 1}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
               

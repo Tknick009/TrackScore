@@ -379,6 +379,32 @@ export function SceneObjectRenderer({
         const fieldKey = dataBinding.fieldKey as string | undefined;
         let textContent = componentConfig.text || componentConfig.textContent || componentConfig.dynamicText;
         
+        // Check hideWhenFieldNonNumeric - hide this element if a related field has non-numeric data
+        // Useful for hiding "PL:" label when place shows DNF, DNS, DQ, etc.
+        if (componentConfig.hideWhenFieldNonNumeric && liveData) {
+          const checkFieldKey = componentConfig.hideWhenFieldNonNumeric;
+          const athleteIdx = dataBinding.athleteIndex || 0;
+          const entriesForCheck = Array.isArray(liveData.entries) ? liveData.entries : [];
+          const entryForCheck = entriesForCheck.length > athleteIdx ? entriesForCheck[athleteIdx] : null;
+          
+          const checkFieldMap: Record<string, any> = {
+            'place': entryForCheck?.place,
+            'time': entryForCheck?.time || entryForCheck?.mark,
+            'lane': entryForCheck?.lane,
+            'bib': entryForCheck?.bib,
+          };
+          const valueToCheck = checkFieldMap[checkFieldKey];
+          
+          // Hide if value exists and is not a pure number
+          if (valueToCheck !== undefined && valueToCheck !== null && valueToCheck !== '') {
+            const strValue = String(valueToCheck).trim();
+            // Check if it's NOT a number (allows decimals and integers)
+            if (!/^[\d.]+$/.test(strValue)) {
+              return null; // Hide this element
+            }
+          }
+        }
+        
         // Special case: running-time uses smooth clock for jitter-free updates
         // Clock data from port 5556 (liveClockTime) is authoritative - if FinishLynx sends it, display it
         // Also check liveData.runningTime as secondary source when race mode is active
