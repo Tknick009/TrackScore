@@ -37,7 +37,8 @@ The frontend uses React with shadcn/ui on Radix UI and Tailwind CSS, adhering to
     - Port 4555: Small Board results (`results` type) → broadcasts to `track_mode_change` WebSocket channel
     - Port 4556: Shared clock data
     - Port 4557: FieldLynx data
-  - **FinishLynx Configuration:** Configure two separate ResulTV outputs in FinishLynx with different page sizes (e.g., 8 lines for P10, 16 lines for big board)
+  - **Position-Based Entry Accumulation:** Big board uses position-based storage for entries. The `lane` field is treated as LINE POSITION on display (not physical lane). Field splits arriving one-at-a-time update their specific position. `entriesByPosition` Map stores entries by line number, then rebuilds ordered array for broadcast. Accumulator clears on "Start List" layout command.
+  - **FinishLynx Configuration:** Configure two separate ResulTV outputs in FinishLynx with different page sizes (e.g., 8 lines for P10, variable lines for big board)
   - **Display Channel Selection:** Display devices can choose which channel to subscribe to via the "Data Channel" toggle in setup
   - **ResulTV Parser (`server/parsers/resultv-parser.ts`):** Decodes LSS binary format with group codes (\10-\17) and variable codes (\01-\0f), handles layout commands, clock, wind, headers, and result entries
   - **WebSocket Events:** `layout-command`, `lynx_clock`, `lynx_wind`, `lynx_header`, `lynx_entry`, `track_mode_change`, `track_mode_change_big`

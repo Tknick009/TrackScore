@@ -5527,9 +5527,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Entry accumulator: FinishLynx sends entries one-by-one, we accumulate them
   // Entry accumulators - separate for big board and small board
   // Reset on layout-command "Start List", then accumulate entries as they arrive
+  // IMPORTANT: Uses lane/L field as LINE POSITION (not physical lane)
+  // For field splits, FinishLynx sends one entry at a time with its line position
   // Display reads entries[0] for Line 1, entries[1] for Line 2, etc.
   const createEmptyAccumulator = () => ({
-    entries: [] as any[],
+    entriesByPosition: new Map<number, any>(), // Position-based storage for field splits
+    entries: [] as any[], // Ordered array built from position map
     eventNumber: 0,
     heat: 1,
     eventName: '',
@@ -5538,6 +5541,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   const entryAccumulator = createEmptyAccumulator(); // Standard/small board
   const entryAccumulatorBig = createEmptyAccumulator(); // Big board
+  
+  // Helper: Build ordered entries array from position map
+  const buildEntriesArray = (acc: ReturnType<typeof createEmptyAccumulator>) => {
+    // Get all positions and sort them
+    const positions = Array.from(acc.entriesByPosition.keys()).sort((a, b) => a - b);
+    // Build array with entries in position order (no gaps)
+    acc.entries = positions.map(pos => acc.entriesByPosition.get(pos)!);
+  };
 
   // Get Lynx connection status (used by UI)
   app.get("/api/lynx/status", async (req, res) => {
@@ -6228,6 +6239,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // For big board, accumulate entries by position (field splits come one at a time)
+      // For standard board, pass through directly
+      const acc = isBigBoard ? entryAccumulatorBig : entryAccumulator;
+      
+      if (data.entries && Array.isArray(data.entries)) {
+        // Accumulate entries by position for big board
+        for (const entry of data.entries as any[]) {
+          const hasContent = entry.lane || entry.bib || entry.name;
+          if (hasContent) {
+            let position: number;
+            if (entry.lane && !isNaN(parseInt(entry.lane))) {
+              position = parseInt(entry.lane);
+            } else {
+              position = acc.entriesByPosition.size + 1;
+            }
+            acc.entriesByPosition.set(position, entry);
+          }
+        }
+        buildEntriesArray(acc);
+      }
+      
       // Broadcast to different channels based on source port
       // Big board data goes to 'track_mode_change_big', regular goes to 'track_mode_change'
       const messageType = isBigBoard ? 'track_mode_change_big' : 'track_mode_change';
@@ -6239,7 +6271,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           totalHeats, // Include total heats for "Heat X of Y" display
           roundName, // Include round name for "Prelims", "Finals", etc.
           totalRounds, // Total rounds configured for event
-          ...data, // Pass through all raw data from FinishLynx
+          ...data, // Pass through raw data from FinishLynx
+          entries: isBigBoard ? acc.entries : data.entries, // Use accumulated entries for big board
         }
       } as any);
     } catch (error) {
@@ -6273,7 +6306,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Don't clear on "Results" or other commands - that's a different display mode
     const normalizedLayout = layoutName.toLowerCase().trim();
     if (normalizedLayout === 'start list' || normalizedLayout === 'startlist') {
-      console.log(`[Lynx] Clearing ${isBigBoard ? 'big board' : 'standard'} entry accumulator for new page (${acc.entries.length} entries cleared)`);
+      console.log(`[Lynx] Clearing ${isBigBoard ? 'big board' : 'standard'} entry accumulator for new page (${acc.entriesByPosition.size} entries cleared)`);
+      acc.entriesByPosition.clear();
       acc.entries = [];
       acc.lastLayoutCommand = layoutName;
     }
@@ -6516,8 +6550,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Start list handler - ACCUMULATES entries as they arrive one-by-one
   // Layout command "Start List" clears the accumulator, then entries fill in
-  // Display reads entries[0] for Line 1, entries[1] for Line 2, etc.
-  // IMPORTANT: FinishLynx sends entries in display order - DO NOT sort!
+  // IMPORTANT: Uses lane field as LINE POSITION on display (not physical lane)
+  // For field splits: each entry arrives individually with its display line position
+  // For start lists: entries arrive in order, position = arrival order if no lane specified
   lynxListener.on('start-list', async (eventNumber, heat, entries, metadata) => {
     const isBigBoard = metadata?.sourcePortType === 'results_big';
     const acc = isBigBoard ? entryAccumulatorBig : entryAccumulator;
@@ -6528,14 +6563,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     acc.eventName = metadata?.eventName || acc.eventName;
     acc.distance = metadata?.distance || acc.distance;
     
-    // Accumulate new entries in arrival order (FinishLynx sends them in display order)
-    // Skip empty entries (blank lane, bib, name)
+    // Accumulate entries by POSITION (lane field = display line number)
+    // For field splits, lane is the line position on the display
+    // For start lists without explicit lane, use next available position
     for (const entry of entries) {
       const hasContent = entry.lane || entry.bib || entry.name;
       if (hasContent) {
-        acc.entries.push(entry);
+        // Use lane as position if provided, otherwise use next available position
+        let position: number;
+        if (entry.lane && !isNaN(parseInt(entry.lane))) {
+          position = parseInt(entry.lane);
+        } else {
+          // Find next available position (1-based)
+          position = acc.entriesByPosition.size + 1;
+        }
+        acc.entriesByPosition.set(position, entry);
       }
     }
+    
+    // Rebuild ordered array from position map
+    buildEntriesArray(acc);
     
     console.log(`[Lynx] Start list (${isBigBoard ? 'BIG BOARD' : 'standard'}): Event ${eventNumber}, Heat ${heat}, +${entries.length} entries, total: ${acc.entries.length}`);
     
