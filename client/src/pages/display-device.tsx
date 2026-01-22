@@ -607,9 +607,12 @@ export default function DisplayDevice() {
                   }
                   
                   mergedEntries = Array.from(entryMap.values());
-                } else {
-                  // Other modes (start_list, etc.) - use new entries directly
+                } else if (data.mode === 'start_list' && newEntries.length > 0) {
+                  // Start list with actual entries - use them
                   mergedEntries = newEntries;
+                } else {
+                  // Empty start_list or other modes - keep previous entries if they exist
+                  mergedEntries = prevEntries.length > 0 ? prevEntries : newEntries;
                 }
                 
                 return {
