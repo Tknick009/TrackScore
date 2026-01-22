@@ -1983,7 +1983,8 @@ export const fieldDisplayModeEnum = z.enum(['idle', 'athlete_up', 'attempt_in_pr
 export type FieldDisplayMode = z.infer<typeof fieldDisplayModeEnum>;
 
 // Lynx port types
-export const lynxPortTypeEnum = z.enum(['clock', 'results', 'field', 'start_list']);
+// 'results_big' is for big board display (more lines per page), same parsing as 'results'
+export const lynxPortTypeEnum = z.enum(['clock', 'results', 'results_big', 'field', 'start_list']);
 export type LynxPortType = z.infer<typeof lynxPortTypeEnum>;
 
 // Ingest configuration - stores TCP port settings for Lynx data
