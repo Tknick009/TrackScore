@@ -6189,6 +6189,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // Get total heats from database for "Heat X of Y" display
+      let totalHeats = 1;
+      if (matchingEvents.length > 0) {
+        const roundStr = data.round ? String(data.round).toLowerCase() : undefined;
+        totalHeats = await storage.getTotalHeatsForEvent(matchingEvents[0].id, roundStr);
+      }
+
       // Broadcast to different channels based on source port
       // Big board data goes to 'track_mode_change_big', regular goes to 'track_mode_change'
       const messageType = isBigBoard ? 'track_mode_change_big' : 'track_mode_change';
@@ -6197,6 +6204,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         data: {
           eventNumber,
           mode,
+          totalHeats, // Include total heats for "Heat X of Y" display
           ...data, // Pass through all raw data from FinishLynx
         }
       } as any);
@@ -6476,7 +6484,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Layout command "Start List" clears the accumulator, then entries fill in
   // Display reads entries[0] for Line 1, entries[1] for Line 2, etc.
   // IMPORTANT: FinishLynx sends entries in display order - DO NOT sort!
-  lynxListener.on('start-list', (eventNumber, heat, entries, metadata) => {
+  lynxListener.on('start-list', async (eventNumber, heat, entries, metadata) => {
     const isBigBoard = metadata?.sourcePortType === 'results_big';
     const acc = isBigBoard ? entryAccumulatorBig : entryAccumulator;
     
@@ -6497,6 +6505,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     console.log(`[Lynx] Start list (${isBigBoard ? 'BIG BOARD' : 'standard'}): Event ${eventNumber}, Heat ${heat}, +${entries.length} entries, total: ${acc.entries.length}`);
     
+    // Get total heats from database for "Heat X of Y" display
+    let totalHeats = 1;
+    try {
+      const matchingEvents = await storage.getEventsByLynxEventNumber(eventNumber);
+      if (matchingEvents.length > 0) {
+        const roundStr = metadata?.round ? String(metadata.round).toLowerCase() : undefined;
+        totalHeats = await storage.getTotalHeatsForEvent(matchingEvents[0].id, roundStr);
+      }
+    } catch (error) {
+      console.error('[Lynx] Error getting total heats:', error);
+    }
+    
     // Broadcast entries in arrival order (FinishLynx controls display order)
     // Display maps by array position: Line 1 = entries[0], Line 2 = entries[1], etc.
     const messageType = isBigBoard ? 'start_list_big' : 'start_list';
@@ -6505,6 +6525,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       data: {
         eventNumber,
         heat,
+        totalHeats, // Include total heats for "Heat X of Y" display
         entries: acc.entries, // Arrival order = display order
         eventName: acc.eventName,
         distance: acc.distance,
