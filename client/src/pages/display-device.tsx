@@ -577,60 +577,20 @@ export default function DisplayDevice() {
             const data = message.data;
             if (data) {
               console.log(`[Display] Track mode change (${isBigBoardRef.current ? 'BIG BOARD' : 'standard'}): Event ${data.eventNumber}, mode=${data.mode}, ${data.entries?.length || 0} entries`);
-              setState(prev => {
-                const newEntries = data.entries || data.results || [];
-                const prevEntries = prev.liveEventData?.entries || [];
-                const prevMode = prev.liveEventData?.mode;
-                const prevEventNumber = prev.liveEventData?.eventNumber;
-                
-                // Accumulate entries when in results/running mode for same event
-                // Clear entries when event changes or mode changes to start_list
-                let mergedEntries: any[] = [];
-                
-                if (data.eventNumber !== prevEventNumber) {
-                  // New event - start fresh with new entries
-                  mergedEntries = newEntries;
-                } else if (data.mode === 'results' || data.mode === 'running') {
-                  // Results/running mode - accumulate entries by lane
-                  const entryMap = new Map<string, any>();
-                  
-                  // Add previous entries first
-                  for (const entry of prevEntries) {
-                    const key = entry.lane || entry.finalLane || entry.bib || '';
-                    if (key) entryMap.set(String(key), entry);
-                  }
-                  
-                  // Merge/update with new entries (newer data wins)
-                  for (const entry of newEntries) {
-                    const key = entry.lane || entry.finalLane || entry.bib || '';
-                    if (key) entryMap.set(String(key), entry);
-                  }
-                  
-                  mergedEntries = Array.from(entryMap.values());
-                } else if (data.mode === 'start_list' && newEntries.length > 0) {
-                  // Start list with actual entries - use them
-                  mergedEntries = newEntries;
-                } else {
-                  // Empty start_list or other modes - keep previous entries if they exist
-                  mergedEntries = prevEntries.length > 0 ? prevEntries : newEntries;
-                }
-                
-                return {
-                  ...prev,
-                  liveEventData: {
-                    eventNumber: data.eventNumber,
-                    eventName: data.eventName || prev.liveEventData?.eventName || '',
-                    heat: data.heat ?? prev.liveEventData?.heat,
-                    totalHeats: data.totalHeats ?? prev.liveEventData?.totalHeats,
-                    round: data.round ?? prev.liveEventData?.round,
-                    roundName: data.roundName ?? prev.liveEventData?.roundName,
-                    mode: data.mode,
-                    wind: data.wind,
-                    distance: data.distance || prev.liveEventData?.distance,
-                    entries: mergedEntries,
-                  },
-                };
-              });
+              setState(prev => ({
+                ...prev,
+                liveEventData: {
+                  eventNumber: data.eventNumber,
+                  eventName: data.eventName || prev.liveEventData?.eventName || '',
+                  heat: data.heat ?? prev.liveEventData?.heat,
+                  totalHeats: data.totalHeats ?? prev.liveEventData?.totalHeats,
+                  round: data.round ?? prev.liveEventData?.round,
+                  mode: data.mode,
+                  wind: data.wind,
+                  distance: data.distance || prev.liveEventData?.distance,
+                  entries: data.entries || data.results || [],
+                },
+              }));
             }
           }
           
@@ -1324,9 +1284,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
       return <SingleAthleteTrack event={eventWithLiveName as any} meet={meet} focusIndex={0} />;
     }
 
-    // For BigBoard displays during running_time mode, use BigBoard (not RunningTime)
-    // This keeps athletes visible with splits during the race
-    if (isRunningTimeTemplate && !isBigBoard) {
+    if (isRunningTimeTemplate) {
       // Use live FinishLynx data directly - always available before currentEvent loads
       const eventWithLiveName = currentEvent 
         ? { ...currentEvent, name: liveEventData?.eventName || '' }
@@ -1350,9 +1308,8 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
       return <FieldSideBySide event={eventWithLiveName as any} meet={meet} />;
     }
 
-    // For track results, start lists, running time (BigBoard only), and BigBoard - always use live data for event name (never database)
-    // BigBoard stays visible through all modes: start_list → running_time → results
-    if ((isTrackResults || isStartList || isBigBoard || (isRunningTimeTemplate && isBigBoard)) && (currentEvent || liveEventData)) {
+    // For track results, start lists, and BigBoard - always use live data for event name (never database)
+    if ((isTrackResults || isStartList || isBigBoard) && (currentEvent || liveEventData)) {
       const showSplits = templateId.includes('splits');
       // Always override event name with live FinishLynx data
       const eventWithLiveName = currentEvent 
@@ -1365,68 +1322,22 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             name: liveEventData?.eventName || '',
             eventType: 'track',
             status: liveEventData?.mode === 'results' ? 'completed' : 'in_progress',
-            entries: (liveEventData?.entries || []).map((entry: any, idx: number) => {
-              // Parse time from FinishLynx format (MM:SS.ss or SS.ss)
-              const parseTimeToMs = (timeStr: string | undefined): number | undefined => {
-                if (!timeStr || timeStr.trim() === '') return undefined;
-                const str = timeStr.trim();
-                // Handle MM:SS.ss format
-                if (str.includes(':')) {
-                  const parts = str.split(':');
-                  if (parts.length === 2) {
-                    const minutes = parseFloat(parts[0]) || 0;
-                    const seconds = parseFloat(parts[1]) || 0;
-                    return (minutes * 60 + seconds) * 1000;
-                  }
-                }
-                // Handle SS.ss format
-                const seconds = parseFloat(str);
-                if (!isNaN(seconds)) return seconds * 1000;
-                return undefined;
-              };
-              
-              // Convert ResulTV split fields to BigBoard splits array format
-              const buildSplitsArray = (entry: any): any[] => {
-                const splits: any[] = [];
-                // Use lastSplit if available (this is the split time, not cumulative)
-                if (entry.lastSplit) {
-                  const splitMs = parseTimeToMs(entry.lastSplit);
-                  if (splitMs !== undefined) {
-                    splits.push({ splitTime: splitMs, splitNumber: 1 });
-                  }
-                }
-                // Also include cumulativeSplit as a cumulative time reference
-                if (entry.cumulativeSplit) {
-                  const cumMs = parseTimeToMs(entry.cumulativeSplit);
-                  if (cumMs !== undefined && splits.length > 0) {
-                    splits[splits.length - 1].cumulativeTime = cumMs;
-                  } else if (cumMs !== undefined) {
-                    splits.push({ splitTime: cumMs, cumulativeTime: cumMs, splitNumber: 1 });
-                  }
-                }
-                return splits.length > 0 ? splits : (entry.splits || []);
-              };
-              
-              return {
-                id: idx,
-                finalLane: entry.lane || idx + 1,
-                finalPlace: entry.place ? parseInt(entry.place) : undefined,
-                finalMark: parseTimeToMs(entry.time),
-                athlete: {
-                  firstName: entry.name?.split(' ')[0] || '',
-                  lastName: entry.name?.split(' ').slice(1).join(' ') || entry.name || '',
-                },
-                team: {
-                  name: entry.team || entry.affiliation || '',
-                },
-                splits: buildSplitsArray(entry),
-              };
-            }),
+            entries: (liveEventData?.entries || []).map((entry: any, idx: number) => ({
+              id: idx,
+              lane: entry.lane || idx + 1,
+              place: entry.place,
+              time: entry.time,
+              athlete: {
+                firstName: entry.name?.split(' ')[0] || '',
+                lastName: entry.name?.split(' ').slice(1).join(' ') || entry.name || '',
+                team: entry.team || entry.affiliation || '',
+              },
+            })),
             wind: liveEventData?.wind,
             heat: liveEventData?.heat,
             round: liveEventData?.round,
           };
-      return <BigBoard event={eventWithLiveName as any} meet={meet} showSplits={showSplits} liveTime={liveClockTime || undefined} pagingSize={pagingSize} pagingIntervalMs={pagingInterval * 1000} mode={liveEventData?.mode} />;
+      return <BigBoard event={eventWithLiveName as any} meet={meet} showSplits={showSplits} pagingSize={pagingSize} pagingIntervalMs={pagingInterval * 1000} />;
     }
 
     if (!currentEvent && !liveEventData && (isTrackResults || isFieldResults || isStartList || isFieldStandings)) {
