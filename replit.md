@@ -37,6 +37,7 @@ The frontend uses React with shadcn/ui on Radix UI and Tailwind CSS, adhering to
     - Port 4555: Small Board results (`results` type) → broadcasts to `track_mode_change` WebSocket channel
     - Port 4556: Shared clock data
     - Port 4557: FieldLynx data
+    - **Single-Port Fallback:** When only one results port is configured (common setup), all data (track_mode_change, start_list, layout_command) is broadcast to BOTH big and small board channels. This ensures displays work regardless of which channel they select.
   - **FinishLynx Configuration:** Configure two separate ResulTV outputs in FinishLynx with different page sizes (e.g., 8 lines for P10, 16 lines for big board)
   - **Display Channel Selection:** Display devices can choose which channel to subscribe to via the "Data Channel" toggle in setup
   - **ResulTV Parser (`server/parsers/resultv-parser.ts`):** Decodes LSS binary format with group codes (\10-\17) and variable codes (\01-\0f), handles layout commands, clock, wind, headers, and result entries

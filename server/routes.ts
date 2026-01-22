@@ -6228,19 +6228,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Broadcast to different channels based on source port
-      // Big board data goes to 'track_mode_change_big', regular goes to 'track_mode_change'
-      const messageType = isBigBoard ? 'track_mode_change_big' : 'track_mode_change';
+      // Broadcast to BOTH channels to ensure all displays receive data
+      // This supports single-port setups where results_big port isn't configured
+      // If both ports are configured, displays will receive data for their channel
+      const trackData = {
+        eventNumber,
+        mode,
+        totalHeats, // Include total heats for "Heat X of Y" display
+        roundName, // Include round name for "Prelims", "Finals", etc.
+        totalRounds, // Total rounds configured for event
+        ...data, // Pass through all raw data from FinishLynx
+      };
+      
+      // Always broadcast to both channels - displays filter by their selected channel
       broadcastToDisplays({
-        type: messageType,
-        data: {
-          eventNumber,
-          mode,
-          totalHeats, // Include total heats for "Heat X of Y" display
-          roundName, // Include round name for "Prelims", "Finals", etc.
-          totalRounds, // Total rounds configured for event
-          ...data, // Pass through all raw data from FinishLynx
-        }
+        type: 'track_mode_change',
+        data: trackData
+      } as any);
+      broadcastToDisplays({
+        type: 'track_mode_change_big',
+        data: trackData
       } as any);
     } catch (error) {
       console.error('[Lynx] Error handling track mode change:', error);
@@ -6248,6 +6255,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Clock handler - NO SMART LOGIC, just pass through exactly what FinishLynx sends
+  // Clock data goes to ALL displays (both big board and small board channels)
   lynxListener.on('clock-update', (eventNumber, time, command) => {
     // Just broadcast the raw clock data to all displays
     broadcastToDisplays({
@@ -6263,28 +6271,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Layout command handler - FinishLynx tells us when to switch layouts
   // Uses ResulTV-style Command=LayoutDraw;Name=XXX; format
   // IMPORTANT: "Start List" command signals start of a new page - clear accumulated entries
+  // NOTE: Layout commands are broadcast to BOTH channels to ensure all displays can switch templates
+  // even when only one results port is configured. This supports the common single-port setup.
   lynxListener.on('layout-command', (layoutName: string, sourcePortType?: string) => {
     const isBigBoard = sourcePortType === 'results_big';
     const acc = isBigBoard ? entryAccumulatorBig : entryAccumulator;
-    console.log(`[Lynx] Layout command: ${layoutName} (${isBigBoard ? 'BIG BOARD' : 'standard'})`);
+    console.log(`[Lynx] Layout command: ${layoutName} (source: ${sourcePortType || 'unknown'})`);
     
     // Clear accumulated entries ONLY on exact "Start List" command (page boundary)
     // FinishLynx sends "Command=LayoutDraw;Name=Start List;" before each page of entries
     // Don't clear on "Results" or other commands - that's a different display mode
     const normalizedLayout = layoutName.toLowerCase().trim();
     if (normalizedLayout === 'start list' || normalizedLayout === 'startlist') {
-      console.log(`[Lynx] Clearing ${isBigBoard ? 'big board' : 'standard'} entry accumulator for new page (${acc.entries.length} entries cleared)`);
-      acc.entries = [];
-      acc.lastLayoutCommand = layoutName;
+      // Clear BOTH accumulators on Start List to ensure fresh data on page boundary
+      console.log(`[Lynx] Clearing entry accumulators for new page`);
+      entryAccumulator.entries = [];
+      entryAccumulator.lastLayoutCommand = layoutName;
+      entryAccumulatorBig.entries = [];
+      entryAccumulatorBig.lastLayoutCommand = layoutName;
     }
     
-    // Broadcast layout switch command - big board uses separate channel
-    const messageType = isBigBoard ? 'layout_command_big' : 'layout_command';
+    // Broadcast layout switch command to BOTH channels
+    // This ensures big board displays work even with single-port configuration
     broadcastToDisplays({
-      type: messageType,
-      data: {
-        layoutName,
-      }
+      type: 'layout_command',
+      data: { layoutName }
+    } as any);
+    broadcastToDisplays({
+      type: 'layout_command_big',
+      data: { layoutName }
     } as any);
   });
 
@@ -6580,19 +6595,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     // Broadcast entries in arrival order (FinishLynx controls display order)
     // Display maps by array position: Line 1 = entries[0], Line 2 = entries[1], etc.
-    const messageType = isBigBoard ? 'start_list_big' : 'start_list';
+    // Broadcast to BOTH channels to ensure all displays receive data
+    const startListData = {
+      eventNumber,
+      heat,
+      totalHeats, // Include total heats for "Heat X of Y" display
+      roundName, // Include round name for "Prelims", "Finals", etc.
+      totalRounds, // Total rounds configured for event
+      entries: acc.entries, // Arrival order = display order
+      eventName: acc.eventName,
+      distance: acc.distance,
+    };
+    
+    // Always broadcast to both channels - displays filter by their selected channel
     broadcastToDisplays({
-      type: messageType,
-      data: {
-        eventNumber,
-        heat,
-        totalHeats, // Include total heats for "Heat X of Y" display
-        roundName, // Include round name for "Prelims", "Finals", etc.
-        totalRounds, // Total rounds configured for event
-        entries: acc.entries, // Arrival order = display order
-        eventName: acc.eventName,
-        distance: acc.distance,
-      }
+      type: 'start_list',
+      data: startListData
+    } as any);
+    broadcastToDisplays({
+      type: 'start_list_big',
+      data: startListData
     } as any);
   });
 
