@@ -1284,7 +1284,9 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
       return <SingleAthleteTrack event={eventWithLiveName as any} meet={meet} focusIndex={0} />;
     }
 
-    if (isRunningTimeTemplate) {
+    // For BigBoard displays during running_time mode, use BigBoard (not RunningTime)
+    // This keeps athletes visible with splits during the race
+    if (isRunningTimeTemplate && !isBigBoard) {
       // Use live FinishLynx data directly - always available before currentEvent loads
       const eventWithLiveName = currentEvent 
         ? { ...currentEvent, name: liveEventData?.eventName || '' }
@@ -1308,8 +1310,9 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
       return <FieldSideBySide event={eventWithLiveName as any} meet={meet} />;
     }
 
-    // For track results, start lists, and BigBoard - always use live data for event name (never database)
-    if ((isTrackResults || isStartList || isBigBoard) && (currentEvent || liveEventData)) {
+    // For track results, start lists, running time (BigBoard only), and BigBoard - always use live data for event name (never database)
+    // BigBoard stays visible through all modes: start_list → running_time → results
+    if ((isTrackResults || isStartList || isBigBoard || (isRunningTimeTemplate && isBigBoard)) && (currentEvent || liveEventData)) {
       const showSplits = templateId.includes('splits');
       // Always override event name with live FinishLynx data
       const eventWithLiveName = currentEvent 
