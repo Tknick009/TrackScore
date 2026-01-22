@@ -31,9 +31,16 @@ The frontend uses React with shadcn/ui on Radix UI and Tailwind CSS, adhering to
 - **Lynx Protocol Integration (ResulTV/LSS Format):** Uses ResulTV binary protocol for FinishLynx integration. Architecture:
   - **Data Flow:** FinishLynx → TCP ports → ResulTV Parser → WebSocket → Displays
   - **Development Mode:** TCP Forwarder (`tools/tcp-forwarders/lynx-tcp-forwarder.cjs`) bridges remote FinishLynx to cloud server via HTTP, forwarding raw bytes (base64 encoded) to `/api/lynx/raw` endpoint
-  - **Production/Edge Mode:** FinishLynx connects directly to server TCP ports (5555 results, 5556 clock, 5557 field) - no forwarder needed
+  - **Production/Edge Mode:** FinishLynx connects directly to server TCP ports
+  - **Dual-Port Architecture:** Supports independent paging for big board and small board displays:
+    - Port 4554: Big Board results (`results_big` type) → broadcasts to `track_mode_change_big` WebSocket channel
+    - Port 4555: Small Board results (`results` type) → broadcasts to `track_mode_change` WebSocket channel
+    - Port 4556: Shared clock data
+    - Port 4557: FieldLynx data
+  - **FinishLynx Configuration:** Configure two separate ResulTV outputs in FinishLynx with different page sizes (e.g., 8 lines for P10, 16 lines for big board)
+  - **Display Channel Selection:** Display devices can choose which channel to subscribe to via the "Data Channel" toggle in setup
   - **ResulTV Parser (`server/parsers/resultv-parser.ts`):** Decodes LSS binary format with group codes (\10-\17) and variable codes (\01-\0f), handles layout commands, clock, wind, headers, and result entries
-  - **WebSocket Events:** `layout-command`, `lynx_clock`, `lynx_wind`, `lynx_header`, `lynx_entry`
+  - **WebSocket Events:** `layout-command`, `lynx_clock`, `lynx_wind`, `lynx_header`, `lynx_entry`, `track_mode_change`, `track_mode_change_big`
   - **Key Principle:** Forwarder does NO parsing - all intelligence is in the server. Displays receive complete data and just render.
 - **Scene Layout Mapping System:** Displays use Scene Layout Mappings to switch scenes based on FinishLynx layout commands. The mapping table (`scene_template_mappings`) associates (meetId, displayType, displayMode) → sceneId. When FinishLynx sends a layout command (e.g., "Start List"), the display maps it to a displayMode (`start_list`, `running_time`, `track_results`, `field_results`, `field_standings`, `team_scores`), looks up the configured scene for that mode, and switches to it. Falls back to default templates if no scene is configured. Configure mappings in Display Control → Scene Template Mappings tab.
 - **Auto-Mode Track Display System:** Displays automatically switch templates based on live Lynx timing data without pre-configured events. Persistence of auto-mode state, four auto states (idle, armed, running, results), and template mapping per display type.
