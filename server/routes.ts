@@ -6311,13 +6311,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.log(`[Lynx] Result: Event ${eventNumber}, Lane ${lane}, Place ${place}, Time ${time} (${isBigBoard ? 'BIG BOARD' : 'standard'})`);
     
     // Add result to the appropriate accumulator for immediate display
-    // Include split data if available from the metadata
+    // Only include fields that have values - don't overwrite existing data with undefined
     const newEntry: any = {
       lane: String(lane),
       place: String(place),
       time,
-      name: athleteName,
     };
+    
+    // Only set name if we actually have one - don't overwrite existing name with undefined
+    if (athleteName) {
+      newEntry.name = athleteName;
+    }
     
     // Add split data if present
     if (metadata?.cumulativeSplit) {
