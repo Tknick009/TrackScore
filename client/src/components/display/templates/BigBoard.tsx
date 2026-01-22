@@ -8,9 +8,10 @@ interface BigBoardProps {
   liveTime?: string;
   pagingSize?: number;
   pagingIntervalMs?: number;
+  mode?: 'start_list' | 'running_time' | 'results' | string;
 }
 
-export function BigBoard({ event, meet, showSplits = false, liveTime, pagingSize = 8, pagingIntervalMs = 5000 }: BigBoardProps) {
+export function BigBoard({ event, meet, showSplits = false, liveTime, pagingSize = 8, pagingIntervalMs = 5000, mode }: BigBoardProps) {
   const [clock, setClock] = useState<string>("");
   const [currentPage, setCurrentPage] = useState(0);
 
@@ -48,13 +49,15 @@ export function BigBoard({ event, meet, showSplits = false, liveTime, pagingSize
     return () => clearInterval(interval);
   }, [totalPages, pagingIntervalMs]);
 
-  const sortedEntries = useMemo(() => {
-    return [...(event.entries || [])].sort((a, b) => {
-      if (a.finalPlace && b.finalPlace) return a.finalPlace - b.finalPlace;
-      if (a.finalPlace) return -1;
-      if (b.finalPlace) return 1;
-      return (a.finalLane || 0) - (b.finalLane || 0);
-    });
+  // Determine display mode from prop or infer from event status
+  const displayMode = mode || ((event as any).mode) || (event.status === 'completed' ? 'results' : 'start_list');
+  const isStartList = displayMode === 'start_list';
+  const isRunningOrResults = displayMode === 'running_time' || displayMode === 'results';
+
+  // IMPORTANT: Don't re-sort entries - they come pre-sorted by line number from FinishLynx
+  // The array position IS the display position as determined by FinishLynx paging
+  const displayEntries = useMemo(() => {
+    return [...(event.entries || [])];
   }, [event.entries]);
 
   const isRelay = event.eventType?.toLowerCase().includes('relay');
@@ -172,7 +175,7 @@ export function BigBoard({ event, meet, showSplits = false, liveTime, pagingSize
 
         <div className="flex-1 flex flex-col px-4 py-3 overflow-hidden">
           {/* Show only entries for current page */}
-          {sortedEntries.slice(currentPage * pagingSize, (currentPage + 1) * pagingSize).map((entry, index) => {
+          {displayEntries.slice(currentPage * pagingSize, (currentPage + 1) * pagingSize).map((entry, index) => {
             const teamLogo = entry.team?.logoUrl;
             const displayName = isRelay 
               ? entry.team?.name || 'Unknown Team'
@@ -195,11 +198,15 @@ export function BigBoard({ event, meet, showSplits = false, liveTime, pagingSize
                   }}
                 >
                   <div className="flex items-center w-full gap-6">
+                    {/* First column: Lane for start list, Place for running/results */}
                     <span 
                       className="text-white font-black w-20 text-center shrink-0"
                       style={{ fontSize: '56px', fontWeight: 900, fontFamily: "'Bebas Neue', sans-serif" }}
                     >
-                      {entry.finalLane || index + 1}
+                      {isStartList 
+                        ? (entry.finalLane || index + 1)
+                        : (entry.finalPlace || '-')
+                      }
                     </span>
 
                     <div className="w-14 h-14 shrink-0 flex items-center justify-center">

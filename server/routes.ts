@@ -6241,20 +6241,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         acc.heat = data.heat || 1;
       }
       
-      // Merge incoming entries into accumulator (preserving existing data)
-      // This handles entries coming one at a time from FinishLynx
+      // Merge incoming entries into accumulator by LINE position (not lane)
+      // FinishLynx sends entries by array position (line), which determines display order
       if (data.entries && Array.isArray(data.entries)) {
         for (const entry of data.entries) {
-          // Find by lane and update, or add new
-          const laneStr = String(entry.lane);
-          const existingIdx = acc.entries.findIndex((e: any) => String(e.lane) === laneStr);
-          if (existingIdx >= 0) {
-            // Merge - preserve existing fields, add new ones
-            acc.entries[existingIdx] = { ...acc.entries[existingIdx], ...entry };
+          // Use 'line' field for position - this is the array index from ResulTV parser
+          const lineNum = entry.line;
+          if (lineNum !== undefined) {
+            // Find by line position and update, or add new
+            const existingIdx = acc.entries.findIndex((e: any) => e.line === lineNum);
+            if (existingIdx >= 0) {
+              // Merge - preserve existing fields, add new ones
+              acc.entries[existingIdx] = { ...acc.entries[existingIdx], ...entry };
+            } else {
+              acc.entries.push(entry);
+            }
           } else if (entry.lane || entry.name || entry.bib) {
+            // Fallback for entries without line field
             acc.entries.push(entry);
           }
         }
+        // Sort by line number to maintain display order
+        acc.entries.sort((a: any, b: any) => (a.line || 0) - (b.line || 0));
       }
       
       const trackData = {
