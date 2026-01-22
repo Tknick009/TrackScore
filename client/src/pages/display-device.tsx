@@ -249,6 +249,9 @@ export default function DisplayDevice() {
   const [selectedMeetId, setSelectedMeetId] = useState<string | null>(null);
   const [deviceName, setDeviceName] = useState<string>('');
   const [registeredDeviceId, setRegisteredDeviceId] = useState<string | null>(null);
+  // Big board toggle - when true, subscribes to 'track_mode_change_big' channel
+  const [isBigBoard, setIsBigBoard] = useState<boolean>(false);
+  const isBigBoardRef = useRef<boolean>(false);
   const wsRef = useRef<WebSocket | null>(null);
   const deviceNameRef = useRef<string>('');
 
@@ -296,6 +299,11 @@ export default function DisplayDevice() {
       selectedMeetIdRef.current = selectedMeetId;
     }
   }, [selectedMeetId]);
+  
+  // Keep bigBoard ref in sync with state
+  useEffect(() => {
+    isBigBoardRef.current = isBigBoard;
+  }, [isBigBoard]);
 
   // WebSocket connection - runs when setup is complete
   useEffect(() => {
@@ -561,10 +569,12 @@ export default function DisplayDevice() {
           
           // Handle track mode change updates from FinishLynx (event switching)
           // NO SMART LOGIC - just pass through exactly what FinishLynx sends
-          if (message.type === 'track_mode_change') {
+          // Listen to 'track_mode_change_big' for big board displays, 'track_mode_change' for small boards
+          const myChannel = isBigBoardRef.current ? 'track_mode_change_big' : 'track_mode_change';
+          if (message.type === myChannel) {
             const data = message.data;
             if (data) {
-              console.log(`[Display] Track mode change: Event ${data.eventNumber}, mode=${data.mode}, ${data.entries?.length || 0} entries`);
+              console.log(`[Display] Track mode change (${isBigBoardRef.current ? 'BIG BOARD' : 'standard'}): Event ${data.eventNumber}, mode=${data.mode}, ${data.entries?.length || 0} entries`);
               setState(prev => ({
                 ...prev,
                 liveEventData: {
@@ -813,6 +823,40 @@ export default function DisplayDevice() {
                 This name will identify this display in the control panel
               </p>
             </div>
+          </div>
+          
+          {/* Big Board Toggle */}
+          <div className="mb-10">
+            <div className="max-w-md mx-auto flex items-center justify-center gap-4">
+              <Label className="text-gray-300 text-sm font-medium">
+                Data Channel:
+              </Label>
+              <button
+                onClick={() => setIsBigBoard(false)}
+                className={`px-4 py-2 rounded-lg transition-all text-sm font-medium ${
+                  !isBigBoard 
+                    ? 'bg-blue-600 text-white' 
+                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                }`}
+                data-testid="button-channel-small"
+              >
+                Small Board (Port 4555)
+              </button>
+              <button
+                onClick={() => setIsBigBoard(true)}
+                className={`px-4 py-2 rounded-lg transition-all text-sm font-medium ${
+                  isBigBoard 
+                    ? 'bg-green-600 text-white' 
+                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                }`}
+                data-testid="button-channel-big"
+              >
+                Big Board (Port 4554)
+              </button>
+            </div>
+            <p className="text-gray-500 text-xs mt-2 text-center">
+              Configure FinishLynx ResulTV output to different ports for separate paging
+            </p>
           </div>
           
           {/* Start Button */}
