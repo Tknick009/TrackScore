@@ -6189,11 +6189,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Get total heats from database for "Heat X of Y" display
+      // Get total heats and round name from database
       let totalHeats = 1;
+      let roundName = 'Finals'; // Default if no event found or single round
+      let totalRounds = 1;
+      
       if (matchingEvents.length > 0) {
+        const event = matchingEvents[0];
+        const roundNum = data.round ? parseInt(String(data.round)) : 1;
         const roundStr = data.round ? String(data.round).toLowerCase() : undefined;
-        totalHeats = await storage.getTotalHeatsForEvent(matchingEvents[0].id, roundStr);
+        
+        totalHeats = await storage.getTotalHeatsForEvent(event.id, roundStr);
+        totalRounds = event.numRounds || 1;
+        
+        // Determine round name based on event configuration
+        // numRounds = 1: Finals only
+        // numRounds = 2: Prelims (1), Finals (2)
+        // numRounds = 3: Prelims (1), Semis (2), Finals (3)
+        // numRounds = 4: Prelims (1), Quarters (2), Semis (3), Finals (4)
+        if (totalRounds === 1) {
+          roundName = 'Finals';
+        } else if (totalRounds === 2) {
+          roundName = roundNum === 1 ? 'Prelims' : 'Finals';
+        } else if (totalRounds === 3) {
+          if (roundNum === 1) roundName = 'Prelims';
+          else if (roundNum === 2) roundName = 'Semis';
+          else roundName = 'Finals';
+        } else if (totalRounds === 4) {
+          if (roundNum === 1) roundName = 'Prelims';
+          else if (roundNum === 2) roundName = 'Quarters';
+          else if (roundNum === 3) roundName = 'Semis';
+          else roundName = 'Finals';
+        } else {
+          // For 5+ rounds, use ordinal naming for early rounds
+          if (roundNum === totalRounds) roundName = 'Finals';
+          else if (roundNum === totalRounds - 1) roundName = 'Semis';
+          else roundName = `Round ${roundNum}`;
+        }
       }
 
       // Broadcast to different channels based on source port
@@ -6205,6 +6237,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           eventNumber,
           mode,
           totalHeats, // Include total heats for "Heat X of Y" display
+          roundName, // Include round name for "Prelims", "Finals", etc.
+          totalRounds, // Total rounds configured for event
           ...data, // Pass through all raw data from FinishLynx
         }
       } as any);
@@ -6505,16 +6539,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     console.log(`[Lynx] Start list (${isBigBoard ? 'BIG BOARD' : 'standard'}): Event ${eventNumber}, Heat ${heat}, +${entries.length} entries, total: ${acc.entries.length}`);
     
-    // Get total heats from database for "Heat X of Y" display
+    // Get total heats and round name from database
     let totalHeats = 1;
+    let roundName = 'Finals';
+    let totalRounds = 1;
+    
     try {
       const matchingEvents = await storage.getEventsByLynxEventNumber(eventNumber);
       if (matchingEvents.length > 0) {
+        const event = matchingEvents[0];
+        const roundNum = metadata?.round ? parseInt(String(metadata.round)) : 1;
         const roundStr = metadata?.round ? String(metadata.round).toLowerCase() : undefined;
-        totalHeats = await storage.getTotalHeatsForEvent(matchingEvents[0].id, roundStr);
+        
+        totalHeats = await storage.getTotalHeatsForEvent(event.id, roundStr);
+        totalRounds = event.numRounds || 1;
+        
+        // Determine round name based on event configuration
+        if (totalRounds === 1) {
+          roundName = 'Finals';
+        } else if (totalRounds === 2) {
+          roundName = roundNum === 1 ? 'Prelims' : 'Finals';
+        } else if (totalRounds === 3) {
+          if (roundNum === 1) roundName = 'Prelims';
+          else if (roundNum === 2) roundName = 'Semis';
+          else roundName = 'Finals';
+        } else if (totalRounds === 4) {
+          if (roundNum === 1) roundName = 'Prelims';
+          else if (roundNum === 2) roundName = 'Quarters';
+          else if (roundNum === 3) roundName = 'Semis';
+          else roundName = 'Finals';
+        } else {
+          if (roundNum === totalRounds) roundName = 'Finals';
+          else if (roundNum === totalRounds - 1) roundName = 'Semis';
+          else roundName = `Round ${roundNum}`;
+        }
       }
     } catch (error) {
-      console.error('[Lynx] Error getting total heats:', error);
+      console.error('[Lynx] Error getting total heats/round info:', error);
     }
     
     // Broadcast entries in arrival order (FinishLynx controls display order)
@@ -6526,6 +6587,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         eventNumber,
         heat,
         totalHeats, // Include total heats for "Heat X of Y" display
+        roundName, // Include round name for "Prelims", "Finals", etc.
+        totalRounds, // Total rounds configured for event
         entries: acc.entries, // Arrival order = display order
         eventName: acc.eventName,
         distance: acc.distance,
