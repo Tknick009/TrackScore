@@ -6306,8 +6306,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } as any);
   });
 
-  lynxListener.on('result', async (eventNumber, lane, place, time, athleteName) => {
-    console.log(`[Lynx] Result: Event ${eventNumber}, Lane ${lane}, Place ${place}, Time ${time}`);
+  lynxListener.on('result', async (eventNumber, lane, place, time, athleteName, metadata) => {
+    const isBigBoard = metadata?.sourcePortType === 'results_big';
+    console.log(`[Lynx] Result: Event ${eventNumber}, Lane ${lane}, Place ${place}, Time ${time} (${isBigBoard ? 'BIG BOARD' : 'standard'})`);
+    
+    // Add result to the appropriate accumulator for immediate display
+    // Include split data if available from the metadata
+    const newEntry: any = {
+      lane: String(lane),
+      place: String(place),
+      time,
+      name: athleteName,
+    };
+    
+    // Add split data if present
+    if (metadata?.cumulativeSplit) {
+      newEntry.cumulativeSplit = metadata.cumulativeSplit;
+    }
+    if (metadata?.lastSplit) {
+      newEntry.lastSplit = metadata.lastSplit;
+    }
+    
+    // Update the in-memory accumulator so track-mode-change broadcasts have the data
+    const acc = isBigBoard ? entryAccumulatorBig : entryAccumulator;
+    acc.eventNumber = eventNumber;
+    
+    // Find existing entry by lane and update, or add new entry
+    const existingIdx = acc.entries.findIndex((e: any) => String(e.lane) === String(lane));
+    if (existingIdx >= 0) {
+      acc.entries[existingIdx] = { ...acc.entries[existingIdx], ...newEntry };
+    } else {
+      acc.entries.push(newEntry);
+    }
     
     try {
       // Get existing entries and merge new result
@@ -6316,16 +6346,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Find or add entry for this lane
       const laneStr = String(lane);
-      const existingIdx = entries.findIndex((e: any) => e.lane === laneStr);
-      const newEntry = {
-        lane: laneStr,
-        place: String(place),
-        time,
-        name: athleteName,
-      };
+      const existingIdxDb = entries.findIndex((e: any) => e.lane === laneStr);
       
-      if (existingIdx >= 0) {
-        entries[existingIdx] = { ...entries[existingIdx], ...newEntry };
+      if (existingIdxDb >= 0) {
+        entries[existingIdxDb] = { ...entries[existingIdxDb], ...newEntry };
       } else {
         entries.push(newEntry);
       }

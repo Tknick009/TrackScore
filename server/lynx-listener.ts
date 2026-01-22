@@ -834,7 +834,8 @@ export class LynxListener extends EventEmitter {
           lane ? parseInt(lane) : 0, 
           parseInt(place), 
           time, 
-          athleteName
+          athleteName,
+          { sourcePortType: config.portType, cumulativeSplit: data.CS, lastSplit: data.LS }
         );
       }
       
@@ -1044,7 +1045,8 @@ export class LynxListener extends EventEmitter {
         packet.laneNumber || 0, 
         packet.place, 
         packet.time, 
-        packet.athleteName
+        packet.athleteName,
+        { sourcePortType: config.portType }
       );
     }
   }
