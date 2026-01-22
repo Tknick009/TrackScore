@@ -87,6 +87,7 @@ interface AggregatedEvent {
   firstUpdate: number; // Track when aggregation started for max wait time
   emitScheduled?: boolean; // Prevent scheduling multiple emits
   type: 'S' | 'T' | 'F';
+  sourcePortType?: LynxPortType; // Track if data came from big board port
 }
 
 export class LynxListener extends EventEmitter {
@@ -486,6 +487,7 @@ export class LynxListener extends EventEmitter {
             this.parseClockLine(line, packet);
             break;
           case 'results':
+          case 'results_big':
             this.parseLegacyResultsLine(line, packet);
             break;
           case 'field':
@@ -677,13 +679,13 @@ export class LynxListener extends EventEmitter {
 
       switch (msgType) {
         case 'S':
-          this.handleStartListMessage(msgData, packet, config.name);
+          this.handleStartListMessage(msgData, packet, config);
           break;
         case 'T':
-          this.handleTrackMessage(msgData, packet, config.name);
+          this.handleTrackMessage(msgData, packet, config);
           break;
         case 'F':
-          this.handleFieldMessage(msgData, packet, config.name);
+          this.handleFieldMessage(msgData, packet, config);
           break;
         default:
           if (msgType) {
@@ -695,7 +697,7 @@ export class LynxListener extends EventEmitter {
     }
   }
 
-  private handleStartListMessage(data: any, packet: LynxPacket, portName?: string) {
+  private handleStartListMessage(data: any, packet: LynxPacket, config: PortConfig) {
     const eventNum = parseInt(data.EN) || this.currentEventNumber;
     const heat = parseInt(data.H) || 1;
     const round = parseInt(data.R) || 1;
@@ -735,7 +737,7 @@ export class LynxListener extends EventEmitter {
     if (layoutName && status !== this.lastStatusByEvent.get(eventNum)) {
       this.lastStatusByEvent.set(eventNum, status);
       console.log(`[Lynx] Status change: Event ${eventNum} → ${status} → Layout: ${layoutName}`);
-      this.emit('layout-command', layoutName, { eventNum, status });
+      this.emit('layout-command', layoutName);
     }
     
     // NO AGGREGATION - pass through immediately
@@ -755,10 +757,11 @@ export class LynxListener extends EventEmitter {
     this.emit('start-list', eventNum, heat, entry ? [entry] : [], {
       eventName: resolvedEventName,
       distance,
+      sourcePortType: config.portType, // Track source for big board routing
     });
   }
 
-  private handleTrackMessage(data: any, packet: LynxPacket, portName?: string) {
+  private handleTrackMessage(data: any, packet: LynxPacket, config: PortConfig) {
     const eventNum = parseInt(data.EN) || this.currentEventNumber;
     const heat = parseInt(data.H) || 1;
     const round = parseInt(data.R) || 1;
@@ -840,11 +843,12 @@ export class LynxListener extends EventEmitter {
         wind,
         eventName: resolvedEventName,
         entries: [entry],
+        sourcePortType: config.portType, // Track source for big board routing
       });
     }
   }
 
-  private handleFieldMessage(data: any, packet: LynxPacket, portName?: string) {
+  private handleFieldMessage(data: any, packet: LynxPacket, config: PortConfig) {
     const eventNum = parseInt(data.EN) || this.currentEventNumber;
     const flight = parseInt(data.F) || 1;
     const round = parseInt(data.R) || 1;
@@ -874,7 +878,7 @@ export class LynxListener extends EventEmitter {
     if (name) packet.athleteName = name;
     
     if (name || data.BIB) {
-      const key = this.getAggregationKey(eventNum, flight, 'F', round, portName);
+      const key = this.getAggregationKey(eventNum, flight, 'F', round, config.name);
       let aggregated = this.aggregatedEvents.get(key);
       
       // Use persisted event name if DN not in this message
