@@ -6169,7 +6169,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Track mode change handler - SIMPLIFIED: just pass through raw data from FinishLynx
   // Layout switching is now controlled by FinishLynx via layout-command events
   lynxListener.on('track-mode-change', async (eventNumber, mode, data) => {
-    console.log(`[Lynx] Track mode change: Event ${eventNumber} → ${mode} (raw pass-through)`);
+    const isBigBoard = data.sourcePortType === 'results_big';
+    console.log(`[Lynx] Track mode change: Event ${eventNumber} → ${mode} (${isBigBoard ? 'BIG BOARD' : 'standard'})`);
     liveState.trackMode = mode;
     liveState.currentEventNumber = eventNumber;
     liveState.isArmed = data.armed || false;
@@ -6185,16 +6186,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Broadcast display mode change with raw data from FinishLynx - NO AGGREGATION
-      // Layout switching is handled by layout-command, this just provides the data
+      // Broadcast to different channels based on source port
+      // Big board data goes to 'track_mode_change_big', regular goes to 'track_mode_change'
+      const messageType = isBigBoard ? 'track_mode_change_big' : 'track_mode_change';
       broadcastToDisplays({
-        type: 'track_mode_change',
+        type: messageType,
         data: {
           eventNumber,
           mode,
           ...data, // Pass through all raw data from FinishLynx
         }
-      });
+      } as any);
     } catch (error) {
       console.error('[Lynx] Error handling track mode change:', error);
     }
@@ -6556,7 +6558,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log(`✅ Lynx listeners started from env vars with ${defaultLynxConfig.length} ports`);
         } else if (process.env.EDGE_MODE === 'true') {
           // In Edge Mode, auto-start with default ports for FinishLynx
+          // Port 4554: Big Board (8+ lines), Port 4555: Small Board (P10/P6)
           const edgeDefaultConfig = [
+            { port: 4554, portType: 'results_big' as LynxPortType, name: 'Big Board Results' },
             { port: 4555, portType: 'results' as LynxPortType, name: 'FinishLynx Results' },
             { port: 4556, portType: 'clock' as LynxPortType, name: 'FinishLynx Clock' },
             { port: 4557, portType: 'field' as LynxPortType, name: 'FieldLynx' },
