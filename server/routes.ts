@@ -6231,6 +6231,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Broadcast to BOTH channels to ensure all displays receive data
       // This supports single-port setups where results_big port isn't configured
       // If both ports are configured, displays will receive data for their channel
+      // Use accumulated entries instead of single entry from data
+      const acc = isBigBoard ? entryAccumulatorBig : entryAccumulator;
       const trackData = {
         eventNumber,
         mode,
@@ -6238,6 +6240,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         roundName, // Include round name for "Prelims", "Finals", etc.
         totalRounds, // Total rounds configured for event
         ...data, // Pass through all raw data from FinishLynx
+        entries: acc.entries.length > 0 ? acc.entries : data.entries, // Use accumulated entries if available
       };
       
       // Always broadcast to both channels - displays filter by their selected channel
