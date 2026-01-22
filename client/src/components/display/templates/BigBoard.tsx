@@ -183,7 +183,8 @@ export function BigBoard({ event, meet, showSplits = false, liveTime, pagingSize
               ? entry.team?.name || 'Unknown Team'
               : `${entry.athlete?.lastName || ''}`;
             const finalTime = formatTime(entry.finalMark);
-            const splitTime = showSplits ? getLatestSplit(entry) : '';
+            // Show splits if they exist in the data - let the data control visibility
+            const splitTime = getLatestSplit(entry);
 
             return (
               <div key={entry.id || index} className="relative flex-1 min-h-0">
@@ -230,7 +231,7 @@ export function BigBoard({ event, meet, showSplits = false, liveTime, pagingSize
                       {displayName}
                     </span>
 
-                    {showSplits && splitTime && (
+                    {splitTime && (
                       <span 
                         className="text-yellow-400 font-bold tabular-nums shrink-0"
                         style={{ fontSize: '48px', fontFamily: "'Bebas Neue', sans-serif" }}
