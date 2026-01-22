@@ -446,7 +446,9 @@ export default function DisplayDevice() {
           // Layout command from FinishLynx - switch scenes based on Scene Layout Mapping
           // Maps FinishLynx layout names to displayMode, then looks up scene from mappings
           // DEBOUNCING: Ignore duplicate layout commands to prevent glitchy transitions
-          if (message.type === 'layout_command') {
+          // Listen to 'layout_command_big' for big board displays, 'layout_command' for small boards
+          const myLayoutChannel = isBigBoardRef.current ? 'layout_command_big' : 'layout_command';
+          if (message.type === myLayoutChannel) {
             const layoutName = message.data?.layoutName?.toLowerCase() || '';
             
             // Map FinishLynx layout names to displayMode values used in Scene Layout Mappings:
@@ -616,10 +618,12 @@ export default function DisplayDevice() {
           
           // Handle start_list updates from FinishLynx (pre-race athlete list)
           // Pure pass-through: show exactly what FinishLynx sends, no accumulation
-          if (message.type === 'start_list') {
+          // Listen to 'start_list_big' for big board displays, 'start_list' for small boards
+          const myStartListChannel = isBigBoardRef.current ? 'start_list_big' : 'start_list';
+          if (message.type === myStartListChannel) {
             const data = message.data;
             if (data) {
-              console.log(`[Display] Start list: Event ${data.eventNumber}, Heat ${data.heat}, ${data.entries?.length || 0} entries`);
+              console.log(`[Display] Start list (${isBigBoardRef.current ? 'BIG BOARD' : 'standard'}): Event ${data.eventNumber}, Heat ${data.heat}, ${data.entries?.length || 0} entries`);
               setState(prev => ({
                 ...prev,
                 liveEventData: {

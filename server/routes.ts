@@ -5525,16 +5525,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   // Entry accumulator: FinishLynx sends entries one-by-one, we accumulate them
+  // Entry accumulators - separate for big board and small board
   // Reset on layout-command "Start List", then accumulate entries as they arrive
   // Display reads entries[0] for Line 1, entries[1] for Line 2, etc.
-  const entryAccumulator = {
+  const createEmptyAccumulator = () => ({
     entries: [] as any[],
     eventNumber: 0,
     heat: 1,
     eventName: '',
     distance: '',
     lastLayoutCommand: '',
-  };
+  });
+  const entryAccumulator = createEmptyAccumulator(); // Standard/small board
+  const entryAccumulatorBig = createEmptyAccumulator(); // Big board
 
   // Get Lynx connection status (used by UI)
   app.get("/api/lynx/status", async (req, res) => {
@@ -6218,22 +6221,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Layout command handler - FinishLynx tells us when to switch layouts
   // Uses ResulTV-style Command=LayoutDraw;Name=XXX; format
   // IMPORTANT: "Start List" command signals start of a new page - clear accumulated entries
-  lynxListener.on('layout-command', (layoutName) => {
-    console.log(`[Lynx] Layout command: ${layoutName}`);
+  lynxListener.on('layout-command', (layoutName: string, sourcePortType?: string) => {
+    const isBigBoard = sourcePortType === 'results_big';
+    const acc = isBigBoard ? entryAccumulatorBig : entryAccumulator;
+    console.log(`[Lynx] Layout command: ${layoutName} (${isBigBoard ? 'BIG BOARD' : 'standard'})`);
     
     // Clear accumulated entries ONLY on exact "Start List" command (page boundary)
     // FinishLynx sends "Command=LayoutDraw;Name=Start List;" before each page of entries
     // Don't clear on "Results" or other commands - that's a different display mode
     const normalizedLayout = layoutName.toLowerCase().trim();
     if (normalizedLayout === 'start list' || normalizedLayout === 'startlist') {
-      console.log(`[Lynx] Clearing entry accumulator for new page (${entryAccumulator.entries.length} entries cleared)`);
-      entryAccumulator.entries = [];
-      entryAccumulator.lastLayoutCommand = layoutName;
+      console.log(`[Lynx] Clearing ${isBigBoard ? 'big board' : 'standard'} entry accumulator for new page (${acc.entries.length} entries cleared)`);
+      acc.entries = [];
+      acc.lastLayoutCommand = layoutName;
     }
     
-    // Broadcast layout switch command to all connected displays
+    // Broadcast layout switch command - big board uses separate channel
+    const messageType = isBigBoard ? 'layout_command_big' : 'layout_command';
     broadcastToDisplays({
-      type: 'layout_command',
+      type: messageType,
       data: {
         layoutName,
       }
@@ -6471,35 +6477,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Display reads entries[0] for Line 1, entries[1] for Line 2, etc.
   // IMPORTANT: FinishLynx sends entries in display order - DO NOT sort!
   lynxListener.on('start-list', (eventNumber, heat, entries, metadata) => {
+    const isBigBoard = metadata?.sourcePortType === 'results_big';
+    const acc = isBigBoard ? entryAccumulatorBig : entryAccumulator;
+    
     // Update accumulator metadata
-    entryAccumulator.eventNumber = eventNumber;
-    entryAccumulator.heat = heat;
-    entryAccumulator.eventName = metadata?.eventName || entryAccumulator.eventName;
-    entryAccumulator.distance = metadata?.distance || entryAccumulator.distance;
+    acc.eventNumber = eventNumber;
+    acc.heat = heat;
+    acc.eventName = metadata?.eventName || acc.eventName;
+    acc.distance = metadata?.distance || acc.distance;
     
     // Accumulate new entries in arrival order (FinishLynx sends them in display order)
     // Skip empty entries (blank lane, bib, name)
     for (const entry of entries) {
       const hasContent = entry.lane || entry.bib || entry.name;
       if (hasContent) {
-        entryAccumulator.entries.push(entry);
+        acc.entries.push(entry);
       }
     }
     
-    console.log(`[Lynx] Start list: Event ${eventNumber}, Heat ${heat}, +${entries.length} entries, total: ${entryAccumulator.entries.length}`);
+    console.log(`[Lynx] Start list (${isBigBoard ? 'BIG BOARD' : 'standard'}): Event ${eventNumber}, Heat ${heat}, +${entries.length} entries, total: ${acc.entries.length}`);
     
     // Broadcast entries in arrival order (FinishLynx controls display order)
     // Display maps by array position: Line 1 = entries[0], Line 2 = entries[1], etc.
+    const messageType = isBigBoard ? 'start_list_big' : 'start_list';
     broadcastToDisplays({
-      type: 'start_list',
+      type: messageType,
       data: {
         eventNumber,
         heat,
-        entries: entryAccumulator.entries, // Arrival order = display order
-        eventName: entryAccumulator.eventName,
-        distance: entryAccumulator.distance,
+        entries: acc.entries, // Arrival order = display order
+        eventName: acc.eventName,
+        distance: acc.distance,
       }
-    } as WSMessage);
+    } as any);
   });
 
   lynxListener.on('connection', (portType, connected) => {

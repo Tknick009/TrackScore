@@ -13,11 +13,11 @@ interface LynxListenerEvents {
   'track-mode-change': (eventNumber: number, mode: TrackDisplayMode, data: any) => void;
   'field-mode-change': (eventNumber: number, mode: FieldDisplayMode, data: any) => void;
   'clock-update': (eventNumber: number, time: string, command: string) => void;
-  'layout-command': (layoutName: string) => void;  // ResulTV layout switching command
+  'layout-command': (layoutName: string, sourcePortType?: LynxPortType) => void;  // ResulTV layout switching command
   'result': (eventNumber: number, lane: number, place: number, time: string, athleteName?: string) => void;
   'field-result': (eventNumber: number, athleteName: string, place: number, mark: string, attemptNumber: number, attempts?: string) => void;
   'field-athlete-up': (eventNumber: number, athleteName: string, attemptNumber: number, mark?: string) => void;
-  'start-list': (eventNumber: number, heat: number, entries: LynxStartListEntry[], metadata?: { eventName?: string; distance?: string }) => void;
+  'start-list': (eventNumber: number, heat: number, entries: LynxStartListEntry[], metadata?: { eventName?: string; distance?: string; sourcePortType?: LynxPortType }) => void;
   'connection': (portType: LynxPortType, connected: boolean) => void;
   'error': (error: Error, portType: LynxPortType) => void;
 }
@@ -179,6 +179,7 @@ export class LynxListener extends EventEmitter {
         this.emit('start-list', event.eventNumber, event.heat, sortedEntries as LynxStartListEntry[], {
           eventName: event.eventName,
           distance: event.distance,
+          sourcePortType: event.sourcePortType, // Pass through for big board routing
         });
         break;
       case 'T':
@@ -203,6 +204,7 @@ export class LynxListener extends EventEmitter {
           this.emit('start-list', event.eventNumber, event.heat, startListEntries as LynxStartListEntry[], {
             eventName: event.eventName,
             distance: event.distance,
+            sourcePortType: event.sourcePortType, // Pass through for big board routing
           });
         } else if (sortedEntries.some(e => (e as LynxTrackResult).place && (e as LynxTrackResult).time)) {
           this.emit('track-mode-change', event.eventNumber, 'results', {
@@ -212,6 +214,7 @@ export class LynxListener extends EventEmitter {
             wind: event.wind,
             eventName: event.eventName,
             entries: sortedEntries,
+            sourcePortType: event.sourcePortType, // Pass through for big board routing
           });
         }
         break;
@@ -245,6 +248,7 @@ export class LynxListener extends EventEmitter {
           // Only emit start-list - the handler will trigger auto-mode after aggregation
           this.emit('start-list', event.eventNumber, event.heat, startListEntries as LynxStartListEntry[], {
             eventName: event.eventName,
+            sourcePortType: event.sourcePortType, // Pass through for channel routing
           });
         }
         
@@ -254,6 +258,7 @@ export class LynxListener extends EventEmitter {
           flight: event.heat,
           eventName: event.eventName,
           results: sortedEntries,
+          sourcePortType: event.sourcePortType, // Pass through for channel routing
         });
         break;
     }
@@ -288,8 +293,8 @@ export class LynxListener extends EventEmitter {
     const layoutMatch = data.match(/Command=LayoutDraw;Name=([^;]+)/i);
     if (layoutMatch) {
       const layoutName = layoutMatch[1].trim();
-      console.log(`[Lynx:Forward] Layout command detected: ${layoutName}`);
-      this.emit('layout-command', layoutName);
+      console.log(`[Lynx:Forward] Layout command detected: ${layoutName} (${portType})`);
+      this.emit('layout-command', layoutName, portType);
     }
     
     // Process each line of data
@@ -466,8 +471,8 @@ export class LynxListener extends EventEmitter {
     const layoutMatch = sanitized.match(/Command=LayoutDraw;Name=([^;]+)/i);
     if (layoutMatch) {
       const layoutName = layoutMatch[1].trim();
-      console.log(`[Lynx] Layout command from FinishLynx: ${layoutName}`);
-      this.emit('layout-command', layoutName);
+      console.log(`[Lynx] Layout command from FinishLynx: ${layoutName} (${config.portType})`);
+      this.emit('layout-command', layoutName, config.portType);
       // Don't return - continue processing in case there's other data on this line
     }
     
@@ -484,17 +489,17 @@ export class LynxListener extends EventEmitter {
       } else {
         switch (config.portType) {
           case 'clock':
-            this.parseClockLine(line, packet);
+            this.parseClockLine(line, packet, config);
             break;
           case 'results':
           case 'results_big':
-            this.parseLegacyResultsLine(line, packet);
+            this.parseLegacyResultsLine(line, packet, config);
             break;
           case 'field':
             this.parseLegacyFieldLine(line, packet);
             break;
           case 'start_list':
-            this.parseStartListLine(line, packet);
+            this.parseStartListLine(line, packet, config);
             break;
         }
       }
@@ -736,8 +741,8 @@ export class LynxListener extends EventEmitter {
     // Emit layout command if status changed (debounced by tracking last status per event)
     if (layoutName && status !== this.lastStatusByEvent.get(eventNum)) {
       this.lastStatusByEvent.set(eventNum, status);
-      console.log(`[Lynx] Status change: Event ${eventNum} → ${status} → Layout: ${layoutName}`);
-      this.emit('layout-command', layoutName);
+      console.log(`[Lynx] Status change: Event ${eventNum} → ${status} → Layout: ${layoutName} (${config.portType})`);
+      this.emit('layout-command', layoutName, config.portType);
     }
     
     // NO AGGREGATION - pass through immediately
@@ -788,14 +793,14 @@ export class LynxListener extends EventEmitter {
     
     if (status === 'ARMED') {
       this.isRunning = false;
-      this.emit('track-mode-change', eventNum, 'start_list', { armed: true, heat });
+      this.emit('track-mode-change', eventNum, 'start_list', { armed: true, heat, sourcePortType: config.portType });
       return;
     }
     
     if (status === 'RUNNING' || (time && !place)) {
       this.isRunning = true;
       if (!wasRunning) {
-        this.emit('track-mode-change', eventNum, 'running', { heat, time });
+        this.emit('track-mode-change', eventNum, 'running', { heat, time, sourcePortType: config.portType });
       }
       if (time) {
         this.emit('clock-update', eventNum, time, '');
@@ -897,6 +902,7 @@ export class LynxListener extends EventEmitter {
           lastUpdate: now,
           firstUpdate: now,
           type: 'F',
+          sourcePortType: config.portType, // Track source port for channel routing
         };
         this.aggregatedEvents.set(key, aggregated);
       } else if (resolvedEventName && !aggregated.eventName) {
@@ -957,7 +963,7 @@ export class LynxListener extends EventEmitter {
     }
   }
 
-  private parseClockLine(line: string, packet: LynxPacket) {
+  private parseClockLine(line: string, packet: LynxPacket, config: PortConfig) {
     const parts = line.split(/\s+/).filter(Boolean);
     
     if (parts.length >= 1) {
@@ -967,7 +973,7 @@ export class LynxListener extends EventEmitter {
         if (eventNum !== this.currentEventNumber) {
           this.currentEventNumber = eventNum;
           this.isRunning = false;
-          this.emit('track-mode-change', eventNum, 'start_list', { eventNumber: eventNum });
+          this.emit('track-mode-change', eventNum, 'start_list', { eventNumber: eventNum, sourcePortType: config.portType });
         }
       }
     }
@@ -982,16 +988,16 @@ export class LynxListener extends EventEmitter {
     if (line.includes('ARM') || line.toLowerCase().includes('armed')) {
       packet.status = 'armed';
       this.isRunning = false;
-      this.emit('track-mode-change', this.currentEventNumber, 'start_list', { armed: true });
+      this.emit('track-mode-change', this.currentEventNumber, 'start_list', { armed: true, sourcePortType: config.portType });
     }
 
     if (line.includes('RESET') || line.includes('CLR')) {
       this.isRunning = false;
-      this.emit('track-mode-change', this.currentEventNumber, 'start_list', { reset: true });
+      this.emit('track-mode-change', this.currentEventNumber, 'start_list', { reset: true, sourcePortType: config.portType });
     }
   }
 
-  private parseLegacyResultsLine(line: string, packet: LynxPacket) {
+  private parseLegacyResultsLine(line: string, packet: LynxPacket, config: PortConfig) {
     const parts = line.split(/\s+/).filter(Boolean);
     
     if (parts.length >= 1) {
@@ -1029,7 +1035,8 @@ export class LynxListener extends EventEmitter {
       this.emit('track-mode-change', this.currentEventNumber, 'results', { 
         place: packet.place, 
         time: packet.time,
-        lane: packet.laneNumber 
+        lane: packet.laneNumber,
+        sourcePortType: config.portType
       });
       
       this.emit('result', 
@@ -1110,7 +1117,7 @@ export class LynxListener extends EventEmitter {
     }
   }
 
-  private parseStartListLine(line: string, packet: LynxPacket) {
+  private parseStartListLine(line: string, packet: LynxPacket, config: PortConfig) {
     const parts = line.split(/\s+/).filter(Boolean);
     
     if (parts.length >= 1) {
@@ -1119,7 +1126,7 @@ export class LynxListener extends EventEmitter {
         packet.eventNumber = eventNum;
         if (eventNum !== this.currentEventNumber) {
           this.currentEventNumber = eventNum;
-          this.emit('track-mode-change', eventNum, 'start_list', { eventNumber: eventNum });
+          this.emit('track-mode-change', eventNum, 'start_list', { eventNumber: eventNum, sourcePortType: config.portType });
         }
       }
     }
