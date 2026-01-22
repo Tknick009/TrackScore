@@ -6231,14 +6231,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Broadcast to BOTH channels to ensure all displays receive data
       // This supports single-port setups where results_big port isn't configured
       // If both ports are configured, displays will receive data for their channel
-      // IMPORTANT: Pass through data.entries directly from FinishLynx - they have names/affiliations
+      const acc = isBigBoard ? entryAccumulatorBig : entryAccumulator;
+      
+      // Clear accumulator when event or heat changes
+      if (acc.eventNumber !== eventNumber || acc.heat !== data.heat) {
+        console.log(`[Lynx] Event/heat change detected: ${acc.eventNumber}/${acc.heat} → ${eventNumber}/${data.heat}, clearing accumulator`);
+        acc.entries = [];
+        acc.eventNumber = eventNumber;
+        acc.heat = data.heat || 1;
+      }
+      
+      // Merge incoming entries into accumulator (preserving existing data)
+      // This handles entries coming one at a time from FinishLynx
+      if (data.entries && Array.isArray(data.entries)) {
+        for (const entry of data.entries) {
+          // Find by lane and update, or add new
+          const laneStr = String(entry.lane);
+          const existingIdx = acc.entries.findIndex((e: any) => String(e.lane) === laneStr);
+          if (existingIdx >= 0) {
+            // Merge - preserve existing fields, add new ones
+            acc.entries[existingIdx] = { ...acc.entries[existingIdx], ...entry };
+          } else if (entry.lane || entry.name || entry.bib) {
+            acc.entries.push(entry);
+          }
+        }
+      }
+      
       const trackData = {
         eventNumber,
         mode,
         totalHeats, // Include total heats for "Heat X of Y" display
         roundName, // Include round name for "Prelims", "Finals", etc.
         totalRounds, // Total rounds configured for event
-        ...data, // Pass through all raw data from FinishLynx including entries with names/affiliations
+        ...data, // Pass through all raw data from FinishLynx
+        entries: acc.entries.length > 0 ? acc.entries : data.entries, // Use accumulated entries
       };
       
       // Always broadcast to both channels - displays filter by their selected channel
@@ -6275,22 +6301,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // NOTE: Layout commands are broadcast to BOTH channels to ensure all displays can switch templates
   // even when only one results port is configured. This supports the common single-port setup.
   lynxListener.on('layout-command', (layoutName: string, sourcePortType?: string) => {
-    const isBigBoard = sourcePortType === 'results_big';
-    const acc = isBigBoard ? entryAccumulatorBig : entryAccumulator;
     console.log(`[Lynx] Layout command: ${layoutName} (source: ${sourcePortType || 'unknown'})`);
     
-    // Clear accumulated entries ONLY on exact "Start List" command (page boundary)
-    // FinishLynx sends "Command=LayoutDraw;Name=Start List;" before each page of entries
-    // Don't clear on "Results" or other commands - that's a different display mode
-    const normalizedLayout = layoutName.toLowerCase().trim();
-    if (normalizedLayout === 'start list' || normalizedLayout === 'startlist') {
-      // Clear BOTH accumulators on Start List to ensure fresh data on page boundary
-      console.log(`[Lynx] Clearing entry accumulators for new page`);
-      entryAccumulator.entries = [];
-      entryAccumulator.lastLayoutCommand = layoutName;
-      entryAccumulatorBig.entries = [];
-      entryAccumulatorBig.lastLayoutCommand = layoutName;
-    }
+    // DON'T clear accumulators on layout command - entries accumulate until event/heat changes
+    // FinishLynx sends layout commands repeatedly, clearing would lose accumulated data
     
     // Broadcast layout switch command to BOTH channels
     // This ensures big board displays work even with single-port configuration
