@@ -1365,20 +1365,63 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             name: liveEventData?.eventName || '',
             eventType: 'track',
             status: liveEventData?.mode === 'results' ? 'completed' : 'in_progress',
-            entries: (liveEventData?.entries || []).map((entry: any, idx: number) => ({
-              id: idx,
-              finalLane: entry.lane || idx + 1,
-              finalPlace: entry.place ? parseInt(entry.place) : undefined,
-              finalMark: entry.time ? parseFloat(entry.time) * 1000 : undefined, // Convert seconds to ms
-              athlete: {
-                firstName: entry.name?.split(' ')[0] || '',
-                lastName: entry.name?.split(' ').slice(1).join(' ') || entry.name || '',
-              },
-              team: {
-                name: entry.team || entry.affiliation || '',
-              },
-              splits: entry.splits || [],
-            })),
+            entries: (liveEventData?.entries || []).map((entry: any, idx: number) => {
+              // Parse time from FinishLynx format (MM:SS.ss or SS.ss)
+              const parseTimeToMs = (timeStr: string | undefined): number | undefined => {
+                if (!timeStr || timeStr.trim() === '') return undefined;
+                const str = timeStr.trim();
+                // Handle MM:SS.ss format
+                if (str.includes(':')) {
+                  const parts = str.split(':');
+                  if (parts.length === 2) {
+                    const minutes = parseFloat(parts[0]) || 0;
+                    const seconds = parseFloat(parts[1]) || 0;
+                    return (minutes * 60 + seconds) * 1000;
+                  }
+                }
+                // Handle SS.ss format
+                const seconds = parseFloat(str);
+                if (!isNaN(seconds)) return seconds * 1000;
+                return undefined;
+              };
+              
+              // Convert ResulTV split fields to BigBoard splits array format
+              const buildSplitsArray = (entry: any): any[] => {
+                const splits: any[] = [];
+                // Use lastSplit if available (this is the split time, not cumulative)
+                if (entry.lastSplit) {
+                  const splitMs = parseTimeToMs(entry.lastSplit);
+                  if (splitMs !== undefined) {
+                    splits.push({ splitTime: splitMs, splitNumber: 1 });
+                  }
+                }
+                // Also include cumulativeSplit as a cumulative time reference
+                if (entry.cumulativeSplit) {
+                  const cumMs = parseTimeToMs(entry.cumulativeSplit);
+                  if (cumMs !== undefined && splits.length > 0) {
+                    splits[splits.length - 1].cumulativeTime = cumMs;
+                  } else if (cumMs !== undefined) {
+                    splits.push({ splitTime: cumMs, cumulativeTime: cumMs, splitNumber: 1 });
+                  }
+                }
+                return splits.length > 0 ? splits : (entry.splits || []);
+              };
+              
+              return {
+                id: idx,
+                finalLane: entry.lane || idx + 1,
+                finalPlace: entry.place ? parseInt(entry.place) : undefined,
+                finalMark: parseTimeToMs(entry.time),
+                athlete: {
+                  firstName: entry.name?.split(' ')[0] || '',
+                  lastName: entry.name?.split(' ').slice(1).join(' ') || entry.name || '',
+                },
+                team: {
+                  name: entry.team || entry.affiliation || '',
+                },
+                splits: buildSplitsArray(entry),
+              };
+            }),
             wind: liveEventData?.wind,
             heat: liveEventData?.heat,
             round: liveEventData?.round,
