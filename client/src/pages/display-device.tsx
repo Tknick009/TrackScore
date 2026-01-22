@@ -577,20 +577,57 @@ export default function DisplayDevice() {
             const data = message.data;
             if (data) {
               console.log(`[Display] Track mode change (${isBigBoardRef.current ? 'BIG BOARD' : 'standard'}): Event ${data.eventNumber}, mode=${data.mode}, ${data.entries?.length || 0} entries`);
-              setState(prev => ({
-                ...prev,
-                liveEventData: {
-                  eventNumber: data.eventNumber,
-                  eventName: data.eventName || prev.liveEventData?.eventName || '',
-                  heat: data.heat ?? prev.liveEventData?.heat,
-                  totalHeats: data.totalHeats ?? prev.liveEventData?.totalHeats,
-                  round: data.round ?? prev.liveEventData?.round,
-                  mode: data.mode,
-                  wind: data.wind,
-                  distance: data.distance || prev.liveEventData?.distance,
-                  entries: data.entries || data.results || [],
-                },
-              }));
+              setState(prev => {
+                const newEntries = data.entries || data.results || [];
+                const prevEntries = prev.liveEventData?.entries || [];
+                const prevMode = prev.liveEventData?.mode;
+                const prevEventNumber = prev.liveEventData?.eventNumber;
+                
+                // Accumulate entries when in results/running mode for same event
+                // Clear entries when event changes or mode changes to start_list
+                let mergedEntries: any[] = [];
+                
+                if (data.eventNumber !== prevEventNumber) {
+                  // New event - start fresh with new entries
+                  mergedEntries = newEntries;
+                } else if (data.mode === 'results' || data.mode === 'running') {
+                  // Results/running mode - accumulate entries by lane
+                  const entryMap = new Map<string, any>();
+                  
+                  // Add previous entries first
+                  for (const entry of prevEntries) {
+                    const key = entry.lane || entry.finalLane || entry.bib || '';
+                    if (key) entryMap.set(String(key), entry);
+                  }
+                  
+                  // Merge/update with new entries (newer data wins)
+                  for (const entry of newEntries) {
+                    const key = entry.lane || entry.finalLane || entry.bib || '';
+                    if (key) entryMap.set(String(key), entry);
+                  }
+                  
+                  mergedEntries = Array.from(entryMap.values());
+                } else {
+                  // Other modes (start_list, etc.) - use new entries directly
+                  mergedEntries = newEntries;
+                }
+                
+                return {
+                  ...prev,
+                  liveEventData: {
+                    eventNumber: data.eventNumber,
+                    eventName: data.eventName || prev.liveEventData?.eventName || '',
+                    heat: data.heat ?? prev.liveEventData?.heat,
+                    totalHeats: data.totalHeats ?? prev.liveEventData?.totalHeats,
+                    round: data.round ?? prev.liveEventData?.round,
+                    roundName: data.roundName ?? prev.liveEventData?.roundName,
+                    mode: data.mode,
+                    wind: data.wind,
+                    distance: data.distance || prev.liveEventData?.distance,
+                    entries: mergedEntries,
+                  },
+                };
+              });
             }
           }
           
