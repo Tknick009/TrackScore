@@ -6241,28 +6241,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         acc.heat = data.heat || 1;
       }
       
-      // Merge incoming entries into accumulator by LINE position (not lane)
-      // FinishLynx sends entries by array position (line), which determines display order
+      // Merge incoming entries into accumulator by LANE
+      // FinishLynx sends entries one at a time, we accumulate and merge by lane
       if (data.entries && Array.isArray(data.entries)) {
         for (const entry of data.entries) {
-          // Use 'line' field for position - this is the array index from ResulTV parser
-          const lineNum = entry.line;
-          if (lineNum !== undefined) {
-            // Find by line position and update, or add new
-            const existingIdx = acc.entries.findIndex((e: any) => e.line === lineNum);
+          const laneStr = String(entry.lane || '');
+          
+          if (laneStr) {
+            // Find by lane and merge/update, or add new
+            const existingIdx = acc.entries.findIndex((e: any) => String(e.lane || '') === laneStr);
             if (existingIdx >= 0) {
               // Merge - preserve existing fields, add new ones
               acc.entries[existingIdx] = { ...acc.entries[existingIdx], ...entry };
             } else {
               acc.entries.push(entry);
             }
-          } else if (entry.lane || entry.name || entry.bib) {
-            // Fallback for entries without line field
-            acc.entries.push(entry);
+          } else if (entry.name || entry.bib) {
+            // Entry without lane - use name or bib as key
+            const nameKey = entry.name || entry.bib || '';
+            const existingIdx = acc.entries.findIndex((e: any) => 
+              (e.name || e.bib || '') === nameKey
+            );
+            if (existingIdx >= 0) {
+              acc.entries[existingIdx] = { ...acc.entries[existingIdx], ...entry };
+            } else {
+              acc.entries.push(entry);
+            }
           }
         }
-        // Sort by line number to maintain display order
-        acc.entries.sort((a: any, b: any) => (a.line || 0) - (b.line || 0));
+        // Sort by lane to maintain display order
+        acc.entries.sort((a: any, b: any) => {
+          const laneA = parseInt(a.lane) || 0;
+          const laneB = parseInt(b.lane) || 0;
+          return laneA - laneB;
+        });
       }
       
       const trackData = {

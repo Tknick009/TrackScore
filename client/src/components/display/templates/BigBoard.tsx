@@ -52,7 +52,9 @@ export function BigBoard({ event, meet, showSplits = false, liveTime, pagingSize
   // Determine display mode from prop or infer from event status
   const displayMode = mode || ((event as any).mode) || (event.status === 'completed' ? 'results' : 'start_list');
   const isStartList = displayMode === 'start_list';
-  const isRunningOrResults = displayMode === 'running_time' || displayMode === 'results';
+  const isRunning = displayMode === 'running_time' || displayMode === 'running';
+  const isResults = displayMode === 'results';
+  const isRunningOrResults = isRunning || isResults;
 
   // IMPORTANT: Don't re-sort entries - they come pre-sorted by line number from FinishLynx
   // The array position IS the display position as determined by FinishLynx paging
