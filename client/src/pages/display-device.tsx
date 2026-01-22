@@ -1337,7 +1337,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             heat: liveEventData?.heat,
             round: liveEventData?.round,
           };
-      return <BigBoard event={eventWithLiveName as any} meet={meet} showSplits={showSplits} pagingSize={pagingSize} pagingIntervalMs={pagingInterval * 1000} />;
+      return <BigBoard event={eventWithLiveName as any} meet={meet} showSplits={showSplits} liveTime={liveClockTime || undefined} pagingSize={pagingSize} pagingIntervalMs={pagingInterval * 1000} />;
     }
 
     if (!currentEvent && !liveEventData && (isTrackResults || isFieldResults || isStartList || isFieldStandings)) {

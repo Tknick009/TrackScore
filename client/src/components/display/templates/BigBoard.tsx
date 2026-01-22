@@ -6,11 +6,15 @@ interface BigBoardProps {
   meet?: Meet | null;
   showSplits?: boolean;
   liveTime?: string;
+  pagingSize?: number;
+  pagingIntervalMs?: number;
 }
 
-export function BigBoard({ event, meet, showSplits = false, liveTime }: BigBoardProps) {
+export function BigBoard({ event, meet, showSplits = false, liveTime, pagingSize = 8, pagingIntervalMs = 5000 }: BigBoardProps) {
   const [clock, setClock] = useState<string>("");
+  const [currentPage, setCurrentPage] = useState(0);
 
+  // Wall clock fallback when no live time from FinishLynx
   useEffect(() => {
     const updateClock = () => {
       const now = new Date();
@@ -25,6 +29,24 @@ export function BigBoard({ event, meet, showSplits = false, liveTime }: BigBoard
   }, []);
 
   const displayClock = liveTime || clock;
+  
+  // Calculate total pages based on entries and paging size
+  const totalEntries = event.entries?.length || 0;
+  const totalPages = Math.max(1, Math.ceil(totalEntries / pagingSize));
+  
+  // Auto-page through entries
+  useEffect(() => {
+    if (totalPages <= 1) {
+      setCurrentPage(0);
+      return;
+    }
+    
+    const interval = setInterval(() => {
+      setCurrentPage(prev => (prev + 1) % totalPages);
+    }, pagingIntervalMs);
+    
+    return () => clearInterval(interval);
+  }, [totalPages, pagingIntervalMs]);
 
   const sortedEntries = useMemo(() => {
     return [...(event.entries || [])].sort((a, b) => {
@@ -127,7 +149,8 @@ export function BigBoard({ event, meet, showSplits = false, liveTime }: BigBoard
         <div className="h-1 bg-gradient-to-r from-cyan-500/0 via-cyan-500/60 to-cyan-500/0" />
 
         <div className="flex-1 flex flex-col px-4 py-3 overflow-hidden">
-          {sortedEntries.map((entry, index) => {
+          {/* Show only entries for current page */}
+          {sortedEntries.slice(currentPage * pagingSize, (currentPage + 1) * pagingSize).map((entry, index) => {
             const teamLogo = entry.team?.logoUrl;
             const displayName = isRelay 
               ? entry.team?.name || 'Unknown Team'
