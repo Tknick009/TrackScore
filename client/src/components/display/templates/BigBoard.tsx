@@ -59,10 +59,30 @@ export function BigBoard({ event, meet, showSplits = false, liveTime, pagingSize
 
   const isRelay = event.eventType?.toLowerCase().includes('relay');
   const status = event.status === 'completed' ? 'FINAL' : event.status === 'in_progress' ? 'IN PROGRESS' : 'SCHEDULED';
-  const windReading = event.entries?.[0]?.finalWind;
-  const windDisplay = windReading !== null && windReading !== undefined 
-    ? `WIND: ${windReading > 0 ? '+' : ''}${windReading.toFixed(1)}` 
-    : 'WIND: nwi';
+  
+  // Get wind from event.wind (string from websocket) or entries[0].finalWind (number from database)
+  const rawWind = (event as any).wind ?? event.entries?.[0]?.finalWind;
+  
+  // Parse wind value - only show if it's a valid number
+  // Hide for: empty, undefined, null, "NWI", "M/S", or any non-numeric string
+  const parseWindValue = (wind: any): number | null => {
+    if (wind === null || wind === undefined || wind === '') return null;
+    if (typeof wind === 'number') return wind;
+    if (typeof wind === 'string') {
+      // Skip non-numeric values like "NWI", "M/S", etc.
+      const cleaned = wind.replace(/[+\s]/g, '');
+      if (!/^-?\d+\.?\d*$/.test(cleaned)) return null;
+      const parsed = parseFloat(cleaned);
+      return isNaN(parsed) ? null : parsed;
+    }
+    return null;
+  };
+  
+  const windValue = parseWindValue(rawWind);
+  // Only display wind if we have a valid numeric value - never show NWI or M/S
+  const windDisplay = windValue !== null 
+    ? `WIND: ${windValue > 0 ? '+' : ''}${windValue.toFixed(1)}` 
+    : null;
 
   const formatTime = (mark: number | null | undefined): string => {
     if (mark === null || mark === undefined) return '';
@@ -138,12 +158,14 @@ export function BigBoard({ event, meet, showSplits = false, liveTime, pagingSize
           >
             {status}
           </span>
-          <span 
-            className="text-white font-semibold"
-            style={{ fontSize: '36px' }}
-          >
-            {windDisplay}
-          </span>
+          {windDisplay && (
+            <span 
+              className="text-white font-semibold"
+              style={{ fontSize: '36px' }}
+            >
+              {windDisplay}
+            </span>
+          )}
         </div>
 
         <div className="h-1 bg-gradient-to-r from-cyan-500/0 via-cyan-500/60 to-cyan-500/0" />
