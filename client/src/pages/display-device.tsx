@@ -1324,14 +1324,17 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             status: liveEventData?.mode === 'results' ? 'completed' : 'in_progress',
             entries: (liveEventData?.entries || []).map((entry: any, idx: number) => ({
               id: idx,
-              lane: entry.lane || idx + 1,
-              place: entry.place,
-              time: entry.time,
+              finalLane: entry.lane || idx + 1,
+              finalPlace: entry.place ? parseInt(entry.place) : undefined,
+              finalMark: entry.time ? parseFloat(entry.time) * 1000 : undefined, // Convert seconds to ms
               athlete: {
                 firstName: entry.name?.split(' ')[0] || '',
                 lastName: entry.name?.split(' ').slice(1).join(' ') || entry.name || '',
-                team: entry.team || entry.affiliation || '',
               },
+              team: {
+                name: entry.team || entry.affiliation || '',
+              },
+              splits: entry.splits || [],
             })),
             wind: liveEventData?.wind,
             heat: liveEventData?.heat,
