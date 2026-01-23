@@ -179,9 +179,10 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
   };
   
   const eventName = liveEventData?.eventName || '';
-  const heatInfo = liveEventData?.heat && liveEventData.heat > 0
-    ? `Heat ${liveEventData.heat}`
-    : '';
+  const totalHeats = liveEventData?.totalHeats || 1;
+  const heatInfo = totalHeats === 1
+    ? 'Final'
+    : (liveEventData?.heat && liveEventData.heat > 0 ? `Heat ${liveEventData.heat} of ${totalHeats}` : '');
 
   const renderScrollingEntry = (entry: ResultEntry | null) => {
     if (!entry) {

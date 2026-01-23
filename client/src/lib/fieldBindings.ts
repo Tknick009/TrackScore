@@ -23,8 +23,8 @@ export const FIELD_BINDINGS: Record<string, FieldBinding> = {
     key: 'heat-number',
     label: 'Heat Number',
     type: 'text',
-    description: 'Current heat (e.g., "Heat 2 of 4")',
-    format: 'Heat {heat} of {totalHeats}',
+    description: 'Shows "Final" for single heat, or "Heat X of Y" for multiple heats',
+    format: 'Final or Heat {heat} of {totalHeats}',
     dataKey: 'heat',
     category: 'event',
   },
@@ -206,8 +206,15 @@ export function resolveFieldValue(fieldKey: string, data: Record<string, any>): 
   const binding = FIELD_BINDINGS[fieldKey];
   if (!binding) return '';
   
-  if (fieldKey === 'heat-number' && data.heat && data.totalHeats) {
-    return `Heat ${data.heat} of ${data.totalHeats}`;
+  if (fieldKey === 'heat-number') {
+    const totalHeats = data.totalHeats || 1;
+    if (totalHeats === 1) {
+      return 'Final';
+    }
+    if (data.heat) {
+      return `Heat ${data.heat} of ${totalHeats}`;
+    }
+    return '';
   }
   
   return data[binding.dataKey] ?? '';
