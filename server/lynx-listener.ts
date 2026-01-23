@@ -861,9 +861,19 @@ export class LynxListener extends EventEmitter {
     for (const data of entriesData) {
       if (data.L || data.N || data.BIB) {
         const athleteName = data.N || (data.FN && data.LN ? `${data.FN} ${data.LN}` : undefined);
-        const time = data.T;
-        const place = data.P;
+        const time = data.T?.trim() || '';
+        const place = data.P?.trim() || '';
         const lane = data.L;
+        const cumulativeSplit = data.CS?.trim() || '';
+        const lastSplit = data.LS?.trim() || '';
+        const lapsToGo = data.L2G?.trim() || '';
+        
+        // FILTER: Skip entries without any timing data (time, split, or place)
+        // Only show athletes who have crossed a timing point
+        const hasTimingData = time !== '' || cumulativeSplit !== '' || lastSplit !== '' || place !== '';
+        if (!hasTimingData) {
+          continue; // Skip this entry - no data yet
+        }
         
         entries.push({
           place: place,
@@ -873,15 +883,15 @@ export class LynxListener extends EventEmitter {
           affiliation: data.AF,
           time: time,
           reactionTime: data.RT,
-          lapsToGo: data.L2G,
-          cumulativeSplit: data.CS,
-          lastSplit: data.LS,
+          lapsToGo: lapsToGo,
+          cumulativeSplit: cumulativeSplit,
+          lastSplit: lastSplit,
           firstName: data.FN,
           lastName: data.LN,
         });
         
         // Emit individual result events for database recording
-        if (place && time && place.trim() !== '' && time.trim() !== '') {
+        if (place !== '' && time !== '') {
           this.emit('result', 
             eventNum, 
             lane ? parseInt(lane) : 0, 
