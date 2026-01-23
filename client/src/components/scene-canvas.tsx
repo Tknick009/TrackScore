@@ -975,24 +975,21 @@ export function SceneCanvas({
     
     const mode = rawLiveData.mode || '';
     const isResults = mode === 'results' || mode === 'finished';
-    const isRunning = mode === 'running';
     
-    // DEBUG: Log to see what mode and data we're getting
-    console.log('[SceneCanvas Filter] mode:', mode, 'isRunning:', isRunning, 'isResults:', isResults);
-    if (entries.length > 0) {
-      const e = entries[0];
-      console.log('[SceneCanvas Filter] Entry[0] has:', {
-        lastSplit: e.lastSplit,
-        cumulativeSplit: e.cumulativeSplit,
-        splits: e.splits,
-        time: e.time,
-        place: e.place
-      });
-    }
+    // Helper to check if an entry has split data
+    const entrySplitData = (entry: any) => {
+      const hasLastSplit = entry.lastSplit && String(entry.lastSplit).trim() !== '';
+      const hasCumulativeSplit = entry.cumulativeSplit && String(entry.cumulativeSplit).trim() !== '';
+      const hasSplitsArray = entry.splits && Array.isArray(entry.splits) && entry.splits.length > 0;
+      return hasLastSplit || hasCumulativeSplit || hasSplitsArray;
+    };
     
-    // Filter entries based on mode:
+    // Detect if we're in "splits mode" by checking if ANY entry has split data
+    const hasSplitData = entries.some((entry: any) => entrySplitData(entry));
+    
+    // Filter entries based on data presence:
     // - In results mode: hide entries without time/place
-    // - In running mode (splits): hide entries without split data
+    // - When split data exists: hide entries without split data (regardless of mode)
     let filteredEntries = entries;
     
     if (isResults) {
@@ -1014,24 +1011,16 @@ export function SceneCanvas({
       };
     }
     
-    if (isRunning) {
-      // Running/splits mode: only show entries with split data
-      // Check both data structures:
-      // - FinishLynx live data: lastSplit, cumulativeSplit (strings)
-      // - Database entries: splits (array of objects)
-      filteredEntries = entries.filter((entry: any) => {
-        const hasLastSplit = entry.lastSplit && String(entry.lastSplit).trim() !== '';
-        const hasCumulativeSplit = entry.cumulativeSplit && String(entry.cumulativeSplit).trim() !== '';
-        const hasSplitsArray = entry.splits && Array.isArray(entry.splits) && entry.splits.length > 0;
-        return hasLastSplit || hasCumulativeSplit || hasSplitsArray;
-      });
+    if (hasSplitData) {
+      // Splits are being shown: only show entries that have split data
+      filteredEntries = entries.filter((entry: any) => entrySplitData(entry));
       return {
         ...rawLiveData,
         entries: filteredEntries,
       };
     }
     
-    // For start_list mode, keep all entries in arrival order
+    // For start_list mode (no splits yet), keep all entries in arrival order
     return rawLiveData;
   }, [rawLiveData]);
   
