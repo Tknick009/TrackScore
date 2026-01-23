@@ -50,6 +50,7 @@ interface LayoutBox {
   staticText?: string;
   staticImageUrl?: string;
   hideWhenFieldNonNumeric?: string;  // Hide this element when the specified field contains non-numeric data (DNF, DNS, DQ)
+  conditionalVisibility?: 'always' | 'hide-when-no-wind' | 'hide-when-nwi';  // Wind-based visibility control
   zIndex: number;
   athleteIndex?: number;  // ResulTV-style line number (0-indexed). Line 1 = 0, Line 2 = 1, etc.
   style?: {
@@ -63,6 +64,8 @@ interface LayoutBox {
     borderWidth?: number;
     borderSides?: ('all' | 'top' | 'right' | 'bottom' | 'left')[];
     padding?: number;
+    paddingLeft?: number;
+    paddingRight?: number;
     objectFit?: 'contain' | 'cover' | 'fill';
   };
 }
@@ -1491,6 +1494,29 @@ export default function SimpleSceneEditor() {
                 </div>
               )}
               
+              {/* Wind Visibility - hide when no wind or NWI */}
+              <div className="space-y-2 p-3 bg-muted/50 rounded-md">
+                <Label className="text-sm font-medium">Wind Visibility</Label>
+                <p className="text-xs text-muted-foreground">
+                  Hide this element based on wind data (useful for hiding "NWI" displays)
+                </p>
+                <Select
+                  value={selectedBox.conditionalVisibility || 'always'}
+                  onValueChange={(value) => updateSelectedBox({ 
+                    conditionalVisibility: value as 'always' | 'hide-when-no-wind' | 'hide-when-nwi'
+                  })}
+                >
+                  <SelectTrigger data-testid="select-wind-visibility">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="always">Always Show</SelectItem>
+                    <SelectItem value="hide-when-no-wind">Hide When No Wind Data</SelectItem>
+                    <SelectItem value="hide-when-nwi">Hide When NWI</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
               <Separator />
               
               {/* Position & Size */}
@@ -1759,6 +1785,34 @@ export default function SimpleSceneEditor() {
                     data-testid="input-padding"
                   />
                   <span className="text-xs text-muted-foreground">pixels</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Left (px)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={selectedBox.style?.paddingLeft || 0}
+                      onChange={(e) => updateSelectedBox({ 
+                        style: { ...selectedBox.style, paddingLeft: parseInt(e.target.value) || 0 } 
+                      })}
+                      data-testid="input-padding-left"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Right (px)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={selectedBox.style?.paddingRight || 0}
+                      onChange={(e) => updateSelectedBox({ 
+                        style: { ...selectedBox.style, paddingRight: parseInt(e.target.value) || 0 } 
+                      })}
+                      data-testid="input-padding-right"
+                    />
+                  </div>
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Space between content and box edge
