@@ -482,11 +482,14 @@ export function SceneObjectRenderer({
             : liveData.heat;
           
           // Filter wind - only show if valid numeric data (not NWI or empty)
+          // Also strip out "M/S" unit if present
           const rawWind = liveData.wind;
-          const windStr = String(rawWind || '').toUpperCase().trim();
+          let windStr = String(rawWind || '').toUpperCase().trim();
+          // Remove M/S unit if present
+          windStr = windStr.replace(/\s*M\/S\s*/gi, '').trim();
           const isValidWind = rawWind !== undefined && rawWind !== null && rawWind !== '' 
-            && windStr !== 'NWI' && !windStr.includes('NWI');
-          const windDisplay = isValidWind ? rawWind : '';
+            && windStr !== 'NWI' && !windStr.includes('NWI') && windStr !== '';
+          const windDisplay = isValidWind ? windStr : '';
           
           const fieldMap: Record<string, any> = {
             'event-name': eventName,
@@ -654,9 +657,11 @@ export function SceneObjectRenderer({
         
       case "wind-reading":
         const windReadingRaw = liveData?.wind || event?.entries?.[0]?.finalWind;
-        const windReadingStr = String(windReadingRaw || '').toUpperCase().trim();
+        // Strip M/S unit and check for NWI
+        let windReadingClean = String(windReadingRaw || '').replace(/\s*M\/S\s*/gi, '').trim();
+        const windReadingUpper = windReadingClean.toUpperCase();
         const isValidWindReading = windReadingRaw !== undefined && windReadingRaw !== null && windReadingRaw !== '' 
-          && windReadingStr !== 'NWI' && !windReadingStr.includes('NWI');
+          && windReadingUpper !== 'NWI' && !windReadingUpper.includes('NWI') && windReadingClean !== '';
         
         // Hide completely when NWI or no valid wind data
         if (!isValidWindReading) {
@@ -670,7 +675,7 @@ export function SceneObjectRenderer({
           >
             <span className="text-[hsl(var(--display-muted))]">Wind:</span>
             <span className="font-stadium-numbers font-[700] text-[hsl(var(--display-fg))]">
-              {typeof windReadingRaw === 'number' ? `${windReadingRaw > 0 ? '+' : ''}${windReadingRaw.toFixed(1)}` : windReadingRaw}
+              {windReadingClean}
             </span>
           </div>
         );
