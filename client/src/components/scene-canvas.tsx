@@ -540,6 +540,7 @@ export function SceneObjectRenderer({
               fontSize: resolvedFontSize,
               fontWeight: componentConfig.fontWeight || (styleConfig as any).fontWeight || "normal",
               color: componentConfig.textColor || styleConfig.textColor || "hsl(var(--display-fg))",
+              letterSpacing: '-0.02em',
             }}
           >
             <span className="whitespace-nowrap">{textContent || ""}</span>
