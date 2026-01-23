@@ -954,6 +954,10 @@ export function SceneCanvas({
   
   // Ref to hold "last complete splits data" - prevents paging before all splits arrive
   const heldSplitsDataRef = useRef<any>(null);
+  // Track if we're in splits mode (so we keep holding when FinishLynx pages to new data without splits yet)
+  const inSplitsModeRef = useRef<boolean>(false);
+  // Track previous entry IDs to detect when FinishLynx pages (different set of entries)
+  const prevEntryIdsRef = useRef<string>('');
   
   const skipSceneQuery = !!propScene;
   const skipObjectsQuery = !!propObjects;
@@ -999,8 +1003,9 @@ export function SceneCanvas({
     let filteredEntries = entries;
     
     if (isResults) {
-      // Clear held data when switching to results mode
+      // Clear held data and splits mode when switching to results mode
       heldSplitsDataRef.current = null;
+      inSplitsModeRef.current = false;
       
       // Results mode: only show entries with time or place
       filteredEntries = entries.filter((entry: any) => {
@@ -1021,6 +1026,9 @@ export function SceneCanvas({
     }
     
     if (hasSplitData) {
+      // We're in splits mode
+      inSplitsModeRef.current = true;
+      
       // Splits are being shown: check if ALL entries have split data
       const allHaveSplits = entries.every((entry: any) => entrySplitData(entry));
       
@@ -1047,8 +1055,13 @@ export function SceneCanvas({
       }
     }
     
-    // For start_list mode (no splits yet), clear held data and show all entries
-    heldSplitsDataRef.current = null;
+    // No splits in incoming data - but if we were in splits mode, keep holding
+    // (FinishLynx might have paged to new entries that don't have splits yet)
+    if (inSplitsModeRef.current && heldSplitsDataRef.current) {
+      return heldSplitsDataRef.current;
+    }
+    
+    // For start_list mode (never been in splits mode), show all entries
     return rawLiveData;
   }, [rawLiveData]);
   
@@ -1079,7 +1092,7 @@ export function SceneCanvas({
     }
   }, [totalPages, currentPageIndex]);
   
-  // Handle page transitions with fade effect
+  // Handle page transitions with fade effect (for local paging)
   useEffect(() => {
     if (currentPageIndex !== displayedPageIndex) {
       // Start fade out
@@ -1094,6 +1107,26 @@ export function SceneCanvas({
       return () => clearTimeout(timer);
     }
   }, [currentPageIndex, displayedPageIndex]);
+  
+  // Handle fade transition when FinishLynx pages (different set of entries)
+  useEffect(() => {
+    if (!liveData) return;
+    
+    const entries = liveData.entries || liveData.results || [];
+    // Create a signature of current entries (using lane or first few chars of name to detect page changes)
+    const entryIds = entries.map((e: any) => `${e.lane || ''}-${e.lastName || e.name || ''}`).join(',');
+    
+    if (prevEntryIdsRef.current && prevEntryIdsRef.current !== entryIds) {
+      // Entries changed - trigger fade transition
+      setIsPageTransitioning(true);
+      const timer = setTimeout(() => {
+        setIsPageTransitioning(false);
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+    
+    prevEntryIdsRef.current = entryIds;
+  }, [liveData]);
   
   const sortedObjects = useMemo(() => {
     return [...objects].sort((a, b) => a.zIndex - b.zIndex);
