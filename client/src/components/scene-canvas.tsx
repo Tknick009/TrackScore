@@ -977,6 +977,19 @@ export function SceneCanvas({
     const isResults = mode === 'results' || mode === 'finished';
     const isRunning = mode === 'running';
     
+    // DEBUG: Log to see what mode and data we're getting
+    console.log('[SceneCanvas Filter] mode:', mode, 'isRunning:', isRunning, 'isResults:', isResults);
+    if (entries.length > 0) {
+      const e = entries[0];
+      console.log('[SceneCanvas Filter] Entry[0] has:', {
+        lastSplit: e.lastSplit,
+        cumulativeSplit: e.cumulativeSplit,
+        splits: e.splits,
+        time: e.time,
+        place: e.place
+      });
+    }
+    
     // Filter entries based on mode:
     // - In results mode: hide entries without time/place
     // - In running mode (splits): hide entries without split data
