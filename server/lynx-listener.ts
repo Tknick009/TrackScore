@@ -649,10 +649,227 @@ export class LynxListener extends EventEmitter {
       }
     }
     
-    // Process each JSON object
+    // BATCH PROCESSING: Group all JSON objects by type, then emit once per type
+    // This ensures all athletes from a single FinishLynx page are sent together
+    const startListEntries: any[] = [];
+    const trackEntries: any[] = [];
+    const fieldEntries: any[] = [];
+    let headerData: any = null; // Use first entry for header info (event, heat, wind, etc.)
+    
     for (const data of jsonObjects) {
-      this.processJsonData(data, packet, config);
+      const msgType = data.T;
+      const msgData = data.D || data;
+      
+      // Update event tracking from first message with event info
+      if (msgData.EN) {
+        const eventNum = parseInt(msgData.EN);
+        if (!isNaN(eventNum) && eventNum > 0) {
+          packet.eventNumber = eventNum;
+          if (eventNum !== this.currentEventNumber) {
+            this.currentEventNumber = eventNum;
+            this.currentHeatNumber = parseInt(msgData.H) || 1;
+          }
+        }
+      }
+      
+      // Handle clock data without type (passthrough immediately)
+      if (!msgType && config.portType === 'clock') {
+        const timeValue = data.t || data.time;
+        const command = data.c;
+        this.emit('clock-update', this.currentEventNumber, timeValue || '', command || '');
+        continue;
+      }
+      
+      // Capture header data from first valid entry
+      if (!headerData && msgData.EN) {
+        headerData = msgData;
+      }
+      
+      // Group entries by type
+      switch (msgType) {
+        case 'S':
+          startListEntries.push(msgData);
+          break;
+        case 'T':
+          trackEntries.push(msgData);
+          break;
+        case 'F':
+          fieldEntries.push(msgData);
+          break;
+        default:
+          if (msgType) {
+            console.log(`[Lynx] Unknown message type: ${msgType}`);
+          }
+      }
     }
+    
+    // Emit batched events - all entries from packet sent together
+    if (startListEntries.length > 0) {
+      this.handleBatchedStartList(startListEntries, headerData, packet, config);
+    }
+    if (trackEntries.length > 0) {
+      this.handleBatchedTrack(trackEntries, headerData, packet, config);
+    }
+    if (fieldEntries.length > 0) {
+      // Field events still use individual processing for now (different aggregation logic)
+      for (const data of fieldEntries) {
+        this.handleFieldMessage(data, packet, config);
+      }
+    }
+  }
+
+  // BATCHED HANDLERS: Process all entries from a single packet together
+  private handleBatchedStartList(entriesData: any[], headerData: any, packet: LynxPacket, config: PortConfig) {
+    const eventNum = parseInt(headerData?.EN) || this.currentEventNumber;
+    const heat = parseInt(headerData?.H) || 1;
+    const round = parseInt(headerData?.R) || 1;
+    const status = headerData?.S || '';
+    const distance = headerData?.DS || '';
+    const eventName = cleanEventName(headerData?.DN || '');
+    
+    // Persist event name
+    if (eventName) {
+      this.eventNamesByNumber.set(eventNum, eventName);
+    }
+    const resolvedEventName = eventName || this.eventNamesByNumber.get(eventNum);
+    
+    // Handle layout command based on status
+    let layoutName: string | null = null;
+    if (status.toUpperCase() === 'ARMED') {
+      layoutName = 'StartList';
+      this.isRunning = false;
+    } else if (status.toUpperCase() === 'RUNNING') {
+      layoutName = 'Running';
+      this.isRunning = true;
+    } else if (status.toUpperCase() === 'UNOFFICIAL' || status.toUpperCase() === 'OFFICIAL') {
+      layoutName = 'Results';
+      this.isRunning = false;
+    }
+    
+    if (layoutName && status !== this.lastStatusByEvent.get(eventNum)) {
+      this.lastStatusByEvent.set(eventNum, status);
+      console.log(`[Lynx] Status change: Event ${eventNum} → ${status} → Layout: ${layoutName} (${config.portType})`);
+      this.emit('layout-command', layoutName, config.portType);
+    }
+    
+    // Build all entries from the batch
+    const entries: LynxStartListEntry[] = [];
+    for (const data of entriesData) {
+      if (data.L || data.N || data.BIB) {
+        entries.push({
+          place: data.P,
+          lane: data.L,
+          bib: data.BIB,
+          name: data.N,
+          affiliation: data.AF,
+          firstName: data.FN,
+          lastName: data.LN,
+        });
+      }
+    }
+    
+    console.log(`[Lynx] Batched start list: Event ${eventNum} Heat ${heat} with ${entries.length} entries (${config.portType})`);
+    
+    // Emit ONCE with all entries from packet
+    this.emit('start-list', eventNum, heat, entries, {
+      eventName: resolvedEventName,
+      distance,
+      sourcePortType: config.portType,
+    });
+  }
+
+  private handleBatchedTrack(entriesData: any[], headerData: any, packet: LynxPacket, config: PortConfig) {
+    const eventNum = parseInt(headerData?.EN) || this.currentEventNumber;
+    const heat = parseInt(headerData?.H) || 1;
+    const round = parseInt(headerData?.R) || 1;
+    const status = headerData?.S || '';
+    const wind = headerData?.W || '';
+    const distance = headerData?.DS || '';
+    const eventName = cleanEventName(headerData?.DN || '');
+    
+    // Persist event name
+    if (eventName) {
+      this.eventNamesByNumber.set(eventNum, eventName);
+    }
+    const resolvedEventName = eventName || this.eventNamesByNumber.get(eventNum);
+    
+    packet.eventNumber = eventNum;
+    
+    const wasRunning = this.isRunning;
+    
+    // Check for ARMED status
+    if (status.toUpperCase() === 'ARMED') {
+      this.isRunning = false;
+      this.emit('track-mode-change', eventNum, 'start_list', { armed: true, heat, sourcePortType: config.portType });
+      return;
+    }
+    
+    // Check for running state
+    const hasAnyTime = entriesData.some(d => d.T && d.T.trim() !== '');
+    const hasAnyPlace = entriesData.some(d => d.P && d.P.trim() !== '');
+    
+    if (status.toUpperCase() === 'RUNNING' || (hasAnyTime && !hasAnyPlace)) {
+      this.isRunning = true;
+    }
+    
+    // Build all entries from the batch
+    const entries: LynxTrackResult[] = [];
+    for (const data of entriesData) {
+      if (data.L || data.N || data.BIB) {
+        const athleteName = data.N || (data.FN && data.LN ? `${data.FN} ${data.LN}` : undefined);
+        const time = data.T;
+        const place = data.P;
+        const lane = data.L;
+        
+        entries.push({
+          place: place,
+          lane: lane,
+          bib: data.BIB,
+          name: athleteName,
+          affiliation: data.AF,
+          time: time,
+          reactionTime: data.RT,
+          lapsToGo: data.L2G,
+          cumulativeSplit: data.CS,
+          lastSplit: data.LS,
+          firstName: data.FN,
+          lastName: data.LN,
+        });
+        
+        // Emit individual result events for database recording
+        if (place && time && place.trim() !== '' && time.trim() !== '') {
+          this.emit('result', 
+            eventNum, 
+            lane ? parseInt(lane) : 0, 
+            parseInt(place), 
+            time, 
+            athleteName
+          );
+        }
+      }
+    }
+    
+    // Determine mode from data
+    const hasResults = entries.some(e => e.place && e.time && e.place.trim() !== '' && e.time.trim() !== '');
+    const mode = hasResults ? 'results' : (this.isRunning ? 'running' : 'start_list');
+    
+    if (hasResults) {
+      this.isRunning = false;
+    }
+    
+    console.log(`[Lynx] Batched track: Event ${eventNum} Heat ${heat} mode=${mode} with ${entries.length} entries (${config.portType})`);
+    
+    // Emit ONCE with all entries from packet
+    this.emit('track-mode-change', eventNum, mode, {
+      eventNumber: eventNum,
+      heat,
+      round,
+      distance,
+      wind,
+      eventName: resolvedEventName,
+      entries: entries,
+      sourcePortType: config.portType,
+    });
   }
 
   private processJsonData(data: any, packet: LynxPacket, config: PortConfig) {
