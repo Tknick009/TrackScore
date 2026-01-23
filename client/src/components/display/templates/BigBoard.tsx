@@ -54,13 +54,24 @@ export function BigBoard({ event, meet, showSplits = false, liveTime }: BigBoard
   const displayClock = liveTime || clock;
 
   const sortedEntries = useMemo(() => {
-    return [...(displayedEntries || [])].sort((a, b) => {
+    // Filter entries based on layout type
+    const filtered = (displayedEntries || []).filter((entry: any) => {
+      if (showSplits) {
+        // For splits layout: show only entries that have split data
+        return entry.splits && entry.splits.length > 0;
+      } else {
+        // For results layout: show only entries that have time/place data
+        return entry.finalMark !== null && entry.finalMark !== undefined;
+      }
+    });
+    
+    return [...filtered].sort((a, b) => {
       if (a.finalPlace && b.finalPlace) return a.finalPlace - b.finalPlace;
       if (a.finalPlace) return -1;
       if (b.finalPlace) return 1;
       return (a.finalLane || 0) - (b.finalLane || 0);
     });
-  }, [displayedEntries]);
+  }, [displayedEntries, showSplits]);
 
   const isRelay = event.eventType?.toLowerCase().includes('relay');
   const status = event.status === 'completed' ? 'FINAL' : event.status === 'in_progress' ? 'IN PROGRESS' : 'SCHEDULED';
