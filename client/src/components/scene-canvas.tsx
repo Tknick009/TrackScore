@@ -949,6 +949,8 @@ export function SceneCanvas({
 }: SceneCanvasProps) {
   const [dimensions, setDimensions] = useState({ width: 1920, height: 1080 });
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
+  const [isPageTransitioning, setIsPageTransitioning] = useState(false);
+  const [displayedPageIndex, setDisplayedPageIndex] = useState(0);
   
   // Ref to hold "last complete splits data" - prevents paging before all splits arrive
   const heldSplitsDataRef = useRef<any>(null);
@@ -1077,6 +1079,22 @@ export function SceneCanvas({
     }
   }, [totalPages, currentPageIndex]);
   
+  // Handle page transitions with fade effect
+  useEffect(() => {
+    if (currentPageIndex !== displayedPageIndex) {
+      // Start fade out
+      setIsPageTransitioning(true);
+      
+      // After fade out, update page and fade in
+      const timer = setTimeout(() => {
+        setDisplayedPageIndex(currentPageIndex);
+        setIsPageTransitioning(false);
+      }, 200); // Match the CSS transition duration
+      
+      return () => clearTimeout(timer);
+    }
+  }, [currentPageIndex, displayedPageIndex]);
+  
   const sortedObjects = useMemo(() => {
     return [...objects].sort((a, b) => a.zIndex - b.zIndex);
   }, [objects]);
@@ -1149,29 +1167,37 @@ export function SceneCanvas({
         data-testid="scene-canvas"
         key={`scene-${sceneId}`}
       >
-        {sortedObjects.map((obj) => (
-          <SceneObjectRenderer 
-            key={obj.id} 
-            object={obj} 
-            meetId={meetId}
-            canvasWidth={canvasWidth}
-            canvasHeight={canvasHeight}
-            eventNumber={eventNumber}
-            pageIndex={currentPageIndex}
-            pageSize={pagingSize}
-            sharedLatestLiveData={liveData}
-            liveClockTime={liveClockTime}
-          />
-        ))}
-        
-        {sortedObjects.length === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-center text-[hsl(var(--display-muted))]">
-              <Trophy className="w-8 h-8 mx-auto mb-2 opacity-30" />
-              <p className="text-xs font-stadium">Empty</p>
+        <div
+          className="absolute inset-0"
+          style={{
+            opacity: isPageTransitioning ? 0 : 1,
+            transition: 'opacity 200ms ease-in-out',
+          }}
+        >
+          {sortedObjects.map((obj) => (
+            <SceneObjectRenderer 
+              key={obj.id} 
+              object={obj} 
+              meetId={meetId}
+              canvasWidth={canvasWidth}
+              canvasHeight={canvasHeight}
+              eventNumber={eventNumber}
+              pageIndex={displayedPageIndex}
+              pageSize={pagingSize}
+              sharedLatestLiveData={liveData}
+              liveClockTime={liveClockTime}
+            />
+          ))}
+          
+          {sortedObjects.length === 0 && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="text-center text-[hsl(var(--display-muted))]">
+                <Trophy className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                <p className="text-xs font-stadium">Empty</p>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     );
   }
@@ -1209,30 +1235,38 @@ export function SceneCanvas({
           backgroundColor,
         }}
       >
-        {sortedObjects.map((obj) => (
-          <SceneObjectRenderer 
-            key={obj.id} 
-            object={obj} 
-            meetId={meetId}
-            canvasWidth={designWidth}
-            canvasHeight={designHeight}
-            eventNumber={eventNumber}
-            pageIndex={currentPageIndex}
-            pageSize={pagingSize}
-            sharedLatestLiveData={liveData}
-            liveClockTime={liveClockTime}
-          />
-        ))}
-        
-        {sortedObjects.length === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-center text-[hsl(var(--display-muted))]">
-              <Trophy className="w-32 h-32 mx-auto mb-8 opacity-30" />
-              <p className="text-4xl font-stadium">Empty Scene</p>
-              <p className="text-xl mt-4">Add objects in the Scene Editor</p>
+        <div
+          className="absolute inset-0"
+          style={{
+            opacity: isPageTransitioning ? 0 : 1,
+            transition: 'opacity 200ms ease-in-out',
+          }}
+        >
+          {sortedObjects.map((obj) => (
+            <SceneObjectRenderer 
+              key={obj.id} 
+              object={obj} 
+              meetId={meetId}
+              canvasWidth={designWidth}
+              canvasHeight={designHeight}
+              eventNumber={eventNumber}
+              pageIndex={displayedPageIndex}
+              pageSize={pagingSize}
+              sharedLatestLiveData={liveData}
+              liveClockTime={liveClockTime}
+            />
+          ))}
+          
+          {sortedObjects.length === 0 && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="text-center text-[hsl(var(--display-muted))]">
+                <Trophy className="w-32 h-32 mx-auto mb-8 opacity-30" />
+                <p className="text-4xl font-stadium">Empty Scene</p>
+                <p className="text-xl mt-4">Add objects in the Scene Editor</p>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
