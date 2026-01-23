@@ -234,6 +234,20 @@ export function SceneObjectRenderer({
   const bgStyle = styleConfig.backgroundStyle || 'solid';
   const bgColor = bgStyle === 'transparent' ? 'transparent' : (styleConfig.backgroundColor || 'transparent');
   
+  // Conditional visibility logic based on wind data
+  const windValue = liveData?.wind;
+  const hasWindData = windValue !== undefined && windValue !== null;
+  const isNWI = !hasWindData || windValue === 0;
+  const conditionalVisibility = componentConfig.conditionalVisibility || 'always';
+  
+  // Check if object should be hidden based on conditional visibility
+  let shouldHide = false;
+  if (conditionalVisibility === 'hide-when-no-wind' && !hasWindData) {
+    shouldHide = true;
+  } else if (conditionalVisibility === 'hide-when-nwi' && isNWI) {
+    shouldHide = true;
+  }
+  
   const objectStyle: React.CSSProperties = {
     position: "absolute",
     left: `${left}px`,
@@ -244,8 +258,11 @@ export function SceneObjectRenderer({
     overflow: "hidden",
     backgroundColor: bgColor,
     borderRadius: styleConfig.borderRadius || "0px",
-    opacity: styleConfig.opacity ?? 1,
+    opacity: shouldHide ? 0 : (styleConfig.opacity ?? 1),
+    visibility: shouldHide ? 'hidden' : 'visible',
     padding: styleConfig.padding ? `${styleConfig.padding}px` : undefined,
+    paddingLeft: styleConfig.paddingLeft ? `${styleConfig.paddingLeft}px` : undefined,
+    paddingRight: styleConfig.paddingRight ? `${styleConfig.paddingRight}px` : undefined,
     ...borderStyles,
   };
   
@@ -627,7 +644,7 @@ export function SceneObjectRenderer({
         );
         
       case "wind-reading":
-        const windValue = liveData?.wind || event?.entries?.[0]?.finalWind;
+        const windDisplayValue = liveData?.wind || event?.entries?.[0]?.finalWind;
         return (
           <div 
             className="flex items-center justify-center h-full bg-[hsl(var(--display-bg))] gap-2"
@@ -635,7 +652,7 @@ export function SceneObjectRenderer({
           >
             <span className="text-[hsl(var(--display-muted))]">Wind:</span>
             <span className="font-stadium-numbers font-[700] text-[hsl(var(--display-fg))]">
-              {windValue !== undefined && windValue !== null ? `${windValue > 0 ? '+' : ''}${windValue.toFixed(1)}` : '--.-'} m/s
+              {windDisplayValue !== undefined && windDisplayValue !== null ? `${windDisplayValue > 0 ? '+' : ''}${windDisplayValue.toFixed(1)}` : '--.-'}
             </span>
           </div>
         );

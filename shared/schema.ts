@@ -1083,6 +1083,9 @@ export type SceneObjectConfig = {
   
   // Standings options
   maxTeams?: number;
+  
+  // Conditional visibility - hide object when condition is met
+  conditionalVisibility?: 'always' | 'hide-when-no-wind' | 'hide-when-nwi';
 };
 
 // Scene Object Style - visual styling
@@ -1096,6 +1099,8 @@ export type SceneObjectStyle = {
   borderRadius?: number;
   opacity?: number;
   padding?: number;
+  paddingLeft?: number;
+  paddingRight?: number;
   fontFamily?: string;
   boxShadow?: string;
   fontSize?: string;
@@ -1171,6 +1176,7 @@ export const sceneObjectConfigSchema = z.object({
   textAlign: z.enum(['left', 'center', 'right']).optional(),
   imageUrl: z.string().optional(),
   imageFit: z.enum(['contain', 'cover', 'fill']).optional(),
+  conditionalVisibility: z.enum(['always', 'hide-when-no-wind', 'hide-when-nwi']).optional(),
 }).passthrough();
 
 export const sceneObjectStyleSchema = z.object({
@@ -1181,6 +1187,8 @@ export const sceneObjectStyleSchema = z.object({
   borderRadius: z.number().optional(),
   opacity: z.number().optional(),
   padding: z.number().optional(),
+  paddingLeft: z.number().optional(),
+  paddingRight: z.number().optional(),
   fontFamily: z.string().optional(),
   boxShadow: z.string().optional(),
 }).passthrough();

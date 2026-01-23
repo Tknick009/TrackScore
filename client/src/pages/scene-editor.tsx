@@ -1890,8 +1890,52 @@ export default function SceneEditor() {
                     
                     <Separator />
                     
+                    {/* Padding Controls */}
+                    <div className="space-y-3">
+                      <h4 className="font-medium text-sm">Padding</h4>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Left (px)</Label>
+                          <Input
+                            type="number"
+                            value={(selectedObject.style as SceneObjectStyle)?.paddingLeft ?? 0}
+                            onChange={(e) => updateObjectMutation.mutate({
+                              id: selectedObject.id,
+                              data: {
+                                style: {
+                                  ...(selectedObject.style as SceneObjectStyle || {}),
+                                  paddingLeft: parseInt(e.target.value) || 0,
+                                },
+                              },
+                            })}
+                            data-testid="input-padding-left"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Right (px)</Label>
+                          <Input
+                            type="number"
+                            value={(selectedObject.style as SceneObjectStyle)?.paddingRight ?? 0}
+                            onChange={(e) => updateObjectMutation.mutate({
+                              id: selectedObject.id,
+                              data: {
+                                style: {
+                                  ...(selectedObject.style as SceneObjectStyle || {}),
+                                  paddingRight: parseInt(e.target.value) || 0,
+                                },
+                              },
+                            })}
+                            data-testid="input-padding-right"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <Separator />
+                    
                     {/* Visibility & Lock */}
                     <div className="space-y-3">
+                      <h4 className="font-medium text-sm">Visibility</h4>
                       <div className="flex items-center justify-between">
                         <Label className="text-sm">Visible</Label>
                         <Switch
@@ -1913,6 +1957,35 @@ export default function SceneEditor() {
                           })}
                           data-testid="switch-locked"
                         />
+                      </div>
+                      
+                      {/* Conditional Visibility */}
+                      <div className="space-y-2">
+                        <Label className="text-xs">Conditional Visibility</Label>
+                        <Select
+                          value={(selectedObject.config as SceneObjectConfig)?.conditionalVisibility || 'always'}
+                          onValueChange={(value) => updateObjectMutation.mutate({
+                            id: selectedObject.id,
+                            data: {
+                              config: {
+                                ...(selectedObject.config as SceneObjectConfig || {}),
+                                conditionalVisibility: value as 'always' | 'hide-when-no-wind' | 'hide-when-nwi',
+                              },
+                            },
+                          })}
+                        >
+                          <SelectTrigger data-testid="select-conditional-visibility">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="always">Always Show</SelectItem>
+                            <SelectItem value="hide-when-no-wind">Hide When No Wind Data</SelectItem>
+                            <SelectItem value="hide-when-nwi">Hide When NWI</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          Controls when this object is hidden based on data conditions
+                        </p>
                       </div>
                     </div>
                     
