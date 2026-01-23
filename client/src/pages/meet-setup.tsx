@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute } from "wouter";
-import { Settings, Image, X, Save, MapPin, Calendar as CalendarIcon, Palette, RotateCcw } from "lucide-react";
+import { Settings, Image, X, Save, MapPin, Calendar as CalendarIcon, Palette, RotateCcw, FileText, Check, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import type { Meet } from "@shared/schema";
 import { Button } from "@/components/ui/button";
@@ -106,6 +106,10 @@ export default function MeetSetup() {
   const [accentColor, setAccentColor] = useState(DEFAULT_COLORS.accentColor);
   const [textColor, setTextColor] = useState(DEFAULT_COLORS.textColor);
   const [hasColorChanges, setHasColorChanges] = useState(false);
+  
+  // Track heat watcher state
+  const [evtFilePath, setEvtFilePath] = useState("");
+  const [hasEvtChanges, setHasEvtChanges] = useState(false);
 
   // Initialize form values when meet data loads
   useEffect(() => {
@@ -222,6 +226,70 @@ export default function MeetSetup() {
     onError: (error: Error) => {
       toast({
         title: "Failed to update color scheme",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Track heat watcher query and mutation
+  interface TrackHeatConfig {
+    meetId: string;
+    evtFilePath: string;
+  }
+  
+  const { data: trackHeatWatcherData } = useQuery<{ configs: TrackHeatConfig[]; activeWatchers: { meetId: string; evtFilePath: string }[] }>({
+    queryKey: ["/api/track-heat-watcher"],
+    enabled: !!meetId,
+  });
+  
+  // Initialize EVT file path from existing config
+  useEffect(() => {
+    if (trackHeatWatcherData && meetId) {
+      const existingConfig = trackHeatWatcherData.configs.find(c => c.meetId === meetId);
+      if (existingConfig) {
+        setEvtFilePath(existingConfig.evtFilePath);
+      }
+    }
+  }, [trackHeatWatcherData, meetId]);
+  
+  const isWatcherActive = trackHeatWatcherData?.activeWatchers.some(w => w.meetId === meetId);
+  
+  const saveEvtConfigMutation = useMutation({
+    mutationFn: async (data: { meetId: string; evtFilePath: string }) => {
+      return await apiRequest("POST", "/api/track-heat-watcher", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/track-heat-watcher"] });
+      toast({ title: "EVT watcher configured successfully" });
+      setHasEvtChanges(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to configure EVT watcher",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+  
+  const stopEvtWatcherMutation = useMutation({
+    mutationFn: async (meetIdToStop: string) => {
+      const response = await fetch(`/api/track-heat-watcher/${meetIdToStop}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error("Failed to stop watcher");
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/track-heat-watcher"] });
+      toast({ title: "EVT watcher stopped" });
+      setEvtFilePath("");
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to stop watcher",
         description: error.message,
         variant: "destructive",
       });
@@ -563,6 +631,73 @@ export default function MeetSetup() {
               <RotateCcw className="w-4 h-4 mr-2" />
               Reset to Defaults
             </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card data-testid="card-evt-watcher">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="w-5 h-5" />
+            Track Heat Detection
+          </CardTitle>
+          <CardDescription>
+            Monitor a FinishLynx EVT file to automatically detect heat counts. Shows "Final" for single heat events, or "Heat X of Y" for multi-heat events.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="evt-path">EVT File Path</Label>
+            <div className="flex gap-2">
+              <Input
+                id="evt-path"
+                value={evtFilePath}
+                onChange={(e) => {
+                  setEvtFilePath(e.target.value);
+                  setHasEvtChanges(true);
+                }}
+                placeholder="/path/to/lynx.evt"
+                className="flex-1 font-mono text-sm"
+                data-testid="input-evt-path"
+              />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Full path to your FinishLynx .evt file (e.g., C:\Lynx\Events\meet.evt)
+            </p>
+          </div>
+          
+          {isWatcherActive && (
+            <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+              <Check className="w-4 h-4" />
+              <span>Watcher active - monitoring for changes</span>
+            </div>
+          )}
+          
+          <div className="flex gap-3">
+            <Button
+              onClick={() => {
+                if (meetId && evtFilePath) {
+                  saveEvtConfigMutation.mutate({ meetId, evtFilePath });
+                }
+              }}
+              disabled={!evtFilePath || saveEvtConfigMutation.isPending || (!hasEvtChanges && isWatcherActive)}
+              data-testid="button-save-evt"
+            >
+              <Save className="w-4 h-4 mr-2" />
+              {saveEvtConfigMutation.isPending ? "Saving..." : isWatcherActive ? "Update Watcher" : "Start Watcher"}
+            </Button>
+            
+            {isWatcherActive && (
+              <Button
+                variant="outline"
+                onClick={() => meetId && stopEvtWatcherMutation.mutate(meetId)}
+                disabled={stopEvtWatcherMutation.isPending}
+                data-testid="button-stop-evt"
+              >
+                <X className="w-4 h-4 mr-2" />
+                Stop Watcher
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
