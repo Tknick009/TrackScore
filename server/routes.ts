@@ -6212,6 +6212,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let roundName = 'Finals'; // Default if no event found or single round
       let totalRounds = 1;
       
+      console.log(`[Lynx Heat Debug] Looking up eventNumber=${eventNumber}, found ${matchingEvents.length} matching events`);
       if (matchingEvents.length > 0) {
         const event = matchingEvents[0];
         const roundNum = data.round ? parseInt(String(data.round)) : 1;
