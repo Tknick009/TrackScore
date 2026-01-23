@@ -482,13 +482,20 @@ export function SceneObjectRenderer({
             : liveData.heat;
           
           // Filter wind - only show if valid numeric data (not NWI or empty)
-          // Also strip out "M/S" unit if present
+          // Also strip out "M/S" unit and any other text after the number
           const rawWind = liveData.wind;
-          let windStr = String(rawWind || '').toUpperCase().trim();
-          // Remove M/S unit if present
-          windStr = windStr.replace(/\s*M\/S\s*/gi, '').trim();
+          let windStr = String(rawWind || '').trim();
+          // Remove M/S, m/s, MS, ms and any trailing text after the number
+          windStr = windStr.replace(/\s*[Mm]\/[Ss]\s*/g, '').trim();
+          windStr = windStr.replace(/\s*[Mm][Ss]\s*/g, '').trim();
+          // Also try to extract just the numeric part (handles any trailing units)
+          const numMatch = windStr.match(/^([+-]?\d+[.,]?\d*)/);
+          if (numMatch) {
+            windStr = numMatch[1];
+          }
+          const windUpper = windStr.toUpperCase();
           const isValidWind = rawWind !== undefined && rawWind !== null && rawWind !== '' 
-            && windStr !== 'NWI' && !windStr.includes('NWI') && windStr !== '';
+            && windUpper !== 'NWI' && !windUpper.includes('NWI') && windStr !== '';
           const windDisplay = isValidWind ? windStr : '';
           
           const fieldMap: Record<string, any> = {
@@ -657,8 +664,15 @@ export function SceneObjectRenderer({
         
       case "wind-reading":
         const windReadingRaw = liveData?.wind || event?.entries?.[0]?.finalWind;
-        // Strip M/S unit and check for NWI
-        let windReadingClean = String(windReadingRaw || '').replace(/\s*M\/S\s*/gi, '').trim();
+        // Strip M/S unit and extract just the numeric part
+        let windReadingClean = String(windReadingRaw || '').trim();
+        windReadingClean = windReadingClean.replace(/\s*[Mm]\/[Ss]\s*/g, '').trim();
+        windReadingClean = windReadingClean.replace(/\s*[Mm][Ss]\s*/g, '').trim();
+        // Extract just the numeric part (handles any trailing units)
+        const windNumMatch = windReadingClean.match(/^([+-]?\d+[.,]?\d*)/);
+        if (windNumMatch) {
+          windReadingClean = windNumMatch[1];
+        }
         const windReadingUpper = windReadingClean.toUpperCase();
         const isValidWindReading = windReadingRaw !== undefined && windReadingRaw !== null && windReadingRaw !== '' 
           && windReadingUpper !== 'NWI' && !windReadingUpper.includes('NWI') && windReadingClean !== '';
