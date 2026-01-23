@@ -71,6 +71,15 @@ import {
 import { exportSessionToLFF, generateLFFContent } from './lff-exporter';
 import { syncAthletesFromEVT, startEVTWatcher, stopEVTWatcher, initEVTWatchers } from './evt-watcher';
 import { parseEVTDirectory, getAthletesFromDirectory, type EVTEventSummary, type EVTAthlete } from './evt-parser';
+import { 
+  startTrackHeatWatcher, 
+  stopTrackHeatWatcher, 
+  getTotalHeatsFromCache, 
+  getAllHeatCountsForMeet,
+  getActiveTrackHeatWatchers,
+  setHeatCountBroadcastCallback,
+  type HeatCountData 
+} from './track-heat-watcher';
 import { externalScoreboardService, buildFieldScoreboardPayload } from './external-scoreboard-service';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -2249,13 +2258,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 // Use the most recent entry
                 const latestLive = liveData[0];
                 
-                // Get total heats from database for "Heat X of Y" display
+                // Get total heats - first check EVT watcher cache, then fall back to database
                 let totalHeats = 1;
                 const matchingEvents = await storage.getEventsByLynxEventNumber(latestLive.eventNumber);
                 if (matchingEvents.length > 0) {
-                  // Normalize round to string (could be number or string from FinishLynx)
-                  const roundStr = latestLive.round ? String(latestLive.round).toLowerCase() : undefined;
-                  totalHeats = await storage.getTotalHeatsForEvent(matchingEvents[0].id, roundStr);
+                  const event = matchingEvents[0];
+                  const roundNum = latestLive.round ? parseInt(String(latestLive.round)) : 1;
+                  
+                  // First try the EVT watcher cache
+                  const cachedHeats = getTotalHeatsFromCache(event.meetId, latestLive.eventNumber, roundNum);
+                  if (cachedHeats !== null) {
+                    totalHeats = cachedHeats;
+                  } else {
+                    // Fall back to database calculation
+                    const roundStr = latestLive.round ? String(latestLive.round).toLowerCase() : undefined;
+                    totalHeats = await storage.getTotalHeatsForEvent(event.id, roundStr);
+                  }
                 }
                 
                 liveEventData = {
@@ -6199,7 +6217,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const roundNum = data.round ? parseInt(String(data.round)) : 1;
         const roundStr = data.round ? String(data.round).toLowerCase() : undefined;
         
-        totalHeats = await storage.getTotalHeatsForEvent(event.id, roundStr);
+        // First try the EVT watcher cache, then fall back to database
+        const cachedHeats = getTotalHeatsFromCache(event.meetId, data.eventNumber, roundNum);
+        if (cachedHeats !== null) {
+          totalHeats = cachedHeats;
+        } else {
+          totalHeats = await storage.getTotalHeatsForEvent(event.id, roundStr);
+        }
         totalRounds = event.numRounds || 1;
         
         // Determine round name based on event configuration
@@ -6551,7 +6575,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const roundNum = metadata?.round ? parseInt(String(metadata.round)) : 1;
         const roundStr = metadata?.round ? String(metadata.round).toLowerCase() : undefined;
         
-        totalHeats = await storage.getTotalHeatsForEvent(event.id, roundStr);
+        // First try the EVT watcher cache, then fall back to database
+        const cachedHeats = getTotalHeatsFromCache(event.meetId, eventNumber, roundNum);
+        if (cachedHeats !== null) {
+          totalHeats = cachedHeats;
+        } else {
+          totalHeats = await storage.getTotalHeatsForEvent(event.id, roundStr);
+        }
         totalRounds = event.numRounds || 1;
         
         // Determine round name based on event configuration
@@ -7024,6 +7054,156 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error provisioning EVT sessions:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ===============================
+  // TRACK HEAT WATCHER ROUTES
+  // ===============================
+  
+  const TRACK_HEAT_CONFIG_FILE = './track-heat-config.json';
+  
+  interface TrackHeatConfig {
+    meetId: string;
+    evtFilePath: string;
+  }
+  
+  function loadTrackHeatConfigs(): TrackHeatConfig[] {
+    try {
+      if (fs.existsSync(TRACK_HEAT_CONFIG_FILE)) {
+        const content = fs.readFileSync(TRACK_HEAT_CONFIG_FILE, 'utf-8');
+        return JSON.parse(content);
+      }
+    } catch (err) {
+      console.error('[Track Heat Config] Error loading config:', err);
+    }
+    return [];
+  }
+  
+  function saveTrackHeatConfigs(configs: TrackHeatConfig[]): void {
+    fs.writeFileSync(TRACK_HEAT_CONFIG_FILE, JSON.stringify(configs, null, 2));
+  }
+  
+  // Set up the broadcast callback for heat count updates
+  setHeatCountBroadcastCallback((meetId: string, data: HeatCountData[]) => {
+    broadcastToDisplays({
+      type: 'heat_counts_update',
+      meetId,
+      heatCounts: data,
+    } as any);
+    console.log(`[Track Heat Watcher] Broadcast heat counts for meet ${meetId}:`, data);
+  });
+  
+  // Initialize track heat watchers on startup
+  (async () => {
+    try {
+      const configs = loadTrackHeatConfigs();
+      for (const config of configs) {
+        const result = startTrackHeatWatcher(config.meetId, config.evtFilePath);
+        if (result.success) {
+          console.log(`[Track Heat Watcher] Initialized watcher for meet ${config.meetId}`);
+        }
+      }
+    } catch (err) {
+      console.error('[Track Heat Watcher] Error initializing watchers:', err);
+    }
+  })();
+  
+  // Get current track heat watcher config
+  app.get("/api/track-heat-watcher", async (req, res) => {
+    try {
+      const configs = loadTrackHeatConfigs();
+      const activeWatchers = getActiveTrackHeatWatchers();
+      res.json({ configs, activeWatchers });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Get heat counts for a specific meet
+  app.get("/api/track-heat-watcher/:meetId/heats", async (req, res) => {
+    try {
+      const meetId = req.params.meetId;
+      const heatCounts = getAllHeatCountsForMeet(meetId);
+      res.json({ meetId, heatCounts });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Get specific heat count
+  app.get("/api/track-heat-watcher/:meetId/heats/:eventNumber/:round", async (req, res) => {
+    try {
+      const meetId = req.params.meetId;
+      const eventNumber = parseInt(req.params.eventNumber);
+      const round = parseInt(req.params.round) || 1;
+      
+      const totalHeats = getTotalHeatsFromCache(meetId, eventNumber, round);
+      res.json({ meetId, eventNumber, round, totalHeats: totalHeats ?? null });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Start/configure track heat watcher for a meet
+  app.post("/api/track-heat-watcher", async (req, res) => {
+    try {
+      const { meetId, evtFilePath } = req.body;
+      
+      if (!meetId || typeof meetId !== 'string') {
+        return res.status(400).json({ error: "meetId is required" });
+      }
+      
+      if (!evtFilePath || typeof evtFilePath !== 'string') {
+        return res.status(400).json({ error: "evtFilePath is required" });
+      }
+      
+      // Start the watcher
+      const result = startTrackHeatWatcher(meetId, evtFilePath);
+      
+      if (!result.success) {
+        return res.status(400).json({ error: result.error });
+      }
+      
+      // Save to config
+      const configs = loadTrackHeatConfigs();
+      const existingIndex = configs.findIndex(c => c.meetId === meetId);
+      if (existingIndex >= 0) {
+        configs[existingIndex] = { meetId, evtFilePath };
+      } else {
+        configs.push({ meetId, evtFilePath });
+      }
+      saveTrackHeatConfigs(configs);
+      
+      // Return current heat counts
+      const heatCounts = getAllHeatCountsForMeet(meetId);
+      
+      res.json({ 
+        success: true, 
+        meetId, 
+        evtFilePath,
+        heatCounts 
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Stop track heat watcher for a meet
+  app.delete("/api/track-heat-watcher/:meetId", async (req, res) => {
+    try {
+      const meetId = req.params.meetId;
+      
+      stopTrackHeatWatcher(meetId);
+      
+      // Remove from config
+      const configs = loadTrackHeatConfigs();
+      const filtered = configs.filter(c => c.meetId !== meetId);
+      saveTrackHeatConfigs(filtered);
+      
+      res.json({ success: true, meetId });
+    } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });

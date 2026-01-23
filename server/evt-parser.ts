@@ -185,3 +185,35 @@ export function getAthletesFromDirectory(dirPath: string, eventNumber: number): 
   
   return allAthletes;
 }
+
+/**
+ * Extract heat counts per event number from parsed EVT events.
+ * Returns a map of eventNumber -> { round -> heatCount }
+ */
+export function getHeatCountsFromEvents(events: EVTEvent[]): Map<number, Map<number, number>> {
+  const heatCounts = new Map<number, Map<number, number>>();
+  
+  for (const evt of events) {
+    if (!heatCounts.has(evt.eventNumber)) {
+      heatCounts.set(evt.eventNumber, new Map());
+    }
+    
+    const roundMap = heatCounts.get(evt.eventNumber)!;
+    const currentMax = roundMap.get(evt.round) || 0;
+    if (evt.heat > currentMax) {
+      roundMap.set(evt.round, evt.heat);
+    }
+  }
+  
+  return heatCounts;
+}
+
+/**
+ * Get total heats for a specific event number and round from parsed EVT data.
+ */
+export function getTotalHeatsFromEVT(events: EVTEvent[], eventNumber: number, round: number = 1): number {
+  const heatCounts = getHeatCountsFromEvents(events);
+  const roundMap = heatCounts.get(eventNumber);
+  if (!roundMap) return 1;
+  return roundMap.get(round) || 1;
+}
