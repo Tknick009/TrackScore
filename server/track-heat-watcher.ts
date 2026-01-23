@@ -48,6 +48,22 @@ export function getTotalHeatsFromCache(meetId: string, eventNumber: number, roun
   return meetCache.get(key) ?? null;
 }
 
+// Search ALL watchers for heat count (useful when no database event match)
+export function getTotalHeatsFromAnyWatcher(eventNumber: number, round: number = 1): number | null {
+  const key = makeKey(eventNumber, round);
+  
+  // Search through all meet caches
+  for (const [meetId, meetCache] of heatCountCache.entries()) {
+    const heats = meetCache.get(key);
+    if (heats !== undefined) {
+      console.log(`[Track Heat Watcher] Found heat count for event ${eventNumber} round ${round} in meet ${meetId}: ${heats}`);
+      return heats;
+    }
+  }
+  
+  return null;
+}
+
 export function getAllHeatCountsForMeet(meetId: string): HeatCountData[] {
   const meetCache = heatCountCache.get(meetId);
   if (!meetCache) return [];

@@ -74,7 +74,8 @@ import { parseEVTDirectory, getAthletesFromDirectory, type EVTEventSummary, type
 import { 
   startTrackHeatWatcher, 
   stopTrackHeatWatcher, 
-  getTotalHeatsFromCache, 
+  getTotalHeatsFromCache,
+  getTotalHeatsFromAnyWatcher,
   getAllHeatCountsForMeet,
   getActiveTrackHeatWatchers,
   setHeatCountBroadcastCallback,
@@ -6207,33 +6208,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Get total heats and round name from database
-      let totalHeats = 1;
-      let roundName = 'Finals'; // Default if no event found or single round
+      // Get total heats from EVT watcher only
+      const roundNum = data.round ? parseInt(String(data.round)) : 1;
+      const evtHeats = getTotalHeatsFromAnyWatcher(data.eventNumber, roundNum);
+      const totalHeats = evtHeats ?? 1;
+      console.log(`[Lynx Heat] eventNumber=${data.eventNumber}, round=${roundNum}, totalHeats=${totalHeats} (from EVT watcher: ${evtHeats !== null})`);
+      
+      // Get round name from database if event exists
+      let roundName = 'Finals';
       let totalRounds = 1;
       
-      console.log(`[Lynx Heat Debug] Looking up eventNumber=${eventNumber}, found ${matchingEvents.length} matching events`);
       if (matchingEvents.length > 0) {
         const event = matchingEvents[0];
-        const roundNum = data.round ? parseInt(String(data.round)) : 1;
-        const roundStr = data.round ? String(data.round).toLowerCase() : undefined;
-        
-        // First try the EVT watcher cache, then fall back to database
-        const cachedHeats = getTotalHeatsFromCache(event.meetId, data.eventNumber, roundNum);
-        console.log(`[Lynx Heat Debug] eventNumber=${data.eventNumber}, meetId=${event.meetId}, round=${roundNum}, cachedHeats=${cachedHeats}`);
-        if (cachedHeats !== null) {
-          totalHeats = cachedHeats;
-        } else {
-          totalHeats = await storage.getTotalHeatsForEvent(event.id, roundStr);
-          console.log(`[Lynx Heat Debug] Fallback to DB: totalHeats=${totalHeats}`);
-        }
         totalRounds = event.numRounds || 1;
         
         // Determine round name based on event configuration
-        // numRounds = 1: Finals only
-        // numRounds = 2: Prelims (1), Finals (2)
-        // numRounds = 3: Prelims (1), Semis (2), Finals (3)
-        // numRounds = 4: Prelims (1), Quarters (2), Semis (3), Finals (4)
         if (totalRounds === 1) {
           roundName = 'Finals';
         } else if (totalRounds === 2) {
@@ -6248,7 +6237,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           else if (roundNum === 3) roundName = 'Semis';
           else roundName = 'Finals';
         } else {
-          // For 5+ rounds, use ordinal naming for early rounds
           if (roundNum === totalRounds) roundName = 'Finals';
           else if (roundNum === totalRounds - 1) roundName = 'Semis';
           else roundName = `Round ${roundNum}`;
@@ -6566,8 +6554,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     console.log(`[Lynx] Start list (${isBigBoard ? 'BIG BOARD' : 'standard'}): Event ${eventNumber}, Heat ${heat}, +${entries.length} entries, total: ${acc.entries.length}`);
     
-    // Get total heats and round name from database
-    let totalHeats = 1;
+    // Get total heats from EVT watcher only
+    const roundNum = metadata?.round ? parseInt(String(metadata.round)) : 1;
+    const evtHeats = getTotalHeatsFromAnyWatcher(eventNumber, roundNum);
+    const totalHeats = evtHeats ?? 1;
+    console.log(`[Lynx StartList Heat] eventNumber=${eventNumber}, round=${roundNum}, totalHeats=${totalHeats} (from EVT watcher: ${evtHeats !== null})`);
+    
+    // Get round name from database if event exists
     let roundName = 'Finals';
     let totalRounds = 1;
     
@@ -6575,18 +6568,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const matchingEvents = await storage.getEventsByLynxEventNumber(eventNumber);
       if (matchingEvents.length > 0) {
         const event = matchingEvents[0];
-        const roundNum = metadata?.round ? parseInt(String(metadata.round)) : 1;
-        const roundStr = metadata?.round ? String(metadata.round).toLowerCase() : undefined;
-        
-        // First try the EVT watcher cache, then fall back to database
-        const cachedHeats = getTotalHeatsFromCache(event.meetId, eventNumber, roundNum);
-        console.log(`[Lynx StartList Heat Debug] eventNumber=${eventNumber}, meetId=${event.meetId}, round=${roundNum}, cachedHeats=${cachedHeats}`);
-        if (cachedHeats !== null) {
-          totalHeats = cachedHeats;
-        } else {
-          totalHeats = await storage.getTotalHeatsForEvent(event.id, roundStr);
-          console.log(`[Lynx StartList Heat Debug] Fallback to DB: totalHeats=${totalHeats}`);
-        }
         totalRounds = event.numRounds || 1;
         
         // Determine round name based on event configuration
@@ -6610,7 +6591,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
     } catch (error) {
-      console.error('[Lynx] Error getting total heats/round info:', error);
+      console.error('[Lynx] Error getting round info:', error);
     }
     
     // Broadcast entries in arrival order (FinishLynx controls display order)
