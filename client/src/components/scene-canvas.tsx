@@ -1003,11 +1003,14 @@ export function SceneCanvas({
     
     if (isRunning) {
       // Running/splits mode: only show entries with split data
-      // Don't include 'time' check - we specifically want split data only
+      // Check both data structures:
+      // - FinishLynx live data: lastSplit, cumulativeSplit (strings)
+      // - Database entries: splits (array of objects)
       filteredEntries = entries.filter((entry: any) => {
         const hasLastSplit = entry.lastSplit && String(entry.lastSplit).trim() !== '';
         const hasCumulativeSplit = entry.cumulativeSplit && String(entry.cumulativeSplit).trim() !== '';
-        return hasLastSplit || hasCumulativeSplit;
+        const hasSplitsArray = entry.splits && Array.isArray(entry.splits) && entry.splits.length > 0;
+        return hasLastSplit || hasCumulativeSplit || hasSplitsArray;
       });
       return {
         ...rawLiveData,
