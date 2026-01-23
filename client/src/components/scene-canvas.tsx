@@ -1027,58 +1027,16 @@ export function SceneCanvas({
     
     if (hasSplitData) {
       // Splits mode: show entries with split data OR entries with places (finished athletes)
+      // Places come ONLY from FinishLynx - never calculate them
       filteredEntries = nonDNSEntries.filter((entry: any) => {
         const hasSplits = entrySplitData(entry);
         const hasPlace = entry.place && String(entry.place).trim() !== '';
         return hasSplits || hasPlace;
       });
       
-      // Check if any entries have official places
-      const hasAnyPlace = filteredEntries.some((entry: any) => 
-        entry.place && String(entry.place).trim() !== ''
-      );
-      
-      // If entries have official places, sort by place; otherwise sort by cumulative split time
-      if (hasAnyPlace) {
-        // Sort by place (official positions from FinishLynx)
-        const sortedByPlace = [...filteredEntries].sort((a: any, b: any) => {
-          const placeA = parseInt(a.place) || 999;
-          const placeB = parseInt(b.place) || 999;
-          return placeA - placeB;
-        });
-        return {
-          ...rawLiveData,
-          entries: sortedByPlace,
-        };
-      }
-      
-      // No official places - calculate running positions from cumulative split times
-      const parseTimeToSeconds = (timeStr: string): number => {
-        if (!timeStr) return Infinity;
-        const cleanTime = String(timeStr).trim();
-        if (!cleanTime) return Infinity;
-        
-        if (cleanTime.includes(':')) {
-          const [mins, secs] = cleanTime.split(':');
-          return parseFloat(mins) * 60 + parseFloat(secs);
-        }
-        return parseFloat(cleanTime) || Infinity;
-      };
-      
-      const sortedByTime = [...filteredEntries].sort((a: any, b: any) => {
-        const timeA = parseTimeToSeconds(a.cumulativeSplit || a.time || '');
-        const timeB = parseTimeToSeconds(b.cumulativeSplit || b.time || '');
-        return timeA - timeB;
-      });
-      
-      const entriesWithPositions = sortedByTime.map((entry: any, index: number) => ({
-        ...entry,
-        place: String(index + 1),
-      }));
-      
       return {
         ...rawLiveData,
-        entries: entriesWithPositions,
+        entries: filteredEntries,
       };
     }
     
