@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import type { EventWithEntries, Meet } from "@shared/schema";
 
 interface BigBoardProps {
@@ -10,6 +10,33 @@ interface BigBoardProps {
 
 export function BigBoard({ event, meet, showSplits = false, liveTime }: BigBoardProps) {
   const [clock, setClock] = useState<string>("");
+  const [fadeIn, setFadeIn] = useState(true);
+  const [displayedEntries, setDisplayedEntries] = useState<any[]>([]);
+  const prevEntriesRef = useRef<string>("");
+  
+  // Smooth fade transition when entries change
+  useEffect(() => {
+    const entriesKey = JSON.stringify((event.entries || []).map(e => e.id || e.lane));
+    
+    // If entries changed significantly (different set of athletes)
+    if (entriesKey !== prevEntriesRef.current && prevEntriesRef.current !== "") {
+      // Fade out
+      setFadeIn(false);
+      
+      // After fade out, update entries and fade in
+      const timer = setTimeout(() => {
+        setDisplayedEntries(event.entries || []);
+        setFadeIn(true);
+      }, 300); // Match CSS transition duration
+      
+      prevEntriesRef.current = entriesKey;
+      return () => clearTimeout(timer);
+    } else {
+      // First load or same entries - just update without fade
+      setDisplayedEntries(event.entries || []);
+      prevEntriesRef.current = entriesKey;
+    }
+  }, [event.entries]);
 
   useEffect(() => {
     const updateClock = () => {
@@ -27,13 +54,13 @@ export function BigBoard({ event, meet, showSplits = false, liveTime }: BigBoard
   const displayClock = liveTime || clock;
 
   const sortedEntries = useMemo(() => {
-    return [...(event.entries || [])].sort((a, b) => {
+    return [...(displayedEntries || [])].sort((a, b) => {
       if (a.finalPlace && b.finalPlace) return a.finalPlace - b.finalPlace;
       if (a.finalPlace) return -1;
       if (b.finalPlace) return 1;
       return (a.finalLane || 0) - (b.finalLane || 0);
     });
-  }, [event.entries]);
+  }, [displayedEntries]);
 
   const isRelay = event.eventType?.toLowerCase().includes('relay');
   const status = event.status === 'completed' ? 'FINAL' : event.status === 'in_progress' ? 'IN PROGRESS' : 'SCHEDULED';
@@ -126,7 +153,13 @@ export function BigBoard({ event, meet, showSplits = false, liveTime }: BigBoard
 
         <div className="h-1 bg-gradient-to-r from-cyan-500/0 via-cyan-500/60 to-cyan-500/0" />
 
-        <div className="flex-1 flex flex-col px-4 py-3 overflow-hidden">
+        <div 
+          className="flex-1 flex flex-col px-4 py-3 overflow-hidden"
+          style={{
+            opacity: fadeIn ? 1 : 0,
+            transition: 'opacity 300ms ease-in-out',
+          }}
+        >
           {sortedEntries.map((entry, index) => {
             const teamLogo = entry.team?.logoUrl;
             const displayName = isRelay 
