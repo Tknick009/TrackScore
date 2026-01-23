@@ -357,6 +357,7 @@ export default function SimpleSceneEditor() {
         dynamicText: box.staticText,
         staticImageUrl: box.staticImageUrl,
         hideWhenFieldNonNumeric: box.hideWhenFieldNonNumeric,
+        conditionalVisibility: box.conditionalVisibility,
       },
       style: box.style as any,
     };
@@ -374,6 +375,7 @@ export default function SimpleSceneEditor() {
     staticText: (obj.config as any)?.dynamicText,
     staticImageUrl: (obj.config as any)?.staticImageUrl,
     hideWhenFieldNonNumeric: (obj.config as any)?.hideWhenFieldNonNumeric,
+    conditionalVisibility: (obj.config as any)?.conditionalVisibility,
     athleteIndex: (obj.dataBinding as any)?.athleteIndex,
     zIndex: obj.zIndex,
     style: obj.style as any,
