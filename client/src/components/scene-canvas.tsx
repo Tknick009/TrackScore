@@ -976,51 +976,28 @@ export function SceneCanvas({
     const mode = rawLiveData.mode || '';
     const isResults = mode === 'results' || mode === 'finished';
     
-    // Helper to check if an entry has split data
-    const entrySplitData = (entry: any) => {
-      const hasLastSplit = entry.lastSplit && String(entry.lastSplit).trim() !== '';
-      const hasCumulativeSplit = entry.cumulativeSplit && String(entry.cumulativeSplit).trim() !== '';
-      const hasSplitsArray = entry.splits && Array.isArray(entry.splits) && entry.splits.length > 0;
-      return hasLastSplit || hasCumulativeSplit || hasSplitsArray;
-    };
-    
-    // Detect if we're in "splits mode" by checking if ANY entry has split data
-    const hasSplitData = entries.some((entry: any) => entrySplitData(entry));
-    
-    // Filter entries based on data presence:
-    // - In results mode: hide entries without time/place
-    // - When split data exists: hide entries without split data (regardless of mode)
-    let filteredEntries = entries;
-    
+    // Filter entries for results mode only
+    // (Splits screen has different paging architecture - filtering not compatible)
     if (isResults) {
       // Results mode: only show entries with time or place
-      filteredEntries = entries.filter((entry: any) => {
+      const filteredEntries = entries.filter((entry: any) => {
         const hasTime = entry.time && String(entry.time).trim() !== '';
         const hasPlace = entry.place && String(entry.place).trim() !== '';
         return hasTime || hasPlace;
       });
       // Sort by place
-      filteredEntries = [...filteredEntries].sort((a: any, b: any) => {
+      const sortedEntries = [...filteredEntries].sort((a: any, b: any) => {
         const placeA = parseInt(a.place) || 999;
         const placeB = parseInt(b.place) || 999;
         return placeA - placeB;
       });
       return {
         ...rawLiveData,
-        entries: filteredEntries,
+        entries: sortedEntries,
       };
     }
     
-    if (hasSplitData) {
-      // Splits are being shown: only show entries that have split data
-      filteredEntries = entries.filter((entry: any) => entrySplitData(entry));
-      return {
-        ...rawLiveData,
-        entries: filteredEntries,
-      };
-    }
-    
-    // For start_list mode (no splits yet), keep all entries in arrival order
+    // For start_list and running modes, keep all entries in arrival order
     return rawLiveData;
   }, [rawLiveData]);
   
