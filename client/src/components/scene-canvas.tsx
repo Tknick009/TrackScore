@@ -949,15 +949,6 @@ export function SceneCanvas({
 }: SceneCanvasProps) {
   const [dimensions, setDimensions] = useState({ width: 1920, height: 1080 });
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
-  const [isPageTransitioning, setIsPageTransitioning] = useState(false);
-  const [displayedPageIndex, setDisplayedPageIndex] = useState(0);
-  
-  // Ref to hold "last complete splits data" - prevents paging before all splits arrive
-  const heldSplitsDataRef = useRef<any>(null);
-  // Track if we're in splits mode (so we keep holding when FinishLynx pages to new data without splits yet)
-  const inSplitsModeRef = useRef<boolean>(false);
-  // Track previous entry IDs to detect when FinishLynx pages (different set of entries)
-  const prevEntryIdsRef = useRef<string>('');
   
   const skipSceneQuery = !!propScene;
   const skipObjectsQuery = !!propObjects;
@@ -1003,10 +994,6 @@ export function SceneCanvas({
     let filteredEntries = entries;
     
     if (isResults) {
-      // Clear held data and splits mode when switching to results mode
-      heldSplitsDataRef.current = null;
-      inSplitsModeRef.current = false;
-      
       // Results mode: only show entries with time or place
       filteredEntries = entries.filter((entry: any) => {
         const hasTime = entry.time && String(entry.time).trim() !== '';
@@ -1026,42 +1013,15 @@ export function SceneCanvas({
     }
     
     if (hasSplitData) {
-      // We're in splits mode
-      inSplitsModeRef.current = true;
-      
-      // Splits are being shown: check if ALL entries have split data
-      const allHaveSplits = entries.every((entry: any) => entrySplitData(entry));
-      
-      if (allHaveSplits) {
-        // All entries have splits - update display and save as held data
-        filteredEntries = entries.filter((entry: any) => entrySplitData(entry));
-        const completeData = {
-          ...rawLiveData,
-          entries: filteredEntries,
-        };
-        heldSplitsDataRef.current = completeData;
-        return completeData;
-      } else {
-        // Not all entries have splits yet - hold on current data if we have it
-        if (heldSplitsDataRef.current) {
-          return heldSplitsDataRef.current;
-        }
-        // No held data - show what we have (filtered)
-        filteredEntries = entries.filter((entry: any) => entrySplitData(entry));
-        return {
-          ...rawLiveData,
-          entries: filteredEntries,
-        };
-      }
+      // Splits are being shown: only show entries that have split data
+      filteredEntries = entries.filter((entry: any) => entrySplitData(entry));
+      return {
+        ...rawLiveData,
+        entries: filteredEntries,
+      };
     }
     
-    // No splits in incoming data - but if we were in splits mode, keep holding
-    // (FinishLynx might have paged to new entries that don't have splits yet)
-    if (inSplitsModeRef.current && heldSplitsDataRef.current) {
-      return heldSplitsDataRef.current;
-    }
-    
-    // For start_list mode (never been in splits mode), show all entries
+    // For start_list mode (no splits yet), keep all entries in arrival order
     return rawLiveData;
   }, [rawLiveData]);
   
@@ -1091,42 +1051,6 @@ export function SceneCanvas({
       setCurrentPageIndex(0);
     }
   }, [totalPages, currentPageIndex]);
-  
-  // Handle page transitions with fade effect (for local paging)
-  useEffect(() => {
-    if (currentPageIndex !== displayedPageIndex) {
-      // Start fade out
-      setIsPageTransitioning(true);
-      
-      // After fade out, update page and fade in
-      const timer = setTimeout(() => {
-        setDisplayedPageIndex(currentPageIndex);
-        setIsPageTransitioning(false);
-      }, 200); // Match the CSS transition duration
-      
-      return () => clearTimeout(timer);
-    }
-  }, [currentPageIndex, displayedPageIndex]);
-  
-  // Handle fade transition when FinishLynx pages (different set of entries)
-  useEffect(() => {
-    if (!liveData) return;
-    
-    const entries = liveData.entries || liveData.results || [];
-    // Create a signature of current entries (using lane or first few chars of name to detect page changes)
-    const entryIds = entries.map((e: any) => `${e.lane || ''}-${e.lastName || e.name || ''}`).join(',');
-    
-    if (prevEntryIdsRef.current && prevEntryIdsRef.current !== entryIds) {
-      // Entries changed - trigger fade transition
-      setIsPageTransitioning(true);
-      const timer = setTimeout(() => {
-        setIsPageTransitioning(false);
-      }, 200);
-      return () => clearTimeout(timer);
-    }
-    
-    prevEntryIdsRef.current = entryIds;
-  }, [liveData]);
   
   const sortedObjects = useMemo(() => {
     return [...objects].sort((a, b) => a.zIndex - b.zIndex);
@@ -1200,37 +1124,29 @@ export function SceneCanvas({
         data-testid="scene-canvas"
         key={`scene-${sceneId}`}
       >
-        <div
-          className="absolute inset-0"
-          style={{
-            opacity: isPageTransitioning ? 0 : 1,
-            transition: 'opacity 200ms ease-in-out',
-          }}
-        >
-          {sortedObjects.map((obj) => (
-            <SceneObjectRenderer 
-              key={obj.id} 
-              object={obj} 
-              meetId={meetId}
-              canvasWidth={canvasWidth}
-              canvasHeight={canvasHeight}
-              eventNumber={eventNumber}
-              pageIndex={displayedPageIndex}
-              pageSize={pagingSize}
-              sharedLatestLiveData={liveData}
-              liveClockTime={liveClockTime}
-            />
-          ))}
-          
-          {sortedObjects.length === 0 && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="text-center text-[hsl(var(--display-muted))]">
-                <Trophy className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                <p className="text-xs font-stadium">Empty</p>
-              </div>
+        {sortedObjects.map((obj) => (
+          <SceneObjectRenderer 
+            key={obj.id} 
+            object={obj} 
+            meetId={meetId}
+            canvasWidth={canvasWidth}
+            canvasHeight={canvasHeight}
+            eventNumber={eventNumber}
+            pageIndex={currentPageIndex}
+            pageSize={pagingSize}
+            sharedLatestLiveData={liveData}
+            liveClockTime={liveClockTime}
+          />
+        ))}
+        
+        {sortedObjects.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center text-[hsl(var(--display-muted))]">
+              <Trophy className="w-8 h-8 mx-auto mb-2 opacity-30" />
+              <p className="text-xs font-stadium">Empty</p>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -1268,38 +1184,30 @@ export function SceneCanvas({
           backgroundColor,
         }}
       >
-        <div
-          className="absolute inset-0"
-          style={{
-            opacity: isPageTransitioning ? 0 : 1,
-            transition: 'opacity 200ms ease-in-out',
-          }}
-        >
-          {sortedObjects.map((obj) => (
-            <SceneObjectRenderer 
-              key={obj.id} 
-              object={obj} 
-              meetId={meetId}
-              canvasWidth={designWidth}
-              canvasHeight={designHeight}
-              eventNumber={eventNumber}
-              pageIndex={displayedPageIndex}
-              pageSize={pagingSize}
-              sharedLatestLiveData={liveData}
-              liveClockTime={liveClockTime}
-            />
-          ))}
-          
-          {sortedObjects.length === 0 && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="text-center text-[hsl(var(--display-muted))]">
-                <Trophy className="w-32 h-32 mx-auto mb-8 opacity-30" />
-                <p className="text-4xl font-stadium">Empty Scene</p>
-                <p className="text-xl mt-4">Add objects in the Scene Editor</p>
-              </div>
+        {sortedObjects.map((obj) => (
+          <SceneObjectRenderer 
+            key={obj.id} 
+            object={obj} 
+            meetId={meetId}
+            canvasWidth={designWidth}
+            canvasHeight={designHeight}
+            eventNumber={eventNumber}
+            pageIndex={currentPageIndex}
+            pageSize={pagingSize}
+            sharedLatestLiveData={liveData}
+            liveClockTime={liveClockTime}
+          />
+        ))}
+        
+        {sortedObjects.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center text-[hsl(var(--display-muted))]">
+              <Trophy className="w-32 h-32 mx-auto mb-8 opacity-30" />
+              <p className="text-4xl font-stadium">Empty Scene</p>
+              <p className="text-xl mt-4">Add objects in the Scene Editor</p>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
