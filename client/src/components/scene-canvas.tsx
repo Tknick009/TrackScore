@@ -481,13 +481,20 @@ export function SceneObjectRenderer({
             ? `${liveData.heat} OF ${liveData.totalHeats}`
             : liveData.heat;
           
+          // Filter wind - only show if valid numeric data (not NWI or empty)
+          const rawWind = liveData.wind;
+          const windStr = String(rawWind || '').toUpperCase().trim();
+          const isValidWind = rawWind !== undefined && rawWind !== null && rawWind !== '' 
+            && windStr !== 'NWI' && !windStr.includes('NWI');
+          const windDisplay = isValidWind ? rawWind : '';
+          
           const fieldMap: Record<string, any> = {
             'event-name': eventName,
             'event-number': liveData.eventNumber,
             'distance': liveData.distance,
             'heat-number': heatDisplay,
             'round': liveData.round,
-            'wind': liveData.wind,
+            'wind': windDisplay,
             'status': liveData.status,
             'lane': firstEntry?.lane,
             'place': firstEntry?.place,
@@ -646,7 +653,16 @@ export function SceneObjectRenderer({
         );
         
       case "wind-reading":
-        const windDisplayValue = liveData?.wind || event?.entries?.[0]?.finalWind;
+        const windReadingRaw = liveData?.wind || event?.entries?.[0]?.finalWind;
+        const windReadingStr = String(windReadingRaw || '').toUpperCase().trim();
+        const isValidWindReading = windReadingRaw !== undefined && windReadingRaw !== null && windReadingRaw !== '' 
+          && windReadingStr !== 'NWI' && !windReadingStr.includes('NWI');
+        
+        // Hide completely when NWI or no valid wind data
+        if (!isValidWindReading) {
+          return null;
+        }
+        
         return (
           <div 
             className="flex items-center justify-center h-full bg-[hsl(var(--display-bg))] gap-2"
@@ -654,7 +670,7 @@ export function SceneObjectRenderer({
           >
             <span className="text-[hsl(var(--display-muted))]">Wind:</span>
             <span className="font-stadium-numbers font-[700] text-[hsl(var(--display-fg))]">
-              {windDisplayValue !== undefined && windDisplayValue !== null ? `${windDisplayValue > 0 ? '+' : ''}${windDisplayValue.toFixed(1)}` : '--.-'}
+              {typeof windReadingRaw === 'number' ? `${windReadingRaw > 0 ? '+' : ''}${windReadingRaw.toFixed(1)}` : windReadingRaw}
             </span>
           </div>
         );
