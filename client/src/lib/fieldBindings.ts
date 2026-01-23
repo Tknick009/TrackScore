@@ -202,19 +202,19 @@ export const SCREEN_PRESETS = [
   { name: 'Vertical Display', width: 1080, height: 1920, aspectRatio: '9:16' },
 ] as const;
 
+// Central heat display formatter - use this everywhere for consistency
+export function formatHeatDisplay(heat: number | undefined, totalHeats: number | undefined): string {
+  if (!heat) return '';
+  if (!totalHeats || totalHeats === 1) return 'Final';
+  return `Heat ${heat} of ${totalHeats}`;
+}
+
 export function resolveFieldValue(fieldKey: string, data: Record<string, any>): string {
   const binding = FIELD_BINDINGS[fieldKey];
   if (!binding) return '';
   
   if (fieldKey === 'heat-number') {
-    const totalHeats = data.totalHeats || 1;
-    if (totalHeats === 1) {
-      return 'Final';
-    }
-    if (data.heat) {
-      return `Heat ${data.heat} of ${totalHeats}`;
-    }
-    return '';
+    return formatHeatDisplay(data.heat, data.totalHeats);
   }
   
   return data[binding.dataKey] ?? '';

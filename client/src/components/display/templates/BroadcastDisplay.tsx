@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import type { Meet } from "@shared/schema";
+import { formatHeatDisplay } from "@/lib/fieldBindings";
 
 interface ResultEntry {
   place?: string;
@@ -179,10 +180,7 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
   };
   
   const eventName = liveEventData?.eventName || '';
-  const totalHeats = liveEventData?.totalHeats || 1;
-  const heatInfo = totalHeats === 1
-    ? 'Final'
-    : (liveEventData?.heat && liveEventData.heat > 0 ? `Heat ${liveEventData.heat} of ${totalHeats}` : '');
+  const heatInfo = formatHeatDisplay(liveEventData?.heat, liveEventData?.totalHeats);
 
   const renderScrollingEntry = (entry: ResultEntry | null) => {
     if (!entry) {

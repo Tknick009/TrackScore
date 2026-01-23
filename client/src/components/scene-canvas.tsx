@@ -16,6 +16,7 @@ import {
   StandingsBoard,
   ScrollingResultsBoard 
 } from "@/components/display/templates";
+import { formatHeatDisplay } from "@/lib/fieldBindings";
 import { Trophy, Clock, Users, User, Image, Type, Award, Loader2 } from "lucide-react";
 
 // Static clock display - shows exactly what FinishLynx sends, no local interpolation
@@ -476,15 +477,8 @@ export function SceneObjectRenderer({
             return '';
           };
           
-          // Format heat as "Heat X of Y" if multiple heats, "Final" if single heat
-          let heatDisplay: string | number | undefined;
-          if (liveData.totalHeats && liveData.totalHeats > 1 && liveData.heat) {
-            heatDisplay = `Heat ${liveData.heat} of ${liveData.totalHeats}`;
-          } else if (liveData.totalHeats === 1 || (liveData.heat && !liveData.totalHeats)) {
-            heatDisplay = 'Final';
-          } else {
-            heatDisplay = liveData.heat;
-          }
+          // Use central formatter for heat display
+          const heatDisplay = formatHeatDisplay(liveData.heat, liveData.totalHeats);
           
           // Filter wind - only show if valid numeric data (not NWI or empty)
           // Also strip out "M/S" unit and any other text after the number
