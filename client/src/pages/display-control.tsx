@@ -241,11 +241,12 @@ export default function DisplayControlPage() {
 
   // Display types and modes for the grid
   const displayTypes = ['P10', 'P6', 'BigBoard'] as const;
-  const displayModes = ['start_list', 'running_time', 'track_results', 'field_results', 'field_standings', 'team_scores'] as const;
+  const displayModes = ['start_list', 'running_time', 'running_time_splits', 'track_results', 'field_results', 'field_standings', 'team_scores'] as const;
   
   const displayModeLabels: Record<string, string> = {
     start_list: 'Start List',
     running_time: 'Running Time',
+    running_time_splits: 'Running Time (Splits)',
     track_results: 'Track Results',
     field_results: 'Field Results',
     field_standings: 'Field Standings',

@@ -532,17 +532,27 @@ export function SceneObjectRenderer({
           ? `${numericTextFontSize}px` 
           : (numericTextFontSize === 'xlarge' ? '48px' : numericTextFontSize === 'large' ? '36px' : numericTextFontSize === 'medium' ? '24px' : '18px');
         
+        // Add fade-out mask for text that overflows - prevents cutting letters in half
+        const textColor = componentConfig.textColor || styleConfig.textColor || "hsl(var(--display-fg))";
         return (
           <div 
-            className="flex items-center h-full p-2 overflow-hidden"
+            className="flex items-center h-full p-2 overflow-hidden relative"
             style={{
               justifyContent,
               fontSize: resolvedFontSize,
               fontWeight: componentConfig.fontWeight || (styleConfig as any).fontWeight || "normal",
-              color: componentConfig.textColor || styleConfig.textColor || "hsl(var(--display-fg))",
+              color: textColor,
             }}
           >
-            <span className="whitespace-nowrap">{textContent || ""}</span>
+            <span 
+              className="whitespace-nowrap"
+              style={{
+                maskImage: 'linear-gradient(to right, black 90%, transparent 100%)',
+                WebkitMaskImage: 'linear-gradient(to right, black 90%, transparent 100%)',
+              }}
+            >
+              {textContent || ""}
+            </span>
           </div>
         );
         
@@ -977,24 +987,37 @@ export function SceneCanvas({
     const isResults = mode === 'results' || mode === 'finished';
     
     // Helper to check if an entry has split data
+    // L2G (Laps To Go) > 0 indicates a multi-lap race with splits
     const entrySplitData = (entry: any) => {
       const hasLastSplit = entry.lastSplit && String(entry.lastSplit).trim() !== '';
       const hasCumulativeSplit = entry.cumulativeSplit && String(entry.cumulativeSplit).trim() !== '';
       const hasSplitsArray = entry.splits && Array.isArray(entry.splits) && entry.splits.length > 0;
-      return hasLastSplit || hasCumulativeSplit || hasSplitsArray;
+      const hasLapsToGo = entry.lapsToGo && parseInt(entry.lapsToGo) > 0;
+      return hasLastSplit || hasCumulativeSplit || hasSplitsArray || hasLapsToGo;
     };
     
+    // Helper to check if an entry is DNS (Did Not Start)
+    const isDNS = (entry: any) => {
+      const time = String(entry.time || '').toUpperCase().trim();
+      const place = String(entry.place || '').toUpperCase().trim();
+      const mark = String(entry.mark || '').toUpperCase().trim();
+      return time === 'DNS' || place === 'DNS' || mark === 'DNS';
+    };
+    
+    // Filter out DNS entries from all modes
+    const nonDNSEntries = entries.filter((entry: any) => !isDNS(entry));
+    
     // Detect if we're in "splits mode" by checking if ANY entry has split data
-    const hasSplitData = entries.some((entry: any) => entrySplitData(entry));
+    const hasSplitData = nonDNSEntries.some((entry: any) => entrySplitData(entry));
     
     // Filter entries based on data presence:
     // - In results mode: hide entries without time/place
     // - When split data exists: hide entries without split data (regardless of mode)
-    let filteredEntries = entries;
+    let filteredEntries = nonDNSEntries;
     
     if (isResults) {
       // Results mode: only show entries with time or place
-      filteredEntries = entries.filter((entry: any) => {
+      filteredEntries = nonDNSEntries.filter((entry: any) => {
         const hasTime = entry.time && String(entry.time).trim() !== '';
         const hasPlace = entry.place && String(entry.place).trim() !== '';
         return hasTime || hasPlace;
@@ -1013,15 +1036,18 @@ export function SceneCanvas({
     
     if (hasSplitData) {
       // Splits are being shown: only show entries that have split data
-      filteredEntries = entries.filter((entry: any) => entrySplitData(entry));
+      filteredEntries = nonDNSEntries.filter((entry: any) => entrySplitData(entry));
       return {
         ...rawLiveData,
         entries: filteredEntries,
       };
     }
     
-    // For start_list mode (no splits yet), keep all entries in arrival order
-    return rawLiveData;
+    // For start_list mode (no splits yet), return entries with DNS filtered out
+    return {
+      ...rawLiveData,
+      entries: nonDNSEntries,
+    };
   }, [rawLiveData]);
   
   const totalEntries = useMemo(() => {

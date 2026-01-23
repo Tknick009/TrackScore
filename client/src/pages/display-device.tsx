@@ -576,7 +576,84 @@ export default function DisplayDevice() {
           if (message.type === myChannel) {
             const data = message.data;
             if (data) {
-              console.log(`[Display] Track mode change (${isBigBoardRef.current ? 'BIG BOARD' : 'standard'}): Event ${data.eventNumber}, mode=${data.mode}, ${data.entries?.length || 0} entries`);
+              const entries = data.entries || data.results || [];
+              console.log(`[Display] Track mode change (${isBigBoardRef.current ? 'BIG BOARD' : 'standard'}): Event ${data.eventNumber}, mode=${data.mode}, ${entries.length} entries`);
+              
+              // Detect if entries have split data for running_time_splits mode switching
+              // L2G (Laps To Go) > 0 indicates a multi-lap race that will have splits
+              const hasSplitData = entries.some((entry: any) => {
+                const hasLastSplit = entry.lastSplit && String(entry.lastSplit).trim() !== '';
+                const hasCumulativeSplit = entry.cumulativeSplit && String(entry.cumulativeSplit).trim() !== '';
+                const hasSplitsArray = entry.splits && Array.isArray(entry.splits) && entry.splits.length > 0;
+                const hasLapsToGo = entry.lapsToGo && parseInt(entry.lapsToGo) > 0;
+                return hasLastSplit || hasCumulativeSplit || hasSplitsArray || hasLapsToGo;
+              });
+              
+              // Auto-switch to running_time_splits scene if splits detected and we're in running mode
+              const currentMode = currentLayoutModeRef.current;
+              if (hasSplitData && currentMode === 'running_time' && displayType) {
+                // Check if there's a running_time_splits scene configured
+                const splitsSceneId = getSceneForModeRef.current(displayType, 'running_time_splits');
+                if (splitsSceneId && splitsSceneId !== state.currentSceneId) {
+                  console.log(`[Display] Splits detected, switching to running_time_splits scene: ${splitsSceneId}`);
+                  currentLayoutModeRef.current = 'running_time_splits';
+                  // Fetch and switch to splits scene
+                  (async () => {
+                    try {
+                      const [sceneRes, objectsRes] = await Promise.all([
+                        fetch(`/api/layout-scenes/${splitsSceneId}`),
+                        fetch(`/api/layout-objects?sceneId=${splitsSceneId}`),
+                      ]);
+                      if (sceneRes.ok && objectsRes.ok) {
+                        const scene = await sceneRes.json();
+                        const objects = await objectsRes.json();
+                        queryClient.setQueryData(['/api/layout-scenes', splitsSceneId], scene);
+                        queryClient.setQueryData(['/api/layout-objects', { sceneId: splitsSceneId }], objects);
+                        setState(prev => ({
+                          ...prev,
+                          currentLayoutMode: 'running_time_splits',
+                          currentSceneId: splitsSceneId,
+                          currentSceneData: { scene, objects },
+                          currentTemplate: null,
+                        }));
+                      }
+                    } catch (e) {
+                      console.warn('[Display] Failed to switch to splits scene:', e);
+                    }
+                  })();
+                }
+              } else if (!hasSplitData && currentMode === 'running_time_splits' && displayType) {
+                // No splits, switch back to regular running_time scene
+                const runningSceneId = getSceneForModeRef.current(displayType, 'running_time');
+                if (runningSceneId && runningSceneId !== state.currentSceneId) {
+                  console.log(`[Display] No splits, switching back to running_time scene: ${runningSceneId}`);
+                  currentLayoutModeRef.current = 'running_time';
+                  (async () => {
+                    try {
+                      const [sceneRes, objectsRes] = await Promise.all([
+                        fetch(`/api/layout-scenes/${runningSceneId}`),
+                        fetch(`/api/layout-objects?sceneId=${runningSceneId}`),
+                      ]);
+                      if (sceneRes.ok && objectsRes.ok) {
+                        const scene = await sceneRes.json();
+                        const objects = await objectsRes.json();
+                        queryClient.setQueryData(['/api/layout-scenes', runningSceneId], scene);
+                        queryClient.setQueryData(['/api/layout-objects', { sceneId: runningSceneId }], objects);
+                        setState(prev => ({
+                          ...prev,
+                          currentLayoutMode: 'running_time',
+                          currentSceneId: runningSceneId,
+                          currentSceneData: { scene, objects },
+                          currentTemplate: null,
+                        }));
+                      }
+                    } catch (e) {
+                      console.warn('[Display] Failed to switch to running scene:', e);
+                    }
+                  })();
+                }
+              }
+              
               setState(prev => ({
                 ...prev,
                 liveEventData: {
@@ -588,7 +665,7 @@ export default function DisplayDevice() {
                   mode: data.mode,
                   wind: data.wind,
                   distance: data.distance || prev.liveEventData?.distance,
-                  entries: data.entries || data.results || [],
+                  entries: entries,
                 },
               }));
             }
