@@ -236,8 +236,10 @@ export function SceneObjectRenderer({
   
   // Conditional visibility logic based on wind data
   const windValue = liveData?.wind;
-  const hasWindData = windValue !== undefined && windValue !== null;
-  const isNWI = !hasWindData || windValue === 0;
+  const hasWindData = windValue !== undefined && windValue !== null && windValue !== '';
+  // NWI detection: no wind, empty string, or contains "NWI" text
+  const windStr = String(windValue || '').toUpperCase().trim();
+  const isNWI = !hasWindData || windStr === '' || windStr === 'NWI' || windStr.includes('NWI');
   const conditionalVisibility = componentConfig.conditionalVisibility || 'always';
   
   // Check if object should be hidden based on conditional visibility
