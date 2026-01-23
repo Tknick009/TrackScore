@@ -532,27 +532,17 @@ export function SceneObjectRenderer({
           ? `${numericTextFontSize}px` 
           : (numericTextFontSize === 'xlarge' ? '48px' : numericTextFontSize === 'large' ? '36px' : numericTextFontSize === 'medium' ? '24px' : '18px');
         
-        // Add fade-out mask for text that overflows - prevents cutting letters in half
-        const textColor = componentConfig.textColor || styleConfig.textColor || "hsl(var(--display-fg))";
         return (
           <div 
-            className="flex items-center h-full p-2 overflow-hidden relative"
+            className="flex items-center h-full p-2 overflow-hidden"
             style={{
               justifyContent,
               fontSize: resolvedFontSize,
               fontWeight: componentConfig.fontWeight || (styleConfig as any).fontWeight || "normal",
-              color: textColor,
+              color: componentConfig.textColor || styleConfig.textColor || "hsl(var(--display-fg))",
             }}
           >
-            <span 
-              className="whitespace-nowrap"
-              style={{
-                maskImage: 'linear-gradient(to right, black 90%, transparent 100%)',
-                WebkitMaskImage: 'linear-gradient(to right, black 90%, transparent 100%)',
-              }}
-            >
-              {textContent || ""}
-            </span>
+            <span className="whitespace-nowrap">{textContent || ""}</span>
           </div>
         );
         
