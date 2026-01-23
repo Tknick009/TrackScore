@@ -975,24 +975,47 @@ export function SceneCanvas({
     
     const mode = rawLiveData.mode || '';
     const isResults = mode === 'results' || mode === 'finished';
+    const isRunning = mode === 'running';
     
-    // IMPORTANT: Do NOT sort start_list or running mode entries
-    // FinishLynx sends entries in the exact order they should appear on display
-    // Line 1 = entries[0], Line 2 = entries[1], etc.
+    // Filter entries based on mode:
+    // - In results mode: hide entries without time/place
+    // - In running mode (splits): hide entries without split data
+    let filteredEntries = entries;
+    
     if (isResults) {
-      // Only sort finished results by place
-      const sortedEntries = [...entries].sort((a: any, b: any) => {
+      // Results mode: only show entries with time or place
+      filteredEntries = entries.filter((entry: any) => {
+        const hasTime = entry.time && String(entry.time).trim() !== '';
+        const hasPlace = entry.place && String(entry.place).trim() !== '';
+        return hasTime || hasPlace;
+      });
+      // Sort by place
+      filteredEntries = [...filteredEntries].sort((a: any, b: any) => {
         const placeA = parseInt(a.place) || 999;
         const placeB = parseInt(b.place) || 999;
         return placeA - placeB;
       });
       return {
         ...rawLiveData,
-        entries: sortedEntries,
+        entries: filteredEntries,
       };
     }
     
-    // For start_list and running modes, keep entries in arrival order
+    if (isRunning) {
+      // Running/splits mode: only show entries with split data
+      filteredEntries = entries.filter((entry: any) => {
+        const hasLastSplit = entry.lastSplit && String(entry.lastSplit).trim() !== '';
+        const hasCumulativeSplit = entry.cumulativeSplit && String(entry.cumulativeSplit).trim() !== '';
+        const hasTime = entry.time && String(entry.time).trim() !== '';
+        return hasLastSplit || hasCumulativeSplit || hasTime;
+      });
+      return {
+        ...rawLiveData,
+        entries: filteredEntries,
+      };
+    }
+    
+    // For start_list mode, keep all entries in arrival order
     return rawLiveData;
   }, [rawLiveData]);
   
