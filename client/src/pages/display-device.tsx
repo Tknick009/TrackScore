@@ -1108,12 +1108,6 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
                 alt={meet?.name || 'Meet Logo'} 
                 className="max-h-[60vh] max-w-[80vw] mx-auto object-contain"
               />
-              <div className="mt-8">
-                <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full ${isConnected ? 'bg-green-900/50 text-green-400' : 'bg-yellow-900/50 text-yellow-400'}`}>
-                  <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-yellow-400'}`}></span>
-                  {isConnected ? 'Ready' : 'Connecting...'}
-                </div>
-              </div>
             </div>
           </div>
         );
@@ -1369,12 +1363,6 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
               alt={meet?.name || 'Meet Logo'} 
               className="max-h-[60vh] max-w-[80vw] mx-auto object-contain"
             />
-            <div className="mt-8">
-              <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full ${isConnected ? 'bg-green-900/50 text-green-400' : 'bg-yellow-900/50 text-yellow-400'}`}>
-                <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-yellow-400'}`}></span>
-                {isConnected ? 'Ready' : 'Connecting...'}
-              </div>
-            </div>
           </div>
         </div>
       );
