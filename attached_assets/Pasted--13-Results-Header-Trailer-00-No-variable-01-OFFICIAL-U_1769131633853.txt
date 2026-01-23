@@ -1,0 +1,118 @@
+;      \13  Results Header/Trailer
+;         \00  No variable
+;         \01  OFFICIAL/UNOFFICIAL string
+;         \02  Event name
+;         \03  Wind
+;         \04  Event number
+;         \05  Round number
+;         \06  Heat number
+;         \07  AUTO/MANUAL start type
+;         \08  Number of participants
+;         \09  ARMED/RUNNING status
+;         \0a  Distance
+;      \14  Result
+;         \00  No variable
+;         \01  Place
+;         \02  Lane
+;         \03  Id
+;         \04  Name
+;         \05  Affiliation
+;         \06  Time
+;         \07  Delta Time
+;         \08  Cumulative Split Time
+;         \09  Last Split Time
+;         \0a  Laps To Go
+;         \0b  License
+;         \0c  ReacTime
+;         \0d  Speed
+;         \0e  Pace
+;         \0f  Best Split Time
+;         \10  User1
+;         \11  User2
+;         \12  User3
+;         \13  "From Image" Cumulative Split Time
+;         \14  "From Image" Window Number
+;         \15  Delta Time 2
+;         \16  Delta Time 3
+;         \17  First Name
+;         \18  Last Name
+
+;;StartListHeader
+\13\00{
+\13\00"T":"S",
+\13\00"D":{
+\00"MID":8132,
+\13\04"EN":%s,
+\13\05"R":%s,
+\13\06"H":%s,
+\13\01"S":"%s",
+\13\0a"DS":"%s",
+
+;;StartList
+\14\01"P":"%s",
+\14\02"L":"%s",
+\14\03"BIB":"%s",
+\14\04"N":"%s",
+\14\05"AF":"%s",
+\14\17"FN":"%s",
+\14\18"LN":"%s"
+
+;;StartListTrailer
+\13\00}}\0d\0a
+
+;;StartedHeader
+\13\00{
+\13\00"T":"T",
+\13\00"D":{
+\00"MID":8132,
+\13\04"EN":%s,
+\13\05"R":%s,
+\13\06"H":%s,
+\13\01"S":"%s",
+\13\0a"DS":"%s",
+\13\03"W":"%s",
+
+;;Started
+\14\01"P":"%s",
+\14\02"L":"%s",
+\14\03"BIB":"%s",
+\14\04"N":"%s",
+\14\05"AF":"%s",
+\14\06"T":"%s",
+\14\0c"RT":"%s",
+\14\0a"L2G":"%s",
+\14\08"CS":"%s",
+\14\09"LS":"%s",
+\14\17"FN":"%s",
+\14\18"LN":"%s"
+
+;;StartedTrailer
+\13\00}}\0d\0a
+
+;;ResultsHeader
+\13\00{
+\13\00"T":"T",
+\13\00"D":{
+\00"MID":8132,
+\13\04"EN":%s,
+\13\05"R":%s,
+\13\06"H":%s,
+\13\01"S":"%s",
+\13\0a"DS":"%s",
+\13\03"W":"%s",
+
+;;Results
+\14\01"P":"%s",
+\14\02"L":"%s",
+\14\03"BIB":"%s",
+\14\04"N":"%s",
+\14\05"AF":"%s",
+\14\06"T":"%s",
+\14\0c"RT":"%s",
+\14\0a"L2G":"%s",
+\14\08"CS":"%s",
+\14\09"LS":"%s",
+\14\17"FN":"%s",
+\14\18"LN":"%s"
+;;ResultsTrailer
+\13\00}}\0d\0a
