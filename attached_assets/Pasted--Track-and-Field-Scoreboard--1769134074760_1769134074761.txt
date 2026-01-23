@@ -1,0 +1,650 @@
+============================================
+  Track and Field Scoreboard
+============================================
+
+Checking for Node.js...
+Node.js found.
+
+Starting server...
+Server will run at http://localhost:5000
+Press Ctrl+C to stop.
+
+🔄 Running in EDGE mode with SQLite database: ./data/scoreboard.db
+✅ Scoring presets initialized
+✅ Split defaults initialized
+✅ ResulTV parser event handlers registered
+[Lynx] Started 4 listeners
+✅ Lynx listeners auto-started for Edge Mode on default ports
+   - Big Board Results: port 4554 (results_big)
+   - FinishLynx Results: port 4555 (results)
+   - FinishLynx Clock: port 4556 (clock)
+   - FieldLynx: port 4557 (field)
+[Lynx:Big Board Results] Listening on port 4554
+[Lynx:FinishLynx Results] Listening on port 4555
+[Lynx:FinishLynx Clock] Listening on port 4556
+[Lynx:FieldLynx] Listening on port 4557
+9:03:14 PM [express] serving on port 5000
+🔄 Starting auto-refresh service...
+[EVT Watcher] Initialized 0 watchers
+[Lynx:FinishLynx Clock] Client connected from 127.0.0.1
+[Lynx] Connection clock: connected
+[Lynx:Big Board Results] Client connected from 127.0.0.1
+[Lynx] Connection results_big: connected
+
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+9:03:37 PM [express] GET /api/meets 200 in 3ms :: []
+9:03:37 PM [express] GET /api/meets/31963730-3135-4827-9a47-fc4b14814e43 404 in 1ms :: {"error":"Mee…
+WebSocket client connected
+✅ Loaded 10 default scene templates with 9 mappings (embedded)
+✅ Seeded 9 scene template mappings for meet 33fc26de-774e-479c-976d-3feddc184ea5
+✅ Seeded 10 default scenes for meet 33fc26de-774e-479c-976d-3feddc184ea5
+9:03:42 PM [express] POST /api/meets 200 in 28ms :: {"id":"33fc26de-774e-479c-976d-3feddc184ea5","se…
+9:03:42 PM [express] GET /api/meets 200 in 1ms :: [{"id":"33fc26de-774e-479c-976d-3feddc184ea5","sea…
+9:03:42 PM [express] GET /api/meets/31963730-3135-4827-9a47-fc4b14814e43 404 in 1ms :: {"error":"Mee…
+9:03:44 PM [express] GET /api/edge-config 304 in 1ms :: {"cloudUrl":"","edgeId":""}
+9:03:44 PM [express] GET /api/version 304 in 1ms :: {"version":"1.1.0","date":"2026-01-13","releaseN…
+9:03:44 PM [express] GET /api/meets/33fc26de-774e-479c-976d-3feddc184ea5 200 in 1ms :: {"id":"33fc26…
+9:03:44 PM [express] GET /api/events 200 in 2ms :: []
+Extracted colors: {
+  primaryColor: '#4F2C2E',
+  secondaryColor: '#1F1212',
+  accentColor: '#FFB432',
+  textColor: '#FFFFFF'
+}
+Extracted color scheme from logo: {
+  primaryColor: '#4F2C2E',
+  secondaryColor: '#1F1212',
+  accentColor: '#FFB432',
+  textColor: '#FFFFFF'
+}
+9:04:00 PM [express] POST /api/meets/33fc26de-774e-479c-976d-3feddc184ea5/logo 200 in 209ms :: {"suc…
+9:04:00 PM [express] GET /api/meets/33fc26de-774e-479c-976d-3feddc184ea5 200 in 1ms :: {"id":"33fc26…
+9:04:26 PM [express] GET /api/meets 200 in 0ms :: [{"id":"33fc26de-774e-479c-976d-3feddc184ea5","sea…
+WebSocket client connected
+9:04:37 PM [express] GET /api/meets/33fc26de-774e-479c-976d-3feddc184ea5 200 in 0ms :: {"id":"33fc26…
+9:04:37 PM [express] GET /api/meets/33fc26de-774e-479c-976d-3feddc184ea5/scoring/standings 200 in 1m…
+9:04:37 PM [express] GET /api/scene-template-mappings/33fc26de-774e-479c-976d-3feddc184ea5 200 in 0m…
+9:04:37 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 8ms
+WebSocket client connected
+Display device registering: ma (BigBoard) for meet 33fc26de-774e-479c-976d-3feddc184ea5, clientDeviceId: new
+Created new device: ma (e79b3070-808d-4a80-88ef-a538847c653f)
+Display device registered: ma (e79b3070-808d-4a80-88ef-a538847c653f)
+9:04:42 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 4ms
+9:04:47 PM [express] GET /api/meets/33fc26de-774e-479c-976d-3feddc184ea5/scoring/standings 304 in 1m…
+9:04:47 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 4ms
+9:04:52 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 4ms
+9:04:57 PM [express] GET /api/meets/33fc26de-774e-479c-976d-3feddc184ea5/scoring/standings 304 in 1m…
+9:04:57 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 5ms
+9:05:02 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 3ms
+9:05:07 PM [express] GET /api/meets/33fc26de-774e-479c-976d-3feddc184ea5/scoring/standings 304 in 0m…
+9:05:07 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 4ms
+9:05:12 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 3ms
+9:05:17 PM [express] GET /api/meets/33fc26de-774e-479c-976d-3feddc184ea5/scoring/standings 304 in 0m…
+9:05:18 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 3ms
+[Lynx] Layout command from FinishLynx: Running (results_big)
+[Lynx] Layout command: Running (BIG BOARD)
+[Lynx] Batched track: Event 0 Heat 1 mode=start_list with 0 entries (results_big)
+[Lynx] Track mode change: Event 0 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 0 Heat 1 mode=start_list with 0 entries (results_big)
+[Lynx] Track mode change: Event 0 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 0 Heat 1 mode=start_list with 0 entries (results_big)
+[Lynx] Track mode change: Event 0 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 0 Heat 1 mode=start_list with 0 entries (results_big)
+[Lynx] Track mode change: Event 0 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 0 Heat 1 mode=start_list with 0 entries (results_big)
+[Lynx] Track mode change: Event 0 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 0 Heat 1 mode=start_list with 0 entries (results_big)
+[Lynx] Track mode change: Event 0 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 0 Heat 1 mode=start_list with 0 entries (results_big)
+[Lynx] Track mode change: Event 0 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 0 Heat 1 mode=start_list with 0 entries (results_big)
+[Lynx] Track mode change: Event 0 → start_list (BIG BOARD)
+9:05:20 PM [express] GET /api/layout-scenes/10 200 in 1ms :: {"id":10,"meetId":"33fc26de-774e-479c-9…
+9:05:20 PM [express] GET /api/layout-objects 200 in 1ms :: [{"id":136,"sceneId":10,"name":"Box 878",…
+9:05:21 PM [express] GET /api/meets/33fc26de-774e-479c-976d-3feddc184ea5 304 in 1ms :: {"id":"33fc26…
+9:05:21 PM [express] GET /api/live-events 200 in 1ms :: []
+9:05:22 PM [express] GET /api/live-events 304 in 1ms :: []
+9:05:23 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 4ms
+9:05:23 PM [express] GET /api/live-events 304 in 1ms :: []
+9:05:24 PM [express] GET /api/live-events 304 in 2ms :: []
+9:05:25 PM [express] GET /api/live-events 304 in 1ms :: []
+9:05:26 PM [express] GET /api/live-events 304 in 1ms :: []
+9:05:27 PM [express] GET /api/live-events 304 in 0ms :: []
+9:05:27 PM [express] GET /api/meets/33fc26de-774e-479c-976d-3feddc184ea5/scoring/standings 304 in 0m…
+9:05:28 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 4ms
+9:05:28 PM [express] GET /api/live-events 304 in 1ms :: []
+9:05:29 PM [express] GET /api/live-events 304 in 0ms :: []
+9:05:30 PM [express] GET /api/live-events 304 in 0ms :: []
+9:05:31 PM [express] GET /api/live-events 304 in 1ms :: []
+9:05:32 PM [express] GET /api/live-events 304 in 1ms :: []
+9:05:33 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 4ms
+9:05:33 PM [express] GET /api/live-events 304 in 0ms :: []
+[Lynx] Layout command from FinishLynx: Running (results_big)
+[Lynx] Layout command: Running (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+9:05:34 PM [express] GET /api/live-events 304 in 0ms :: []
+9:05:35 PM [express] GET /api/live-events 304 in 1ms :: []
+9:05:36 PM [express] GET /api/live-events 304 in 1ms :: []
+9:05:37 PM [express] GET /api/meets/33fc26de-774e-479c-976d-3feddc184ea5/scoring/standings 304 in 1m…
+9:05:37 PM [express] GET /api/live-events 304 in 1ms :: []
+9:05:38 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 6ms
+9:05:38 PM [express] GET /api/live-events 304 in 0ms :: []
+9:05:39 PM [express] GET /api/live-events 304 in 0ms :: []
+9:05:41 PM [express] GET /api/live-events 304 in 1ms :: []
+[Lynx] Layout command from FinishLynx: Running (results_big)
+[Lynx] Layout command: Running (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 0 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 0 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 0 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 0 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+9:05:42 PM [express] GET /api/live-events 304 in 0ms :: []
+9:05:43 PM [express] GET /api/live-events 304 in 1ms :: []
+9:05:43 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 3ms
+9:05:44 PM [express] GET /api/live-events 304 in 1ms :: []
+9:05:45 PM [express] GET /api/live-events 304 in 0ms :: []
+9:05:46 PM [express] GET /api/live-events 304 in 1ms :: []
+9:05:47 PM [express] GET /api/live-events 304 in 1ms :: []
+9:05:47 PM [express] GET /api/meets/33fc26de-774e-479c-976d-3feddc184ea5/scoring/standings 304 in 1m…
+9:05:48 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 3ms
+9:05:48 PM [express] GET /api/live-events 304 in 0ms :: []
+9:05:49 PM [express] GET /api/live-events 304 in 1ms :: []
+9:05:50 PM [express] GET /api/live-events 304 in 0ms :: []
+9:05:51 PM [express] GET /api/live-events 304 in 0ms :: []
+[Lynx] Layout command from FinishLynx: Start List (results_big)
+[Lynx] Layout command: Start List (BIG BOARD)
+[Lynx] Clearing big board entry accumulator for new page (0 entries cleared)
+[Lynx] Status change: Event 19 → UNOFFICIAL → Layout: Results (results_big)
+[Lynx] Layout command: Results (BIG BOARD)
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 1
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 2
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 3
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 4
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 5
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 6
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 7
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 8
+9:05:51 PM [express] GET /api/layout-scenes/7 200 in 1ms :: {"id":7,"meetId":"33fc26de-774e-479c-976…
+9:05:51 PM [express] GET /api/layout-objects 200 in 1ms :: [{"id":89,"sceneId":7,"name":"Box 1463","…
+9:05:51 PM [express] GET /api/layout-scenes/3 200 in 1ms :: {"id":3,"meetId":"33fc26de-774e-479c-976…
+9:05:51 PM [express] GET /api/layout-objects 200 in 1ms :: [{"id":34,"sceneId":3,"name":"Box 1504","…
+9:05:52 PM [express] GET /api/live-events 304 in 0ms :: []
+9:05:53 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 3ms
+9:05:53 PM [express] GET /api/live-events 304 in 0ms :: []
+9:05:54 PM [express] GET /api/live-events 304 in 1ms :: []
+9:05:55 PM [express] GET /api/live-events 304 in 1ms :: []
+9:05:56 PM [express] GET /api/live-events 304 in 1ms :: []
+9:05:57 PM [express] GET /api/live-events 304 in 1ms :: []
+9:05:57 PM [express] GET /api/meets/33fc26de-774e-479c-976d-3feddc184ea5/scoring/standings 304 in 0m…
+9:05:58 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 4ms
+9:05:58 PM [express] GET /api/live-events 304 in 0ms :: []
+[Lynx] Layout command from FinishLynx: Start List (results_big)
+[Lynx] Layout command: Start List (BIG BOARD)
+[Lynx] Clearing big board entry accumulator for new page (8 entries cleared)
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 1
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 2
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 3
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 4
+[Lynx] Batched start list: Event 19 Heat 1 with 0 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +0 entries, total: 4
+[Lynx] Batched start list: Event 19 Heat 1 with 0 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +0 entries, total: 4
+[Lynx] Batched start list: Event 19 Heat 1 with 0 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +0 entries, total: 4
+[Lynx] Batched start list: Event 19 Heat 1 with 0 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +0 entries, total: 4
+9:05:59 PM [express] GET /api/layout-scenes/7 304 in 1ms :: {"id":7,"meetId":"33fc26de-774e-479c-976…
+9:05:59 PM [express] GET /api/layout-objects 304 in 1ms :: [{"id":89,"sceneId":7,"name":"Box 1463","…
+9:05:59 PM [express] GET /api/live-events 304 in 1ms :: []
+9:06:00 PM [express] GET /api/live-events 304 in 0ms :: []
+9:06:02 PM [express] GET /api/live-events 304 in 1ms :: []
+9:06:03 PM [express] GET /api/live-events 304 in 0ms :: []
+9:06:03 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 3ms
+9:06:04 PM [express] GET /api/live-events 304 in 1ms :: []
+9:06:05 PM [express] GET /api/live-events 304 in 0ms :: []
+9:06:06 PM [express] GET /api/live-events 304 in 0ms :: []
+9:06:07 PM [express] GET /api/live-events 304 in 0ms :: []
+9:06:07 PM [express] GET /api/meets/33fc26de-774e-479c-976d-3feddc184ea5/scoring/standings 304 in 1m…
+[Lynx] Layout command from FinishLynx: Start List (results_big)
+[Lynx] Layout command: Start List (BIG BOARD)
+[Lynx] Clearing big board entry accumulator for new page (4 entries cleared)
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 1
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 2
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 3
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 4
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 5
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 6
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 7
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 8
+9:06:08 PM [express] GET /api/live-events 304 in 0ms :: []
+9:06:08 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 4ms
+9:06:09 PM [express] GET /api/live-events 304 in 1ms :: []
+9:06:10 PM [express] GET /api/live-events 304 in 1ms :: []
+9:06:11 PM [express] GET /api/live-events 304 in 1ms :: []
+9:06:12 PM [express] GET /api/live-events 304 in 1ms :: []
+9:06:13 PM [express] GET /api/live-events 304 in 0ms :: []
+9:06:13 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 3ms
+9:06:14 PM [express] GET /api/live-events 304 in 0ms :: []
+9:06:15 PM [express] GET /api/live-events 304 in 1ms :: []
+[Lynx] Layout command from FinishLynx: Start List (results_big)
+[Lynx] Layout command: Start List (BIG BOARD)
+[Lynx] Clearing big board entry accumulator for new page (8 entries cleared)
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 1
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 2
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 3
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 4
+[Lynx] Batched start list: Event 19 Heat 1 with 0 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +0 entries, total: 4
+[Lynx] Batched start list: Event 19 Heat 1 with 0 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +0 entries, total: 4
+[Lynx] Batched start list: Event 19 Heat 1 with 0 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +0 entries, total: 4
+[Lynx] Batched start list: Event 19 Heat 1 with 0 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +0 entries, total: 4
+9:06:16 PM [express] GET /api/live-events 304 in 1ms :: []
+9:06:17 PM [express] GET /api/live-events 304 in 0ms :: []
+9:06:17 PM [express] GET /api/meets/33fc26de-774e-479c-976d-3feddc184ea5/scoring/standings 304 in 1m…
+9:06:18 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 3ms
+9:06:18 PM [express] GET /api/live-events 304 in 1ms :: []
+9:06:19 PM [express] GET /api/live-events 304 in 0ms :: []
+9:06:20 PM [express] GET /api/live-events 304 in 0ms :: []
+9:06:21 PM [express] GET /api/live-events 304 in 1ms :: []
+9:06:22 PM [express] GET /api/live-events 304 in 1ms :: []
+9:06:23 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 3ms
+9:06:23 PM [express] GET /api/live-events 304 in 0ms :: []
+[Lynx] Layout command from FinishLynx: Start List (results_big)
+[Lynx] Layout command: Start List (BIG BOARD)
+[Lynx] Clearing big board entry accumulator for new page (4 entries cleared)
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 1
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 2
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 3
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 4
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 5
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 6
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 7
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 8
+9:06:24 PM [express] GET /api/live-events 304 in 1ms :: []
+9:06:25 PM [express] GET /api/live-events 304 in 1ms :: []
+9:06:26 PM [express] GET /api/live-events 304 in 0ms :: []
+9:06:27 PM [express] GET /api/meets/33fc26de-774e-479c-976d-3feddc184ea5/scoring/standings 304 in 0m…
+9:06:28 PM [express] GET /api/live-events 304 in 1ms :: []
+9:06:28 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 4ms
+9:06:29 PM [express] GET /api/live-events 304 in 1ms :: []
+9:06:30 PM [express] GET /api/live-events 304 in 1ms :: []
+9:06:31 PM [express] GET /api/live-events 304 in 0ms :: []
+[Lynx] Layout command from FinishLynx: Start List (results_big)
+[Lynx] Layout command: Start List (BIG BOARD)
+[Lynx] Clearing big board entry accumulator for new page (8 entries cleared)
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 1
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 2
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 3
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 4
+[Lynx] Batched start list: Event 19 Heat 1 with 0 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +0 entries, total: 4
+[Lynx] Batched start list: Event 19 Heat 1 with 0 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +0 entries, total: 4
+[Lynx] Batched start list: Event 19 Heat 1 with 0 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +0 entries, total: 4
+[Lynx] Batched start list: Event 19 Heat 1 with 0 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +0 entries, total: 4
+9:06:32 PM [express] GET /api/live-events 304 in 0ms :: []
+9:06:33 PM [express] GET /api/live-events 304 in 1ms :: []
+9:06:33 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 3ms
+9:06:34 PM [express] GET /api/live-events 304 in 0ms :: []
+9:06:35 PM [express] GET /api/live-events 304 in 0ms :: []
+9:06:36 PM [express] GET /api/live-events 304 in 0ms :: []
+9:06:37 PM [express] GET /api/live-events 304 in 1ms :: []
+9:06:38 PM [express] GET /api/meets/33fc26de-774e-479c-976d-3feddc184ea5/scoring/standings 304 in 0m…
+9:06:38 PM [express] GET /api/live-events 304 in 0ms :: []
+9:06:38 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 2ms
+9:06:39 PM [express] GET /api/live-events 304 in 1ms :: []
+[Lynx] Layout command from FinishLynx: Start List (results_big)
+[Lynx] Layout command: Start List (BIG BOARD)
+[Lynx] Clearing big board entry accumulator for new page (4 entries cleared)
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 1
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 2
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 3
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 4
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 5
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 6
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 7
+[Lynx] Batched start list: Event 19 Heat 1 with 1 entries (results_big)
+[Lynx] Start list (BIG BOARD): Event 19, Heat 1, +1 entries, total: 8
+9:06:40 PM [express] GET /api/live-events 304 in 1ms :: []
+9:06:41 PM [express] GET /api/live-events 304 in 1ms :: []
+9:06:42 PM [express] GET /api/live-events 304 in 1ms :: []
+9:06:43 PM [express] GET /api/live-events 304 in 1ms :: []
+9:06:43 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 3ms
+9:06:44 PM [express] GET /api/live-events 304 in 1ms :: []
+9:06:45 PM [express] GET /api/live-events 304 in 0ms :: []
+9:06:46 PM [express] GET /api/live-events 304 in 0ms :: []
+[Lynx] Layout command from FinishLynx: Running (results_big)
+[Lynx] Layout command: Running (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+9:06:47 PM [express] GET /api/layout-objects 304 in 1ms :: [{"id":136,"sceneId":10,"name":"Box 878",…
+9:06:47 PM [express] GET /api/layout-scenes/10 304 in 1ms :: {"id":10,"meetId":"33fc26de-774e-479c-9…
+9:06:47 PM [express] GET /api/meets/33fc26de-774e-479c-976d-3feddc184ea5 304 in 1ms :: {"id":"33fc26…
+9:06:47 PM [express] GET /api/live-events 304 in 1ms :: []
+9:06:48 PM [express] GET /api/meets/33fc26de-774e-479c-976d-3feddc184ea5/scoring/standings 304 in 0m…
+9:06:48 PM [express] GET /api/live-events 304 in 1ms :: []
+9:06:48 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 3ms
+[Lynx] Layout command from FinishLynx: Running (results_big)
+[Lynx] Layout command: Running (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+9:06:49 PM [express] GET /api/live-events 304 in 1ms :: []
+[Lynx] Layout command from FinishLynx: Running (results_big)
+[Lynx] Layout command: Running (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Layout command from FinishLynx: Running (results_big)
+[Lynx] Layout command: Running (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Layout command from FinishLynx: Running (results_big)
+[Lynx] Layout command: Running (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+9:06:50 PM [express] GET /api/live-events 304 in 1ms :: []
+9:06:51 PM [express] GET /api/live-events 304 in 1ms :: []
+9:06:52 PM [express] GET /api/live-events 304 in 1ms :: []
+9:06:53 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 3ms
+9:06:54 PM [express] GET /api/live-events 304 in 1ms :: []
+9:06:55 PM [express] GET /api/live-events 304 in 1ms :: []
+9:06:56 PM [express] GET /api/live-events 304 in 1ms :: []
+9:06:57 PM [express] GET /api/live-events 304 in 0ms :: []
+9:06:58 PM [express] GET /api/meets/33fc26de-774e-479c-976d-3feddc184ea5/scoring/standings 304 in 0m…
+9:06:58 PM [express] GET /api/live-events 304 in 1ms :: []
+[Lynx] Layout command from FinishLynx: Running (results_big)
+[Lynx] Layout command: Running (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 0 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 0 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 0 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 0 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+9:06:58 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 4ms
+9:06:59 PM [express] GET /api/live-events 304 in 1ms :: []
+9:07:00 PM [express] GET /api/live-events 304 in 0ms :: []
+9:07:01 PM [express] GET /api/live-events 304 in 1ms :: []
+9:07:02 PM [express] GET /api/live-events 304 in 1ms :: []
+9:07:03 PM [express] GET /api/live-events 304 in 1ms :: []
+9:07:04 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 3ms
+9:07:04 PM [express] GET /api/live-events 304 in 1ms :: []
+9:07:05 PM [express] GET /api/live-events 304 in 1ms :: []
+[Lynx] Layout command from FinishLynx: Running (results_big)
+[Lynx] Layout command: Running (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+9:07:06 PM [express] GET /api/live-events 304 in 1ms :: []
+9:07:07 PM [express] GET /api/live-events 304 in 0ms :: []
+9:07:08 PM [express] GET /api/meets/33fc26de-774e-479c-976d-3feddc184ea5/scoring/standings 304 in 1m…
+9:07:08 PM [express] GET /api/live-events 304 in 0ms :: []
+9:07:09 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 4ms
+9:07:09 PM [express] GET /api/live-events 304 in 0ms :: []
+9:07:10 PM [express] GET /api/live-events 304 in 0ms :: []
+9:07:11 PM [express] GET /api/live-events 304 in 1ms :: []
+[Lynx] Layout command from FinishLynx: Results (results_big)
+[Lynx] Layout command: Results (BIG BOARD)
+[Lynx] Result: Event 19, Lane 1, Place 1, Time 10:00.00
+[Lynx] Batched track: Event 19 Heat 1 mode=results with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → results (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+9:07:12 PM [express] GET /api/layout-scenes/3 304 in 1ms :: {"id":3,"meetId":"33fc26de-774e-479c-976…
+9:07:12 PM [express] GET /api/layout-objects 304 in 1ms :: [{"id":34,"sceneId":3,"name":"Box 1504","…
+9:07:12 PM [express] GET /api/live-events 200 in 0ms :: [{"id":1,"eventNumber":19,"meetId":null,"eve…
+9:07:13 PM [express] GET /api/live-events 304 in 0ms :: [{"id":1,"eventNumber":19,"meetId":null,"eve…
+9:07:14 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 3ms
+9:07:14 PM [express] GET /api/live-events 304 in 0ms :: [{"id":1,"eventNumber":19,"meetId":null,"eve…
+9:07:15 PM [express] GET /api/live-events 304 in 1ms :: [{"id":1,"eventNumber":19,"meetId":null,"eve…
+9:07:16 PM [express] GET /api/live-events 304 in 1ms :: [{"id":1,"eventNumber":19,"meetId":null,"eve…
+9:07:17 PM [express] GET /api/live-events 304 in 0ms :: [{"id":1,"eventNumber":19,"meetId":null,"eve…
+9:07:18 PM [express] GET /api/meets/33fc26de-774e-479c-976d-3feddc184ea5/scoring/standings 304 in 1m…
+9:07:19 PM [express] GET /api/live-events 304 in 0ms :: [{"id":1,"eventNumber":19,"meetId":null,"eve…
+9:07:19 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 2ms
+9:07:20 PM [express] GET /api/live-events 304 in 0ms :: [{"id":1,"eventNumber":19,"meetId":null,"eve…
+9:07:21 PM [express] GET /api/live-events 304 in 1ms :: [{"id":1,"eventNumber":19,"meetId":null,"eve…
+9:07:22 PM [express] GET /api/live-events 304 in 1ms :: [{"id":1,"eventNumber":19,"meetId":null,"eve…
+9:07:23 PM [express] GET /api/live-events 304 in 0ms :: [{"id":1,"eventNumber":19,"meetId":null,"eve…
+[Lynx] Layout command from FinishLynx: Results (results_big)
+[Lynx] Layout command: Results (BIG BOARD)
+[Lynx] Result: Event 19, Lane 1, Place 1, Time 10:00.00
+[Lynx] Batched track: Event 19 Heat 1 mode=results with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → results (BIG BOARD)
+[Lynx] Result: Event 19, Lane 2, Place 2, Time 11:00.
+[Lynx] Batched track: Event 19 Heat 1 mode=results with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → results (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+9:07:24 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 3ms
+9:07:24 PM [express] GET /api/live-events 200 in 0ms :: [{"id":1,"eventNumber":19,"meetId":null,"eve…
+9:07:25 PM [express] GET /api/live-events 304 in 1ms :: [{"id":1,"eventNumber":19,"meetId":null,"eve…
+9:07:26 PM [express] GET /api/live-events 304 in 1ms :: [{"id":1,"eventNumber":19,"meetId":null,"eve…
+9:07:27 PM [express] GET /api/live-events 304 in 0ms :: [{"id":1,"eventNumber":19,"meetId":null,"eve…
+9:07:28 PM [express] GET /api/meets/33fc26de-774e-479c-976d-3feddc184ea5/scoring/standings 304 in 0m…
+9:07:28 PM [express] GET /api/live-events 304 in 1ms :: [{"id":1,"eventNumber":19,"meetId":null,"eve…
+9:07:29 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 4ms
+9:07:29 PM [express] GET /api/live-events 304 in 1ms :: [{"id":1,"eventNumber":19,"meetId":null,"eve…
+[Lynx] Layout command from FinishLynx: Results (results_big)
+[Lynx] Layout command: Results (BIG BOARD)
+[Lynx] Result: Event 19, Lane 1, Place 1, Time 10:00.00
+[Lynx] Batched track: Event 19 Heat 1 mode=results with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → results (BIG BOARD)
+[Lynx] Result: Event 19, Lane 2, Place 2, Time 11:00.00
+[Lynx] Batched track: Event 19 Heat 1 mode=results with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → results (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+[Lynx] Batched track: Event 19 Heat 1 mode=start_list with 1 entries (results_big)
+[Lynx] Track mode change: Event 19 → start_list (BIG BOARD)
+9:07:30 PM [express] GET /api/live-events 200 in 1ms :: [{"id":1,"eventNumber":19,"meetId":null,"eve…
+9:07:31 PM [express] GET /api/live-events 304 in 1ms :: [{"id":1,"eventNumber":19,"meetId":null,"eve…
+9:07:32 PM [express] GET /api/live-events 304 in 1ms :: [{"id":1,"eventNumber":19,"meetId":null,"eve…
+9:07:33 PM [express] GET /api/live-events 304 in 1ms :: [{"id":1,"eventNumber":19,"meetId":null,"eve…
+9:07:34 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 3ms
+9:07:34 PM [express] GET /api/live-events 304 in 1ms :: [{"id":1,"eventNumber":19,"meetId":null,"eve…
+9:07:35 PM [express] GET /api/live-events 304 in 1ms :: [{"id":1,"eventNumber":19,"meetId":null,"eve…
+9:07:36 PM [express] GET /api/live-events 304 in 1ms :: [{"id":1,"eventNumber":19,"meetId":null,"eve…
+9:07:37 PM [express] GET /api/live-events 304 in 0ms :: [{"id":1,"eventNumber":19,"meetId":null,"eve…
+9:07:38 PM [express] GET /api/meets/33fc26de-774e-479c-976d-3feddc184ea5/scoring/standings 304 in 1m…
+9:07:38 PM [express] GET /api/live-events 304 in 1ms :: [{"id":1,"eventNumber":19,"meetId":null,"eve…
+9:07:39 PM [express] GET /api/events/current/33fc26de-774e-479c-976d-3feddc184ea5 200 in 3ms
+9:07:39 PM [express] GET /api/live-events 304 in 1ms :: [{"id":1,"eventNumber":19,"meetId":null,"eve…
+9:07:40 PM [express] GET /api/live-events 304 in 0ms :: [{"id":1,"eventNumber":19,"meetId":null,"eve…
+9:07:41 PM [express] GET /api/live-events 304 in 1ms :: [{"id":1,"eventNumber":19,"meetId":null,"eve…
+9:07:42 PM [express] GET /api/live-events 304 in 0ms :: [{"id":1,"eventNumber":19,"meetId":null,"eve…

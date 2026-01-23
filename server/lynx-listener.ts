@@ -367,11 +367,55 @@ export class LynxListener extends EventEmitter {
     const { objects, remaining } = this.extractJsonObjects(buffer);
     this.buffers.set(socket, remaining);
     
+    // BATCH PROCESSING: Collect all JSON objects from this TCP chunk
+    // Process layout commands immediately, but batch athlete data
+    const jsonBatch: string[] = [];
+    let lastLayoutCommand: string | null = null;
+    
     for (const obj of objects) {
-      if (obj.trim()) {
-        this.parseLine(obj, config);
+      const trimmed = obj.trim();
+      if (!trimmed) continue;
+      
+      // Check for layout command - process immediately and track it
+      const layoutMatch = trimmed.match(/Command=LayoutDraw;Name=([^;]+)/i);
+      if (layoutMatch) {
+        // If we have a pending batch, process it first
+        if (jsonBatch.length > 0) {
+          this.processBatchedJsonObjects(jsonBatch, config);
+          jsonBatch.length = 0;
+        }
+        lastLayoutCommand = layoutMatch[1].trim();
+        console.log(`[Lynx] Layout command from FinishLynx: ${lastLayoutCommand} (${config.portType})`);
+        this.emit('layout-command', lastLayoutCommand, config.portType);
+      }
+      
+      // If it's a JSON object, add to batch
+      if (trimmed.startsWith('{')) {
+        jsonBatch.push(trimmed);
+      } else if (!layoutMatch) {
+        // Non-JSON, non-command content - process individually
+        this.parseLine(trimmed, config);
       }
     }
+    
+    // Process any remaining batched JSON objects
+    if (jsonBatch.length > 0) {
+      this.processBatchedJsonObjects(jsonBatch, config);
+    }
+  }
+  
+  private processBatchedJsonObjects(jsonStrings: string[], config: PortConfig) {
+    // Parse all JSON objects and send to batched handler
+    const packet: LynxPacket = {
+      sourcePort: config.port,
+      portType: config.portType,
+      raw: jsonStrings.join('\n'),
+      timestamp: Date.now(),
+    };
+    
+    // Combine all JSON strings into a single line for batch parsing
+    const combined = jsonStrings.join('\r\n');
+    this.parseJsonLine(combined, packet, config);
   }
   
   private extractJsonObjects(buffer: string): { objects: string[]; remaining: string } {
