@@ -1,4 +1,13 @@
 @echo off
+
+:: Check for admin rights and request if needed
+net session >nul 2>&1
+if %errorlevel% neq 0 (
+    echo Requesting administrator privileges...
+    powershell -Command "Start-Process '%~f0' -ArgumentList '%*' -Verb RunAs"
+    exit /b
+)
+
 setlocal
 
 set PORT=%1
