@@ -1003,11 +1003,11 @@ export function SceneCanvas({
     
     if (isRunning) {
       // Running/splits mode: only show entries with split data
+      // Don't include 'time' check - we specifically want split data only
       filteredEntries = entries.filter((entry: any) => {
         const hasLastSplit = entry.lastSplit && String(entry.lastSplit).trim() !== '';
         const hasCumulativeSplit = entry.cumulativeSplit && String(entry.cumulativeSplit).trim() !== '';
-        const hasTime = entry.time && String(entry.time).trim() !== '';
-        return hasLastSplit || hasCumulativeSplit || hasTime;
+        return hasLastSplit || hasCumulativeSplit;
       });
       return {
         ...rawLiveData,
