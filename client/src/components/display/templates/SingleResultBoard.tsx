@@ -95,7 +95,7 @@ export function SingleResultBoard({ event, meet, mode, athleteId }: SingleResult
           <p className="text-[48px] text-[hsl(var(--display-muted))] mb-12" data-testid="text-event-details">
             {event.name}
             {roundInfo.roundLabel && ` • ${roundInfo.roundLabel}`}
-            {roundInfo.heat && (roundInfo.totalHeats === 1 ? ' • Final' : ` • Heat ${roundInfo.heat}`)}
+            {roundInfo.heat && (roundInfo.totalHeats === 1 ? ' • Final' : ` • Heat ${roundInfo.heat} of ${roundInfo.totalHeats}`)}
           </p>
 
           <div className="flex items-center justify-center gap-6">
