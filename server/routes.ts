@@ -6219,10 +6219,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // First try the EVT watcher cache, then fall back to database
         const cachedHeats = getTotalHeatsFromCache(event.meetId, data.eventNumber, roundNum);
+        console.log(`[Lynx Heat Debug] eventNumber=${data.eventNumber}, meetId=${event.meetId}, round=${roundNum}, cachedHeats=${cachedHeats}`);
         if (cachedHeats !== null) {
           totalHeats = cachedHeats;
         } else {
           totalHeats = await storage.getTotalHeatsForEvent(event.id, roundStr);
+          console.log(`[Lynx Heat Debug] Fallback to DB: totalHeats=${totalHeats}`);
         }
         totalRounds = event.numRounds || 1;
         
@@ -6577,10 +6579,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // First try the EVT watcher cache, then fall back to database
         const cachedHeats = getTotalHeatsFromCache(event.meetId, eventNumber, roundNum);
+        console.log(`[Lynx StartList Heat Debug] eventNumber=${eventNumber}, meetId=${event.meetId}, round=${roundNum}, cachedHeats=${cachedHeats}`);
         if (cachedHeats !== null) {
           totalHeats = cachedHeats;
         } else {
           totalHeats = await storage.getTotalHeatsForEvent(event.id, roundStr);
+          console.log(`[Lynx StartList Heat Debug] Fallback to DB: totalHeats=${totalHeats}`);
         }
         totalRounds = event.numRounds || 1;
         
