@@ -476,10 +476,15 @@ export function SceneObjectRenderer({
             return '';
           };
           
-          // Format heat as "X of Y" if totalHeats is available
-          const heatDisplay = liveData.heat && liveData.totalHeats && liveData.totalHeats > 1
-            ? `${liveData.heat} OF ${liveData.totalHeats}`
-            : liveData.heat;
+          // Format heat as "Heat X of Y" if multiple heats, "Final" if single heat
+          let heatDisplay: string | number | undefined;
+          if (liveData.totalHeats && liveData.totalHeats > 1 && liveData.heat) {
+            heatDisplay = `Heat ${liveData.heat} of ${liveData.totalHeats}`;
+          } else if (liveData.totalHeats === 1 || (liveData.heat && !liveData.totalHeats)) {
+            heatDisplay = 'Final';
+          } else {
+            heatDisplay = liveData.heat;
+          }
           
           // Filter wind - only show if valid numeric data (not NWI or empty)
           // Also strip out "M/S" unit and any other text after the number
