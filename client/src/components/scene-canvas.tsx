@@ -950,6 +950,9 @@ export function SceneCanvas({
   const [dimensions, setDimensions] = useState({ width: 1920, height: 1080 });
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   
+  // Ref to hold "last complete splits data" - prevents paging before all splits arrive
+  const heldSplitsDataRef = useRef<any>(null);
+  
   const skipSceneQuery = !!propScene;
   const skipObjectsQuery = !!propObjects;
   
@@ -967,6 +970,7 @@ export function SceneCanvas({
   
   // Use entries in arrival order for start_list (FinishLynx controls display order)
   // Only sort results mode by place
+  // For splits mode: hold display until all entries have splits (prevents premature paging)
   const liveData = useMemo(() => {
     if (!rawLiveData) return rawLiveData;
     
@@ -993,6 +997,9 @@ export function SceneCanvas({
     let filteredEntries = entries;
     
     if (isResults) {
+      // Clear held data when switching to results mode
+      heldSplitsDataRef.current = null;
+      
       // Results mode: only show entries with time or place
       filteredEntries = entries.filter((entry: any) => {
         const hasTime = entry.time && String(entry.time).trim() !== '';
@@ -1012,15 +1019,34 @@ export function SceneCanvas({
     }
     
     if (hasSplitData) {
-      // Splits are being shown: only show entries that have split data
-      filteredEntries = entries.filter((entry: any) => entrySplitData(entry));
-      return {
-        ...rawLiveData,
-        entries: filteredEntries,
-      };
+      // Splits are being shown: check if ALL entries have split data
+      const allHaveSplits = entries.every((entry: any) => entrySplitData(entry));
+      
+      if (allHaveSplits) {
+        // All entries have splits - update display and save as held data
+        filteredEntries = entries.filter((entry: any) => entrySplitData(entry));
+        const completeData = {
+          ...rawLiveData,
+          entries: filteredEntries,
+        };
+        heldSplitsDataRef.current = completeData;
+        return completeData;
+      } else {
+        // Not all entries have splits yet - hold on current data if we have it
+        if (heldSplitsDataRef.current) {
+          return heldSplitsDataRef.current;
+        }
+        // No held data - show what we have (filtered)
+        filteredEntries = entries.filter((entry: any) => entrySplitData(entry));
+        return {
+          ...rawLiveData,
+          entries: filteredEntries,
+        };
+      }
     }
     
-    // For start_list mode (no splits yet), keep all entries in arrival order
+    // For start_list mode (no splits yet), clear held data and show all entries
+    heldSplitsDataRef.current = null;
     return rawLiveData;
   }, [rawLiveData]);
   
