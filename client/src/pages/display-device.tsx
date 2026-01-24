@@ -644,8 +644,15 @@ export default function DisplayDevice() {
                 return hasLastSplit || hasCumulativeSplit || hasSplitsArray || hasLapsToGo;
               });
               
-              // Auto-switch to running_time_splits scene if splits detected and we're in running mode
+              // Debug: log split detection details
               const currentMode = currentLayoutModeRef.current;
+              console.log(`[Display] Split detection: hasSplitData=${hasSplitData}, currentLayoutMode=${currentMode}, currentSceneId=${state.currentSceneId}`);
+              if (entries.length > 0) {
+                const e = entries[0];
+                console.log(`[Display] Entry[0] split fields: lastSplit="${e.lastSplit || ''}", cumulativeSplit="${e.cumulativeSplit || ''}", lapsToGo="${e.lapsToGo || ''}", splits=${JSON.stringify(e.splits || [])}`);
+              }
+              
+              // Auto-switch to running_time_splits scene if splits detected and we're in running mode
               if (hasSplitData && currentMode === 'running_time' && displayType) {
                 // Check if there's a running_time_splits scene configured
                 const splitsSceneId = getSceneForModeRef.current(displayType, 'running_time_splits');
