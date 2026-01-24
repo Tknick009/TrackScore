@@ -189,6 +189,29 @@ function getConnectedDevicesForMeet(meetId: string): string[] {
   return devices;
 }
 
+// Get the active meet ID from connected displays (for Lynx heat count lookup)
+// Returns the meetId that has the most connected displays, or null if none connected
+function getActiveMeetIdFromDisplays(): string | null {
+  const meetCounts = new Map<string, number>();
+  connectedDisplayDevices.forEach((device) => {
+    if (device.meetId) {
+      meetCounts.set(device.meetId, (meetCounts.get(device.meetId) || 0) + 1);
+    }
+  });
+  
+  // Return the meet with the most connected displays
+  let activeMeetId: string | null = null;
+  let maxCount = 0;
+  meetCounts.forEach((count, meetId) => {
+    if (count > maxCount) {
+      maxCount = count;
+      activeMeetId = meetId;
+    }
+  });
+  
+  return activeMeetId;
+}
+
 // Helper to broadcast current event state
 async function broadcastCurrentEvent() {
   const currentEvent = await storage.getCurrentEvent();
@@ -6208,11 +6231,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Get total heats from EVT watcher only
+      // Get total heats from EVT watcher for the active meet (based on connected displays)
       const roundNum = data.round ? parseInt(String(data.round)) : 1;
-      const evtHeats = getTotalHeatsFromAnyWatcher(data.eventNumber, roundNum);
+      const activeMeetId = getActiveMeetIdFromDisplays();
+      let evtHeats: number | null = null;
+      if (activeMeetId) {
+        evtHeats = getTotalHeatsFromCache(activeMeetId, data.eventNumber, roundNum);
+        console.log(`[Lynx Heat] eventNumber=${data.eventNumber}, round=${roundNum}, totalHeats=${evtHeats} (active meet: ${activeMeetId})`);
+      } else {
+        // Fallback to searching all watchers if no displays connected
+        evtHeats = getTotalHeatsFromAnyWatcher(data.eventNumber, roundNum);
+        console.log(`[Lynx Heat] eventNumber=${data.eventNumber}, round=${roundNum}, totalHeats=${evtHeats} (no active meet, searched all)`);
+      }
       const totalHeats = evtHeats ?? 1;
-      console.log(`[Lynx Heat] eventNumber=${data.eventNumber}, round=${roundNum}, totalHeats=${totalHeats} (from EVT watcher: ${evtHeats !== null})`);
       
       // Get round name from database if event exists
       let roundName = 'Finals';
@@ -6554,11 +6585,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     console.log(`[Lynx] Start list (${isBigBoard ? 'BIG BOARD' : 'standard'}): Event ${eventNumber}, Heat ${heat}, +${entries.length} entries, total: ${acc.entries.length}`);
     
-    // Get total heats from EVT watcher only
+    // Get total heats from EVT watcher for the active meet (based on connected displays)
     const roundNum = metadata?.round ? parseInt(String(metadata.round)) : 1;
-    const evtHeats = getTotalHeatsFromAnyWatcher(eventNumber, roundNum);
+    const activeMeetId = getActiveMeetIdFromDisplays();
+    let evtHeats: number | null = null;
+    if (activeMeetId) {
+      evtHeats = getTotalHeatsFromCache(activeMeetId, eventNumber, roundNum);
+      console.log(`[Lynx StartList Heat] eventNumber=${eventNumber}, round=${roundNum}, totalHeats=${evtHeats} (active meet: ${activeMeetId})`);
+    } else {
+      // Fallback to searching all watchers if no displays connected
+      evtHeats = getTotalHeatsFromAnyWatcher(eventNumber, roundNum);
+      console.log(`[Lynx StartList Heat] eventNumber=${eventNumber}, round=${roundNum}, totalHeats=${evtHeats} (no active meet, searched all)`);
+    }
     const totalHeats = evtHeats ?? 1;
-    console.log(`[Lynx StartList Heat] eventNumber=${eventNumber}, round=${roundNum}, totalHeats=${totalHeats} (from EVT watcher: ${evtHeats !== null})`);
     
     // Get round name from database if event exists
     let roundName = 'Finals';
