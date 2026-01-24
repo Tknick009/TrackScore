@@ -1135,7 +1135,7 @@ export function SceneCanvas({
     
     return (
       <div 
-        className="fixed overflow-hidden display-layout animate-in fade-in duration-150"
+        className="fixed overflow-hidden display-layout"
         style={{ 
           top: 0,
           left: 0,
@@ -1193,7 +1193,6 @@ export function SceneCanvas({
       data-testid="scene-canvas"
     >
       <div
-        className="animate-in fade-in duration-150"
         key={`scene-${sceneId}`}
         style={{
           position: 'absolute',
