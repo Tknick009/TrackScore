@@ -451,12 +451,28 @@ export default function DisplayDevice() {
             if (mappingMeetId === selectedMeetIdRef.current && mappingDisplayType === displayType) {
               console.log(`[Display] Scene mapping changed: ${mappingDisplayType}/${mappingDisplayMode} → scene ${newSceneId}`);
               
-              // Invalidate the mappings cache so future lookups use the new value
+              // Update the local mappings ref immediately (don't wait for query refetch)
+              // This ensures the next split detection or mode change uses the new mapping
+              const existingMappings = sceneMappingsRef.current || [];
+              const updatedMappings = existingMappings.filter(
+                m => !(m.displayType === mappingDisplayType && m.displayMode === mappingDisplayMode)
+              );
+              updatedMappings.push({
+                id: 0, // temporary ID
+                meetId: mappingMeetId,
+                displayType: mappingDisplayType,
+                displayMode: mappingDisplayMode,
+                sceneId: newSceneId,
+              });
+              sceneMappingsRef.current = updatedMappings;
+              console.log(`[Display] Updated local mappings cache: ${updatedMappings.length} mappings`);
+              
+              // Also invalidate the query cache for consistency
               queryClient.invalidateQueries({ queryKey: [`/api/scene-template-mappings/${mappingMeetId}`] });
               
               // If this mapping is for the current layout mode, switch to the new scene immediately
               if (currentLayoutModeRef.current === mappingDisplayMode) {
-                console.log(`[Display] Current mode matches - switching to scene ${newSceneId}`);
+                console.log(`[Display] Current mode matches (${mappingDisplayMode}) - switching to scene ${newSceneId}`);
                 
                 // Fetch the new scene data and switch
                 fetch(`/api/layout-scenes/${newSceneId}`)
