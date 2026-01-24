@@ -547,7 +547,12 @@ export default function DisplayDevice() {
               currentLayoutModeRef.current = displayMode;
               
               // Look up the scene from Scene Layout Mappings (use ref for current values)
-              const sceneId = getSceneForModeRef.current(displayType, displayMode);
+              // For running_time, fall back to start_list scene if not configured (same layout, just with clock)
+              let sceneId = getSceneForModeRef.current(displayType, displayMode);
+              if (!sceneId && displayMode === 'running_time') {
+                sceneId = getSceneForModeRef.current(displayType, 'start_list');
+                console.log(`[Display] No running_time scene, falling back to start_list scene: ${sceneId}`);
+              }
               console.log(`[Display] Mode "${displayMode}" → Scene ID: ${sceneId || 'none (using default template)'}`);
               
               if (sceneId) {
