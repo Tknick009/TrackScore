@@ -3931,6 +3931,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         displayMode,
         sceneId: parseInt(sceneId),
       });
+      
+      // Broadcast mapping change to all displays so they update without refresh
+      broadcastToDisplays({
+        type: 'scene_mapping_changed',
+        meetId,
+        displayType,
+        displayMode,
+        sceneId: parseInt(sceneId),
+      });
+      
       res.json(mapping);
     } catch (error: any) {
       res.status(500).json({ error: error.message });

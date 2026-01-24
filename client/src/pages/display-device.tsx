@@ -443,6 +443,45 @@ export default function DisplayDevice() {
             }
           }
           
+          // Scene mapping changed - update display without refresh when operator changes scene mappings
+          if (message.type === 'scene_mapping_changed') {
+            const { meetId: mappingMeetId, displayType: mappingDisplayType, displayMode: mappingDisplayMode, sceneId: newSceneId } = message;
+            
+            // Check if this mapping is for our meet and display type
+            if (mappingMeetId === selectedMeetIdRef.current && mappingDisplayType === displayType) {
+              console.log(`[Display] Scene mapping changed: ${mappingDisplayType}/${mappingDisplayMode} → scene ${newSceneId}`);
+              
+              // Invalidate the mappings cache so future lookups use the new value
+              queryClient.invalidateQueries({ queryKey: [`/api/scene-template-mappings/${mappingMeetId}`] });
+              
+              // If this mapping is for the current layout mode, switch to the new scene immediately
+              if (currentLayoutModeRef.current === mappingDisplayMode) {
+                console.log(`[Display] Current mode matches - switching to scene ${newSceneId}`);
+                
+                // Fetch the new scene data and switch
+                fetch(`/api/layout-scenes/${newSceneId}`)
+                  .then(res => res.json())
+                  .then(scene => {
+                    return fetch(`/api/layout-objects?sceneId=${newSceneId}`)
+                      .then(res => res.json())
+                      .then(objects => {
+                        // Hydrate cache for instant rendering
+                        queryClient.setQueryData(['/api/layout-scenes', newSceneId], scene);
+                        queryClient.setQueryData(['/api/layout-objects', { sceneId: newSceneId }], objects);
+                        
+                        setState(prev => ({
+                          ...prev,
+                          currentTemplate: null,
+                          currentSceneId: newSceneId,
+                          currentSceneData: { scene, objects },
+                        }));
+                      });
+                  })
+                  .catch(err => console.error('[Display] Failed to fetch new scene:', err));
+              }
+            }
+          }
+          
           // Layout command from FinishLynx - switch scenes based on Scene Layout Mapping
           // Maps FinishLynx layout names to displayMode, then looks up scene from mappings
           // DEBOUNCING: Ignore duplicate layout commands to prevent glitchy transitions
