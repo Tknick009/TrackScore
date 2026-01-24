@@ -376,7 +376,12 @@ export function SceneObjectRenderer({
           // FinishLynx sends batched entries - display maps by array position
           // Line 1 = entries[0], Line 2 = entries[1], etc.
           const firstEntry = entries.length > athleteIndex ? entries[athleteIndex] : null;
-          const schoolName = firstEntry?.affiliation || firstEntry?.team;
+          // For relay events, use athlete name (contains team name like "Vermont A")
+          const currentEventName = liveData.eventName || '';
+          const isRelay = currentEventName.toLowerCase().includes('relay');
+          const schoolName = isRelay 
+            ? (firstEntry?.name || firstEntry?.affiliation || firstEntry?.team)
+            : (firstEntry?.affiliation || firstEntry?.team);
           if (schoolName) {
             logoUrl = `/logos/NCAA/${schoolName}.png`;
           }
