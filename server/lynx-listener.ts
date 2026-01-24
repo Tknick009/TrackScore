@@ -17,7 +17,7 @@ interface LynxListenerEvents {
   'result': (eventNumber: number, lane: number, place: number, time: string, athleteName?: string) => void;
   'field-result': (eventNumber: number, athleteName: string, place: number, mark: string, attemptNumber: number, attempts?: string) => void;
   'field-athlete-up': (eventNumber: number, athleteName: string, attemptNumber: number, mark?: string) => void;
-  'start-list': (eventNumber: number, heat: number, entries: LynxStartListEntry[], metadata?: { eventName?: string; distance?: string; sourcePortType?: LynxPortType }) => void;
+  'start-list': (eventNumber: number, heat: number, entries: LynxStartListEntry[], metadata?: { eventName?: string; distance?: string; round?: number; sourcePortType?: LynxPortType }) => void;
   'connection': (portType: LynxPortType, connected: boolean) => void;
   'error': (error: Error, portType: LynxPortType) => void;
 }
@@ -179,6 +179,7 @@ export class LynxListener extends EventEmitter {
         this.emit('start-list', event.eventNumber, event.heat, sortedEntries as LynxStartListEntry[], {
           eventName: event.eventName,
           distance: event.distance,
+          round: event.round,
           sourcePortType: event.sourcePortType, // Pass through for big board routing
         });
         break;
@@ -204,12 +205,14 @@ export class LynxListener extends EventEmitter {
           this.emit('start-list', event.eventNumber, event.heat, startListEntries as LynxStartListEntry[], {
             eventName: event.eventName,
             distance: event.distance,
+            round: event.round,
             sourcePortType: event.sourcePortType, // Pass through for big board routing
           });
         } else if (sortedEntries.some(e => (e as LynxTrackResult).place && (e as LynxTrackResult).time)) {
           this.emit('track-mode-change', event.eventNumber, 'results', {
             eventNumber: event.eventNumber,
             heat: event.heat,
+            round: event.round,
             distance: event.distance,
             wind: event.wind,
             eventName: event.eventName,
@@ -248,6 +251,7 @@ export class LynxListener extends EventEmitter {
           // Only emit start-list - the handler will trigger auto-mode after aggregation
           this.emit('start-list', event.eventNumber, event.heat, startListEntries as LynxStartListEntry[], {
             eventName: event.eventName,
+            round: event.round,
             sourcePortType: event.sourcePortType, // Pass through for channel routing
           });
         }
@@ -812,12 +816,13 @@ export class LynxListener extends EventEmitter {
       }
     }
     
-    console.log(`[Lynx] Batched start list: Event ${eventNum} Heat ${heat} with ${entries.length} entries (${config.portType})`);
+    console.log(`[Lynx] Batched start list: Event ${eventNum} Heat ${heat} Round ${round} with ${entries.length} entries (${config.portType})`);
     
     // Emit ONCE with all entries from packet
     this.emit('start-list', eventNum, heat, entries, {
       eventName: resolvedEventName,
       distance,
+      round,
       sourcePortType: config.portType,
     });
   }
@@ -844,7 +849,7 @@ export class LynxListener extends EventEmitter {
     // Check for ARMED status
     if (status.toUpperCase() === 'ARMED') {
       this.isRunning = false;
-      this.emit('track-mode-change', eventNum, 'start_list', { armed: true, heat, sourcePortType: config.portType });
+      this.emit('track-mode-change', eventNum, 'start_list', { armed: true, heat, round, sourcePortType: config.portType });
       return;
     }
     
@@ -1033,6 +1038,7 @@ export class LynxListener extends EventEmitter {
     this.emit('start-list', eventNum, heat, entry ? [entry] : [], {
       eventName: resolvedEventName,
       distance,
+      round,
       sourcePortType: config.portType, // Track source for big board routing
     });
   }
@@ -1064,14 +1070,14 @@ export class LynxListener extends EventEmitter {
     
     if (status === 'ARMED') {
       this.isRunning = false;
-      this.emit('track-mode-change', eventNum, 'start_list', { armed: true, heat, sourcePortType: config.portType });
+      this.emit('track-mode-change', eventNum, 'start_list', { armed: true, heat, round, sourcePortType: config.portType });
       return;
     }
     
     if (status === 'RUNNING' || (time && !place)) {
       this.isRunning = true;
       if (!wasRunning) {
-        this.emit('track-mode-change', eventNum, 'running', { heat, time, sourcePortType: config.portType });
+        this.emit('track-mode-change', eventNum, 'running', { heat, round, time, sourcePortType: config.portType });
       }
       if (time) {
         this.emit('clock-update', eventNum, time, '');
