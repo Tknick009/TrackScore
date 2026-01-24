@@ -1,0 +1,50 @@
+
+﻿
+service-worker.js:43 Uncaught (in promise) TypeError: Failed to execute 'put' on 'Cache': Request method 'POST' is unsupported
+    at service-worker.js:43:17
+service-worker.js:43 Uncaught (in promise) TypeError: Failed to execute 'put' on 'Cache': Request method 'PATCH' is unsupported
+    at service-worker.js:43:17
+7
+service-worker.js:43 Uncaught (in promise) TypeError: Failed to execute 'put' on 'Cache': Request method 'POST' is unsupported
+    at service-worker.js:43:17
+service-worker.js:43 Uncaught (in promise) TypeError: Failed to execute 'put' on 'Cache': Request method 'DELETE' is unsupported
+    at service-worker.js:43:17
+service-worker.js:43 Uncaught (in promise) TypeError: Failed to execute 'put' on 'Cache': Request method 'POST' is unsupported
+    at service-worker.js:43:17
+service-worker.js:43 Uncaught (in promise) TypeError: Failed to execute 'put' on 'Cache': Request method 'DELETE' is unsupported
+    at service-worker.js:43:17
+service-worker.js:43 Uncaught (in promise) TypeError: Failed to execute 'put' on 'Cache': Request method 'POST' is unsupported
+    at service-worker.js:43:17
+service-worker.js:43 Uncaught (in promise) TypeError: Failed to execute 'put' on 'Cache': Request method 'DELETE' is unsupported
+    at service-worker.js:43:17
+3
+service-worker.js:43 Uncaught (in promise) TypeError: Failed to execute 'put' on 'Cache': Request method 'POST' is unsupported
+    at service-worker.js:43:17
+chunk-RPCDYKBN.js?v=a553e6ad:21551 Download the React DevTools for a better development experience: https://reactjs.org/link/react-devtools
+WebSocketContext.tsx:33 Connecting to WebSocket: ws://localhost:5000/ws
+client:536 WebSocket connection to 'ws://localhost:5000/?token=b1Byu5Rp4c0U' failed: 
+client:536 Uncaught (in promise) SyntaxError: Failed to construct 'WebSocket': The URL 'ws://localhost:undefined/?token=b1Byu5Rp4c0U' is invalid.
+    at setupWebSocket (client:536:19)
+    at fallback (client:509:16)
+    at WebSocket.<anonymous> (client:555:7)
+WebSocketContext.tsx:38 WebSocket connected
+service-worker.js:43 Uncaught (in promise) TypeError: Failed to execute 'put' on 'Cache': Request method 'POST' is unsupported
+    at service-worker.js:43:17
+WebSocketContext.tsx:45 WebSocket disconnected
+WebSocketContext.tsx:62 Reconnecting in 1000ms (attempt 1)
+WebSocketContext.tsx:33 Connecting to WebSocket: ws://localhost:5000/ws
+WebSocketContext.tsx:34 WebSocket connection to 'ws://localhost:5000/ws' failed: 
+WebSocketContext.tsx:71 WebSocket error: 
+Event
+WebSocketContext.tsx:45 WebSocket disconnected
+WebSocketContext.tsx:62 Reconnecting in 2000ms (attempt 2)
+WebSocketContext.tsx:33 Connecting to WebSocket: ws://localhost:5000/ws
+WebSocketContext.tsx:34 WebSocket connection to 'ws://localhost:5000/ws' failed: 
+WebSocketContext.tsx:71 WebSocket error: 
+Event
+WebSocketContext.tsx:45 WebSocket disconnected
+WebSocketContext.tsx:62 Reconnecting in 4000ms (attempt 3)
+WebSocketContext.tsx:33 Connecting to WebSocket: ws://localhost:5000/ws
+WebSocketContext.tsx:38 WebSocket connected
+service-worker.js:43 Uncaught (in promise) TypeError: Failed to execute 'put' on 'Cache': Request method 'POST' is unsupported
+    at service-worker.js:43:17
