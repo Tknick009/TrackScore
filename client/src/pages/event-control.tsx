@@ -1,12 +1,14 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Event, EntryWithDetails } from "@shared/schema";
+import { Event, EntryWithDetails, isTimeEvent } from "@shared/schema";
 import { ConnectionStatus } from "@/components/connection-status";
 import { useMeet } from "@/contexts/MeetContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { 
   PlayCircle, 
@@ -21,7 +23,8 @@ import {
   Loader2,
   Radio,
   Eye,
-  AlertCircle
+  AlertCircle,
+  FastForward
 } from "lucide-react";
 import { Link, useRoute } from "wouter";
 import {
@@ -33,14 +36,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-function isTrackEvent(eventType: string): boolean {
-  const trackEvents = [
-    "100m", "200m", "400m", "800m", "1500m", "3000m", "5000m", "10000m",
-    "100m_hurdles", "110m_hurdles", "400m_hurdles", "3000m_steeplechase",
-    "4x100m_relay", "4x400m_relay", "4x800m_relay"
-  ];
-  return trackEvents.some(t => eventType.toLowerCase().includes(t.replace('_', '')));
-}
 
 function getEventStatusBadge(status: string) {
   switch (status) {
@@ -140,6 +135,37 @@ export default function EventControl() {
     },
   });
 
+  const [advanceByPlace, setAdvanceByPlace] = useState<number | null>(null);
+  const [advanceByTime, setAdvanceByTime] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (event) {
+      setAdvanceByPlace(event.advanceByPlace ?? null);
+      setAdvanceByTime(event.advanceByTime ?? null);
+    }
+  }, [event?.id, event?.advanceByPlace, event?.advanceByTime]);
+
+  const updateAdvancementMutation = useMutation({
+    mutationFn: (data: { advanceByPlace: number | null; advanceByTime: number | null }) =>
+      apiRequest("PATCH", `/api/events/${eventId}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/events", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/events", currentMeetId] });
+      toast({ title: "Advancement formula updated" });
+    },
+  });
+
+  const handleSaveAdvancement = () => {
+    updateAdvancementMutation.mutate({
+      advanceByPlace: advanceByPlace || null,
+      advanceByTime: advanceByTime || null,
+    });
+  };
+
+  const advancementFormula = (advanceByPlace || advanceByTime)
+    ? `${advanceByPlace || 0}+${advanceByTime || 0}`
+    : null;
+
   const sortedEntries = useMemo(() => {
     return [...eventEntries].sort((a, b) => {
       const aPlace = a.finalPlace || a.semifinalPlace || a.quarterfinalPlace || a.preliminaryPlace || 999;
@@ -160,7 +186,7 @@ export default function EventControl() {
     e.preliminaryMark || e.quarterfinalMark || e.semifinalMark || e.finalMark
   );
 
-  const isTrack = event ? isTrackEvent(event.eventType) : false;
+  const isTrack = event ? isTimeEvent(event.eventType) : false;
 
   if (eventLoading) {
     return (
@@ -316,6 +342,70 @@ export default function EventControl() {
               </CardContent>
             </Card>
           </div>
+
+          {isTrack && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <FastForward className="w-5 h-5" />
+                  Advancement Formula
+                  {advancementFormula && (
+                    <Badge variant="outline" className="ml-2">{advancementFormula}</Badge>
+                  )}
+                </CardTitle>
+                <CardDescription>
+                  Configure how athletes advance to the next round (Q = by place, q = by time)
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="advanceByPlace">Advance by Place (Q)</Label>
+                    <Input
+                      id="advanceByPlace"
+                      type="number"
+                      min="0"
+                      placeholder="e.g., 3"
+                      value={advanceByPlace ?? ""}
+                      onChange={(e) => setAdvanceByPlace(e.target.value ? parseInt(e.target.value) : null)}
+                      data-testid="input-advance-by-place"
+                    />
+                    <p className="text-xs text-muted-foreground">Top finishers per heat that automatically qualify</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="advanceByTime">Advance by Time (q)</Label>
+                    <Input
+                      id="advanceByTime"
+                      type="number"
+                      min="0"
+                      placeholder="e.g., 2"
+                      value={advanceByTime ?? ""}
+                      onChange={(e) => setAdvanceByTime(e.target.value ? parseInt(e.target.value) : null)}
+                      data-testid="input-advance-by-time"
+                    />
+                    <p className="text-xs text-muted-foreground">Additional fastest times across all heats</p>
+                  </div>
+                </div>
+                <Button
+                  onClick={handleSaveAdvancement}
+                  disabled={updateAdvancementMutation.isPending}
+                  className="mt-4"
+                  data-testid="button-save-advancement"
+                >
+                  {updateAdvancementMutation.isPending ? "Saving..." : "Save Advancement"}
+                </Button>
+                {advancementFormula && (
+                  <div className="mt-3 p-3 bg-muted rounded-md">
+                    <p className="text-sm font-medium">Formula: {advancementFormula}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Top {advanceByPlace || 0} per heat advance with <span className="font-bold">Q</span>, 
+                      plus next {advanceByTime || 0} fastest times advance with <span className="font-bold">q</span>
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>
