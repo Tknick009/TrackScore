@@ -399,6 +399,8 @@ export const events = pgTable("events", {
   status: text("status").notNull().default("scheduled"),
   numRounds: integer("num_rounds").default(1),
   numLanes: integer("num_lanes").default(8),
+  advanceByPlace: integer("advance_by_place"), // Athletes per heat that advance by position (big Q)
+  advanceByTime: integer("advance_by_time"), // Athletes that advance by time across all heats (little q)
   eventDate: timestamp("event_date"), // Scheduled date for this event
   eventTime: text("event_time"), // Scheduled time string (e.g., "2:30 PM")
   sessionName: text("session_name"), // Session name from HyTek (e.g., "Thursday AM", "Friday Finals")
