@@ -180,6 +180,22 @@ export const FIELD_BINDINGS: Record<string, FieldBinding> = {
     dataKey: 'staticImageUrl',
     category: 'media',
   },
+  'advancement-formula': {
+    key: 'advancement-formula',
+    label: 'Advancement Formula',
+    type: 'text',
+    description: 'Advancement rule (e.g., "3+2" meaning top 3 by place + 2 fastest times)',
+    dataKey: 'advancementFormula',
+    category: 'event',
+  },
+  'qualifier': {
+    key: 'qualifier',
+    label: 'Qualifier Status',
+    type: 'text',
+    description: 'Q = qualified by place, q = qualified by time',
+    dataKey: 'qualifier',
+    category: 'result',
+  },
 };
 
 export const TEXT_FIELD_BINDINGS = Object.values(FIELD_BINDINGS).filter(f => f.type === 'text');
@@ -209,12 +225,55 @@ export function formatHeatDisplay(heat: number | undefined, totalHeats: number |
   return `Heat ${heat} of ${totalHeats}`;
 }
 
+// Format advancement formula as "X+Y" (e.g., "3+2" means top 3 by place + 2 fastest)
+export function formatAdvancementFormula(advanceByPlace: number | undefined, advanceByTime: number | undefined): string {
+  if (!advanceByPlace && !advanceByTime) return '';
+  const place = advanceByPlace || 0;
+  const time = advanceByTime || 0;
+  if (time > 0) {
+    return `${place}+${time}`;
+  }
+  return `${place}`;
+}
+
+// Determine qualifier status: Q = qualified by place, q = qualified by time
+export function getQualifierStatus(
+  place: number | undefined,
+  advanceByPlace: number | undefined,
+  advanceByTime: number | undefined
+): string {
+  if (!place || place <= 0) return '';
+  const placeLimit = advanceByPlace || 0;
+  const timeLimit = advanceByTime || 0;
+  
+  // If no advancement formula, no qualifier
+  if (placeLimit === 0 && timeLimit === 0) return '';
+  
+  // Qualified by place (big Q)
+  if (placeLimit > 0 && place <= placeLimit) {
+    return 'Q';
+  }
+  
+  // Qualified by time (little q) - this is determined by comparing times across heats
+  // For now, return 'q' as a placeholder - actual determination needs time comparison
+  // The q will be set by the backend or manually when processing results
+  return '';
+}
+
 export function resolveFieldValue(fieldKey: string, data: Record<string, any>): string {
   const binding = FIELD_BINDINGS[fieldKey];
   if (!binding) return '';
   
   if (fieldKey === 'heat-number') {
     return formatHeatDisplay(data.heat, data.totalHeats);
+  }
+  
+  if (fieldKey === 'advancement-formula') {
+    return formatAdvancementFormula(data.advanceByPlace, data.advanceByTime);
+  }
+  
+  if (fieldKey === 'qualifier') {
+    return getQualifierStatus(data.place, data.advanceByPlace, data.advanceByTime);
   }
   
   return data[binding.dataKey] ?? '';

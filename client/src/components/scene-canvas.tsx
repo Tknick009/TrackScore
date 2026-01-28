@@ -521,6 +521,27 @@ export function SceneObjectRenderer({
             && windUpper !== 'NWI' && !windUpper.includes('NWI') && windStr !== '';
           const windDisplay = isValidWind ? windStr : '';
           
+          // Compute qualifier status: Q = qualified by place, q = qualified by time
+          const advanceByPlace = liveData.advanceByPlace;
+          const advanceByTime = liveData.advanceByTime;
+          let qualifierStatus = '';
+          const entryPlace = parseInt(String(firstEntry?.place || '0'));
+          if (entryPlace > 0 && advanceByPlace) {
+            if (entryPlace <= advanceByPlace) {
+              qualifierStatus = 'Q'; // Qualified by place
+            }
+            // Note: little 'q' for time qualifiers would need cross-heat comparison
+            // and is typically set by the backend or manually
+          }
+          
+          // Format advancement formula as "X+Y" (e.g., "3+2")
+          let advancementFormula = '';
+          if (advanceByPlace || advanceByTime) {
+            const place = advanceByPlace || 0;
+            const time = advanceByTime || 0;
+            advancementFormula = time > 0 ? `${place}+${time}` : `${place}`;
+          }
+          
           const fieldMap: Record<string, any> = {
             'event-name': eventName,
             'event-number': liveData.eventNumber,
@@ -540,6 +561,8 @@ export function SceneObjectRenderer({
             'cumulative-split': firstEntry?.cumulativeSplit,
             'reaction-time': firstEntry?.reactionTime,
             'bib': firstEntry?.bib,
+            'advancement-formula': advancementFormula,
+            'qualifier': qualifierStatus,
           };
           const resolvedValue = fieldMap[fieldKey];
           if (resolvedValue !== undefined && resolvedValue !== null && resolvedValue !== '') {

@@ -6255,13 +6255,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const totalHeats = evtHeats ?? 1;
       
-      // Get round name from database if event exists
+      // Get round name and advancement formula from database if event exists
       let roundName = 'Finals';
       let totalRounds = 1;
+      let advanceByPlace: number | null = null;
+      let advanceByTime: number | null = null;
       
       if (matchingEvents.length > 0) {
         const event = matchingEvents[0];
         totalRounds = event.numRounds || 1;
+        advanceByPlace = event.advanceByPlace ?? null;
+        advanceByTime = event.advanceByTime ?? null;
         
         // Determine round name based on event configuration
         if (totalRounds === 1) {
@@ -6295,6 +6299,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           totalHeats, // Include total heats for "Heat X of Y" display
           roundName, // Include round name for "Prelims", "Finals", etc.
           totalRounds, // Total rounds configured for event
+          advanceByPlace, // For qualifier display (big Q)
+          advanceByTime, // For qualifier display (little q)
           ...data, // Pass through all raw data from FinishLynx
         }
       } as any);
@@ -6609,15 +6615,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     const totalHeats = evtHeats ?? 1;
     
-    // Get round name from database if event exists
+    // Get round name and advancement formula from database if event exists
     let roundName = 'Finals';
     let totalRounds = 1;
+    let advanceByPlace: number | null = null;
+    let advanceByTime: number | null = null;
     
     try {
       const matchingEvents = await storage.getEventsByLynxEventNumber(eventNumber);
       if (matchingEvents.length > 0) {
         const event = matchingEvents[0];
         totalRounds = event.numRounds || 1;
+        advanceByPlace = event.advanceByPlace ?? null;
+        advanceByTime = event.advanceByTime ?? null;
         
         // Determine round name based on event configuration
         if (totalRounds === 1) {
@@ -6654,6 +6664,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalHeats, // Include total heats for "Heat X of Y" display
         roundName, // Include round name for "Prelims", "Finals", etc.
         totalRounds, // Total rounds configured for event
+        advanceByPlace, // For qualifier display (big Q)
+        advanceByTime, // For qualifier display (little q)
         entries: acc.entries, // Arrival order = display order
         eventName: acc.eventName,
         distance: acc.distance,
