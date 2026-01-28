@@ -251,6 +251,25 @@ export function SceneObjectRenderer({
     shouldHide = true;
   }
   
+  // Fade entries that don't have timing data yet (25% opacity until first split/time)
+  // Only applies to objects bound to an athlete during running_time modes
+  let entryHasTimingData = true; // Default to full opacity
+  const athleteIndex = dataBinding.athleteIndex;
+  const isRunningMode = liveData?.mode === 'running' || liveData?.mode === 'running_time';
+  if (athleteIndex !== undefined && athleteIndex >= 0 && liveData && isRunningMode) {
+    const entries = Array.isArray(liveData.entries) ? liveData.entries : [];
+    const entry = entries[athleteIndex];
+    if (entry) {
+      // Check if entry has any timing data (splits, time, or running time)
+      const hasLastSplit = entry.lastSplit && String(entry.lastSplit).trim() !== '';
+      const hasCumulativeSplit = entry.cumulativeSplit && String(entry.cumulativeSplit).trim() !== '';
+      const hasTime = entry.time && String(entry.time).trim() !== '';
+      const hasRunningTime = entry.runningTime && String(entry.runningTime).trim() !== '';
+      entryHasTimingData = hasLastSplit || hasCumulativeSplit || hasTime || hasRunningTime;
+    }
+  }
+  const fadeOpacity = entryHasTimingData ? 1 : 0.25;
+  
   const objectStyle: React.CSSProperties = {
     position: "absolute",
     left: `${left}px`,
@@ -261,7 +280,7 @@ export function SceneObjectRenderer({
     overflow: "hidden",
     backgroundColor: bgColor,
     borderRadius: styleConfig.borderRadius || "0px",
-    opacity: shouldHide ? 0 : (styleConfig.opacity ?? 1),
+    opacity: shouldHide ? 0 : ((styleConfig.opacity ?? 1) * fadeOpacity),
     visibility: shouldHide ? 'hidden' : 'visible',
     padding: styleConfig.padding ? `${styleConfig.padding}px` : undefined,
     paddingLeft: styleConfig.paddingLeft ? `${styleConfig.paddingLeft}px` : undefined,
