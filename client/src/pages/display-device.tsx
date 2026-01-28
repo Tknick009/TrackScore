@@ -732,7 +732,8 @@ export default function DisplayDevice() {
                   mode: data.mode,
                   wind: data.wind,
                   distance: data.distance || prev.liveEventData?.distance,
-                  entries: entries,
+                  // Keep previous entries if no new entries (prevents flash during mode transitions)
+                  entries: entries.length > 0 ? entries : (prev.liveEventData?.entries || []),
                 },
               }));
             }
