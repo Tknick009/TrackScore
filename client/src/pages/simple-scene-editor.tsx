@@ -1326,6 +1326,7 @@ export default function SimpleSceneEditor() {
             {boxes.map((box) => {
               // Compute border styles based on borderSides
               const borderWidth = box.style?.borderWidth || 0;
+              const scaledBorderWidth = borderWidth * (displayWidth / canvasWidth);
               const borderColor = box.style?.borderColor || '#ffffff';
               const borderSides = box.style?.borderSides || ['all'];
               const hasAllBorders = borderSides.includes('all') || borderSides.length === 0;
@@ -1333,12 +1334,12 @@ export default function SimpleSceneEditor() {
               const borderStyles: React.CSSProperties = {};
               if (borderWidth > 0) {
                 if (hasAllBorders) {
-                  borderStyles.border = `${borderWidth}px solid ${borderColor}`;
+                  borderStyles.border = `${scaledBorderWidth}px solid ${borderColor}`;
                 } else {
-                  if (borderSides.includes('top')) borderStyles.borderTop = `${borderWidth}px solid ${borderColor}`;
-                  if (borderSides.includes('right')) borderStyles.borderRight = `${borderWidth}px solid ${borderColor}`;
-                  if (borderSides.includes('bottom')) borderStyles.borderBottom = `${borderWidth}px solid ${borderColor}`;
-                  if (borderSides.includes('left')) borderStyles.borderLeft = `${borderWidth}px solid ${borderColor}`;
+                  if (borderSides.includes('top')) borderStyles.borderTop = `${scaledBorderWidth}px solid ${borderColor}`;
+                  if (borderSides.includes('right')) borderStyles.borderRight = `${scaledBorderWidth}px solid ${borderColor}`;
+                  if (borderSides.includes('bottom')) borderStyles.borderBottom = `${scaledBorderWidth}px solid ${borderColor}`;
+                  if (borderSides.includes('left')) borderStyles.borderLeft = `${scaledBorderWidth}px solid ${borderColor}`;
                 }
               }
               
@@ -1366,8 +1367,10 @@ export default function SimpleSceneEditor() {
                   alignItems: 'center',
                   justifyContent: box.style?.textAlign === 'center' ? 'center' : 
                                   box.style?.textAlign === 'right' ? 'flex-end' : 'flex-start',
-                  padding: box.style?.padding ? `${box.style.padding}px` : '2px 4px',
-                  fontSize: `${(box.style?.fontSize || 14) * (displayWidth / 1920)}px`,
+                  padding: box.style?.padding 
+                    ? `${box.style.padding * (displayWidth / canvasWidth)}px` 
+                    : `${2 * (displayWidth / canvasWidth)}px ${4 * (displayWidth / canvasWidth)}px`,
+                  fontSize: `${(box.style?.fontSize || 14) * (displayWidth / canvasWidth)}px`,
                   overflow: 'hidden',
                   ...borderStyles,
                 }}
