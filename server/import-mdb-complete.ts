@@ -644,6 +644,22 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       const numRounds = row.Event_rounds ? Number(row.Event_rounds) : 1;
       const numLanes = row.Num_finlanes ? Number(row.Num_finlanes) : 8;
       
+      // Extract advancement formula from HyTek
+      // Top_no1/Next_Best1 = prelims advancement, Top_no2/Next_Best2 = quarters, Top_no3/Next_Best3 = semis
+      // Use the first round's advancement data (prelims → next round)
+      let advanceByPlace: number | null = null;
+      let advanceByTime: number | null = null;
+      
+      if (numRounds > 1) {
+        // Extract advancement from first round (prelims to next round)
+        if (row.Top_no1 !== null && row.Top_no1 !== undefined) {
+          advanceByPlace = Number(row.Top_no1) || null;
+        }
+        if (row.Next_Best1 !== null && row.Next_Best1 !== undefined) {
+          advanceByTime = Number(row.Next_Best1) || null;
+        }
+      }
+      
       eventBatch.push({
         meetId,
         eventNumber: eventNum,
@@ -659,6 +675,8 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         sessionName: sessionInfo?.name || null, // Session name from HyTek
         hytekStatus, // NEW: HyTek status from MDB
         isScored,    // NEW: Derived lock flag
+        advanceByPlace, // Advancement by place (Q qualifiers)
+        advanceByTime,  // Advancement by time (q qualifiers)
       });
     }
     
@@ -679,6 +697,8 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
             sessionName: sql`excluded.session_name`, // Session name from HyTek
             hytekStatus: sql`excluded.hytek_status`,
             isScored: sql`excluded.is_scored`,
+            advanceByPlace: sql`excluded.advance_by_place`,
+            advanceByTime: sql`excluded.advance_by_time`,
           }
         })
         .returning();
@@ -707,6 +727,8 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       console.log(`   ⏰ Events with Comm_1 parsed times: ${comm1TimesFound}`);
       console.log(`   🔒 Events marked as scored/done: ${eventBatch.filter(e => e.isScored).length}`);
       console.log(`   📝 Events with HyTek status: ${eventBatch.filter(e => e.hytekStatus).length}`);
+      console.log(`   🏃 Multi-round events: ${eventBatch.filter(e => e.numRounds > 1).length}`);
+      console.log(`   🎯 Events with advancement formula: ${eventBatch.filter(e => e.advanceByPlace || e.advanceByTime).length}`);
     }
   } catch (error) {
     console.error("   ❌ Error importing events:", error);
