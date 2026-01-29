@@ -705,10 +705,10 @@ export default function SimpleSceneEditor() {
       case 'place': return athleteData.place;
       case 'lane': return athleteData.lane;
       case 'bib': return athleteData.bib;
-      case 'name': return athleteData.name;
+      case 'name': return `${athleteData.firstName.charAt(0)}. ${athleteData.lastName}`;
       case 'first-name': return athleteData.firstName;
       case 'last-name': return athleteData.lastName;
-      case 'name-qualifier': return athleteData.name;
+      case 'name-qualifier': return `${athleteData.firstName.charAt(0)}. ${athleteData.lastName}`;
       case 'last-name-qualifier': return athleteData.lastName;
       case 'school': return athleteData.affiliation;
       case 'time': return athleteData.time;

@@ -493,9 +493,19 @@ export function SceneObjectRenderer({
               return `${firstName.charAt(0)}. ${lastName}`;
             }
             if (fullName) {
+              // Check if fullName is in "Last, First" format
+              if (fullName.includes(',')) {
+                const [last, first] = fullName.split(',').map(s => s.trim());
+                if (first && last) {
+                  return `${first.charAt(0)}. ${last}`;
+                }
+              }
+              // Otherwise assume "First Last" format
               const parts = fullName.trim().split(/\s+/);
               if (parts.length >= 2) {
-                return `${parts[0].charAt(0)}. ${parts.slice(1).join(' ')}`;
+                const first = parts[0];
+                const last = parts.slice(1).join(' ');
+                return `${first.charAt(0)}. ${last}`;
               }
               return fullName;
             }
