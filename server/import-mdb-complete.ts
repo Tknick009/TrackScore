@@ -660,6 +660,9 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         }
       }
       
+      // Auto-detect multi-event (Decathlon, Heptathlon, Pentathlon) from event name
+      const isMultiEvent = /\b(decathlon|heptathlon|pentathlon)\b/i.test(eventName);
+      
       eventBatch.push({
         meetId,
         eventNumber: eventNum,
@@ -677,6 +680,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         isScored,    // NEW: Derived lock flag
         advanceByPlace, // Advancement by place (Q qualifiers)
         advanceByTime,  // Advancement by time (q qualifiers)
+        isMultiEvent,   // Auto-detected from event name
       });
     }
     
@@ -699,6 +703,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
             isScored: sql`excluded.is_scored`,
             advanceByPlace: sql`excluded.advance_by_place`,
             advanceByTime: sql`excluded.advance_by_time`,
+            isMultiEvent: sql`excluded.is_multi_event`,
           }
         })
         .returning();
