@@ -1363,6 +1363,8 @@ export default function SimpleSceneEditor() {
                   zIndex: box.zIndex,
                   backgroundColor: bgColor,
                   color: box.style?.textColor || '#ffffff',
+                  fontFamily: "'Oswald', sans-serif",
+                  fontWeight: box.style?.fontWeight || 'normal',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: box.style?.textAlign === 'center' ? 'center' : 
