@@ -1402,7 +1402,7 @@ export default function SimpleSceneEditor() {
                     </span>
                     {showPreview && getPreviewQualifier(box.fieldKey, box.athleteIndex) && (
                       <span 
-                        className="ml-1 px-1 rounded font-bold flex-shrink-0"
+                        className="ml-1 px-2 py-1 rounded font-bold flex-shrink-0"
                         style={{
                           backgroundColor: '#22c55e',
                           color: '#166534',
