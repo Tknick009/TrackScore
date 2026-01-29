@@ -34,7 +34,7 @@ import {
   MousePointer, Square, Copy, Clipboard,
   Type, Image, ChevronLeft, Upload,
   Grid3X3, ZoomIn, ZoomOut, Undo2, Pencil,
-  LayoutGrid, Minus, Download, FolderUp
+  LayoutGrid, Minus, Download, FolderUp, Layers
 } from "lucide-react";
 
 type BoxType = 'text' | 'image';
@@ -82,8 +82,11 @@ export default function SimpleSceneEditor() {
   // Scene state
   const [currentScene, setCurrentScene] = useState<SelectLayoutScene | null>(null);
   const [boxes, setBoxes] = useState<LayoutBox[]>([]);
-  const [selectedBoxId, setSelectedBoxId] = useState<string | null>(null);
+  const [selectedBoxIds, setSelectedBoxIds] = useState<Set<string>>(new Set());
   const [clipboard, setClipboard] = useState<LayoutBox | null>(null);
+  
+  // Helper for single selection (first selected box for inspector)
+  const selectedBoxId = selectedBoxIds.size > 0 ? Array.from(selectedBoxIds)[0] : null;
   
   // Editor state
   const [tool, setTool] = useState<EditorTool>('select');
@@ -487,7 +490,7 @@ export default function SimpleSceneEditor() {
       setIsDrawing(true);
       setDrawStart(pos);
       setDrawCurrent(pos);
-      setSelectedBoxId(null);
+      setSelectedBoxIds(new Set());
     } else {
       // Check if clicking on a resize handle of selected box
       if (selectedBox) {
@@ -507,11 +510,24 @@ export default function SimpleSceneEditor() {
       );
       
       if (clickedBox) {
-        setSelectedBoxId(clickedBox.id);
+        // Multi-select with Shift or Ctrl/Cmd
+        if (e.shiftKey || e.ctrlKey || e.metaKey) {
+          setSelectedBoxIds(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(clickedBox.id)) {
+              newSet.delete(clickedBox.id);
+            } else {
+              newSet.add(clickedBox.id);
+            }
+            return newSet;
+          });
+        } else {
+          setSelectedBoxIds(new Set([clickedBox.id]));
+        }
         setIsDragging(true);
         setDragStart({ x: pos.x, y: pos.y, boxX: clickedBox.x, boxY: clickedBox.y });
       } else {
-        setSelectedBoxId(null);
+        setSelectedBoxIds(new Set());
       }
     }
   };
@@ -589,7 +605,7 @@ export default function SimpleSceneEditor() {
           },
         };
         setBoxes(prev => [...prev, newBox]);
-        setSelectedBoxId(newBox.id);
+        setSelectedBoxIds(new Set([newBox.id]));
         setTool('select'); // Switch back to select after drawing
       }
     }
@@ -607,9 +623,9 @@ export default function SimpleSceneEditor() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (selectedBoxId && !(e.target instanceof HTMLInputElement)) {
-          setBoxes(prev => prev.filter(b => b.id !== selectedBoxId));
-          setSelectedBoxId(null);
+        if (selectedBoxIds.size > 0 && !(e.target instanceof HTMLInputElement)) {
+          setBoxes(prev => prev.filter(b => !selectedBoxIds.has(b.id)));
+          setSelectedBoxIds(new Set());
         }
       }
       
@@ -627,7 +643,7 @@ export default function SimpleSceneEditor() {
           zIndex: boxes.length + 1,
         };
         setBoxes(prev => [...prev, newBox]);
-        setSelectedBoxId(newBox.id);
+        setSelectedBoxIds(new Set([newBox.id]));
         toast({ title: 'Pasted box' });
       }
       
@@ -640,20 +656,20 @@ export default function SimpleSceneEditor() {
           zIndex: boxes.length + 1,
         };
         setBoxes(prev => [...prev, newBox]);
-        setSelectedBoxId(newBox.id);
+        setSelectedBoxIds(new Set([newBox.id]));
         toast({ title: 'Duplicated box' });
       }
     };
     
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedBoxId, selectedBox, clipboard, boxes, toast]);
+  }, [selectedBoxIds, selectedBox, clipboard, boxes, toast]);
   
-  // Update selected box properties
+  // Update selected box properties (applies to ALL selected boxes)
   const updateSelectedBox = (updates: Partial<LayoutBox>) => {
-    if (!selectedBoxId) return;
+    if (selectedBoxIds.size === 0) return;
     setBoxes(prev => prev.map(box => 
-      box.id === selectedBoxId ? { ...box, ...updates } : box
+      selectedBoxIds.has(box.id) ? { ...box, ...updates } : box
     ));
   };
   
@@ -1288,7 +1304,7 @@ export default function SimpleSceneEditor() {
                     zIndex: boxes.length + 1,
                   };
                   setBoxes(prev => [...prev, newBox]);
-                  setSelectedBoxId(newBox.id);
+                  setSelectedBoxIds(new Set([newBox.id]));
                 }
               }}
               disabled={!clipboard}
@@ -1360,13 +1376,14 @@ export default function SimpleSceneEditor() {
               const bgStyle = box.style?.backgroundStyle || 'solid';
               const bgColor = bgStyle === 'transparent' ? 'transparent' : (box.style?.backgroundColor || 'rgba(0,0,0,0.5)');
               
+              const isSelected = selectedBoxIds.has(box.id);
               return (
               <div
                 key={box.id}
                 className={`absolute ${
                   showPreview 
                     ? '' 
-                    : (selectedBoxId === box.id 
+                    : (isSelected 
                         ? 'ring-2 ring-primary' 
                         : (borderWidth === 0 ? 'border border-white/30' : ''))
                 }`}
@@ -1423,7 +1440,7 @@ export default function SimpleSceneEditor() {
                 )}
                 
                 {/* Selection handles - hidden in preview mode */}
-                {!showPreview && selectedBoxId === box.id && (
+                {!showPreview && isSelected && (
                   <>
                     <div className="absolute -top-1 -left-1 w-2 h-2 bg-primary border border-white" />
                     <div className="absolute -top-1 -right-1 w-2 h-2 bg-primary border border-white" />
@@ -1457,7 +1474,82 @@ export default function SimpleSceneEditor() {
           <h3 className="font-semibold">Properties</h3>
         </div>
         
-        {selectedBox ? (
+        {selectedBoxIds.size > 1 ? (
+          // Multi-select mode - show limited options
+          <ScrollArea className="h-[calc(100vh-140px)]">
+            <div className="p-4 space-y-4">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Layers className="w-4 h-4" />
+                {selectedBoxIds.size} Boxes Selected
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Hold Shift or Ctrl/Cmd to select multiple boxes
+              </p>
+              
+              <Separator />
+              
+              {/* Background Color - applies to all selected */}
+              <div className="space-y-2">
+                <Label>Background Color (All)</Label>
+                <Input
+                  type="color"
+                  value={selectedBox?.style?.backgroundColor || '#000000'}
+                  onChange={(e) => {
+                    const hex = e.target.value;
+                    const r = parseInt(hex.slice(1, 3), 16);
+                    const g = parseInt(hex.slice(3, 5), 16);
+                    const b = parseInt(hex.slice(5, 7), 16);
+                    updateSelectedBox({ style: { ...(selectedBox?.style || {}), backgroundColor: `rgba(${r},${g},${b},0.8)` } });
+                  }}
+                  className="h-8 cursor-pointer"
+                  data-testid="input-multi-bg-color"
+                />
+              </div>
+              
+              {/* Text Color - applies to all selected */}
+              <div className="space-y-2">
+                <Label>Text Color (All)</Label>
+                <Input
+                  type="color"
+                  value={selectedBox?.style?.textColor || '#ffffff'}
+                  onChange={(e) => updateSelectedBox({ style: { ...(selectedBox?.style || {}), textColor: e.target.value } })}
+                  className="h-8 cursor-pointer"
+                  data-testid="input-multi-text-color"
+                />
+              </div>
+              
+              {/* Font Size - applies to all selected */}
+              <div className="space-y-2">
+                <Label>Font Size (All)</Label>
+                <Input
+                  type="number"
+                  min={8}
+                  max={120}
+                  value={selectedBox?.style?.fontSize || 14}
+                  onChange={(e) => updateSelectedBox({ style: { ...(selectedBox?.style || {}), fontSize: parseInt(e.target.value) || 14 } })}
+                  className="w-full"
+                  data-testid="input-multi-font-size"
+                />
+              </div>
+              
+              <Separator />
+              
+              {/* Delete All */}
+              <Button
+                variant="destructive"
+                className="w-full"
+                onClick={() => {
+                  setBoxes(prev => prev.filter(b => !selectedBoxIds.has(b.id)));
+                  setSelectedBoxIds(new Set());
+                }}
+                data-testid="button-delete-multi"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete {selectedBoxIds.size} Boxes
+              </Button>
+            </div>
+          </ScrollArea>
+        ) : selectedBox ? (
           <ScrollArea className="h-[calc(100vh-140px)]">
             <div className="p-4 space-y-4">
               {/* Box Type */}
@@ -1936,13 +2028,13 @@ export default function SimpleSceneEditor() {
                 variant="destructive"
                 className="w-full"
                 onClick={() => {
-                  setBoxes(prev => prev.filter(b => b.id !== selectedBoxId));
-                  setSelectedBoxId(null);
+                  setBoxes(prev => prev.filter(b => !selectedBoxIds.has(b.id)));
+                  setSelectedBoxIds(new Set());
                 }}
                 data-testid="button-delete-box"
               >
                 <Trash2 className="w-4 h-4 mr-2" />
-                Delete Box
+                Delete {selectedBoxIds.size > 1 ? `${selectedBoxIds.size} Boxes` : 'Box'}
               </Button>
             </div>
           </ScrollArea>
