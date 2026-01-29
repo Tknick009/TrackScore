@@ -577,8 +577,10 @@ export function SceneObjectRenderer({
             'name': formatName(firstEntry?.firstName, firstEntry?.lastName, firstEntry?.name),
             'first-name': firstEntry?.firstName,
             'last-name': firstEntry?.lastName,
-            'name-qualifier': qualifierStatus ? `${formatName(firstEntry?.firstName, firstEntry?.lastName, firstEntry?.name)} ${qualifierStatus}` : formatName(firstEntry?.firstName, firstEntry?.lastName, firstEntry?.name),
-            'last-name-qualifier': qualifierStatus ? `${firstEntry?.lastName} ${qualifierStatus}` : firstEntry?.lastName,
+            'name-qualifier': formatName(firstEntry?.firstName, firstEntry?.lastName, firstEntry?.name),
+            'last-name-qualifier': firstEntry?.lastName,
+            'name-qualifier-badge': qualifierStatus,
+            'last-name-qualifier-badge': qualifierStatus,
             'school': firstEntry?.affiliation || firstEntry?.team,
             'time': firstEntry?.time || firstEntry?.mark,
             'last-split': firstEntry?.lastSplit,
@@ -606,6 +608,10 @@ export function SceneObjectRenderer({
           ? `${numericTextFontSize}px` 
           : (numericTextFontSize === 'xlarge' ? '48px' : numericTextFontSize === 'large' ? '36px' : numericTextFontSize === 'medium' ? '24px' : '18px');
         
+        // Check if this is a name-qualifier field to show badge
+        const isQualifierField = fieldKey === 'name-qualifier' || fieldKey === 'last-name-qualifier';
+        const qualifierBadge = isQualifierField ? (fieldMap as Record<string, any>)?.[`${fieldKey}-badge`] : null;
+        
         return (
           <div 
             className="flex items-center h-full p-2 overflow-hidden"
@@ -618,6 +624,18 @@ export function SceneObjectRenderer({
             }}
           >
             <span className="whitespace-nowrap">{textContent || ""}</span>
+            {qualifierBadge && (
+              <span 
+                className="ml-2 px-2 py-0.5 rounded font-bold"
+                style={{
+                  backgroundColor: '#22c55e',
+                  color: '#166534',
+                  fontSize: `calc(${resolvedFontSize} * 0.8)`,
+                }}
+              >
+                {qualifierBadge}
+              </span>
+            )}
           </div>
         );
         

@@ -708,8 +708,8 @@ export default function SimpleSceneEditor() {
       case 'name': return athleteData.name;
       case 'first-name': return athleteData.firstName;
       case 'last-name': return athleteData.lastName;
-      case 'name-qualifier': return athleteData.qualifier ? `${athleteData.name} ${athleteData.qualifier}` : athleteData.name;
-      case 'last-name-qualifier': return athleteData.qualifier ? `${athleteData.lastName} ${athleteData.qualifier}` : athleteData.lastName;
+      case 'name-qualifier': return athleteData.name;
+      case 'last-name-qualifier': return athleteData.lastName;
       case 'school': return athleteData.affiliation;
       case 'time': return athleteData.time;
       case 'reaction-time': return athleteData.reactionTime;
@@ -721,6 +721,17 @@ export default function SimpleSceneEditor() {
       case 'time-with-points': return `${athleteData.time} = ${athleteData.eventPoints} pts`;
       default: return binding.label.toUpperCase();
     }
+  };
+  
+  // Get qualifier badge for name-qualifier fields
+  const getPreviewQualifier = (fieldKey: string | null, athleteIndex?: number): string | null => {
+    if (!fieldKey || (fieldKey !== 'name-qualifier' && fieldKey !== 'last-name-qualifier')) return null;
+    const idx = athleteIndex ?? 0;
+    if (idx >= 0 && idx < SAMPLE_PREVIEW_DATA.athletes.length) {
+      const qualifier = SAMPLE_PREVIEW_DATA.athletes[idx].qualifier;
+      return qualifier || null;
+    }
+    return null;
   };
   
   // Calculate canvas display size
@@ -1383,11 +1394,25 @@ export default function SimpleSceneEditor() {
                 data-testid={`box-${box.id}`}
               >
                 {box.type === 'text' ? (
-                  <span className="truncate">
-                    {showPreview 
-                      ? getPreviewValue(box.fieldKey, box.type, box.athleteIndex, box.staticText)
-                      : (box.fieldKey ? FIELD_BINDINGS[box.fieldKey]?.label : 'Unbound')}
-                  </span>
+                  <>
+                    <span className="truncate">
+                      {showPreview 
+                        ? getPreviewValue(box.fieldKey, box.type, box.athleteIndex, box.staticText)
+                        : (box.fieldKey ? FIELD_BINDINGS[box.fieldKey]?.label : 'Unbound')}
+                    </span>
+                    {showPreview && getPreviewQualifier(box.fieldKey, box.athleteIndex) && (
+                      <span 
+                        className="ml-1 px-1 rounded font-bold flex-shrink-0"
+                        style={{
+                          backgroundColor: '#22c55e',
+                          color: '#166534',
+                          fontSize: `${((box.style?.fontSize || 14) * 0.8) * (displayWidth / canvasWidth)}px`,
+                        }}
+                      >
+                        {getPreviewQualifier(box.fieldKey, box.athleteIndex)}
+                      </span>
+                    )}
+                  </>
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-white/10">
                     <Image className="w-6 h-6 text-white/50" />
