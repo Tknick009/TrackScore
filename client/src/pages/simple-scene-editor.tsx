@@ -668,9 +668,14 @@ export default function SimpleSceneEditor() {
   // Update selected box properties (applies to ALL selected boxes)
   const updateSelectedBox = (updates: Partial<LayoutBox>) => {
     if (selectedBoxIds.size === 0) return;
-    setBoxes(prev => prev.map(box => 
-      selectedBoxIds.has(box.id) ? { ...box, ...updates } : box
-    ));
+    setBoxes(prev => prev.map(box => {
+      if (!selectedBoxIds.has(box.id)) return box;
+      // Merge styles properly - keep each box's existing styles
+      if (updates.style) {
+        return { ...box, ...updates, style: { ...box.style, ...updates.style } };
+      }
+      return { ...box, ...updates };
+    }));
   };
   
   // Sample preview data for realistic scene preview
@@ -1493,13 +1498,13 @@ export default function SimpleSceneEditor() {
                 <Label>Background Color (All)</Label>
                 <Input
                   type="color"
-                  value={selectedBox?.style?.backgroundColor || '#000000'}
+                  defaultValue="#000000"
                   onChange={(e) => {
                     const hex = e.target.value;
                     const r = parseInt(hex.slice(1, 3), 16);
                     const g = parseInt(hex.slice(3, 5), 16);
                     const b = parseInt(hex.slice(5, 7), 16);
-                    updateSelectedBox({ style: { ...(selectedBox?.style || {}), backgroundColor: `rgba(${r},${g},${b},0.8)` } });
+                    updateSelectedBox({ style: { backgroundColor: `rgba(${r},${g},${b},0.8)` } });
                   }}
                   className="h-8 cursor-pointer"
                   data-testid="input-multi-bg-color"
@@ -1511,8 +1516,8 @@ export default function SimpleSceneEditor() {
                 <Label>Text Color (All)</Label>
                 <Input
                   type="color"
-                  value={selectedBox?.style?.textColor || '#ffffff'}
-                  onChange={(e) => updateSelectedBox({ style: { ...(selectedBox?.style || {}), textColor: e.target.value } })}
+                  defaultValue="#ffffff"
+                  onChange={(e) => updateSelectedBox({ style: { textColor: e.target.value } })}
                   className="h-8 cursor-pointer"
                   data-testid="input-multi-text-color"
                 />
@@ -1525,8 +1530,13 @@ export default function SimpleSceneEditor() {
                   type="number"
                   min={8}
                   max={120}
-                  value={selectedBox?.style?.fontSize || 14}
-                  onChange={(e) => updateSelectedBox({ style: { ...(selectedBox?.style || {}), fontSize: parseInt(e.target.value) || 14 } })}
+                  placeholder="Enter size..."
+                  onChange={(e) => {
+                    const size = parseInt(e.target.value);
+                    if (size >= 8 && size <= 120) {
+                      updateSelectedBox({ style: { fontSize: size } });
+                    }
+                  }}
                   className="w-full"
                   data-testid="input-multi-font-size"
                 />
