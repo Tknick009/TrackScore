@@ -727,8 +727,8 @@ export default function SimpleSceneEditor() {
   const getPreviewQualifier = (fieldKey: string | null, athleteIndex?: number): string | null => {
     if (!fieldKey || (fieldKey !== 'name-qualifier' && fieldKey !== 'last-name-qualifier')) return null;
     const idx = athleteIndex ?? 0;
-    if (idx >= 0 && idx < SAMPLE_PREVIEW_DATA.athletes.length) {
-      const qualifier = SAMPLE_PREVIEW_DATA.athletes[idx].qualifier;
+    if (idx >= 0 && idx < PREVIEW_SAMPLE_DATA.athletes.length) {
+      const qualifier = PREVIEW_SAMPLE_DATA.athletes[idx].qualifier;
       return qualifier || null;
     }
     return null;
