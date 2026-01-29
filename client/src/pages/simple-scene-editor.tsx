@@ -657,18 +657,68 @@ export default function SimpleSceneEditor() {
     ));
   };
   
-  // Get display value for a field binding
-  const getPreviewValue = (fieldKey: string | null, type: BoxType): string => {
+  // Sample preview data for realistic scene preview
+  const PREVIEW_SAMPLE_DATA = {
+    eventInfo: {
+      eventName: 'Men 100 Meter Dash',
+      heat: 2,
+      totalHeats: 4,
+      round: 'Prelims',
+      wind: '+1.8',
+      runningTime: '0:12.34',
+      advancementFormula: '3+2',
+    },
+    athletes: [
+      { place: '1', lane: '4', bib: '123', name: 'JOHNSON, Michael', firstName: 'Michael', lastName: 'JOHNSON', affiliation: 'STATE UNIV', time: '10.24', reactionTime: '0.142', lastSplit: '5.89', cumulativeSplit: '10.24', qualifier: 'Q', eventPoints: '976', totalPoints: '4521' },
+      { place: '2', lane: '6', bib: '245', name: 'SMITH, David', firstName: 'David', lastName: 'SMITH', affiliation: 'CENTRAL CC', time: '10.31', reactionTime: '0.156', lastSplit: '5.92', cumulativeSplit: '10.31', qualifier: 'Q', eventPoints: '958', totalPoints: '4489' },
+      { place: '3', lane: '3', bib: '178', name: 'WILLIAMS, James', firstName: 'James', lastName: 'WILLIAMS', affiliation: 'NORTH TECH', time: '10.38', reactionTime: '0.148', lastSplit: '5.98', cumulativeSplit: '10.38', qualifier: 'Q', eventPoints: '941', totalPoints: '4412' },
+      { place: '4', lane: '5', bib: '302', name: 'BROWN, Robert', firstName: 'Robert', lastName: 'BROWN', affiliation: 'EAST STATE', time: '10.45', reactionTime: '0.161', lastSplit: '6.01', cumulativeSplit: '10.45', qualifier: 'q', eventPoints: '924', totalPoints: '4356' },
+      { place: '5', lane: '2', bib: '089', name: 'DAVIS, Thomas', firstName: 'Thomas', lastName: 'DAVIS', affiliation: 'WEST COLL', time: '10.52', reactionTime: '0.155', lastSplit: '6.05', cumulativeSplit: '10.52', qualifier: 'q', eventPoints: '907', totalPoints: '4298' },
+      { place: '6', lane: '7', bib: '156', name: 'MILLER, Chris', firstName: 'Chris', lastName: 'MILLER', affiliation: 'SOUTH U', time: '10.59', reactionTime: '0.167', lastSplit: '6.09', cumulativeSplit: '10.59', qualifier: '', eventPoints: '891', totalPoints: '4241' },
+      { place: '7', lane: '1', bib: '267', name: 'WILSON, Andrew', firstName: 'Andrew', lastName: 'WILSON', affiliation: 'METRO ST', time: '10.67', reactionTime: '0.172', lastSplit: '6.13', cumulativeSplit: '10.67', qualifier: '', eventPoints: '874', totalPoints: '4185' },
+      { place: '8', lane: '8', bib: '334', name: 'MOORE, Daniel', firstName: 'Daniel', lastName: 'MOORE', affiliation: 'VALLEY CC', time: '10.78', reactionTime: '0.181', lastSplit: '6.19', cumulativeSplit: '10.78', qualifier: '', eventPoints: '851', totalPoints: '4112' },
+    ],
+  };
+
+  // Get display value for a field binding with realistic sample data
+  const getPreviewValue = (fieldKey: string | null, type: BoxType, athleteIndex?: number, staticText?: string): string => {
     if (!fieldKey) return type === 'text' ? 'Click to set field' : '';
     const binding = FIELD_BINDINGS[fieldKey];
     if (!binding) return fieldKey;
     
-    // Show field label as placeholder (no sample data)
+    // Static text uses the configured value
     if (fieldKey === 'static-text') {
-      return selectedBox?.staticText || 'STATIC TEXT';
+      return staticText || 'STATIC TEXT';
     }
     
-    return binding.label.toUpperCase();
+    // Event-level fields
+    const eventInfo = PREVIEW_SAMPLE_DATA.eventInfo;
+    const athleteData = PREVIEW_SAMPLE_DATA.athletes[athleteIndex ?? 0] || PREVIEW_SAMPLE_DATA.athletes[0];
+    
+    switch (fieldKey) {
+      case 'event-name': return eventInfo.eventName;
+      case 'heat-number': return `Heat ${eventInfo.heat} of ${eventInfo.totalHeats}`;
+      case 'round': return eventInfo.round;
+      case 'wind': return eventInfo.wind;
+      case 'running-time': return eventInfo.runningTime;
+      case 'advancement-formula': return eventInfo.advancementFormula;
+      case 'place': return athleteData.place;
+      case 'lane': return athleteData.lane;
+      case 'bib': return athleteData.bib;
+      case 'name': return athleteData.name;
+      case 'first-name': return athleteData.firstName;
+      case 'last-name': return athleteData.lastName;
+      case 'school': return athleteData.affiliation;
+      case 'time': return athleteData.time;
+      case 'reaction-time': return athleteData.reactionTime;
+      case 'last-split': return athleteData.lastSplit;
+      case 'cumulative-split': return athleteData.cumulativeSplit;
+      case 'qualifier': return athleteData.qualifier;
+      case 'event-points': return athleteData.eventPoints;
+      case 'total-points': return athleteData.totalPoints;
+      case 'time-with-points': return `${athleteData.time} = ${athleteData.eventPoints} pts`;
+      default: return binding.label.toUpperCase();
+    }
   };
   
   // Calculate canvas display size
@@ -1326,7 +1376,7 @@ export default function SimpleSceneEditor() {
                 {box.type === 'text' ? (
                   <span className="truncate">
                     {showPreview 
-                      ? getPreviewValue(box.fieldKey, box.type)
+                      ? getPreviewValue(box.fieldKey, box.type, box.athleteIndex, box.staticText)
                       : (box.fieldKey ? FIELD_BINDINGS[box.fieldKey]?.label : 'Unbound')}
                   </span>
                 ) : (
