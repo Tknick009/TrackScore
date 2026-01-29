@@ -10,14 +10,24 @@
  * 
  * The server handles all parsing of the ResulTV/LSS format.
  * 
+ * Port Architecture:
+ *   - Track Results (Big Board): 4554 -> broadcasts to track_mode_change_big
+ *   - Track Results (Small Board): 4555 -> broadcasts to track_mode_change
+ *   - Clock: 4556 -> shared clock data
+ *   - FieldLynx: 4557 -> legacy field port
+ *   - Field Ports 4560-4569: Per-field-event routing (10 simultaneous field events)
+ * 
  * Usage:
  *   node lynx-tcp-forwarder.cjs
  *   
  * Environment variables:
  *   FORWARD_URL - The server URL (default: http://localhost:5000)
- *   RESULTS_PORT - Port for race results (default: 5555)
- *   CLOCK_PORT - Port for clock data (default: 5556)
- *   FIELD_PORT - Port for field results (default: 5557)
+ *   RESULTS_BIG_PORT - Port for big board results (default: 4554)
+ *   RESULTS_PORT - Port for small board results (default: 4555)
+ *   CLOCK_PORT - Port for clock data (default: 4556)
+ *   FIELD_PORT - Legacy field port (default: 4557)
+ *   FIELD_PORT_START - Start of field port range (default: 4560)
+ *   FIELD_PORT_COUNT - Number of field ports (default: 10)
  */
 
 const net = require('net');
@@ -27,9 +37,12 @@ const https = require('https');
 // ========== CONFIGURATION ==========
 
 const BASE_URL = process.env.FORWARD_URL || 'http://localhost:5000';
-const RESULTS_PORT = parseInt(process.env.RESULTS_PORT) || 5555;
-const CLOCK_PORT = parseInt(process.env.CLOCK_PORT) || 5556;
-const FIELD_PORT = parseInt(process.env.FIELD_PORT) || 5557;
+const RESULTS_BIG_PORT = parseInt(process.env.RESULTS_BIG_PORT) || 4554;
+const RESULTS_PORT = parseInt(process.env.RESULTS_PORT) || 4555;
+const CLOCK_PORT = parseInt(process.env.CLOCK_PORT) || 4556;
+const FIELD_PORT = parseInt(process.env.FIELD_PORT) || 4557;
+const FIELD_PORT_START = parseInt(process.env.FIELD_PORT_START) || 4560;
+const FIELD_PORT_COUNT = parseInt(process.env.FIELD_PORT_COUNT) || 10;
 
 // ====================================
 
@@ -37,11 +50,17 @@ console.log('==============================================');
 console.log('  FinishLynx TCP-to-HTTP Forwarder');
 console.log('==============================================');
 console.log(`Server URL: ${BASE_URL}`);
-console.log(`Results Port: ${RESULTS_PORT}`);
-console.log(`Clock Port:   ${CLOCK_PORT}`);
-console.log(`Field Port:   ${FIELD_PORT}`);
 console.log('');
-console.log('Waiting for FinishLynx connections...');
+console.log('Track Ports:');
+console.log(`  Big Board Results: ${RESULTS_BIG_PORT}`);
+console.log(`  Small Board Results: ${RESULTS_PORT}`);
+console.log(`  Clock: ${CLOCK_PORT}`);
+console.log('');
+console.log('Field Ports:');
+console.log(`  Legacy Field: ${FIELD_PORT}`);
+console.log(`  Field Range: ${FIELD_PORT_START}-${FIELD_PORT_START + FIELD_PORT_COUNT - 1}`);
+console.log('');
+console.log('Waiting for FinishLynx/FieldLynx connections...');
 console.log('==============================================');
 console.log('');
 
@@ -53,11 +72,12 @@ const httpModule = isHttps ? https : http;
  * Forward raw data to the server
  * No parsing - just send the raw bytes as base64
  */
-function forwardToServer(rawData, portType) {
+function forwardToServer(rawData, portType, fieldPort = null) {
   const payload = JSON.stringify({
     data: rawData.toString('base64'),
     encoding: 'base64',
     portType: portType,
+    fieldPort: fieldPort,
     timestamp: Date.now()
   });
   
@@ -78,7 +98,8 @@ function forwardToServer(rawData, portType) {
   });
 
   req.on('error', (err) => {
-    console.error(`[${portType.toUpperCase()}] Forward error:`, err.message);
+    const portInfo = fieldPort ? ` (port ${fieldPort})` : '';
+    console.error(`[${portType.toUpperCase()}${portInfo}] Forward error:`, err.message);
   });
 
   req.write(payload);
@@ -88,24 +109,24 @@ function forwardToServer(rawData, portType) {
 /**
  * Create a TCP server that forwards all data to the remote server
  */
-function createForwarder(port, portType) {
+function createForwarder(port, portType, fieldPort = null) {
   const server = net.createServer((socket) => {
-    console.log(`[${new Date().toLocaleTimeString()}] [${portType.toUpperCase()}] Connected from ${socket.remoteAddress}`);
+    const portInfo = fieldPort ? ` (field port ${fieldPort})` : '';
+    console.log(`[${new Date().toLocaleTimeString()}] [${portType.toUpperCase()}${portInfo}] Connected from ${socket.remoteAddress}`);
     
     socket.on('data', (data) => {
-      // Log the size of data received
-      console.log(`[${new Date().toLocaleTimeString()}] [${portType.toUpperCase()}] Received ${data.length} bytes`);
+      console.log(`[${new Date().toLocaleTimeString()}] [${portType.toUpperCase()}${portInfo}] Received ${data.length} bytes`);
       
       // Forward raw data immediately - no parsing
-      forwardToServer(data, portType);
+      forwardToServer(data, portType, fieldPort);
     });
     
     socket.on('end', () => {
-      console.log(`[${new Date().toLocaleTimeString()}] [${portType.toUpperCase()}] Disconnected`);
+      console.log(`[${new Date().toLocaleTimeString()}] [${portType.toUpperCase()}${portInfo}] Disconnected`);
     });
     
     socket.on('error', (err) => {
-      console.error(`[${portType.toUpperCase()}] Socket error:`, err.message);
+      console.error(`[${portType.toUpperCase()}${portInfo}] Socket error:`, err.message);
     });
   });
 
@@ -118,22 +139,37 @@ function createForwarder(port, portType) {
   });
 
   server.listen(port, () => {
-    console.log(`[${portType.toUpperCase()}] Listening on port ${port}`);
+    const portInfo = fieldPort ? ` -> field_mode_change_${fieldPort}` : '';
+    console.log(`[${portType.toUpperCase()}] Listening on port ${port}${portInfo}`);
   });
 
   return server;
 }
 
-// Create forwarders for each port
-const resultsServer = createForwarder(RESULTS_PORT, 'results');
-const clockServer = createForwarder(CLOCK_PORT, 'clock');
-const fieldServer = createForwarder(FIELD_PORT, 'field');
+// Store all servers for graceful shutdown
+const servers = [];
+
+// Create track forwarders
+servers.push(createForwarder(RESULTS_BIG_PORT, 'results_big'));
+servers.push(createForwarder(RESULTS_PORT, 'results'));
+servers.push(createForwarder(CLOCK_PORT, 'clock'));
+
+// Create legacy field forwarder
+servers.push(createForwarder(FIELD_PORT, 'field'));
+
+// Create field port range forwarders (4560-4569)
+for (let i = 0; i < FIELD_PORT_COUNT; i++) {
+  const fieldPort = FIELD_PORT_START + i;
+  servers.push(createForwarder(fieldPort, 'field', fieldPort));
+}
+
+console.log('');
+console.log(`Total forwarders: ${servers.length}`);
+console.log('');
 
 // Handle graceful shutdown
 process.on('SIGINT', () => {
   console.log('\nShutting down...');
-  resultsServer.close();
-  clockServer.close();
-  fieldServer.close();
+  servers.forEach(server => server.close());
   process.exit(0);
 });
