@@ -6260,12 +6260,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let totalRounds = 1;
       let advanceByPlace: number | null = null;
       let advanceByTime: number | null = null;
+      let isMultiEvent: boolean = false;
+      let eventType: string | null = null;
+      let eventGender: string | null = null;
       
       if (matchingEvents.length > 0) {
         const event = matchingEvents[0];
         totalRounds = event.numRounds || 1;
         advanceByPlace = event.advanceByPlace ?? null;
         advanceByTime = event.advanceByTime ?? null;
+        isMultiEvent = event.isMultiEvent ?? false;
+        eventType = event.eventType ?? null;
+        eventGender = event.gender ?? null;
         
         // Determine round name based on event configuration
         if (totalRounds === 1) {
@@ -6301,6 +6307,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           totalRounds, // Total rounds configured for event
           advanceByPlace, // For qualifier display (big Q)
           advanceByTime, // For qualifier display (little q)
+          isMultiEvent, // For multi-event points display
+          eventType, // For calculating multi-event points
+          gender: eventGender, // For calculating multi-event points
           ...data, // Pass through all raw data from FinishLynx
         }
       } as any);
@@ -6620,6 +6629,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     let totalRounds = 1;
     let advanceByPlace: number | null = null;
     let advanceByTime: number | null = null;
+    let isMultiEvent: boolean = false;
+    let eventType: string | null = null;
+    let eventGender: string | null = null;
     
     try {
       const matchingEvents = await storage.getEventsByLynxEventNumber(eventNumber);
@@ -6628,6 +6640,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalRounds = event.numRounds || 1;
         advanceByPlace = event.advanceByPlace ?? null;
         advanceByTime = event.advanceByTime ?? null;
+        isMultiEvent = event.isMultiEvent ?? false;
+        eventType = event.eventType ?? null;
+        eventGender = event.gender ?? null;
         
         // Determine round name based on event configuration
         if (totalRounds === 1) {
@@ -6666,6 +6681,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalRounds, // Total rounds configured for event
         advanceByPlace, // For qualifier display (big Q)
         advanceByTime, // For qualifier display (little q)
+        isMultiEvent, // For multi-event points display
+        eventType, // For calculating multi-event points
+        gender: eventGender, // For calculating multi-event points
         entries: acc.entries, // Arrival order = display order
         eventName: acc.eventName,
         distance: acc.distance,

@@ -17,6 +17,7 @@ import {
   ScrollingResultsBoard 
 } from "@/components/display/templates";
 import { formatHeatDisplay } from "@/lib/fieldBindings";
+import { calculateMultiEventPoints, normalizeEventType, hasScoring, type Gender } from "@shared/combined-scoring";
 import { Trophy, Clock, Users, User, Image, Type, Award, Loader2 } from "lucide-react";
 
 // Static clock display - shows exactly what FinishLynx sends, no local interpolation
@@ -542,6 +543,27 @@ export function SceneObjectRenderer({
             advancementFormula = time > 0 ? `${place}+${time}` : `${place}`;
           }
           
+          // Calculate multi-event points if applicable
+          // Check if this is a combined event (isMultiEvent flag) and we have scoring for this event type
+          const isMultiEvent = liveData.isMultiEvent === true || liveData.combinedEventType;
+          const eventTypeForScoring = liveData.eventType || normalizeEventType(eventName || '');
+          const entryGender: Gender = (firstEntry?.gender || liveData.gender || 'M').toString().toUpperCase().charAt(0) as Gender;
+          const performance = firstEntry?.time || firstEntry?.mark;
+          
+          let eventPoints = 0;
+          let timeWithPoints = '';
+          if (isMultiEvent && performance && hasScoring(eventTypeForScoring)) {
+            eventPoints = calculateMultiEventPoints(eventTypeForScoring, performance, entryGender);
+          }
+          
+          // Format time with points (e.g., "10.45 = 876 pts")
+          if (performance && eventPoints > 0) {
+            timeWithPoints = `${performance} = ${eventPoints} pts`;
+          }
+          
+          // Total points - comes from the entry or live data if the backend tracks it
+          const totalPoints = firstEntry?.totalPoints || liveData.totalPoints || '';
+          
           const fieldMap: Record<string, any> = {
             'event-name': eventName,
             'event-number': liveData.eventNumber,
@@ -563,6 +585,9 @@ export function SceneObjectRenderer({
             'bib': firstEntry?.bib,
             'advancement-formula': advancementFormula,
             'qualifier': qualifierStatus,
+            'event-points': eventPoints > 0 ? eventPoints : '',
+            'total-points': totalPoints,
+            'time-with-points': timeWithPoints,
           };
           const resolvedValue = fieldMap[fieldKey];
           if (resolvedValue !== undefined && resolvedValue !== null && resolvedValue !== '') {

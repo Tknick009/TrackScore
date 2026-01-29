@@ -180,3 +180,100 @@ export function hasScoring(eventType: string): boolean {
   const normalized = normalizeEventType(eventType);
   return !!SCORING_TABLES[normalized];
 }
+
+/**
+ * Parse time string to seconds
+ * Handles formats like "10.45", "2:05.23", etc.
+ */
+export function parseTimeToSeconds(timeStr: string): number | null {
+  if (!timeStr) return null;
+  
+  const trimmed = timeStr.trim().toUpperCase();
+  
+  // Handle DNS, DNF, DQ, etc.
+  if (['DNS', 'DNF', 'DQ', 'NT', 'FOUL', 'F', 'PASS', 'P', '-', 'X'].includes(trimmed)) {
+    return null;
+  }
+  
+  // Handle mm:ss.ss format
+  if (trimmed.includes(':')) {
+    const parts = trimmed.split(':');
+    if (parts.length === 2) {
+      const minutes = parseInt(parts[0]);
+      const seconds = parseFloat(parts[1]);
+      if (!isNaN(minutes) && !isNaN(seconds)) {
+        return minutes * 60 + seconds;
+      }
+    }
+  }
+  
+  // Handle plain seconds
+  const value = parseFloat(trimmed);
+  if (!isNaN(value) && value > 0) {
+    return value;
+  }
+  
+  return null;
+}
+
+/**
+ * Calculate points for a track event time
+ * 
+ * @param eventType The event type (e.g., '100m', '400m')
+ * @param timeStr The time as a string (e.g., '10.45', '2:05.23')
+ * @param gender 'M' for male, 'F' for female
+ * @returns Points earned (0 if invalid)
+ */
+export function calculateTrackEventPoints(
+  eventType: string,
+  timeStr: string,
+  gender: Gender
+): number {
+  const normalized = normalizeEventType(eventType);
+  const coeffs = SCORING_TABLES[normalized]?.[gender];
+  
+  if (!coeffs || !coeffs.isTrackEvent) {
+    return 0;
+  }
+  
+  const timeInSeconds = parseTimeToSeconds(timeStr);
+  if (timeInSeconds === null || timeInSeconds <= 0) {
+    return 0;
+  }
+  
+  // Track events: Points = A × (B − T)^C
+  const diff = coeffs.B - timeInSeconds;
+  if (diff <= 0) {
+    return 0; // Time too slow
+  }
+  
+  const points = coeffs.A * Math.pow(diff, coeffs.C);
+  return Math.floor(points);
+}
+
+/**
+ * Calculate multi-event points for any performance (track or field)
+ * 
+ * @param eventType The event type
+ * @param performance Time string for track, meters for field
+ * @param gender 'M' or 'F'
+ * @returns Points earned
+ */
+export function calculateMultiEventPoints(
+  eventType: string,
+  performance: string | number,
+  gender: Gender
+): number {
+  const normalized = normalizeEventType(eventType);
+  const coeffs = SCORING_TABLES[normalized]?.[gender];
+  
+  if (!coeffs) return 0;
+  
+  if (coeffs.isTrackEvent) {
+    return calculateTrackEventPoints(eventType, String(performance), gender);
+  } else {
+    const mark = typeof performance === 'number' ? performance : parseFloat(String(performance));
+    if (isNaN(mark) || mark <= 0) return 0;
+    return calculateFieldEventPoints(eventType, mark, gender);
+  }
+}

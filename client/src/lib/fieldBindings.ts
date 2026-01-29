@@ -196,6 +196,30 @@ export const FIELD_BINDINGS: Record<string, FieldBinding> = {
     dataKey: 'qualifier',
     category: 'result',
   },
+  'event-points': {
+    key: 'event-points',
+    label: 'Event Points',
+    type: 'text',
+    description: 'Points earned for this performance (multi-events only)',
+    dataKey: 'eventPoints',
+    category: 'result',
+  },
+  'total-points': {
+    key: 'total-points',
+    label: 'Total Points',
+    type: 'text',
+    description: 'Cumulative points in multi-event',
+    dataKey: 'totalPoints',
+    category: 'result',
+  },
+  'time-with-points': {
+    key: 'time-with-points',
+    label: 'Time/Mark + Points',
+    type: 'text',
+    description: 'Performance with points (e.g., "10.45 = 876 pts")',
+    dataKey: 'timeWithPoints',
+    category: 'result',
+  },
 };
 
 export const TEXT_FIELD_BINDINGS = Object.values(FIELD_BINDINGS).filter(f => f.type === 'text');
