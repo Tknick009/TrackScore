@@ -1229,6 +1229,8 @@ export const SCENE_DISPLAY_MODES = [
   'track_results',
   'field_results',
   'field_standings',
+  'multi_track',    // Multi-event track results (shows points)
+  'multi_field',    // Multi-event field results (shows points)
 ] as const;
 export type SceneDisplayMode = typeof SCENE_DISPLAY_MODES[number];
 

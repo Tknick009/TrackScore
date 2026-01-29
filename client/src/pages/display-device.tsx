@@ -721,6 +721,70 @@ export default function DisplayDevice() {
                 }
               }
               
+              // Check if we need to switch to multi_track scene for multi-event results
+              // This auto-switches the display to show points when a multi-event is detected
+              const incomingDisplayMode = data.displayMode;
+              if (incomingDisplayMode === 'multi_track' && currentLayoutModeRef.current !== 'multi_track' && displayType) {
+                const multiTrackSceneId = getSceneForModeRef.current(displayType, 'multi_track');
+                if (multiTrackSceneId) {
+                  console.log(`[Display] Multi-event detected, switching to multi_track scene: ${multiTrackSceneId}`);
+                  currentLayoutModeRef.current = 'multi_track';
+                  (async () => {
+                    try {
+                      const [sceneRes, objectsRes] = await Promise.all([
+                        fetch(`/api/layout-scenes/${multiTrackSceneId}`),
+                        fetch(`/api/layout-objects?sceneId=${multiTrackSceneId}`),
+                      ]);
+                      if (sceneRes.ok && objectsRes.ok) {
+                        const scene = await sceneRes.json();
+                        const objects = await objectsRes.json();
+                        queryClient.setQueryData(['/api/layout-scenes', multiTrackSceneId], scene);
+                        queryClient.setQueryData(['/api/layout-objects', { sceneId: multiTrackSceneId }], objects);
+                        setState(prev => ({
+                          ...prev,
+                          currentLayoutMode: 'multi_track',
+                          currentSceneId: multiTrackSceneId,
+                          currentSceneData: { scene, objects },
+                          currentTemplate: null,
+                        }));
+                      }
+                    } catch (e) {
+                      console.warn('[Display] Failed to switch to multi_track scene:', e);
+                    }
+                  })();
+                }
+              } else if (incomingDisplayMode === 'track_results' && currentLayoutModeRef.current === 'multi_track' && displayType) {
+                // Switch back to regular track_results if we were in multi_track
+                const trackResultsSceneId = getSceneForModeRef.current(displayType, 'track_results');
+                if (trackResultsSceneId) {
+                  console.log(`[Display] Regular event, switching back to track_results scene: ${trackResultsSceneId}`);
+                  currentLayoutModeRef.current = 'track_results';
+                  (async () => {
+                    try {
+                      const [sceneRes, objectsRes] = await Promise.all([
+                        fetch(`/api/layout-scenes/${trackResultsSceneId}`),
+                        fetch(`/api/layout-objects?sceneId=${trackResultsSceneId}`),
+                      ]);
+                      if (sceneRes.ok && objectsRes.ok) {
+                        const scene = await sceneRes.json();
+                        const objects = await objectsRes.json();
+                        queryClient.setQueryData(['/api/layout-scenes', trackResultsSceneId], scene);
+                        queryClient.setQueryData(['/api/layout-objects', { sceneId: trackResultsSceneId }], objects);
+                        setState(prev => ({
+                          ...prev,
+                          currentLayoutMode: 'track_results',
+                          currentSceneId: trackResultsSceneId,
+                          currentSceneData: { scene, objects },
+                          currentTemplate: null,
+                        }));
+                      }
+                    } catch (e) {
+                      console.warn('[Display] Failed to switch to track_results scene:', e);
+                    }
+                  })();
+                }
+              }
+              
               setState(prev => ({
                 ...prev,
                 liveEventData: {
@@ -734,6 +798,10 @@ export default function DisplayDevice() {
                   distance: data.distance || prev.liveEventData?.distance,
                   // Keep previous entries if no new entries (prevents flash during mode transitions)
                   entries: entries.length > 0 ? entries : (prev.liveEventData?.entries || []),
+                  // Pass through multi-event info for points calculation
+                  isMultiEvent: data.isMultiEvent,
+                  eventType: data.eventType,
+                  gender: data.gender,
                 },
               }));
             }

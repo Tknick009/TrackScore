@@ -6294,6 +6294,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // Determine display mode for scene template mapping
+      // Multi-events use 'multi_track' instead of 'track_results' to show points
+      let displayMode = mode === 'results' ? 'track_results' : 
+                        mode === 'running' ? 'running_time' : 
+                        mode === 'start_list' ? 'start_list' : mode;
+      if (isMultiEvent && mode === 'results') {
+        displayMode = 'multi_track';
+      }
+      
       // Broadcast to different channels based on source port
       // Big board data goes to 'track_mode_change_big', regular goes to 'track_mode_change'
       const messageType = isBigBoard ? 'track_mode_change_big' : 'track_mode_change';
@@ -6302,6 +6311,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         data: {
           eventNumber,
           mode,
+          displayMode, // Scene template mapping mode (multi_track for multi-events)
           totalHeats, // Include total heats for "Heat X of Y" display
           roundName, // Include round name for "Prelims", "Finals", etc.
           totalRounds, // Total rounds configured for event
