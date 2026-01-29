@@ -1351,9 +1351,11 @@ export default function SimpleSceneEditor() {
               <div
                 key={box.id}
                 className={`absolute ${
-                  selectedBoxId === box.id 
-                    ? 'ring-2 ring-primary' 
-                    : (borderWidth === 0 ? 'border border-white/30' : '')
+                  showPreview 
+                    ? '' 
+                    : (selectedBoxId === box.id 
+                        ? 'ring-2 ring-primary' 
+                        : (borderWidth === 0 ? 'border border-white/30' : ''))
                 }`}
                 style={{
                   left: `${box.x}%`,
@@ -1393,8 +1395,8 @@ export default function SimpleSceneEditor() {
                   </div>
                 )}
                 
-                {/* Selection handles */}
-                {selectedBoxId === box.id && (
+                {/* Selection handles - hidden in preview mode */}
+                {!showPreview && selectedBoxId === box.id && (
                   <>
                     <div className="absolute -top-1 -left-1 w-2 h-2 bg-primary border border-white" />
                     <div className="absolute -top-1 -right-1 w-2 h-2 bg-primary border border-white" />
