@@ -5809,11 +5809,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }> = [];
   const MAX_DIAGNOSTICS = 50;
 
+  // Track which field port data is coming from (for port-based routing)
+  // This allows displays to subscribe to specific field ports
+  let currentFieldPort: number | null = null;
+  
+  // Valid field ports: 4560-4569 (10 field event slots)
+  const FIELD_PORT_MIN = 4560;
+  const FIELD_PORT_MAX = 4569;
+
   // NEW: Receive raw bytes from TCP forwarder (ResulTV/LSS binary format)
   // This is the new endpoint for the base64-encoded raw data
   app.post("/api/lynx/raw", async (req, res) => {
     try {
-      const { data, encoding, portType, timestamp } = req.body;
+      const { data, encoding, portType, timestamp, fieldPort } = req.body;
       
       if (!data || typeof data !== 'string') {
         return res.status(400).json({ error: 'Missing or invalid data' });
@@ -5826,6 +5834,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validPortTypes = ['clock', 'results', 'field'];
       if (!portType || !validPortTypes.includes(portType)) {
         return res.status(400).json({ error: 'Invalid portType. Must be one of: clock, results, field' });
+      }
+      
+      // For field data, validate and store the field port for routing
+      if (portType === 'field' && fieldPort) {
+        const port = parseInt(fieldPort);
+        if (port >= FIELD_PORT_MIN && port <= FIELD_PORT_MAX) {
+          currentFieldPort = port;
+          console.log(`[Lynx Raw] Field data from port ${port}`);
+        } else {
+          console.warn(`[Lynx Raw] Invalid field port ${fieldPort}, must be ${FIELD_PORT_MIN}-${FIELD_PORT_MAX}`);
+        }
       }
       
       // Decode base64 to buffer
@@ -6587,22 +6606,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Multi-events use 'multi_field' instead of 'field_results' to show points
     const displayMode = isMultiEvent ? 'multi_field' : 'field_results';
     
+    // Get current field port for routing (set by /api/lynx/raw endpoint)
+    const fieldPort = currentFieldPort;
+    
     // Broadcast field event update with accumulated results
+    // Include fieldPort for port-based routing - displays can filter by port
+    const fieldBroadcastData = {
+      eventNumber,
+      mode,
+      displayMode, // Scene template mapping mode (multi_field for multi-events)
+      eventName: data.eventName,
+      flight: data.flight,
+      wind: data.wind,
+      results: accumulatedResults,
+      isMultiEvent, // For multi-event points display
+      eventType, // For calculating multi-event points
+      gender: eventGender, // For calculating multi-event points
+      fieldPort, // Port number for device routing (4560-4569)
+    };
+    
+    // Broadcast to global channel (for displays not using port-based routing)
     broadcastToDisplays({
       type: 'field_mode_change',
-      data: {
-        eventNumber,
-        mode,
-        displayMode, // Scene template mapping mode (multi_field for multi-events)
-        eventName: data.eventName,
-        flight: data.flight,
-        wind: data.wind,
-        results: accumulatedResults,
-        isMultiEvent, // For multi-event points display
-        eventType, // For calculating multi-event points
-        gender: eventGender, // For calculating multi-event points
-      }
+      data: fieldBroadcastData,
     } as WSMessage);
+    
+    // Also broadcast to port-specific channel if a field port is set
+    // This allows displays to subscribe to specific field events
+    if (fieldPort) {
+      broadcastToDisplays({
+        type: `field_mode_change_${fieldPort}`,
+        data: fieldBroadcastData,
+      } as WSMessage);
+      console.log(`[Lynx] Broadcast field data to port-specific channel: field_mode_change_${fieldPort}`);
+    }
   });
 
   lynxListener.on('field-result', async (eventNumber, athleteName, place, mark, attemptNumber, attempts) => {

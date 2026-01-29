@@ -252,6 +252,17 @@ export default function DisplayDevice() {
   // Big board toggle - when true, subscribes to 'track_mode_change_big' channel
   const [isBigBoard, setIsBigBoard] = useState<boolean>(false);
   const isBigBoardRef = useRef<boolean>(false);
+  
+  // Field event mode - when true, display subscribes to field event channels
+  const [isFieldMode, setIsFieldMode] = useState<boolean>(false);
+  const isFieldModeRef = useRef<boolean>(false);
+  // Field port selection (4560-4569) for port-based routing
+  const [fieldPort, setFieldPort] = useState<number>(4560);
+  const fieldPortRef = useRef<number>(4560);
+  // Field display type: vertical (HJ/PV) or horizontal (LJ/SP/Discus/etc.)
+  const [fieldDisplayType, setFieldDisplayType] = useState<'vertical' | 'horizontal'>('horizontal');
+  const fieldDisplayTypeRef = useRef<'vertical' | 'horizontal'>('horizontal');
+  
   const wsRef = useRef<WebSocket | null>(null);
   const deviceNameRef = useRef<string>('');
 
@@ -304,6 +315,19 @@ export default function DisplayDevice() {
   useEffect(() => {
     isBigBoardRef.current = isBigBoard;
   }, [isBigBoard]);
+  
+  // Keep field mode refs in sync with state
+  useEffect(() => {
+    isFieldModeRef.current = isFieldMode;
+  }, [isFieldMode]);
+  
+  useEffect(() => {
+    fieldPortRef.current = fieldPort;
+  }, [fieldPort]);
+  
+  useEffect(() => {
+    fieldDisplayTypeRef.current = fieldDisplayType;
+  }, [fieldDisplayType]);
 
   // WebSocket connection - runs when setup is complete
   useEffect(() => {
@@ -807,70 +831,94 @@ export default function DisplayDevice() {
             }
           }
           
-          // Handle field mode change updates from FinishLynx
-          if (message.type === 'field_mode_change') {
+          // Handle field mode change updates from FinishLynx/Athletic Field App
+          // Check for both global field_mode_change and port-specific field_mode_change_{port}
+          const isGlobalFieldChange = message.type === 'field_mode_change';
+          const isPortSpecificFieldChange = message.type.startsWith('field_mode_change_');
+          
+          if (isGlobalFieldChange || isPortSpecificFieldChange) {
             const data = message.data;
             if (data) {
-              console.log(`[Display] Field mode change: Event ${data.eventNumber}, ${data.results?.length || 0} results`);
-              
-              // Check if we need to switch to multi_field scene for multi-event field results
-              const incomingDisplayMode = data.displayMode;
-              if (incomingDisplayMode === 'multi_field' && currentLayoutModeRef.current !== 'multi_field' && displayType) {
-                const multiFieldSceneId = getSceneForModeRef.current(displayType, 'multi_field');
-                if (multiFieldSceneId) {
-                  console.log(`[Display] Multi-event field detected, switching to multi_field scene: ${multiFieldSceneId}`);
-                  currentLayoutModeRef.current = 'multi_field';
-                  (async () => {
-                    try {
-                      const [sceneRes, objectsRes] = await Promise.all([
-                        fetch(`/api/layout-scenes/${multiFieldSceneId}`),
-                        fetch(`/api/layout-objects?sceneId=${multiFieldSceneId}`),
-                      ]);
-                      if (sceneRes.ok && objectsRes.ok) {
-                        const scene = await sceneRes.json();
-                        const objects = await objectsRes.json();
-                        queryClient.setQueryData(['/api/layout-scenes', multiFieldSceneId], scene);
-                        queryClient.setQueryData(['/api/layout-objects', { sceneId: multiFieldSceneId }], objects);
-                        setState(prev => ({
-                          ...prev,
-                          currentLayoutMode: 'multi_field',
-                          currentSceneId: multiFieldSceneId,
-                          currentSceneData: { scene, objects },
-                          currentTemplate: null,
-                        }));
-                      }
-                    } catch (e) {
-                      console.warn('[Display] Failed to switch to multi_field scene:', e);
-                    }
-                  })();
+              // Port-based routing: In field mode, only show data from our selected port
+              // Track mode displays ignore field data, field mode displays filter by port
+              if (isFieldModeRef.current) {
+                // Check if this data is for our port
+                const dataPort = data.fieldPort;
+                const myPort = fieldPortRef.current;
+                
+                // If data has a port and it doesn't match ours, ignore it
+                if (dataPort && dataPort !== myPort) {
+                  console.log(`[Display] Ignoring field data for port ${dataPort}, we're listening on ${myPort}`);
+                  return;
                 }
-              } else if (incomingDisplayMode === 'field_results' && currentLayoutModeRef.current === 'multi_field' && displayType) {
-                // Switch back to regular field_results if we were in multi_field
-                const fieldResultsSceneId = getSceneForModeRef.current(displayType, 'field_results');
-                if (fieldResultsSceneId) {
-                  console.log(`[Display] Regular field event, switching back to field_results scene: ${fieldResultsSceneId}`);
-                  currentLayoutModeRef.current = 'field_results';
+                
+                // If this is a port-specific message, check if it's for our port
+                if (isPortSpecificFieldChange) {
+                  const messagePort = parseInt(message.type.replace('field_mode_change_', ''));
+                  if (messagePort !== myPort) {
+                    return; // Not for us
+                  }
+                }
+                
+                console.log(`[Display] Field mode change (port ${myPort}): Event ${data.eventNumber}, ${data.results?.length || 0} results`);
+              } else {
+                // Track mode - ignore field data
+                console.log(`[Display] Ignoring field data - display is in track mode`);
+                return;
+              }
+              
+              // Determine the display mode based on field type (vertical vs horizontal) and multi-event status
+              const isMultiEvent = data.isMultiEvent;
+              const myFieldType = fieldDisplayTypeRef.current; // 'vertical' or 'horizontal'
+              
+              // Build the target display mode
+              let targetDisplayMode: string;
+              if (isMultiEvent) {
+                targetDisplayMode = myFieldType === 'vertical' ? 'multi_field_vertical' : 'multi_field_horizontal';
+              } else {
+                targetDisplayMode = myFieldType === 'vertical' ? 'field_results_vertical' : 'field_results_horizontal';
+              }
+              
+              // Fallback to generic modes if specific modes don't have mappings
+              const fallbackMode = isMultiEvent ? 'multi_field' : 'field_results';
+              
+              // Try to switch to the appropriate scene
+              if (currentLayoutModeRef.current !== targetDisplayMode && displayType) {
+                let sceneId = getSceneForModeRef.current(displayType, targetDisplayMode);
+                
+                // Fallback to generic mode if specific mode not found
+                if (!sceneId) {
+                  sceneId = getSceneForModeRef.current(displayType, fallbackMode);
+                  if (sceneId) {
+                    console.log(`[Display] No scene for ${targetDisplayMode}, falling back to ${fallbackMode}`);
+                    targetDisplayMode = fallbackMode;
+                  }
+                }
+                
+                if (sceneId) {
+                  console.log(`[Display] Field event switching to ${targetDisplayMode} scene: ${sceneId}`);
+                  currentLayoutModeRef.current = targetDisplayMode;
                   (async () => {
                     try {
                       const [sceneRes, objectsRes] = await Promise.all([
-                        fetch(`/api/layout-scenes/${fieldResultsSceneId}`),
-                        fetch(`/api/layout-objects?sceneId=${fieldResultsSceneId}`),
+                        fetch(`/api/layout-scenes/${sceneId}`),
+                        fetch(`/api/layout-objects?sceneId=${sceneId}`),
                       ]);
                       if (sceneRes.ok && objectsRes.ok) {
                         const scene = await sceneRes.json();
                         const objects = await objectsRes.json();
-                        queryClient.setQueryData(['/api/layout-scenes', fieldResultsSceneId], scene);
-                        queryClient.setQueryData(['/api/layout-objects', { sceneId: fieldResultsSceneId }], objects);
+                        queryClient.setQueryData(['/api/layout-scenes', sceneId], scene);
+                        queryClient.setQueryData(['/api/layout-objects', { sceneId: sceneId }], objects);
                         setState(prev => ({
                           ...prev,
-                          currentLayoutMode: 'field_results',
-                          currentSceneId: fieldResultsSceneId,
+                          currentLayoutMode: targetDisplayMode,
+                          currentSceneId: sceneId,
                           currentSceneData: { scene, objects },
                           currentTemplate: null,
                         }));
                       }
                     } catch (e) {
-                      console.warn('[Display] Failed to switch to field_results scene:', e);
+                      console.warn(`[Display] Failed to switch to ${targetDisplayMode} scene:`, e);
                     }
                   })();
                 }
@@ -1110,39 +1158,135 @@ export default function DisplayDevice() {
             </div>
           </div>
           
-          {/* Big Board Toggle */}
-          <div className="mb-10">
+          {/* Track/Field Mode Toggle */}
+          <div className="mb-8">
+            <Label className="block text-gray-300 text-sm font-medium mb-3 text-center">
+              Event Type
+            </Label>
             <div className="max-w-md mx-auto flex items-center justify-center gap-4">
-              <Label className="text-gray-300 text-sm font-medium">
-                Data Channel:
-              </Label>
               <button
-                onClick={() => setIsBigBoard(false)}
-                className={`px-4 py-2 rounded-lg transition-all text-sm font-medium ${
-                  !isBigBoard 
+                onClick={() => setIsFieldMode(false)}
+                className={`px-6 py-3 rounded-lg transition-all text-sm font-medium ${
+                  !isFieldMode 
                     ? 'bg-blue-600 text-white' 
                     : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
                 }`}
-                data-testid="button-channel-small"
+                data-testid="button-mode-track"
               >
-                Small Board (Port 4555)
+                Track Events
               </button>
               <button
-                onClick={() => setIsBigBoard(true)}
-                className={`px-4 py-2 rounded-lg transition-all text-sm font-medium ${
-                  isBigBoard 
-                    ? 'bg-green-600 text-white' 
+                onClick={() => setIsFieldMode(true)}
+                className={`px-6 py-3 rounded-lg transition-all text-sm font-medium ${
+                  isFieldMode 
+                    ? 'bg-orange-600 text-white' 
                     : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
                 }`}
-                data-testid="button-channel-big"
+                data-testid="button-mode-field"
               >
-                Big Board (Port 4554)
+                Field Events
               </button>
             </div>
-            <p className="text-gray-500 text-xs mt-2 text-center">
-              Configure FinishLynx ResulTV output to different ports for separate paging
-            </p>
           </div>
+
+          {/* Track Options - Big Board Toggle */}
+          {!isFieldMode && (
+            <div className="mb-10">
+              <div className="max-w-md mx-auto flex items-center justify-center gap-4">
+                <Label className="text-gray-300 text-sm font-medium">
+                  Data Channel:
+                </Label>
+                <button
+                  onClick={() => setIsBigBoard(false)}
+                  className={`px-4 py-2 rounded-lg transition-all text-sm font-medium ${
+                    !isBigBoard 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  }`}
+                  data-testid="button-channel-small"
+                >
+                  Small Board (Port 4555)
+                </button>
+                <button
+                  onClick={() => setIsBigBoard(true)}
+                  className={`px-4 py-2 rounded-lg transition-all text-sm font-medium ${
+                    isBigBoard 
+                      ? 'bg-green-600 text-white' 
+                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  }`}
+                  data-testid="button-channel-big"
+                >
+                  Big Board (Port 4554)
+                </button>
+              </div>
+              <p className="text-gray-500 text-xs mt-2 text-center">
+                Configure FinishLynx ResulTV output to different ports for separate paging
+              </p>
+            </div>
+          )}
+
+          {/* Field Options - Port Selection and Display Type */}
+          {isFieldMode && (
+            <div className="mb-10 space-y-6">
+              {/* Field Port Selection */}
+              <div>
+                <Label className="block text-gray-300 text-sm font-medium mb-3 text-center">
+                  Field Port (4560-4569)
+                </Label>
+                <div className="max-w-md mx-auto flex items-center justify-center gap-2">
+                  <select
+                    value={fieldPort}
+                    onChange={(e) => setFieldPort(parseInt(e.target.value))}
+                    className="bg-gray-800 border-gray-700 text-white px-4 py-2 rounded-lg text-sm"
+                    data-testid="select-field-port"
+                  >
+                    {[4560, 4561, 4562, 4563, 4564, 4565, 4566, 4567, 4568, 4569].map((port) => (
+                      <option key={port} value={port}>
+                        Port {port}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <p className="text-gray-500 text-xs mt-2 text-center">
+                  Configure Athletic Field App to send this field event to port {fieldPort}
+                </p>
+              </div>
+
+              {/* Field Display Type */}
+              <div>
+                <Label className="block text-gray-300 text-sm font-medium mb-3 text-center">
+                  Field Event Type
+                </Label>
+                <div className="max-w-md mx-auto flex items-center justify-center gap-4">
+                  <button
+                    onClick={() => setFieldDisplayType('horizontal')}
+                    className={`px-4 py-2 rounded-lg transition-all text-sm font-medium ${
+                      fieldDisplayType === 'horizontal' 
+                        ? 'bg-yellow-600 text-white' 
+                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                    }`}
+                    data-testid="button-field-horizontal"
+                  >
+                    Horizontal (LJ, TJ, SP, etc.)
+                  </button>
+                  <button
+                    onClick={() => setFieldDisplayType('vertical')}
+                    className={`px-4 py-2 rounded-lg transition-all text-sm font-medium ${
+                      fieldDisplayType === 'vertical' 
+                        ? 'bg-purple-600 text-white' 
+                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                    }`}
+                    data-testid="button-field-vertical"
+                  >
+                    Vertical (HJ, PV)
+                  </button>
+                </div>
+                <p className="text-gray-500 text-xs mt-2 text-center">
+                  Selects which scene template to use for field results
+                </p>
+              </div>
+            </div>
+          )}
           
           {/* Start Button */}
           <div className="text-center">
