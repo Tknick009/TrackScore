@@ -666,7 +666,7 @@ export default function SimpleSceneEditor() {
       round: 'Prelims',
       wind: '+1.8',
       runningTime: '0:12.34',
-      advancementFormula: '3+2',
+      advancementFormula: 'Top 3 + Next 2 Times',
     },
     athletes: [
       { place: '1', lane: '4', bib: '123', name: 'JOHNSON, Michael', firstName: 'Michael', lastName: 'JOHNSON', affiliation: 'STATE UNIV', time: '10.24', reactionTime: '0.142', lastSplit: '5.89', cumulativeSplit: '10.24', qualifier: 'Q', eventPoints: '976', totalPoints: '4521' },
