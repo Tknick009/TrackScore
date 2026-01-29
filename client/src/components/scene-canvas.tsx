@@ -577,6 +577,8 @@ export function SceneObjectRenderer({
             'name': formatName(firstEntry?.firstName, firstEntry?.lastName, firstEntry?.name),
             'first-name': firstEntry?.firstName,
             'last-name': firstEntry?.lastName,
+            'name-qualifier': qualifierStatus ? `${formatName(firstEntry?.firstName, firstEntry?.lastName, firstEntry?.name)} ${qualifierStatus}` : formatName(firstEntry?.firstName, firstEntry?.lastName, firstEntry?.name),
+            'last-name-qualifier': qualifierStatus ? `${firstEntry?.lastName} ${qualifierStatus}` : firstEntry?.lastName,
             'school': firstEntry?.affiliation || firstEntry?.team,
             'time': firstEntry?.time || firstEntry?.mark,
             'last-split': firstEntry?.lastSplit,

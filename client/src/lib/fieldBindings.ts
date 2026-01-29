@@ -84,6 +84,22 @@ export const FIELD_BINDINGS: Record<string, FieldBinding> = {
     dataKey: 'lastName',
     category: 'athlete',
   },
+  'name-qualifier': {
+    key: 'name-qualifier',
+    label: 'Name + Qualifier',
+    type: 'text',
+    description: 'Full name with Q appended if qualified (e.g., "JOHNSON, Michael Q")',
+    dataKey: 'nameQualifier',
+    category: 'athlete',
+  },
+  'last-name-qualifier': {
+    key: 'last-name-qualifier',
+    label: 'Last Name + Qualifier',
+    type: 'text',
+    description: 'Last name with Q appended if qualified (e.g., "JOHNSON Q")',
+    dataKey: 'lastNameQualifier',
+    category: 'athlete',
+  },
   'school': {
     key: 'school',
     label: 'School/Team',
