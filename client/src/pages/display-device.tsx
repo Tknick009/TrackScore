@@ -812,6 +812,70 @@ export default function DisplayDevice() {
             const data = message.data;
             if (data) {
               console.log(`[Display] Field mode change: Event ${data.eventNumber}, ${data.results?.length || 0} results`);
+              
+              // Check if we need to switch to multi_field scene for multi-event field results
+              const incomingDisplayMode = data.displayMode;
+              if (incomingDisplayMode === 'multi_field' && currentLayoutModeRef.current !== 'multi_field' && displayType) {
+                const multiFieldSceneId = getSceneForModeRef.current(displayType, 'multi_field');
+                if (multiFieldSceneId) {
+                  console.log(`[Display] Multi-event field detected, switching to multi_field scene: ${multiFieldSceneId}`);
+                  currentLayoutModeRef.current = 'multi_field';
+                  (async () => {
+                    try {
+                      const [sceneRes, objectsRes] = await Promise.all([
+                        fetch(`/api/layout-scenes/${multiFieldSceneId}`),
+                        fetch(`/api/layout-objects?sceneId=${multiFieldSceneId}`),
+                      ]);
+                      if (sceneRes.ok && objectsRes.ok) {
+                        const scene = await sceneRes.json();
+                        const objects = await objectsRes.json();
+                        queryClient.setQueryData(['/api/layout-scenes', multiFieldSceneId], scene);
+                        queryClient.setQueryData(['/api/layout-objects', { sceneId: multiFieldSceneId }], objects);
+                        setState(prev => ({
+                          ...prev,
+                          currentLayoutMode: 'multi_field',
+                          currentSceneId: multiFieldSceneId,
+                          currentSceneData: { scene, objects },
+                          currentTemplate: null,
+                        }));
+                      }
+                    } catch (e) {
+                      console.warn('[Display] Failed to switch to multi_field scene:', e);
+                    }
+                  })();
+                }
+              } else if (incomingDisplayMode === 'field_results' && currentLayoutModeRef.current === 'multi_field' && displayType) {
+                // Switch back to regular field_results if we were in multi_field
+                const fieldResultsSceneId = getSceneForModeRef.current(displayType, 'field_results');
+                if (fieldResultsSceneId) {
+                  console.log(`[Display] Regular field event, switching back to field_results scene: ${fieldResultsSceneId}`);
+                  currentLayoutModeRef.current = 'field_results';
+                  (async () => {
+                    try {
+                      const [sceneRes, objectsRes] = await Promise.all([
+                        fetch(`/api/layout-scenes/${fieldResultsSceneId}`),
+                        fetch(`/api/layout-objects?sceneId=${fieldResultsSceneId}`),
+                      ]);
+                      if (sceneRes.ok && objectsRes.ok) {
+                        const scene = await sceneRes.json();
+                        const objects = await objectsRes.json();
+                        queryClient.setQueryData(['/api/layout-scenes', fieldResultsSceneId], scene);
+                        queryClient.setQueryData(['/api/layout-objects', { sceneId: fieldResultsSceneId }], objects);
+                        setState(prev => ({
+                          ...prev,
+                          currentLayoutMode: 'field_results',
+                          currentSceneId: fieldResultsSceneId,
+                          currentSceneData: { scene, objects },
+                          currentTemplate: null,
+                        }));
+                      }
+                    } catch (e) {
+                      console.warn('[Display] Failed to switch to field_results scene:', e);
+                    }
+                  })();
+                }
+              }
+              
               setState(prev => ({
                 ...prev,
                 liveEventData: {
@@ -824,6 +888,10 @@ export default function DisplayDevice() {
                   wind: data.wind,
                   distance: prev.liveEventData?.distance,
                   entries: data.results || [],
+                  // Pass through multi-event info for points calculation
+                  isMultiEvent: data.isMultiEvent,
+                  eventType: data.eventType,
+                  gender: data.gender,
                 },
               }));
             }

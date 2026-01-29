@@ -6446,6 +6446,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
     
     let accumulatedResults = data.results || [];
+    let isMultiEvent = false;
+    let eventType: string | null = null;
+    let eventGender: string | null = null;
     
     try {
       // Auto-activate event when data arrives (set to in_progress if scheduled)
@@ -6455,6 +6458,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await storage.updateEventStatus(event.id, 'in_progress');
           console.log(`[Lynx] Auto-activated field event ${event.name} (${event.id}) to in_progress`);
           await broadcastCurrentEvent();
+        }
+        // Get multi-event info from first matching event
+        if (!eventType) {
+          isMultiEvent = event.isMultiEvent ?? false;
+          eventType = event.eventType ?? null;
+          eventGender = event.gender ?? null;
         }
       }
       
@@ -6500,16 +6509,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('[Lynx] Error storing field mode change:', error);
     }
     
+    // Determine display mode for scene template mapping
+    // Multi-events use 'multi_field' instead of 'field_results' to show points
+    const displayMode = isMultiEvent ? 'multi_field' : 'field_results';
+    
     // Broadcast field event update with accumulated results
     broadcastToDisplays({
       type: 'field_mode_change',
       data: {
         eventNumber,
         mode,
+        displayMode, // Scene template mapping mode (multi_field for multi-events)
         eventName: data.eventName,
         flight: data.flight,
         wind: data.wind,
         results: accumulatedResults,
+        isMultiEvent, // For multi-event points display
+        eventType, // For calculating multi-event points
+        gender: eventGender, // For calculating multi-event points
       }
     } as WSMessage);
   });
