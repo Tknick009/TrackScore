@@ -5799,6 +5799,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Diagnostic buffer for incoming field data - stores last 50 messages
+  const fieldDataDiagnostics: Array<{
+    timestamp: string;
+    portType: string;
+    rawText: string;
+    rawHex: string;
+    parsedFields: Record<string, string>;
+  }> = [];
+  const MAX_DIAGNOSTICS = 50;
+
   // NEW: Receive raw bytes from TCP forwarder (ResulTV/LSS binary format)
   // This is the new endpoint for the base64-encoded raw data
   app.post("/api/lynx/raw", async (req, res) => {
@@ -5821,6 +5831,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Decode base64 to buffer
       const rawBytes = Buffer.from(data, 'base64');
       
+      // Enhanced diagnostic logging for field data
+      if (portType === 'field') {
+        const rawText = rawBytes.toString('utf8');
+        const rawHex = rawBytes.toString('hex');
+        
+        // Try to extract any key=value pairs from the data
+        const parsedFields: Record<string, string> = {};
+        const kvMatches = rawText.matchAll(/([A-Za-z_]+)\s*[=:]\s*([^;\r\n]+)/g);
+        for (const match of kvMatches) {
+          parsedFields[match[1]] = match[2].trim();
+        }
+        
+        // Look for common device name patterns
+        const devicePatterns = [
+          /Device[Name]*\s*[=:]\s*([^;\r\n]+)/i,
+          /Target[Device]*\s*[=:]\s*([^;\r\n]+)/i,
+          /Scoreboard\s*[=:]\s*([^;\r\n]+)/i,
+          /Display\s*[=:]\s*([^;\r\n]+)/i,
+          /Board\s*[=:]\s*([^;\r\n]+)/i,
+        ];
+        
+        for (const pattern of devicePatterns) {
+          const match = rawText.match(pattern);
+          if (match) {
+            parsedFields['_DETECTED_DEVICE'] = match[1].trim();
+            console.log(`[Field Diagnostic] DEVICE NAME DETECTED: "${match[1].trim()}"`);
+          }
+        }
+        
+        console.log(`[Field Diagnostic] ========== INCOMING FIELD DATA ==========`);
+        console.log(`[Field Diagnostic] Raw text (first 500 chars): ${rawText.substring(0, 500)}`);
+        console.log(`[Field Diagnostic] Parsed key-value pairs:`, parsedFields);
+        console.log(`[Field Diagnostic] ===========================================`);
+        
+        // Store for retrieval via API
+        fieldDataDiagnostics.push({
+          timestamp: new Date().toISOString(),
+          portType,
+          rawText: rawText.substring(0, 2000), // Limit stored size
+          rawHex: rawHex.substring(0, 500),
+          parsedFields,
+        });
+        
+        // Keep only last N entries
+        while (fieldDataDiagnostics.length > MAX_DIAGNOSTICS) {
+          fieldDataDiagnostics.shift();
+        }
+      }
+      
       // Process through the ResulTV parser
       const parser = getResulTVParser();
       parser.processRawData(rawBytes, portType);
@@ -5830,6 +5889,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('[Lynx Raw] Error:', error.message);
       res.status(500).json({ error: error.message });
     }
+  });
+
+  // Diagnostic endpoint to view recent field data
+  app.get("/api/field-diagnostics", async (req, res) => {
+    res.json({
+      count: fieldDataDiagnostics.length,
+      messages: fieldDataDiagnostics,
+      hint: "Look for 'Device', 'Target', 'Scoreboard', or 'Board' fields in parsedFields",
+    });
+  });
+
+  // Clear diagnostics buffer
+  app.delete("/api/field-diagnostics", async (req, res) => {
+    fieldDataDiagnostics.length = 0;
+    res.json({ success: true, message: "Diagnostics buffer cleared" });
   });
 
   // Get live event data by event number
