@@ -1138,22 +1138,11 @@ export function SceneCanvas({
       };
     }
     
-    if (hasSplitData) {
-      // Splits mode: show entries with split data OR entries with places (finished athletes)
-      // Places come ONLY from FinishLynx - never calculate them
-      filteredEntries = nonDNSEntries.filter((entry: any) => {
-        const hasSplits = entrySplitData(entry);
-        const hasPlace = entry.place && String(entry.place).trim() !== '';
-        return hasSplits || hasPlace;
-      });
-      
-      return {
-        ...rawLiveData,
-        entries: filteredEntries,
-      };
-    }
+    // Don't filter entries based on split data - let the opacity logic handle fading
+    // Entries without timing data will show at 25% opacity instead of being hidden
+    // This allows the display to show all entries during the race
     
-    // For start_list mode (no splits yet), return entries with DNS filtered out
+    // For running/start_list modes, return all entries (with DNS filtered out)
     return {
       ...rawLiveData,
       entries: nonDNSEntries,
