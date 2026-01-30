@@ -618,9 +618,20 @@ export function SceneObjectRenderer({
           ? `${numericTextFontSize}px` 
           : (numericTextFontSize === 'xlarge' ? '48px' : numericTextFontSize === 'large' ? '36px' : numericTextFontSize === 'medium' ? '24px' : '18px');
         
-        // Check if this is a name-qualifier field to show badge
+        // Check if this is a name-qualifier field to show badge - only when we have live data
         const isQualifierField = fieldKey === 'name-qualifier' || fieldKey === 'last-name-qualifier';
-        const qualifierBadge = isQualifierField ? (fieldMap as Record<string, any>)?.[`${fieldKey}-badge`] : null;
+        // qualifierBadge is set inside the liveData block above, need to track it differently
+        let qualifierBadge: string | null = null;
+        if (isQualifierField && liveData) {
+          const entries = Array.isArray(liveData.entries) ? liveData.entries : [];
+          const athleteIdx = dataBinding.athleteIndex || 0;
+          const entry = entries[athleteIdx];
+          const advanceByPlace = liveData.advanceByPlace;
+          const entryPlace = parseInt(String(entry?.place || '0'));
+          if (entryPlace > 0 && advanceByPlace && entryPlace <= advanceByPlace) {
+            qualifierBadge = 'Q';
+          }
+        }
         
         return (
           <div 
