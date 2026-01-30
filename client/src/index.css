@@ -263,6 +263,12 @@
     font-weight: 600 !important;
     text-transform: uppercase;
   }
+  
+  /* Dark background for display pages to prevent white flash during scene transitions */
+  html:has(.display-layout),
+  body:has(.display-layout) {
+    background-color: hsl(var(--display-bg)) !important;
+  }
 
   /* Gradient Edge Styling - Blue stadium aesthetic */
   .gradient-edge-blue {
