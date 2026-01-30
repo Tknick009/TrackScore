@@ -253,14 +253,15 @@ export function SceneObjectRenderer({
   }
   
   // Fade entries that don't have timing data yet (25% opacity until first split/time)
-  // Applies to any object bound to an athlete, except in results/finished modes
+  // Only applies during active running modes - not during armed/start_list or results
   let entryHasTimingData = true; // Default to full opacity
   const athleteIndex = dataBinding.athleteIndex;
   const mode = liveData?.mode || '';
   const isResultsMode = mode === 'results' || mode === 'finished';
+  const isPreRaceMode = mode === 'armed' || mode === 'start_list' || mode === '';
   
-  // Apply fade logic for all non-results modes when bound to an athlete
-  if (athleteIndex !== undefined && athleteIndex >= 0 && liveData && !isResultsMode) {
+  // Apply fade logic only during active running modes (not pre-race or results)
+  if (athleteIndex !== undefined && athleteIndex >= 0 && liveData && !isResultsMode && !isPreRaceMode) {
     const entries = Array.isArray(liveData.entries) ? liveData.entries : [];
     const entry = entries[athleteIndex];
     if (entry) {
