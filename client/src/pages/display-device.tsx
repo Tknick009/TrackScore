@@ -303,6 +303,8 @@ export default function DisplayDevice() {
   
   // Track current layout mode for debouncing duplicate commands from FinishLynx
   const currentLayoutModeRef = useRef<string | null>(null);
+  // Track current event number to reset debouncing when a new event starts
+  const currentEventNumberRef = useRef<string | null>(null);
 
   // Update meetId ref when selected meet changes
   useEffect(() => {
@@ -661,7 +663,16 @@ export default function DisplayDevice() {
             const data = message.data;
             if (data) {
               const entries = data.entries || data.results || [];
+              const incomingEventNumber = String(data.eventNumber || '');
               console.log(`[Display] Track mode change (${isBigBoardRef.current ? 'BIG BOARD' : 'standard'}): Event ${data.eventNumber}, mode=${data.mode}, ${entries.length} entries`);
+              
+              // Reset layout mode debouncing when a new event/heat starts
+              // This ensures layout commands are processed for each new heat
+              if (incomingEventNumber && incomingEventNumber !== currentEventNumberRef.current) {
+                console.log(`[Display] New event detected (${currentEventNumberRef.current} → ${incomingEventNumber}), resetting layout mode for fresh scene switching`);
+                currentEventNumberRef.current = incomingEventNumber;
+                currentLayoutModeRef.current = null; // Reset so next layout command is processed
+              }
               
               // Detect if entries have split data for running_time_splits mode switching
               // L2G (Laps To Go) > 0 indicates a multi-lap race that will have splits
