@@ -423,10 +423,12 @@ export function SceneObjectRenderer({
           return <div className="h-full" />;
         }
         return (
-          <LogoImage 
-            logoUrl={logoUrl} 
-            objectFit={componentConfig.objectFit || componentConfig.imageFit || "contain"} 
-          />
+          <div style={{ opacity: textFadeOpacity, height: '100%' }}>
+            <LogoImage 
+              logoUrl={logoUrl} 
+              objectFit={componentConfig.objectFit || componentConfig.imageFit || "contain"} 
+            />
+          </div>
         );
         
       case "text":
