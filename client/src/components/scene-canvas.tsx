@@ -252,9 +252,10 @@ export function SceneObjectRenderer({
     shouldHide = true;
   }
   
-  // Fade entries that don't have timing data yet (25% opacity until first split/time)
+  // Fade TEXT only for entries without timing data (50% opacity until first split)
   // Only applies during active running modes - not during armed/start_list or results
-  let entryHasTimingData = true; // Default to full opacity
+  // The box/background stays fully visible, only the text fades
+  let textFadeOpacity = 1; // Default to full opacity
   const athleteIndex = dataBinding.athleteIndex;
   const mode = liveData?.mode || '';
   const isResultsMode = mode === 'results' || mode === 'finished';
@@ -271,13 +272,13 @@ export function SceneObjectRenderer({
       const hasTime = entry.time && String(entry.time).trim() !== '';
       const hasRunningTime = entry.runningTime && String(entry.runningTime).trim() !== '';
       const hasPlace = entry.place && String(entry.place).trim() !== '';
-      entryHasTimingData = hasLastSplit || hasCumulativeSplit || hasTime || hasRunningTime || hasPlace;
+      const hasTimingData = hasLastSplit || hasCumulativeSplit || hasTime || hasRunningTime || hasPlace;
+      textFadeOpacity = hasTimingData ? 1 : 0.5;
     } else {
       // Entry doesn't exist at this index - fade it
-      entryHasTimingData = false;
+      textFadeOpacity = 0.5;
     }
   }
-  const fadeOpacity = entryHasTimingData ? 1 : 0.25;
   
   const objectStyle: React.CSSProperties = {
     position: "absolute",
@@ -289,7 +290,7 @@ export function SceneObjectRenderer({
     overflow: "hidden",
     backgroundColor: bgColor,
     borderRadius: styleConfig.borderRadius || "0px",
-    opacity: shouldHide ? 0 : ((styleConfig.opacity ?? 1) * fadeOpacity),
+    opacity: shouldHide ? 0 : (styleConfig.opacity ?? 1),
     visibility: shouldHide ? 'hidden' : 'visible',
     padding: styleConfig.padding ? `${styleConfig.padding}px` : undefined,
     paddingLeft: styleConfig.paddingLeft ? `${styleConfig.paddingLeft}px` : undefined,
@@ -650,6 +651,7 @@ export function SceneObjectRenderer({
               fontWeight: componentConfig.fontWeight || (styleConfig as any).fontWeight || "normal",
               color: componentConfig.textColor || styleConfig.textColor || "hsl(var(--display-fg))",
               letterSpacing: '-0.02em',
+              opacity: textFadeOpacity,
             }}
           >
             <span className="whitespace-nowrap">{textContent || ""}</span>
