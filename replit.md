@@ -178,6 +178,35 @@ The launcher will:
 
 Configuration is saved to `data/edge-launcher-config.json` so you don't need to specify the source every time.
 
+### Meet Package System (Dropbox Sync)
+
+For syncing meet data between computers via Dropbox (or any file sync service):
+
+**Export a Meet:**
+1. Go to the meet detail page
+2. Click "Export Package" in the Export section
+3. Package is saved to `meets/{meet-name}-{code}/` folder containing:
+   - `meet-package.json` - All meet data, events, athletes, entries, teams, divisions, scenes, display themes
+   - `logos/` folder with meet and theme logos (if applicable)
+
+**Load a Meet on Another Computer:**
+1. Ensure Dropbox (or file sync) has synced the `meets/` folder
+2. Run Edge Launcher to sync latest files
+3. Navigate to homepage and click "Load from Package"
+4. Select the meet package to import
+5. Meet is created in local SQLite database with all data
+
+**API Endpoints:**
+- `GET /api/meet-packages` - List all available packages
+- `POST /api/meet-packages/export/:meetId` - Export meet to package
+- `POST /api/meet-packages/import/:packageName` - Import meet from package
+- `DELETE /api/meet-packages/:packageName` - Delete a package
+
+**Key Files:**
+- `server/meet-package.ts` - Export/import logic
+- `client/src/pages/load-meet.tsx` - Load Meet UI
+- `meets/` - Package storage directory
+
 ### Environment Variables
 - `EDGE_MODE=true` - Enable SQLite storage instead of PostgreSQL
 - `SQLITE_DB_PATH=./data/scoreboard.db` - Custom database location

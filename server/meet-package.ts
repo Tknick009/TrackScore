@@ -191,8 +191,15 @@ export async function listMeetPackages(): Promise<PackageInfo[]> {
     if (fs.existsSync(packagePath)) {
       try {
         const data = JSON.parse(fs.readFileSync(packagePath, 'utf-8')) as MeetPackage;
-        const logoPath = path.join(PACKAGES_DIR, dir, 'logos', 'meet-logo.png');
-        const logoPathJpg = path.join(PACKAGES_DIR, dir, 'logos', 'meet-logo.jpg');
+        
+        const logosDir = path.join(PACKAGES_DIR, dir, 'logos');
+        let hasLogo = false;
+        if (fs.existsSync(logosDir)) {
+          const logoExtensions = ['.png', '.jpg', '.jpeg', '.svg', '.webp', '.gif'];
+          hasLogo = logoExtensions.some(ext => 
+            fs.existsSync(path.join(logosDir, `meet-logo${ext}`))
+          );
+        }
         
         packages.push({
           packageName: dir,
@@ -205,7 +212,7 @@ export async function listMeetPackages(): Promise<PackageInfo[]> {
             teams: data.teams.length,
             scenes: data.layoutScenes.length,
           },
-          hasLogo: fs.existsSync(logoPath) || fs.existsSync(logoPathJpg),
+          hasLogo,
         });
       } catch (e) {
       }
