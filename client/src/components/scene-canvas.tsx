@@ -1092,7 +1092,7 @@ export function SceneCanvas({
   
   // Use entries in arrival order for start_list (FinishLynx controls display order)
   // Only sort results mode by place
-  // For splits mode: hold display until all entries have splits (prevents premature paging)
+  // DNS entries are completely hidden, all others are visible (50% opacity if no timing data)
   const liveData = useMemo(() => {
     if (!rawLiveData) return rawLiveData;
     
@@ -1102,17 +1102,7 @@ export function SceneCanvas({
     const mode = rawLiveData.mode || '';
     const isResults = mode === 'results' || mode === 'finished';
     
-    // Helper to check if an entry has split data
-    // L2G (Laps To Go) > 0 indicates a multi-lap race with splits
-    const entrySplitData = (entry: any) => {
-      const hasLastSplit = entry.lastSplit && String(entry.lastSplit).trim() !== '';
-      const hasCumulativeSplit = entry.cumulativeSplit && String(entry.cumulativeSplit).trim() !== '';
-      const hasSplitsArray = entry.splits && Array.isArray(entry.splits) && entry.splits.length > 0;
-      const hasLapsToGo = entry.lapsToGo && parseInt(entry.lapsToGo) > 0;
-      return hasLastSplit || hasCumulativeSplit || hasSplitsArray || hasLapsToGo;
-    };
-    
-    // Helper to check if an entry is DNS (Did Not Start)
+    // Helper to check if an entry is DNS (Did Not Start) - only DNS entries are hidden
     const isDNS = (entry: any) => {
       const time = String(entry.time || '').toUpperCase().trim();
       const place = String(entry.place || '').toUpperCase().trim();
@@ -1120,41 +1110,30 @@ export function SceneCanvas({
       return time === 'DNS' || place === 'DNS' || mark === 'DNS';
     };
     
-    // Filter out DNS entries from all modes
+    // Filter out ONLY DNS entries - all other entries remain visible
     const nonDNSEntries = entries.filter((entry: any) => !isDNS(entry));
-    
-    // Detect if we're in "splits mode" by checking if ANY entry has split data
-    const hasSplitData = nonDNSEntries.some((entry: any) => entrySplitData(entry));
-    
-    // Filter entries based on data presence:
-    // - In results mode: hide entries without time/place
-    // - When split data exists: hide entries without split data (regardless of mode)
-    let filteredEntries = nonDNSEntries;
     
     if (isResults) {
       // Results mode: only show entries with time or place
-      filteredEntries = nonDNSEntries.filter((entry: any) => {
+      const resultsEntries = nonDNSEntries.filter((entry: any) => {
         const hasTime = entry.time && String(entry.time).trim() !== '';
         const hasPlace = entry.place && String(entry.place).trim() !== '';
         return hasTime || hasPlace;
       });
       // Sort by place
-      filteredEntries = [...filteredEntries].sort((a: any, b: any) => {
+      const sortedEntries = [...resultsEntries].sort((a: any, b: any) => {
         const placeA = parseInt(a.place) || 999;
         const placeB = parseInt(b.place) || 999;
         return placeA - placeB;
       });
       return {
         ...rawLiveData,
-        entries: filteredEntries,
+        entries: sortedEntries,
       };
     }
     
-    // Don't filter entries based on split data - let the opacity logic handle fading
-    // Entries without timing data will show at 25% opacity instead of being hidden
-    // This allows the display to show all entries during the race
-    
-    // For running/start_list modes, return all entries (with DNS filtered out)
+    // For running/start_list modes: show all entries except DNS
+    // Entries without timing data will appear at 50% opacity (handled by textFadeOpacity)
     return {
       ...rawLiveData,
       entries: nonDNSEntries,

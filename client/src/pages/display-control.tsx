@@ -244,7 +244,6 @@ export default function DisplayControlPage() {
   const displayModes = [
     'start_list', 
     'running_time', 
-    'running_time_splits', 
     'track_results', 
     'multi_track',
     'field_results_vertical',
@@ -258,7 +257,6 @@ export default function DisplayControlPage() {
   const displayModeLabels: Record<string, string> = {
     start_list: 'Start List',
     running_time: 'Running Time',
-    running_time_splits: 'Running Time (Splits)',
     track_results: 'Track Results',
     multi_track: 'Multi-Event Track',
     field_results_vertical: 'Field Vertical (HJ/PV)',
