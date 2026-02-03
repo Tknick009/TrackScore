@@ -6,28 +6,100 @@ type EntryWithAthlete = EventWithEntries['entries'][number];
 interface PictureBoardTransitionProps {
   currentEntry: EntryWithAthlete | null;
   meet?: Meet | null;
-  teamColor?: string;
-  teamLogo?: string | null;
   children: (entry: EntryWithAthlete | null, isRevealed: boolean) => React.ReactNode;
 }
 
 type AnimationPhase = 'idle' | 'curtain' | 'split' | 'reveal' | 'content';
 
+function extractDominantColor(imgElement: HTMLImageElement): Promise<string> {
+  return new Promise((resolve) => {
+    try {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve('#1e3a8a');
+        return;
+      }
+
+      const size = 50;
+      canvas.width = size;
+      canvas.height = size;
+
+      ctx.drawImage(imgElement, 0, 0, size, size);
+
+      const imageData = ctx.getImageData(0, 0, size, size);
+      const data = imageData.data;
+
+      let r = 0, g = 0, b = 0, count = 0;
+
+      for (let i = 0; i < data.length; i += 4) {
+        const alpha = data[i + 3];
+        if (alpha < 128) continue;
+
+        const pr = data[i];
+        const pg = data[i + 1];
+        const pb = data[i + 2];
+
+        if (pr > 240 && pg > 240 && pb > 240) continue;
+        if (pr < 15 && pg < 15 && pb < 15) continue;
+
+        r += pr;
+        g += pg;
+        b += pb;
+        count++;
+      }
+
+      if (count === 0) {
+        resolve('#1e3a8a');
+        return;
+      }
+
+      r = Math.round(r / count);
+      g = Math.round(g / count);
+      b = Math.round(b / count);
+
+      const max = Math.max(r, g, b);
+      if (max < 60) {
+        r = Math.min(255, r + 40);
+        g = Math.min(255, g + 40);
+        b = Math.min(255, b + 40);
+      }
+
+      resolve(`rgb(${r}, ${g}, ${b})`);
+    } catch (e) {
+      resolve('#1e3a8a');
+    }
+  });
+}
+
 export function PictureBoardTransition({
   currentEntry,
   meet,
-  teamColor: propTeamColor,
-  teamLogo: propTeamLogo,
   children,
 }: PictureBoardTransitionProps) {
   const [displayedEntry, setDisplayedEntry] = useState<EntryWithAthlete | null>(currentEntry);
   const [phase, setPhase] = useState<AnimationPhase>('content');
   const [isFirstLoad, setIsFirstLoad] = useState(true);
+  const [extractedColor, setExtractedColor] = useState<string>('#1e3a8a');
   const timeoutsRef = useRef<NodeJS.Timeout[]>([]);
   const previousAthleteIdRef = useRef<string | null>(null);
+  const colorCacheRef = useRef<Map<string, string>>(new Map());
 
-  const teamColor = propTeamColor || meet?.primaryColor || '#1e3a8a';
-  const teamLogo = propTeamLogo || meet?.logoUrl;
+  const getTeamLogo = (entry: EntryWithAthlete | null): string | null => {
+    if (!entry) return null;
+    const athlete = (entry as any).athlete;
+    if (!athlete) return null;
+    const teamCode = athlete.teamCode || athlete.team?.code || athlete.team?.teamCode;
+    if (teamCode) {
+      return `/logos/NCAA/${teamCode}.png`;
+    }
+    return null;
+  };
+
+  const teamLogo = getTeamLogo(currentEntry);
+  const fallbackLogo = meet?.logoUrl;
+  const displayLogo = teamLogo || fallbackLogo;
+  const teamColor = extractedColor;
 
   const clearTimeouts = useCallback(() => {
     timeoutsRef.current.forEach(t => clearTimeout(t));
@@ -53,21 +125,57 @@ export function PictureBoardTransition({
     }, 500));
   }, [clearTimeouts]);
 
+  const extractColorFromLogo = useCallback(async (logoUrl: string): Promise<string> => {
+    if (colorCacheRef.current.has(logoUrl)) {
+      return colorCacheRef.current.get(logoUrl)!;
+    }
+
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = async () => {
+        const color = await extractDominantColor(img);
+        colorCacheRef.current.set(logoUrl, color);
+        resolve(color);
+      };
+      img.onerror = () => {
+        resolve(meet?.primaryColor || '#1e3a8a');
+      };
+      img.src = logoUrl;
+    });
+  }, [meet?.primaryColor]);
+
   useEffect(() => {
     const currentAthleteId = currentEntry?.athleteId || currentEntry?.id || null;
+    const newTeamLogo = getTeamLogo(currentEntry);
     
     if (isFirstLoad) {
       setIsFirstLoad(false);
       setDisplayedEntry(currentEntry);
       previousAthleteIdRef.current = currentAthleteId;
       setPhase('content');
+      
+      if (newTeamLogo) {
+        extractColorFromLogo(newTeamLogo).then(setExtractedColor);
+      } else if (meet?.primaryColor) {
+        setExtractedColor(meet.primaryColor);
+      }
       return;
     }
 
     if (currentAthleteId !== previousAthleteIdRef.current) {
       previousAthleteIdRef.current = currentAthleteId;
+      
       if (currentEntry) {
-        runTransition(currentEntry);
+        if (newTeamLogo) {
+          extractColorFromLogo(newTeamLogo).then((color) => {
+            setExtractedColor(color);
+            runTransition(currentEntry);
+          });
+        } else {
+          setExtractedColor(meet?.primaryColor || '#1e3a8a');
+          runTransition(currentEntry);
+        }
       } else {
         setDisplayedEntry(null);
         setPhase('content');
@@ -75,7 +183,7 @@ export function PictureBoardTransition({
     } else {
       setDisplayedEntry(currentEntry);
     }
-  }, [currentEntry, isFirstLoad, runTransition]);
+  }, [currentEntry, isFirstLoad, runTransition, extractColorFromLogo, meet?.primaryColor]);
 
   useEffect(() => {
     return () => clearTimeouts();
@@ -100,9 +208,9 @@ export function PictureBoardTransition({
           transition: phase === 'curtain' ? 'transform 0.5s ease-out' : 'none',
         }}
       >
-        {teamLogo ? (
+        {displayLogo ? (
           <img 
-            src={teamLogo} 
+            src={displayLogo} 
             alt="Team Logo" 
             className="max-h-[70%] max-w-[70%] object-contain"
             style={{ filter: 'drop-shadow(0 2px 8px rgba(0, 0, 0, 0.4))' }}
@@ -127,9 +235,9 @@ export function PictureBoardTransition({
         }}
       >
         <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>
-          {teamLogo ? (
+          {displayLogo ? (
             <img 
-              src={teamLogo} 
+              src={displayLogo} 
               alt="Team Logo" 
               className="max-h-[70%] object-contain"
               style={{ 
@@ -158,9 +266,9 @@ export function PictureBoardTransition({
         }}
       >
         <div style={{ position: 'absolute', right: '50%', transform: 'translateX(50%)' }}>
-          {teamLogo ? (
+          {displayLogo ? (
             <img 
-              src={teamLogo} 
+              src={displayLogo} 
               alt="Team Logo" 
               className="max-h-[70%] object-contain"
               style={{ 
