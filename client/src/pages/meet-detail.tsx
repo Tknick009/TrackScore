@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
 import { format, formatDistanceToNow } from "date-fns";
-import { Calendar, MapPin, Settings, Monitor, ArrowLeft, Hash, Upload, RefreshCw, Users, Trophy, PlayCircle, CheckCircle2, Clock, TrendingUp, Activity, Trash2, AlertTriangle, Image, X } from "lucide-react";
+import { Calendar, MapPin, Settings, Monitor, ArrowLeft, Hash, Upload, RefreshCw, Users, Trophy, PlayCircle, CheckCircle2, Clock, TrendingUp, Activity, Trash2, AlertTriangle, Image, X, Download, FolderDown } from "lucide-react";
 import type { Meet, Event, Athlete } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -916,10 +916,82 @@ export default function MeetDetail() {
         {/* Auto-Refresh Settings */}
         {meetId && <AutoRefreshSettings meet={meet} meetId={meetId} />}
 
+        {/* Export Package */}
+        {meetId && <ExportPackageSection meetId={meetId} meetName={meet.name} />}
+
         {/* Danger Zone */}
         {meetId && <DangerZone meetId={meetId} />}
       </div>
     </div>
+  );
+}
+
+interface ExportPackageSectionProps {
+  meetId: string;
+  meetName: string;
+}
+
+function ExportPackageSection({ meetId, meetName }: ExportPackageSectionProps) {
+  const { toast } = useToast();
+
+  const exportMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", `/api/meet-packages/export/${meetId}`);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Meet Exported Successfully",
+        description: `Package saved to ${data.packagePath}. You can now sync via Dropbox.`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Export Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  return (
+    <Card data-testid="card-export-package">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <FolderDown className="w-5 h-5" />
+          Export Meet Package
+        </CardTitle>
+        <CardDescription>
+          Export this meet to a package that can be synced to other computers via Dropbox
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <p className="text-sm text-muted-foreground">
+              Creates a folder in <code className="text-xs bg-muted px-1 py-0.5 rounded">meets/</code> containing all meet data, events, athletes, scenes, and logos.
+            </p>
+          </div>
+          <Button 
+            onClick={() => exportMutation.mutate()}
+            disabled={exportMutation.isPending}
+            data-testid="button-export-meet"
+          >
+            {exportMutation.isPending ? (
+              <>
+                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                Exporting...
+              </>
+            ) : (
+              <>
+                <Download className="w-4 h-4 mr-2" />
+                Export Package
+              </>
+            )}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
