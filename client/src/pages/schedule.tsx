@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useMemo, useEffect } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Event } from "@shared/schema";
 import { useMeet } from "@/contexts/MeetContext";
 import { Card, CardContent } from "@/components/ui/card";
@@ -7,10 +7,144 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, Clock, Timer, Target, PlayCircle, RotateCcw, Eye, Loader2, ArrowUpDown } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Calendar, Clock, Timer, Target, ArrowUpDown, Edit2, Check, X } from "lucide-react";
 import { Link } from "wouter";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 type SortOption = 'time' | 'session' | 'number' | 'name' | 'status';
+
+function formatAdvancementFormula(advanceByPlace: number | null | undefined, advanceByTime: number | null | undefined): string {
+  if (!advanceByPlace && !advanceByTime) return '';
+  const q = advanceByPlace || 0;
+  const t = advanceByTime || 0;
+  if (q > 0 && t > 0) {
+    return `${q}Q+${t}q`;
+  } else if (q > 0) {
+    return `${q}Q`;
+  } else if (t > 0) {
+    return `${t}q`;
+  }
+  return '';
+}
+
+function AdvancementFormulaEditor({ event, meetId }: { event: Event; meetId: string }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [advanceByPlace, setAdvanceByPlace] = useState<string>(event.advanceByPlace?.toString() || '');
+  const [advanceByTime, setAdvanceByTime] = useState<string>(event.advanceByTime?.toString() || '');
+  const { toast } = useToast();
+
+  // Sync state when event props change
+  useEffect(() => {
+    setAdvanceByPlace(event.advanceByPlace?.toString() || '');
+    setAdvanceByTime(event.advanceByTime?.toString() || '');
+  }, [event.advanceByPlace, event.advanceByTime]);
+
+  const updateMutation = useMutation({
+    mutationFn: async (data: { advanceByPlace?: number | null; advanceByTime?: number | null }) => {
+      return await apiRequest("PATCH", `/api/events/${event.id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/events", meetId] });
+      setIsEditing(false);
+      toast({ title: "Advancement formula updated" });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to update",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSave = () => {
+    const q = advanceByPlace ? parseInt(advanceByPlace, 10) : null;
+    const t = advanceByTime ? parseInt(advanceByTime, 10) : null;
+    
+    // Validate: must be non-negative integers
+    if (q !== null && (isNaN(q) || q < 0)) {
+      toast({ title: "Invalid Q value", description: "Must be a non-negative number", variant: "destructive" });
+      return;
+    }
+    if (t !== null && (isNaN(t) || t < 0)) {
+      toast({ title: "Invalid q value", description: "Must be a non-negative number", variant: "destructive" });
+      return;
+    }
+    
+    updateMutation.mutate({
+      advanceByPlace: q,
+      advanceByTime: t,
+    });
+  };
+
+  const handleCancel = () => {
+    setAdvanceByPlace(event.advanceByPlace?.toString() || '');
+    setAdvanceByTime(event.advanceByTime?.toString() || '');
+    setIsEditing(false);
+  };
+
+  const formula = formatAdvancementFormula(event.advanceByPlace, event.advanceByTime);
+
+  if (isEditing) {
+    return (
+      <div className="flex items-center gap-2 mt-1 flex-wrap">
+        <span className="text-xs text-muted-foreground">Advance:</span>
+        <Input
+          className="w-12"
+          placeholder="0"
+          type="number"
+          min="0"
+          value={advanceByPlace}
+          onChange={(e) => setAdvanceByPlace(e.target.value)}
+          data-testid={`input-advance-place-${event.id}`}
+        />
+        <span className="text-xs">Q +</span>
+        <Input
+          className="w-12"
+          placeholder="0"
+          type="number"
+          min="0"
+          value={advanceByTime}
+          onChange={(e) => setAdvanceByTime(e.target.value)}
+          data-testid={`input-advance-time-${event.id}`}
+        />
+        <span className="text-xs">q</span>
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={handleSave}
+          disabled={updateMutation.isPending}
+          data-testid={`button-save-advance-${event.id}`}
+        >
+          <Check className="h-4 w-4 text-green-600" />
+        </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={handleCancel}
+          data-testid={`button-cancel-advance-${event.id}`}
+        >
+          <X className="h-4 w-4 text-destructive" />
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <Button 
+      variant="ghost"
+      size="sm"
+      className="mt-1 text-xs text-muted-foreground"
+      onClick={() => setIsEditing(true)}
+      data-testid={`button-edit-advance-${event.id}`}
+    >
+      {formula ? `Advance: ${formula}` : 'Set advancement...'}
+      <Edit2 className="h-3 w-3 ml-1" />
+    </Button>
+  );
+}
 
 function parseTimeToMinutes(timeStr: string | null | undefined): number {
   if (!timeStr) return 9999;
@@ -219,59 +353,45 @@ export default function Schedule() {
                   </div>
                 )}
                 <div className="space-y-2">
-                  {groupEvents.map((event: Event) => (
-                    <Card key={event.id} className="hover-elevate">
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between gap-4">
-                          <div className="flex items-center gap-3 min-w-0 flex-1">
-                            {isTrackEvent(event.eventType) ? (
-                              <Timer className="w-5 h-5 text-muted-foreground shrink-0" />
-                            ) : (
-                              <Target className="w-5 h-5 text-muted-foreground shrink-0" />
-                            )}
-                            <div className="min-w-0 flex-1">
-                              <div className="font-medium truncate">{event.name}</div>
-                              <div className="text-sm text-muted-foreground flex items-center gap-2 flex-wrap">
-                                {event.eventTime && (
-                                  <span className="flex items-center gap-1">
-                                    <Clock className="w-3 h-3" />
-                                    {event.eventTime}
-                                  </span>
+                  {groupEvents.map((event: Event) => {
+                    const isPrelim = (event.numRounds || 1) > 1;
+                    return (
+                      <Card key={event.id} className="hover-elevate">
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                              {isTrackEvent(event.eventType) ? (
+                                <Timer className="w-5 h-5 text-muted-foreground shrink-0" />
+                              ) : (
+                                <Target className="w-5 h-5 text-muted-foreground shrink-0" />
+                              )}
+                              <div className="min-w-0 flex-1">
+                                <div className="font-medium truncate">{event.name}</div>
+                                <div className="text-sm text-muted-foreground flex items-center gap-2 flex-wrap">
+                                  {event.eventTime && (
+                                    <span className="flex items-center gap-1">
+                                      <Clock className="w-3 h-3" />
+                                      {event.eventTime}
+                                    </span>
+                                  )}
+                                  {event.eventNumber && (
+                                    <span>Event #{event.eventNumber}</span>
+                                  )}
+                                  <span className="capitalize">{event.gender}</span>
+                                </div>
+                                {isPrelim && currentMeetId && (
+                                  <AdvancementFormulaEditor event={event} meetId={currentMeetId} />
                                 )}
-                                {event.eventNumber && (
-                                  <span>Event #{event.eventNumber}</span>
-                                )}
-                                <span className="capitalize">{event.gender}</span>
                               </div>
                             </div>
+                            <div className="flex items-center gap-2">
+                              {getEventStatusBadge(event.status)}
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            {getEventStatusBadge(event.status)}
-                            <Button size="sm" asChild data-testid={`button-run-event-${event.id}`}>
-                              <Link href={`/control/${currentMeetId}/events/${event.id}`}>
-                                {event.status === "in_progress" ? (
-                                  <>
-                                    <PlayCircle className="w-4 h-4 mr-1" />
-                                    Resume
-                                  </>
-                                ) : event.status === "completed" ? (
-                                  <>
-                                    <Eye className="w-4 h-4 mr-1" />
-                                    View
-                                  </>
-                                ) : (
-                                  <>
-                                    <PlayCircle className="w-4 h-4 mr-1" />
-                                    Run
-                                  </>
-                                )}
-                              </Link>
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               </div>
             ))}
