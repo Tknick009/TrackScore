@@ -1,13 +1,69 @@
 import { useState, useEffect } from "react";
 import type { EventWithEntries, Meet } from "@shared/schema";
+import { PictureBoardTransition } from "../PictureBoardTransition";
+
+type EntryWithAthlete = EventWithEntries['entries'][number];
 
 interface SingleAthleteFieldProps {
   event: EventWithEntries;
   meet?: Meet | null;
   focusIndex?: number;
+  pagingInterval?: number;
+  enableTransition?: boolean;
 }
 
-export function SingleAthleteField({ event, meet, focusIndex = 0 }: SingleAthleteFieldProps) {
+export function SingleAthleteField({ 
+  event, 
+  meet, 
+  focusIndex = 0,
+  pagingInterval = 5,
+  enableTransition = true,
+}: SingleAthleteFieldProps) {
+  const sortedEntries = [...(event.entries || [])].sort((a, b) => {
+    if (a.finalPlace && b.finalPlace) return a.finalPlace - b.finalPlace;
+    if (a.finalPlace) return -1;
+    if (b.finalPlace) return 1;
+    return ((a as any).order || 0) - ((b as any).order || 0);
+  });
+
+  const currentEntry = sortedEntries[focusIndex] || null;
+
+  if (enableTransition) {
+    return (
+      <PictureBoardTransition
+        currentEntry={currentEntry}
+        meet={meet}
+      >
+        {(entry, isRevealed) => (
+          <SingleAthleteFieldContent
+            event={event}
+            meet={meet}
+            athlete={entry}
+            isRevealed={isRevealed}
+          />
+        )}
+      </PictureBoardTransition>
+    );
+  }
+
+  return (
+    <SingleAthleteFieldContent
+      event={event}
+      meet={meet}
+      athlete={currentEntry}
+      isRevealed={true}
+    />
+  );
+}
+
+interface SingleAthleteFieldContentProps {
+  event: EventWithEntries;
+  meet?: Meet | null;
+  athlete: EntryWithAthlete | null;
+  isRevealed: boolean;
+}
+
+function SingleAthleteFieldContent({ event, meet, athlete, isRevealed }: SingleAthleteFieldContentProps) {
   const [clock, setClock] = useState<string>("");
 
   useEffect(() => {
@@ -21,15 +77,6 @@ export function SingleAthleteField({ event, meet, focusIndex = 0 }: SingleAthlet
     const interval = setInterval(updateClock, 1000);
     return () => clearInterval(interval);
   }, []);
-
-  const sortedEntries = [...(event.entries || [])].sort((a, b) => {
-    if (a.finalPlace && b.finalPlace) return a.finalPlace - b.finalPlace;
-    if (a.finalPlace) return -1;
-    if (b.finalPlace) return 1;
-    return ((a as any).order || 0) - ((b as any).order || 0);
-  });
-
-  const athlete = sortedEntries[focusIndex];
 
   const formatMark = (mark: number | null | undefined): string => {
     if (mark === null || mark === undefined) return '--';
