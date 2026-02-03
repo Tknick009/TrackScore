@@ -77,6 +77,8 @@ const SYNC_PATHS = [
   'uploads',           // Athlete photos, meet logos, team logos (uploaded)
   'logos',             // NCAA logos and other static logos
   'public/logos',      // Public logos directory
+  // Meet packages for Dropbox sync between computers
+  'meets',             // Exported meet packages (JSON + logos)
 ];
 
 function loadConfig(): LauncherConfig {
