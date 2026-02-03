@@ -1659,7 +1659,6 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
 
     // For track results, start lists, and BigBoard - always use live data for event name (never database)
     if ((isTrackResults || isStartList || isBigBoard) && (currentEvent || liveEventData)) {
-      const showSplits = templateId.includes('splits');
       // Always override event name with live FinishLynx data
       const eventWithLiveName = currentEvent 
         ? {
@@ -1686,7 +1685,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             heat: liveEventData?.heat,
             round: liveEventData?.round,
           };
-      return <BigBoard event={eventWithLiveName as any} meet={meet} showSplits={showSplits} pagingSize={pagingSize} pagingIntervalMs={pagingInterval * 1000} />;
+      return <BigBoard event={eventWithLiveName as any} meet={meet} pagingSize={pagingSize} pagingIntervalMs={pagingInterval * 1000} />;
     }
 
     if (!currentEvent && !liveEventData && (isTrackResults || isFieldResults || isStartList || isFieldStandings)) {

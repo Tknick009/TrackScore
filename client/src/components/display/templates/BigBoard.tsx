@@ -4,11 +4,12 @@ import type { EventWithEntries, Meet } from "@shared/schema";
 interface BigBoardProps {
   event: EventWithEntries;
   meet?: Meet | null;
-  showSplits?: boolean;
   liveTime?: string;
+  pagingSize?: number;
+  pagingIntervalMs?: number;
 }
 
-export function BigBoard({ event, meet, showSplits = false, liveTime }: BigBoardProps) {
+export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
   const [clock, setClock] = useState<string>("");
   const [fadeIn, setFadeIn] = useState(true);
   const [displayedEntries, setDisplayedEntries] = useState<any[]>([]);
@@ -54,24 +55,23 @@ export function BigBoard({ event, meet, showSplits = false, liveTime }: BigBoard
   const displayClock = liveTime || clock;
 
   const sortedEntries = useMemo(() => {
-    // Filter entries based on layout type
-    const filtered = (displayedEntries || []).filter((entry: any) => {
-      if (showSplits) {
-        // For splits layout: show only entries that have split data
-        return entry.splits && entry.splits.length > 0;
-      } else {
-        // For results layout: show only entries that have time/place data
-        return entry.finalMark !== null && entry.finalMark !== undefined;
-      }
-    });
+    // Filter out ONLY DNS entries - all others remain visible
+    // Entries without timing data will show at reduced opacity (handled in rendering)
+    const isDNS = (entry: any) => {
+      const time = String(entry.time || entry.finalMark || '').toUpperCase().trim();
+      const place = String(entry.place || entry.finalPlace || '').toUpperCase().trim();
+      return time === 'DNS' || place === 'DNS';
+    };
     
-    return [...filtered].sort((a, b) => {
+    const nonDNSEntries = (displayedEntries || []).filter((entry: any) => !isDNS(entry));
+    
+    return [...nonDNSEntries].sort((a, b) => {
       if (a.finalPlace && b.finalPlace) return a.finalPlace - b.finalPlace;
       if (a.finalPlace) return -1;
       if (b.finalPlace) return 1;
       return (a.finalLane || 0) - (b.finalLane || 0);
     });
-  }, [displayedEntries, showSplits]);
+  }, [displayedEntries]);
 
   const isRelay = event.eventType?.toLowerCase().includes('relay');
   const status = event.status === 'completed' ? 'FINAL' : event.status === 'in_progress' ? 'IN PROGRESS' : 'SCHEDULED';
@@ -177,7 +177,7 @@ export function BigBoard({ event, meet, showSplits = false, liveTime }: BigBoard
               ? entry.team?.name || 'Unknown Team'
               : `${entry.athlete?.lastName || ''}`;
             const finalTime = formatTime(entry.finalMark);
-            const splitTime = showSplits ? getLatestSplit(entry) : '';
+            const splitTime = getLatestSplit(entry);
 
             return (
               <div key={entry.id || index} className="relative flex-1 min-h-0">
@@ -220,7 +220,7 @@ export function BigBoard({ event, meet, showSplits = false, liveTime }: BigBoard
                       {displayName}
                     </span>
 
-                    {showSplits && splitTime && (
+                    {splitTime && (
                       <span 
                         className="text-yellow-400 font-bold tabular-nums shrink-0"
                         style={{ fontSize: '48px', fontFamily: "'Bebas Neue', sans-serif" }}
