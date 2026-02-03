@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { format } from "date-fns";
-import { FolderOpen, Calendar, Users, Trophy, Layers, ArrowLeft, Download, Trash2, RefreshCw, Check } from "lucide-react";
+import { FolderOpen, Users, Trophy, Layers, ArrowLeft, Download, Trash2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -221,9 +221,9 @@ export default function LoadMeet() {
               </Button>
             </Link>
             <div>
-              <h1 className="text-2xl font-bold">Load Meet from Package</h1>
+              <h1 className="text-2xl font-bold">Load Meet</h1>
               <p className="text-muted-foreground">
-                Select a meet package from your Dropbox sync folder
+                Select a meet from your synced packages
               </p>
             </div>
           </div>
@@ -245,13 +245,13 @@ export default function LoadMeet() {
                   <FolderOpen className="w-8 h-8 text-muted-foreground" />
                 </div>
                 <div>
-                  <h3 className="font-semibold mb-2">No Meet Packages Found</h3>
+                  <h3 className="font-semibold mb-2">No Meets Found</h3>
                   <p className="text-muted-foreground max-w-md mx-auto">
                     No meet packages were found in the <code className="text-xs bg-muted px-1 py-0.5 rounded">meets/</code> folder.
-                    Export a meet from the meet detail page, or sync packages from another computer via Dropbox.
+                    Export a meet from the meet detail page, or sync from another computer.
                   </p>
                 </div>
-                <Link href="/meets">
+                <Link href="/">
                   <Button variant="outline" data-testid="button-go-to-meets">
                     Go to Meets List
                   </Button>
@@ -272,23 +272,6 @@ export default function LoadMeet() {
           </div>
         )}
 
-        <Card className="bg-muted/50">
-          <CardContent className="py-4">
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <Check className="w-4 h-4 text-primary" />
-              </div>
-              <div className="text-sm">
-                <p className="font-medium mb-1">How Dropbox Sync Works</p>
-                <p className="text-muted-foreground">
-                  When you export a meet, it's saved to the <code className="text-xs bg-muted px-1 py-0.5 rounded">meets/</code> folder. 
-                  If this folder is in your Dropbox, it will automatically sync to other computers. 
-                  On another computer, use Edge Launcher to sync the latest files, then come here to load the meet.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

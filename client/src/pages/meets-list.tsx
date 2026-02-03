@@ -4,9 +4,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format, isPast, isToday, isFuture } from "date-fns";
-import { Calendar as CalendarIcon, MapPin, Plus, Calendar, Settings, Monitor, Copy, Check, Search, Filter, Trash2, MoreVertical, Cloud, FolderDown } from "lucide-react";
+import { Calendar as CalendarIcon, MapPin, Plus, Calendar, Settings, Monitor, Copy, Check, Search, Filter, Trash2, MoreVertical, FolderDown } from "lucide-react";
 import { Link, useLocation } from "wouter";
-import { LogIn } from "lucide-react";
 import { insertMeetSchema, type Meet } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -222,118 +221,6 @@ function CreateMeetDialog() {
   );
 }
 
-// Schema for join meet form
-const joinMeetFormSchema = z.object({
-  meetCode: z.string().min(1, "Meet code is required").toUpperCase(),
-});
-
-type JoinMeetFormData = z.infer<typeof joinMeetFormSchema>;
-
-function JoinMeetDialog() {
-  const [open, setOpen] = useState(false);
-  const [, setLocation] = useLocation();
-  const { toast } = useToast();
-
-  const form = useForm<JoinMeetFormData>({
-    resolver: zodResolver(joinMeetFormSchema),
-    defaultValues: {
-      meetCode: "",
-    },
-  });
-
-  const joinMeetMutation = useMutation({
-    mutationFn: async (data: JoinMeetFormData) => {
-      const response = await fetch(`/api/meets/code/${data.meetCode.toUpperCase()}`);
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Meet not found");
-      }
-      return await response.json();
-    },
-    onSuccess: (meet: Meet) => {
-      toast({
-        title: "Meet joined",
-        description: `Connected to ${meet.name}`,
-      });
-      setOpen(false);
-      form.reset();
-      // Navigate to the control interface for this meet
-      setLocation(`/control/${meet.id}`);
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Meet not found",
-        description: error.message || "Please check the meet code and try again",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const onSubmit = (data: JoinMeetFormData) => {
-    joinMeetMutation.mutate(data);
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="lg" data-testid="button-join-meet">
-          <LogIn className="w-4 h-4 mr-2" />
-          Join Meet
-        </Button>
-      </DialogTrigger>
-      <DialogContent data-testid="dialog-join-meet">
-        <DialogHeader>
-          <DialogTitle>Join Existing Meet</DialogTitle>
-          <DialogDescription>
-            Enter the meet code to connect to an existing meet. The meet data, logo, and settings will be pulled from the central server.
-          </DialogDescription>
-        </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <FormField
-              control={form.control}
-              name="meetCode"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Meet Code</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="e.g., ABC123"
-                      className="uppercase font-mono text-lg tracking-wider"
-                      data-testid="input-meet-code"
-                      {...field}
-                      onChange={(e) => field.onChange(e.target.value.toUpperCase())}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <div className="flex gap-4 justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setOpen(false)}
-                data-testid="button-cancel-join-meet"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={joinMeetMutation.isPending}
-                data-testid="button-submit-join-meet"
-              >
-                {joinMeetMutation.isPending ? "Joining..." : "Join Meet"}
-              </Button>
-            </div>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 function MeetRow({ meet }: { meet: Meet }) {
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
@@ -500,22 +387,15 @@ function EmptyState() {
         </div>
         <h3 className="text-xl font-semibold mb-2">No meets yet</h3>
         <p className="text-muted-foreground mb-6 max-w-md">
-          Create your first track and field meet or join an existing one using a meet code. You'll be able to manage events, 
+          Create a new meet or load one from your synced packages. You'll be able to manage events, 
           record results, and broadcast live to display boards.
         </p>
         <div className="flex gap-3 flex-wrap justify-center">
-          <JoinMeetDialog />
           <CreateMeetDialog />
-          <Link href="/cloud-sync">
-            <Button variant="outline" size="lg" data-testid="button-cloud-sync">
-              <Cloud className="w-4 h-4 mr-2" />
-              Download from Cloud
-            </Button>
-          </Link>
           <Link href="/load-meet">
             <Button variant="outline" size="lg" data-testid="button-load-meet">
               <FolderDown className="w-4 h-4 mr-2" />
-              Load from Package
+              Load Meet
             </Button>
           </Link>
         </div>
@@ -601,18 +481,11 @@ export default function MeetsList() {
               </p>
             </div>
             <div className="flex gap-3 flex-wrap">
-              <JoinMeetDialog />
               <CreateMeetDialog />
-              <Link href="/cloud-sync">
-                <Button variant="outline" size="lg" data-testid="button-cloud-sync-header">
-                  <Cloud className="w-4 h-4 mr-2" />
-                  Download from Cloud
-                </Button>
-              </Link>
               <Link href="/load-meet">
                 <Button variant="outline" size="lg" data-testid="button-load-meet-header">
                   <FolderDown className="w-4 h-4 mr-2" />
-                  Load from Package
+                  Load Meet
                 </Button>
               </Link>
             </div>
