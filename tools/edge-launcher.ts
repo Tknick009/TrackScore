@@ -61,6 +61,7 @@ const DEFAULT_CONFIG: LauncherConfig = {
 
 // Files/directories to sync (relative to project root)
 const SYNC_PATHS = [
+  // Code
   'client',
   'server',
   'shared',
@@ -72,6 +73,10 @@ const SYNC_PATHS = [
   'postcss.config.js',
   'drizzle.config.ts',
   'index.html',
+  // Assets - logos and photos
+  'uploads',           // Athlete photos, meet logos, team logos (uploaded)
+  'logos',             // NCAA logos and other static logos
+  'public/logos',      // Public logos directory
 ];
 
 function loadConfig(): LauncherConfig {
