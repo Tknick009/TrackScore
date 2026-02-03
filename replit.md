@@ -145,6 +145,39 @@ npx tsx tools/edge-setup.ts clear
 - `./data/scoreboard.db` - Default SQLite database location
 - `./data/edge-config.json` - Edge configuration file
 
+### Edge Launcher (Code Sync + Launch)
+
+For stadium deployments where you want to update code from a network share or cloud-synced folder before launching:
+
+```bash
+# Sync from a network share and launch
+npx tsx tools/edge-launcher.ts --source /mnt/network/scoreboard --launch
+
+# Just sync files (no launch)
+npx tsx tools/edge-launcher.ts --source ~/Dropbox/scoreboard --sync-only
+
+# Check status
+npx tsx tools/edge-launcher.ts --status
+```
+
+**Windows users**: Edit `tools/edge-launcher.bat` to set your source directory, then run:
+```batch
+edge-launcher.bat launch
+```
+
+**Linux/Mac users**: Edit `tools/edge-launcher.sh` to set your source directory, then run:
+```bash
+./tools/edge-launcher.sh launch
+```
+
+The launcher will:
+1. Compare files between source and local installation
+2. Copy only changed files (client/, server/, shared/, etc.)
+3. Run `npm install` if package.json changed
+4. Launch the Edge Mode server
+
+Configuration is saved to `data/edge-launcher-config.json` so you don't need to specify the source every time.
+
 ### Environment Variables
 - `EDGE_MODE=true` - Enable SQLite storage instead of PostgreSQL
 - `SQLITE_DB_PATH=./data/scoreboard.db` - Custom database location
