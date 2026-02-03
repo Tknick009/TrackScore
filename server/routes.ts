@@ -612,6 +612,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===== MEET PACKAGE API (Dropbox sync) =====
+  
+  // List available meet packages
+  app.get("/api/meet-packages", async (req, res) => {
+    try {
+      const { listMeetPackages } = await import('./meet-package');
+      const packages = await listMeetPackages();
+      res.json(packages);
+    } catch (error: any) {
+      console.error('[Meet Packages List Error]', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Export a meet to a package
+  app.post("/api/meet-packages/export/:meetId", async (req, res) => {
+    try {
+      const { exportMeetPackage } = await import('./meet-package');
+      const result = await exportMeetPackage(req.params.meetId);
+      
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(400).json({ error: result.error });
+      }
+    } catch (error: any) {
+      console.error('[Meet Package Export Error]', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Import a meet from a package
+  app.post("/api/meet-packages/import/:packageName", async (req, res) => {
+    try {
+      const { importMeetPackage } = await import('./meet-package');
+      const result = await importMeetPackage(req.params.packageName);
+      
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(400).json({ error: result.error });
+      }
+    } catch (error: any) {
+      console.error('[Meet Package Import Error]', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Delete a meet package
+  app.delete("/api/meet-packages/:packageName", async (req, res) => {
+    try {
+      const { deleteMeetPackage } = await import('./meet-package');
+      const result = await deleteMeetPackage(req.params.packageName);
+      
+      if (result.success) {
+        res.json({ success: true });
+      } else {
+        res.status(400).json({ error: result.error });
+      }
+    } catch (error: any) {
+      console.error('[Meet Package Delete Error]', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // ===== PUBLIC SPECTATOR API =====
 
   // Get current meet (public info only)
