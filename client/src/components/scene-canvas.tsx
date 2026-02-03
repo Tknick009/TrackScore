@@ -280,6 +280,10 @@ export function SceneObjectRenderer({
     }
   }
   
+  // Apply fade opacity to entire object (background + content) when no timing data
+  const baseOpacity = styleConfig.opacity ?? 1;
+  const effectiveOpacity = shouldHide ? 0 : (baseOpacity * textFadeOpacity);
+  
   const objectStyle: React.CSSProperties = {
     position: "absolute",
     left: `${left}px`,
@@ -290,7 +294,7 @@ export function SceneObjectRenderer({
     overflow: "hidden",
     backgroundColor: bgColor,
     borderRadius: styleConfig.borderRadius || "0px",
-    opacity: shouldHide ? 0 : (styleConfig.opacity ?? 1),
+    opacity: effectiveOpacity,
     visibility: shouldHide ? 'hidden' : 'visible',
     padding: styleConfig.padding ? `${styleConfig.padding}px` : undefined,
     paddingLeft: styleConfig.paddingLeft ? `${styleConfig.paddingLeft}px` : undefined,
@@ -423,12 +427,10 @@ export function SceneObjectRenderer({
           return <div className="h-full" />;
         }
         return (
-          <div style={{ opacity: textFadeOpacity, height: '100%' }}>
-            <LogoImage 
-              logoUrl={logoUrl} 
-              objectFit={componentConfig.objectFit || componentConfig.imageFit || "contain"} 
-            />
-          </div>
+          <LogoImage 
+            logoUrl={logoUrl} 
+            objectFit={componentConfig.objectFit || componentConfig.imageFit || "contain"} 
+          />
         );
         
       case "text":
@@ -653,7 +655,6 @@ export function SceneObjectRenderer({
               fontWeight: componentConfig.fontWeight || (styleConfig as any).fontWeight || "normal",
               color: componentConfig.textColor || styleConfig.textColor || "hsl(var(--display-fg))",
               letterSpacing: '-0.02em',
-              opacity: textFadeOpacity,
             }}
           >
             <span className="whitespace-nowrap">{textContent || ""}</span>
