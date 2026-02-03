@@ -281,3 +281,181 @@ export async function parseLFFFile(filePath: string): Promise<{
   
   return { header, results };
 }
+
+export interface MergedFieldStandings {
+  eventNumber: number;
+  roundNumber: number;
+  eventName: string;
+  units: string;
+  flights: number[];
+  athletes: Array<{
+    overallPlace: number;
+    bibNumber: number;
+    firstName: string;
+    lastName: string;
+    team: string | null;
+    bestMark: number | null;
+    bestMarkFormatted: string;
+    attempts: Array<{
+      attemptNumber: number;
+      mark: number | null;
+      isFoul: boolean;
+      isPassed: boolean;
+      isCleared: boolean;
+      isMissed: boolean;
+      wind: number | null;
+    }>;
+    isDNS: boolean;
+    flightNumber: number;
+  }>;
+  totalAthletes: number;
+  isVerticalEvent: boolean;
+  heights?: number[];
+}
+
+function formatMark(mark: number | null, units: string, isVertical: boolean): string {
+  if (mark === null) return '';
+  
+  if (units === 'english') {
+    const totalInches = mark / 0.0254;
+    const feet = Math.floor(totalInches / 12);
+    const inches = totalInches % 12;
+    return `${feet}-${inches.toFixed(2).replace(/\.?0+$/, '')}`;
+  }
+  
+  if (isVertical) {
+    return mark.toFixed(2);
+  }
+  return mark.toFixed(2);
+}
+
+export async function findLFFFilesForEvent(
+  directory: string,
+  eventNumber: number,
+  roundNumber?: number
+): Promise<string[]> {
+  const fs = await import('fs/promises');
+  const path = await import('path');
+  
+  try {
+    const files = await fs.readdir(directory);
+    
+    const eventPattern = roundNumber 
+      ? new RegExp(`^0*${eventNumber}-0*${roundNumber}-\\d+`, 'i')
+      : new RegExp(`^0*${eventNumber}-\\d+-\\d+`, 'i');
+    
+    const matchingFiles = files
+      .filter(f => f.toLowerCase().endsWith('.lff') && eventPattern.test(f))
+      .map(f => path.join(directory, f))
+      .sort();
+    
+    return matchingFiles;
+  } catch (error) {
+    console.error(`Error reading LFF directory ${directory}:`, error);
+    return [];
+  }
+}
+
+export async function mergeFlightsForEvent(
+  directory: string,
+  eventNumber: number,
+  roundNumber?: number
+): Promise<MergedFieldStandings | null> {
+  const lffFiles = await findLFFFilesForEvent(directory, eventNumber, roundNumber);
+  
+  if (lffFiles.length === 0) {
+    return null;
+  }
+  
+  let eventName = '';
+  let units = 'metric';
+  let isVerticalEvent = false;
+  let heights: number[] = [];
+  const flights: number[] = [];
+  const allAthletes: Array<{
+    bibNumber: number;
+    firstName: string;
+    lastName: string;
+    team: string | null;
+    bestMark: number | null;
+    attempts: Array<{
+      attemptNumber: number;
+      mark: number | null;
+      isFoul: boolean;
+      isPassed: boolean;
+      isCleared: boolean;
+      isMissed: boolean;
+      wind: number | null;
+    }>;
+    isDNS: boolean;
+    flightNumber: number;
+  }> = [];
+  
+  for (const filePath of lffFiles) {
+    try {
+      const { header, results } = await parseLFFFile(filePath);
+      
+      if (!eventName) {
+        eventName = header.eventName;
+        units = header.units;
+        isVerticalEvent = header.heights.length > 0;
+        heights = header.heights;
+      }
+      
+      flights.push(header.heatNumber);
+      
+      for (const result of results) {
+        allAthletes.push({
+          bibNumber: result.bibNumber,
+          firstName: result.firstName,
+          lastName: result.lastName,
+          team: result.team,
+          bestMark: result.bestMark,
+          attempts: result.attempts,
+          isDNS: result.isDNS,
+          flightNumber: header.heatNumber,
+        });
+      }
+    } catch (error) {
+      console.error(`Error parsing LFF file ${filePath}:`, error);
+    }
+  }
+  
+  if (allAthletes.length === 0) {
+    return null;
+  }
+  
+  const dnsAthletes = allAthletes.filter(a => a.isDNS);
+  const competingAthletes = allAthletes.filter(a => !a.isDNS);
+  
+  competingAthletes.sort((a, b) => {
+    if (a.bestMark === null && b.bestMark === null) return 0;
+    if (a.bestMark === null) return 1;
+    if (b.bestMark === null) return -1;
+    return b.bestMark - a.bestMark;
+  });
+  
+  const rankedAthletes = competingAthletes.map((athlete, index) => ({
+    ...athlete,
+    overallPlace: index + 1,
+    bestMarkFormatted: formatMark(athlete.bestMark, units, isVerticalEvent),
+  }));
+  
+  const dnsRanked = dnsAthletes.map(athlete => ({
+    ...athlete,
+    overallPlace: 0,
+    bestMarkFormatted: 'DNS',
+  }));
+  
+  return {
+    eventNumber,
+    roundNumber: roundNumber || 1,
+    eventName,
+    units,
+    flights: flights.sort((a, b) => a - b),
+    athletes: [...rankedAthletes, ...dnsRanked],
+    totalAthletes: allAthletes.length,
+    isVerticalEvent,
+    heights: isVerticalEvent ? heights : undefined,
+  };
+}

@@ -875,6 +875,84 @@ export default function DisplayDevice() {
             }
           }
           
+          // Handle field_standings (auto-standings from parsed LFF files after 120s idle)
+          if (message.type === 'field_standings') {
+            const data = message.data;
+            if (data && isFieldModeRef.current) {
+              // Port-based routing: only show standings for our port
+              const myPort = fieldPortRef.current;
+              if (data.fieldPort && data.fieldPort !== myPort) {
+                console.log(`[Display] Ignoring field standings for port ${data.fieldPort}, we're listening on ${myPort}`);
+                return;
+              }
+              
+              console.log(`[Display] Field standings received: Event ${data.eventNumber}, Page ${data.currentPage}/${data.totalPages}, ${data.entries?.length} athletes`);
+              
+              // Switch to field_standings scene if we have a mapping for it
+              if (displayType) {
+                let sceneId = getSceneForModeRef.current(displayType, 'field_standings');
+                let actualMode = 'field_standings';
+                
+                // Fallback to field_results if no field_standings scene
+                if (!sceneId) {
+                  sceneId = getSceneForModeRef.current(displayType, 'field_results');
+                  actualMode = 'field_results';
+                  if (sceneId) {
+                    console.log(`[Display] No field_standings scene, falling back to field_results`);
+                  }
+                }
+                
+                // Only switch if we have a scene and it's different
+                if (sceneId && currentLayoutModeRef.current !== actualMode) {
+                  console.log(`[Display] Switching to ${actualMode} scene: ${sceneId}`);
+                  currentLayoutModeRef.current = actualMode;
+                  (async () => {
+                    try {
+                      const [sceneRes, objectsRes] = await Promise.all([
+                        fetch(`/api/layout-scenes/${sceneId}`),
+                        fetch(`/api/layout-objects?sceneId=${sceneId}`),
+                      ]);
+                      if (sceneRes.ok && objectsRes.ok) {
+                        const scene = await sceneRes.json();
+                        const objects = await objectsRes.json();
+                        queryClient.setQueryData(['/api/layout-scenes', sceneId], scene);
+                        queryClient.setQueryData(['/api/layout-objects', { sceneId }], objects);
+                        setState(prev => ({
+                          ...prev,
+                          currentLayoutMode: actualMode,
+                          currentSceneId: sceneId,
+                          currentSceneData: { scene, objects },
+                          currentTemplate: null,
+                        }));
+                      }
+                    } catch (e) {
+                      console.warn(`[Display] Failed to switch to ${actualMode} scene:`, e);
+                    }
+                  })();
+                }
+              }
+              
+              // Update the live event data with standings entries
+              // Use the actual mode that was set (field_standings or field_results fallback)
+              const usedMode = currentLayoutModeRef.current || 'field_standings';
+              setState(prev => ({
+                ...prev,
+                liveEventData: {
+                  eventNumber: data.eventNumber,
+                  eventName: data.eventName || prev.liveEventData?.eventName || '',
+                  heat: data.currentPage, // Use page as heat for display
+                  totalHeats: data.totalPages,
+                  mode: usedMode,
+                  entries: data.entries || [],
+                  isStandings: true,
+                  isVerticalEvent: data.isVerticalEvent,
+                  wind: undefined,
+                  distance: prev.liveEventData?.distance,
+                },
+              }));
+            }
+          }
+          
           // Handle start_list updates from FinishLynx (pre-race athlete list)
           // Pure pass-through: show exactly what FinishLynx sends, no accumulation
           // Listen to 'start_list_big' for big board displays, 'start_list' for small boards

@@ -10,6 +10,7 @@ import { storage } from "./storage";
 import { FileStorage } from "./file-storage";
 import { lynxListener } from "./lynx-listener";
 import { getResulTVParser } from "./parsers/resultv-parser";
+import { mergeFlightsForEvent, type MergedFieldStandings } from "./parsers/lff-parser";
 import type { TrackDisplayMode, FieldDisplayMode, LynxPortType, MeetLiveState, Meet, FieldEventUpdatePayload } from "@shared/schema";
 import {
   isHeightEvent,
@@ -5817,6 +5818,242 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const FIELD_PORT_MIN = 4560;
   const FIELD_PORT_MAX = 4569;
 
+  // Field Port State Tracking for Auto-Standings
+  // Tracks event info and last update time per port to trigger automatic standings after idle
+  interface FieldPortState {
+    eventNumber: number;
+    roundNumber: number;
+    lastUpdateTime: number;  // Timestamp of last data received
+    inStandingsMode: boolean;  // Whether we've switched to standings display
+    standingsPageTimer?: ReturnType<typeof setTimeout>;  // Timer for page cycling (setTimeout, not interval)
+    currentPage: number;
+    totalPages: number;
+    standings?: MergedFieldStandings;  // Cached standings data
+  }
+  
+  const fieldPortStates: Map<number, FieldPortState> = new Map();
+  const STANDINGS_IDLE_TIMEOUT = 120 * 1000;  // 120 seconds before switching to standings
+  
+  // Check for idle field ports and trigger standings mode
+  const checkFieldPortsForStandings = async () => {
+    const now = Date.now();
+    
+    const entries = Array.from(fieldPortStates.entries());
+    for (const [port, state] of entries) {
+      // Skip if already in standings mode
+      if (state.inStandingsMode) continue;
+      
+      // Check if idle timeout has passed
+      if (now - state.lastUpdateTime >= STANDINGS_IDLE_TIMEOUT) {
+        console.log(`[Field Auto-Standings] Port ${port} idle for 120s, switching to standings mode for event ${state.eventNumber}`);
+        await triggerFieldStandingsMode(port, state);
+      }
+    }
+  };
+  
+  // Check every 10 seconds for idle ports
+  setInterval(checkFieldPortsForStandings, 10000);
+  
+  // Trigger standings mode for a port - find LFF files and start paging
+  async function triggerFieldStandingsMode(port: number, state: FieldPortState) {
+    try {
+      // Get meet's ingestion settings to find the lynx directory
+      // Use the first meet that has ingestion settings configured
+      const meets = await storage.getMeets();
+      if (meets.length === 0) {
+        console.log(`[Field Auto-Standings] No meets found, cannot load standings`);
+        return;
+      }
+      
+      // Try to find a meet with ingestion settings configured
+      let ingestionSettings = null;
+      let activeMeet = null;
+      for (const meet of meets) {
+        const settings = await storage.getIngestionSettings(meet.id);
+        if (settings?.lynxFilesDirectory) {
+          ingestionSettings = settings;
+          activeMeet = meet;
+          break;
+        }
+      }
+      
+      if (!activeMeet) {
+        console.log(`[Field Auto-Standings] No meet with lynx directory configured`);
+        return;
+      }
+      
+      const ingestionSettingsResult = ingestionSettings;
+      if (!ingestionSettings?.lynxFilesDirectory) {
+        console.log(`[Field Auto-Standings] No lynx directory configured for meet ${activeMeet.id}`);
+        return;
+      }
+      
+      // Merge all flights for this event from LFF files
+      const standings = await mergeFlightsForEvent(
+        ingestionSettings.lynxFilesDirectory,
+        state.eventNumber,
+        state.roundNumber
+      );
+      
+      if (!standings || standings.athletes.length === 0) {
+        console.log(`[Field Auto-Standings] No LFF files found for event ${state.eventNumber} round ${state.roundNumber}`);
+        return;
+      }
+      
+      console.log(`[Field Auto-Standings] Found ${standings.athletes.length} athletes from ${standings.flights.length} flights for event ${state.eventNumber}`);
+      
+      // Update state
+      state.inStandingsMode = true;
+      state.standings = standings;
+      state.currentPage = 0;
+      
+      // Broadcast first page and start paging timer
+      broadcastFieldStandingsPage(port, state);
+    } catch (error) {
+      console.error(`[Field Auto-Standings] Error loading standings for port ${port}:`, error);
+    }
+  }
+  
+  // Broadcast a page of standings data
+  function broadcastFieldStandingsPage(port: number, state: FieldPortState) {
+    if (!state.standings) return;
+    
+    // Get page size from scene layout - will be provided by display
+    // For now, use a default of 8 and displays will request based on their layout
+    const pageSize = 8;  // This will be dynamically set by displays
+    
+    const athletes = state.standings.athletes.filter(a => !a.isDNS);  // Filter out DNS
+    state.totalPages = Math.ceil(athletes.length / pageSize);
+    
+    if (state.totalPages === 0) {
+      state.totalPages = 1;
+    }
+    
+    // Get current page of athletes
+    const startIdx = state.currentPage * pageSize;
+    const endIdx = Math.min(startIdx + pageSize, athletes.length);
+    const pageAthletes = athletes.slice(startIdx, endIdx);
+    
+    // Format entries with additional field data for templates
+    const entriesWithDetails = pageAthletes.map((athlete, idx) => ({
+      place: athlete.overallPlace.toString(),
+      lane: (startIdx + idx + 1).toString(),
+      name: `${athlete.firstName} ${athlete.lastName}`.trim(),
+      firstName: athlete.firstName,
+      lastName: athlete.lastName,
+      affiliation: athlete.team || '',
+      team: athlete.team || '',
+      bib: athlete.bibNumber.toString(),
+      bestMark: athlete.bestMarkFormatted,
+      mark: athlete.bestMarkFormatted,
+      time: athlete.bestMarkFormatted,
+      // Include attempts for field templates
+      attempts: athlete.attempts,
+      attemptMarks: athlete.attempts.map(a => {
+        if (a.isFoul) return 'F';
+        if (a.isPassed) return 'P';
+        if (a.isCleared) return 'O';
+        if (a.isMissed) return 'X';
+        return a.mark !== null ? a.mark.toFixed(2) : '';
+      }),
+      // Include wind per attempt for horizontal events
+      attemptWinds: athlete.attempts.map(a => a.wind !== null ? a.wind.toFixed(1) : ''),
+      flightNumber: athlete.flightNumber,
+    }));
+    
+    // Broadcast standings update to all field mode display devices
+    const standingsMessage = {
+      type: 'field_standings',
+      data: {
+        eventNumber: state.standings.eventNumber,
+        eventName: state.standings.eventName,
+        displayMode: 'field_standings',
+        fieldPort: port,
+        currentPage: state.currentPage + 1,
+        totalPages: state.totalPages,
+        pageSize,
+        totalAthletes: athletes.length,
+        isStandings: true,
+        entries: entriesWithDetails,
+        flights: state.standings.flights,
+        isVerticalEvent: state.standings.isVerticalEvent,
+        heights: state.standings.heights,
+      }
+    };
+    
+    // Send to all connected display devices that are in field mode and on this port
+    connectedDisplayDevices.forEach((device) => {
+      if (device.ws.readyState === WebSocket.OPEN) {
+        // Send to all - let client filter by port
+        device.ws.send(JSON.stringify(standingsMessage));
+      }
+    });
+    
+    // Also send to displayClients (non-device WebSocket connections)
+    displayClients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(JSON.stringify(standingsMessage));
+      }
+    });
+    
+    console.log(`[Field Auto-Standings] Broadcast page ${state.currentPage + 1}/${state.totalPages} for event ${state.standings.eventNumber} on port ${port}`);
+    
+    // Set up next page timer - recalculate each time for dynamic page sizes
+    // Clear any existing timer first
+    if (state.standingsPageTimer) {
+      clearTimeout(state.standingsPageTimer);
+      state.standingsPageTimer = undefined;
+    }
+    
+    // Only continue paging if there are multiple pages
+    if (state.totalPages > 1) {
+      // Calculate display time: 1 second per line shown on this page
+      const displayTimeMs = pageAthletes.length * 1000;
+      
+      state.standingsPageTimer = setTimeout(() => {
+        state.currentPage = (state.currentPage + 1) % state.totalPages;
+        broadcastFieldStandingsPage(port, state);
+      }, displayTimeMs);
+    }
+  }
+  
+  // Exit standings mode and return to live display
+  function exitFieldStandingsMode(port: number) {
+    const state = fieldPortStates.get(port);
+    if (!state) return;
+    
+    if (state.standingsPageTimer) {
+      clearTimeout(state.standingsPageTimer);
+      state.standingsPageTimer = undefined;
+    }
+    
+    state.inStandingsMode = false;
+    state.standings = undefined;
+    state.currentPage = 0;
+    state.totalPages = 0;
+    
+    console.log(`[Field Auto-Standings] Exited standings mode for port ${port}`);
+  }
+  
+  // Update field port state when new data arrives
+  function updateFieldPortState(port: number, eventNumber: number, roundNumber: number = 1) {
+    const existing = fieldPortStates.get(port);
+    
+    // If we were in standings mode, exit it
+    if (existing?.inStandingsMode) {
+      exitFieldStandingsMode(port);
+    }
+    
+    fieldPortStates.set(port, {
+      eventNumber,
+      roundNumber,
+      lastUpdateTime: Date.now(),
+      inStandingsMode: false,
+      currentPage: 0,
+      totalPages: 0,
+    });
+  }
+
   // NEW: Receive raw bytes from TCP forwarder (ResulTV/LSS binary format)
   // This is the new endpoint for the base64-encoded raw data
   app.post("/api/lynx/raw", async (req, res) => {
@@ -6530,6 +6767,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   lynxListener.on('field-mode-change', async (eventNumber, mode, data) => {
     console.log(`[Lynx] Field mode change: Event ${eventNumber} → ${mode}`, data);
+    
+    // Update field port state to reset the standings timer
+    // This will exit standings mode if active and reset the idle timer
+    if (currentFieldPort) {
+      updateFieldPortState(currentFieldPort, eventNumber, data.round || 1);
+    }
     
     liveState.activeFieldEvents.set(eventNumber, {
       mode,
