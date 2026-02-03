@@ -249,23 +249,49 @@ class IngestionManager {
   }
 
   private async checkAndImportMDB(meetId: string, mdbPath: string): Promise<void> {
+    // Use copy-first approach to minimize lock time on original MDB file
+    // HyTek uses file-level locking, so we copy quickly and read from the copy
+    const tempDir = path.join(process.cwd(), 'data', 'temp');
+    const tempMdbPath = path.join(tempDir, `mdb_copy_${meetId}_${Date.now()}.mdb`);
+    
     try {
       if (!fs.existsSync(mdbPath)) {
         console.log(`[Ingestion] MDB file not found: ${mdbPath}`);
         return;
       }
 
-      const content = fs.readFileSync(mdbPath);
+      // Ensure temp directory exists
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+
+      // Quick copy to temp location - minimizes lock time on original
+      try {
+        fs.copyFileSync(mdbPath, tempMdbPath);
+      } catch (copyError: any) {
+        // File might be locked by HyTek, skip this polling cycle
+        if (copyError.code === 'EBUSY' || copyError.code === 'EACCES') {
+          console.log(`[Ingestion] MDB file busy/locked, will retry next cycle: ${mdbPath}`);
+          return;
+        }
+        throw copyError;
+      }
+
+      // Hash the copy (not the original)
+      const content = fs.readFileSync(tempMdbPath);
       const fileHash = crypto.createHash('sha256').update(content).digest('hex');
 
       const settings = await storage.getIngestionSettings(meetId);
       if (settings?.hytekMdbLastHash === fileHash) {
+        // No changes, clean up temp file and return
+        this.cleanupTempFile(tempMdbPath);
         return;
       }
 
-      console.log(`[Ingestion] MDB file changed, importing: ${mdbPath}`);
+      console.log(`[Ingestion] MDB file changed, importing from copy: ${tempMdbPath}`);
       
-      const stats = await importCompleteMDB(mdbPath, meetId);
+      // Import from the copy, not the original
+      const stats = await importCompleteMDB(tempMdbPath, meetId);
       console.log(`[Ingestion] MDB import complete:`, stats);
 
       await storage.updateIngestionSettings(meetId, {
@@ -275,6 +301,19 @@ class IngestionManager {
 
     } catch (error) {
       console.error(`[Ingestion] Error importing MDB file:`, error);
+    } finally {
+      // Always clean up temp file
+      this.cleanupTempFile(tempMdbPath);
+    }
+  }
+
+  private cleanupTempFile(filePath: string): void {
+    try {
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    } catch (error) {
+      console.warn(`[Ingestion] Failed to clean up temp file: ${filePath}`, error);
     }
   }
 
