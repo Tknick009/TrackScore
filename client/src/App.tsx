@@ -13,23 +13,16 @@ import MeetsList from "@/pages/meets-list";
 import MeetDetail from "@/pages/meet-detail";
 import Schedule from "@/pages/schedule";
 import EventControl from "@/pages/event-control";
-import Scoring from "@/pages/scoring";
 import Athletes from "@/pages/athletes";
 import Teams from "@/pages/teams";
 import CheckIn from "@/pages/checkin";
-import Officials from "@/pages/officials";
 import Import from "@/pages/import";
-import SeasonManager from "@/pages/season-manager";
-import RecordBooks from "@/pages/record-books";
 import DisplayCustomizePage from "@/pages/DisplayCustomizePage";
 import DisplayControlPage from "@/pages/display-control";
 import DisplayExamples from "@/pages/display-examples";
 import LayoutDesigner from "@/pages/layout-designer";
 import CompositeDisplayPage from "@/pages/composite-display";
-import PrintResults from "@/pages/print-results";
-import PrintMeet from "@/pages/print-meet";
 import JudgePage from "@/pages/judge";
-import Spectator from "@/pages/spectator";
 import OverlayPage from "@/pages/overlay";
 import MasterDisplayPage from "@/pages/master-display";
 import VisualLayoutDesigner from "@/pages/visual-layout-designer";
@@ -104,11 +97,9 @@ function MeetControlRouter() {
   const getComponent = () => {
     if (subPath === "schedule") return <Schedule />;
     if (subPath.startsWith("events/")) return <EventControl />;
-    if (subPath === "scoring") return <Scoring />;
     if (subPath === "athletes") return <Athletes />;
     if (subPath === "teams") return <Teams />;
     if (subPath === "checkin") return <CheckIn />;
-    if (subPath === "officials") return <Officials />;
     if (subPath === "import") return <Import />;
     if (subPath === "displays/control") return <DisplayControlPage />;
     if (subPath === "displays/customize") return <DisplayCustomizePage />;
@@ -136,14 +127,9 @@ function Router() {
       <Route path="/" component={MeetsList} />
       <Route path="/cloud-sync" component={CloudSync} />
       <Route path="/meets/:id" component={MeetDetail} />
-      <Route path="/seasons" component={SeasonManager} />
-      <Route path="/records" component={RecordBooks} />
       <Route path="/display-examples" component={DisplayExamples} />
       <Route path="/composite-display/:layoutId" component={CompositeDisplayPage} />
-      <Route path="/print/events/:id" component={PrintResults} />
-      <Route path="/print/meets/:id" component={PrintMeet} />
       <Route path="/judge" component={JudgePage} />
-      <Route path="/spectator" component={Spectator} />
       <Route path="/overlay/:type" component={OverlayPage} />
       <Route path="/master-display" component={MasterDisplayPage} />
       <Route path="/visual-designer" component={VisualLayoutDesigner} />

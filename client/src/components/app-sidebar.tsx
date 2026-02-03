@@ -1,7 +1,6 @@
 import { 
   Calendar, 
   Users, 
-  Trophy, 
   Monitor,
   Activity,
   Upload,
@@ -62,14 +61,6 @@ export function AppSidebar() {
                   <Link href={`${basePath}/schedule`} data-testid="link-schedule">
                     <Calendar />
                     <span>Schedule</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === `${basePath}/scoring`}>
-                  <Link href={`${basePath}/scoring`} data-testid="link-scoring">
-                    <Trophy />
-                    <span>Team Scoring</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
