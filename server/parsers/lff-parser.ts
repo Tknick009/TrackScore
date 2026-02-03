@@ -24,7 +24,8 @@ export interface NormalizedFieldResult {
     isFoul: boolean;
     isPassed: boolean;
     isCleared: boolean; // For jumps: O
-    isMissed: boolean;  // For jumps: X
+    isMissed: boolean;  // For jumps: X (all failed)
+    missCount: number;  // Number of X's before clearing (e.g., XXO = 2)
     wind: number | null; // Only for horizontal jumps
   }>;
   
@@ -68,39 +69,43 @@ function parseAttempt(attemptStr: string, windStr: string | null, units: string)
   isPassed: boolean;
   isCleared: boolean;
   isMissed: boolean;
+  missCount: number;
   wind: number | null;
 } {
   const trimmed = attemptStr.trim().toUpperCase();
   
   // Empty string
   if (trimmed === '') {
-    return { mark: null, isFoul: false, isPassed: false, isCleared: false, isMissed: false, wind: null };
+    return { mark: null, isFoul: false, isPassed: false, isCleared: false, isMissed: false, missCount: 0, wind: null };
   }
   
   // DNS
   if (trimmed === 'DNS') {
-    return { mark: null, isFoul: false, isPassed: false, isCleared: false, isMissed: false, wind: null };
+    return { mark: null, isFoul: false, isPassed: false, isCleared: false, isMissed: false, missCount: 0, wind: null };
   }
   
   // Check for compound attempts (e.g., "XXO", "XO", "PPP")
+  // Count X's for tie-breaking
+  const xCount = (trimmed.match(/X/g) || []).length;
+  
   // If it contains 'O', it was eventually cleared
   if (trimmed.includes('O')) {
-    return { mark: null, isFoul: false, isPassed: false, isCleared: true, isMissed: false, wind: null };
+    return { mark: null, isFoul: false, isPassed: false, isCleared: true, isMissed: false, missCount: xCount, wind: null };
   }
   
   // If it contains only 'P' characters, it was passed
   if (/^P+$/.test(trimmed)) {
-    return { mark: null, isFoul: false, isPassed: true, isCleared: false, isMissed: false, wind: null };
+    return { mark: null, isFoul: false, isPassed: true, isCleared: false, isMissed: false, missCount: 0, wind: null };
   }
   
-  // If it contains only 'X' characters, it was missed
+  // If it contains only 'X' characters, it was missed (failed this height)
   if (/^X+$/.test(trimmed)) {
-    return { mark: null, isFoul: false, isPassed: false, isCleared: false, isMissed: true, wind: null };
+    return { mark: null, isFoul: false, isPassed: false, isCleared: false, isMissed: true, missCount: xCount, wind: null };
   }
   
   // Foul
   if (trimmed === 'F' || trimmed === 'FOUL') {
-    return { mark: null, isFoul: true, isPassed: false, isCleared: false, isMissed: false, wind: null };
+    return { mark: null, isFoul: true, isPassed: false, isCleared: false, isMissed: false, missCount: 0, wind: null };
   }
   
   // Numeric mark - use convertToMeters
@@ -113,6 +118,7 @@ function parseAttempt(attemptStr: string, windStr: string | null, units: string)
     isPassed: false,
     isCleared: false,
     isMissed: false,
+    missCount: 0,
     wind: isNaN(wind || NaN) ? null : wind,
   };
 }
@@ -303,6 +309,7 @@ export interface MergedFieldStandings {
       isPassed: boolean;
       isCleared: boolean;
       isMissed: boolean;
+      missCount: number;  // Number of X's at this height for tie-breaking
       wind: number | null;
     }>;
     isDNS: boolean;
@@ -385,6 +392,7 @@ export async function mergeFlightsForEvent(
       isPassed: boolean;
       isCleared: boolean;
       isMissed: boolean;
+      missCount: number;
       wind: number | null;
     }>;
     isDNS: boolean;
@@ -428,18 +436,115 @@ export async function mergeFlightsForEvent(
   const dnsAthletes = allAthletes.filter(a => a.isDNS);
   const competingAthletes = allAthletes.filter(a => !a.isDNS);
   
-  competingAthletes.sort((a, b) => {
+  // Helper functions for tie-breaking
+  
+  // For horizontal events: get sorted marks (descending) for comparison
+  function getSortedMarks(athlete: typeof competingAthletes[0]): number[] {
+    return athlete.attempts
+      .filter(a => a.mark !== null && !a.isFoul)
+      .map(a => a.mark as number)
+      .sort((a, b) => b - a);
+  }
+  
+  // For vertical events: count misses at a specific height index
+  function getMissesAtHeight(athlete: typeof competingAthletes[0], heightIndex: number): number {
+    const attempt = athlete.attempts[heightIndex];
+    if (!attempt) return 0;
+    // Use missCount which tracks actual X's (e.g., XXO = 2 misses)
+    return attempt.missCount || 0;
+  }
+  
+  // For vertical events: count total misses across all heights in the series
+  function getTotalMisses(athlete: typeof competingAthletes[0]): number {
+    return athlete.attempts.reduce((sum, a) => sum + (a.missCount || 0), 0);
+  }
+  
+  // For vertical events: get highest cleared height index
+  function getHighestClearedIndex(athlete: typeof competingAthletes[0]): number {
+    for (let i = athlete.attempts.length - 1; i >= 0; i--) {
+      if (athlete.attempts[i].isCleared) return i;
+    }
+    return -1;
+  }
+  
+  // Compare two athletes with tie-breaking
+  function compareAthletes(a: typeof competingAthletes[0], b: typeof competingAthletes[0]): number {
+    // Handle null best marks
     if (a.bestMark === null && b.bestMark === null) return 0;
     if (a.bestMark === null) return 1;
     if (b.bestMark === null) return -1;
-    return b.bestMark - a.bestMark;
-  });
+    
+    // Primary comparison: best mark (higher is better)
+    if (a.bestMark !== b.bestMark) {
+      return b.bestMark - a.bestMark;
+    }
+    
+    // Tied on best mark - apply tie-breaking rules
+    if (isVerticalEvent) {
+      // Vertical event tie-breaking
+      const aHighest = getHighestClearedIndex(a);
+      const bHighest = getHighestClearedIndex(b);
+      
+      // Tie-breaker 1: Fewer misses at the tied height
+      const tiedHeightIndex = Math.min(aHighest, bHighest);
+      if (tiedHeightIndex >= 0) {
+        const aMissesAtTied = getMissesAtHeight(a, tiedHeightIndex);
+        const bMissesAtTied = getMissesAtHeight(b, tiedHeightIndex);
+        if (aMissesAtTied !== bMissesAtTied) {
+          return aMissesAtTied - bMissesAtTied; // Fewer misses is better
+        }
+      }
+      
+      // Tie-breaker 2: Fewer total misses in the series
+      const aTotalMisses = getTotalMisses(a);
+      const bTotalMisses = getTotalMisses(b);
+      if (aTotalMisses !== bTotalMisses) {
+        return aTotalMisses - bTotalMisses; // Fewer misses is better
+      }
+      
+      // Still tied - they share the place
+      return 0;
+    } else {
+      // Horizontal event tie-breaking: compare next-best marks
+      const aMarks = getSortedMarks(a);
+      const bMarks = getSortedMarks(b);
+      
+      // Compare mark by mark (skip first since we know best marks are equal)
+      for (let i = 1; i < Math.max(aMarks.length, bMarks.length); i++) {
+        const aMark = aMarks[i] ?? -Infinity;
+        const bMark = bMarks[i] ?? -Infinity;
+        if (aMark !== bMark) {
+          return bMark - aMark; // Higher mark is better
+        }
+      }
+      
+      // All marks equal or no more marks to compare - they share the place
+      return 0;
+    }
+  }
   
-  const rankedAthletes = competingAthletes.map((athlete, index) => ({
-    ...athlete,
-    overallPlace: index + 1,
-    bestMarkFormatted: formatMark(athlete.bestMark, units, isVerticalEvent),
-  }));
+  competingAthletes.sort(compareAthletes);
+  
+  // Assign places, handling ties (tied athletes get same place)
+  const rankedAthletes = competingAthletes.map((athlete, index, arr) => {
+    let place = index + 1;
+    
+    // Check if this athlete is tied with the previous one
+    if (index > 0 && compareAthletes(arr[index - 1], athlete) === 0) {
+      // Find the place of the first athlete in this tie group
+      let tieStart = index - 1;
+      while (tieStart > 0 && compareAthletes(arr[tieStart - 1], athlete) === 0) {
+        tieStart--;
+      }
+      place = tieStart + 1;
+    }
+    
+    return {
+      ...athlete,
+      overallPlace: place,
+      bestMarkFormatted: formatMark(athlete.bestMark, units, isVerticalEvent),
+    };
+  });
   
   const dnsRanked = dnsAthletes.map(athlete => ({
     ...athlete,
