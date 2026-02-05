@@ -225,6 +225,7 @@ export interface IStorage {
   updateMeetStatus(meetId: string, status: string): Promise<Meet | undefined>;
   deleteMeet(id: string): Promise<boolean>;
   resetMeet(id: string): Promise<{ teamsDeleted: number; athletesDeleted: number; eventsDeleted: number; divisionsDeleted: number }>;
+  clearMeetImportData(meetId: string): Promise<{ teamsDeleted: number; athletesDeleted: number; eventsDeleted: number; divisionsDeleted: number; entriesDeleted: number }>;
 
   // Teams
   getTeams(): Promise<Team[]>;
@@ -952,6 +953,57 @@ export class DatabaseStorage implements IStorage {
       eventsDeleted: eventsCount?.count || 0,
       divisionsDeleted: divisionsCount?.count || 0,
     };
+  }
+
+  async clearMeetImportData(meetId: string): Promise<{ teamsDeleted: number; athletesDeleted: number; eventsDeleted: number; divisionsDeleted: number; entriesDeleted: number }> {
+    console.log(`\n🧹 Clearing import data for meet ${meetId}...`);
+
+    const [teamsCount] = await db.select({ count: count() }).from(teams).where(eq(teams.meetId, meetId));
+    const [athletesCount] = await db.select({ count: count() }).from(athletes).where(eq(athletes.meetId, meetId));
+    const [eventsCount] = await db.select({ count: count() }).from(events).where(eq(events.meetId, meetId));
+    const [divisionsCount] = await db.select({ count: count() }).from(divisions).where(eq(divisions.meetId, meetId));
+    const [entriesCount] = await db.select({ count: count() }).from(entries).where(eq(entries.meetId, meetId));
+
+    await db.delete(liveEventData).where(eq(liveEventData.meetId, meetId));
+
+    await db.delete(teamScoringResults).where(eq(teamScoringResults.meetId, meetId));
+    await db.delete(meetScoringState).where(
+      inArray(meetScoringState.profileId,
+        db.select({ id: meetScoringProfiles.id }).from(meetScoringProfiles).where(eq(meetScoringProfiles.meetId, meetId))
+      )
+    );
+
+    await db.delete(combinedEventTotals).where(
+      inArray(combinedEventTotals.combinedEventId,
+        db.select({ id: combinedEvents.id }).from(combinedEvents).where(eq(combinedEvents.meetId, meetId))
+      )
+    );
+    await db.delete(combinedEventComponents).where(
+      inArray(combinedEventComponents.combinedEventId,
+        db.select({ id: combinedEvents.id }).from(combinedEvents).where(eq(combinedEvents.meetId, meetId))
+      )
+    );
+    await db.delete(combinedEvents).where(eq(combinedEvents.meetId, meetId));
+
+    await db.delete(medalAwards).where(eq(medalAwards.meetId, meetId));
+
+    await db.delete(processedIngestionFiles).where(eq(processedIngestionFiles.meetId, meetId));
+
+    await db.delete(events).where(eq(events.meetId, meetId));
+    await db.delete(athletes).where(eq(athletes.meetId, meetId));
+    await db.delete(teams).where(eq(teams.meetId, meetId));
+    await db.delete(divisions).where(eq(divisions.meetId, meetId));
+
+    const result = {
+      teamsDeleted: teamsCount?.count || 0,
+      athletesDeleted: athletesCount?.count || 0,
+      eventsDeleted: eventsCount?.count || 0,
+      divisionsDeleted: divisionsCount?.count || 0,
+      entriesDeleted: entriesCount?.count || 0,
+    };
+
+    console.log(`🧹 Cleared: ${result.eventsDeleted} events, ${result.entriesDeleted} entries, ${result.athletesDeleted} athletes, ${result.teamsDeleted} teams, ${result.divisionsDeleted} divisions`);
+    return result;
   }
 
   // Teams

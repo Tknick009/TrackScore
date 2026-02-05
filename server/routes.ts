@@ -1883,6 +1883,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`📁 Processing MDB import for meet: ${existingMeet.name} (${meetId})`);
       console.log(`📍 File: ${file.originalname}`);
 
+      // Clear existing import data before re-importing
+      const clearStats = await storage.clearMeetImportData(meetId);
+      console.log(`🧹 Pre-import clear: ${JSON.stringify(clearStats)}`);
+
       // Run the import
       const stats = await importCompleteMDB(filePath, meetId);
 
@@ -3583,6 +3587,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         targetMeetId = newMeet.id;
         console.log(`📍 Created new meet: ${newMeet.name} (${targetMeetId})`);
       }
+
+      // Clear existing import data before re-importing
+      const clearStats = await storage.clearMeetImportData(targetMeetId);
+      console.log(`🧹 Pre-import clear: ${JSON.stringify(clearStats)}`);
 
       // Run the import with meetId
       const stats = await importCompleteMDB(filePath, targetMeetId);
@@ -6134,6 +6142,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!settings?.hytekMdbPath) {
         return res.status(400).json({ error: 'No MDB path configured' });
       }
+      
+      // Clear existing import data before re-importing
+      const clearStats = await storage.clearMeetImportData(meetId);
+      console.log(`🧹 Pre-import clear: ${JSON.stringify(clearStats)}`);
       
       const stats = await importCompleteMDB(settings.hytekMdbPath, meetId);
       

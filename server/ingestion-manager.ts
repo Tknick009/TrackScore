@@ -290,6 +290,10 @@ class IngestionManager {
 
       console.log(`[Ingestion] MDB file changed, importing from copy: ${tempMdbPath}`);
       
+      // Clear existing import data before re-importing
+      const clearStats = await storage.clearMeetImportData(meetId);
+      console.log(`[Ingestion] 🧹 Pre-import clear: ${JSON.stringify(clearStats)}`);
+      
       // Import from the copy, not the original
       const stats = await importCompleteMDB(tempMdbPath, meetId);
       console.log(`[Ingestion] MDB import complete:`, stats);

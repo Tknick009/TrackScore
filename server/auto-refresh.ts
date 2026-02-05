@@ -63,6 +63,10 @@ export function startAutoRefresh() {
             
             console.log(`🔄 Auto-refreshing meet: ${meet.name} (${meet.id})`);
             
+            // Clear existing import data before re-importing
+            const clearStats = await storage.clearMeetImportData(meet.id);
+            console.log(`🧹 Pre-import clear: ${JSON.stringify(clearStats)}`);
+            
             // Import from the copy, not the original
             await importCompleteMDB(tempMdbPath, meet.id);
             
