@@ -9,44 +9,10 @@ interface BigBoardProps {
   pagingIntervalMs?: number;
 }
 
-// Convert hex color to RGB components
-function hexToRgb(hex: string): { r: number; g: number; b: number } {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return result
-    ? {
-        r: parseInt(result[1], 16),
-        g: parseInt(result[2], 16),
-        b: parseInt(result[3], 16),
-      }
-    : { r: 0, g: 102, b: 204 }; // Default blue
-}
-
-// Create RGBA string from hex and alpha
-function hexToRgba(hex: string, alpha: number): string {
-  const { r, g, b } = hexToRgb(hex);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
-
-// Darken a hex color by a percentage
-function darkenHex(hex: string, percent: number): { r: number; g: number; b: number } {
-  const { r, g, b } = hexToRgb(hex);
-  const factor = 1 - percent / 100;
-  return {
-    r: Math.round(r * factor),
-    g: Math.round(g * factor),
-    b: Math.round(b * factor),
-  };
-}
-
-export function BigBoard({ event, meet, liveTime, pagingSize = 8, pagingIntervalMs = 8000 }: BigBoardProps) {
-  // Get colors from meet color scheme, with defaults
-  const primaryColor = meet?.primaryColor || '#0066CC';
-  const secondaryColor = meet?.secondaryColor || '#003366';
-  const accentColor = meet?.accentColor || '#FFD700';
+export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
   const [clock, setClock] = useState<string>("");
   const [fadeIn, setFadeIn] = useState(true);
   const [displayedEntries, setDisplayedEntries] = useState<any[]>([]);
-  const [currentPage, setCurrentPage] = useState(0);
   const prevEntriesRef = useRef<string>("");
   
   // Smooth fade transition when entries change
@@ -107,35 +73,6 @@ export function BigBoard({ event, meet, liveTime, pagingSize = 8, pagingInterval
     });
   }, [displayedEntries]);
 
-  // Calculate total pages and paged entries
-  const totalPages = Math.max(1, Math.ceil(sortedEntries.length / pagingSize));
-  
-  // Auto-page through entries based on pagingIntervalMs (lines = seconds rule)
-  useEffect(() => {
-    if (totalPages <= 1) {
-      setCurrentPage(0);
-      return;
-    }
-    
-    const interval = setInterval(() => {
-      setCurrentPage(prev => (prev + 1) % totalPages);
-    }, pagingIntervalMs);
-    
-    return () => clearInterval(interval);
-  }, [totalPages, pagingIntervalMs]);
-
-  // Reset page when entries change significantly
-  useEffect(() => {
-    setCurrentPage(0);
-  }, [sortedEntries.length]);
-
-  // Get current page of entries
-  const pagedEntries = useMemo(() => {
-    const start = currentPage * pagingSize;
-    const end = start + pagingSize;
-    return sortedEntries.slice(start, end);
-  }, [sortedEntries, currentPage, pagingSize]);
-
   const isRelay = event.eventType?.toLowerCase().includes('relay');
   const status = event.status === 'completed' ? 'FINAL' : event.status === 'in_progress' ? 'IN PROGRESS' : 'SCHEDULED';
   const windReading = event.entries?.[0]?.finalWind;
@@ -171,9 +108,9 @@ export function BigBoard({ event, meet, liveTime, pagingSize = 8, pagingInterval
         className="absolute inset-0 pointer-events-none"
         style={{
           background: `
-            radial-gradient(ellipse 100% 60% at 50% 120%, ${hexToRgba(primaryColor, 0.35)} 0%, transparent 60%),
-            radial-gradient(ellipse 60% 40% at 20% 80%, ${hexToRgba(secondaryColor, 0.2)} 0%, transparent 50%),
-            radial-gradient(ellipse 60% 40% at 80% 80%, ${hexToRgba(secondaryColor, 0.2)} 0%, transparent 50%)
+            radial-gradient(ellipse 100% 60% at 50% 120%, rgba(0, 150, 255, 0.35) 0%, transparent 60%),
+            radial-gradient(ellipse 60% 40% at 20% 80%, rgba(0, 120, 220, 0.2) 0%, transparent 50%),
+            radial-gradient(ellipse 60% 40% at 80% 80%, rgba(0, 120, 220, 0.2) 0%, transparent 50%)
           `,
         }}
       />
@@ -203,12 +140,7 @@ export function BigBoard({ event, meet, liveTime, pagingSize = 8, pagingInterval
           </span>
         </div>
 
-        <div 
-          className="h-1 mt-4" 
-          style={{
-            background: `linear-gradient(90deg, transparent 0%, ${hexToRgba(primaryColor, 0.6)} 50%, transparent 100%)`
-          }}
-        />
+        <div className="h-1 bg-gradient-to-r from-cyan-500/0 via-cyan-500/60 to-cyan-500/0 mt-4" />
 
         <div 
           className="flex justify-between items-center px-8 py-3"
@@ -230,12 +162,7 @@ export function BigBoard({ event, meet, liveTime, pagingSize = 8, pagingInterval
           </span>
         </div>
 
-        <div 
-          className="h-1" 
-          style={{
-            background: `linear-gradient(90deg, transparent 0%, ${hexToRgba(primaryColor, 0.6)} 50%, transparent 100%)`
-          }}
-        />
+        <div className="h-1 bg-gradient-to-r from-cyan-500/0 via-cyan-500/60 to-cyan-500/0" />
 
         <div 
           className="flex-1 flex flex-col px-4 py-3 overflow-hidden"
@@ -244,7 +171,7 @@ export function BigBoard({ event, meet, liveTime, pagingSize = 8, pagingInterval
             transition: 'opacity 300ms ease-in-out',
           }}
         >
-          {pagedEntries.map((entry, index) => {
+          {sortedEntries.map((entry, index) => {
             const teamLogo = entry.team?.logoUrl;
             const displayName = isRelay 
               ? entry.team?.name || 'Unknown Team'
@@ -258,10 +185,10 @@ export function BigBoard({ event, meet, liveTime, pagingSize = 8, pagingInterval
                   className="absolute inset-0 flex items-center px-6 rounded-sm overflow-hidden"
                   style={{
                     background: `radial-gradient(ellipse 120% 100% at 5% 50%, 
-                      ${hexToRgba(primaryColor, 0.6)} 0%, 
-                      ${hexToRgba(primaryColor, 0.4)} 20%,
-                      ${hexToRgba(secondaryColor, 0.2)} 40%,
-                      ${hexToRgba(secondaryColor, 0.1)} 60%,
+                      rgba(0, 150, 255, 0.6) 0%, 
+                      rgba(0, 120, 200, 0.4) 20%,
+                      rgba(0, 80, 160, 0.2) 40%,
+                      rgba(0, 40, 80, 0.1) 60%,
                       transparent 80%
                     )`,
                   }}
@@ -295,8 +222,8 @@ export function BigBoard({ event, meet, liveTime, pagingSize = 8, pagingInterval
 
                     {splitTime && (
                       <span 
-                        className="font-bold tabular-nums shrink-0"
-                        style={{ fontSize: '48px', fontFamily: "'Bebas Neue', sans-serif", color: accentColor }}
+                        className="text-yellow-400 font-bold tabular-nums shrink-0"
+                        style={{ fontSize: '48px', fontFamily: "'Bebas Neue', sans-serif" }}
                       >
                         {splitTime}
                       </span>
@@ -311,37 +238,21 @@ export function BigBoard({ event, meet, liveTime, pagingSize = 8, pagingInterval
                   </div>
                 </div>
 
-                <div 
-                  className="absolute bottom-0 left-0 right-0 h-[2px]" 
-                  style={{ backgroundColor: hexToRgba(primaryColor, 0.5) }}
-                />
+                <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-cyan-500/50" />
               </div>
             );
           })}
         </div>
 
-        <div 
-          className="h-1" 
-          style={{
-            background: `linear-gradient(90deg, transparent 0%, ${hexToRgba(primaryColor, 0.6)} 50%, transparent 100%)`
-          }}
-        />
+        <div className="h-1 bg-gradient-to-r from-cyan-500/0 via-cyan-500/60 to-cyan-500/0" />
 
-        <div className="flex items-center justify-between px-8 py-3">
+        <div className="flex items-center justify-center px-8 py-3">
           <span 
             className="text-gray-500"
             style={{ fontSize: '28px' }}
           >
             {meet?.name || ''}
           </span>
-          {totalPages > 1 && (
-            <span 
-              className="text-gray-400 font-semibold"
-              style={{ fontSize: '24px' }}
-            >
-              Page {currentPage + 1} of {totalPages}
-            </span>
-          )}
         </div>
       </div>
     </div>
