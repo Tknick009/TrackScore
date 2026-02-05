@@ -26,7 +26,11 @@ import {
   QrCode,
   Copy,
   Play,
-  List
+  List,
+  Timer,
+  Trophy,
+  Database,
+  ChevronRight
 } from 'lucide-react';
 import { DISPLAY_CONTENT_TYPES } from '@shared/layout-templates';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -52,6 +56,9 @@ interface DisplayDevice {
   assignedEvent?: Event;
 }
 
+// Display mode types
+type DisplayMode = 'finishlynx' | 'hytek' | 'teamscores';
+
 export default function DisplayControlPage() {
   const { currentMeetId, currentMeet } = useMeet();
   const { toast } = useToast();
@@ -59,6 +66,13 @@ export default function DisplayControlPage() {
   const [selectedTemplate, setSelectedTemplate] = useState<Record<string, string>>({});
   const [qrDialog, setQrDialog] = useState<{ open: boolean; url: string; title: string }>({ open: false, url: '', title: '' });
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
+  
+  // New display mode state - tracks which mode is active per device
+  const [displayMode, setDisplayMode] = useState<Record<string, DisplayMode>>({});
+  // Selected event for Hytek mode
+  const [selectedHytekEvent, setSelectedHytekEvent] = useState<Record<string, string>>({});
+  // Paging size for Hytek and Team Scores modes (lines = seconds)
+  const [pagingLines, setPagingLines] = useState<Record<string, number>>({});
 
   const baseUrl = typeof window !== 'undefined' 
     ? `${window.location.protocol}//${window.location.host}` 
@@ -177,6 +191,50 @@ export default function DisplayControlPage() {
     onError: (error: Error) => {
       toast({
         title: 'Paging update failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Send Hytek Results mutation
+  const sendHytekResultsMutation = useMutation({
+    mutationFn: async ({ deviceId, eventId, pagingLines }: { deviceId: string; eventId: string; pagingLines: number }) => {
+      const response = await apiRequest('POST', `/api/display-devices/${deviceId}/hytek-results`, { eventId, pagingLines });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: data.warning ? 'Results sent with warning' : 'Hytek Results sent',
+        description: data.warning || `Display is now showing ${data.entryCount || 0} entries.`,
+        variant: data.warning ? 'default' : 'default',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Failed to send Hytek Results',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Send Team Scores mutation
+  const sendTeamScoresMutation = useMutation({
+    mutationFn: async ({ deviceId, pagingLines }: { deviceId: string; pagingLines: number }) => {
+      const response = await apiRequest('POST', `/api/display-devices/${deviceId}/team-scores`, { pagingLines });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: data.warning ? 'Scores sent with warning' : 'Team Scores sent',
+        description: data.warning || `Display is now showing ${data.teamCount || 0} teams.`,
+        variant: data.warning ? 'default' : 'default',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Failed to send Team Scores',
         description: error.message,
         variant: 'destructive',
       });
@@ -511,132 +569,91 @@ export default function DisplayControlPage() {
                     Select what content to show on this display
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-4">
                   {selectedDevice.status !== 'online' ? (
                     <div className="p-3 rounded-lg bg-muted text-muted-foreground text-sm">
                       Device must be online to send commands
                     </div>
                   ) : (
-                    <div className="flex items-center gap-2">
-                      <Select 
-                        value={selectedTemplate[selectedDevice.id] || ''} 
-                        onValueChange={(v) => {
-                          setSelectedTemplate(prev => ({ ...prev, [selectedDevice.id]: v }));
-                          // Auto-mode triggers immediately when selected
-                          if (v === 'auto-mode') {
-                            toggleAutoModeMutation.mutate({ deviceId: selectedDevice.id, enabled: true });
-                          }
-                        }}
-                      >
-                        <SelectTrigger className="flex-1" data-testid="select-template">
-                          <SelectValue placeholder="Select content type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="auto-mode">Auto Mode (Track)</SelectItem>
-                          <Separator className="my-1" />
-                          <SelectItem value="meet-logo">Meet Logo</SelectItem>
-                          <SelectItem value="team-scores">Team Scores</SelectItem>
-                          {getTemplatesForDevice(selectedDevice.displayType).map(t => (
-                            <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Button 
-                        onClick={() => sendCommand(selectedDevice, selectedTemplate[selectedDevice.id] || 'meet-logo')}
-                        disabled={sendCommandMutation.isPending || !selectedTemplate[selectedDevice.id] || selectedTemplate[selectedDevice.id] === 'auto-mode'}
-                        data-testid="button-send-command"
-                      >
-                        <Send className="w-4 h-4 mr-2" />
-                        Send
-                      </Button>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Assigned Event</CardTitle>
-                  <CardDescription>
-                    Select which event this display should show
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Select
-                    value={selectedDevice.assignedEventId || 'none'}
-                    onValueChange={(value) => {
-                      assignEventMutation.mutate({
-                        deviceId: selectedDevice.id,
-                        eventId: value === 'none' ? null : value,
-                      });
-                    }}
-                    disabled={assignEventMutation.isPending}
-                  >
-                    <SelectTrigger data-testid="select-assigned-event">
-                      <SelectValue placeholder="Select an event" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">No specific event (follow current)</SelectItem>
-                      {events.map(event => (
-                        <SelectItem key={event.id} value={event.id}>
-                          {event.name} - {event.status}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  {selectedDevice.assignedEvent && (
-                    <div className="mt-4 p-3 rounded-lg bg-muted">
-                      <div className="text-sm font-medium">{selectedDevice.assignedEvent.name}</div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        Status: {selectedDevice.assignedEvent.status}
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Zap className="w-5 h-5" />
-                    Auto-Switching Mode
-                  </CardTitle>
-                  <CardDescription>
-                    Automatically switch display templates based on race state
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {selectedDevice.status !== 'online' ? (
-                    <div className="p-3 rounded-lg bg-muted text-muted-foreground text-sm">
-                      Device must be online to configure auto-switching
-                    </div>
-                  ) : (
                     <>
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="space-y-1">
-                          <Label htmlFor="auto-mode-toggle" className="font-medium">
-                            Enable Auto-Switching
-                          </Label>
-                          <p className="text-xs text-muted-foreground">
-                            When enabled, display will automatically switch between templates based on timing system data
-                          </p>
-                        </div>
-                        <Switch
-                          id="auto-mode-toggle"
-                          checked={autoModeStatus?.autoMode ?? false}
-                          onCheckedChange={(checked) => {
-                            toggleAutoModeMutation.mutate({
-                              deviceId: selectedDevice.id,
-                              enabled: checked,
-                            });
+                      <div className="grid grid-cols-3 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDisplayMode(prev => ({ ...prev, [selectedDevice.id]: 'finishlynx' }));
+                            toggleAutoModeMutation.mutate({ deviceId: selectedDevice.id, enabled: true });
                           }}
-                          disabled={toggleAutoModeMutation.isPending || !autoModeStatus?.connected}
-                          data-testid="switch-auto-mode"
-                        />
+                          className={`p-4 rounded-lg border-2 transition-all text-left ${
+                            displayMode[selectedDevice.id] === 'finishlynx' || autoModeStatus?.autoMode
+                              ? 'border-primary bg-primary/10'
+                              : 'border-border hover-elevate'
+                          }`}
+                          data-testid="tile-finishlynx"
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <Timer className="w-5 h-5 text-primary" />
+                            <span className="font-medium">FinishLynx</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Auto-switching results from timing system
+                          </p>
+                          {(displayMode[selectedDevice.id] === 'finishlynx' || autoModeStatus?.autoMode) && (
+                            <Badge variant="default" className="mt-2">Active</Badge>
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDisplayMode(prev => ({ ...prev, [selectedDevice.id]: 'hytek' }));
+                            toggleAutoModeMutation.mutate({ deviceId: selectedDevice.id, enabled: false });
+                          }}
+                          className={`p-4 rounded-lg border-2 transition-all text-left ${
+                            displayMode[selectedDevice.id] === 'hytek' && !autoModeStatus?.autoMode
+                              ? 'border-primary bg-primary/10'
+                              : 'border-border hover-elevate'
+                          }`}
+                          data-testid="tile-hytek"
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <Database className="w-5 h-5 text-blue-500" />
+                            <span className="font-medium">Hytek Results</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Compiled results from MDB file
+                          </p>
+                          {displayMode[selectedDevice.id] === 'hytek' && !autoModeStatus?.autoMode && (
+                            <Badge variant="default" className="mt-2">Active</Badge>
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDisplayMode(prev => ({ ...prev, [selectedDevice.id]: 'teamscores' }));
+                            toggleAutoModeMutation.mutate({ deviceId: selectedDevice.id, enabled: false });
+                          }}
+                          className={`p-4 rounded-lg border-2 transition-all text-left ${
+                            displayMode[selectedDevice.id] === 'teamscores' && !autoModeStatus?.autoMode
+                              ? 'border-primary bg-primary/10'
+                              : 'border-border hover-elevate'
+                          }`}
+                          data-testid="tile-teamscores"
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <Trophy className="w-5 h-5 text-yellow-500" />
+                            <span className="font-medium">Team Scores</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Team standings from MDB file
+                          </p>
+                          {displayMode[selectedDevice.id] === 'teamscores' && !autoModeStatus?.autoMode && (
+                            <Badge variant="default" className="mt-2">Active</Badge>
+                          )}
+                        </button>
                       </div>
 
-                      {autoModeStatus?.autoMode && (
+                      {displayMode[selectedDevice.id] === 'finishlynx' || autoModeStatus?.autoMode ? (
                         <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
                           <div className="flex items-start gap-2">
                             <Zap className="w-4 h-4 text-green-500 mt-0.5" />
@@ -645,87 +662,121 @@ export default function DisplayControlPage() {
                                 Auto-switching active
                               </div>
                               <div className="text-xs text-green-600 dark:text-green-500 mt-1">
-                                Display will automatically show:<br/>
-                                • Start list when race is armed<br/>
-                                • Running time during race<br/>
-                                • Results when race finishes<br/>
-                                • Meet logo when idle
+                                Display automatically shows start list, running time, and results based on FinishLynx data.
                               </div>
                             </div>
                           </div>
                         </div>
-                      )}
-                    </>
-                  )}
-                </CardContent>
-              </Card>
+                      ) : displayMode[selectedDevice.id] === 'hytek' ? (
+                        <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
+                          <div className="space-y-2">
+                            <Label>Select Event</Label>
+                            <Select
+                              value={selectedHytekEvent[selectedDevice.id] || ''}
+                              onValueChange={(value) => {
+                                setSelectedHytekEvent(prev => ({ ...prev, [selectedDevice.id]: value }));
+                              }}
+                            >
+                              <SelectTrigger data-testid="select-hytek-event">
+                                <SelectValue placeholder="Choose an event to display" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {events.map(event => (
+                                  <SelectItem key={event.id} value={event.id}>
+                                    {event.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <List className="w-5 h-5" />
-                    Paging Settings
-                  </CardTitle>
-                  <CardDescription>
-                    Control how results are paged on this display
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {selectedDevice.status !== 'online' ? (
-                    <div className="p-3 rounded-lg bg-muted text-muted-foreground text-sm">
-                      Device must be online to configure paging
-                    </div>
-                  ) : (
-                    <>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="paging-size">Athletes per screen</Label>
-                          <Select
-                            value={String(pagingSettings?.pagingSize ?? 8)}
-                            onValueChange={(value) => {
-                              updatePagingMutation.mutate({
+                          <div className="space-y-2">
+                            <Label>Paging (lines = seconds)</Label>
+                            <div className="flex items-center gap-2">
+                              <Select
+                                value={String(pagingLines[selectedDevice.id] || 8)}
+                                onValueChange={(value) => {
+                                  setPagingLines(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }));
+                                }}
+                              >
+                                <SelectTrigger className="w-24" data-testid="select-hytek-paging">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {[4, 6, 8, 10, 12, 16, 20].map(n => (
+                                    <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <span className="text-sm text-muted-foreground">
+                                lines per page, {pagingLines[selectedDevice.id] || 8} seconds per page
+                              </span>
+                            </div>
+                          </div>
+
+                          <Button
+                            onClick={() => {
+                              const eventId = selectedHytekEvent[selectedDevice.id];
+                              const lines = pagingLines[selectedDevice.id] || 8;
+                              if (eventId) {
+                                sendHytekResultsMutation.mutate({
+                                  deviceId: selectedDevice.id,
+                                  eventId,
+                                  pagingLines: lines,
+                                });
+                              }
+                            }}
+                            disabled={!selectedHytekEvent[selectedDevice.id] || sendHytekResultsMutation.isPending}
+                            className="w-full"
+                            data-testid="button-send-hytek"
+                          >
+                            <Send className="w-4 h-4 mr-2" />
+                            Send to Display
+                          </Button>
+                        </div>
+                      ) : displayMode[selectedDevice.id] === 'teamscores' ? (
+                        <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
+                          <div className="space-y-2">
+                            <Label>Paging (lines = seconds)</Label>
+                            <div className="flex items-center gap-2">
+                              <Select
+                                value={String(pagingLines[selectedDevice.id] || 8)}
+                                onValueChange={(value) => {
+                                  setPagingLines(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }));
+                                }}
+                              >
+                                <SelectTrigger className="w-24" data-testid="select-teamscores-paging">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {[4, 6, 8, 10, 12, 16, 20].map(n => (
+                                    <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <span className="text-sm text-muted-foreground">
+                                teams per page, {pagingLines[selectedDevice.id] || 8} seconds per page
+                              </span>
+                            </div>
+                          </div>
+
+                          <Button
+                            onClick={() => {
+                              const lines = pagingLines[selectedDevice.id] || 8;
+                              sendTeamScoresMutation.mutate({
                                 deviceId: selectedDevice.id,
-                                pagingSize: parseInt(value),
-                                pagingInterval: pagingSettings?.pagingInterval ?? 5,
+                                pagingLines: lines,
                               });
                             }}
+                            disabled={sendTeamScoresMutation.isPending}
+                            className="w-full"
+                            data-testid="button-send-teamscores"
                           >
-                            <SelectTrigger id="paging-size" data-testid="select-paging-size">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {[1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 16, 20].map(n => (
-                                <SelectItem key={n} value={String(n)}>{n}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            <Send className="w-4 h-4 mr-2" />
+                            Send to Display
+                          </Button>
                         </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="paging-interval">Time per page (sec)</Label>
-                          <Select
-                            value={String(pagingSettings?.pagingInterval ?? 5)}
-                            onValueChange={(value) => {
-                              updatePagingMutation.mutate({
-                                deviceId: selectedDevice.id,
-                                pagingSize: pagingSettings?.pagingSize ?? 8,
-                                pagingInterval: parseInt(value),
-                              });
-                            }}
-                          >
-                            <SelectTrigger id="paging-interval" data-testid="select-paging-interval">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {[2, 3, 4, 5, 6, 8, 10, 15, 20, 30, 45, 60].map(n => (
-                                <SelectItem key={n} value={String(n)}>{n}s</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Shows this many athletes at a time. When there are more athletes than fit on screen, the display cycles to the next group after the set time.
-                      </p>
+                      ) : null}
                     </>
                   )}
                 </CardContent>

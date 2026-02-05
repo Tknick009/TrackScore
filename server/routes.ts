@@ -2444,6 +2444,257 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Send Hytek Results to a display device (compiled results from database)
+  app.post("/api/display-devices/:id/hytek-results", async (req, res) => {
+    try {
+      const { eventId, pagingLines } = req.body;
+      const deviceId = req.params.id;
+      
+      if (!eventId) {
+        return res.status(400).json({ error: "eventId is required" });
+      }
+      
+      // Get the device
+      const device = await storage.getDisplayDevice(deviceId);
+      if (!device) {
+        return res.status(404).json({ error: "Display device not found" });
+      }
+      
+      // Get the event with entries and results
+      const event = await storage.getEvent(eventId);
+      if (!event) {
+        return res.status(404).json({ error: "Event not found" });
+      }
+      
+      // Get entries for the event
+      const entries = await storage.getEntriesByEvent(eventId);
+      
+      if (entries.length === 0) {
+        return res.status(400).json({ error: "No entries found for this event", warning: true });
+      }
+      
+      // Sort entries by place (results), then seed mark
+      const sortedEntries = entries.sort((a, b) => {
+        // First by final place
+        if (a.finalPlace && b.finalPlace) {
+          return a.finalPlace - b.finalPlace;
+        }
+        if (a.finalPlace) return -1;
+        if (b.finalPlace) return 1;
+        // Then by seed mark
+        return (a.seedMark || 999) - (b.seedMark || 999);
+      });
+      
+      // Enrich entries with athlete names and team info, with proper position calculation
+      const enrichedEntries = await Promise.all(sortedEntries.map(async (entry, index) => {
+        const athlete = entry.athleteId ? await storage.getAthlete(entry.athleteId) : null;
+        const team = entry.teamId ? await storage.getTeam(entry.teamId) : null;
+        const athleteName = athlete ? `${athlete.firstName} ${athlete.lastName}`.trim() : 'Unknown';
+        // Position: use finalPlace if available, otherwise derive from sorted order
+        const position = entry.finalPlace || (index + 1);
+        return {
+          position,
+          lane: entry.preliminaryLane || entry.finalsLane || 0,
+          bib: athlete?.bibNumber || athlete?.athleteNumber?.toString() || '',
+          name: athleteName,
+          team: team?.abbreviation || team?.shortName || '',
+          result: entry.finalMark || entry.seedMark || '',
+          place: entry.finalPlace,
+        };
+      }));
+      
+      // Use paging lines (lines = seconds)
+      const lines = Math.max(1, Math.min(20, parseInt(pagingLines) || 8));
+      
+      // Determine display type and select appropriate template
+      const displayType = device.displayType || 'P10';
+      const isSingleAthleteDisplay = displayType === 'P10' || displayType === 'P6';
+      
+      // For P10/P6 displays, use single-athlete template; for BigBoard, use compiled results
+      const defaultTemplate = isSingleAthleteDisplay 
+        ? `${displayType.toLowerCase()}-results` 
+        : 'bigboard-compiled-results';
+      
+      // Find the connected WebSocket for this device
+      const connectedDevice = connectedDisplayDevices.get(deviceId);
+      if (connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {
+        // Update paging settings (lines = seconds)
+        connectedDevice.pagingSize = lines;
+        connectedDevice.pagingInterval = lines;
+        
+        // Look up custom scene mapping for track_results mode
+        let sceneId: number | null = null;
+        let sceneData: { scene: any; objects: any[] } | null = null;
+        
+        if (device.meetId) {
+          try {
+            const mapping = await storage.getSceneTemplateMappingByTypeAndMode(
+              device.meetId,
+              displayType,
+              'track_results'
+            );
+            if (mapping) {
+              sceneId = mapping.sceneId;
+              sceneData = await prefetchSceneData(sceneId);
+            }
+          } catch (err) {
+            console.error(`[Hytek Results] Error looking up scene mapping:`, err);
+          }
+        }
+        
+        // Send command to the display device
+        connectedDevice.ws.send(JSON.stringify({
+          type: 'display_command',
+          template: sceneId ? null : defaultTemplate,
+          sceneId,
+          sceneData,
+          liveEventData: {
+            eventNumber: event.eventNumber || 0,
+            eventName: event.name,
+            mode: 'results',
+            entries: enrichedEntries,
+          },
+          pagingSize: lines,
+          pagingInterval: lines,
+        }));
+        
+        // Update database with paging settings
+        await storage.updateDisplayDevice(deviceId, {
+          pagingSize: lines,
+          pagingInterval: lines,
+        });
+        
+        console.log(`[Hytek Results] Sent ${enrichedEntries.length} entries to ${device.deviceName} (${displayType}, paging: ${lines} lines/${lines}s)`);
+        res.json({ success: true, delivered: true, entryCount: enrichedEntries.length });
+      } else {
+        res.json({ success: false, delivered: false, message: "Device offline" });
+      }
+    } catch (error: any) {
+      console.error(`[Hytek Results] Error:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Send Team Scores to a display device
+  app.post("/api/display-devices/:id/team-scores", async (req, res) => {
+    try {
+      const { pagingLines } = req.body;
+      const deviceId = req.params.id;
+      
+      // Get the device
+      const device = await storage.getDisplayDevice(deviceId);
+      if (!device) {
+        return res.status(404).json({ error: "Display device not found" });
+      }
+      
+      if (!device.meetId) {
+        return res.status(400).json({ error: "Device has no assigned meet" });
+      }
+      
+      // Get teams for this meet
+      const teams = await storage.getTeamsByMeetId(device.meetId);
+      
+      if (teams.length === 0) {
+        return res.status(400).json({ error: "No teams found for this meet", warning: true });
+      }
+      
+      // Get team scoring standings if available
+      let teamScores: Map<string, number> = new Map();
+      let hasScores = false;
+      try {
+        const scoringResults = await storage.getTeamScoringResultsByMeet(device.meetId);
+        for (const result of scoringResults) {
+          const current = teamScores.get(result.teamId) || 0;
+          teamScores.set(result.teamId, current + (result.points || 0));
+          hasScores = true;
+        }
+      } catch (err) {
+        console.log('[Team Scores] No scoring results available');
+      }
+      
+      // Sort teams by score (assuming higher is better)
+      const sortedTeams = [...teams].sort((a: typeof teams[0], b: typeof teams[0]) => {
+        const scoreA = teamScores.get(a.id) || 0;
+        const scoreB = teamScores.get(b.id) || 0;
+        return scoreB - scoreA;
+      });
+      
+      // Format team entries for display
+      const teamEntries = sortedTeams.map((team: typeof teams[0], index: number) => ({
+        position: index + 1,
+        name: team.name || team.shortName || 'Unknown',
+        abbreviation: team.abbreviation || '',
+        score: teamScores.get(team.id) || 0,
+      }));
+      
+      // Use paging lines (lines = seconds)
+      const lines = Math.max(1, Math.min(20, parseInt(pagingLines) || 8));
+      
+      // Find the connected WebSocket for this device
+      const connectedDevice = connectedDisplayDevices.get(deviceId);
+      if (connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {
+        // Update paging settings (lines = seconds)
+        connectedDevice.pagingSize = lines;
+        connectedDevice.pagingInterval = lines;
+        
+        // Look up custom scene mapping for team_scores mode
+        const displayType = device.displayType || 'P10';
+        let sceneId: number | null = null;
+        let sceneData: { scene: any; objects: any[] } | null = null;
+        
+        if (device.meetId) {
+          try {
+            const mapping = await storage.getSceneTemplateMappingByTypeAndMode(
+              device.meetId,
+              displayType,
+              'team_scores'
+            );
+            if (mapping) {
+              sceneId = mapping.sceneId;
+              sceneData = await prefetchSceneData(sceneId);
+            }
+          } catch (err) {
+            console.error(`[Team Scores] Error looking up scene mapping:`, err);
+          }
+        }
+        
+        // Send command to the display device
+        connectedDevice.ws.send(JSON.stringify({
+          type: 'display_command',
+          template: sceneId ? null : 'team-scores',
+          sceneId,
+          sceneData,
+          liveEventData: {
+            mode: 'team_scores',
+            entries: teamEntries,
+          },
+          pagingSize: lines,
+          pagingInterval: lines,
+        }));
+        
+        // Update database with paging settings
+        await storage.updateDisplayDevice(deviceId, {
+          pagingSize: lines,
+          pagingInterval: lines,
+        });
+        
+        console.log(`[Team Scores] Sent ${teamEntries.length} teams to ${device.deviceName} (paging: ${lines} lines/${lines}s, hasScores: ${hasScores})`);
+        res.json({ 
+          success: true, 
+          delivered: true, 
+          teamCount: teamEntries.length,
+          hasScores,
+          warning: hasScores ? undefined : "No scoring data available - all teams will show 0 points"
+        });
+      } else {
+        res.json({ success: false, delivered: false, message: "Device offline" });
+      }
+    } catch (error: any) {
+      console.error(`[Team Scores] Error:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // ===== DISPLAY THEMES =====
 
   // Get all themes for a meet
