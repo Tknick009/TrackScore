@@ -962,7 +962,9 @@ export class DatabaseStorage implements IStorage {
     const [athletesCount] = await db.select({ count: count() }).from(athletes).where(eq(athletes.meetId, meetId));
     const [eventsCount] = await db.select({ count: count() }).from(events).where(eq(events.meetId, meetId));
     const [divisionsCount] = await db.select({ count: count() }).from(divisions).where(eq(divisions.meetId, meetId));
-    const [entriesCount] = await db.select({ count: count() }).from(entries).where(eq(entries.meetId, meetId));
+
+    const meetEventIds = db.select({ id: events.id }).from(events).where(eq(events.meetId, meetId));
+    const [entriesCount] = await db.select({ count: count() }).from(entries).where(inArray(entries.eventId, meetEventIds));
 
     await db.delete(liveEventData).where(eq(liveEventData.meetId, meetId));
 
@@ -989,6 +991,7 @@ export class DatabaseStorage implements IStorage {
 
     await db.delete(processedIngestionFiles).where(eq(processedIngestionFiles.meetId, meetId));
 
+    await db.delete(entries).where(inArray(entries.eventId, meetEventIds));
     await db.delete(events).where(eq(events.meetId, meetId));
     await db.delete(athletes).where(eq(athletes.meetId, meetId));
     await db.delete(teams).where(eq(teams.meetId, meetId));

@@ -1571,8 +1571,8 @@ export class SQLiteStorage implements IStorage {
   async clearMeetImportData(meetId: string): Promise<{ teamsDeleted: number; athletesDeleted: number; eventsDeleted: number; divisionsDeleted: number; entriesDeleted: number }> {
     console.log(`\n🧹 Clearing import data for meet ${meetId}...`);
 
-    const entriesCount = (this.db.prepare('SELECT COUNT(*) as count FROM entries WHERE meet_id = ?').get(meetId) as any)?.count || 0;
     const eventsCount = (this.db.prepare('SELECT COUNT(*) as count FROM events WHERE meet_id = ?').get(meetId) as any)?.count || 0;
+    const entriesCount = (this.db.prepare('SELECT COUNT(*) as count FROM entries WHERE event_id IN (SELECT id FROM events WHERE meet_id = ?)').get(meetId) as any)?.count || 0;
     const athletesCount = (this.db.prepare('SELECT COUNT(*) as count FROM athletes WHERE meet_id = ?').get(meetId) as any)?.count || 0;
     const teamsCount = (this.db.prepare('SELECT COUNT(*) as count FROM teams WHERE meet_id = ?').get(meetId) as any)?.count || 0;
     const divisionsCount = (this.db.prepare('SELECT COUNT(*) as count FROM divisions WHERE meet_id = ?').get(meetId) as any)?.count || 0;
@@ -1586,6 +1586,7 @@ export class SQLiteStorage implements IStorage {
       try { this.db.prepare('DELETE FROM combined_events WHERE meet_id = ?').run(meetId); } catch (e) {}
       try { this.db.prepare('DELETE FROM medal_awards WHERE meet_id = ?').run(meetId); } catch (e) {}
       try { this.db.prepare('DELETE FROM processed_ingestion_files WHERE meet_id = ?').run(meetId); } catch (e) {}
+      this.db.prepare('DELETE FROM entries WHERE event_id IN (SELECT id FROM events WHERE meet_id = ?)').run(meetId);
       this.db.prepare('DELETE FROM events WHERE meet_id = ?').run(meetId);
       this.db.prepare('DELETE FROM athletes WHERE meet_id = ?').run(meetId);
       this.db.prepare('DELETE FROM teams WHERE meet_id = ?').run(meetId);
