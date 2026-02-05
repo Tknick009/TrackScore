@@ -1014,6 +1014,10 @@ export const layoutScenes = pgTable('layout_scenes', {
   // Template/reuse flags
   isTemplate: boolean('is_template').default(false),
   
+  // Default layout flags - for editable default display templates
+  isDefault: boolean('is_default').default(false),
+  defaultDisplayType: varchar('default_display_type', { length: 50 }), // 'BigBoard', 'P10', 'P6', 'Broadcast'
+  
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 }, (table) => ({

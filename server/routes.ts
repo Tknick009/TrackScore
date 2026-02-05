@@ -3881,6 +3881,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: error.message });
     }
   });
+  
+  // Get default layout scenes for a meet
+  app.get('/api/meets/:meetId/default-layouts', async (req, res) => {
+    try {
+      const { meetId } = req.params;
+      const scenes = await storage.getDefaultLayoutScenes(meetId);
+      res.json(scenes);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Get specific default layout by display type
+  app.get('/api/meets/:meetId/default-layouts/:displayType', async (req, res) => {
+    try {
+      const { meetId, displayType } = req.params;
+      const scene = await storage.getDefaultLayoutScene(meetId, displayType);
+      if (!scene) {
+        return res.status(404).json({ error: 'Default layout not found' });
+      }
+      res.json(scene);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Create default layouts for a meet (called on meet creation or manually)
+  app.post('/api/meets/:meetId/default-layouts', async (req, res) => {
+    try {
+      const { meetId } = req.params;
+      const scenes = await storage.createDefaultLayoutScenes(meetId);
+      res.status(201).json(scenes);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
 
   // Get single scene with all objects
   app.get('/api/layout-scenes/:id', async (req, res) => {

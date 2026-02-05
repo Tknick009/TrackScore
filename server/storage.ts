@@ -538,6 +538,11 @@ export interface IStorage {
   createLayoutScene(scene: InsertLayoutScene): Promise<SelectLayoutScene>;
   updateLayoutScene(id: number, scene: Partial<InsertLayoutScene>): Promise<SelectLayoutScene | null>;
   deleteLayoutScene(id: number): Promise<boolean>;
+  
+  // Default Layout Scenes
+  getDefaultLayoutScene(meetId: string, displayType: string): Promise<LayoutSceneWithObjects | null>;
+  getDefaultLayoutScenes(meetId: string): Promise<LayoutSceneWithObjects[]>;
+  createDefaultLayoutScenes(meetId: string): Promise<SelectLayoutScene[]>;
 
   // Layout Objects (Objects within scenes)
   getLayoutObjects(sceneId: number): Promise<SelectLayoutObject[]>;
@@ -3301,6 +3306,218 @@ export class DatabaseStorage implements IStorage {
       .where(eq(layoutScenes.id, id))
       .returning();
     return result.length > 0;
+  }
+
+  // Default Layout Scenes - editable default templates for each display type
+  async getDefaultLayoutScene(meetId: string, displayType: string): Promise<LayoutSceneWithObjects | null> {
+    const [scene] = await db
+      .select()
+      .from(layoutScenes)
+      .where(and(
+        eq(layoutScenes.meetId, meetId),
+        eq(layoutScenes.isDefault, true),
+        eq(layoutScenes.defaultDisplayType, displayType)
+      ));
+    
+    if (!scene) {
+      return null;
+    }
+
+    const objects = await this.getLayoutObjects(scene.id);
+    return { ...scene, objects };
+  }
+
+  async getDefaultLayoutScenes(meetId: string): Promise<LayoutSceneWithObjects[]> {
+    const scenes = await db
+      .select()
+      .from(layoutScenes)
+      .where(and(
+        eq(layoutScenes.meetId, meetId),
+        eq(layoutScenes.isDefault, true)
+      ));
+    
+    const result: LayoutSceneWithObjects[] = [];
+    for (const scene of scenes) {
+      const objects = await this.getLayoutObjects(scene.id);
+      result.push({ ...scene, objects });
+    }
+    return result;
+  }
+
+  async createDefaultLayoutScenes(meetId: string): Promise<SelectLayoutScene[]> {
+    const displayTypes = ['BigBoard', 'P10', 'P6', 'Broadcast'];
+    const createdScenes: SelectLayoutScene[] = [];
+    
+    for (const displayType of displayTypes) {
+      // Check if default scene already exists
+      const existing = await this.getDefaultLayoutScene(meetId, displayType);
+      if (existing) {
+        createdScenes.push(existing);
+        continue;
+      }
+      
+      // Create new default scene
+      const scene = await this.createLayoutScene({
+        meetId,
+        name: `Default ${displayType} Layout`,
+        description: `Editable default layout for ${displayType} displays`,
+        canvasWidth: displayType === 'BigBoard' ? 1920 : (displayType === 'Broadcast' ? 1920 : 320),
+        canvasHeight: displayType === 'BigBoard' ? 1080 : (displayType === 'Broadcast' ? 1080 : 192),
+        aspectRatio: displayType === 'BigBoard' || displayType === 'Broadcast' ? '16:9' : '5:3',
+        backgroundColor: '#000000',
+        isTemplate: false,
+        isDefault: true,
+        defaultDisplayType: displayType,
+      });
+      
+      // Create default objects based on display type
+      await this.createDefaultLayoutObjects(scene.id, displayType);
+      
+      createdScenes.push(scene);
+    }
+    
+    return createdScenes;
+  }
+
+  private async createDefaultLayoutObjects(sceneId: number, displayType: string): Promise<void> {
+    // Create basic layout objects for the default scene based on display type
+    if (displayType === 'BigBoard') {
+      // Event Name Header
+      await this.createLayoutObject({
+        sceneId,
+        name: 'Event Name',
+        objectType: 'text',
+        x: 2,
+        y: 2,
+        width: 60,
+        height: 8,
+        zIndex: 10,
+        dataBinding: { sourceType: 'live-data', fieldCode: '{eventName}' },
+        style: {
+          fontSize: 64,
+          fontWeight: 'bold',
+          color: '#FFFFFF',
+          textTransform: 'uppercase',
+        },
+      });
+      
+      // Clock
+      await this.createLayoutObject({
+        sceneId,
+        name: 'Clock',
+        objectType: 'text',
+        x: 75,
+        y: 2,
+        width: 23,
+        height: 8,
+        zIndex: 10,
+        dataBinding: { sourceType: 'live-data', fieldCode: '{time}' },
+        style: {
+          fontSize: 64,
+          fontWeight: 'bold',
+          color: '#FFFFFF',
+          textAlign: 'right',
+          fontFamily: 'Bebas Neue',
+        },
+      });
+      
+      // Results Table
+      await this.createLayoutObject({
+        sceneId,
+        name: 'Results Table',
+        objectType: 'results-table',
+        x: 1,
+        y: 18,
+        width: 98,
+        height: 75,
+        zIndex: 5,
+        dataBinding: { sourceType: 'live-data' },
+        config: {
+          showLane: true,
+          showTeamLogo: true,
+          showName: true,
+          showTime: true,
+          rowsPerPage: 8,
+        },
+        style: {
+          fontSize: 48,
+          color: '#FFFFFF',
+          useThemeColors: true,
+        },
+      });
+      
+      // Meet Name Footer
+      await this.createLayoutObject({
+        sceneId,
+        name: 'Meet Name',
+        objectType: 'text',
+        x: 2,
+        y: 94,
+        width: 50,
+        height: 5,
+        zIndex: 10,
+        dataBinding: { sourceType: 'live-data', fieldCode: '{meetName}' },
+        style: {
+          fontSize: 28,
+          color: '#888888',
+        },
+      });
+    } else if (displayType === 'P10' || displayType === 'P6') {
+      // Single athlete display - simplified layout
+      await this.createLayoutObject({
+        sceneId,
+        name: 'Athlete Name',
+        objectType: 'text',
+        x: 5,
+        y: 20,
+        width: 90,
+        height: 25,
+        zIndex: 10,
+        dataBinding: { sourceType: 'live-data', fieldCode: '{name}', athleteIndex: 0 },
+        style: {
+          fontSize: 36,
+          fontWeight: 'bold',
+          color: '#FFFFFF',
+          textAlign: 'center',
+        },
+      });
+      
+      await this.createLayoutObject({
+        sceneId,
+        name: 'Team',
+        objectType: 'text',
+        x: 5,
+        y: 50,
+        width: 90,
+        height: 20,
+        zIndex: 10,
+        dataBinding: { sourceType: 'live-data', fieldCode: '{team}', athleteIndex: 0 },
+        style: {
+          fontSize: 24,
+          color: '#CCCCCC',
+          textAlign: 'center',
+        },
+      });
+      
+      await this.createLayoutObject({
+        sceneId,
+        name: 'Time/Result',
+        objectType: 'text',
+        x: 5,
+        y: 75,
+        width: 90,
+        height: 20,
+        zIndex: 10,
+        dataBinding: { sourceType: 'live-data', fieldCode: '{time}', athleteIndex: 0 },
+        style: {
+          fontSize: 32,
+          fontWeight: 'bold',
+          color: '#FFFFFF',
+          textAlign: 'center',
+          fontFamily: 'Bebas Neue',
+        },
+      });
+    }
   }
 
   // Layout Objects (Objects within scenes)

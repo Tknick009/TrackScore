@@ -26,6 +26,7 @@ The frontend utilizes React with shadcn/ui, Radix UI, and Tailwind CSS, adhering
 
 **Feature Specifications:**
 - **Scene-Based Layout System (ResulTV-Style):** Manages dynamic display layouts via `layout_scenes` and `layout_objects`. Includes a visual Scene Editor UI for design and configuration, supporting RTV file import.
+- **Default Layouts System:** Editable default layouts for each display type (BigBoard, P10, P6, Broadcast). Auto-created per meet with pre-configured objects. Schema adds `isDefault` and `defaultDisplayType` fields to `layout_scenes`. API endpoints: `GET/POST /api/meets/:meetId/default-layouts`. Scene Editor shows "Default Layouts" section at top of scene list.
 - **Asset Management System:** Manages athlete photos and team logos with metadata and image processing.
 - **HyTek MDB Import System:** Parses HyTek MDB files for event scheduling.
 - **Lynx Protocol Integration (ResulTV/LSS Format):** Integrates with FinishLynx via a binary protocol, supporting dual-port architecture for big board and small board displays. The server handles parsing of LSS binary format, broadcasting updates via WebSockets.

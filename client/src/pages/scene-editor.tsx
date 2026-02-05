@@ -249,8 +249,8 @@ export default function SceneEditor() {
   const [sceneImportLoading, setSceneImportLoading] = useState(false);
   const sceneImportInputRef = useRef<HTMLInputElement>(null);
   
-  // Fetch scenes for current meet
-  const { data: scenes = [], isLoading: loadingScenes } = useQuery<SelectLayoutScene[]>({
+  // Fetch all scenes for current meet
+  const { data: allScenes = [], isLoading: loadingScenes } = useQuery<SelectLayoutScene[]>({
     queryKey: ['/api/layout-scenes', { meetId: currentMeet?.id }],
     queryFn: async () => {
       if (!currentMeet?.id) return [];
@@ -259,6 +259,25 @@ export default function SceneEditor() {
       return res.json();
     },
     enabled: !!currentMeet?.id,
+  });
+  
+  // Separate default layouts from regular scenes
+  const defaultLayouts = allScenes.filter(s => s.isDefault === true);
+  const scenes = allScenes.filter(s => s.isDefault !== true);
+  
+  // Create default layouts mutation
+  const createDefaultLayoutsMutation = useMutation({
+    mutationFn: async (meetId: string) => {
+      const res = await apiRequest('POST', `/api/meets/${meetId}/default-layouts`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/layout-scenes'] });
+      toast({ title: "Default layouts created" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to create default layouts", description: error.message, variant: "destructive" });
+    },
   });
   
   // Fetch selected scene with objects
@@ -1275,22 +1294,64 @@ export default function SceneEditor() {
             <TabsContent value="scenes" className="flex-1 flex flex-col m-0 overflow-hidden">
               <ScrollArea className="flex-1">
                 <div className="p-2 space-y-1">
-                  {scenes.map((scene) => (
-                    <Button
-                      key={scene.id}
-                      variant={selectedSceneId === scene.id ? "secondary" : "ghost"}
-                      size="sm"
-                      className="w-full justify-start"
-                      onClick={() => setSelectedSceneId(scene.id)}
-                      data-testid={`scene-item-${scene.id}`}
-                    >
-                      <Monitor className="w-4 h-4 mr-2" />
-                      <span className="truncate">{scene.name}</span>
-                    </Button>
-                  ))}
-                  {scenes.length === 0 && !loadingScenes && (
-                    <p className="text-sm text-muted-foreground p-2">No scenes yet</p>
-                  )}
+                  {/* Default Layouts Section */}
+                  <div className="mb-3">
+                    <div className="flex items-center justify-between px-1 mb-1">
+                      <span className="text-xs font-semibold text-muted-foreground uppercase">Default Layouts</span>
+                      {defaultLayouts.length === 0 && currentMeet?.id && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-1.5 text-xs"
+                          onClick={() => createDefaultLayoutsMutation.mutate(currentMeet.id)}
+                          disabled={createDefaultLayoutsMutation.isPending}
+                          data-testid="button-create-default-layouts"
+                        >
+                          <Plus className="w-3 h-3 mr-1" />
+                          Create
+                        </Button>
+                      )}
+                    </div>
+                    {defaultLayouts.map((scene) => (
+                      <Button
+                        key={scene.id}
+                        variant={selectedSceneId === scene.id ? "secondary" : "ghost"}
+                        size="sm"
+                        className="w-full justify-start"
+                        onClick={() => setSelectedSceneId(scene.id)}
+                        data-testid={`default-layout-${scene.defaultDisplayType}`}
+                      >
+                        <LayoutTemplate className="w-4 h-4 mr-2" />
+                        <span className="truncate">{scene.defaultDisplayType || scene.name}</span>
+                      </Button>
+                    ))}
+                    {defaultLayouts.length === 0 && (
+                      <p className="text-xs text-muted-foreground px-2 py-1">No default layouts yet</p>
+                    )}
+                  </div>
+                  
+                  <Separator className="my-2" />
+                  
+                  {/* Custom Scenes Section */}
+                  <div>
+                    <span className="text-xs font-semibold text-muted-foreground uppercase px-1 mb-1 block">Custom Scenes</span>
+                    {scenes.map((scene) => (
+                      <Button
+                        key={scene.id}
+                        variant={selectedSceneId === scene.id ? "secondary" : "ghost"}
+                        size="sm"
+                        className="w-full justify-start"
+                        onClick={() => setSelectedSceneId(scene.id)}
+                        data-testid={`scene-item-${scene.id}`}
+                      >
+                        <Monitor className="w-4 h-4 mr-2" />
+                        <span className="truncate">{scene.name}</span>
+                      </Button>
+                    ))}
+                    {scenes.length === 0 && !loadingScenes && (
+                      <p className="text-xs text-muted-foreground px-2 py-1">No custom scenes yet</p>
+                    )}
+                  </div>
                 </div>
               </ScrollArea>
             </TabsContent>
