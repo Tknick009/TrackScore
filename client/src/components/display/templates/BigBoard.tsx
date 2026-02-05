@@ -9,10 +9,11 @@ interface BigBoardProps {
   pagingIntervalMs?: number;
 }
 
-export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
+export function BigBoard({ event, meet, liveTime, pagingSize = 8, pagingIntervalMs = 8000 }: BigBoardProps) {
   const [clock, setClock] = useState<string>("");
   const [fadeIn, setFadeIn] = useState(true);
   const [displayedEntries, setDisplayedEntries] = useState<any[]>([]);
+  const [currentPage, setCurrentPage] = useState(0);
   const prevEntriesRef = useRef<string>("");
   
   // Smooth fade transition when entries change
@@ -72,6 +73,35 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
       return (a.finalLane || 0) - (b.finalLane || 0);
     });
   }, [displayedEntries]);
+
+  // Calculate total pages and paged entries
+  const totalPages = Math.max(1, Math.ceil(sortedEntries.length / pagingSize));
+  
+  // Auto-page through entries based on pagingIntervalMs (lines = seconds rule)
+  useEffect(() => {
+    if (totalPages <= 1) {
+      setCurrentPage(0);
+      return;
+    }
+    
+    const interval = setInterval(() => {
+      setCurrentPage(prev => (prev + 1) % totalPages);
+    }, pagingIntervalMs);
+    
+    return () => clearInterval(interval);
+  }, [totalPages, pagingIntervalMs]);
+
+  // Reset page when entries change significantly
+  useEffect(() => {
+    setCurrentPage(0);
+  }, [sortedEntries.length]);
+
+  // Get current page of entries
+  const pagedEntries = useMemo(() => {
+    const start = currentPage * pagingSize;
+    const end = start + pagingSize;
+    return sortedEntries.slice(start, end);
+  }, [sortedEntries, currentPage, pagingSize]);
 
   const isRelay = event.eventType?.toLowerCase().includes('relay');
   const status = event.status === 'completed' ? 'FINAL' : event.status === 'in_progress' ? 'IN PROGRESS' : 'SCHEDULED';
@@ -171,7 +201,7 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
             transition: 'opacity 300ms ease-in-out',
           }}
         >
-          {sortedEntries.map((entry, index) => {
+          {pagedEntries.map((entry, index) => {
             const teamLogo = entry.team?.logoUrl;
             const displayName = isRelay 
               ? entry.team?.name || 'Unknown Team'
@@ -246,13 +276,21 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
 
         <div className="h-1 bg-gradient-to-r from-cyan-500/0 via-cyan-500/60 to-cyan-500/0" />
 
-        <div className="flex items-center justify-center px-8 py-3">
+        <div className="flex items-center justify-between px-8 py-3">
           <span 
             className="text-gray-500"
             style={{ fontSize: '28px' }}
           >
             {meet?.name || ''}
           </span>
+          {totalPages > 1 && (
+            <span 
+              className="text-gray-400 font-semibold"
+              style={{ fontSize: '24px' }}
+            >
+              Page {currentPage + 1} of {totalPages}
+            </span>
+          )}
         </div>
       </div>
     </div>
