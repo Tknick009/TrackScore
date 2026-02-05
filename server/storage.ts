@@ -968,12 +968,9 @@ export class DatabaseStorage implements IStorage {
 
     await db.delete(liveEventData).where(eq(liveEventData.meetId, meetId));
 
-    await db.delete(teamScoringResults).where(eq(teamScoringResults.meetId, meetId));
-    await db.delete(meetScoringState).where(
-      inArray(meetScoringState.profileId,
-        db.select({ id: meetScoringProfiles.id }).from(meetScoringProfiles).where(eq(meetScoringProfiles.meetId, meetId))
-      )
-    );
+    const meetProfileIds = db.select({ id: meetScoringProfiles.id }).from(meetScoringProfiles).where(eq(meetScoringProfiles.meetId, meetId));
+    await db.delete(teamScoringResults).where(inArray(teamScoringResults.profileId, meetProfileIds));
+    await db.delete(meetScoringState).where(inArray(meetScoringState.profileId, meetProfileIds));
 
     await db.delete(combinedEventTotals).where(
       inArray(combinedEventTotals.combinedEventId,
