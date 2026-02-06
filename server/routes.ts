@@ -2695,7 +2695,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const team = teamId ? teamMap.get(teamId) : null;
         const fields = getRoundFields(entry);
         const position = fields.place || (index + 1);
-        const markValue = fields.mark ?? entry.seedMark ?? '';
+        const rawMark = fields.mark ?? entry.seedMark ?? '';
+        const markValue = typeof rawMark === 'number'
+          ? rawMark.toFixed(2)
+          : rawMark;
         const teamName = team?.name || team?.shortName || '';
         const teamAbbrev = team?.abbreviation || team?.shortName || '';
         return {
