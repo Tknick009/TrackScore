@@ -1,0 +1,22 @@
+
+🎯 Importing Entries (athlete-event registrations & results)...
+[HyTek MDB Watcher] Error importing MDB for meet 7e3637ab-2538-43eb-a902-d50242f7e6a1: TypeError: Cannot read properties of null (reading 'query')
+    at importCompleteMDB (C:\Users\LTR-48\Downloads\TrackScore (8)\TrackScore\server\import-mdb-complete.ts:847:30)
+    at handleMdbChange (C:\Users\LTR-48\Downloads\TrackScore (8)\TrackScore\server\hytek-mdb-watcher.ts:81:25)
+    at FSWatcher.<anonymous> (C:\Users\LTR-48\Downloads\TrackScore (8)\TrackScore\server\hytek-mdb-watcher.ts:155:11)
+    at FSWatcher.emit (node:events:519:28)
+    at FSWatcher.emitWithAll (file:///C:/Users/LTR-48/Downloads/TrackScore%20(8)/TrackScore/node_modules/chokidar/index.js:455:14)
+    at FSWatcher._emit (file:///C:/Users/LTR-48/Downloads/TrackScore%20(8)/TrackScore/node_modules/chokidar/index.js:545:14)
+    at NodeFsHandler._handleFile (file:///C:/Users/LTR-48/Downloads/TrackScore%20(8)/TrackScore/node_modules/chokidar/handler.js:398:22)
+    at NodeFsHandler._addToNodeFs (file:///C:/Users/LTR-48/Downloads/TrackScore%20(8)/TrackScore/node_modules/chokidar/handler.js:618:31)
+1:01:11 AM [express] GET /api/events/current/7e3637ab-2538-43eb-a902-d50242f7e6a1 200 in 4ms
+1:01:14 AM [express] GET /api/public/meets/7e3637ab-2538-43eb-a902-d50242f7e6a1/team-standings 304 i…
+1:01:16 AM [express] GET /api/meets/7e3637ab-2538-43eb-a902-d50242f7e6a1/scoring/standings 304 in 0m…
+1:01:16 AM [express] GET /api/events/current/7e3637ab-2538-43eb-a902-d50242f7e6a1 200 in 4ms
+1:01:21 AM [express] GET /api/events/current/7e3637ab-2538-43eb-a902-d50242f7e6a1 200 in 4ms
+1:01:26 AM [express] GET /api/meets/7e3637ab-2538-43eb-a902-d50242f7e6a1/scoring/standings 304 in 1m…
+1:01:26 AM [express] GET /api/events/current/7e3637ab-2538-43eb-a902-d50242f7e6a1 200 in 4ms
+1:01:31 AM [express] GET /api/events/current/7e3637ab-2538-43eb-a902-d50242f7e6a1 200 in 3ms
+1:01:36 AM [express] GET /api/meets/7e3637ab-2538-43eb-a902-d50242f7e6a1/scoring/standings 304 in 1m…
+1:01:36 AM [express] GET /api/events/current/7e3637ab-2538-43eb-a902-d50242f7e6a1 200 in 4ms
+1:01:41 AM [express] GET /api/events/current/7e3637ab-2538-43eb-a902-d50242f7e6a1 200 in 3ms

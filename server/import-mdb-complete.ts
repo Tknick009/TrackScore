@@ -4,6 +4,7 @@ import { db } from "./db";
 import { meets, teams, divisions, athletes, events, entries, entrySplits, meetScoringRules } from "@shared/schema";
 import { sql } from "drizzle-orm";
 import { parseComm1 } from "./parse-comm1";
+import { randomUUID } from "crypto";
 
 export interface ImportStatistics {
   teams: number;
@@ -164,6 +165,37 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
   const buffer = readFileSync(filePath);
   const reader = new MDBReader(buffer);
   
+  const isEdgeMode = process.env.EDGE_MODE === 'true';
+  let sqliteDb: any = null;
+  if (isEdgeMode) {
+    const { storage } = await import('./storage');
+    const { SQLiteStorage } = await import('./storage/sqlite-adapter');
+    if (storage instanceof SQLiteStorage) {
+      sqliteDb = storage.getSqliteDb();
+      sqliteDb.exec(`
+        CREATE TABLE IF NOT EXISTS meet_scoring_rules (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          meet_id TEXT NOT NULL,
+          gender TEXT NOT NULL,
+          place INTEGER NOT NULL,
+          ind_score REAL NOT NULL DEFAULT 0,
+          rel_score REAL NOT NULL DEFAULT 0,
+          combevt_score REAL NOT NULL DEFAULT 0,
+          UNIQUE(meet_id, gender, place)
+        );
+      `);
+      try { sqliteDb.exec('ALTER TABLE meets ADD COLUMN ind_max_scorers_per_team INTEGER DEFAULT 0'); } catch(e) {}
+      try { sqliteDb.exec('ALTER TABLE meets ADD COLUMN rel_max_scorers_per_team INTEGER DEFAULT 0'); } catch(e) {}
+      try { sqliteDb.exec('ALTER TABLE events ADD COLUMN advance_by_place INTEGER'); } catch(e) {}
+      try { sqliteDb.exec('ALTER TABLE events ADD COLUMN advance_by_time INTEGER'); } catch(e) {}
+      try { sqliteDb.exec('ALTER TABLE events ADD COLUMN is_multi_event INTEGER DEFAULT 0'); } catch(e) {}
+      try { sqliteDb.exec('ALTER TABLE entries ADD COLUMN preliminary_points REAL'); } catch(e) {}
+      try { sqliteDb.exec('ALTER TABLE entries ADD COLUMN quarterfinal_points REAL'); } catch(e) {}
+      try { sqliteDb.exec('ALTER TABLE entries ADD COLUMN semifinal_points REAL'); } catch(e) {}
+      try { sqliteDb.exec('ALTER TABLE entries ADD COLUMN final_points REAL'); } catch(e) {}
+    }
+  }
+  
   // ID mapping dictionaries (Access number → PostgreSQL UUID)
   const teamIdMap = new Map<number, string>();
   const divisionIdMap = new Map<number, string>();
@@ -203,21 +235,42 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
     }
     
     if (teamBatch.length > 0) {
-      const insertedTeams = await db.insert(teams).values(teamBatch)
-        .onConflictDoUpdate({
-          target: [teams.meetId, teams.teamNumber],
-          set: {
-            name: sql`excluded.name`,
-            shortName: sql`excluded.short_name`,
-            abbreviation: sql`excluded.abbreviation`,
+      if (isEdgeMode && sqliteDb) {
+        const upsertStmt = sqliteDb.prepare(`
+          INSERT INTO teams (id, meet_id, team_number, name, short_name, abbreviation)
+          VALUES (?, ?, ?, ?, ?, ?)
+          ON CONFLICT(meet_id, team_number) DO UPDATE SET
+            name=excluded.name, short_name=excluded.short_name, abbreviation=excluded.abbreviation
+        `);
+        const insertMany = sqliteDb.transaction((items: any[]) => {
+          for (const item of items) {
+            upsertStmt.run(randomUUID(), item.meetId, item.teamNumber, item.name, item.shortName, item.abbreviation);
           }
-        })
-        .returning();
-      insertedTeams.forEach((team) => {
-        teamIdMap.set(team.teamNumber, team.id);
-      });
-      stats.teams = insertedTeams.length;
-      console.log(`   ✅ Imported ${insertedTeams.length} teams`);
+        });
+        insertMany(teamBatch);
+        const insertedTeams = sqliteDb.prepare('SELECT * FROM teams WHERE meet_id = ?').all(meetId);
+        insertedTeams.forEach((team: any) => {
+          teamIdMap.set(team.team_number, team.id);
+        });
+        stats.teams = insertedTeams.length;
+        console.log(`   ✅ Imported ${insertedTeams.length} teams`);
+      } else {
+        const insertedTeams = await db!.insert(teams).values(teamBatch)
+          .onConflictDoUpdate({
+            target: [teams.meetId, teams.teamNumber],
+            set: {
+              name: sql`excluded.name`,
+              shortName: sql`excluded.short_name`,
+              abbreviation: sql`excluded.abbreviation`,
+            }
+          })
+          .returning();
+        insertedTeams.forEach((team) => {
+          teamIdMap.set(team.teamNumber, team.id);
+        });
+        stats.teams = insertedTeams.length;
+        console.log(`   ✅ Imported ${insertedTeams.length} teams`);
+      }
     }
   } catch (error) {
     console.error("   ❌ Error importing teams:", error);
@@ -248,22 +301,43 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
     }
     
     if (divisionBatch.length > 0) {
-      const insertedDivisions = await db.insert(divisions).values(divisionBatch)
-        .onConflictDoUpdate({
-          target: [divisions.meetId, divisions.divisionNumber],
-          set: {
-            name: sql`excluded.name`,
-            abbreviation: sql`excluded.abbreviation`,
-            lowAge: sql`excluded.low_age`,
-            highAge: sql`excluded.high_age`,
+      if (isEdgeMode && sqliteDb) {
+        const upsertStmt = sqliteDb.prepare(`
+          INSERT INTO divisions (id, meet_id, division_number, name, abbreviation, low_age, high_age)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(meet_id, division_number) DO UPDATE SET
+            name=excluded.name, abbreviation=excluded.abbreviation, low_age=excluded.low_age, high_age=excluded.high_age
+        `);
+        const insertMany = sqliteDb.transaction((items: any[]) => {
+          for (const item of items) {
+            upsertStmt.run(randomUUID(), item.meetId, item.divisionNumber, item.name, item.abbreviation, item.lowAge, item.highAge);
           }
-        })
-        .returning();
-      insertedDivisions.forEach((division) => {
-        divisionIdMap.set(division.divisionNumber, division.id);
-      });
-      stats.divisions = insertedDivisions.length;
-      console.log(`   ✅ Imported ${insertedDivisions.length} divisions`);
+        });
+        insertMany(divisionBatch);
+        const insertedDivisions = sqliteDb.prepare('SELECT * FROM divisions WHERE meet_id = ?').all(meetId);
+        insertedDivisions.forEach((division: any) => {
+          divisionIdMap.set(division.division_number, division.id);
+        });
+        stats.divisions = insertedDivisions.length;
+        console.log(`   ✅ Imported ${insertedDivisions.length} divisions`);
+      } else {
+        const insertedDivisions = await db!.insert(divisions).values(divisionBatch)
+          .onConflictDoUpdate({
+            target: [divisions.meetId, divisions.divisionNumber],
+            set: {
+              name: sql`excluded.name`,
+              abbreviation: sql`excluded.abbreviation`,
+              lowAge: sql`excluded.low_age`,
+              highAge: sql`excluded.high_age`,
+            }
+          })
+          .returning();
+        insertedDivisions.forEach((division) => {
+          divisionIdMap.set(division.divisionNumber, division.id);
+        });
+        stats.divisions = insertedDivisions.length;
+        console.log(`   ✅ Imported ${insertedDivisions.length} divisions`);
+      }
     }
   } catch (error) {
     console.error("   ❌ Error importing divisions:", error);
@@ -298,23 +372,44 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         };
       });
       
-      const insertedAthletes = await db.insert(athletes).values(athleteBatch)
-        .onConflictDoUpdate({
-          target: [athletes.meetId, athletes.athleteNumber],
-          set: {
-            firstName: sql`excluded.first_name`,
-            lastName: sql`excluded.last_name`,
-            teamId: sql`excluded.team_id`,
-            divisionId: sql`excluded.division_id`,
-            bibNumber: sql`excluded.bib_number`,
-            gender: sql`excluded.gender`,
+      if (isEdgeMode && sqliteDb) {
+        const upsertStmt = sqliteDb.prepare(`
+          INSERT INTO athletes (id, meet_id, athlete_number, first_name, last_name, team_id, division_id, bib_number, gender)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(meet_id, athlete_number) DO UPDATE SET
+            first_name=excluded.first_name, last_name=excluded.last_name, team_id=excluded.team_id,
+            division_id=excluded.division_id, bib_number=excluded.bib_number, gender=excluded.gender
+        `);
+        const insertBatch = sqliteDb.transaction((items: any[]) => {
+          for (const item of items) {
+            upsertStmt.run(randomUUID(), item.meetId, item.athleteNumber, item.firstName, item.lastName, item.teamId, item.divisionId, item.bibNumber, item.gender);
           }
-        })
-        .returning();
-      insertedAthletes.forEach((athlete) => {
-        athleteIdMap.set(athlete.athleteNumber, athlete.id);
-      });
-      imported += insertedAthletes.length;
+        });
+        insertBatch(athleteBatch);
+        const rows = sqliteDb.prepare('SELECT * FROM athletes WHERE meet_id = ? AND athlete_number IN (' + athleteBatch.map(() => '?').join(',') + ')').all(meetId, ...athleteBatch.map((a: any) => a.athleteNumber));
+        rows.forEach((athlete: any) => {
+          athleteIdMap.set(athlete.athlete_number, athlete.id);
+        });
+        imported += rows.length;
+      } else {
+        const insertedAthletes = await db!.insert(athletes).values(athleteBatch)
+          .onConflictDoUpdate({
+            target: [athletes.meetId, athletes.athleteNumber],
+            set: {
+              firstName: sql`excluded.first_name`,
+              lastName: sql`excluded.last_name`,
+              teamId: sql`excluded.team_id`,
+              divisionId: sql`excluded.division_id`,
+              bibNumber: sql`excluded.bib_number`,
+              gender: sql`excluded.gender`,
+            }
+          })
+          .returning();
+        insertedAthletes.forEach((athlete) => {
+          athleteIdMap.set(athlete.athleteNumber, athlete.id);
+        });
+        imported += insertedAthletes.length;
+      }
       
       if ((i + batchSize) % 1000 === 0 || i + batchSize >= athleteData.length) {
         console.log(`   📝 Imported ${imported}/${athleteData.length} athletes...`);
@@ -335,11 +430,18 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
   let meetStartDate: Date | null = null;
   let isIndoorMeet = false;
   try {
-    const meetRecord = await db.query.meets.findFirst({
-      where: (meets, { eq }) => eq(meets.id, meetId)
-    });
-    if (meetRecord?.startDate) {
-      meetStartDate = meetRecord.startDate;
+    if (isEdgeMode && sqliteDb) {
+      const meetRow = sqliteDb.prepare('SELECT * FROM meets WHERE id = ?').get(meetId);
+      if (meetRow?.start_date) {
+        meetStartDate = new Date(meetRow.start_date);
+      }
+    } else {
+      const meetRecord = await db!.query.meets.findFirst({
+        where: (meets: any, { eq }: any) => eq(meets.id, meetId)
+      });
+      if (meetRecord?.startDate) {
+        meetStartDate = meetRecord.startDate;
+      }
     }
   } catch (error) {
     console.log("   ⚠️  Could not retrieve meet start date");
@@ -783,32 +885,64 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
     }
     
     if (eventBatch.length > 0) {
-      const insertedEvents = await db.insert(events).values(eventBatch)
-        .onConflictDoUpdate({
-          target: [events.meetId, events.eventNumber],
-          set: {
-            name: sql`excluded.name`,
-            eventType: sql`excluded.event_type`,
-            gender: sql`excluded.gender`,
-            distance: sql`excluded.distance`,
-            status: sql`excluded.status`,
-            numRounds: sql`excluded.num_rounds`,
-            numLanes: sql`excluded.num_lanes`,
-            eventDate: sql`excluded.event_date`,
-            eventTime: sql`excluded.event_time`,
-            sessionName: sql`excluded.session_name`, // Session name from HyTek
-            hytekStatus: sql`excluded.hytek_status`,
-            isScored: sql`excluded.is_scored`,
-            advanceByPlace: sql`excluded.advance_by_place`,
-            advanceByTime: sql`excluded.advance_by_time`,
-            isMultiEvent: sql`excluded.is_multi_event`,
+      let insertedEvents: any[];
+      if (isEdgeMode && sqliteDb) {
+        const upsertStmt = sqliteDb.prepare(`
+          INSERT INTO events (id, meet_id, event_number, name, event_type, gender, distance, status, num_rounds, num_lanes, event_date, event_time, session_name, hytek_status, is_scored, advance_by_place, advance_by_time, is_multi_event)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(meet_id, event_number) DO UPDATE SET
+            name=excluded.name, event_type=excluded.event_type, gender=excluded.gender, distance=excluded.distance,
+            status=excluded.status, num_rounds=excluded.num_rounds, num_lanes=excluded.num_lanes, event_date=excluded.event_date,
+            event_time=excluded.event_time, session_name=excluded.session_name, hytek_status=excluded.hytek_status,
+            is_scored=excluded.is_scored, advance_by_place=excluded.advance_by_place, advance_by_time=excluded.advance_by_time,
+            is_multi_event=excluded.is_multi_event
+        `);
+        const insertMany = sqliteDb.transaction((items: any[]) => {
+          for (const item of items) {
+            upsertStmt.run(
+              randomUUID(), item.meetId, item.eventNumber, item.name, item.eventType, item.gender,
+              item.distance, item.status, item.numRounds, item.numLanes,
+              item.eventDate instanceof Date ? item.eventDate.toISOString().split('T')[0] : item.eventDate,
+              item.eventTime, item.sessionName, item.hytekStatus, item.isScored ? 1 : 0,
+              item.advanceByPlace, item.advanceByTime, item.isMultiEvent ? 1 : 0
+            );
           }
-        })
-        .returning();
+        });
+        insertMany(eventBatch);
+        insertedEvents = sqliteDb.prepare('SELECT * FROM events WHERE meet_id = ?').all(meetId);
+        insertedEvents = insertedEvents.map((e: any) => ({
+          ...e,
+          eventNumber: e.event_number,
+          eventType: e.event_type,
+        }));
+      } else {
+        insertedEvents = await db!.insert(events).values(eventBatch)
+          .onConflictDoUpdate({
+            target: [events.meetId, events.eventNumber],
+            set: {
+              name: sql`excluded.name`,
+              eventType: sql`excluded.event_type`,
+              gender: sql`excluded.gender`,
+              distance: sql`excluded.distance`,
+              status: sql`excluded.status`,
+              numRounds: sql`excluded.num_rounds`,
+              numLanes: sql`excluded.num_lanes`,
+              eventDate: sql`excluded.event_date`,
+              eventTime: sql`excluded.event_time`,
+              sessionName: sql`excluded.session_name`,
+              hytekStatus: sql`excluded.hytek_status`,
+              isScored: sql`excluded.is_scored`,
+              advanceByPlace: sql`excluded.advance_by_place`,
+              advanceByTime: sql`excluded.advance_by_time`,
+              isMultiEvent: sql`excluded.is_multi_event`,
+            }
+          })
+          .returning();
+      }
       
       // Build eventIdMap using Event_ptr as the key (not eventNumber)
       // This is critical because Entry table references events via Event_ptr
-      insertedEvents.forEach((event) => {
+      insertedEvents.forEach((event: any) => {
         // Find the Event_ptr that corresponds to this eventNumber
         for (const [ptr, num] of Array.from(ptrToNumMap.entries())) {
           if (num === event.eventNumber) {
@@ -844,10 +978,17 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
   
   // Get event details for result type determination
   const eventDetailsMap = new Map<string, { eventType: string }>();
-  const allEvents = await db.query.events.findMany();
-  allEvents.forEach((event) => {
-    eventDetailsMap.set(event.id, { eventType: event.eventType });
-  });
+  if (isEdgeMode && sqliteDb) {
+    const allEventRows = sqliteDb.prepare('SELECT id, event_type FROM events').all();
+    allEventRows.forEach((event: any) => {
+      eventDetailsMap.set(event.id, { eventType: event.event_type });
+    });
+  } else {
+    const allEvents = await db!.query.events.findMany();
+    allEvents.forEach((event: any) => {
+      eventDetailsMap.set(event.id, { eventType: event.eventType });
+    });
+  }
   
   try {
     const entryTable = reader.getTable("Entry");
@@ -951,49 +1092,91 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       }
       
       if (entryBatch.length > 0) {
-        await db.insert(entries).values(entryBatch)
-          .onConflictDoUpdate({
-            target: [entries.eventId, entries.athleteId],
-            set: {
-              seedMark: sql`excluded.seed_mark`,
-              resultType: sql`excluded.result_type`,
-              teamId: sql`excluded.team_id`,
-              divisionId: sql`excluded.division_id`,
-              
-              preliminaryHeat: sql`excluded.preliminary_heat`,
-              preliminaryLane: sql`excluded.preliminary_lane`,
-              preliminaryMark: sql`excluded.preliminary_mark`,
-              preliminaryPlace: sql`excluded.preliminary_place`,
-              preliminaryWind: sql`excluded.preliminary_wind`,
-              
-              quarterfinalHeat: sql`excluded.quarterfinal_heat`,
-              quarterfinalLane: sql`excluded.quarterfinal_lane`,
-              quarterfinalMark: sql`excluded.quarterfinal_mark`,
-              quarterfinalPlace: sql`excluded.quarterfinal_place`,
-              quarterfinalWind: sql`excluded.quarterfinal_wind`,
-              
-              semifinalHeat: sql`excluded.semifinal_heat`,
-              semifinalLane: sql`excluded.semifinal_lane`,
-              semifinalMark: sql`excluded.semifinal_mark`,
-              semifinalPlace: sql`excluded.semifinal_place`,
-              semifinalWind: sql`excluded.semifinal_wind`,
-              
-              finalHeat: sql`excluded.final_heat`,
-              finalLane: sql`excluded.final_lane`,
-              finalMark: sql`excluded.final_mark`,
-              finalPlace: sql`excluded.final_place`,
-              finalWind: sql`excluded.final_wind`,
-              
-              preliminaryPoints: sql`excluded.preliminary_points`,
-              quarterfinalPoints: sql`excluded.quarterfinal_points`,
-              semifinalPoints: sql`excluded.semifinal_points`,
-              finalPoints: sql`excluded.final_points`,
-              
-              isDisqualified: sql`excluded.is_disqualified`,
-              isScratched: sql`excluded.is_scratched`,
+        if (isEdgeMode && sqliteDb) {
+          const upsertStmt = sqliteDb.prepare(`
+            INSERT INTO entries (id, event_id, athlete_id, team_id, division_id, seed_mark, result_type,
+              preliminary_heat, preliminary_lane, preliminary_mark, preliminary_place, preliminary_wind,
+              quarterfinal_heat, quarterfinal_lane, quarterfinal_mark, quarterfinal_place, quarterfinal_wind,
+              semifinal_heat, semifinal_lane, semifinal_mark, semifinal_place, semifinal_wind,
+              final_heat, final_lane, final_mark, final_place, final_wind,
+              preliminary_points, quarterfinal_points, semifinal_points, final_points,
+              is_disqualified, is_scratched, notes)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(event_id, athlete_id) DO UPDATE SET
+              team_id=excluded.team_id, division_id=excluded.division_id, seed_mark=excluded.seed_mark, result_type=excluded.result_type,
+              preliminary_heat=excluded.preliminary_heat, preliminary_lane=excluded.preliminary_lane,
+              preliminary_mark=excluded.preliminary_mark, preliminary_place=excluded.preliminary_place, preliminary_wind=excluded.preliminary_wind,
+              quarterfinal_heat=excluded.quarterfinal_heat, quarterfinal_lane=excluded.quarterfinal_lane,
+              quarterfinal_mark=excluded.quarterfinal_mark, quarterfinal_place=excluded.quarterfinal_place, quarterfinal_wind=excluded.quarterfinal_wind,
+              semifinal_heat=excluded.semifinal_heat, semifinal_lane=excluded.semifinal_lane,
+              semifinal_mark=excluded.semifinal_mark, semifinal_place=excluded.semifinal_place, semifinal_wind=excluded.semifinal_wind,
+              final_heat=excluded.final_heat, final_lane=excluded.final_lane,
+              final_mark=excluded.final_mark, final_place=excluded.final_place, final_wind=excluded.final_wind,
+              preliminary_points=excluded.preliminary_points, quarterfinal_points=excluded.quarterfinal_points,
+              semifinal_points=excluded.semifinal_points, final_points=excluded.final_points,
+              is_disqualified=excluded.is_disqualified, is_scratched=excluded.is_scratched
+          `);
+          const insertBatch = sqliteDb.transaction((items: any[]) => {
+            for (const item of items) {
+              upsertStmt.run(
+                randomUUID(), item.eventId, item.athleteId, item.teamId, item.divisionId,
+                item.seedMark, item.resultType,
+                item.preliminaryHeat, item.preliminaryLane, item.preliminaryMark, item.preliminaryPlace, item.preliminaryWind,
+                item.quarterfinalHeat, item.quarterfinalLane, item.quarterfinalMark, item.quarterfinalPlace, item.quarterfinalWind,
+                item.semifinalHeat, item.semifinalLane, item.semifinalMark, item.semifinalPlace, item.semifinalWind,
+                item.finalHeat, item.finalLane, item.finalMark, item.finalPlace, item.finalWind,
+                item.preliminaryPoints, item.quarterfinalPoints, item.semifinalPoints, item.finalPoints,
+                item.isDisqualified ? 1 : 0, item.isScratched ? 1 : 0, item.notes
+              );
             }
           });
-        imported += entryBatch.length;
+          insertBatch(entryBatch);
+          imported += entryBatch.length;
+        } else {
+          await db!.insert(entries).values(entryBatch)
+            .onConflictDoUpdate({
+              target: [entries.eventId, entries.athleteId],
+              set: {
+                seedMark: sql`excluded.seed_mark`,
+                resultType: sql`excluded.result_type`,
+                teamId: sql`excluded.team_id`,
+                divisionId: sql`excluded.division_id`,
+                
+                preliminaryHeat: sql`excluded.preliminary_heat`,
+                preliminaryLane: sql`excluded.preliminary_lane`,
+                preliminaryMark: sql`excluded.preliminary_mark`,
+                preliminaryPlace: sql`excluded.preliminary_place`,
+                preliminaryWind: sql`excluded.preliminary_wind`,
+                
+                quarterfinalHeat: sql`excluded.quarterfinal_heat`,
+                quarterfinalLane: sql`excluded.quarterfinal_lane`,
+                quarterfinalMark: sql`excluded.quarterfinal_mark`,
+                quarterfinalPlace: sql`excluded.quarterfinal_place`,
+                quarterfinalWind: sql`excluded.quarterfinal_wind`,
+                
+                semifinalHeat: sql`excluded.semifinal_heat`,
+                semifinalLane: sql`excluded.semifinal_lane`,
+                semifinalMark: sql`excluded.semifinal_mark`,
+                semifinalPlace: sql`excluded.semifinal_place`,
+                semifinalWind: sql`excluded.semifinal_wind`,
+                
+                finalHeat: sql`excluded.final_heat`,
+                finalLane: sql`excluded.final_lane`,
+                finalMark: sql`excluded.final_mark`,
+                finalPlace: sql`excluded.final_place`,
+                finalWind: sql`excluded.final_wind`,
+                
+                preliminaryPoints: sql`excluded.preliminary_points`,
+                quarterfinalPoints: sql`excluded.quarterfinal_points`,
+                semifinalPoints: sql`excluded.semifinal_points`,
+                finalPoints: sql`excluded.final_points`,
+                
+                isDisqualified: sql`excluded.is_disqualified`,
+                isScratched: sql`excluded.is_scratched`,
+              }
+            });
+          imported += entryBatch.length;
+        }
       }
       
       if ((i + batchSize) % 500 === 0 || i + batchSize >= entryData.length) {
@@ -1039,12 +1222,17 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
     console.log(`   ⚙️  Different points per gender: ${diffPtsGender}`);
     console.log(`   ⚙️  Ind max scorers/team: ${indMaxScorers}, Relay max scorers/team: ${relMaxScorers}`);
 
-    await db.update(meets).set({
-      indMaxScorersPerTeam: indMaxScorers,
-      relMaxScorersPerTeam: relMaxScorers,
-    }).where(sql`${meets.id} = ${meetId}`);
-
-    await db.delete(meetScoringRules).where(sql`${meetScoringRules.meetId} = ${meetId}`);
+    if (isEdgeMode && sqliteDb) {
+      sqliteDb.prepare('UPDATE meets SET ind_max_scorers_per_team = ?, rel_max_scorers_per_team = ? WHERE id = ?')
+        .run(indMaxScorers, relMaxScorers, meetId);
+      sqliteDb.prepare('DELETE FROM meet_scoring_rules WHERE meet_id = ?').run(meetId);
+    } else {
+      await db!.update(meets).set({
+        indMaxScorersPerTeam: indMaxScorers,
+        relMaxScorersPerTeam: relMaxScorers,
+      }).where(sql`${meets.id} = ${meetId}`);
+      await db!.delete(meetScoringRules).where(sql`${meetScoringRules.meetId} = ${meetId}`);
+    }
 
     const ruleBatch: { meetId: string; gender: string; place: number; indScore: number; relScore: number; combevtScore: number }[] = [];
 
@@ -1084,15 +1272,30 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
     }
 
     if (ruleBatch.length > 0) {
-      await db.insert(meetScoringRules).values(ruleBatch)
-        .onConflictDoUpdate({
-          target: [meetScoringRules.meetId, meetScoringRules.gender, meetScoringRules.place],
-          set: {
-            indScore: sql`excluded.ind_score`,
-            relScore: sql`excluded.rel_score`,
-            combevtScore: sql`excluded.combevt_score`,
-          },
+      if (isEdgeMode && sqliteDb) {
+        const upsertStmt = sqliteDb.prepare(`
+          INSERT INTO meet_scoring_rules (meet_id, gender, place, ind_score, rel_score, combevt_score)
+          VALUES (?, ?, ?, ?, ?, ?)
+          ON CONFLICT(meet_id, gender, place) DO UPDATE SET
+            ind_score=excluded.ind_score, rel_score=excluded.rel_score, combevt_score=excluded.combevt_score
+        `);
+        const insertMany = sqliteDb.transaction((items: any[]) => {
+          for (const item of items) {
+            upsertStmt.run(item.meetId, item.gender, item.place, item.indScore, item.relScore, item.combevtScore);
+          }
         });
+        insertMany(ruleBatch);
+      } else {
+        await db!.insert(meetScoringRules).values(ruleBatch)
+          .onConflictDoUpdate({
+            target: [meetScoringRules.meetId, meetScoringRules.gender, meetScoringRules.place],
+            set: {
+              indScore: sql`excluded.ind_score`,
+              relScore: sql`excluded.rel_score`,
+              combevtScore: sql`excluded.combevt_score`,
+            },
+          });
+      }
       console.log(`   ✅ Imported ${ruleBatch.length} scoring rules`);
     } else {
       console.log("   ⚠️  No non-zero scoring rules found");

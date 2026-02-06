@@ -143,6 +143,10 @@ export interface SyncEvent {
 export class SQLiteStorage implements IStorage {
   private db: Database.Database;
   private qrCodes: Map<string, QRCodeMeta> = new Map();
+
+  getSqliteDb(): Database.Database {
+    return this.db;
+  }
   private socialMediaPosts: Map<string, SocialMediaPost> = new Map();
   private resultSignatures: Map<string, Date> = new Map();
   private externalScoreboards: Map<number, ExternalScoreboard> = new Map();
