@@ -158,72 +158,30 @@ function parseTimeToMinutes(timeStr: string | null | undefined): number {
   return hours * 60 + minutes;
 }
 
-const HYTEK_STATUS_CYCLE = ['unseeded', 'seeded', 'scored'] as const;
-
 function getDisplayStatus(event: Event): string {
   if (event.status === "in_progress") return 'live';
-  if (event.isScored || event.hytekStatus === 'scored' || event.hytekStatus === 'done') return 'scored';
+  if (event.isScored || event.hytekStatus === 'scored') return 'scored';
+  if (event.hytekStatus === 'done') return 'done';
   if (event.hytekStatus === 'seeded') return 'seeded';
   return 'unseeded';
 }
 
-function EventStatusBadge({ event, meetId }: { event: Event; meetId: string }) {
-  const { toast } = useToast();
+function EventStatusBadge({ event }: { event: Event }) {
   const displayStatus = getDisplayStatus(event);
-
-  const mutation = useMutation({
-    mutationFn: async (newStatus: string) => {
-      return await apiRequest("PATCH", `/api/events/${event.id}`, {
-        hytekStatus: newStatus,
-        isScored: newStatus === 'scored',
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/events", meetId] });
-    },
-    onError: (error: Error) => {
-      toast({ title: "Failed to update status", description: error.message, variant: "destructive" });
-    },
-  });
-
-  const handleClick = () => {
-    if (displayStatus === 'live') return;
-    const currentIdx = HYTEK_STATUS_CYCLE.indexOf(displayStatus as any);
-    const nextIdx = (currentIdx + 1) % HYTEK_STATUS_CYCLE.length;
-    mutation.mutate(HYTEK_STATUS_CYCLE[nextIdx]);
-  };
 
   if (displayStatus === 'live') {
     return <Badge className="bg-green-600 text-white" data-testid={`badge-status-${event.id}`}>Live</Badge>;
   }
   if (displayStatus === 'scored') {
-    return (
-      <Badge
-        variant="secondary"
-        className="cursor-pointer"
-        onClick={handleClick}
-        data-testid={`badge-status-${event.id}`}
-      >Scored</Badge>
-    );
+    return <Badge variant="secondary" data-testid={`badge-status-${event.id}`}>Scored</Badge>;
+  }
+  if (displayStatus === 'done') {
+    return <Badge variant="outline" className="border-amber-500 text-amber-600 dark:text-amber-400" data-testid={`badge-status-${event.id}`}>Done</Badge>;
   }
   if (displayStatus === 'seeded') {
-    return (
-      <Badge
-        variant="outline"
-        className="cursor-pointer"
-        onClick={handleClick}
-        data-testid={`badge-status-${event.id}`}
-      >Seeded</Badge>
-    );
+    return <Badge variant="outline" data-testid={`badge-status-${event.id}`}>Seeded</Badge>;
   }
-  return (
-    <Badge
-      variant="outline"
-      className="cursor-pointer"
-      onClick={handleClick}
-      data-testid={`badge-status-${event.id}`}
-    >Unseeded</Badge>
-  );
+  return <Badge variant="outline" data-testid={`badge-status-${event.id}`}>Unseeded</Badge>;
 }
 
 function isTrackEvent(eventType: string): boolean {
@@ -248,9 +206,10 @@ export default function Schedule() {
   });
 
   const liveEvents = events.filter(e => e.status === "in_progress");
-  const scoredEvents = events.filter(e => e.status === "completed" || e.isScored || e.hytekStatus === 'scored' || e.hytekStatus === 'done');
-  const seededEvents = events.filter(e => !scoredEvents.includes(e) && e.status !== "in_progress" && e.hytekStatus === 'seeded');
-  const unseededEvents = events.filter(e => !scoredEvents.includes(e) && !seededEvents.includes(e) && e.status !== "in_progress");
+  const scoredEvents = events.filter(e => e.status === "completed" || e.isScored || e.hytekStatus === 'scored');
+  const doneEvents = events.filter(e => !scoredEvents.includes(e) && e.hytekStatus === 'done');
+  const seededEvents = events.filter(e => !scoredEvents.includes(e) && !doneEvents.includes(e) && e.status !== "in_progress" && e.hytekStatus === 'seeded');
+  const unseededEvents = events.filter(e => !scoredEvents.includes(e) && !doneEvents.includes(e) && !seededEvents.includes(e) && e.status !== "in_progress");
 
   const sortedEvents = useMemo(() => {
     return [...events].sort((a, b) => {
@@ -362,6 +321,8 @@ export default function Schedule() {
             <span className="text-border">|</span>
             <span>{seededEvents.length} seeded</span>
             <span className="text-border">|</span>
+            <span>{doneEvents.length} done</span>
+            <span className="text-border">|</span>
             <span>{scoredEvents.length} scored</span>
           </div>
         </div>
@@ -445,7 +406,7 @@ export default function Schedule() {
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
-                              {currentMeetId && <EventStatusBadge event={event} meetId={currentMeetId} />}
+                              {currentMeetId && <EventStatusBadge event={event} />}
                             </div>
                           </div>
                         </CardContent>
