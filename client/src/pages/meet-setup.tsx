@@ -14,6 +14,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
+import { DataIngestionPanel } from "@/components/data-ingestion-panel";
 
 const DEFAULT_COLORS = {
   primaryColor: "#0066CC",
@@ -717,6 +718,8 @@ export default function MeetSetup() {
           </div>
         </CardContent>
       </Card>
+
+      <DataIngestionPanel meetId={meetId!} />
     </div>
   );
 }
