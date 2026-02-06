@@ -634,7 +634,11 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       const isGenericName = rawEventName && /^Event\s+\d+$/i.test(String(rawEventName).trim());
       
       // DEBUG: Log raw stroke data for every event
-      console.log(`   🔍 Event #${eventNum} (ptr=${eventPtr}): stroke="${row.Event_stroke}" dist=${distance} trk_field="${trkField}" gender="${gender}" ind_rel="${row.Ind_rel}"`);
+      const eventTypeVal = (row as any).Event_Type || '';
+      const eventType2Val = (row as any).Event_Type2 || '';
+      const eventLtr = (row as any).Event_ltr || '';
+      const eventNote = (row as any).event_note || '';
+      console.log(`   🔍 Event #${eventNum} (ptr=${eventPtr}): stroke="${row.Event_stroke}" dist=${distance} trk_field="${trkField}" gender="${gender}" ind_rel="${row.Ind_rel}" Event_Type="${eventTypeVal}" Event_Type2="${eventType2Val}" Event_ltr="${eventLtr}" event_note="${eventNote}"`);
       
       if (rawEventName && !isGenericName) {
         eventName = String(rawEventName);

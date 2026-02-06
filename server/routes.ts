@@ -896,7 +896,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!existing) {
         return res.status(404).json({ error: "Event not found" });
       }
-      const allowedFields = ['advanceByPlace', 'advanceByTime', 'hytekStatus', 'isScored', 'status', 'numRounds', 'numLanes'];
+      const allowedFields = ['name', 'advanceByPlace', 'advanceByTime', 'hytekStatus', 'isScored', 'status', 'numRounds', 'numLanes'];
       const updates: Record<string, any> = {};
       for (const field of allowedFields) {
         if (req.body[field] !== undefined) {
