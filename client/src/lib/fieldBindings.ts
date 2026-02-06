@@ -180,6 +180,14 @@ export const FIELD_BINDINGS: Record<string, FieldBinding> = {
     dataKey: 'meetLogoUrl',
     category: 'media',
   },
+  'total-events-scored': {
+    key: 'total-events-scored',
+    label: 'Total Events Scored',
+    type: 'text',
+    description: 'Number of events scored for the displayed gender',
+    dataKey: 'totalEventsScored',
+    category: 'event',
+  },
   'static-text': {
     key: 'static-text',
     label: 'Static Text',

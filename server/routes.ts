@@ -2733,6 +2733,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Device has no assigned meet" });
       }
       
+      // Count total scored events for this gender
+      let totalEventsScored = 0;
+      try {
+        const scoredEvents = await storage.getEventsByMeetId(device.meetId);
+        totalEventsScored = scoredEvents.filter((e: any) => {
+          if (!e.isScored) return false;
+          const g = (e.gender || '').toUpperCase().charAt(0);
+          return selectedGender === 'M' ? (g === 'M' || g === '') : (g === 'W' || g === 'F');
+        }).length;
+      } catch (err) {
+        console.log('[Team Scores] Could not count scored events');
+      }
+      
       // Use getTeamStandings which handles gender-filtered scoring
       let standings: any[] = [];
       let hasScores = false;
@@ -2841,6 +2854,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             mode: 'team_scores',
             eventName: `${genderLabel} Team Scores`,
             gender: selectedGender,
+            totalEventsScored,
             entries: teamEntries,
           },
           pagingSize: lines,
