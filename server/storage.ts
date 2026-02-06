@@ -1180,17 +1180,25 @@ export class DatabaseStorage implements IStorage {
       .from(displayDevices)
       .where(eq(displayDevices.meetId, meetId));
     
-    // Fetch assigned events for each device
-    const result: DisplayDeviceWithEvent[] = [];
-    for (const device of devices) {
-      let assignedEvent: Event | undefined;
-      if (device.assignedEventId) {
-        const [event] = await db.select().from(events).where(eq(events.id, device.assignedEventId));
-        assignedEvent = event;
+    const assignedEventIds = devices
+      .map(d => d.assignedEventId)
+      .filter((id): id is string => !!id);
+    
+    const eventsMap = new Map<string, Event>();
+    if (assignedEventIds.length > 0) {
+      const assignedEvents = await db
+        .select()
+        .from(events)
+        .where(inArray(events.id, assignedEventIds));
+      for (const evt of assignedEvents) {
+        eventsMap.set(evt.id, evt);
       }
-      result.push({ ...device, assignedEvent });
     }
-    return result;
+    
+    return devices.map(device => ({
+      ...device,
+      assignedEvent: device.assignedEventId ? eventsMap.get(device.assignedEventId) : undefined,
+    }));
   }
 
   async getDisplayDevice(id: string): Promise<DisplayDevice | undefined> {
@@ -2210,6 +2218,32 @@ export class DatabaseStorage implements IStorage {
 
     if (scoredEventsList.length === 0) return [];
 
+    const scoredEventIds = scoredEventsList.map(e => e.id);
+
+    const allEntries = await db
+      .select({
+        eventId: entries.eventId,
+        finalPlace: entries.finalPlace,
+        teamId: athletes.teamId,
+        teamName: teams.name,
+      })
+      .from(entries)
+      .innerJoin(athletes, eq(entries.athleteId, athletes.id))
+      .leftJoin(teams, eq(athletes.teamId, teams.id))
+      .where(and(
+        inArray(entries.eventId, scoredEventIds),
+        isNotNull(entries.finalPlace),
+        isNotNull(athletes.teamId),
+      ))
+      .orderBy(entries.eventId, entries.finalPlace);
+
+    const entriesByEvent = new Map<string, typeof allEntries>();
+    for (const entry of allEntries) {
+      const eventEntries = entriesByEvent.get(entry.eventId) || [];
+      eventEntries.push(entry);
+      entriesByEvent.set(entry.eventId, eventEntries);
+    }
+
     const teamScores = new Map<string, { teamName: string; totalPoints: number; events: Map<string, { eventName: string; points: number }> }>();
 
     for (const evt of scoredEventsList) {
@@ -2230,21 +2264,7 @@ export class DatabaseStorage implements IStorage {
 
       const maxScorers = isRelay ? relMaxScorers : indMaxScorers;
 
-      const eventEntries = await db
-        .select({
-          finalPlace: entries.finalPlace,
-          teamId: athletes.teamId,
-          teamName: teams.name,
-        })
-        .from(entries)
-        .innerJoin(athletes, eq(entries.athleteId, athletes.id))
-        .leftJoin(teams, eq(athletes.teamId, teams.id))
-        .where(and(
-          eq(entries.eventId, evt.id),
-          isNotNull(entries.finalPlace),
-          isNotNull(athletes.teamId),
-        ))
-        .orderBy(entries.finalPlace);
+      const eventEntries = entriesByEvent.get(evt.id) || [];
 
       const teamScorerCount = new Map<string, number>();
 

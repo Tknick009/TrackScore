@@ -351,6 +351,7 @@ export const athletes = pgTable("athletes", {
   gender: text("gender"),
 }, (table) => ({
   meetIdIdx: index("athletes_meet_id_idx").on(table.meetId),
+  teamIdIdx: index("athletes_team_id_idx").on(table.teamId),
   meetAthleteUnique: unique("athletes_meet_athlete_unique").on(table.meetId, table.athleteNumber),
 }));
 
@@ -413,6 +414,9 @@ export const events = pgTable("events", {
   lastResultAt: timestamp("last_result_at"), // When results were last updated
 }, (table) => ({
   meetEventUnique: unique("events_meet_event_unique").on(table.meetId, table.eventNumber),
+  meetIdIdx: index("events_meet_id_idx").on(table.meetId),
+  genderIdx: index("events_gender_idx").on(table.gender),
+  isScoredIdx: index("events_is_scored_idx").on(table.isScored),
 }));
 
 export const insertEventSchema = createInsertSchema(events).omit({ id: true }).extend({
@@ -486,6 +490,10 @@ export const entries = pgTable("entries", {
   checkInMethod: text("check_in_method"), // manual, qr_code, bulk, etc.
 }, (table) => ({
   eventAthleteUnique: unique("entries_event_athlete_unique").on(table.eventId, table.athleteId),
+  eventIdIdx: index("entries_event_id_idx").on(table.eventId),
+  athleteIdIdx: index("entries_athlete_id_idx").on(table.athleteId),
+  teamIdIdx: index("entries_team_id_idx").on(table.teamId),
+  eventPlaceIdx: index("entries_event_place_idx").on(table.eventId, table.finalPlace),
 }));
 
 export const insertEntrySchema = createInsertSchema(entries).omit({ id: true }).extend({

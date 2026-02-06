@@ -774,14 +774,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const logoMap = new Map<string, string>();
       if (allTeamIds.size > 0) {
         try {
-          const logoPromises = Array.from(allTeamIds).map(id => storage.getTeamLogo(id));
-          const logos = await Promise.all(logoPromises);
-          const teamIdArr = Array.from(allTeamIds);
-          logos.forEach((logo, index) => {
-            if (logo) {
-              logoMap.set(teamIdArr[index], fileStorage.publicUrlForKey(logo.storageKey));
-            }
-          });
+          const allLogos = await storage.getTeamLogosByMeet(meetId);
+          for (const logo of allLogos) {
+            logoMap.set(logo.teamId, fileStorage.publicUrlForKey(logo.storageKey));
+          }
         } catch {
         }
       }
