@@ -936,6 +936,12 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           finalPlace: row.Fin_jdplace ? Number(row.Fin_jdplace) : (row.Fin_place ? Number(row.Fin_place) : null),
           finalWind: row.Fin_wind ? Number(row.Fin_wind) : null,
           
+          // Per-round scoring points from HyTek
+          preliminaryPoints: row.Pre_points != null ? Number(row.Pre_points) : null,
+          quarterfinalPoints: row.Qtr_points != null ? Number(row.Qtr_points) : null,
+          semifinalPoints: row.Sem_points != null ? Number(row.Sem_points) : null,
+          finalPoints: row.Fin_points != null ? Number(row.Fin_points) : null,
+          
           // Flags (proper boolean parsing)
           isDisqualified: row.dq_type !== null && row.dq_type !== undefined && row.dq_type !== "",
           isScratched: row.Scr_stat === true || row.Scr_stat === "Y" || row.Scr_stat === "y",
@@ -978,6 +984,11 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
               finalPlace: sql`excluded.final_place`,
               finalWind: sql`excluded.final_wind`,
               
+              preliminaryPoints: sql`excluded.preliminary_points`,
+              quarterfinalPoints: sql`excluded.quarterfinal_points`,
+              semifinalPoints: sql`excluded.semifinal_points`,
+              finalPoints: sql`excluded.final_points`,
+              
               isDisqualified: sql`excluded.is_disqualified`,
               isScratched: sql`excluded.is_scratched`,
             }
@@ -991,6 +1002,18 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
     }
     stats.entries = imported;
     console.log(`   ✅ Imported ${imported} entries`);
+    
+    const withFinResults = entryData.filter(r => r.Fin_Time != null).length;
+    const withPreResults = entryData.filter(r => r.Pre_Time != null).length;
+    const withSemResults = entryData.filter(r => r.Sem_Time != null).length;
+    const withQtrResults = entryData.filter(r => r.Qtr_Time != null).length;
+    const withFinPoints = entryData.filter(r => r.Fin_points != null).length;
+    const withPrePoints = entryData.filter(r => r.Pre_points != null).length;
+    const withJdplace = entryData.filter(r => r.Fin_jdplace != null).length;
+    console.log(`   📊 Entries with Final results: ${withFinResults}, Prelim: ${withPreResults}, Semi: ${withSemResults}, Quarter: ${withQtrResults}`);
+    console.log(`   🏆 Entries with Final points: ${withFinPoints}, Prelim points: ${withPrePoints}`);
+    console.log(`   ⚖️  Entries with judge's decision (Fin_jdplace): ${withJdplace}`);
+    
     if (skippedMissingAthlete > 0 || skippedMissingEvent > 0) {
       console.log(`   ⚠️  Skipped ${skippedMissingAthlete} entries (missing athlete), ${skippedMissingEvent} entries (missing event)`);
     }
