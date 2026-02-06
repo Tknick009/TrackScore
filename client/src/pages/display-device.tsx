@@ -973,10 +973,16 @@ export default function DisplayDevice() {
                   heat: data.heat,
                   totalHeats: data.totalHeats || prev.liveEventData?.totalHeats,
                   round: data.round || prev.liveEventData?.round,
+                  roundName: data.roundName ?? prev.liveEventData?.roundName,
                   mode: 'start_list',
                   entries: data.entries || [],
                   wind: prev.liveEventData?.wind,
                   distance: data.distance || prev.liveEventData?.distance,
+                  advanceByPlace: data.advanceByPlace ?? prev.liveEventData?.advanceByPlace,
+                  advanceByTime: data.advanceByTime ?? prev.liveEventData?.advanceByTime,
+                  isMultiEvent: data.isMultiEvent ?? prev.liveEventData?.isMultiEvent,
+                  eventType: data.eventType ?? prev.liveEventData?.eventType,
+                  gender: data.gender ?? prev.liveEventData?.gender,
                 },
               }));
             }

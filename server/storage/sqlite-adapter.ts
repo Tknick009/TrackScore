@@ -1110,7 +1110,7 @@ export class SQLiteStorage implements IStorage {
   async getEventsByLynxEventNumber(lynxEventNumber: number): Promise<Event[]> {
     const lynxNumStr = String(lynxEventNumber);
     const rows = this.db.prepare('SELECT * FROM events WHERE lynx_event_number IS NOT NULL').all();
-    return rows
+    const matched = rows
       .filter((row: any) => {
         if (!row.lynx_event_number) return false;
         const stored = String(row.lynx_event_number).trim();
@@ -1118,6 +1118,9 @@ export class SQLiteStorage implements IStorage {
         return numPart === lynxNumStr || stored === lynxNumStr || parseInt(numPart, 10) === lynxEventNumber;
       })
       .map((row: any) => this.mapEventRow(row));
+    if (matched.length > 0) return matched;
+    const fallbackRows = this.db.prepare('SELECT * FROM events WHERE event_number = ?').all(lynxEventNumber);
+    return fallbackRows.map((row: any) => this.mapEventRow(row));
   }
 
   async getCurrentEvent(): Promise<EventWithEntries | undefined> {
