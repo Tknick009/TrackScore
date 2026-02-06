@@ -25,7 +25,56 @@ export interface MDBEvent {
   Trk_Field?: string;
 }
 
-export function generateEventName(mdbEvent: MDBEvent): string {
+const OUTDOOR_STROKE_MAP: Record<string, string> = {
+  "K": "High Jump",
+  "L": "Long Jump",
+  "M": "Shot Put",
+  "N": "Discus",
+  "O": "Hammer",
+  "P": "Pole Vault",
+  "Q": "Javelin",
+  "R": "Triple Jump",
+  "S": "Weight Throw",
+};
+
+const INDOOR_STROKE_MAP: Record<string, string> = {
+  "K": "High Jump",
+  "L": "Pole Vault",
+  "M": "Long Jump",
+  "N": "Triple Jump",
+  "O": "Shot Put",
+  "P": "Weight Throw",
+  "Q": "Hammer",
+  "R": "Shot Put",
+  "S": "Weight Throw",
+};
+
+const FIELD_EVENT_TYPE_MAP: Record<string, string> = {
+  "High Jump": "high_jump",
+  "Pole Vault": "pole_vault",
+  "Long Jump": "long_jump",
+  "Triple Jump": "triple_jump",
+  "Shot Put": "shot_put",
+  "Discus": "discus",
+  "Hammer": "hammer",
+  "Javelin": "javelin",
+  "Weight Throw": "weight_throw",
+};
+
+export function getFieldEventFromStroke(stroke: string, isIndoor: boolean): string | null {
+  const map = isIndoor ? INDOOR_STROKE_MAP : OUTDOOR_STROKE_MAP;
+  return map[stroke] || null;
+}
+
+export function getFieldEventType(stroke: string, isIndoor: boolean): string {
+  const eventName = getFieldEventFromStroke(stroke, isIndoor);
+  if (eventName) {
+    return FIELD_EVENT_TYPE_MAP[eventName] || "field_event";
+  }
+  return "field_event";
+}
+
+export function generateEventName(mdbEvent: MDBEvent, isIndoor: boolean = false): string {
   const normalizedGender = (mdbEvent.Event_sex || mdbEvent.Event_gender || '')
     .toString()
     .toLowerCase()
@@ -72,18 +121,11 @@ export function generateEventName(mdbEvent: MDBEvent): string {
   }
   
   if (distance === 0) {
-    switch (stroke) {
-      case "K": return `${genderPrefix} High Jump`;
-      case "L": return `${genderPrefix} Long Jump`;
-      case "M": return `${genderPrefix} Shot Put`;
-      case "N": return `${genderPrefix} Discus`;
-      case "O": return `${genderPrefix} Hammer`;
-      case "P": return `${genderPrefix} Pole Vault`;
-      case "Q": return `${genderPrefix} Javelin`;
-      case "R": return `${genderPrefix} Triple Jump`;
-      case "S": return `${genderPrefix} Weight Throw`;
-      default: return `${genderPrefix} Field Event`;
+    const fieldEvent = getFieldEventFromStroke(stroke, isIndoor);
+    if (fieldEvent) {
+      return `${genderPrefix} ${fieldEvent}`;
     }
+    return `${genderPrefix} Field Event`;
   }
   
   if (stroke === 'H' && distance >= 2000) {
@@ -291,6 +333,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
   
   // Get meet start date for fallback
   let meetStartDate: Date | null = null;
+  let isIndoorMeet = false;
   try {
     const meetRecord = await db.query.meets.findFirst({
       where: (meets, { eq }) => eq(meets.id, meetId)
@@ -311,6 +354,16 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
     if (meetData && meetData.length > 0) {
       const mdbMeet = meetData[0]; // Should only be 1 row
       console.log(`   📝 Meet table has ${meetData.length} row(s)`);
+      
+      const arenaVal = ((mdbMeet as any).meet_arena || '').toString().trim().toUpperCase();
+      if (arenaVal === 'I') {
+        isIndoorMeet = true;
+        console.log(`   🏟️  Meet arena: INDOOR`);
+      } else if (arenaVal === 'O') {
+        console.log(`   🏟️  Meet arena: OUTDOOR`);
+      } else {
+        console.log(`   🏟️  Meet arena: "${arenaVal}" (defaulting to outdoor)`);
+      }
       
       if (mdbMeet.Meet_start) {
         if (mdbMeet.Meet_start instanceof Date) {
@@ -531,8 +584,8 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       let eventType = "100m"; // default
       
       if (trkField === "F") {
-        // Field events - default to appropriate type
-        eventType = "long_jump"; // Will need better logic here
+        const stroke = (row.Event_stroke || "").toString().trim();
+        eventType = getFieldEventType(stroke, isIndoorMeet);
       } else if (distance) {
         // Track events - use distance
         if (distance === 100) eventType = "100m";
@@ -645,7 +698,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         namesFound++;
       } else {
         // Generate descriptive name from event data
-        eventName = generateEventName(row);
+        eventName = generateEventName(row, isIndoorMeet);
         generatedNamesCount++;
         namesFound++;
       }
