@@ -8,7 +8,7 @@ interface HytekMdbWatcherState {
   meetId: string;
   watcher: FSWatcher | null;
   lastHash: string | null;
-  mdbDirectory: string;
+  mdbFilePath: string;
   lastImportAt: Date | null;
   importing: boolean;
 }
@@ -98,27 +98,36 @@ async function handleMdbChange(state: HytekMdbWatcherState, filePath: string): P
   }
 }
 
-export function startHytekMdbWatcher(meetId: string, mdbDirectory: string): { success: boolean; error?: string } {
+export function startHytekMdbWatcher(meetId: string, mdbPath: string): { success: boolean; error?: string } {
   stopHytekMdbWatcher(meetId);
 
-  if (!mdbDirectory) {
-    return { success: false, error: 'No MDB directory path provided' };
+  if (!mdbPath) {
+    return { success: false, error: 'No MDB path provided' };
   }
 
-  if (!fs.existsSync(mdbDirectory)) {
-    return { success: false, error: `Path not found: ${mdbDirectory}` };
+  if (!fs.existsSync(mdbPath)) {
+    return { success: false, error: `Path not found: ${mdbPath}` };
   }
 
-  const stat = fs.statSync(mdbDirectory);
-  if (!stat.isDirectory()) {
-    if (stat.isFile() && mdbDirectory.toLowerCase().endsWith('.mdb')) {
-      mdbDirectory = path.dirname(mdbDirectory);
-    } else {
-      return { success: false, error: `Path is not a directory or .mdb file: ${mdbDirectory}` };
+  const stat = fs.statSync(mdbPath);
+  let resolvedMdbFile: string;
+
+  if (stat.isFile() && mdbPath.toLowerCase().endsWith('.mdb')) {
+    resolvedMdbFile = mdbPath;
+  } else if (stat.isDirectory()) {
+    const found = findMdbFile(mdbPath);
+    if (!found) {
+      return { success: false, error: `No .mdb file found in directory: ${mdbPath}` };
     }
+    resolvedMdbFile = found;
+  } else {
+    return { success: false, error: `Path is not a .mdb file or directory: ${mdbPath}` };
   }
 
-  const watcher = chokidar.watch(mdbDirectory, {
+  const watchDir = path.dirname(resolvedMdbFile);
+  const targetBasename = path.basename(resolvedMdbFile).toLowerCase();
+
+  const watcher = chokidar.watch(watchDir, {
     persistent: true,
     ignoreInitial: false,
     awaitWriteFinish: {
@@ -127,8 +136,8 @@ export function startHytekMdbWatcher(meetId: string, mdbDirectory: string): { su
     },
     ignored: (filePath: string) => {
       const basename = path.basename(filePath);
-      if (basename === path.basename(mdbDirectory)) return false;
-      return !basename.toLowerCase().endsWith('.mdb');
+      if (basename === path.basename(watchDir)) return false;
+      return basename.toLowerCase() !== targetBasename;
     },
   });
 
@@ -136,7 +145,7 @@ export function startHytekMdbWatcher(meetId: string, mdbDirectory: string): { su
     meetId,
     watcher,
     lastHash: null,
-    mdbDirectory,
+    mdbFilePath: resolvedMdbFile,
     lastImportAt: null,
     importing: false,
   };
@@ -156,7 +165,7 @@ export function startHytekMdbWatcher(meetId: string, mdbDirectory: string): { su
   });
 
   watchers.set(meetId, state);
-  console.log(`[HyTek MDB Watcher] Started watching directory: ${mdbDirectory} for meet ${meetId}`);
+  console.log(`[HyTek MDB Watcher] Started watching file: ${resolvedMdbFile} for meet ${meetId}`);
 
   return { success: true };
 }
@@ -183,12 +192,11 @@ export function stopAllHytekMdbWatchers(): void {
 export function getActiveHytekMdbWatchers(): { meetId: string; mdbDirectory: string; mdbFileName: string | null; mdbFilePath: string | null; lastImportAt: string | null }[] {
   const result: { meetId: string; mdbDirectory: string; mdbFileName: string | null; mdbFilePath: string | null; lastImportAt: string | null }[] = [];
   watchers.forEach((state, meetId) => {
-    const mdbFile = findMdbFile(state.mdbDirectory);
     result.push({
       meetId,
-      mdbDirectory: state.mdbDirectory,
-      mdbFileName: mdbFile ? path.basename(mdbFile) : null,
-      mdbFilePath: mdbFile || null,
+      mdbDirectory: path.dirname(state.mdbFilePath),
+      mdbFileName: path.basename(state.mdbFilePath),
+      mdbFilePath: state.mdbFilePath,
       lastImportAt: state.lastImportAt?.toISOString() || null,
     });
   });
@@ -217,9 +225,9 @@ export async function triggerManualImport(meetId: string): Promise<{ success: bo
     return { success: false, error: 'No active watcher for this meet' };
   }
 
-  const mdbFile = findMdbFile(state.mdbDirectory);
-  if (!mdbFile) {
-    return { success: false, error: 'No MDB file found in watched directory' };
+  const mdbFile = state.mdbFilePath;
+  if (!mdbFile || !fs.existsSync(mdbFile)) {
+    return { success: false, error: `MDB file not found: ${mdbFile}` };
   }
 
   if (state.importing) {

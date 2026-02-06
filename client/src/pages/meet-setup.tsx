@@ -801,7 +801,7 @@ export default function MeetSetup() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="mdb-directory">MDB Directory Path</Label>
+            <Label htmlFor="mdb-directory">MDB File Path</Label>
             <div className="flex gap-2">
               <Input
                 id="mdb-directory"
@@ -810,13 +810,13 @@ export default function MeetSetup() {
                   setMdbDirectory(e.target.value);
                   setHasMdbChanges(true);
                 }}
-                placeholder="/path/to/hytek/database/"
+                placeholder="/path/to/hytek/database/Meet.mdb"
                 className="flex-1 font-mono text-sm"
                 data-testid="input-mdb-directory"
               />
             </div>
             <p className="text-sm text-muted-foreground">
-              Full path to the directory or .mdb file (e.g., C:\Hy-Tek\TFMeet\ or C:\Hy-Tek\TFMeet\DB.mdb)
+              Full path to the .mdb file or its parent directory (e.g., C:\Hy-Tek\TFMeet\Meet.mdb)
             </p>
           </div>
           
