@@ -545,26 +545,25 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       if (hytekStatusRaw != null) {
         const statusStr = String(hytekStatusRaw).trim();
         switch (statusStr) {
-          case '1':
           case 'U':
           case 'u':
           case 'unseeded':
             hytekStatus = 'unseeded';
             break;
-          case '2':
-          case 'S':
-          case 's':
+          case '1':
           case 'seeded':
             hytekStatus = 'seeded';
             break;
-          case '4':
+          case 'A':
+          case 'a':
           case 'D':
           case 'd':
           case 'done':
             hytekStatus = 'done';
             isScored = true;
             break;
-          case '5':
+          case 'S':
+          case 's':
           case 'C':
           case 'c':
           case 'scored':
