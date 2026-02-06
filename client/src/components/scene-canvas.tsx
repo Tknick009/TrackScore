@@ -558,12 +558,17 @@ export function SceneObjectRenderer({
             // and is typically set by the backend or manually
           }
           
-          // Format advancement formula as "X+Y" (e.g., "3+2")
           let advancementFormula = '';
           if (advanceByPlace || advanceByTime) {
             const place = advanceByPlace || 0;
             const time = advanceByTime || 0;
-            advancementFormula = time > 0 ? `${place}+${time}` : `${place}`;
+            if (place > 0 && time > 0) {
+              advancementFormula = `Top ${place} + Next ${time} Times`;
+            } else if (place > 0) {
+              advancementFormula = `Top ${place}`;
+            } else if (time > 0) {
+              advancementFormula = `Next ${time} Times`;
+            }
           }
           
           // Calculate multi-event points if applicable
