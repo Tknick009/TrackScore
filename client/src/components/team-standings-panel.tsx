@@ -257,9 +257,10 @@ export function TeamStandingsPanel({ meetId }: TeamStandingsPanelProps) {
                         <TableCell data-testid={`team-name-${standing.teamId}`}>
                           <div className="flex items-center gap-2">
                             <Avatar className="h-7 w-7">
-                              {standing.teamLogoUrl ? (
-                                <AvatarImage src={standing.teamLogoUrl} alt={standing.teamName} />
-                              ) : null}
+                              <AvatarImage
+                                src={`/logos/NCAA/${encodeURIComponent(standing.teamName)}.png`}
+                                alt={standing.teamName}
+                              />
                               <AvatarFallback className="text-xs">
                                 {standing.teamName?.charAt(0) || "?"}
                               </AvatarFallback>

@@ -4669,20 +4669,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const standings = await storage.getTeamStandings(meetId, Object.keys(scope).length > 0 ? scope : undefined);
 
-      const logoMap = new Map<string, string>();
-      try {
-        const allLogos = await storage.getTeamLogosByMeet(meetId);
-        for (const logo of allLogos) {
-          logoMap.set(logo.teamId, fileStorage.publicUrlForKey(logo.storageKey));
-        }
-      } catch {}
-
-      const enriched = standings.map(s => ({
-        ...s,
-        teamLogoUrl: logoMap.get(s.teamId) || undefined,
-      }));
-
-      res.json(enriched);
+      res.json(standings);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
