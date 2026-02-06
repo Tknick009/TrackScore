@@ -97,8 +97,7 @@ export default function DisplayControlPage() {
   
   // New display mode state - tracks which mode is active per device
   const [displayMode, setDisplayMode] = useState<Record<string, DisplayMode>>({});
-  const [selectedHytekEvent, setSelectedHytekEvent] = useState<Record<string, string>>({});
-  const [selectedHytekRound, setSelectedHytekRound] = useState<Record<string, string>>({});
+  const [selectedHytekItem, setSelectedHytekItem] = useState<Record<string, string>>({});
   const [pagingLines, setPagingLines] = useState<Record<string, number>>({});
   const [eventSearch, setEventSearch] = useState('');
 
@@ -117,21 +116,21 @@ export default function DisplayControlPage() {
     enabled: !!currentMeetId,
   });
 
-  const sortedFilteredEvents = useMemo(() => {
-    const parseTime = (t: string | null | undefined): number => {
-      if (!t) return 9999;
-      const match = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-      if (!match) return 9999;
-      let hours = parseInt(match[1], 10);
-      const minutes = parseInt(match[2], 10);
-      const period = match[3].toUpperCase();
-      if (period === 'AM' && hours === 12) hours = 0;
-      else if (period === 'PM' && hours !== 12) hours += 12;
-      return hours * 60 + minutes;
-    };
+  const parseEventTime = (t: string | null | undefined): number => {
+    if (!t) return 9999;
+    const match = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    if (!match) return 9999;
+    let hours = parseInt(match[1], 10);
+    const minutes = parseInt(match[2], 10);
+    const period = match[3].toUpperCase();
+    if (period === 'AM' && hours === 12) hours = 0;
+    else if (period === 'PM' && hours !== 12) hours += 12;
+    return hours * 60 + minutes;
+  };
 
+  const sortedFilteredEvents = useMemo(() => {
     const sorted = [...events].sort((a, b) => {
-      const timeDiff = parseTime(a.eventTime) - parseTime(b.eventTime);
+      const timeDiff = parseEventTime(a.eventTime) - parseEventTime(b.eventTime);
       if (timeDiff !== 0) return timeDiff;
       return (a.eventNumber || 0) - (b.eventNumber || 0);
     });
@@ -144,6 +143,54 @@ export default function DisplayControlPage() {
       String(e.eventNumber).includes(q)
     );
   }, [events, eventSearch]);
+
+  const hytekEventRoundItems = useMemo(() => {
+    const roundLabels: Record<string, string> = {
+      preliminary: 'Prelims',
+      quarterfinal: 'Quarters',
+      semifinal: 'Semis',
+      final: 'Finals',
+    };
+
+    const roundOrder = ['preliminary', 'quarterfinal', 'semifinal', 'final'];
+
+    const items: Array<{
+      key: string;
+      eventId: string;
+      round: string;
+      label: string;
+      roundLabel: string | null;
+      event: Event;
+    }> = [];
+
+    for (const event of sortedFilteredEvents) {
+      const rounds = event.numRounds || 1;
+      if (rounds <= 1) {
+        items.push({
+          key: `${event.id}:final`,
+          eventId: event.id,
+          round: 'final',
+          label: event.name,
+          roundLabel: null,
+          event,
+        });
+      } else {
+        const activeRounds = roundOrder.slice(-(rounds));
+        for (const r of activeRounds) {
+          items.push({
+            key: `${event.id}:${r}`,
+            eventId: event.id,
+            round: r,
+            label: event.name,
+            roundLabel: roundLabels[r] || r,
+            event,
+          });
+        }
+      }
+    }
+
+    return items;
+  }, [sortedFilteredEvents]);
 
   const assignEventMutation = useMutation({
     mutationFn: async ({ deviceId, eventId }: { deviceId: string; eventId: string | null }) => {
@@ -734,7 +781,7 @@ export default function DisplayControlPage() {
                       ) : displayMode[selectedDevice.id] === 'hytek' ? (
                         <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
                           <div className="space-y-2">
-                            <Label>Select Event</Label>
+                            <Label>Select Event / Round</Label>
                             <div className="relative">
                               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                               <Input
@@ -747,48 +794,33 @@ export default function DisplayControlPage() {
                             </div>
                             <ScrollArea className="h-48 rounded-md border">
                               <div className="p-1">
-                                {sortedFilteredEvents.length === 0 && (
+                                {hytekEventRoundItems.length === 0 && (
                                   <p className="text-sm text-muted-foreground p-2">No events found</p>
                                 )}
-                                {sortedFilteredEvents.map(event => {
-                                  const isSelected = selectedHytekEvent[selectedDevice.id] === event.id;
+                                {hytekEventRoundItems.map(item => {
+                                  const isSelected = selectedHytekItem[selectedDevice.id] === item.key;
                                   return (
                                     <button
-                                      key={event.id}
-                                      onClick={() => setSelectedHytekEvent(prev => ({ ...prev, [selectedDevice.id]: event.id }))}
+                                      key={item.key}
+                                      onClick={() => setSelectedHytekItem(prev => ({ ...prev, [selectedDevice.id]: item.key }))}
                                       className={`flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded-md cursor-pointer hover-elevate ${isSelected ? 'bg-accent' : ''}`}
-                                      data-testid={`button-event-${event.id}`}
+                                      data-testid={`button-hytek-${item.key}`}
                                     >
-                                      {event.eventTime && (
-                                        <span className="text-muted-foreground shrink-0 w-16 text-xs">{event.eventTime}</span>
+                                      {item.event.eventTime && (
+                                        <span className="text-muted-foreground shrink-0 w-16 text-xs">{item.event.eventTime}</span>
                                       )}
-                                      <span className="truncate">{event.name}</span>
-                                      <EventStatusBadge event={event} />
+                                      <span className="truncate">
+                                        {item.label}
+                                        {item.roundLabel && (
+                                          <span className="text-muted-foreground"> - {item.roundLabel}</span>
+                                        )}
+                                      </span>
+                                      <EventStatusBadge event={item.event} />
                                     </button>
                                   );
                                 })}
                               </div>
                             </ScrollArea>
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label>Round</Label>
-                            <Select
-                              value={selectedHytekRound[selectedDevice.id] || 'final'}
-                              onValueChange={(value) => {
-                                setSelectedHytekRound(prev => ({ ...prev, [selectedDevice.id]: value }));
-                              }}
-                            >
-                              <SelectTrigger data-testid="select-hytek-round">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="preliminary">Prelims</SelectItem>
-                                <SelectItem value="quarterfinal">Quarterfinals</SelectItem>
-                                <SelectItem value="semifinal">Semis</SelectItem>
-                                <SelectItem value="final">Finals</SelectItem>
-                              </SelectContent>
-                            </Select>
                           </div>
 
                           <div className="space-y-2">
@@ -817,19 +849,19 @@ export default function DisplayControlPage() {
 
                           <Button
                             onClick={() => {
-                              const eventId = selectedHytekEvent[selectedDevice.id];
+                              const itemKey = selectedHytekItem[selectedDevice.id];
+                              if (!itemKey) return;
+                              const item = hytekEventRoundItems.find(i => i.key === itemKey);
+                              if (!item) return;
                               const lines = pagingLines[selectedDevice.id] || 8;
-                              const round = selectedHytekRound[selectedDevice.id] || 'final';
-                              if (eventId) {
-                                sendHytekResultsMutation.mutate({
-                                  deviceId: selectedDevice.id,
-                                  eventId,
-                                  pagingLines: lines,
-                                  round,
-                                });
-                              }
+                              sendHytekResultsMutation.mutate({
+                                deviceId: selectedDevice.id,
+                                eventId: item.eventId,
+                                pagingLines: lines,
+                                round: item.round,
+                              });
                             }}
-                            disabled={!selectedHytekEvent[selectedDevice.id] || sendHytekResultsMutation.isPending}
+                            disabled={!selectedHytekItem[selectedDevice.id] || sendHytekResultsMutation.isPending}
                             className="w-full"
                             data-testid="button-send-hytek"
                           >
