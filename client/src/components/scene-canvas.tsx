@@ -639,7 +639,6 @@ export function SceneObjectRenderer({
           ? `${numericTextFontSize}px` 
           : (numericTextFontSize === 'xlarge' ? '48px' : numericTextFontSize === 'large' ? '36px' : numericTextFontSize === 'medium' ? '24px' : '18px');
         
-        // Team Score Badges: render a row of event name badges
         if (fieldKey === 'team-score-badges' && liveData?.scoredEventNames) {
           const badgeNames: string[] = Array.isArray(liveData.scoredEventNames) ? liveData.scoredEventNames : [];
           const badgeColor = componentConfig.textColor || styleConfig.textColor || "hsl(var(--display-fg))";
@@ -648,20 +647,20 @@ export function SceneObjectRenderer({
             : 12;
           return (
             <div 
-              className="flex items-center h-full px-2 overflow-hidden"
-              style={{ justifyContent, flexWrap: 'wrap', gap: '4px', alignContent: 'center' }}
+              className="flex items-center h-full px-2"
+              style={{ justifyContent, flexWrap: 'wrap', gap: '4px', alignContent: 'center', overflow: 'hidden' }}
             >
               {badgeNames.map((name, i) => (
                 <span
                   key={i}
                   className="inline-flex items-center rounded font-semibold whitespace-nowrap"
                   style={{
-                    backgroundColor: 'rgba(255,255,255,0.15)',
+                    backgroundColor: 'hsl(var(--display-accent) / 0.2)',
                     color: badgeColor,
                     fontSize: `${badgeFontSize}px`,
                     padding: `${Math.max(1, badgeFontSize * 0.2)}px ${Math.max(3, badgeFontSize * 0.5)}px`,
                     lineHeight: 1.3,
-                    border: `1px solid rgba(255,255,255,0.25)`,
+                    border: '1px solid hsl(var(--display-accent) / 0.4)',
                   }}
                 >
                   {name}

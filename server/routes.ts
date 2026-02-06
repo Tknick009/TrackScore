@@ -89,6 +89,75 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { APP_VERSION, VERSION_DATE, RELEASE_NOTES } from '@shared/version';
 
+function abbreviateEventName(name: string): string {
+  const n = name.trim();
+  const tail = '(\\s+(Dash|Run|Race))?';
+
+  if (/Shuttle\s+Hurdle\s+Relay/i.test(n)) return 'SHR';
+  if (/Distance\s+Medley\s+Relay|^DMR$/i.test(n)) return 'DMR';
+  if (/Sprint\s+Medley\s+Relay|^SMR$/i.test(n)) return 'SMR';
+
+  if (/4\s*x\s*100/i.test(n)) return '4x1';
+  if (/4\s*x\s*200/i.test(n)) return '4x2';
+  if (/4\s*x\s*400/i.test(n)) return '4x4';
+  if (/4\s*x\s*800/i.test(n)) return '4x8';
+
+  if (new RegExp('^(2[,.]?000|2000)\\s*m?(eters?)?\\s+(Steeplechase|SC)', 'i').test(n)) return '2KSC';
+  if (new RegExp('^(3[,.]?000|3000)\\s*m?(eters?)?\\s+(Steeplechase|SC)', 'i').test(n)) return '3KSC';
+
+  if (new RegExp('^55\\s*m?(eters?)?\\s*H(urdles)?' + tail + '$', 'i').test(n)) return '55H';
+  if (new RegExp('^60\\s*m?(eters?)?\\s*H(urdles)?' + tail + '$', 'i').test(n)) return '60H';
+  if (new RegExp('^100\\s*m?(eters?)?\\s*H(urdles)?' + tail + '$', 'i').test(n)) return '100H';
+  if (new RegExp('^110\\s*m?(eters?)?\\s*H(urdles)?' + tail + '$', 'i').test(n)) return '110H';
+  if (new RegExp('^300\\s*m?(eters?)?\\s*H(urdles)?' + tail + '$', 'i').test(n)) return '300H';
+  if (new RegExp('^400\\s*m?(eters?)?\\s*H(urdles)?' + tail + '$', 'i').test(n)) return '400H';
+
+  if (new RegExp('^55\\s*(Meters?|m)?' + tail + '$', 'i').test(n)) return '55';
+  if (new RegExp('^60\\s*(Meters?|m)?' + tail + '$', 'i').test(n)) return '60';
+  if (new RegExp('^100\\s*(Meters?|m)?' + tail + '$', 'i').test(n)) return '100';
+  if (new RegExp('^200\\s*(Meters?|m)?' + tail + '$', 'i').test(n)) return '200';
+  if (new RegExp('^300\\s*(Meters?|m)?' + tail + '$', 'i').test(n)) return '300';
+  if (new RegExp('^400\\s*(Meters?|m)?' + tail + '$', 'i').test(n)) return '400';
+  if (new RegExp('^500\\s*(Meters?|m)?' + tail + '$', 'i').test(n)) return '500';
+  if (new RegExp('^600\\s*(Meters?|m)?' + tail + '$', 'i').test(n)) return '600';
+  if (new RegExp('^800\\s*(Meters?|m)?' + tail + '$', 'i').test(n)) return '800';
+  if (new RegExp('^(1[,.]?000|1000)\\s*(Meters?|m)?' + tail + '$', 'i').test(n)) return '1K';
+  if (new RegExp('^(1[,.]?500|1500)\\s*(Meters?|m)?' + tail + '$', 'i').test(n)) return '1500';
+  if (new RegExp('^(1[,.]?600|1600)\\s*(Meters?|m)?' + tail + '$', 'i').test(n)) return '1600';
+  if (/^(1\s+)?Mile$/i.test(n)) return 'MILE';
+  if (new RegExp('^(3[,.]?000|3000)\\s*(Meters?|m)?' + tail + '$', 'i').test(n)) return '3K';
+  if (new RegExp('^(3[,.]?200|3200)\\s*(Meters?|m)?' + tail + '$', 'i').test(n)) return '3200';
+  if (new RegExp('^(5[,.]?000|5000)\\s*(Meters?|m)?' + tail + '$', 'i').test(n)) return '5K';
+  if (new RegExp('^(10[,.]?000|10000)\\s*(Meters?|m)?' + tail + '$', 'i').test(n)) return '10K';
+
+  if (/High\s+Jump|^HJ$/i.test(n)) return 'HJ';
+  if (/Pole\s+Vault|^PV$/i.test(n)) return 'PV';
+  if (/Long\s+Jump|^LJ$/i.test(n)) return 'LJ';
+  if (/Triple\s+Jump|^TJ$/i.test(n)) return 'TJ';
+  if (/Shot\s+Put|^SP$/i.test(n)) return 'SP';
+  if (/Discus/i.test(n)) return 'DIS';
+  if (/Javelin/i.test(n)) return 'JAV';
+  if (/Hammer/i.test(n)) return 'HT';
+  if (/Weight\s+Throw|^WT$/i.test(n)) return 'WT';
+
+  if (/Decathlon/i.test(n)) return 'DEC';
+  if (/Heptathlon/i.test(n)) return 'HEP';
+  if (/Pentathlon/i.test(n)) return 'PEN';
+
+  const rwMatch = n.match(/^(\d+[,.]?\d*)\s*(km|k|m)?\s*Race\s+Walk$/i);
+  if (rwMatch) {
+    const rawDist = rwMatch[1].replace(/[,.]/g, '');
+    const unit = (rwMatch[2] || '').toLowerCase();
+    const num = parseInt(rawDist, 10);
+    if (unit === 'km' || unit === 'k') return num + 'KRW';
+    if (num >= 1000) return Math.round(num / 1000) + 'KRW';
+    return num + 'RW';
+  }
+  if (/Race\s+Walk/i.test(n)) return 'RW';
+
+  return n.length > 8 ? n.substring(0, 8) : n;
+}
+
 // Check-in validation schemas
 const checkInSchema = z.object({
   operator: z.string().min(1),
@@ -2748,10 +2817,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .sort((a: any, b: any) => (a.eventNumber || 0) - (b.eventNumber || 0))
           .map((e: any) => {
             const raw = e.name || '';
-            return raw
+            const stripped = raw
               .replace(/^(Men'?s?|Women'?s?)\s+/i, '')
               .replace(/\s+/g, ' ')
               .trim();
+            return abbreviateEventName(stripped);
           })
           .filter((n: string) => n.length > 0);
       } catch (err) {
