@@ -739,29 +739,29 @@ export default function DisplayDevice() {
                 }
               }
               
-              setState(prev => ({
-                ...prev,
-                liveEventData: {
-                  eventNumber: data.eventNumber,
-                  eventName: data.eventName || prev.liveEventData?.eventName || '',
-                  heat: data.heat ?? prev.liveEventData?.heat,
-                  totalHeats: data.totalHeats ?? prev.liveEventData?.totalHeats,
-                  round: data.round ?? prev.liveEventData?.round,
-                  roundName: data.roundName ?? prev.liveEventData?.roundName,
-                  mode: data.mode,
-                  wind: data.wind,
-                  distance: data.distance || prev.liveEventData?.distance,
-                  // Keep previous entries if no new entries (prevents flash during mode transitions)
-                  entries: entries.length > 0 ? entries : (prev.liveEventData?.entries || []),
-                  // Pass through advancement formula for qualifier display (Q/q)
-                  advanceByPlace: data.advanceByPlace ?? prev.liveEventData?.advanceByPlace,
-                  advanceByTime: data.advanceByTime ?? prev.liveEventData?.advanceByTime,
-                  // Pass through multi-event info for points calculation
-                  isMultiEvent: data.isMultiEvent,
-                  eventType: data.eventType,
-                  gender: data.gender,
-                },
-              }));
+              setState(prev => {
+                const eventChanged = prev.liveEventData?.eventNumber !== data.eventNumber;
+                return {
+                  ...prev,
+                  liveEventData: {
+                    eventNumber: data.eventNumber,
+                    eventName: data.eventName || prev.liveEventData?.eventName || '',
+                    heat: data.heat ?? prev.liveEventData?.heat,
+                    totalHeats: data.totalHeats ?? prev.liveEventData?.totalHeats,
+                    round: data.round ?? prev.liveEventData?.round,
+                    roundName: eventChanged ? (data.roundName ?? 'Finals') : (data.roundName ?? prev.liveEventData?.roundName),
+                    mode: data.mode,
+                    wind: data.wind,
+                    distance: data.distance || prev.liveEventData?.distance,
+                    entries: entries.length > 0 ? entries : (prev.liveEventData?.entries || []),
+                    advanceByPlace: eventChanged ? (data.advanceByPlace ?? null) : (data.advanceByPlace ?? prev.liveEventData?.advanceByPlace),
+                    advanceByTime: eventChanged ? (data.advanceByTime ?? null) : (data.advanceByTime ?? prev.liveEventData?.advanceByTime),
+                    isMultiEvent: data.isMultiEvent,
+                    eventType: data.eventType,
+                    gender: data.gender,
+                  },
+                };
+              });
             }
           }
           
@@ -965,26 +965,29 @@ export default function DisplayDevice() {
             const data = message.data;
             if (data) {
               console.log(`[Display] Start list (${isBigBoardRef.current ? 'BIG BOARD' : 'standard'}): Event ${data.eventNumber}, Heat ${data.heat}, ${data.entries?.length || 0} entries`);
-              setState(prev => ({
-                ...prev,
-                liveEventData: {
-                  eventNumber: data.eventNumber,
-                  eventName: data.eventName || prev.liveEventData?.eventName || '',
-                  heat: data.heat,
-                  totalHeats: data.totalHeats || prev.liveEventData?.totalHeats,
-                  round: data.round || prev.liveEventData?.round,
-                  roundName: data.roundName ?? prev.liveEventData?.roundName,
-                  mode: 'start_list',
-                  entries: data.entries || [],
-                  wind: prev.liveEventData?.wind,
-                  distance: data.distance || prev.liveEventData?.distance,
-                  advanceByPlace: data.advanceByPlace ?? prev.liveEventData?.advanceByPlace,
-                  advanceByTime: data.advanceByTime ?? prev.liveEventData?.advanceByTime,
-                  isMultiEvent: data.isMultiEvent ?? prev.liveEventData?.isMultiEvent,
-                  eventType: data.eventType ?? prev.liveEventData?.eventType,
-                  gender: data.gender ?? prev.liveEventData?.gender,
-                },
-              }));
+              setState(prev => {
+                const eventChanged = prev.liveEventData?.eventNumber !== data.eventNumber;
+                return {
+                  ...prev,
+                  liveEventData: {
+                    eventNumber: data.eventNumber,
+                    eventName: data.eventName || prev.liveEventData?.eventName || '',
+                    heat: data.heat,
+                    totalHeats: data.totalHeats || prev.liveEventData?.totalHeats,
+                    round: data.round || prev.liveEventData?.round,
+                    roundName: eventChanged ? (data.roundName ?? 'Finals') : (data.roundName ?? prev.liveEventData?.roundName),
+                    mode: 'start_list',
+                    entries: data.entries || [],
+                    wind: prev.liveEventData?.wind,
+                    distance: data.distance || prev.liveEventData?.distance,
+                    advanceByPlace: eventChanged ? (data.advanceByPlace ?? null) : (data.advanceByPlace ?? prev.liveEventData?.advanceByPlace),
+                    advanceByTime: eventChanged ? (data.advanceByTime ?? null) : (data.advanceByTime ?? prev.liveEventData?.advanceByTime),
+                    isMultiEvent: data.isMultiEvent ?? (eventChanged ? undefined : prev.liveEventData?.isMultiEvent),
+                    eventType: data.eventType ?? (eventChanged ? undefined : prev.liveEventData?.eventType),
+                    gender: data.gender ?? (eventChanged ? undefined : prev.liveEventData?.gender),
+                  },
+                };
+              });
             }
           }
         } catch (e) {
