@@ -912,28 +912,28 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           preliminaryHeat: row.Pre_heat ? Number(row.Pre_heat) : null,
           preliminaryLane: row.Pre_lane ? Number(row.Pre_lane) : null,
           preliminaryMark: row.Pre_Time ? Number(row.Pre_Time) : null,
-          preliminaryPlace: row.Pre_place ? Number(row.Pre_place) : null,
+          preliminaryPlace: row.Pre_jdplace ? Number(row.Pre_jdplace) : (row.Pre_place ? Number(row.Pre_place) : null),
           preliminaryWind: row.Pre_wind ? Number(row.Pre_wind) : null,
           
           // Quarterfinal round
           quarterfinalHeat: row.Qtr_heat ? Number(row.Qtr_heat) : null,
           quarterfinalLane: row.Qtr_lane ? Number(row.Qtr_lane) : null,
           quarterfinalMark: row.Qtr_Time ? Number(row.Qtr_Time) : null,
-          quarterfinalPlace: row.Qtr_place ? Number(row.Qtr_place) : null,
+          quarterfinalPlace: row.Qtr_jdplace ? Number(row.Qtr_jdplace) : (row.Qtr_place ? Number(row.Qtr_place) : null),
           quarterfinalWind: row.Qtr_wind ? Number(row.Qtr_wind) : null,
           
           // Semifinal round
           semifinalHeat: row.Sem_heat ? Number(row.Sem_heat) : null,
           semifinalLane: row.Sem_lane ? Number(row.Sem_lane) : null,
           semifinalMark: row.Sem_Time ? Number(row.Sem_Time) : null,
-          semifinalPlace: row.Sem_place ? Number(row.Sem_place) : null,
+          semifinalPlace: row.Sem_jdplace ? Number(row.Sem_jdplace) : (row.Sem_place ? Number(row.Sem_place) : null),
           semifinalWind: row.Sem_wind ? Number(row.Sem_wind) : null,
           
           // Final round
           finalHeat: row.Fin_heat ? Number(row.Fin_heat) : null,
           finalLane: row.Fin_lane ? Number(row.Fin_lane) : null,
           finalMark: row.Fin_Time ? Number(row.Fin_Time) : null,
-          finalPlace: row.Fin_place ? Number(row.Fin_place) : null,
+          finalPlace: row.Fin_jdplace ? Number(row.Fin_jdplace) : (row.Fin_place ? Number(row.Fin_place) : null),
           finalWind: row.Fin_wind ? Number(row.Fin_wind) : null,
           
           // Flags (proper boolean parsing)
@@ -945,30 +945,41 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       }
       
       if (entryBatch.length > 0) {
-        // CRITICAL: Only update registration data, NEVER result data
-        // This prevents MDB imports from overwriting timing system results
         await db.insert(entries).values(entryBatch)
           .onConflictDoUpdate({
             target: [entries.eventId, entries.athleteId],
             set: {
-              // Update registration data only
               seedMark: sql`excluded.seed_mark`,
               resultType: sql`excluded.result_type`,
               teamId: sql`excluded.team_id`,
               divisionId: sql`excluded.division_id`,
               
-              // Update heat/lane assignments (these may change before event starts)
               preliminaryHeat: sql`excluded.preliminary_heat`,
               preliminaryLane: sql`excluded.preliminary_lane`,
+              preliminaryMark: sql`excluded.preliminary_mark`,
+              preliminaryPlace: sql`excluded.preliminary_place`,
+              preliminaryWind: sql`excluded.preliminary_wind`,
+              
               quarterfinalHeat: sql`excluded.quarterfinal_heat`,
               quarterfinalLane: sql`excluded.quarterfinal_lane`,
+              quarterfinalMark: sql`excluded.quarterfinal_mark`,
+              quarterfinalPlace: sql`excluded.quarterfinal_place`,
+              quarterfinalWind: sql`excluded.quarterfinal_wind`,
+              
               semifinalHeat: sql`excluded.semifinal_heat`,
               semifinalLane: sql`excluded.semifinal_lane`,
+              semifinalMark: sql`excluded.semifinal_mark`,
+              semifinalPlace: sql`excluded.semifinal_place`,
+              semifinalWind: sql`excluded.semifinal_wind`,
+              
               finalHeat: sql`excluded.final_heat`,
               finalLane: sql`excluded.final_lane`,
+              finalMark: sql`excluded.final_mark`,
+              finalPlace: sql`excluded.final_place`,
+              finalWind: sql`excluded.final_wind`,
               
-              // DO NOT UPDATE: marks, places, wind readings - these come from timing system only
-              // This ensures timing system results are never overwritten by MDB imports
+              isDisqualified: sql`excluded.is_disqualified`,
+              isScratched: sql`excluded.is_scratched`,
             }
           });
         imported += entryBatch.length;
