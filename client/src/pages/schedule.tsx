@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Event } from "@shared/schema";
+import { Event, TeamStandingsEntry } from "@shared/schema";
 import { useMeet } from "@/contexts/MeetContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Calendar, Clock, Timer, Target, ArrowUpDown, Edit2, Check, X } from "lucide-react";
+import { Calendar, Clock, Timer, Target, ArrowUpDown, Edit2, Check, X, Trophy } from "lucide-react";
 import { Link } from "wouter";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -202,6 +202,12 @@ export default function Schedule() {
     queryFn: currentMeetId 
       ? () => fetch(`/api/events?meetId=${currentMeetId}`).then(r => r.json())
       : undefined,
+    enabled: !!currentMeetId,
+  });
+
+  const { data: teamStandings = [] } = useQuery<TeamStandingsEntry[]>({
+    queryKey: ["/api/public/meets", currentMeetId, "team-standings"],
+    queryFn: () => fetch(`/api/public/meets/${currentMeetId}/team-standings`).then(r => r.json()),
     enabled: !!currentMeetId,
   });
 
@@ -416,6 +422,37 @@ export default function Schedule() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {teamStandings.length > 0 && (
+          <div className="mt-6">
+            <div className="flex items-center gap-2 mb-3">
+              <Trophy className="w-5 h-5 text-muted-foreground" />
+              <h2 className="text-lg font-semibold">Team Scores</h2>
+            </div>
+            <div className="rounded-md border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-muted/50">
+                    <th className="text-left px-4 py-2 font-medium w-12">#</th>
+                    <th className="text-left px-4 py-2 font-medium">Team</th>
+                    <th className="text-right px-4 py-2 font-medium w-20">Events</th>
+                    <th className="text-right px-4 py-2 font-medium w-24">Points</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {teamStandings.map((team, index) => (
+                    <tr key={team.teamId} className={index % 2 === 0 ? '' : 'bg-muted/20'} data-testid={`row-team-${team.teamId}`}>
+                      <td className="px-4 py-2 text-muted-foreground">{team.rank}</td>
+                      <td className="px-4 py-2 font-medium">{team.teamName}</td>
+                      <td className="px-4 py-2 text-right text-muted-foreground">{team.eventCount}</td>
+                      <td className="px-4 py-2 text-right font-semibold">{team.totalPoints}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </ScrollArea>
