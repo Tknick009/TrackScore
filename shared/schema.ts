@@ -288,6 +288,8 @@ export const meets = pgTable("meets", {
   secondaryColor: text("secondary_color").default("#003366"), // Secondary/gradient color
   accentColor: text("accent_color").default("#FFD700"), // Highlight/accent color (times, places)
   textColor: text("text_color").default("#FFFFFF"), // Primary text color
+  indMaxScorersPerTeam: integer("ind_max_scorers_per_team").default(0),
+  relMaxScorersPerTeam: integer("rel_max_scorers_per_team").default(0),
 }, (table) => ({
   meetCodeIdx: index("meet_code_idx").on(table.meetCode),
   seasonIdIdx: index("meets_season_id_idx").on(table.seasonId),
@@ -1404,6 +1406,19 @@ export const teamScoringResults = pgTable("team_scoring_results", {
   computedAt: timestamp("computed_at").defaultNow(),
 }, (table) => ({
   profileTeamIdx: index("team_scoring_results_profile_team").on(table.profileId, table.teamId),
+}));
+
+// Meet Scoring Rules (imported directly from HyTek MDB Scoring table)
+export const meetScoringRules = pgTable("meet_scoring_rules", {
+  id: serial("id").primaryKey(),
+  meetId: varchar("meet_id").notNull().references(() => meets.id, { onDelete: "cascade" }),
+  gender: text("gender").notNull(),
+  place: integer("place").notNull(),
+  indScore: real("ind_score").notNull().default(0),
+  relScore: real("rel_score").notNull().default(0),
+  combevtScore: real("combevt_score").notNull().default(0),
+}, (table) => ({
+  meetGenderPlaceUnique: unique("meet_scoring_rules_meet_gender_place").on(table.meetId, table.gender, table.place),
 }));
 
 // Wind Readings (IAAF rules: winds >+2.0 m/s make results ineligible for records)
