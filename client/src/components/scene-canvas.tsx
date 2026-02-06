@@ -255,6 +255,7 @@ export function SceneObjectRenderer({
   // Fade TEXT only for entries without timing data (50% opacity until first split)
   // Only applies during active running modes - not during armed/start_list or results
   // The box/background stays fully visible, only the text fades
+  // Exception: unused row slots (no entry at index) always fade at 50% in ANY mode
   let textFadeOpacity = 1; // Default to full opacity
   const rawAthleteIndex = dataBinding.athleteIndex;
   const pageOffset = (pageIndex || 0) * (pageSize || 8);
@@ -263,12 +264,12 @@ export function SceneObjectRenderer({
   const isResultsMode = mode === 'results' || mode === 'finished';
   const isPreRaceMode = mode === 'armed' || mode === 'start_list' || mode === '';
   
-  // Apply fade logic only during active running modes (not pre-race or results)
-  if (athleteIndex !== undefined && athleteIndex >= 0 && liveData && !isResultsMode && !isPreRaceMode) {
+  if (athleteIndex !== undefined && athleteIndex >= 0 && liveData) {
     const entries = Array.isArray(liveData.entries) ? liveData.entries : [];
     const entry = entries[athleteIndex];
-    if (entry) {
-      // Check if entry has any timing data (splits, time, running time, or place)
+    if (!entry) {
+      textFadeOpacity = 0.5;
+    } else if (!isResultsMode && !isPreRaceMode) {
       const hasLastSplit = entry.lastSplit && String(entry.lastSplit).trim() !== '';
       const hasCumulativeSplit = entry.cumulativeSplit && String(entry.cumulativeSplit).trim() !== '';
       const hasTime = entry.time && String(entry.time).trim() !== '';
@@ -276,9 +277,6 @@ export function SceneObjectRenderer({
       const hasPlace = entry.place && String(entry.place).trim() !== '';
       const hasTimingData = hasLastSplit || hasCumulativeSplit || hasTime || hasRunningTime || hasPlace;
       textFadeOpacity = hasTimingData ? 1 : 0.5;
-    } else {
-      // Entry doesn't exist at this index - fade it
-      textFadeOpacity = 0.5;
     }
   }
   
