@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { useMeet } from '@/contexts/MeetContext';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { 
   Monitor, 
   Wifi, 
@@ -30,7 +31,8 @@ import {
   Timer,
   Trophy,
   Database,
-  ChevronRight
+  ChevronRight,
+  Search
 } from 'lucide-react';
 import { DISPLAY_CONTENT_TYPES } from '@shared/layout-templates';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -99,6 +101,7 @@ export default function DisplayControlPage() {
   const [selectedHytekEvent, setSelectedHytekEvent] = useState<Record<string, string>>({});
   // Paging size for Hytek and Team Scores modes (lines = seconds)
   const [pagingLines, setPagingLines] = useState<Record<string, number>>({});
+  const [eventSearch, setEventSearch] = useState('');
 
   const baseUrl = typeof window !== 'undefined' 
     ? `${window.location.protocol}//${window.location.host}` 
@@ -114,6 +117,34 @@ export default function DisplayControlPage() {
     queryFn: () => fetch(`/api/events?meetId=${currentMeetId}`).then(r => r.json()),
     enabled: !!currentMeetId,
   });
+
+  const sortedFilteredEvents = useMemo(() => {
+    const parseTime = (t: string | null | undefined): number => {
+      if (!t) return 9999;
+      const match = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+      if (!match) return 9999;
+      let hours = parseInt(match[1], 10);
+      const minutes = parseInt(match[2], 10);
+      const period = match[3].toUpperCase();
+      if (period === 'AM' && hours === 12) hours = 0;
+      else if (period === 'PM' && hours !== 12) hours += 12;
+      return hours * 60 + minutes;
+    };
+
+    const sorted = [...events].sort((a, b) => {
+      const timeDiff = parseTime(a.eventTime) - parseTime(b.eventTime);
+      if (timeDiff !== 0) return timeDiff;
+      return (a.eventNumber || 0) - (b.eventNumber || 0);
+    });
+
+    if (!eventSearch.trim()) return sorted;
+    const q = eventSearch.toLowerCase();
+    return sorted.filter(e =>
+      e.name.toLowerCase().includes(q) ||
+      (e.eventTime && e.eventTime.toLowerCase().includes(q)) ||
+      String(e.eventNumber).includes(q)
+    );
+  }, [events, eventSearch]);
 
   const assignEventMutation = useMutation({
     mutationFn: async ({ deviceId, eventId }: { deviceId: string; eventId: string | null }) => {
@@ -698,26 +729,40 @@ export default function DisplayControlPage() {
                         <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
                           <div className="space-y-2">
                             <Label>Select Event</Label>
-                            <Select
-                              value={selectedHytekEvent[selectedDevice.id] || ''}
-                              onValueChange={(value) => {
-                                setSelectedHytekEvent(prev => ({ ...prev, [selectedDevice.id]: value }));
-                              }}
-                            >
-                              <SelectTrigger data-testid="select-hytek-event">
-                                <SelectValue placeholder="Choose an event to display" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {events.map(event => (
-                                  <SelectItem key={event.id} value={event.id}>
-                                    <span className="flex items-center gap-2 w-full">
+                            <div className="relative">
+                              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                              <Input
+                                placeholder="Search events..."
+                                value={eventSearch}
+                                onChange={(e) => setEventSearch(e.target.value)}
+                                className="pl-8"
+                                data-testid="input-event-search"
+                              />
+                            </div>
+                            <ScrollArea className="h-48 rounded-md border">
+                              <div className="p-1">
+                                {sortedFilteredEvents.length === 0 && (
+                                  <p className="text-sm text-muted-foreground p-2">No events found</p>
+                                )}
+                                {sortedFilteredEvents.map(event => {
+                                  const isSelected = selectedHytekEvent[selectedDevice.id] === event.id;
+                                  return (
+                                    <button
+                                      key={event.id}
+                                      onClick={() => setSelectedHytekEvent(prev => ({ ...prev, [selectedDevice.id]: event.id }))}
+                                      className={`flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded-md cursor-pointer hover-elevate ${isSelected ? 'bg-accent' : ''}`}
+                                      data-testid={`button-event-${event.id}`}
+                                    >
+                                      {event.eventTime && (
+                                        <span className="text-muted-foreground shrink-0 w-16 text-xs">{event.eventTime}</span>
+                                      )}
                                       <span className="truncate">{event.name}</span>
                                       <EventStatusBadge event={event} />
-                                    </span>
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </ScrollArea>
                           </div>
 
                           <div className="space-y-2">
