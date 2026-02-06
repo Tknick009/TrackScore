@@ -2159,7 +2159,7 @@ export class DatabaseStorage implements IStorage {
     return newResult;
   }
 
-  // Team Standings Query
+  // Team Standings Query - computes on the fly from scored events
   async getTeamStandings(
     meetId: string,
     scope?: { gender?: string; division?: string }
@@ -2169,74 +2169,87 @@ export class DatabaseStorage implements IStorage {
       return [];
     }
 
-    // Build WHERE conditions based on scope
-    const conditions = [eq(teamScoringResults.profileId, profile.id)];
-    
+    const rules = await db
+      .select({ place: presetRules.place, points: presetRules.points })
+      .from(presetRules)
+      .where(and(eq(presetRules.presetId, profile.presetId), eq(presetRules.isRelayOverride, false)))
+      .orderBy(presetRules.place);
+
+    const pointsMap = new Map<number, number>();
+    for (const rule of rules) {
+      pointsMap.set(rule.place, rule.points);
+    }
+
+    const scoredEventsConditions = [
+      eq(events.meetId, meetId),
+      eq(events.isScored, true),
+    ];
     if (scope?.gender) {
-      conditions.push(eq(teamScoringResults.gender, scope.gender));
-    }
-    
-    if (scope?.division) {
-      conditions.push(eq(teamScoringResults.division, scope.division));
+      scoredEventsConditions.push(eq(events.gender, scope.gender));
     }
 
-    // Query with proper SQL aggregation
-    const results = await db
-      .select({
-        teamId: teamScoringResults.teamId,
-        teamName: teams.name,
-        totalPoints: sql<number>`COALESCE(SUM(${teamScoringResults.pointsAwarded}), 0)`,
-        eventCount: sql<number>`COUNT(DISTINCT ${teamScoringResults.eventId})`,
-      })
-      .from(teamScoringResults)
-      .innerJoin(teams, eq(teamScoringResults.teamId, teams.id))
-      .where(and(...conditions))
-      .groupBy(teamScoringResults.teamId, teams.name)
-      .orderBy(sql`COALESCE(SUM(${teamScoringResults.pointsAwarded}), 0) DESC`);
+    const scoredEventsList = await db
+      .select({ id: events.id, name: events.name })
+      .from(events)
+      .where(and(...scoredEventsConditions));
 
-    // Get event breakdown for each team separately (can't aggregate in GROUP BY)
-    const standingsWithBreakdown = await Promise.all(
-      results.map(async (result, index) => {
-        const breakdownConditions = [
-          eq(teamScoringResults.profileId, profile.id),
-          eq(teamScoringResults.teamId, result.teamId)
-        ];
-        
-        if (scope?.gender) {
-          breakdownConditions.push(eq(teamScoringResults.gender, scope.gender));
+    if (scoredEventsList.length === 0) return [];
+
+    const teamScores = new Map<string, { teamName: string; totalPoints: number; events: Map<string, { eventName: string; points: number }> }>();
+
+    for (const evt of scoredEventsList) {
+      const eventEntries = await db
+        .select({
+          finalPlace: entries.finalPlace,
+          teamId: athletes.teamId,
+          teamName: teams.name,
+        })
+        .from(entries)
+        .innerJoin(athletes, eq(entries.athleteId, athletes.id))
+        .leftJoin(teams, eq(athletes.teamId, teams.id))
+        .where(and(
+          eq(entries.eventId, evt.id),
+          isNotNull(entries.finalPlace),
+          isNotNull(athletes.teamId),
+        ))
+        .orderBy(entries.finalPlace);
+
+      for (const entry of eventEntries) {
+        if (!entry.teamId || !entry.teamName || !entry.finalPlace) continue;
+        const pts = pointsMap.get(entry.finalPlace) || 0;
+        if (pts === 0) continue;
+
+        if (!teamScores.has(entry.teamId)) {
+          teamScores.set(entry.teamId, { teamName: entry.teamName, totalPoints: 0, events: new Map() });
         }
-        
-        if (scope?.division) {
-          breakdownConditions.push(eq(teamScoringResults.division, scope.division));
+        const team = teamScores.get(entry.teamId)!;
+        team.totalPoints += pts;
+
+        const existing = team.events.get(evt.id);
+        if (existing) {
+          existing.points += pts;
+        } else {
+          team.events.set(evt.id, { eventName: evt.name, points: pts });
         }
+      }
+    }
 
-        const breakdownRows = await db
-          .select({ eventBreakdown: teamScoringResults.eventBreakdown })
-          .from(teamScoringResults)
-          .where(and(...breakdownConditions));
+    const standings: TeamStandingsEntry[] = Array.from(teamScores.entries())
+      .sort((a, b) => b[1].totalPoints - a[1].totalPoints)
+      .map(([teamId, data], index) => ({
+        rank: index + 1,
+        teamId,
+        teamName: data.teamName,
+        totalPoints: data.totalPoints,
+        eventCount: data.events.size,
+        eventBreakdown: Array.from(data.events.entries()).map(([eventId, e]) => ({
+          eventId,
+          eventName: e.eventName,
+          points: e.points,
+        })),
+      }));
 
-        const allBreakdowns: any[] = [];
-        for (const row of breakdownRows) {
-          if (row.eventBreakdown) {
-            const breakdown = typeof row.eventBreakdown === 'string' 
-              ? JSON.parse(row.eventBreakdown) 
-              : row.eventBreakdown;
-            allBreakdowns.push(...(breakdown as any[]));
-          }
-        }
-
-        return {
-          rank: index + 1,
-          teamId: result.teamId,
-          teamName: result.teamName,
-          totalPoints: result.totalPoints,
-          eventCount: result.eventCount,
-          eventBreakdown: allBreakdowns,
-        };
-      })
-    );
-
-    return standingsWithBreakdown;
+    return standings;
   }
 
   // Recalculate Team Scoring
