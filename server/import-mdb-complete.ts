@@ -22,10 +22,10 @@ export interface MDBEvent {
   Event_stroke?: string;
   Ind_rel?: string;
   Comm_1?: string;
+  Trk_Field?: string;
 }
 
 export function generateEventName(mdbEvent: MDBEvent): string {
-  // Normalize gender (handle uppercase, lowercase, and word variants)
   const normalizedGender = (mdbEvent.Event_sex || mdbEvent.Event_gender || '')
     .toString()
     .toLowerCase()
@@ -45,8 +45,16 @@ export function generateEventName(mdbEvent: MDBEvent): string {
   }
   
   const distance = mdbEvent.Event_dist || 0;
-  const stroke = mdbEvent.Event_stroke || "";
+  const stroke = (mdbEvent.Event_stroke || "").trim();
   const isRelay = (mdbEvent.Ind_rel || '').toString().toUpperCase() === 'R';
+  const trkField = (mdbEvent.Trk_Field || "T").trim().toUpperCase();
+  
+  if (trkField === 'M') {
+    if (stroke === '1') return `${genderPrefix} Decathlon`;
+    if (stroke === '2') return `${genderPrefix} Heptathlon`;
+    if (stroke === '3') return `${genderPrefix} Pentathlon`;
+    return `${genderPrefix} Combined Event`;
+  }
   
   if (isRelay) {
     if (distance === 400) return `${genderPrefix} 4x100m Relay`;
@@ -54,6 +62,13 @@ export function generateEventName(mdbEvent: MDBEvent): string {
     if (distance === 1600) return `${genderPrefix} 4x400m Relay`;
     if (distance === 3200) return `${genderPrefix} 4x800m Relay`;
     return `${genderPrefix} ${distance}m Relay`;
+  }
+  
+  if (stroke === 'C') {
+    if (distance === 1) return `${genderPrefix} Mile`;
+    if (distance === 2) return `${genderPrefix} 2 Mile`;
+    if (distance === 3) return `${genderPrefix} 3 Mile`;
+    return `${genderPrefix} Cross Country`;
   }
   
   if (distance === 0) {
@@ -66,14 +81,19 @@ export function generateEventName(mdbEvent: MDBEvent): string {
       case "P": return `${genderPrefix} Pole Vault`;
       case "Q": return `${genderPrefix} Javelin`;
       case "R": return `${genderPrefix} Triple Jump`;
+      case "S": return `${genderPrefix} Weight Throw`;
       default: return `${genderPrefix} Field Event`;
     }
+  }
+  
+  if (stroke === 'H' && distance >= 2000) {
+    return `${genderPrefix} ${distance}m Steeplechase`;
   }
   
   let eventTypeText = "";
   switch (stroke) {
     case "A":
-      eventTypeText = "Dash";
+      eventTypeText = distance <= 400 ? "Dash" : "Run";
       break;
     case "B":
       eventTypeText = "Run";
