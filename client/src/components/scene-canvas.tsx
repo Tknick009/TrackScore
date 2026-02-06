@@ -414,7 +414,7 @@ export function SceneObjectRenderer({
             const eventNameLower = currentEventName.toLowerCase();
             const isRelayOrMedley = eventNameLower.includes('relay') || eventNameLower.includes('medley');
             const schoolName = isRelayOrMedley 
-              ? ((firstEntry?.name || firstEntry?.affiliation || firstEntry?.team || '').substring(4).trim() || firstEntry?.affiliation || firstEntry?.team)
+              ? (firstEntry?.name || firstEntry?.affiliation || firstEntry?.team)
               : (firstEntry?.affiliation || firstEntry?.team);
             if (schoolName) {
               logoUrl = `/logos/NCAA/${schoolName}.png`;
@@ -595,7 +595,7 @@ export function SceneObjectRenderer({
             : formatName(firstEntry?.firstName, firstEntry?.lastName, firstEntry?.name);
           
           const schoolDisplay = isRelayOrMedleyText
-            ? ((firstEntry?.name || firstEntry?.affiliation || firstEntry?.team || '').substring(4).trim() || firstEntry?.affiliation || firstEntry?.team)
+            ? (firstEntry?.affiliation || firstEntry?.team || '').substring(4).trim()
             : (firstEntry?.affiliation || firstEntry?.team);
           
           const fieldMap: Record<string, any> = {
