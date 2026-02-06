@@ -106,12 +106,16 @@ export function startHytekMdbWatcher(meetId: string, mdbDirectory: string): { su
   }
 
   if (!fs.existsSync(mdbDirectory)) {
-    return { success: false, error: `Directory not found: ${mdbDirectory}` };
+    return { success: false, error: `Path not found: ${mdbDirectory}` };
   }
 
   const stat = fs.statSync(mdbDirectory);
   if (!stat.isDirectory()) {
-    return { success: false, error: `Path is not a directory: ${mdbDirectory}` };
+    if (stat.isFile() && mdbDirectory.toLowerCase().endsWith('.mdb')) {
+      mdbDirectory = path.dirname(mdbDirectory);
+    } else {
+      return { success: false, error: `Path is not a directory or .mdb file: ${mdbDirectory}` };
+    }
   }
 
   const watcher = chokidar.watch(mdbDirectory, {
@@ -176,12 +180,15 @@ export function stopAllHytekMdbWatchers(): void {
   console.log('[HyTek MDB Watcher] All watchers stopped');
 }
 
-export function getActiveHytekMdbWatchers(): { meetId: string; mdbDirectory: string; lastImportAt: string | null }[] {
-  const result: { meetId: string; mdbDirectory: string; lastImportAt: string | null }[] = [];
+export function getActiveHytekMdbWatchers(): { meetId: string; mdbDirectory: string; mdbFileName: string | null; mdbFilePath: string | null; lastImportAt: string | null }[] {
+  const result: { meetId: string; mdbDirectory: string; mdbFileName: string | null; mdbFilePath: string | null; lastImportAt: string | null }[] = [];
   watchers.forEach((state, meetId) => {
+    const mdbFile = findMdbFile(state.mdbDirectory);
     result.push({
       meetId,
       mdbDirectory: state.mdbDirectory,
+      mdbFileName: mdbFile ? path.basename(mdbFile) : null,
+      mdbFilePath: mdbFile || null,
       lastImportAt: state.lastImportAt?.toISOString() || null,
     });
   });

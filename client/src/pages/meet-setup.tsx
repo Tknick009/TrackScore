@@ -816,7 +816,7 @@ export default function MeetSetup() {
               />
             </div>
             <p className="text-sm text-muted-foreground">
-              Full path to the directory containing your HyTek .mdb file (e.g., C:\Hy-Tek\TFMeet\)
+              Full path to the directory or .mdb file (e.g., C:\Hy-Tek\TFMeet\ or C:\Hy-Tek\TFMeet\DB.mdb)
             </p>
           </div>
           
@@ -826,6 +826,26 @@ export default function MeetSetup() {
                 <Check className="w-4 h-4" />
                 <span>Watcher active - monitoring for changes</span>
               </div>
+              {mdbWatcherInfo?.mdbFileName && (
+                <div className="ml-6 space-y-0.5">
+                  <p className="text-xs text-muted-foreground">
+                    MDB File: <span className="font-mono font-medium text-foreground">{mdbWatcherInfo.mdbFileName}</span>
+                  </p>
+                  {mdbWatcherInfo.mdbFilePath && (
+                    <p
+                      className="text-xs text-muted-foreground font-mono cursor-pointer hover-elevate rounded px-1 py-0.5 inline-block"
+                      onClick={() => {
+                        navigator.clipboard.writeText(mdbWatcherInfo.mdbFilePath!);
+                        toast({ title: "Path copied to clipboard" });
+                      }}
+                      title="Click to copy full path"
+                      data-testid="text-mdb-filepath"
+                    >
+                      {mdbWatcherInfo.mdbFilePath}
+                    </p>
+                  )}
+                </div>
+              )}
               {mdbWatcherInfo?.lastImportAt && (
                 <p className="text-xs text-muted-foreground ml-6">
                   Last import: {new Date(mdbWatcherInfo.lastImportAt).toLocaleString()}
