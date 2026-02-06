@@ -2655,21 +2655,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         if (device.meetId) {
           try {
-            const roundModeMap: Record<string, string> = {
-              preliminary: 'hytek_prelims',
-              quarterfinal: 'hytek_prelims',
-              semifinal: 'hytek_semis',
-              final: 'hytek_finals',
-            };
-            const roundSpecificMode = roundModeMap[selectedRound];
-            
-            let mapping = roundSpecificMode
-              ? await storage.getSceneTemplateMappingByTypeAndMode(device.meetId, displayType, roundSpecificMode)
-              : null;
-            
-            if (!mapping) {
-              mapping = await storage.getSceneTemplateMappingByTypeAndMode(device.meetId, displayType, 'hytek_results');
-            }
+            let mapping = await storage.getSceneTemplateMappingByTypeAndMode(device.meetId, displayType, 'hytek_results');
             if (!mapping) {
               mapping = await storage.getSceneTemplateMappingByTypeAndMode(device.meetId, displayType, 'track_results');
             }
