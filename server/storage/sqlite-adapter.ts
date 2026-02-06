@@ -995,6 +995,9 @@ export class SQLiteStorage implements IStorage {
       sessionName: row.session_name,
       hytekStatus: row.hytek_status,
       isScored: this.toBoolean(row.is_scored),
+      advanceByPlace: row.advance_by_place ?? null,
+      advanceByTime: row.advance_by_time ?? null,
+      isMultiEvent: this.toBoolean(row.is_multi_event),
       lastResultSource: row.last_result_source,
       lastResultAt: row.last_result_at ? new Date(row.last_result_at) : null,
     };
