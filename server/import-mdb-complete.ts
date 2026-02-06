@@ -1,7 +1,7 @@
 import { readFileSync } from "fs";
 import MDBReader from "mdb-reader";
 import { db } from "./db";
-import { meets, teams, divisions, athletes, events, entries, entrySplits } from "@shared/schema";
+import { meets, teams, divisions, athletes, events, entries, entrySplits, meetScoringRules } from "@shared/schema";
 import { sql } from "drizzle-orm";
 import { parseComm1 } from "./parse-comm1";
 
@@ -987,6 +987,86 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
     console.error("   ❌ Error importing entries:", error);
   }
   
+  // ===========================
+  // 6. IMPORT SCORING RULES FROM MDB
+  // ===========================
+  console.log("\n🏆 Importing Scoring Rules...");
+  try {
+    const scoringTable = reader.getTable("Scoring");
+    const scoringData = scoringTable.getData();
+    console.log(`   📊 Scoring table has ${scoringData.length} rows`);
+
+    const meetTable = reader.getTable("Meet");
+    const meetRow = meetTable.getData()[0] as any;
+    const diffPtsGender = Boolean(Number(meetRow?.diffpts_malefemale || 0));
+    const indMaxScorers = meetRow?.indmaxscorers_perteam != null ? Number(meetRow.indmaxscorers_perteam) : 0;
+    const relMaxScorers = meetRow?.relmaxscorers_perteam != null ? Number(meetRow.relmaxscorers_perteam) : 0;
+
+    console.log(`   ⚙️  Different points per gender: ${diffPtsGender}`);
+    console.log(`   ⚙️  Ind max scorers/team: ${indMaxScorers}, Relay max scorers/team: ${relMaxScorers}`);
+
+    await db.update(meets).set({
+      indMaxScorersPerTeam: indMaxScorers,
+      relMaxScorersPerTeam: relMaxScorers,
+    }).where(sql`${meets.id} = ${meetId}`);
+
+    await db.delete(meetScoringRules).where(sql`${meetScoringRules.meetId} = ${meetId}`);
+
+    const ruleBatch: { meetId: string; gender: string; place: number; indScore: number; relScore: number; combevtScore: number }[] = [];
+
+    if (diffPtsGender) {
+      for (const row of scoringData) {
+        const indScore = Number(row.ind_score || 0);
+        const relScore = Number(row.rel_score || 0);
+        const combevtScore = Number(row.combevt_score || 0);
+        if (indScore === 0 && relScore === 0 && combevtScore === 0) continue;
+        const gender = String(row.score_sex || "").toUpperCase();
+        if (gender !== "M" && gender !== "F") continue;
+        ruleBatch.push({
+          meetId,
+          gender,
+          place: Number(row.score_place),
+          indScore,
+          relScore,
+          combevtScore,
+        });
+      }
+    } else {
+      const maleRows = scoringData.filter((r: any) => String(r.score_sex || "").toUpperCase() === "M");
+      for (const row of maleRows) {
+        const indScore = Number(row.ind_score || 0);
+        const relScore = Number(row.rel_score || 0);
+        const combevtScore = Number(row.combevt_score || 0);
+        if (indScore === 0 && relScore === 0 && combevtScore === 0) continue;
+        ruleBatch.push({
+          meetId,
+          gender: "ALL",
+          place: Number(row.score_place),
+          indScore,
+          relScore,
+          combevtScore,
+        });
+      }
+    }
+
+    if (ruleBatch.length > 0) {
+      await db.insert(meetScoringRules).values(ruleBatch)
+        .onConflictDoUpdate({
+          target: [meetScoringRules.meetId, meetScoringRules.gender, meetScoringRules.place],
+          set: {
+            indScore: sql`excluded.ind_score`,
+            relScore: sql`excluded.rel_score`,
+            combevtScore: sql`excluded.combevt_score`,
+          },
+        });
+      console.log(`   ✅ Imported ${ruleBatch.length} scoring rules`);
+    } else {
+      console.log("   ⚠️  No non-zero scoring rules found");
+    }
+  } catch (error) {
+    console.log("   ⚠️  Scoring table not found or could not be read:", (error as Error).message);
+  }
+
   console.log("\n✅ IMPORT COMPLETE!\n");
   console.log("Summary:");
   console.log(`  - Teams: ${stats.teams}`);

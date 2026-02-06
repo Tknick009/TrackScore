@@ -122,6 +122,7 @@ import {
   meetScoringOverrides,
   meetScoringState,
   teamScoringResults,
+  meetScoringRules,
   windReadings,
   fieldAttempts,
   judgeTokens,
@@ -2159,26 +2160,40 @@ export class DatabaseStorage implements IStorage {
     return newResult;
   }
 
-  // Team Standings Query - computes on the fly from scored events
+  // Team Standings Query - computes on the fly from scored events using MDB scoring rules
   async getTeamStandings(
     meetId: string,
     scope?: { gender?: string; division?: string }
   ): Promise<TeamStandingsEntry[]> {
-    const profile = await this.getMeetScoringProfile(meetId);
-    if (!profile) {
-      return [];
-    }
-
     const rules = await db
-      .select({ place: presetRules.place, points: presetRules.points })
-      .from(presetRules)
-      .where(and(eq(presetRules.presetId, profile.presetId), eq(presetRules.isRelayOverride, false)))
-      .orderBy(presetRules.place);
+      .select({
+        gender: meetScoringRules.gender,
+        place: meetScoringRules.place,
+        indScore: meetScoringRules.indScore,
+        relScore: meetScoringRules.relScore,
+      })
+      .from(meetScoringRules)
+      .where(eq(meetScoringRules.meetId, meetId))
+      .orderBy(meetScoringRules.place);
 
-    const pointsMap = new Map<number, number>();
+    if (rules.length === 0) return [];
+
+    const indPointsMap = new Map<string, Map<number, number>>();
+    const relPointsMap = new Map<string, Map<number, number>>();
     for (const rule of rules) {
-      pointsMap.set(rule.place, rule.points);
+      const g = rule.gender;
+      if (!indPointsMap.has(g)) indPointsMap.set(g, new Map());
+      if (!relPointsMap.has(g)) relPointsMap.set(g, new Map());
+      if (rule.indScore > 0) indPointsMap.get(g)!.set(rule.place, rule.indScore);
+      if (rule.relScore > 0) relPointsMap.get(g)!.set(rule.place, rule.relScore);
     }
+
+    const meetRecord = await db.select({
+      indMaxScorersPerTeam: meets.indMaxScorersPerTeam,
+      relMaxScorersPerTeam: meets.relMaxScorersPerTeam,
+    }).from(meets).where(eq(meets.id, meetId)).limit(1);
+    const indMaxScorers = meetRecord[0]?.indMaxScorersPerTeam || 0;
+    const relMaxScorers = meetRecord[0]?.relMaxScorersPerTeam || 0;
 
     const scoredEventsConditions = [
       eq(events.meetId, meetId),
@@ -2189,7 +2204,7 @@ export class DatabaseStorage implements IStorage {
     }
 
     const scoredEventsList = await db
-      .select({ id: events.id, name: events.name })
+      .select({ id: events.id, name: events.name, gender: events.gender, eventType: events.eventType })
       .from(events)
       .where(and(...scoredEventsConditions));
 
@@ -2198,6 +2213,23 @@ export class DatabaseStorage implements IStorage {
     const teamScores = new Map<string, { teamName: string; totalPoints: number; events: Map<string, { eventName: string; points: number }> }>();
 
     for (const evt of scoredEventsList) {
+      const nameLower = evt.name.toLowerCase();
+      const typeLower = evt.eventType.toLowerCase();
+      const isRelay = nameLower.includes('relay') || typeLower.startsWith('4x') || typeLower.includes('relay') ||
+        /^\d+x\d+/.test(typeLower);
+      const genderRaw = (evt.gender || "").toUpperCase().charAt(0);
+      const evtGender = genderRaw === "W" || genderRaw === "F" ? "F" : genderRaw === "M" ? "M" : "M";
+
+      let ptsMap: Map<number, number> | undefined;
+      if (isRelay) {
+        ptsMap = relPointsMap.get(evtGender) || relPointsMap.get("ALL");
+      } else {
+        ptsMap = indPointsMap.get(evtGender) || indPointsMap.get("ALL");
+      }
+      if (!ptsMap || ptsMap.size === 0) continue;
+
+      const maxScorers = isRelay ? relMaxScorers : indMaxScorers;
+
       const eventEntries = await db
         .select({
           finalPlace: entries.finalPlace,
@@ -2214,9 +2246,18 @@ export class DatabaseStorage implements IStorage {
         ))
         .orderBy(entries.finalPlace);
 
+      const teamScorerCount = new Map<string, number>();
+
       for (const entry of eventEntries) {
         if (!entry.teamId || !entry.teamName || !entry.finalPlace) continue;
-        const pts = pointsMap.get(entry.finalPlace) || 0;
+
+        if (maxScorers > 0) {
+          const count = teamScorerCount.get(entry.teamId) || 0;
+          if (count >= maxScorers) continue;
+          teamScorerCount.set(entry.teamId, count + 1);
+        }
+
+        const pts = ptsMap.get(entry.finalPlace) || 0;
         if (pts === 0) continue;
 
         if (!teamScores.has(entry.teamId)) {
