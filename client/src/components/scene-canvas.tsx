@@ -256,7 +256,9 @@ export function SceneObjectRenderer({
   // Only applies during active running modes - not during armed/start_list or results
   // The box/background stays fully visible, only the text fades
   let textFadeOpacity = 1; // Default to full opacity
-  const athleteIndex = dataBinding.athleteIndex;
+  const rawAthleteIndex = dataBinding.athleteIndex;
+  const pageOffset = (pageIndex || 0) * (pageSize || 8);
+  const athleteIndex = rawAthleteIndex !== undefined ? rawAthleteIndex + pageOffset : undefined;
   const mode = liveData?.mode || '';
   const isResultsMode = mode === 'results' || mode === 'finished';
   const isPreRaceMode = mode === 'armed' || mode === 'start_list' || mode === '';
@@ -404,11 +406,11 @@ export function SceneObjectRenderer({
         if (componentConfig.logoType === "meet") {
           logoUrl = meet?.logoUrl;
         } else if (logoFieldKey === "school-logo" && liveData) {
-          const athleteIndex = dataBinding.athleteIndex || 0;
+          const logoAthleteIndex = (dataBinding.athleteIndex || 0) + pageOffset;
           const entries = Array.isArray(liveData.entries) ? liveData.entries : [];
           // FinishLynx sends batched entries - display maps by array position
           // Line 1 = entries[0], Line 2 = entries[1], etc.
-          const firstEntry = entries.length > athleteIndex ? entries[athleteIndex] : null;
+          const firstEntry = entries.length > logoAthleteIndex ? entries[logoAthleteIndex] : null;
           // For relay events, use athlete name (contains team name like "Vermont A")
           const currentEventName = liveData.eventName || '';
           const isRelay = currentEventName.toLowerCase().includes('relay');
@@ -441,9 +443,9 @@ export function SceneObjectRenderer({
         // Useful for hiding "PL:" label when place shows DNF, DNS, DQ, etc.
         if (componentConfig.hideWhenFieldNonNumeric && liveData) {
           const checkFieldKey = componentConfig.hideWhenFieldNonNumeric;
-          const athleteIdx = dataBinding.athleteIndex || 0;
+          const hideCheckIdx = (dataBinding.athleteIndex || 0) + pageOffset;
           const entriesForCheck = Array.isArray(liveData.entries) ? liveData.entries : [];
-          const entryForCheck = entriesForCheck.length > athleteIdx ? entriesForCheck[athleteIdx] : null;
+          const entryForCheck = entriesForCheck.length > hideCheckIdx ? entriesForCheck[hideCheckIdx] : null;
           
           const checkFieldMap: Record<string, any> = {
             'place': entryForCheck?.place,
@@ -494,11 +496,9 @@ export function SceneObjectRenderer({
           // Only use actual event name from FinishLynx - no fallbacks
           const eventName = liveData.eventName || '';
           
-          const athleteIndex = dataBinding.athleteIndex || 0;
+          const textAthleteIndex = (dataBinding.athleteIndex || 0) + pageOffset;
           const entries = Array.isArray(liveData.entries) ? liveData.entries : [];
-          // FinishLynx sends batched entries - display maps by array position
-          // Line 1 = entries[0], Line 2 = entries[1], etc.
-          const firstEntry = entries.length > athleteIndex ? entries[athleteIndex] : null;
+          const firstEntry = entries.length > textAthleteIndex ? entries[textAthleteIndex] : null;
           
           // Format name as "First Initial. Last Name"
           const formatName = (firstName?: string, lastName?: string, fullName?: string) => {
@@ -638,8 +638,8 @@ export function SceneObjectRenderer({
         let qualifierBadge: string | null = null;
         if (isQualifierField && liveData) {
           const entries = Array.isArray(liveData.entries) ? liveData.entries : [];
-          const athleteIdx = dataBinding.athleteIndex || 0;
-          const entry = entries[athleteIdx];
+          const qualIdx = (dataBinding.athleteIndex || 0) + pageOffset;
+          const entry = entries[qualIdx];
           const advanceByPlace = liveData.advanceByPlace;
           const entryPlace = parseInt(String(entry?.place || '0'));
           if (entryPlace > 0 && advanceByPlace && entryPlace <= advanceByPlace) {
