@@ -2639,7 +2639,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const roundLabel = selectedRound === 'preliminary' ? 'Prelims'
         : selectedRound === 'quarterfinal' ? 'Quarterfinals'
         : selectedRound === 'semifinal' ? 'Semis'
-        : 'Finals';
+        : 'Final';
       
       const relevantEntries = allEntries.filter(entry => {
         const fields = getRoundFields(entry);
