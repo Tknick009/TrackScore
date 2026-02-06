@@ -188,6 +188,14 @@ export const FIELD_BINDINGS: Record<string, FieldBinding> = {
     dataKey: 'totalEventsScored',
     category: 'event',
   },
+  'team-score-badges': {
+    key: 'team-score-badges',
+    label: 'Team Score Badges',
+    type: 'text',
+    description: 'Row of badges showing each scored event name',
+    dataKey: 'scoredEventNames',
+    category: 'event',
+  },
   'static-text': {
     key: 'static-text',
     label: 'Static Text',

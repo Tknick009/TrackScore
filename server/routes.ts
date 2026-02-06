@@ -2733,15 +2733,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Device has no assigned meet" });
       }
       
-      // Count total scored events for this gender
+      // Collect scored events for this gender (names + count)
       let totalEventsScored = 0;
+      let scoredEventNames: string[] = [];
       try {
-        const scoredEvents = await storage.getEventsByMeetId(device.meetId);
-        totalEventsScored = scoredEvents.filter((e: any) => {
+        const allEvents = await storage.getEventsByMeetId(device.meetId);
+        const filtered = allEvents.filter((e: any) => {
           if (!e.isScored) return false;
           const g = (e.gender || '').toUpperCase().charAt(0);
           return selectedGender === 'M' ? (g === 'M' || g === '') : (g === 'W' || g === 'F');
-        }).length;
+        });
+        totalEventsScored = filtered.length;
+        scoredEventNames = filtered
+          .sort((a: any, b: any) => (a.eventNumber || 0) - (b.eventNumber || 0))
+          .map((e: any) => {
+            const raw = e.name || '';
+            return raw
+              .replace(/^(Men'?s?|Women'?s?)\s+/i, '')
+              .replace(/\s+/g, ' ')
+              .trim();
+          })
+          .filter((n: string) => n.length > 0);
       } catch (err) {
         console.log('[Team Scores] Could not count scored events');
       }
@@ -2859,6 +2871,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             eventName: `${genderLabel} Team Scores`,
             gender: selectedGender,
             totalEventsScored,
+            scoredEventNames,
             entries: teamEntries,
           },
           pagingSize: lines,
