@@ -366,6 +366,9 @@ export default function DisplayControlPage() {
     'multi_field_vertical',
     'multi_field_horizontal',
     'hytek_results',
+    'hytek_prelims',
+    'hytek_semis',
+    'hytek_finals',
     'team_scores',
   ] as const;
   
@@ -379,7 +382,10 @@ export default function DisplayControlPage() {
     field_standings: 'Field Standings',
     multi_field_vertical: 'Multi-Event Vertical',
     multi_field_horizontal: 'Multi-Event Horizontal',
-    hytek_results: 'HyTek Results',
+    hytek_results: 'HyTek Results (All)',
+    hytek_prelims: 'HyTek Prelims',
+    hytek_semis: 'HyTek Semis',
+    hytek_finals: 'HyTek Finals',
     team_scores: 'Team Scores',
   };
 
