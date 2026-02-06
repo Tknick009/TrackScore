@@ -173,15 +173,15 @@ function EventStatusBadge({ event }: { event: Event }) {
     return <Badge className="bg-green-600 text-white" data-testid={`badge-status-${event.id}`}>Live</Badge>;
   }
   if (displayStatus === 'scored') {
-    return <Badge variant="secondary" data-testid={`badge-status-${event.id}`}>Scored</Badge>;
+    return <Badge className="bg-pink-500 text-white dark:bg-pink-600" data-testid={`badge-status-${event.id}`}>Scored</Badge>;
   }
   if (displayStatus === 'done') {
-    return <Badge variant="outline" className="border-amber-500 text-amber-600 dark:text-amber-400" data-testid={`badge-status-${event.id}`}>Done</Badge>;
+    return <Badge className="bg-gray-400 text-white dark:bg-gray-500" data-testid={`badge-status-${event.id}`}>Done</Badge>;
   }
   if (displayStatus === 'seeded') {
-    return <Badge variant="outline" data-testid={`badge-status-${event.id}`}>Seeded</Badge>;
+    return <Badge className="bg-teal-500 text-white dark:bg-teal-600" data-testid={`badge-status-${event.id}`}>Seeded</Badge>;
   }
-  return <Badge variant="outline" data-testid={`badge-status-${event.id}`}>Unseeded</Badge>;
+  return <Badge variant="outline" className="bg-white text-gray-700 dark:bg-gray-200 dark:text-gray-700" data-testid={`badge-status-${event.id}`}>Unseeded</Badge>;
 }
 
 function isTrackEvent(eventType: string): boolean {

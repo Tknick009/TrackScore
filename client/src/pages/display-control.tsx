@@ -43,6 +43,32 @@ import {
 } from '@/components/ui/accordion';
 import type { Event, SelectLayoutScene, SelectSceneTemplateMapping } from '@shared/schema';
 
+function getEventDisplayStatus(event: Event): string {
+  if (event.status === "in_progress") return 'live';
+  if (event.isScored || event.hytekStatus === 'scored') return 'scored';
+  if (event.hytekStatus === 'done') return 'done';
+  if (event.hytekStatus === 'seeded') return 'seeded';
+  return 'unseeded';
+}
+
+function EventStatusBadge({ event }: { event: Event }) {
+  const displayStatus = getEventDisplayStatus(event);
+
+  if (displayStatus === 'live') {
+    return <Badge className="bg-green-600 text-white ml-auto shrink-0" data-testid={`badge-dc-status-${event.id}`}>Live</Badge>;
+  }
+  if (displayStatus === 'scored') {
+    return <Badge className="bg-pink-500 text-white dark:bg-pink-600 ml-auto shrink-0" data-testid={`badge-dc-status-${event.id}`}>Scored</Badge>;
+  }
+  if (displayStatus === 'done') {
+    return <Badge className="bg-gray-400 text-white dark:bg-gray-500 ml-auto shrink-0" data-testid={`badge-dc-status-${event.id}`}>Done</Badge>;
+  }
+  if (displayStatus === 'seeded') {
+    return <Badge className="bg-teal-500 text-white dark:bg-teal-600 ml-auto shrink-0" data-testid={`badge-dc-status-${event.id}`}>Seeded</Badge>;
+  }
+  return <Badge variant="outline" className="bg-white text-gray-700 dark:bg-gray-200 dark:text-gray-700 ml-auto shrink-0" data-testid={`badge-dc-status-${event.id}`}>Unseeded</Badge>;
+}
+
 interface DisplayDevice {
   id: string;
   meetId: string;
@@ -684,7 +710,10 @@ export default function DisplayControlPage() {
                               <SelectContent>
                                 {events.map(event => (
                                   <SelectItem key={event.id} value={event.id}>
-                                    {event.name}
+                                    <span className="flex items-center gap-2 w-full">
+                                      <span className="truncate">{event.name}</span>
+                                      <EventStatusBadge event={event} />
+                                    </span>
                                   </SelectItem>
                                 ))}
                               </SelectContent>
