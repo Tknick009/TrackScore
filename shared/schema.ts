@@ -472,6 +472,11 @@ export const entries = pgTable("entries", {
   finalPlace: integer("final_place"),
   finalWind: real("final_wind"),
   
+  preliminaryPoints: real("preliminary_points"),
+  quarterfinalPoints: real("quarterfinal_points"),
+  semifinalPoints: real("semifinal_points"),
+  finalPoints: real("final_points"),
+  
   // Flags
   isDisqualified: boolean("is_disqualified").default(false),
   isScratched: boolean("is_scratched").default(false),
