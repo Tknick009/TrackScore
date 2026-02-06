@@ -622,7 +622,7 @@ export function SceneObjectRenderer({
             'event-points': eventPoints > 0 ? eventPoints : '',
             'total-points': totalPoints,
             'time-with-points': timeWithPoints,
-            'total-events-scored': liveData.totalEventsScored != null ? `Events Scored ${liveData.totalEventsScored}` : '',
+            'total-events-scored': liveData.totalEventsScored != null ? `Events Scored: ${liveData.totalEventsScored}` : '',
           };
           const resolvedValue = fieldMap[fieldKey];
           if (resolvedValue !== undefined && resolvedValue !== null && resolvedValue !== '') {
