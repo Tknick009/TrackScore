@@ -485,24 +485,42 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       const gender = String(genderRaw);
       const trkField = row.Trk_Field || "T"; // T = Track, F = Field
       
-      // Extract HyTek event status and determine if results are locked
-      const hytekStatusRaw = row.Event_status || row.Event_Status || row.STATUS || null;
+      const hytekStatusRaw = row.Event_stat || row.Event_status || row.Event_Status || null;
       let hytekStatus: string | null = null;
       let isScored = false;
       
-      if (hytekStatusRaw) {
-        const statusStr = String(hytekStatusRaw).trim().toLowerCase();
-        // Map HyTek status values to our enum
-        if (statusStr === 'unseeded' || statusStr === 'un-seeded') {
-          hytekStatus = 'unseeded';
-        } else if (statusStr === 'seeded') {
-          hytekStatus = 'seeded';
-        } else if (statusStr === 'done') {
-          hytekStatus = 'done';
-          isScored = true; // Lock results when event is done
-        } else if (statusStr === 'scored') {
-          hytekStatus = 'scored';
-          isScored = true; // Lock results when event is scored
+      if (hytekStatusRaw != null) {
+        const statusStr = String(hytekStatusRaw).trim();
+        switch (statusStr) {
+          case '1':
+          case 'U':
+          case 'u':
+          case 'unseeded':
+            hytekStatus = 'unseeded';
+            break;
+          case '2':
+          case 'S':
+          case 's':
+          case 'seeded':
+            hytekStatus = 'seeded';
+            break;
+          case '4':
+          case 'D':
+          case 'd':
+          case 'done':
+            hytekStatus = 'done';
+            isScored = true;
+            break;
+          case '5':
+          case 'C':
+          case 'c':
+          case 'scored':
+            hytekStatus = 'scored';
+            isScored = true;
+            break;
+          default:
+            hytekStatus = statusStr;
+            break;
         }
       }
       

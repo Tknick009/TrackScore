@@ -1166,6 +1166,33 @@ export class SQLiteStorage implements IStorage {
     return updated;
   }
 
+  async updateEvent(id: string, updates: Record<string, any>): Promise<Event | undefined> {
+    const colMap: Record<string, string> = {
+      advanceByPlace: 'advance_by_place',
+      advanceByTime: 'advance_by_time',
+      hytekStatus: 'hytek_status',
+      isScored: 'is_scored',
+      status: 'status',
+      numRounds: 'num_rounds',
+      numLanes: 'num_lanes',
+    };
+    const sets: string[] = [];
+    const vals: any[] = [];
+    for (const [jsKey, val] of Object.entries(updates)) {
+      const col = colMap[jsKey];
+      if (col) {
+        sets.push(`${col} = ?`);
+        vals.push(typeof val === 'boolean' ? (val ? 1 : 0) : val);
+      }
+    }
+    if (sets.length === 0) return undefined;
+    vals.push(id);
+    this.db.prepare(`UPDATE events SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
+    const updated = await this.getEvent(id);
+    if (updated) this.logSyncEvent('events', id, 'update', updated);
+    return updated;
+  }
+
   // ============= ATHLETES =============
   async getAthletes(): Promise<Athlete[]> {
     const rows = this.db.prepare('SELECT * FROM athletes').all();

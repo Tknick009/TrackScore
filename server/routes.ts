@@ -890,6 +890,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/events/:id", async (req, res) => {
+    try {
+      const existing = await storage.getEvent(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ error: "Event not found" });
+      }
+      const allowedFields = ['advanceByPlace', 'advanceByTime', 'hytekStatus', 'isScored', 'status', 'numRounds', 'numLanes'];
+      const updates: Record<string, any> = {};
+      for (const field of allowedFields) {
+        if (req.body[field] !== undefined) {
+          updates[field] = req.body[field];
+        }
+      }
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ error: "No valid fields to update" });
+      }
+      const event = await storage.updateEvent(req.params.id, updates);
+      if (!event) {
+        return res.status(404).json({ error: "Event not found" });
+      }
+      await broadcastCurrentEvent();
+      res.json(event);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
   app.get("/api/events/:id/entries", async (req, res) => {
     const eventWithEntries = await storage.getEventWithEntries(req.params.id);
     if (!eventWithEntries) {

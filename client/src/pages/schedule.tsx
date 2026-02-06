@@ -158,15 +158,72 @@ function parseTimeToMinutes(timeStr: string | null | undefined): number {
   return hours * 60 + minutes;
 }
 
-function getEventStatusBadge(status: string) {
-  switch (status) {
-    case "in_progress":
-      return <Badge className="bg-green-600 text-white">Live</Badge>;
-    case "completed":
-      return <Badge variant="secondary">Completed</Badge>;
-    default:
-      return <Badge variant="outline">Scheduled</Badge>;
+const HYTEK_STATUS_CYCLE = ['unseeded', 'seeded', 'scored'] as const;
+
+function getDisplayStatus(event: Event): string {
+  if (event.status === "in_progress") return 'live';
+  if (event.isScored || event.hytekStatus === 'scored' || event.hytekStatus === 'done') return 'scored';
+  if (event.hytekStatus === 'seeded') return 'seeded';
+  return 'unseeded';
+}
+
+function EventStatusBadge({ event, meetId }: { event: Event; meetId: string }) {
+  const { toast } = useToast();
+  const displayStatus = getDisplayStatus(event);
+
+  const mutation = useMutation({
+    mutationFn: async (newStatus: string) => {
+      return await apiRequest("PATCH", `/api/events/${event.id}`, {
+        hytekStatus: newStatus,
+        isScored: newStatus === 'scored',
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/events", meetId] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to update status", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const handleClick = () => {
+    if (displayStatus === 'live') return;
+    const currentIdx = HYTEK_STATUS_CYCLE.indexOf(displayStatus as any);
+    const nextIdx = (currentIdx + 1) % HYTEK_STATUS_CYCLE.length;
+    mutation.mutate(HYTEK_STATUS_CYCLE[nextIdx]);
+  };
+
+  if (displayStatus === 'live') {
+    return <Badge className="bg-green-600 text-white" data-testid={`badge-status-${event.id}`}>Live</Badge>;
   }
+  if (displayStatus === 'scored') {
+    return (
+      <Badge
+        variant="secondary"
+        className="cursor-pointer"
+        onClick={handleClick}
+        data-testid={`badge-status-${event.id}`}
+      >Scored</Badge>
+    );
+  }
+  if (displayStatus === 'seeded') {
+    return (
+      <Badge
+        variant="outline"
+        className="cursor-pointer"
+        onClick={handleClick}
+        data-testid={`badge-status-${event.id}`}
+      >Seeded</Badge>
+    );
+  }
+  return (
+    <Badge
+      variant="outline"
+      className="cursor-pointer"
+      onClick={handleClick}
+      data-testid={`badge-status-${event.id}`}
+    >Unseeded</Badge>
+  );
 }
 
 function isTrackEvent(eventType: string): boolean {
@@ -191,8 +248,9 @@ export default function Schedule() {
   });
 
   const liveEvents = events.filter(e => e.status === "in_progress");
-  const scheduledEvents = events.filter(e => e.status === "scheduled");
-  const completedEvents = events.filter(e => e.status === "completed");
+  const scoredEvents = events.filter(e => e.status === "completed" || e.isScored || e.hytekStatus === 'scored' || e.hytekStatus === 'done');
+  const seededEvents = events.filter(e => !scoredEvents.includes(e) && e.status !== "in_progress" && e.hytekStatus === 'seeded');
+  const unseededEvents = events.filter(e => !scoredEvents.includes(e) && !seededEvents.includes(e) && e.status !== "in_progress");
 
   const sortedEvents = useMemo(() => {
     return [...events].sort((a, b) => {
@@ -300,9 +358,11 @@ export default function Schedule() {
             </SelectContent>
           </Select>
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
-            <span>{scheduledEvents.length} scheduled</span>
+            <span>{unseededEvents.length} unseeded</span>
             <span className="text-border">|</span>
-            <span>{completedEvents.length} completed</span>
+            <span>{seededEvents.length} seeded</span>
+            <span className="text-border">|</span>
+            <span>{scoredEvents.length} scored</span>
           </div>
         </div>
       </div>
@@ -385,7 +445,7 @@ export default function Schedule() {
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
-                              {getEventStatusBadge(event.status)}
+                              {currentMeetId && <EventStatusBadge event={event} meetId={currentMeetId} />}
                             </div>
                           </div>
                         </CardContent>

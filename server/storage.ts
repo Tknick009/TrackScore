@@ -191,6 +191,7 @@ export interface IStorage {
   getCurrentEvent(): Promise<EventWithEntries | undefined>;
   createEvent(event: InsertEvent): Promise<Event>;
   updateEventStatus(id: string, status: string): Promise<Event | undefined>;
+  updateEvent(id: string, updates: Record<string, any>): Promise<Event | undefined>;
   getTotalHeatsForEvent(eventId: string, round?: string): Promise<number>;
 
   // Athletes
@@ -633,6 +634,24 @@ export class DatabaseStorage implements IStorage {
     const [updated] = await db
       .update(events)
       .set({ status })
+      .where(eq(events.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async updateEvent(id: string, updates: Record<string, any>): Promise<Event | undefined> {
+    const fieldMap: Record<string, any> = {};
+    if (updates.advanceByPlace !== undefined) fieldMap.advanceByPlace = updates.advanceByPlace;
+    if (updates.advanceByTime !== undefined) fieldMap.advanceByTime = updates.advanceByTime;
+    if (updates.hytekStatus !== undefined) fieldMap.hytekStatus = updates.hytekStatus;
+    if (updates.isScored !== undefined) fieldMap.isScored = updates.isScored;
+    if (updates.status !== undefined) fieldMap.status = updates.status;
+    if (updates.numRounds !== undefined) fieldMap.numRounds = updates.numRounds;
+    if (updates.numLanes !== undefined) fieldMap.numLanes = updates.numLanes;
+    if (Object.keys(fieldMap).length === 0) return undefined;
+    const [updated] = await db
+      .update(events)
+      .set(fieldMap)
       .where(eq(events.id, id))
       .returning();
     return updated || undefined;
