@@ -2597,9 +2597,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       const athleteIds = sortedEntries.map(e => e.athleteId).filter((id): id is string => !!id);
-      const teamIds = sortedEntries.map(e => e.teamId).filter((id): id is string => !!id);
       const uniqueAthleteIds = [...new Set(athleteIds)];
-      const uniqueTeamIds = [...new Set(teamIds)];
       
       const athleteMap = new Map<string, any>();
       const teamMap = new Map<string, any>();
@@ -2608,14 +2606,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const athletes = await Promise.all(uniqueAthleteIds.map(id => storage.getAthlete(id)));
         athletes.forEach(a => { if (a) athleteMap.set(a.id, a); });
       }
-      if (uniqueTeamIds.length > 0) {
-        const teams = await Promise.all(uniqueTeamIds.map(id => storage.getTeam(id)));
+      
+      const teamIds = new Set<string>();
+      sortedEntries.forEach(e => {
+        if (e.teamId) teamIds.add(e.teamId);
+      });
+      athleteMap.forEach(a => {
+        if (a.teamId) teamIds.add(a.teamId);
+      });
+      
+      if (teamIds.size > 0) {
+        const teams = await Promise.all([...teamIds].map(id => storage.getTeam(id)));
         teams.forEach(t => { if (t) teamMap.set(t.id, t); });
       }
       
       const enrichedEntries = sortedEntries.map((entry, index) => {
         const athlete = entry.athleteId ? athleteMap.get(entry.athleteId) : null;
-        const team = entry.teamId ? teamMap.get(entry.teamId) : null;
+        const teamId = entry.teamId || athlete?.teamId;
+        const team = teamId ? teamMap.get(teamId) : null;
         const fields = getRoundFields(entry);
         const position = fields.place || (index + 1);
         const markValue = fields.mark ?? entry.seedMark ?? '';
