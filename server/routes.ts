@@ -3541,45 +3541,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const file = req.file;
       const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
-      // Validate file size
       if (file.size > MAX_FILE_SIZE) {
-        await unlink(file.path).catch(console.error);
         return res.status(400).json({ 
           error: "File too large. Maximum size is 5MB" 
         });
       }
 
-      // Validate MIME type
       const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif'];
       if (!ALLOWED_TYPES.includes(file.mimetype)) {
-        await unlink(file.path).catch(console.error);
         return res.status(400).json({ 
           error: "Invalid file type. Only JPEG, PNG, and GIF are allowed" 
         });
       }
 
-      // Check if team exists
       const team = await storage.getTeam(teamId);
       if (!team) {
-        await unlink(file.path).catch(console.error);
         return res.status(404).json({ error: "Team not found" });
       }
 
-      // Read file buffer
-      const fs = await import('fs/promises');
-      const buffer = await fs.readFile(file.path);
+      const buffer = file.buffer;
 
-      // ATOMIC PATTERN:
-      // 1. Save new file to disk first
       logoData = await fileStorage.saveTeamLogo(
         buffer,
         teamId,
         team.meetId,
         file.originalname
       );
-
-      // Clean up temp file
-      await unlink(file.path).catch(console.error);
 
       // 2. DB transaction: get old, delete old, insert new, return old storageKey
       const { newLogo, oldLogo } = await storage.createTeamLogo({
@@ -4665,6 +4652,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const overrides = await storage.getMeetScoringOverrides(profile.id);
       res.json({ ...profile, overrides }); // Flatten into single object
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get('/api/meets/:meetId/scoring/standings', async (req, res) => {
+    try {
+      const meetId = req.params.meetId;
+      const gender = req.query.gender as string | undefined;
+      const division = req.query.division as string | undefined;
+
+      const scope: { gender?: string; division?: string } = {};
+      if (gender && gender !== 'all') scope.gender = gender;
+      if (division && division !== 'all') scope.division = division;
+
+      const standings = await storage.getTeamStandings(meetId, Object.keys(scope).length > 0 ? scope : undefined);
+
+      const logoMap = new Map<string, string>();
+      try {
+        const allLogos = await storage.getTeamLogosByMeet(meetId);
+        for (const logo of allLogos) {
+          logoMap.set(logo.teamId, fileStorage.publicUrlForKey(logo.storageKey));
+        }
+      } catch {}
+
+      const enriched = standings.map(s => ({
+        ...s,
+        teamLogoUrl: logoMap.get(s.teamId) || undefined,
+      }));
+
+      res.json(enriched);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Trophy, RefreshCw, ChevronDown, ChevronRight } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 interface TeamStandingsPanelProps {
   meetId: string;
@@ -253,8 +254,18 @@ export function TeamStandingsPanel({ meetId }: TeamStandingsPanelProps) {
                             {standing.rank}
                           </Badge>
                         </TableCell>
-                        <TableCell className="font-medium" data-testid={`team-name-${standing.teamId}`}>
-                          {standing.teamName}
+                        <TableCell data-testid={`team-name-${standing.teamId}`}>
+                          <div className="flex items-center gap-2">
+                            <Avatar className="h-7 w-7">
+                              {standing.teamLogoUrl ? (
+                                <AvatarImage src={standing.teamLogoUrl} alt={standing.teamName} />
+                              ) : null}
+                              <AvatarFallback className="text-xs">
+                                {standing.teamName?.charAt(0) || "?"}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="font-medium">{standing.teamName}</span>
+                          </div>
                         </TableCell>
                         <TableCell className="text-right font-bold" data-testid={`total-points-${standing.teamId}`}>
                           {standing.totalPoints.toFixed(1)}
