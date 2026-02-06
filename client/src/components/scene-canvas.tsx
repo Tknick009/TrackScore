@@ -411,9 +411,10 @@ export function SceneObjectRenderer({
             logoUrl = firstEntry.logoUrl;
           } else {
             const currentEventName = liveData.eventName || '';
-            const isRelay = currentEventName.toLowerCase().includes('relay');
-            const schoolName = isRelay 
-              ? (firstEntry?.name || firstEntry?.affiliation || firstEntry?.team)
+            const eventNameLower = currentEventName.toLowerCase();
+            const isRelayOrMedley = eventNameLower.includes('relay') || eventNameLower.includes('medley');
+            const schoolName = isRelayOrMedley 
+              ? ((firstEntry?.name || firstEntry?.affiliation || firstEntry?.team || '').substring(4).trim() || firstEntry?.affiliation || firstEntry?.team)
               : (firstEntry?.affiliation || firstEntry?.team);
             if (schoolName) {
               logoUrl = `/logos/NCAA/${schoolName}.png`;
@@ -587,9 +588,15 @@ export function SceneObjectRenderer({
           const totalPoints = firstEntry?.totalPoints || liveData.totalPoints || '';
           
           const isTeamScores = liveData.mode === 'team_scores';
+          const eventNameLowerText = eventName.toLowerCase();
+          const isRelayOrMedleyText = eventNameLowerText.includes('relay') || eventNameLowerText.includes('medley');
           const displayName = isTeamScores 
             ? (firstEntry?.name || '')
             : formatName(firstEntry?.firstName, firstEntry?.lastName, firstEntry?.name);
+          
+          const schoolDisplay = isRelayOrMedleyText
+            ? ((firstEntry?.name || firstEntry?.affiliation || firstEntry?.team || '').substring(4).trim() || firstEntry?.affiliation || firstEntry?.team)
+            : (firstEntry?.affiliation || firstEntry?.team);
           
           const fieldMap: Record<string, any> = {
             'event-name': eventName,
@@ -609,7 +616,7 @@ export function SceneObjectRenderer({
             'last-name-qualifier': isTeamScores ? (firstEntry?.name || '') : firstEntry?.lastName,
             'name-qualifier-badge': qualifierStatus,
             'last-name-qualifier-badge': qualifierStatus,
-            'school': firstEntry?.affiliation || firstEntry?.team,
+            'school': schoolDisplay,
             'time': firstEntry?.time || firstEntry?.mark,
             'last-split': firstEntry?.lastSplit,
             'cumulative-split': firstEntry?.cumulativeSplit,
