@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, useRef, useCallback } from "react";
+import { queryClient } from "@/lib/queryClient";
 
 interface WebSocketContextType {
   ws: WebSocket | null;
@@ -66,6 +67,18 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
         connect();
       }, delay);
     };
+
+    newWs.addEventListener('message', (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'hytek_import_complete') {
+          console.log(`[WebSocket] HyTek import complete for meet ${data.meetId}, invalidating cache`);
+          queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/meets"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/hytek-mdb-watcher"] });
+        }
+      } catch (e) {}
+    });
 
     newWs.onerror = (error) => {
       console.error("WebSocket error:", error);

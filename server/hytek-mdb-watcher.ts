@@ -21,6 +21,12 @@ interface HytekMdbConfig {
 const HYTEK_MDB_CONFIG_FILE = './hytek-mdb-config.json';
 const watchers = new Map<string, HytekMdbWatcherState>();
 
+let importCallback: ((meetId: string) => void) | null = null;
+
+export function setHytekImportCallback(callback: (meetId: string) => void): void {
+  importCallback = callback;
+}
+
 function computeFileHash(buffer: Buffer): string {
   let hash = 0;
   for (let i = 0; i < buffer.length; i++) {
@@ -66,6 +72,10 @@ async function handleMdbChange(state: HytekMdbWatcherState, filePath: string): P
     state.lastImportAt = new Date();
 
     console.log(`[HyTek MDB Watcher] Import complete for meet ${state.meetId}: ${stats.events} events, ${stats.athletes} athletes, ${stats.entries} entries`);
+
+    if (importCallback) {
+      importCallback(state.meetId);
+    }
   } catch (error) {
     console.error(`[HyTek MDB Watcher] Error importing MDB for meet ${state.meetId}:`, error);
   } finally {

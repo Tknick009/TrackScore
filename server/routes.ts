@@ -83,7 +83,7 @@ import {
   setHeatCountBroadcastCallback,
   type HeatCountData 
 } from './track-heat-watcher';
-import { startHytekMdbWatcher, stopHytekMdbWatcher, getActiveHytekMdbWatchers, loadHytekMdbConfigs, saveHytekMdbConfigs, triggerManualImport } from './hytek-mdb-watcher';
+import { startHytekMdbWatcher, stopHytekMdbWatcher, getActiveHytekMdbWatchers, loadHytekMdbConfigs, saveHytekMdbConfigs, triggerManualImport, setHytekImportCallback } from './hytek-mdb-watcher';
 import { externalScoreboardService, buildFieldScoreboardPayload } from './external-scoreboard-service';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -7242,6 +7242,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   })();
   
+  // Set up the broadcast callback for hytek mdb imports
+  setHytekImportCallback((meetId: string) => {
+    broadcastToDisplays({
+      type: 'hytek_import_complete',
+      meetId,
+    } as any);
+    console.log(`[HyTek MDB Watcher] Broadcast cache invalidation for meet ${meetId}`);
+  });
+
   // Initialize hytek mdb watchers on startup
   (async () => {
     try {
