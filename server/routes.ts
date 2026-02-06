@@ -2583,17 +2583,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         connectedDevice.pagingSize = lines;
         connectedDevice.pagingInterval = lines;
         
-        // Look up custom scene mapping for track_results mode
         let sceneId: number | null = null;
         let sceneData: { scene: any; objects: any[] } | null = null;
         
         if (device.meetId) {
           try {
-            const mapping = await storage.getSceneTemplateMappingByTypeAndMode(
+            let mapping = await storage.getSceneTemplateMappingByTypeAndMode(
               device.meetId,
               displayType,
-              'track_results'
+              'hytek_results'
             );
+            if (!mapping) {
+              mapping = await storage.getSceneTemplateMappingByTypeAndMode(
+                device.meetId,
+                displayType,
+                'track_results'
+              );
+            }
             if (mapping) {
               sceneId = mapping.sceneId;
               sceneData = await prefetchSceneData(sceneId);

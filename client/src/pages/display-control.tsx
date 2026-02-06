@@ -367,6 +367,7 @@ export default function DisplayControlPage() {
     'field_standings', 
     'multi_field_vertical',
     'multi_field_horizontal',
+    'hytek_results',
     'team_scores',
   ] as const;
   
@@ -380,6 +381,7 @@ export default function DisplayControlPage() {
     field_standings: 'Field Standings',
     multi_field_vertical: 'Multi-Event Vertical',
     multi_field_horizontal: 'Multi-Event Horizontal',
+    hytek_results: 'HyTek Results',
     team_scores: 'Team Scores',
   };
 
