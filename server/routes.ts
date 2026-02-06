@@ -2771,10 +2771,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         teamEntries = standings
           .filter((s: any) => (s.totalPoints || 0) > 0)
           .map((s: any, index: number) => ({
-            position: index + 1,
+            place: String(index + 1),
             name: s.teamName || 'Unknown',
-            abbreviation: s.teamAbbreviation || '',
-            score: s.totalPoints || 0,
+            affiliation: s.teamAbbreviation || s.teamName || '',
+            team: s.teamAbbreviation || s.teamName || '',
+            time: String(s.totalPoints || 0),
+            mark: String(s.totalPoints || 0),
             logoUrl: logoMap.get(s.teamId) || null,
           }));
       } else {
@@ -2806,10 +2808,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         teamEntries = sortedTeams
           .filter((team: typeof teams[0]) => (teamScores.get(team.id) || 0) > 0)
           .map((team: typeof teams[0], index: number) => ({
-            position: index + 1,
+            place: String(index + 1),
             name: team.name || team.shortName || 'Unknown',
-            abbreviation: team.abbreviation || '',
-            score: teamScores.get(team.id) || 0,
+            affiliation: team.abbreviation || team.name || team.shortName || '',
+            team: team.abbreviation || team.name || team.shortName || '',
+            time: String(teamScores.get(team.id) || 0),
+            mark: String(teamScores.get(team.id) || 0),
           }));
       }
       

@@ -408,17 +408,18 @@ export function SceneObjectRenderer({
         } else if (logoFieldKey === "school-logo" && liveData) {
           const logoAthleteIndex = (dataBinding.athleteIndex || 0) + pageOffset;
           const entries = Array.isArray(liveData.entries) ? liveData.entries : [];
-          // FinishLynx sends batched entries - display maps by array position
-          // Line 1 = entries[0], Line 2 = entries[1], etc.
           const firstEntry = entries.length > logoAthleteIndex ? entries[logoAthleteIndex] : null;
-          // For relay events, use athlete name (contains team name like "Vermont A")
-          const currentEventName = liveData.eventName || '';
-          const isRelay = currentEventName.toLowerCase().includes('relay');
-          const schoolName = isRelay 
-            ? (firstEntry?.name || firstEntry?.affiliation || firstEntry?.team)
-            : (firstEntry?.affiliation || firstEntry?.team);
-          if (schoolName) {
-            logoUrl = `/logos/NCAA/${schoolName}.png`;
+          if (firstEntry?.logoUrl) {
+            logoUrl = firstEntry.logoUrl;
+          } else {
+            const currentEventName = liveData.eventName || '';
+            const isRelay = currentEventName.toLowerCase().includes('relay');
+            const schoolName = isRelay 
+              ? (firstEntry?.name || firstEntry?.affiliation || firstEntry?.team)
+              : (firstEntry?.affiliation || firstEntry?.team);
+            if (schoolName) {
+              logoUrl = `/logos/NCAA/${schoolName}.png`;
+            }
           }
         } else {
           logoUrl = componentConfig.logoUrl || componentConfig.imageUrl;
@@ -587,6 +588,11 @@ export function SceneObjectRenderer({
           // Total points - comes from the entry or live data if the backend tracks it
           const totalPoints = firstEntry?.totalPoints || liveData.totalPoints || '';
           
+          const isTeamScores = liveData.mode === 'team_scores';
+          const displayName = isTeamScores 
+            ? (firstEntry?.name || '')
+            : formatName(firstEntry?.firstName, firstEntry?.lastName, firstEntry?.name);
+          
           const fieldMap: Record<string, any> = {
             'event-name': eventName,
             'event-number': liveData.eventNumber,
@@ -598,11 +604,11 @@ export function SceneObjectRenderer({
             'status': liveData.status,
             'lane': firstEntry?.lane,
             'place': firstEntry?.place,
-            'name': formatName(firstEntry?.firstName, firstEntry?.lastName, firstEntry?.name),
-            'first-name': firstEntry?.firstName,
-            'last-name': firstEntry?.lastName,
-            'name-qualifier': formatName(firstEntry?.firstName, firstEntry?.lastName, firstEntry?.name),
-            'last-name-qualifier': firstEntry?.lastName,
+            'name': displayName,
+            'first-name': isTeamScores ? (firstEntry?.name || '') : firstEntry?.firstName,
+            'last-name': isTeamScores ? (firstEntry?.name || '') : firstEntry?.lastName,
+            'name-qualifier': displayName,
+            'last-name-qualifier': isTeamScores ? (firstEntry?.name || '') : firstEntry?.lastName,
             'name-qualifier-badge': qualifierStatus,
             'last-name-qualifier-badge': qualifierStatus,
             'school': firstEntry?.affiliation || firstEntry?.team,
