@@ -789,22 +789,6 @@ export default function MeetSetup() {
         </CardContent>
       </Card>
 
-      <Card data-testid="card-meet-code">
-        <CardHeader>
-          <CardTitle>Meet Code</CardTitle>
-          <CardDescription>
-            Share this code with display devices to connect
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-4">
-            <code className="text-3xl font-mono font-bold tracking-widest bg-muted px-4 py-2 rounded-lg" data-testid="text-meet-code">
-              {meet.meetCode}
-            </code>
-          </div>
-        </CardContent>
-      </Card>
-
       <Card data-testid="card-mdb-watcher">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -886,6 +870,22 @@ export default function MeetSetup() {
                 </Button>
               </>
             )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card data-testid="card-meet-code">
+        <CardHeader>
+          <CardTitle>Meet Code</CardTitle>
+          <CardDescription>
+            Share this code with display devices to connect
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-4">
+            <code className="text-3xl font-mono font-bold tracking-widest bg-muted px-4 py-2 rounded-lg" data-testid="text-meet-code">
+              {meet.meetCode}
+            </code>
           </div>
         </CardContent>
       </Card>
