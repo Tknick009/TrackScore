@@ -97,9 +97,8 @@ export default function DisplayControlPage() {
   
   // New display mode state - tracks which mode is active per device
   const [displayMode, setDisplayMode] = useState<Record<string, DisplayMode>>({});
-  // Selected event for Hytek mode
   const [selectedHytekEvent, setSelectedHytekEvent] = useState<Record<string, string>>({});
-  // Paging size for Hytek and Team Scores modes (lines = seconds)
+  const [selectedHytekRound, setSelectedHytekRound] = useState<Record<string, string>>({});
   const [pagingLines, setPagingLines] = useState<Record<string, number>>({});
   const [eventSearch, setEventSearch] = useState('');
 
@@ -255,10 +254,9 @@ export default function DisplayControlPage() {
     },
   });
 
-  // Send Hytek Results mutation
   const sendHytekResultsMutation = useMutation({
-    mutationFn: async ({ deviceId, eventId, pagingLines }: { deviceId: string; eventId: string; pagingLines: number }) => {
-      const response = await apiRequest('POST', `/api/display-devices/${deviceId}/hytek-results`, { eventId, pagingLines });
+    mutationFn: async ({ deviceId, eventId, pagingLines, round }: { deviceId: string; eventId: string; pagingLines: number; round: string }) => {
+      const response = await apiRequest('POST', `/api/display-devices/${deviceId}/hytek-results`, { eventId, pagingLines, round });
       return response.json();
     },
     onSuccess: (data) => {
@@ -768,6 +766,26 @@ export default function DisplayControlPage() {
                           </div>
 
                           <div className="space-y-2">
+                            <Label>Round</Label>
+                            <Select
+                              value={selectedHytekRound[selectedDevice.id] || 'final'}
+                              onValueChange={(value) => {
+                                setSelectedHytekRound(prev => ({ ...prev, [selectedDevice.id]: value }));
+                              }}
+                            >
+                              <SelectTrigger data-testid="select-hytek-round">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="preliminary">Prelims</SelectItem>
+                                <SelectItem value="quarterfinal">Quarterfinals</SelectItem>
+                                <SelectItem value="semifinal">Semis</SelectItem>
+                                <SelectItem value="final">Finals</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-2">
                             <Label>Paging (lines = seconds)</Label>
                             <div className="flex items-center gap-2">
                               <Select
@@ -795,11 +813,13 @@ export default function DisplayControlPage() {
                             onClick={() => {
                               const eventId = selectedHytekEvent[selectedDevice.id];
                               const lines = pagingLines[selectedDevice.id] || 8;
+                              const round = selectedHytekRound[selectedDevice.id] || 'final';
                               if (eventId) {
                                 sendHytekResultsMutation.mutate({
                                   deviceId: selectedDevice.id,
                                   eventId,
                                   pagingLines: lines,
+                                  round,
                                 });
                               }
                             }}

@@ -2508,61 +2508,128 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Send Hytek Results to a display device (compiled results from database)
   app.post("/api/display-devices/:id/hytek-results", async (req, res) => {
     try {
-      const { eventId, pagingLines } = req.body;
+      const { eventId, pagingLines, round } = req.body;
       const deviceId = req.params.id;
       
       if (!eventId) {
         return res.status(400).json({ error: "eventId is required" });
       }
       
-      // Get the device
       const device = await storage.getDisplayDevice(deviceId);
       if (!device) {
         return res.status(404).json({ error: "Display device not found" });
       }
       
-      // Get the event with entries and results
       const event = await storage.getEvent(eventId);
       if (!event) {
         return res.status(404).json({ error: "Event not found" });
       }
       
-      // Get entries for the event
-      const entries = await storage.getEntriesByEvent(eventId);
+      const allEntries = await storage.getEntriesByEvent(eventId);
       
-      if (entries.length === 0) {
+      if (allEntries.length === 0) {
         return res.status(400).json({ error: "No entries found for this event", warning: true });
       }
       
-      // Sort entries by place (results), then seed mark
-      const sortedEntries = entries.sort((a, b) => {
-        // First by final place
-        if (a.finalPlace && b.finalPlace) {
-          return a.finalPlace - b.finalPlace;
+      const selectedRound = round || 'final';
+      
+      const getRoundFields = (entry: any) => {
+        switch (selectedRound) {
+          case 'preliminary':
+            return {
+              mark: entry.preliminaryMark,
+              place: entry.preliminaryPlace,
+              heat: entry.preliminaryHeat,
+              lane: entry.preliminaryLane,
+            };
+          case 'quarterfinal':
+            return {
+              mark: entry.quarterfinalMark,
+              place: entry.quarterfinalPlace,
+              heat: entry.quarterfinalHeat,
+              lane: entry.quarterfinalLane,
+            };
+          case 'semifinal':
+            return {
+              mark: entry.semifinalMark,
+              place: entry.semifinalPlace,
+              heat: entry.semifinalHeat,
+              lane: entry.semifinalLane,
+            };
+          case 'final':
+          default:
+            return {
+              mark: entry.finalMark,
+              place: entry.finalPlace,
+              heat: entry.finalHeat,
+              lane: entry.finalLane || entry.finalsLane,
+            };
         }
-        if (a.finalPlace) return -1;
-        if (b.finalPlace) return 1;
-        // Then by seed mark
+      };
+      
+      const roundLabel = selectedRound === 'preliminary' ? 'Prelims'
+        : selectedRound === 'quarterfinal' ? 'Quarterfinals'
+        : selectedRound === 'semifinal' ? 'Semis'
+        : 'Finals';
+      
+      const relevantEntries = allEntries.filter(entry => {
+        const fields = getRoundFields(entry);
+        return fields.heat != null || fields.lane != null || fields.mark != null || fields.place != null;
+      });
+      
+      const entriesToShow = relevantEntries.length > 0 ? relevantEntries : allEntries;
+      
+      const sortedEntries = entriesToShow.sort((a, b) => {
+        const aFields = getRoundFields(a);
+        const bFields = getRoundFields(b);
+        if (aFields.place && bFields.place) {
+          return aFields.place - bFields.place;
+        }
+        if (aFields.place) return -1;
+        if (bFields.place) return 1;
+        if (aFields.heat && bFields.heat) {
+          if (aFields.heat !== bFields.heat) return aFields.heat - bFields.heat;
+        }
+        if (aFields.lane && bFields.lane) {
+          return aFields.lane - bFields.lane;
+        }
         return (a.seedMark || 999) - (b.seedMark || 999);
       });
       
-      // Enrich entries with athlete names and team info, with proper position calculation
-      const enrichedEntries = await Promise.all(sortedEntries.map(async (entry, index) => {
-        const athlete = entry.athleteId ? await storage.getAthlete(entry.athleteId) : null;
-        const team = entry.teamId ? await storage.getTeam(entry.teamId) : null;
+      const athleteIds = sortedEntries.map(e => e.athleteId).filter((id): id is string => !!id);
+      const teamIds = sortedEntries.map(e => e.teamId).filter((id): id is string => !!id);
+      const uniqueAthleteIds = [...new Set(athleteIds)];
+      const uniqueTeamIds = [...new Set(teamIds)];
+      
+      const athleteMap = new Map<string, any>();
+      const teamMap = new Map<string, any>();
+      
+      if (uniqueAthleteIds.length > 0) {
+        const athletes = await Promise.all(uniqueAthleteIds.map(id => storage.getAthlete(id)));
+        athletes.forEach(a => { if (a) athleteMap.set(a.id, a); });
+      }
+      if (uniqueTeamIds.length > 0) {
+        const teams = await Promise.all(uniqueTeamIds.map(id => storage.getTeam(id)));
+        teams.forEach(t => { if (t) teamMap.set(t.id, t); });
+      }
+      
+      const enrichedEntries = sortedEntries.map((entry, index) => {
+        const athlete = entry.athleteId ? athleteMap.get(entry.athleteId) : null;
+        const team = entry.teamId ? teamMap.get(entry.teamId) : null;
         const athleteName = athlete ? `${athlete.firstName} ${athlete.lastName}`.trim() : 'Unknown';
-        // Position: use finalPlace if available, otherwise derive from sorted order
-        const position = entry.finalPlace || (index + 1);
+        const fields = getRoundFields(entry);
+        const position = fields.place || (index + 1);
         return {
           position,
-          lane: entry.preliminaryLane || entry.finalsLane || 0,
+          lane: fields.lane || 0,
+          heat: fields.heat || 0,
           bib: athlete?.bibNumber || athlete?.athleteNumber?.toString() || '',
           name: athleteName,
           team: team?.abbreviation || team?.shortName || '',
-          result: entry.finalMark || entry.seedMark || '',
-          place: entry.finalPlace,
+          result: fields.mark ?? entry.seedMark ?? '',
+          place: fields.place,
         };
-      }));
+      });
       
       // Use paging lines (lines = seconds)
       const lines = Math.max(1, Math.min(20, parseInt(pagingLines) || 8));
@@ -2609,7 +2676,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
         
-        // Send command to the display device
         connectedDevice.ws.send(JSON.stringify({
           type: 'display_command',
           template: sceneId ? null : defaultTemplate,
@@ -2618,6 +2684,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           liveEventData: {
             eventNumber: event.eventNumber || 0,
             eventName: event.name,
+            roundName: roundLabel,
             mode: 'results',
             entries: enrichedEntries,
           },
@@ -2625,13 +2692,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           pagingInterval: lines,
         }));
         
-        // Update database with paging settings
         await storage.updateDisplayDevice(deviceId, {
           pagingSize: lines,
           pagingInterval: lines,
         });
         
-        console.log(`[Hytek Results] Sent ${enrichedEntries.length} entries to ${device.deviceName} (${displayType}, paging: ${lines} lines/${lines}s)`);
+        console.log(`[Hytek Results] Sent ${enrichedEntries.length} entries (${roundLabel}) to ${device.deviceName} (${displayType}, paging: ${lines} lines/${lines}s)`);
         res.json({ success: true, delivered: true, entryCount: enrichedEntries.length });
       } else {
         res.json({ success: false, delivered: false, message: "Device offline" });
