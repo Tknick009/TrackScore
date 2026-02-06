@@ -84,7 +84,8 @@ export default function DisplayControlPage() {
   });
 
   const { data: events = [] } = useQuery<Event[]>({
-    queryKey: ['/api/events'],
+    queryKey: ['/api/events', currentMeetId],
+    queryFn: () => fetch(`/api/events?meetId=${currentMeetId}`).then(r => r.json()),
     enabled: !!currentMeetId,
   });
 
