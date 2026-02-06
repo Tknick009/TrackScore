@@ -83,6 +83,7 @@ import {
   setHeatCountBroadcastCallback,
   type HeatCountData 
 } from './track-heat-watcher';
+import { startHytekMdbWatcher, stopHytekMdbWatcher, getActiveHytekMdbWatchers, loadHytekMdbConfigs, saveHytekMdbConfigs, triggerManualImport } from './hytek-mdb-watcher';
 import { externalScoreboardService, buildFieldScoreboardPayload } from './external-scoreboard-service';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -7241,6 +7242,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   })();
   
+  // Initialize hytek mdb watchers on startup
+  (async () => {
+    try {
+      const hytekConfigs = loadHytekMdbConfigs();
+      for (const config of hytekConfigs) {
+        const result = startHytekMdbWatcher(config.meetId, config.mdbDirectory);
+        if (result.success) {
+          console.log(`[HyTek MDB Watcher] Initialized watcher for meet ${config.meetId}`);
+        }
+      }
+    } catch (err) {
+      console.error('[HyTek MDB Watcher] Error initializing watchers:', err);
+    }
+  })();
+  
   // Get current track heat watcher config
   app.get("/api/track-heat-watcher", async (req, res) => {
     try {
@@ -7332,6 +7348,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const configs = loadTrackHeatConfigs();
       const filtered = configs.filter(c => c.meetId !== meetId);
       saveTrackHeatConfigs(filtered);
+      
+      res.json({ success: true, meetId });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ===============================
+  // HYTEK MDB WATCHER ROUTES
+  // ===============================
+  
+  // Get current hytek mdb watcher config and status
+  app.get("/api/hytek-mdb-watcher", async (req, res) => {
+    try {
+      const configs = loadHytekMdbConfigs();
+      const activeWatchers = getActiveHytekMdbWatchers();
+      res.json({ configs, activeWatchers });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Start/update hytek mdb watcher
+  app.post("/api/hytek-mdb-watcher", async (req, res) => {
+    try {
+      const { meetId, mdbDirectory } = req.body;
+      
+      if (!meetId || typeof meetId !== 'string') {
+        return res.status(400).json({ error: "meetId is required" });
+      }
+      
+      if (!mdbDirectory || typeof mdbDirectory !== 'string') {
+        return res.status(400).json({ error: "mdbDirectory is required" });
+      }
+      
+      const result = startHytekMdbWatcher(meetId, mdbDirectory);
+      
+      if (!result.success) {
+        return res.status(400).json({ error: result.error });
+      }
+      
+      // Save to config
+      const configs = loadHytekMdbConfigs();
+      const existingIndex = configs.findIndex(c => c.meetId === meetId);
+      if (existingIndex >= 0) {
+        configs[existingIndex] = { meetId, mdbDirectory };
+      } else {
+        configs.push({ meetId, mdbDirectory });
+      }
+      saveHytekMdbConfigs(configs);
+      
+      res.json({ success: true, meetId, mdbDirectory });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Trigger manual re-import
+  app.post("/api/hytek-mdb-watcher/:meetId/reimport", async (req, res) => {
+    try {
+      const meetId = req.params.meetId;
+      const result = await triggerManualImport(meetId);
+      
+      if (!result.success) {
+        return res.status(400).json({ error: result.error });
+      }
+      
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Stop hytek mdb watcher
+  app.delete("/api/hytek-mdb-watcher/:meetId", async (req, res) => {
+    try {
+      const meetId = req.params.meetId;
+      
+      stopHytekMdbWatcher(meetId);
+      
+      // Remove from config
+      const configs = loadHytekMdbConfigs();
+      const filtered = configs.filter(c => c.meetId !== meetId);
+      saveHytekMdbConfigs(filtered);
       
       res.json({ success: true, meetId });
     } catch (error: any) {

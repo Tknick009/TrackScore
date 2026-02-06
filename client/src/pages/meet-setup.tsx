@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute } from "wouter";
-import { Settings, Image, X, Save, MapPin, Calendar as CalendarIcon, Palette, RotateCcw, FileText, Check, AlertCircle } from "lucide-react";
+import { Settings, Image, X, Save, MapPin, Calendar as CalendarIcon, Palette, RotateCcw, FileText, Check, AlertCircle, Database } from "lucide-react";
 import { format } from "date-fns";
 import type { Meet } from "@shared/schema";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,6 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
-import { DataIngestionPanel } from "@/components/data-ingestion-panel";
 
 const DEFAULT_COLORS = {
   primaryColor: "#0066CC",
@@ -111,6 +110,10 @@ export default function MeetSetup() {
   // Track heat watcher state
   const [evtFilePath, setEvtFilePath] = useState("");
   const [hasEvtChanges, setHasEvtChanges] = useState(false);
+  
+  // HyTek MDB watcher state
+  const [mdbDirectory, setMdbDirectory] = useState("");
+  const [hasMdbChanges, setHasMdbChanges] = useState(false);
 
   // Initialize form values when meet data loads
   useEffect(() => {
@@ -291,6 +294,89 @@ export default function MeetSetup() {
     onError: (error: Error) => {
       toast({
         title: "Failed to stop watcher",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // HyTek MDB watcher query and mutation
+  interface HytekMdbConfig {
+    meetId: string;
+    mdbDirectory: string;
+  }
+  
+  const { data: hytekMdbWatcherData } = useQuery<{ configs: HytekMdbConfig[]; activeWatchers: { meetId: string; mdbDirectory: string; lastImportAt: string | null }[] }>({
+    queryKey: ["/api/hytek-mdb-watcher"],
+    enabled: !!meetId,
+  });
+  
+  // Initialize MDB directory from existing config
+  useEffect(() => {
+    if (hytekMdbWatcherData && meetId) {
+      const existingConfig = hytekMdbWatcherData.configs.find(c => c.meetId === meetId);
+      if (existingConfig) {
+        setMdbDirectory(existingConfig.mdbDirectory);
+      }
+    }
+  }, [hytekMdbWatcherData, meetId]);
+  
+  const isMdbWatcherActive = hytekMdbWatcherData?.activeWatchers.some(w => w.meetId === meetId);
+  const mdbWatcherInfo = hytekMdbWatcherData?.activeWatchers.find(w => w.meetId === meetId);
+  
+  const saveMdbConfigMutation = useMutation({
+    mutationFn: async (data: { meetId: string; mdbDirectory: string }) => {
+      return await apiRequest("POST", "/api/hytek-mdb-watcher", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/hytek-mdb-watcher"] });
+      toast({ title: "HyTek MDB watcher configured successfully" });
+      setHasMdbChanges(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to configure MDB watcher",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+  
+  const stopMdbWatcherMutation = useMutation({
+    mutationFn: async (meetIdToStop: string) => {
+      const response = await fetch(`/api/hytek-mdb-watcher/${meetIdToStop}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error("Failed to stop watcher");
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/hytek-mdb-watcher"] });
+      toast({ title: "HyTek MDB watcher stopped" });
+      setMdbDirectory("");
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to stop watcher",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+  
+  const reimportMdbMutation = useMutation({
+    mutationFn: async (meetIdToReimport: string) => {
+      return await apiRequest("POST", `/api/hytek-mdb-watcher/${meetIdToReimport}/reimport`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/hytek-mdb-watcher"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/meets", meetId] });
+      toast({ title: "HyTek database re-imported successfully" });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to re-import",
         description: error.message,
         variant: "destructive",
       });
@@ -719,7 +805,90 @@ export default function MeetSetup() {
         </CardContent>
       </Card>
 
-      <DataIngestionPanel meetId={meetId!} />
+      <Card data-testid="card-mdb-watcher">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Database className="w-5 h-5" />
+            HyTek Database Watcher
+          </CardTitle>
+          <CardDescription>
+            Monitor a directory for HyTek .mdb database files. When the file changes, events, athletes, and entries are automatically re-imported.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="mdb-directory">MDB Directory Path</Label>
+            <div className="flex gap-2">
+              <Input
+                id="mdb-directory"
+                value={mdbDirectory}
+                onChange={(e) => {
+                  setMdbDirectory(e.target.value);
+                  setHasMdbChanges(true);
+                }}
+                placeholder="/path/to/hytek/database/"
+                className="flex-1 font-mono text-sm"
+                data-testid="input-mdb-directory"
+              />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Full path to the directory containing your HyTek .mdb file (e.g., C:\Hy-Tek\TFMeet\)
+            </p>
+          </div>
+          
+          {isMdbWatcherActive && (
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                <Check className="w-4 h-4" />
+                <span>Watcher active - monitoring for changes</span>
+              </div>
+              {mdbWatcherInfo?.lastImportAt && (
+                <p className="text-xs text-muted-foreground ml-6">
+                  Last import: {new Date(mdbWatcherInfo.lastImportAt).toLocaleString()}
+                </p>
+              )}
+            </div>
+          )}
+          
+          <div className="flex gap-3 flex-wrap">
+            <Button
+              onClick={() => {
+                if (meetId && mdbDirectory) {
+                  saveMdbConfigMutation.mutate({ meetId, mdbDirectory });
+                }
+              }}
+              disabled={!mdbDirectory || saveMdbConfigMutation.isPending || (!hasMdbChanges && isMdbWatcherActive)}
+              data-testid="button-save-mdb"
+            >
+              <Save className="w-4 h-4 mr-2" />
+              {saveMdbConfigMutation.isPending ? "Saving..." : isMdbWatcherActive ? "Update Watcher" : "Start Watcher"}
+            </Button>
+            
+            {isMdbWatcherActive && (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => meetId && reimportMdbMutation.mutate(meetId)}
+                  disabled={reimportMdbMutation.isPending}
+                  data-testid="button-reimport-mdb"
+                >
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                  {reimportMdbMutation.isPending ? "Importing..." : "Re-import Now"}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => meetId && stopMdbWatcherMutation.mutate(meetId)}
+                  disabled={stopMdbWatcherMutation.isPending}
+                  data-testid="button-stop-mdb"
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Stop Watcher
+                </Button>
+              </>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
