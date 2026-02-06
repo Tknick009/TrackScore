@@ -2857,42 +2857,121 @@ export class SQLiteStorage implements IStorage {
 
   // ============= TEAM STANDINGS QUERIES =============
   async getTeamStandings(meetId: string, scope?: { gender?: string; division?: string }): Promise<TeamStandingsEntry[]> {
-    const profile = await this.getMeetScoringProfile(meetId);
-    if (!profile) return [];
-    
-    let query = `
-      SELECT tsr.team_id, t.name as team_name, SUM(tsr.points_awarded) as total_points, tsr.event_breakdown
-      FROM team_scoring_results tsr
-      JOIN teams t ON tsr.team_id = t.id
-      WHERE tsr.profile_id = ?
-    `;
-    const params: any[] = [profile.id];
-    
+    const rules = this.db.prepare(
+      'SELECT gender, place, ind_score, rel_score FROM meet_scoring_rules WHERE meet_id = ? ORDER BY place'
+    ).all(meetId) as any[];
+
+    if (rules.length === 0) return [];
+
+    const indPointsMap = new Map<string, Map<number, number>>();
+    const relPointsMap = new Map<string, Map<number, number>>();
+    for (const rule of rules) {
+      const g = rule.gender;
+      if (!indPointsMap.has(g)) indPointsMap.set(g, new Map());
+      if (!relPointsMap.has(g)) relPointsMap.set(g, new Map());
+      if (rule.ind_score > 0) indPointsMap.get(g)!.set(rule.place, rule.ind_score);
+      if (rule.rel_score > 0) relPointsMap.get(g)!.set(rule.place, rule.rel_score);
+    }
+
+    const meetRow = this.db.prepare('SELECT ind_max_scorers_per_team, rel_max_scorers_per_team FROM meets WHERE id = ?').get(meetId) as any;
+    const indMaxScorers = meetRow?.ind_max_scorers_per_team || 0;
+    const relMaxScorers = meetRow?.rel_max_scorers_per_team || 0;
+
+    let eventsQuery = 'SELECT id, name, gender, event_type FROM events WHERE meet_id = ? AND is_scored = 1';
+    const eventsParams: any[] = [meetId];
     if (scope?.gender) {
-      query += ' AND tsr.gender = ?';
-      params.push(scope.gender);
+      eventsQuery += ' AND gender = ?';
+      eventsParams.push(scope.gender);
     }
-    if (scope?.division) {
-      query += ' AND tsr.division = ?';
-      params.push(scope.division);
+    const scoredEventsList = this.db.prepare(eventsQuery).all(...eventsParams) as any[];
+    if (scoredEventsList.length === 0) return [];
+
+    const scoredEventIds = scoredEventsList.map((e: any) => e.id);
+    const placeholders = scoredEventIds.map(() => '?').join(',');
+
+    const allEntries = this.db.prepare(`
+      SELECT en.event_id, en.final_place, a.team_id, t.name as team_name
+      FROM entries en
+      INNER JOIN athletes a ON en.athlete_id = a.id
+      LEFT JOIN teams t ON a.team_id = t.id
+      WHERE en.event_id IN (${placeholders})
+        AND en.final_place IS NOT NULL
+        AND a.team_id IS NOT NULL
+      ORDER BY en.event_id, en.final_place
+    `).all(...scoredEventIds) as any[];
+
+    const entriesByEvent = new Map<string, any[]>();
+    for (const entry of allEntries) {
+      const eventEntries = entriesByEvent.get(entry.event_id) || [];
+      eventEntries.push(entry);
+      entriesByEvent.set(entry.event_id, eventEntries);
     }
-    
-    query += ' GROUP BY tsr.team_id, t.name ORDER BY total_points DESC';
-    
-    const rows = this.db.prepare(query).all(...params);
-    
-    return rows.map((row: any, index: number) => {
-      const parsed = this.parseJson(row.event_breakdown);
-      const breakdown: { eventId: string; eventName: string; points: number }[] = Array.isArray(parsed) ? parsed : [];
-      return {
+
+    const teamScores = new Map<string, { teamName: string; totalPoints: number; events: Map<string, { eventName: string; points: number }> }>();
+
+    for (const evt of scoredEventsList) {
+      const nameLower = (evt.name || '').toLowerCase();
+      const typeLower = (evt.event_type || '').toLowerCase();
+      const isRelay = nameLower.includes('relay') || typeLower.startsWith('4x') || typeLower.includes('relay') ||
+        /^\d+x\d+/.test(typeLower);
+      const genderRaw = (evt.gender || '').toUpperCase().charAt(0);
+      const evtGender = genderRaw === 'W' || genderRaw === 'F' ? 'F' : 'M';
+
+      let ptsMap: Map<number, number> | undefined;
+      if (isRelay) {
+        ptsMap = relPointsMap.get(evtGender) || relPointsMap.get('ALL');
+      } else {
+        ptsMap = indPointsMap.get(evtGender) || indPointsMap.get('ALL');
+      }
+      if (!ptsMap || ptsMap.size === 0) continue;
+
+      const maxScorers = isRelay ? relMaxScorers : indMaxScorers;
+      const eventEntries = entriesByEvent.get(evt.id) || [];
+      const teamScorerCount = new Map<string, number>();
+
+      for (const entry of eventEntries) {
+        if (!entry.team_id || !entry.team_name || !entry.final_place) continue;
+
+        if (maxScorers > 0) {
+          const count = teamScorerCount.get(entry.team_id) || 0;
+          if (count >= maxScorers) continue;
+          teamScorerCount.set(entry.team_id, count + 1);
+        }
+
+        const pts = ptsMap.get(entry.final_place) || 0;
+        if (pts === 0) continue;
+
+        if (!teamScores.has(entry.team_id)) {
+          teamScores.set(entry.team_id, { teamName: entry.team_name, totalPoints: 0, events: new Map() });
+        }
+        const team = teamScores.get(entry.team_id)!;
+        team.totalPoints += pts;
+
+        const existing = team.events.get(evt.id);
+        if (existing) {
+          existing.points += pts;
+        } else {
+          team.events.set(evt.id, { eventName: evt.name, points: pts });
+        }
+      }
+    }
+
+    const standings: TeamStandingsEntry[] = Array.from(teamScores.entries())
+      .sort((a, b) => b[1].totalPoints - a[1].totalPoints)
+      .map(([teamId, data], index) => ({
         rank: index + 1,
-        teamId: row.team_id,
-        teamName: row.team_name,
-        totalPoints: row.total_points || 0,
-        eventCount: breakdown.length,
-        eventBreakdown: breakdown,
-      };
-    });
+        teamId,
+        teamName: data.teamName,
+        totalPoints: data.totalPoints,
+        eventCount: data.events.size,
+        eventBreakdown: Array.from(data.events.entries()).map(([eventId, e]) => ({
+          eventId,
+          eventName: e.eventName,
+          points: e.points,
+        })),
+      }));
+
+    return standings;
   }
 
   async recalculateTeamScoring(meetId: string): Promise<void> {
