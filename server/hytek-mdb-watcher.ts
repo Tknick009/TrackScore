@@ -56,8 +56,18 @@ async function handleMdbChange(state: HytekMdbWatcherState, filePath: string): P
     return;
   }
 
+  const tempDir = path.join('data', 'temp');
+  const tempFile = path.join(tempDir, `hytek_${Date.now()}_${path.basename(filePath)}`);
+
   try {
-    const buffer = fs.readFileSync(filePath);
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+
+    fs.copyFileSync(filePath, tempFile);
+    console.log(`[HyTek MDB Watcher] Copied MDB to temp: ${tempFile}`);
+
+    const buffer = fs.readFileSync(tempFile);
     const hash = computeFileHash(buffer);
 
     if (hash === state.lastHash) {
@@ -68,7 +78,7 @@ async function handleMdbChange(state: HytekMdbWatcherState, filePath: string): P
     state.importing = true;
 
     console.log(`[HyTek MDB Watcher] MDB file changed: ${filePath}, importing for meet ${state.meetId}`);
-    const stats = await importCompleteMDB(filePath, state.meetId);
+    const stats = await importCompleteMDB(tempFile, state.meetId);
     state.lastImportAt = new Date();
 
     console.log(`[HyTek MDB Watcher] Import complete for meet ${state.meetId}: ${stats.events} events, ${stats.athletes} athletes, ${stats.entries} entries`);
@@ -80,6 +90,11 @@ async function handleMdbChange(state: HytekMdbWatcherState, filePath: string): P
     console.error(`[HyTek MDB Watcher] Error importing MDB for meet ${state.meetId}:`, error);
   } finally {
     state.importing = false;
+    try {
+      if (fs.existsSync(tempFile)) {
+        fs.unlinkSync(tempFile);
+      }
+    } catch (e) {}
   }
 }
 
