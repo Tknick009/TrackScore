@@ -268,7 +268,7 @@ export function SceneObjectRenderer({
     const entries = Array.isArray(liveData.entries) ? liveData.entries : [];
     const entry = entries[athleteIndex];
     if (!entry) {
-      textFadeOpacity = 0.5;
+      textFadeOpacity = 0.25;
     } else if (!isResultsMode && !isPreRaceMode) {
       const hasLastSplit = entry.lastSplit && String(entry.lastSplit).trim() !== '';
       const hasCumulativeSplit = entry.cumulativeSplit && String(entry.cumulativeSplit).trim() !== '';
