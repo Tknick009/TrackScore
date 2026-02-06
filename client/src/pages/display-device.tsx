@@ -747,11 +747,15 @@ export default function DisplayDevice() {
                   heat: data.heat ?? prev.liveEventData?.heat,
                   totalHeats: data.totalHeats ?? prev.liveEventData?.totalHeats,
                   round: data.round ?? prev.liveEventData?.round,
+                  roundName: data.roundName ?? prev.liveEventData?.roundName,
                   mode: data.mode,
                   wind: data.wind,
                   distance: data.distance || prev.liveEventData?.distance,
                   // Keep previous entries if no new entries (prevents flash during mode transitions)
                   entries: entries.length > 0 ? entries : (prev.liveEventData?.entries || []),
+                  // Pass through advancement formula for qualifier display (Q/q)
+                  advanceByPlace: data.advanceByPlace ?? prev.liveEventData?.advanceByPlace,
+                  advanceByTime: data.advanceByTime ?? prev.liveEventData?.advanceByTime,
                   // Pass through multi-event info for points calculation
                   isMultiEvent: data.isMultiEvent,
                   eventType: data.eventType,
