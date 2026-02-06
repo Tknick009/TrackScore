@@ -99,6 +99,7 @@ export default function DisplayControlPage() {
   const [displayMode, setDisplayMode] = useState<Record<string, DisplayMode>>({});
   const [selectedHytekItem, setSelectedHytekItem] = useState<Record<string, string>>({});
   const [pagingLines, setPagingLines] = useState<Record<string, number>>({});
+  const [teamScoreGender, setTeamScoreGender] = useState<Record<string, 'M' | 'W'>>({});
   const [eventSearch, setEventSearch] = useState('');
 
   const baseUrl = typeof window !== 'undefined' 
@@ -324,8 +325,8 @@ export default function DisplayControlPage() {
 
   // Send Team Scores mutation
   const sendTeamScoresMutation = useMutation({
-    mutationFn: async ({ deviceId, pagingLines }: { deviceId: string; pagingLines: number }) => {
-      const response = await apiRequest('POST', `/api/display-devices/${deviceId}/team-scores`, { pagingLines });
+    mutationFn: async ({ deviceId, pagingLines, gender }: { deviceId: string; pagingLines: number; gender: 'M' | 'W' }) => {
+      const response = await apiRequest('POST', `/api/display-devices/${deviceId}/team-scores`, { pagingLines, gender });
       return response.json();
     },
     onSuccess: (data) => {
@@ -866,6 +867,28 @@ export default function DisplayControlPage() {
                       ) : displayMode[selectedDevice.id] === 'teamscores' ? (
                         <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
                           <div className="space-y-2">
+                            <Label>Gender</Label>
+                            <div className="flex gap-2">
+                              <Button
+                                variant={teamScoreGender[selectedDevice.id] === 'M' || !teamScoreGender[selectedDevice.id] ? 'default' : 'outline'}
+                                onClick={() => setTeamScoreGender(prev => ({ ...prev, [selectedDevice.id]: 'M' }))}
+                                className="flex-1"
+                                data-testid="button-teamscores-men"
+                              >
+                                Men
+                              </Button>
+                              <Button
+                                variant={teamScoreGender[selectedDevice.id] === 'W' ? 'default' : 'outline'}
+                                onClick={() => setTeamScoreGender(prev => ({ ...prev, [selectedDevice.id]: 'W' }))}
+                                className="flex-1"
+                                data-testid="button-teamscores-women"
+                              >
+                                Women
+                              </Button>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
                             <Label>Paging (lines = seconds)</Label>
                             <div className="flex items-center gap-2">
                               <Select
@@ -892,9 +915,11 @@ export default function DisplayControlPage() {
                           <Button
                             onClick={() => {
                               const lines = pagingLines[selectedDevice.id] || 8;
+                              const gender = teamScoreGender[selectedDevice.id] || 'M';
                               sendTeamScoresMutation.mutate({
                                 deviceId: selectedDevice.id,
                                 pagingLines: lines,
+                                gender,
                               });
                             }}
                             disabled={sendTeamScoresMutation.isPending}

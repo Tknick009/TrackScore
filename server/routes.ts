@@ -2718,8 +2718,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Send Team Scores to a display device
   app.post("/api/display-devices/:id/team-scores", async (req, res) => {
     try {
-      const { pagingLines } = req.body;
+      const { pagingLines, gender } = req.body;
       const deviceId = req.params.id;
+      const selectedGender: string = gender === 'W' ? 'W' : 'M';
+      const genderLabel = selectedGender === 'W' ? "Women's" : "Men's";
       
       // Get the device
       const device = await storage.getDisplayDevice(deviceId);
@@ -2731,41 +2733,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Device has no assigned meet" });
       }
       
-      // Get teams for this meet
-      const teams = await storage.getTeamsByMeetId(device.meetId);
-      
-      if (teams.length === 0) {
-        return res.status(400).json({ error: "No teams found for this meet", warning: true });
-      }
-      
-      // Get team scoring standings if available
-      let teamScores: Map<string, number> = new Map();
+      // Use getTeamStandings which handles gender-filtered scoring
+      let standings: any[] = [];
       let hasScores = false;
       try {
-        const scoringResults = await storage.getTeamScoringResultsByMeet(device.meetId);
-        for (const result of scoringResults) {
-          const current = teamScores.get(result.teamId) || 0;
-          teamScores.set(result.teamId, current + (result.points || 0));
-          hasScores = true;
-        }
+        standings = await storage.getTeamStandings(device.meetId, { gender: selectedGender });
+        hasScores = standings.some((s: any) => (s.totalPoints || 0) > 0);
       } catch (err) {
-        console.log('[Team Scores] No scoring results available');
+        console.log('[Team Scores] getTeamStandings failed, falling back to manual scoring');
       }
       
-      // Sort teams by score (assuming higher is better)
-      const sortedTeams = [...teams].sort((a: typeof teams[0], b: typeof teams[0]) => {
-        const scoreA = teamScores.get(a.id) || 0;
-        const scoreB = teamScores.get(b.id) || 0;
-        return scoreB - scoreA;
-      });
-      
-      // Format team entries for display
-      const teamEntries = sortedTeams.map((team: typeof teams[0], index: number) => ({
-        position: index + 1,
-        name: team.name || team.shortName || 'Unknown',
-        abbreviation: team.abbreviation || '',
-        score: teamScores.get(team.id) || 0,
-      }));
+      // If getTeamStandings returned results, use them
+      let teamEntries: any[];
+      if (standings.length > 0) {
+        // Get team logos
+        const logoMap = new Map<string, string>();
+        try {
+          const allLogos = await storage.getTeamLogosByMeet(device.meetId);
+          for (const logo of allLogos) {
+            logoMap.set(logo.teamId, fileStorage.publicUrlForKey(logo.storageKey));
+          }
+        } catch {}
+        
+        teamEntries = standings
+          .filter((s: any) => (s.totalPoints || 0) > 0)
+          .map((s: any, index: number) => ({
+            position: index + 1,
+            name: s.teamName || 'Unknown',
+            abbreviation: s.teamAbbreviation || '',
+            score: s.totalPoints || 0,
+            logoUrl: logoMap.get(s.teamId) || null,
+          }));
+      } else {
+        // Fallback: get all teams and manual scoring
+        const teams = await storage.getTeamsByMeetId(device.meetId);
+        if (teams.length === 0) {
+          return res.status(400).json({ error: "No teams found for this meet", warning: true });
+        }
+        
+        let teamScores: Map<string, number> = new Map();
+        try {
+          const scoringResults = await storage.getTeamScoringResultsByMeet(device.meetId);
+          for (const result of scoringResults) {
+            if (result.gender && result.gender !== selectedGender) continue;
+            const current = teamScores.get(result.teamId) || 0;
+            teamScores.set(result.teamId, current + (result.points || 0));
+            hasScores = true;
+          }
+        } catch (err) {
+          console.log('[Team Scores] No scoring results available');
+        }
+        
+        const sortedTeams = [...teams].sort((a: typeof teams[0], b: typeof teams[0]) => {
+          const scoreA = teamScores.get(a.id) || 0;
+          const scoreB = teamScores.get(b.id) || 0;
+          return scoreB - scoreA;
+        });
+        
+        teamEntries = sortedTeams
+          .filter((team: typeof teams[0]) => (teamScores.get(team.id) || 0) > 0)
+          .map((team: typeof teams[0], index: number) => ({
+            position: index + 1,
+            name: team.name || team.shortName || 'Unknown',
+            abbreviation: team.abbreviation || '',
+            score: teamScores.get(team.id) || 0,
+          }));
+      }
       
       // Use paging lines (lines = seconds)
       const lines = Math.max(1, Math.min(20, parseInt(pagingLines) || 8));
@@ -2806,6 +2839,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           sceneData,
           liveEventData: {
             mode: 'team_scores',
+            eventName: `${genderLabel} Team Scores`,
+            gender: selectedGender,
             entries: teamEntries,
           },
           pagingSize: lines,
@@ -2818,7 +2853,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           pagingInterval: lines,
         });
         
-        console.log(`[Team Scores] Sent ${teamEntries.length} teams to ${device.deviceName} (paging: ${lines} lines/${lines}s, hasScores: ${hasScores})`);
+        console.log(`[Team Scores] Sent ${teamEntries.length} ${genderLabel} teams to ${device.deviceName} (paging: ${lines} lines/${lines}s, hasScores: ${hasScores})`);
         res.json({ 
           success: true, 
           delivered: true, 
