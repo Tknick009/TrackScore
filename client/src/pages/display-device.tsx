@@ -1693,17 +1693,26 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             name: liveEventData?.eventName || '',
             eventType: 'track',
             status: liveEventData?.mode === 'results' ? 'completed' : 'in_progress',
-            entries: (liveEventData?.entries || []).map((entry: any, idx: number) => ({
-              id: idx,
-              lane: entry.lane || idx + 1,
-              place: entry.place,
-              time: entry.time,
-              athlete: {
-                firstName: entry.name?.split(' ')[0] || '',
-                lastName: entry.name?.split(' ').slice(1).join(' ') || entry.name || '',
-                team: entry.team || entry.affiliation || '',
-              },
-            })),
+            entries: (liveEventData?.entries || []).map((entry: any, idx: number) => {
+              const firstName = entry.firstName || entry.name?.split(' ')[0] || '';
+              const lastName = entry.lastName || entry.name?.split(' ').slice(1).join(' ') || entry.name || '';
+              const teamName = entry.affiliation || entry.team || '';
+              return {
+                id: idx,
+                finalLane: entry.lane || idx + 1,
+                finalPlace: entry.place,
+                finalMark: entry.time || entry.mark || entry.result || '',
+                athlete: {
+                  firstName,
+                  lastName,
+                  team: teamName,
+                },
+                team: {
+                  name: teamName,
+                  logoUrl: teamName ? `/logos/NCAA/${teamName}.png` : null,
+                },
+              };
+            }),
           };
       if (isFieldResults || isFieldStandings) {
         return <SingleAthleteField event={eventWithLiveName as any} meet={meet} focusIndex={0} />;
@@ -1748,17 +1757,26 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             name: liveEventData?.eventName || '',
             eventType: 'track',
             status: liveEventData?.mode === 'results' ? 'completed' : 'in_progress',
-            entries: (liveEventData?.entries || []).map((entry: any, idx: number) => ({
-              id: idx,
-              lane: entry.lane || idx + 1,
-              place: entry.place,
-              time: entry.time,
-              athlete: {
-                firstName: entry.name?.split(' ')[0] || '',
-                lastName: entry.name?.split(' ').slice(1).join(' ') || entry.name || '',
-                team: entry.team || entry.affiliation || '',
-              },
-            })),
+            entries: (liveEventData?.entries || []).map((entry: any, idx: number) => {
+              const firstName = entry.firstName || entry.name?.split(' ')[0] || '';
+              const lastName = entry.lastName || entry.name?.split(' ').slice(1).join(' ') || entry.name || '';
+              const teamName = entry.affiliation || entry.team || '';
+              return {
+                id: idx,
+                finalLane: entry.lane || idx + 1,
+                finalPlace: entry.place,
+                finalMark: entry.time || entry.mark || entry.result || '',
+                athlete: {
+                  firstName,
+                  lastName,
+                  team: teamName,
+                },
+                team: {
+                  name: teamName,
+                  logoUrl: teamName ? `/logos/NCAA/${teamName}.png` : null,
+                },
+              };
+            }),
             wind: liveEventData?.wind,
             heat: liveEventData?.heat,
             round: liveEventData?.round,

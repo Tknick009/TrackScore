@@ -2616,17 +2616,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const enrichedEntries = sortedEntries.map((entry, index) => {
         const athlete = entry.athleteId ? athleteMap.get(entry.athleteId) : null;
         const team = entry.teamId ? teamMap.get(entry.teamId) : null;
-        const athleteName = athlete ? `${athlete.firstName} ${athlete.lastName}`.trim() : 'Unknown';
         const fields = getRoundFields(entry);
         const position = fields.place || (index + 1);
+        const markValue = fields.mark ?? entry.seedMark ?? '';
+        const teamName = team?.name || team?.shortName || '';
+        const teamAbbrev = team?.abbreviation || team?.shortName || '';
         return {
           position,
           lane: fields.lane || 0,
           heat: fields.heat || 0,
           bib: athlete?.bibNumber || athlete?.athleteNumber?.toString() || '',
-          name: athleteName,
-          team: team?.abbreviation || team?.shortName || '',
-          result: fields.mark ?? entry.seedMark ?? '',
+          firstName: athlete?.firstName || '',
+          lastName: athlete?.lastName || '',
+          name: athlete ? `${athlete.firstName} ${athlete.lastName}`.trim() : 'Unknown',
+          team: teamAbbrev,
+          affiliation: teamName,
+          time: markValue,
+          mark: markValue,
+          result: markValue,
           place: fields.place,
         };
       });
