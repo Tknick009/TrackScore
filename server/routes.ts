@@ -836,30 +836,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         storage.getTeamStandings(meetId, { gender: "W" }),
       ]);
 
-      const allTeamIds = new Set<string>();
-      for (const s of menStandings) allTeamIds.add(s.teamId);
-      for (const s of womenStandings) allTeamIds.add(s.teamId);
-
-      const logoMap = new Map<string, string>();
-      if (allTeamIds.size > 0) {
-        try {
-          const allLogos = await storage.getTeamLogosByMeet(meetId);
-          for (const logo of allLogos) {
-            logoMap.set(logo.teamId, fileStorage.publicUrlForKey(logo.storageKey));
-          }
-        } catch {
-        }
-      }
-
-      const enrichWithLogos = (standings: typeof menStandings) =>
-        standings.map(s => ({
-          ...s,
-          teamLogoUrl: logoMap.get(s.teamId) || undefined,
-        }));
-
       res.json({
-        men: enrichWithLogos(menStandings),
-        women: enrichWithLogos(womenStandings),
+        men: menStandings,
+        women: womenStandings,
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });

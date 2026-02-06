@@ -215,7 +215,7 @@ function StandingsTable({ title, standings }: { title: string; standings: TeamSt
                 <td className="px-3 py-2 font-medium">
                   <div className="flex items-center gap-2">
                     <Avatar className="h-6 w-6">
-                      {team.teamLogoUrl && <AvatarImage src={team.teamLogoUrl} alt={team.teamName} />}
+                      <AvatarImage src={`/logos/NCAA/${encodeURIComponent(team.teamName)}.png`} alt={team.teamName} />
                       <AvatarFallback className="text-xs">{team.teamName.charAt(0)}</AvatarFallback>
                     </Avatar>
                     <span>{team.teamName}</span>
