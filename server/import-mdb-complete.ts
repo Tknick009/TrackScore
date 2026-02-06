@@ -633,6 +633,9 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       // Check if raw name is meaningful (not just "Event N")
       const isGenericName = rawEventName && /^Event\s+\d+$/i.test(String(rawEventName).trim());
       
+      // DEBUG: Log raw stroke data for every event
+      console.log(`   🔍 Event #${eventNum} (ptr=${eventPtr}): stroke="${row.Event_stroke}" dist=${distance} trk_field="${trkField}" gender="${gender}" ind_rel="${row.Ind_rel}"`);
+      
       if (rawEventName && !isGenericName) {
         eventName = String(rawEventName);
         namesFound++;
@@ -642,6 +645,8 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         generatedNamesCount++;
         namesFound++;
       }
+      
+      console.log(`   📝 Event #${eventNum} → "${eventName}"`);
       
       // Priority 4: Final fallback to other Event table fields
       if (!eventDate) {
