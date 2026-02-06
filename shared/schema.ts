@@ -1698,6 +1698,7 @@ export type TeamScoringResult = typeof teamScoringResults.$inferSelect;
 export type TeamStandingsEntry = {
   teamId: string;
   teamName: string;
+  teamLogoUrl?: string;
   totalPoints: number;
   eventCount: number;
   eventBreakdown: { eventId: string; eventName: string; points: number }[];

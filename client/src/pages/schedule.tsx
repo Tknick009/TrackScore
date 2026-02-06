@@ -12,6 +12,7 @@ import { Calendar, Clock, Timer, Target, ArrowUpDown, Edit2, Check, X, Trophy } 
 import { Link } from "wouter";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 type SortOption = 'time' | 'session' | 'number' | 'name' | 'status';
 
@@ -184,6 +185,53 @@ function EventStatusBadge({ event }: { event: Event }) {
   return <Badge variant="outline" className="bg-white text-gray-700 dark:bg-gray-200 dark:text-gray-700" data-testid={`badge-status-${event.id}`}>Unseeded</Badge>;
 }
 
+function StandingsTable({ title, standings }: { title: string; standings: TeamStandingsEntry[] }) {
+  if (standings.length === 0) {
+    return (
+      <div>
+        <h3 className="text-sm font-semibold mb-2 text-muted-foreground">{title}</h3>
+        <p className="text-sm text-muted-foreground">No scored events yet.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <h3 className="text-sm font-semibold mb-2 text-muted-foreground">{title}</h3>
+      <div className="rounded-md border overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-muted/50">
+              <th className="text-left px-3 py-2 font-medium w-10">#</th>
+              <th className="text-left px-3 py-2 font-medium">Team</th>
+              <th className="text-right px-3 py-2 font-medium w-16">Events</th>
+              <th className="text-right px-3 py-2 font-medium w-20">Points</th>
+            </tr>
+          </thead>
+          <tbody>
+            {standings.map((team, index) => (
+              <tr key={team.teamId} className={index % 2 === 0 ? '' : 'bg-muted/20'} data-testid={`row-team-${team.teamId}`}>
+                <td className="px-3 py-2 text-muted-foreground">{team.rank}</td>
+                <td className="px-3 py-2 font-medium">
+                  <div className="flex items-center gap-2">
+                    <Avatar className="h-6 w-6">
+                      {team.teamLogoUrl && <AvatarImage src={team.teamLogoUrl} alt={team.teamName} />}
+                      <AvatarFallback className="text-xs">{team.teamName.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                    <span>{team.teamName}</span>
+                  </div>
+                </td>
+                <td className="px-3 py-2 text-right text-muted-foreground">{team.eventCount}</td>
+                <td className="px-3 py-2 text-right font-semibold">{team.totalPoints}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function isTrackEvent(eventType: string): boolean {
   const trackEvents = [
     "100m", "200m", "400m", "800m", "1500m", "3000m", "5000m", "10000m",
@@ -205,11 +253,13 @@ export default function Schedule() {
     enabled: !!currentMeetId,
   });
 
-  const { data: teamStandings = [] } = useQuery<TeamStandingsEntry[]>({
+  const { data: teamStandingsData } = useQuery<{ men: TeamStandingsEntry[]; women: TeamStandingsEntry[] }>({
     queryKey: ["/api/public/meets", currentMeetId, "team-standings"],
     queryFn: () => fetch(`/api/public/meets/${currentMeetId}/team-standings`).then(r => r.json()),
     enabled: !!currentMeetId,
   });
+  const menStandings = teamStandingsData?.men ?? [];
+  const womenStandings = teamStandingsData?.women ?? [];
 
   const liveEvents = events.filter(e => e.status === "in_progress");
   const scoredEvents = events.filter(e => e.status === "completed" || e.isScored || e.hytekStatus === 'scored');
@@ -431,30 +481,12 @@ export default function Schedule() {
               <Trophy className="w-5 h-5 text-muted-foreground" />
               <h2 className="text-lg font-semibold">Team Scores</h2>
             </div>
-            {teamStandings.length === 0 ? (
+            {menStandings.length === 0 && womenStandings.length === 0 ? (
               <p className="text-sm text-muted-foreground">No scored events yet. Mark events as scored to see team totals here.</p>
             ) : (
-              <div className="rounded-md border overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-muted/50">
-                      <th className="text-left px-4 py-2 font-medium w-12">#</th>
-                      <th className="text-left px-4 py-2 font-medium">Team</th>
-                      <th className="text-right px-4 py-2 font-medium w-20">Events</th>
-                      <th className="text-right px-4 py-2 font-medium w-24">Points</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {teamStandings.map((team, index) => (
-                      <tr key={team.teamId} className={index % 2 === 0 ? '' : 'bg-muted/20'} data-testid={`row-team-${team.teamId}`}>
-                        <td className="px-4 py-2 text-muted-foreground">{team.rank}</td>
-                        <td className="px-4 py-2 font-medium">{team.teamName}</td>
-                        <td className="px-4 py-2 text-right text-muted-foreground">{team.eventCount}</td>
-                        <td className="px-4 py-2 text-right font-semibold">{team.totalPoints}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <StandingsTable title="Men's Standings" standings={menStandings} />
+                <StandingsTable title="Women's Standings" standings={womenStandings} />
               </div>
             )}
           </div>

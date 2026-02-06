@@ -758,11 +758,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get team standings
+  // Get team standings split by gender with logo URLs
   app.get("/api/public/meets/:meetId/team-standings", async (req, res) => {
     try {
-      const standings = await storage.getTeamStandings(req.params.meetId);
-      res.json(standings);
+      const meetId = req.params.meetId;
+      const [menStandings, womenStandings] = await Promise.all([
+        storage.getTeamStandings(meetId, { gender: "M" }),
+        storage.getTeamStandings(meetId, { gender: "W" }),
+      ]);
+
+      const allTeamIds = new Set<string>();
+      for (const s of menStandings) allTeamIds.add(s.teamId);
+      for (const s of womenStandings) allTeamIds.add(s.teamId);
+
+      const logoMap = new Map<string, string>();
+      if (allTeamIds.size > 0) {
+        try {
+          const logoPromises = Array.from(allTeamIds).map(id => storage.getTeamLogo(id));
+          const logos = await Promise.all(logoPromises);
+          const teamIdArr = Array.from(allTeamIds);
+          logos.forEach((logo, index) => {
+            if (logo) {
+              logoMap.set(teamIdArr[index], fileStorage.publicUrlForKey(logo.storageKey));
+            }
+          });
+        } catch {
+        }
+      }
+
+      const enrichWithLogos = (standings: typeof menStandings) =>
+        standings.map(s => ({
+          ...s,
+          teamLogoUrl: logoMap.get(s.teamId) || undefined,
+        }));
+
+      res.json({
+        men: enrichWithLogos(menStandings),
+        women: enrichWithLogos(womenStandings),
+      });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

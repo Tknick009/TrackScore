@@ -6,11 +6,15 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 export function SpectatorStandings() {
   const { currentMeetId } = useSpectator();
   
-  const { data: teamStandings } = useQuery<any[]>({
+  const { data: teamStandingsData } = useQuery<{ men: any[]; women: any[] }>({
     queryKey: ["/api/public/meets", currentMeetId, "team-standings"],
     enabled: !!currentMeetId,
     refetchInterval: 15000
   });
+  const teamStandings = [
+    ...(teamStandingsData?.men ?? []),
+    ...(teamStandingsData?.women ?? []),
+  ].sort((a, b) => b.totalPoints - a.totalPoints);
   
   const { data: medalStandings } = useQuery<any[]>({
     queryKey: ["/api/public/meets", currentMeetId, "medal-standings"],
