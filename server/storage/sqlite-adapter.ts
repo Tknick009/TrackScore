@@ -170,6 +170,8 @@ export class SQLiteStorage implements IStorage {
 
   private initializeDatabase(): void {
     this.createTables();
+    try { this.db.prepare('ALTER TABLE display_devices ADD COLUMN field_port INTEGER DEFAULT NULL').run(); } catch(e) {}
+    try { this.db.prepare('ALTER TABLE display_devices ADD COLUMN is_big_board INTEGER DEFAULT 0').run(); } catch(e) {}
   }
 
   private createTables(): void {
@@ -391,6 +393,8 @@ export class SQLiteStorage implements IStorage {
         auto_mode INTEGER DEFAULT 1,
         paging_size INTEGER DEFAULT 8,
         paging_interval INTEGER DEFAULT 5,
+        field_port INTEGER DEFAULT NULL,
+        is_big_board INTEGER DEFAULT 0,
         current_template TEXT,
         last_ip TEXT,
         last_seen_at TEXT,
@@ -1804,6 +1808,8 @@ export class SQLiteStorage implements IStorage {
       autoMode: this.toBoolean(row.auto_mode ?? true),
       pagingSize: row.paging_size ?? 8,
       pagingInterval: row.paging_interval ?? 5,
+      fieldPort: row.field_port ?? null,
+      isBigBoard: this.toBoolean(row.is_big_board ?? false),
       currentTemplate: row.current_template,
       lastIp: row.last_ip,
       lastSeenAt: row.last_seen_at ? new Date(row.last_seen_at) : null,
@@ -4558,12 +4564,14 @@ export class SQLiteStorage implements IStorage {
     return this.getDisplayDevice(id);
   }
 
-  async updateDisplayDevice(id: string, updates: Partial<{ pagingSize: number; pagingInterval: number }>): Promise<DisplayDevice | undefined> {
+  async updateDisplayDevice(id: string, updates: Partial<{ pagingSize: number; pagingInterval: number; fieldPort: number | null; isBigBoard: boolean }>): Promise<DisplayDevice | undefined> {
     const setClause: string[] = [];
     const values: any[] = [];
     
     if (updates.pagingSize !== undefined) { setClause.push('paging_size = ?'); values.push(updates.pagingSize); }
     if (updates.pagingInterval !== undefined) { setClause.push('paging_interval = ?'); values.push(updates.pagingInterval); }
+    if (updates.fieldPort !== undefined) { setClause.push('field_port = ?'); values.push(updates.fieldPort); }
+    if (updates.isBigBoard !== undefined) { setClause.push('is_big_board = ?'); values.push(this.fromBoolean(updates.isBigBoard)); }
     
     if (setClause.length > 0) {
       values.push(id);

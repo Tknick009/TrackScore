@@ -32,7 +32,8 @@ import {
   Trophy,
   Database,
   ChevronRight,
-  Search
+  Search,
+  Target
 } from 'lucide-react';
 import { DISPLAY_CONTENT_TYPES } from '@shared/layout-templates';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -81,11 +82,13 @@ interface DisplayDevice {
   lastSeenAt: string | null;
   assignedEventId: string | null;
   status: string;
+  fieldPort: number | null;
+  isBigBoard: boolean;
   assignedEvent?: Event;
 }
 
 // Display mode types
-type DisplayMode = 'finishlynx' | 'hytek' | 'teamscores';
+type DisplayMode = 'finishlynx' | 'hytek' | 'teamscores' | 'field';
 
 export default function DisplayControlPage() {
   const { currentMeetId, currentMeet } = useMeet();
@@ -682,7 +685,7 @@ export default function DisplayControlPage() {
                     </div>
                   ) : (
                     <>
-                      <div className="grid grid-cols-3 gap-3">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         <button
                           type="button"
                           onClick={() => {
@@ -754,6 +757,32 @@ export default function DisplayControlPage() {
                             Team standings from MDB file
                           </p>
                           {displayMode[selectedDevice.id] === 'teamscores' && !autoModeStatus?.autoMode && (
+                            <Badge variant="default" className="mt-2">Active</Badge>
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDisplayMode(prev => ({ ...prev, [selectedDevice.id]: 'field' }));
+                            toggleAutoModeMutation.mutate({ deviceId: selectedDevice.id, enabled: false });
+                            apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}/mode`, { displayMode: 'field' });
+                          }}
+                          className={`p-4 rounded-lg border-2 transition-all text-left ${
+                            displayMode[selectedDevice.id] === 'field' && !autoModeStatus?.autoMode
+                              ? 'border-primary bg-primary/10'
+                              : 'border-border hover-elevate'
+                          }`}
+                          data-testid="tile-field"
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <Target className="w-5 h-5 text-orange-500" />
+                            <span className="font-medium">Field Events</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Results from Athletic Field App
+                          </p>
+                          {displayMode[selectedDevice.id] === 'field' && !autoModeStatus?.autoMode && (
                             <Badge variant="default" className="mt-2">Active</Badge>
                           )}
                         </button>
@@ -930,9 +959,59 @@ export default function DisplayControlPage() {
                             Send to Display
                           </Button>
                         </div>
+                      ) : displayMode[selectedDevice.id] === 'field' ? (
+                        <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
+                          <div className="space-y-2">
+                            <Label>Field Port</Label>
+                            <Select
+                              value={String(selectedDevice.fieldPort || 4560)}
+                              onValueChange={(val) => {
+                                const port = parseInt(val);
+                                apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}`, { fieldPort: port });
+                                queryClient.invalidateQueries({ queryKey: ['/api/display-devices/meet', currentMeetId] });
+                              }}
+                            >
+                              <SelectTrigger data-testid="select-field-port">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {Array.from({ length: 10 }, (_, i) => 4560 + i).map(port => (
+                                  <SelectItem key={port} value={String(port)}>
+                                    Port {port}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                              Configure Athletic Field App to send this field event to the selected port
+                            </p>
+                          </div>
+                        </div>
                       ) : null}
                     </>
                   )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Device Settings</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <div className="text-sm font-medium">Big Board Mode</div>
+                      <p className="text-xs text-muted-foreground">Uses big board channel for independent paging</p>
+                    </div>
+                    <Switch
+                      checked={selectedDevice.isBigBoard || false}
+                      onCheckedChange={(checked) => {
+                        apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}`, { isBigBoard: checked });
+                        queryClient.invalidateQueries({ queryKey: ['/api/display-devices/meet', currentMeetId] });
+                      }}
+                      data-testid="switch-big-board"
+                    />
+                  </div>
                 </CardContent>
               </Card>
 

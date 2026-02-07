@@ -249,6 +249,7 @@ export default function DisplayDevice() {
   const [selectedMeetId, setSelectedMeetId] = useState<string | null>(null);
   const [deviceName, setDeviceName] = useState<string>('');
   const [registeredDeviceId, setRegisteredDeviceId] = useState<string | null>(null);
+  const registeredDeviceIdRef = useRef<string | null>(null);
   // Big board toggle - when true, subscribes to 'track_mode_change_big' channel
   const [isBigBoard, setIsBigBoard] = useState<boolean>(false);
   const isBigBoardRef = useRef<boolean>(false);
@@ -312,6 +313,10 @@ export default function DisplayDevice() {
     }
   }, [selectedMeetId]);
   
+  useEffect(() => {
+    registeredDeviceIdRef.current = registeredDeviceId;
+  }, [registeredDeviceId]);
+
   // Keep bigBoard ref in sync with state
   useEffect(() => {
     isBigBoardRef.current = isBigBoard;
@@ -391,6 +396,16 @@ export default function DisplayDevice() {
               saveDeviceId(displayType, message.data.deviceId);
               setRegisteredDeviceId(message.data.deviceId);
               console.log('Saved device ID for reconnection:', message.data.deviceId);
+              const deviceData = message.data;
+              if (deviceData.fieldPort !== undefined) {
+                setFieldPort(deviceData.fieldPort ?? 4560);
+              }
+              if (deviceData.isBigBoard !== undefined) {
+                setIsBigBoard(!!deviceData.isBigBoard);
+              }
+              if (deviceData.displayMode !== undefined) {
+                setIsFieldMode(deviceData.displayMode === 'field');
+              }
             }
           }
           
@@ -454,6 +469,26 @@ export default function DisplayDevice() {
               pagingSize: message.pagingSize ?? prev.pagingSize,
               pagingInterval: message.pagingInterval ?? prev.pagingInterval,
             }));
+          }
+
+          if (message.type === 'device_config_update') {
+            const data = message.data;
+            const myDeviceId = registeredDeviceIdRef.current;
+            if (data && data.deviceId === myDeviceId) {
+              console.log(`[Display] Device config update: fieldPort=${data.fieldPort}, isBigBoard=${data.isBigBoard}`);
+              if (data.fieldPort !== undefined) {
+                setFieldPort(data.fieldPort ?? 4560);
+              }
+              if (data.isBigBoard !== undefined) {
+                setIsBigBoard(!!data.isBigBoard);
+              }
+              if (data.pagingSize !== undefined) {
+                setState(prev => ({ ...prev, pagingSize: data.pagingSize }));
+              }
+              if (data.pagingInterval !== undefined) {
+                setState(prev => ({ ...prev, pagingInterval: data.pagingInterval }));
+              }
+            }
           }
           
           // Clock update - just pass through exactly what FinishLynx sends

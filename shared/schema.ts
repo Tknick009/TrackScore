@@ -852,6 +852,8 @@ export const displayDevices = pgTable("display_devices", {
   autoMode: boolean("auto_mode").default(true), // When true, display auto-switches templates based on Lynx timing events
   pagingSize: integer("paging_size").default(8), // Number of results to show at once (1-20)
   pagingInterval: integer("paging_interval").default(5), // Seconds between page scrolls (1-60)
+  fieldPort: integer("field_port"),
+  isBigBoard: boolean("is_big_board").default(false),
   status: text("status").default("offline"), // online, offline, idle
   lastSeenAt: timestamp("last_seen_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),

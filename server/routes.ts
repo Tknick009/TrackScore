@@ -2553,6 +2553,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update display device config (fieldPort, isBigBoard, pagingSize, pagingInterval)
+  app.patch("/api/display-devices/:id", async (req, res) => {
+    try {
+      const { fieldPort, isBigBoard, pagingSize, pagingInterval } = req.body;
+      const id = req.params.id;
+
+      const device = await storage.getDisplayDevice(id);
+      if (!device) {
+        return res.status(404).json({ error: "Device not found" });
+      }
+
+      const updates: Partial<{ pagingSize: number; pagingInterval: number; fieldPort: number | null; isBigBoard: boolean }> = {};
+      if (fieldPort !== undefined) updates.fieldPort = fieldPort;
+      if (isBigBoard !== undefined) updates.isBigBoard = isBigBoard;
+      if (pagingSize !== undefined) updates.pagingSize = Math.max(1, Math.min(20, parseInt(pagingSize) || 8));
+      if (pagingInterval !== undefined) updates.pagingInterval = Math.max(1, Math.min(60, parseInt(pagingInterval) || 5));
+
+      const updated = await storage.updateDisplayDevice(id, updates);
+      if (!updated) {
+        return res.status(500).json({ error: "Failed to update device" });
+      }
+
+      broadcastToDisplays({
+        type: 'device_config_update',
+        data: {
+          deviceId: id,
+          fieldPort: updated.fieldPort,
+          isBigBoard: updated.isBigBoard,
+          pagingSize: updated.pagingSize,
+          pagingInterval: updated.pagingInterval,
+        }
+      } as WSMessage);
+
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Send Hytek Results to a display device (compiled results from database)
   app.post("/api/display-devices/:id/hytek-results", async (req, res) => {
     try {
@@ -5304,6 +5343,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   assignedEventId: device.assignedEventId,
                   status: device.status,
                   displayType: displayType || 'P10',
+                  fieldPort: device.fieldPort,
+                  isBigBoard: device.isBigBoard,
+                  displayMode: device.displayMode,
                 }
               }));
               
