@@ -1085,9 +1085,33 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           
           // Flags (proper boolean parsing)
           isDisqualified: row.dq_type !== null && row.dq_type !== undefined && row.dq_type !== "",
-          isScratched: row.Scr_stat === true || row.Scr_stat === "Y" || row.Scr_stat === "y",
+          isScratched: row.Scr_stat === true || row.Scr_stat === "Y" || row.Scr_stat === "y" ||
+            [row.Fin_stat, row.Sem_stat, row.Qtr_stat, row.Pre_stat].some(s => s != null && String(s).trim().toUpperCase() === 'S'),
           
-          notes: (row.dq_type !== null && row.dq_type !== undefined && String(row.dq_type).trim() !== "") ? String(row.dq_type).trim().toUpperCase() : null,
+          notes: (() => {
+            const statFields = [
+              { stat: row.Fin_stat, round: 'final' },
+              { stat: row.Sem_stat, round: 'semifinal' },
+              { stat: row.Qtr_stat, round: 'quarterfinal' },
+              { stat: row.Pre_stat, round: 'preliminary' },
+            ];
+            for (const { stat } of statFields) {
+              if (stat != null && String(stat).trim() !== '') {
+                const code = String(stat).trim().toUpperCase();
+                const isVertical = eventDetails && (eventDetails.eventType.includes('high_jump') || eventDetails.eventType.includes('pole_vault'));
+                if (code === 'N') return isVertical ? 'NH' : 'NM';
+                if (code === 'F') return 'FOUL';
+                if (code === 'S') return 'SCR';
+                if (code === 'D') return 'DQ';
+                if (code === 'X') return 'DNS';
+                return code;
+              }
+            }
+            if (row.dq_type != null && String(row.dq_type).trim() !== '') {
+              return String(row.dq_type).trim().toUpperCase();
+            }
+            return null;
+          })(),
         });
       }
       
