@@ -1108,11 +1108,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
               }
             }
             if (row.dq_type != null && String(row.dq_type).trim() !== '') {
-              const dqVal = String(row.dq_type).trim().toUpperCase();
-              if (dqVal === 'F' || dqVal === 'DNF') return 'DNF';
-              if (dqVal === 'D' || dqVal === 'DQ') return 'DQ';
-              if (dqVal === 'X' || dqVal === 'DNS') return 'DNS';
-              return dqVal;
+              return String(row.dq_type).trim().toUpperCase();
             }
             return null;
           })(),
