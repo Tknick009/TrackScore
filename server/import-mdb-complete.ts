@@ -1087,7 +1087,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           isDisqualified: row.dq_type !== null && row.dq_type !== undefined && row.dq_type !== "",
           isScratched: row.Scr_stat === true || row.Scr_stat === "Y" || row.Scr_stat === "y",
           
-          notes: null,
+          notes: (row.dq_type !== null && row.dq_type !== undefined && String(row.dq_type).trim() !== "") ? String(row.dq_type).trim().toUpperCase() : null,
         });
       }
       
@@ -1114,7 +1114,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
               final_mark=excluded.final_mark, final_place=excluded.final_place, final_wind=excluded.final_wind,
               preliminary_points=excluded.preliminary_points, quarterfinal_points=excluded.quarterfinal_points,
               semifinal_points=excluded.semifinal_points, final_points=excluded.final_points,
-              is_disqualified=excluded.is_disqualified, is_scratched=excluded.is_scratched
+              is_disqualified=excluded.is_disqualified, is_scratched=excluded.is_scratched, notes=excluded.notes
           `);
           const insertBatch = sqliteDb.transaction((items: any[]) => {
             for (const item of items) {
@@ -1173,6 +1173,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
                 
                 isDisqualified: sql`excluded.is_disqualified`,
                 isScratched: sql`excluded.is_scratched`,
+                notes: sql`excluded.notes`,
               }
             });
           imported += entryBatch.length;

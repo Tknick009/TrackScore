@@ -2740,15 +2740,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const team = teamId ? teamMap.get(teamId) : null;
         const fields = getRoundFields(entry);
         const position = fields.place || (index + 1);
-        const rawMark = fields.mark ?? entry.seedMark ?? '';
+        
+        const dqCode = entry.notes ? String(entry.notes).trim().toUpperCase() : null;
+        const knownStatusCodes = ['NH', 'NM', 'FOUL', 'DNS', 'DNF', 'DQ', 'SCR', 'FS', 'NT'];
+        const isKnownStatus = dqCode && knownStatusCodes.includes(dqCode);
+        
         let markValue: string;
-        if (typeof rawMark === 'number') {
-          markValue = (isTrackEvent && entry.resultType === 'time') 
-            ? formatTimeSeconds(rawMark) 
-            : rawMark.toFixed(2);
+        if (isKnownStatus) {
+          markValue = dqCode!;
+        } else if (entry.isDisqualified && dqCode) {
+          markValue = dqCode;
+        } else if (entry.isDisqualified) {
+          markValue = 'DQ';
+        } else if (entry.isScratched) {
+          markValue = 'SCR';
         } else {
-          markValue = rawMark;
+          const rawMark = fields.mark ?? entry.seedMark ?? '';
+          if (typeof rawMark === 'number') {
+            markValue = (isTrackEvent && entry.resultType === 'time') 
+              ? formatTimeSeconds(rawMark) 
+              : rawMark.toFixed(2);
+          } else {
+            markValue = rawMark;
+          }
         }
+        
         const teamName = team?.name || team?.shortName || '';
         const teamAbbrev = team?.abbreviation || team?.shortName || '';
         return {
