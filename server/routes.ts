@@ -2717,6 +2717,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         teams.forEach(t => { if (t) teamMap.set(t.id, t); });
       }
       
+      const formatTimeSeconds = (seconds: number, precision: number = 2): string => {
+        if (seconds >= 3600) {
+          const hours = Math.floor(seconds / 3600);
+          const mins = Math.floor((seconds % 3600) / 60);
+          const secs = (seconds % 60).toFixed(precision);
+          return `${hours}:${String(mins).padStart(2, '0')}:${secs.padStart(precision + 3, '0')}`;
+        }
+        if (seconds >= 60) {
+          const mins = Math.floor(seconds / 60);
+          const secs = (seconds % 60).toFixed(precision);
+          return `${mins}:${secs.padStart(precision + 3, '0')}`;
+        }
+        return seconds.toFixed(precision);
+      };
+      
+      const isTrackEvent = event.eventType ? !['high_jump','pole_vault','long_jump','triple_jump','shot_put','discus','hammer','javelin','weight_throw'].some(ft => event.eventType!.toLowerCase().includes(ft.replace('_',''))) : true;
+      
       const enrichedEntries = sortedEntries.map((entry, index) => {
         const athlete = entry.athleteId ? athleteMap.get(entry.athleteId) : null;
         const teamId = entry.teamId || athlete?.teamId;
@@ -2724,9 +2741,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const fields = getRoundFields(entry);
         const position = fields.place || (index + 1);
         const rawMark = fields.mark ?? entry.seedMark ?? '';
-        const markValue = typeof rawMark === 'number'
-          ? rawMark.toFixed(2)
-          : rawMark;
+        let markValue: string;
+        if (typeof rawMark === 'number') {
+          markValue = (isTrackEvent && entry.resultType === 'time') 
+            ? formatTimeSeconds(rawMark) 
+            : rawMark.toFixed(2);
+        } else {
+          markValue = rawMark;
+        }
         const teamName = team?.name || team?.shortName || '';
         const teamAbbrev = team?.abbreviation || team?.shortName || '';
         return {
