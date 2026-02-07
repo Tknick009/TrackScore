@@ -76,6 +76,8 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
           queryClient.invalidateQueries({ queryKey: ["/api/events"] });
           queryClient.invalidateQueries({ queryKey: ["/api/meets"] });
           queryClient.invalidateQueries({ queryKey: ["/api/hytek-mdb-watcher"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/teams"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/public/meets"] });
         }
       } catch (e) {}
     });
