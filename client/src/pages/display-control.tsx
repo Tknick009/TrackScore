@@ -998,6 +998,27 @@ export default function DisplayControlPage() {
                   <CardTitle className="text-lg">Device Settings</CardTitle>
                 </CardHeader>
                 <CardContent>
+                  <div className="space-y-2 mb-4">
+                    <Label className="text-sm font-medium">Display Type</Label>
+                    <Select
+                      value={selectedDevice.displayType || 'P10'}
+                      onValueChange={(val) => {
+                        apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}`, { displayType: val });
+                        queryClient.invalidateQueries({ queryKey: ['/api/display-devices/meet', currentMeetId] });
+                      }}
+                    >
+                      <SelectTrigger data-testid="select-display-type">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="P10">P10 Display (192 x 96)</SelectItem>
+                        <SelectItem value="P6">P6 Display (288 x 144)</SelectItem>
+                        <SelectItem value="BigBoard">Big Board (1920 x 1080)</SelectItem>
+                        <SelectItem value="Broadcast">Broadcast (Ticker & Clock)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Separator className="my-4" />
                   <div className="flex items-center justify-between gap-4">
                     <div>
                       <div className="text-sm font-medium">Big Board Mode</div>
@@ -1209,7 +1230,14 @@ function DeviceListItem({ device, isSelected, onClick, formatLastSeen }: DeviceL
           <Monitor className="w-4 h-4" />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="font-medium truncate">{device.deviceName}</div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-medium truncate">{device.deviceName}</span>
+            {device.displayType && (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0" data-testid={`badge-device-type-${device.id}`}>
+                {device.displayType}
+              </Badge>
+            )}
+          </div>
           <div className="text-xs text-muted-foreground">
             {device.assignedEvent?.name || 'Following current event'}
           </div>

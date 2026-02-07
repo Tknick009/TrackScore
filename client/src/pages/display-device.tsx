@@ -174,58 +174,49 @@ interface DisplayDeviceState {
   pagingInterval: number;
 }
 
-// Storage helpers for device identity - each display type gets its own key
-function getDeviceStorageKey(displayType: DisplayType): string {
-  return `display_device_id_${displayType}`;
+// Storage helpers for device identity - keyed by device name for persistence across type changes
+function getDeviceStorageKey(deviceName: string): string {
+  const safeName = deviceName.replace(/[^a-zA-Z0-9]/g, '_');
+  return `display_device_id_${safeName}`;
 }
 
-function getDeviceNameStorageKey(displayType: DisplayType): string {
-  return `display_device_name_${displayType}`;
-}
-
-function getStoredDeviceId(displayType: DisplayType): string | null {
-  const storageKey = getDeviceStorageKey(displayType);
+function getStoredDeviceId(deviceName: string): string | null {
+  const storageKey = getDeviceStorageKey(deviceName);
   
-  // Try localStorage first
   try {
     const fromLocalStorage = localStorage.getItem(storageKey);
     if (fromLocalStorage) return fromLocalStorage;
   } catch (e) {}
   
-  // Try cookie as fallback
   const cookieMatch = document.cookie.match(new RegExp(`${storageKey}=([^;]+)`));
   if (cookieMatch) return cookieMatch[1];
   
   return null;
 }
 
-function getStoredDeviceName(displayType: DisplayType): string {
-  const storageKey = getDeviceNameStorageKey(displayType);
+function getLastDeviceName(): string {
   try {
-    return localStorage.getItem(storageKey) || '';
+    return localStorage.getItem('display_device_last_name') || '';
   } catch (e) {
     return '';
   }
 }
 
-function saveDeviceId(displayType: DisplayType, deviceId: string): void {
-  const storageKey = getDeviceStorageKey(displayType);
+function saveDeviceId(deviceName: string, deviceId: string): void {
+  const storageKey = getDeviceStorageKey(deviceName);
   
-  // Save to localStorage
   try {
     localStorage.setItem(storageKey, deviceId);
   } catch (e) {}
   
-  // Save to cookie with 1 year expiry
   const expires = new Date();
   expires.setFullYear(expires.getFullYear() + 1);
   document.cookie = `${storageKey}=${deviceId};expires=${expires.toUTCString()};path=/;SameSite=Lax`;
 }
 
-function saveDeviceName(displayType: DisplayType, deviceName: string): void {
-  const storageKey = getDeviceNameStorageKey(displayType);
+function saveLastDeviceName(deviceName: string): void {
   try {
-    localStorage.setItem(storageKey, deviceName);
+    localStorage.setItem('display_device_last_name', deviceName);
   } catch (e) {}
 }
 
@@ -247,7 +238,7 @@ export default function DisplayDevice() {
     pagingInterval: 5,
   });
   const [selectedMeetId, setSelectedMeetId] = useState<string | null>(null);
-  const [deviceName, setDeviceName] = useState<string>('');
+  const [deviceName, setDeviceName] = useState<string>(getLastDeviceName());
   const [registeredDeviceId, setRegisteredDeviceId] = useState<string | null>(null);
   const registeredDeviceIdRef = useRef<string | null>(null);
   // Big board toggle - when true, subscribes to 'track_mode_change_big' channel
@@ -372,8 +363,8 @@ export default function DisplayDevice() {
         setState(prev => ({ ...prev, isConnected: true }));
         
         // Use stored device ID if available (per display type), otherwise server will create a new one
-        const storedId = getStoredDeviceId(displayType);
-        const displayName = deviceNameRef.current || `${displayType} Display`;
+        const displayName = deviceNameRef.current || 'Display';
+        const storedId = getStoredDeviceId(displayName);
         console.log(`Registering device: ${displayName} (stored ID: ${storedId || 'new'}) for meet ${meetId}`);
         ws.send(JSON.stringify({
           type: 'register_display_device',
@@ -393,7 +384,7 @@ export default function DisplayDevice() {
             console.log('Device successfully registered:', message.data);
             // Save the server-issued device ID for future reconnections (per display type)
             if (message.data?.deviceId) {
-              saveDeviceId(displayType, message.data.deviceId);
+              saveDeviceId(deviceNameRef.current || 'Display', message.data.deviceId);
               setRegisteredDeviceId(message.data.deviceId);
               console.log('Saved device ID for reconnection:', message.data.deviceId);
               const deviceData = message.data;
@@ -405,6 +396,9 @@ export default function DisplayDevice() {
               }
               if (deviceData.displayMode !== undefined) {
                 setIsFieldMode(deviceData.displayMode === 'field');
+              }
+              if (deviceData.displayType) {
+                setState(prev => ({ ...prev, displayType: deviceData.displayType }));
               }
             }
           }
@@ -487,6 +481,9 @@ export default function DisplayDevice() {
               }
               if (data.pagingInterval !== undefined) {
                 setState(prev => ({ ...prev, pagingInterval: data.pagingInterval }));
+              }
+              if (data.displayType !== undefined) {
+                setState(prev => ({ ...prev, displayType: data.displayType }));
               }
             }
           }
@@ -1057,22 +1054,13 @@ export default function DisplayDevice() {
     };
   }, [state.setupComplete, state.displayType, state.meetId]);
 
-  const selectDisplayType = (type: DisplayType) => {
-    setState(prev => ({ ...prev, displayType: type }));
-    // Load stored device name for this display type
-    const storedName = getStoredDeviceName(type);
-    if (storedName) {
-      setDeviceName(storedName);
-    }
-  };
-
   const startDisplay = () => {
-    if (selectedMeetId && state.displayType && deviceName.trim()) {
-      // Save the device name for future use
-      saveDeviceName(state.displayType, deviceName.trim());
+    if (selectedMeetId && deviceName.trim()) {
+      saveLastDeviceName(deviceName.trim());
       deviceNameRef.current = deviceName.trim();
       setState(prev => ({ 
         ...prev, 
+        displayType: 'P10',
         meetId: selectedMeetId,
         setupComplete: true 
       }));
@@ -1081,7 +1069,7 @@ export default function DisplayDevice() {
 
   // Show setup screen if not complete
   if (!state.setupComplete) {
-    const canStart = selectedMeetId && state.displayType && deviceName.trim();
+    const canStart = selectedMeetId && deviceName.trim();
     
     return (
       <div className="min-h-screen bg-black flex items-center justify-center p-8">
@@ -1090,7 +1078,7 @@ export default function DisplayDevice() {
             Display Device Setup
           </h1>
           <p className="text-gray-400 text-center mb-8">
-            Select a meet and display type
+            Select a meet and enter a device name
           </p>
           
           {/* Meet Selector */}
@@ -1124,76 +1112,6 @@ export default function DisplayDevice() {
             </div>
           </div>
           
-          {/* Display Type Selection */}
-          <label className="block text-gray-300 text-sm font-medium mb-3 text-center">
-            Select Display Type
-          </label>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-            <Card 
-              className={`bg-gray-900 border-2 cursor-pointer transition-all hover:bg-gray-800 ${
-                state.displayType === 'P10' ? 'border-blue-500 bg-gray-800' : 'border-gray-700 hover:border-blue-500'
-              }`}
-              onClick={() => selectDisplayType('P10')}
-              data-testid="select-p10"
-            >
-              <CardHeader className="text-center">
-                <Monitor className={`w-12 h-12 mx-auto mb-2 ${state.displayType === 'P10' ? 'text-blue-400' : 'text-gray-400'}`} />
-                <CardTitle className="text-white text-xl">P10 Display</CardTitle>
-                <CardDescription className="text-gray-400">
-                  192 x 96 pixels
-                </CardDescription>
-              </CardHeader>
-            </Card>
-
-            <Card 
-              className={`bg-gray-900 border-2 cursor-pointer transition-all hover:bg-gray-800 ${
-                state.displayType === 'P6' ? 'border-green-500 bg-gray-800' : 'border-gray-700 hover:border-green-500'
-              }`}
-              onClick={() => selectDisplayType('P6')}
-              data-testid="select-p6"
-            >
-              <CardHeader className="text-center">
-                <Tv className={`w-12 h-12 mx-auto mb-2 ${state.displayType === 'P6' ? 'text-green-400' : 'text-gray-400'}`} />
-                <CardTitle className="text-white text-xl">P6 Display</CardTitle>
-                <CardDescription className="text-gray-400">
-                  288 x 144 pixels
-                </CardDescription>
-              </CardHeader>
-            </Card>
-
-            <Card 
-              className={`bg-gray-900 border-2 cursor-pointer transition-all hover:bg-gray-800 ${
-                state.displayType === 'BigBoard' ? 'border-purple-500 bg-gray-800' : 'border-gray-700 hover:border-purple-500'
-              }`}
-              onClick={() => selectDisplayType('BigBoard')}
-              data-testid="select-bigboard"
-            >
-              <CardHeader className="text-center">
-                <LayoutGrid className={`w-12 h-12 mx-auto mb-2 ${state.displayType === 'BigBoard' ? 'text-purple-400' : 'text-gray-400'}`} />
-                <CardTitle className="text-white text-xl">Big Board</CardTitle>
-                <CardDescription className="text-gray-400">
-                  1920 x 1080 pixels
-                </CardDescription>
-              </CardHeader>
-            </Card>
-
-            <Card 
-              className={`bg-gray-900 border-2 cursor-pointer transition-all hover:bg-gray-800 ${
-                state.displayType === 'Broadcast' ? 'border-orange-500 bg-gray-800' : 'border-gray-700 hover:border-orange-500'
-              }`}
-              onClick={() => selectDisplayType('Broadcast')}
-              data-testid="select-broadcast"
-            >
-              <CardHeader className="text-center">
-                <Radio className={`w-12 h-12 mx-auto mb-2 ${state.displayType === 'Broadcast' ? 'text-orange-400' : 'text-gray-400'}`} />
-                <CardTitle className="text-white text-xl">Broadcast</CardTitle>
-                <CardDescription className="text-gray-400">
-                  Ticker, Clock & Logo
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          </div>
-          
           {/* Device Name Input */}
           <div className="mb-10">
             <Label className="block text-gray-300 text-sm font-medium mb-3 text-center">
@@ -1214,136 +1132,6 @@ export default function DisplayDevice() {
             </div>
           </div>
           
-          {/* Track/Field Mode Toggle */}
-          <div className="mb-8">
-            <Label className="block text-gray-300 text-sm font-medium mb-3 text-center">
-              Event Type
-            </Label>
-            <div className="max-w-md mx-auto flex items-center justify-center gap-4">
-              <button
-                onClick={() => setIsFieldMode(false)}
-                className={`px-6 py-3 rounded-lg transition-all text-sm font-medium ${
-                  !isFieldMode 
-                    ? 'bg-blue-600 text-white' 
-                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                }`}
-                data-testid="button-mode-track"
-              >
-                Track Events
-              </button>
-              <button
-                onClick={() => setIsFieldMode(true)}
-                className={`px-6 py-3 rounded-lg transition-all text-sm font-medium ${
-                  isFieldMode 
-                    ? 'bg-orange-600 text-white' 
-                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                }`}
-                data-testid="button-mode-field"
-              >
-                Field Events
-              </button>
-            </div>
-          </div>
-
-          {/* Track Options - Big Board Toggle */}
-          {!isFieldMode && (
-            <div className="mb-10">
-              <div className="max-w-md mx-auto flex items-center justify-center gap-4">
-                <Label className="text-gray-300 text-sm font-medium">
-                  Data Channel:
-                </Label>
-                <button
-                  onClick={() => setIsBigBoard(false)}
-                  className={`px-4 py-2 rounded-lg transition-all text-sm font-medium ${
-                    !isBigBoard 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                  }`}
-                  data-testid="button-channel-small"
-                >
-                  Small Board (Port 4555)
-                </button>
-                <button
-                  onClick={() => setIsBigBoard(true)}
-                  className={`px-4 py-2 rounded-lg transition-all text-sm font-medium ${
-                    isBigBoard 
-                      ? 'bg-green-600 text-white' 
-                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                  }`}
-                  data-testid="button-channel-big"
-                >
-                  Big Board (Port 4554)
-                </button>
-              </div>
-              <p className="text-gray-500 text-xs mt-2 text-center">
-                Configure FinishLynx ResulTV output to different ports for separate paging
-              </p>
-            </div>
-          )}
-
-          {/* Field Options - Port Selection and Display Type */}
-          {isFieldMode && (
-            <div className="mb-10 space-y-6">
-              {/* Field Port Selection */}
-              <div>
-                <Label className="block text-gray-300 text-sm font-medium mb-3 text-center">
-                  Field Port (4560-4569)
-                </Label>
-                <div className="max-w-md mx-auto flex items-center justify-center gap-2">
-                  <select
-                    value={fieldPort}
-                    onChange={(e) => setFieldPort(parseInt(e.target.value))}
-                    className="bg-gray-800 border-gray-700 text-white px-4 py-2 rounded-lg text-sm"
-                    data-testid="select-field-port"
-                  >
-                    {[4560, 4561, 4562, 4563, 4564, 4565, 4566, 4567, 4568, 4569].map((port) => (
-                      <option key={port} value={port}>
-                        Port {port}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <p className="text-gray-500 text-xs mt-2 text-center">
-                  Configure Athletic Field App to send this field event to port {fieldPort}
-                </p>
-              </div>
-
-              {/* Field Display Type */}
-              <div>
-                <Label className="block text-gray-300 text-sm font-medium mb-3 text-center">
-                  Field Event Type
-                </Label>
-                <div className="max-w-md mx-auto flex items-center justify-center gap-4">
-                  <button
-                    onClick={() => setFieldDisplayType('horizontal')}
-                    className={`px-4 py-2 rounded-lg transition-all text-sm font-medium ${
-                      fieldDisplayType === 'horizontal' 
-                        ? 'bg-yellow-600 text-white' 
-                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                    }`}
-                    data-testid="button-field-horizontal"
-                  >
-                    Horizontal (LJ, TJ, SP, etc.)
-                  </button>
-                  <button
-                    onClick={() => setFieldDisplayType('vertical')}
-                    className={`px-4 py-2 rounded-lg transition-all text-sm font-medium ${
-                      fieldDisplayType === 'vertical' 
-                        ? 'bg-purple-600 text-white' 
-                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                    }`}
-                    data-testid="button-field-vertical"
-                  >
-                    Vertical (HJ, PV)
-                  </button>
-                </div>
-                <p className="text-gray-500 text-xs mt-2 text-center">
-                  Selects which scene template to use for field results
-                </p>
-              </div>
-            </div>
-          )}
-          
           {/* Start Button */}
           <div className="text-center">
             <button
@@ -1360,7 +1148,7 @@ export default function DisplayDevice() {
             </button>
             {!canStart && (
               <p className="text-gray-500 text-sm mt-3">
-                Please enter a device name, select a meet, and choose a display type
+                Please enter a device name and select a meet
               </p>
             )}
           </div>

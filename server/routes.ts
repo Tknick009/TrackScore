@@ -2553,15 +2553,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Update display device config (fieldPort, isBigBoard, pagingSize, pagingInterval)
+  // Update display device config (fieldPort, isBigBoard, pagingSize, pagingInterval, displayType)
   app.patch("/api/display-devices/:id", async (req, res) => {
     try {
-      const { fieldPort, isBigBoard, pagingSize, pagingInterval } = req.body;
+      const { fieldPort, isBigBoard, pagingSize, pagingInterval, displayType } = req.body;
       const id = req.params.id;
 
       const device = await storage.getDisplayDevice(id);
       if (!device) {
         return res.status(404).json({ error: "Device not found" });
+      }
+
+      const validDisplayTypes = ['P10', 'P6', 'BigBoard', 'Broadcast'];
+      if (displayType) {
+        if (!validDisplayTypes.includes(displayType)) {
+          return res.status(400).json({ error: `Invalid display type. Must be one of: ${validDisplayTypes.join(', ')}` });
+        }
+        await storage.updateDisplayDeviceType(id, displayType);
       }
 
       const updates: Partial<{ pagingSize: number; pagingInterval: number; fieldPort: number | null; isBigBoard: boolean }> = {};
@@ -2570,23 +2578,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (pagingSize !== undefined) updates.pagingSize = Math.max(1, Math.min(20, parseInt(pagingSize) || 8));
       if (pagingInterval !== undefined) updates.pagingInterval = Math.max(1, Math.min(60, parseInt(pagingInterval) || 5));
 
-      const updated = await storage.updateDisplayDevice(id, updates);
-      if (!updated) {
-        return res.status(500).json({ error: "Failed to update device" });
+      if (Object.keys(updates).length > 0) {
+        await storage.updateDisplayDevice(id, updates);
       }
+
+      const finalDevice = await storage.getDisplayDevice(id);
 
       broadcastToDisplays({
         type: 'device_config_update',
         data: {
           deviceId: id,
-          fieldPort: updated.fieldPort,
-          isBigBoard: updated.isBigBoard,
-          pagingSize: updated.pagingSize,
-          pagingInterval: updated.pagingInterval,
+          displayType: finalDevice?.displayType,
+          fieldPort: finalDevice?.fieldPort,
+          isBigBoard: finalDevice?.isBigBoard,
+          pagingSize: finalDevice?.pagingSize,
+          pagingInterval: finalDevice?.pagingInterval,
         }
       } as WSMessage);
 
-      res.json(updated);
+      res.json(finalDevice);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
