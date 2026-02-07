@@ -47,7 +47,6 @@ export function deriveRoundInfo(entry: EntryWithDetails, event?: Event): RoundIn
 
 export function getUnitSuffix(resultType: string | null | undefined): string {
   switch (resultType) {
-    case 'time': return 's';
     case 'distance': return 'm';
     case 'height': return 'm';
     case 'points': return ' pts';
@@ -55,13 +54,32 @@ export function getUnitSuffix(resultType: string | null | undefined): string {
   }
 }
 
+export function formatTimeValue(seconds: number, precision: number = 2): string {
+  if (seconds >= 3600) {
+    const hours = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = (seconds % 60).toFixed(precision);
+    return `${hours}:${String(mins).padStart(2, '0')}:${secs.padStart(precision + 3, '0')}`;
+  }
+  if (seconds >= 60) {
+    const mins = Math.floor(seconds / 60);
+    const secs = (seconds % 60).toFixed(precision);
+    return `${mins}:${secs.padStart(precision + 3, '0')}`;
+  }
+  return seconds.toFixed(precision);
+}
+
 export function formatResult(entry: EntryWithDetails): string {
   const value = entry.finalMark;
   if (value === null || value === undefined) return '-';
   
   const descriptor = getEventDescriptor(entry.event?.eventType || '');
-  const suffix = getUnitSuffix(entry.resultType);
   
+  if (entry.resultType === 'time') {
+    return formatTimeValue(value, descriptor.precision);
+  }
+  
+  const suffix = getUnitSuffix(entry.resultType);
   return `${value.toFixed(descriptor.precision)}${suffix}`;
 }
 
