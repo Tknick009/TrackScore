@@ -2873,8 +2873,6 @@ export class SQLiteStorage implements IStorage {
       'SELECT gender, place, ind_score, rel_score FROM meet_scoring_rules WHERE meet_id = ? ORDER BY place'
     ).all(meetId) as any[];
 
-    if (rules.length === 0) return [];
-
     const indPointsMap = new Map<string, Map<number, number>>();
     const relPointsMap = new Map<string, Map<number, number>>();
     for (const rule of rules) {
@@ -2902,13 +2900,14 @@ export class SQLiteStorage implements IStorage {
     const placeholders = scoredEventIds.map(() => '?').join(',');
 
     const allEntries = this.db.prepare(`
-      SELECT en.event_id, en.final_place, a.team_id, t.name as team_name
+      SELECT en.event_id, en.final_place, en.scored_points, a.team_id, t.name as team_name
       FROM entries en
       INNER JOIN athletes a ON en.athlete_id = a.id
       LEFT JOIN teams t ON a.team_id = t.id
       WHERE en.event_id IN (${placeholders})
-        AND en.final_place IS NOT NULL
         AND a.team_id IS NOT NULL
+        AND (en.scored_points IS NOT NULL AND en.scored_points > 0
+             OR en.final_place IS NOT NULL)
       ORDER BY en.event_id, en.final_place
     `).all(...scoredEventIds) as any[];
 
@@ -2935,22 +2934,25 @@ export class SQLiteStorage implements IStorage {
       } else {
         ptsMap = indPointsMap.get(evtGender) || indPointsMap.get('ALL');
       }
-      if (!ptsMap || ptsMap.size === 0) continue;
 
       const maxScorers = isRelay ? relMaxScorers : indMaxScorers;
       const eventEntries = entriesByEvent.get(evt.id) || [];
       const teamScorerCount = new Map<string, number>();
 
       for (const entry of eventEntries) {
-        if (!entry.team_id || !entry.team_name || !entry.final_place) continue;
+        if (!entry.team_id || !entry.team_name) continue;
 
-        if (maxScorers > 0) {
-          const count = teamScorerCount.get(entry.team_id) || 0;
-          if (count >= maxScorers) continue;
-          teamScorerCount.set(entry.team_id, count + 1);
+        let pts = 0;
+        if (entry.scored_points != null && entry.scored_points > 0) {
+          pts = entry.scored_points;
+        } else if (entry.final_place && ptsMap && ptsMap.size > 0) {
+          if (maxScorers > 0) {
+            const count = teamScorerCount.get(entry.team_id) || 0;
+            if (count >= maxScorers) continue;
+            teamScorerCount.set(entry.team_id, count + 1);
+          }
+          pts = ptsMap.get(entry.final_place) || 0;
         }
-
-        const pts = ptsMap.get(entry.final_place) || 0;
         if (pts === 0) continue;
 
         if (!teamScores.has(entry.team_id)) {

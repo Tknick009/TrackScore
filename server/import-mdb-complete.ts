@@ -642,7 +642,8 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       
       const hytekStatusRaw = row.Event_stat || row.Event_status || row.Event_Status || null;
       let hytekStatus: string | null = null;
-      let isScored = false;
+      const scoreEvent = row.Score_event === true || row.Score_event === 1 || row.Score_event === "Y";
+      let isScored = scoreEvent;
       
       if (hytekStatusRaw != null) {
         const statusStr = String(hytekStatusRaw).trim();
@@ -669,7 +670,6 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           case 'c':
           case 'scored':
             hytekStatus = 'scored';
-            isScored = true;
             break;
           default:
             hytekStatus = statusStr;
@@ -1077,11 +1077,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           finalPlace: row.Fin_jdplace ? Number(row.Fin_jdplace) : (row.Fin_place ? Number(row.Fin_place) : null),
           finalWind: row.Fin_wind ? Number(row.Fin_wind) : null,
           
-          // Per-round scoring points from HyTek
-          preliminaryPoints: row.Pre_points != null ? Number(row.Pre_points) : null,
-          quarterfinalPoints: row.Qtr_points != null ? Number(row.Qtr_points) : null,
-          semifinalPoints: row.Sem_points != null ? Number(row.Sem_points) : null,
-          finalPoints: row.Fin_points != null ? Number(row.Fin_points) : null,
+          finalPoints: row.Ev_score != null && Number(row.Ev_score) > 0 ? Number(row.Ev_score) : null,
           
           // Flags (proper boolean parsing)
           isDisqualified: row.dq_type !== null && row.dq_type !== undefined && row.dq_type !== "",
@@ -1123,9 +1119,9 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
               quarterfinal_heat, quarterfinal_lane, quarterfinal_mark, quarterfinal_place, quarterfinal_wind,
               semifinal_heat, semifinal_lane, semifinal_mark, semifinal_place, semifinal_wind,
               final_heat, final_lane, final_mark, final_place, final_wind,
-              preliminary_points, quarterfinal_points, semifinal_points, final_points,
+              scored_points,
               is_disqualified, is_scratched, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(event_id, athlete_id) DO UPDATE SET
               team_id=excluded.team_id, division_id=excluded.division_id, seed_mark=excluded.seed_mark, result_type=excluded.result_type,
               preliminary_heat=excluded.preliminary_heat, preliminary_lane=excluded.preliminary_lane,
@@ -1136,8 +1132,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
               semifinal_mark=excluded.semifinal_mark, semifinal_place=excluded.semifinal_place, semifinal_wind=excluded.semifinal_wind,
               final_heat=excluded.final_heat, final_lane=excluded.final_lane,
               final_mark=excluded.final_mark, final_place=excluded.final_place, final_wind=excluded.final_wind,
-              preliminary_points=excluded.preliminary_points, quarterfinal_points=excluded.quarterfinal_points,
-              semifinal_points=excluded.semifinal_points, final_points=excluded.final_points,
+              scored_points=excluded.scored_points,
               is_disqualified=excluded.is_disqualified, is_scratched=excluded.is_scratched, notes=excluded.notes
           `);
           const insertBatch = sqliteDb.transaction((items: any[]) => {
@@ -1149,7 +1144,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
                 item.quarterfinalHeat, item.quarterfinalLane, item.quarterfinalMark, item.quarterfinalPlace, item.quarterfinalWind,
                 item.semifinalHeat, item.semifinalLane, item.semifinalMark, item.semifinalPlace, item.semifinalWind,
                 item.finalHeat, item.finalLane, item.finalMark, item.finalPlace, item.finalWind,
-                item.preliminaryPoints, item.quarterfinalPoints, item.semifinalPoints, item.finalPoints,
+                item.finalPoints,
                 item.isDisqualified ? 1 : 0, item.isScratched ? 1 : 0, item.notes
               );
             }
