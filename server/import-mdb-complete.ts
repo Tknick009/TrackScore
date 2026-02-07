@@ -201,6 +201,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
   const divisionIdMap = new Map<number, string>();
   const athleteIdMap = new Map<number, string>();
   const eventIdMap = new Map<number, string>();
+  const ptrToNumMap = new Map<number, number>();
   
   // Statistics tracking
   const stats: ImportStatistics = {
@@ -626,7 +627,6 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
     });
     
     // Track Event_ptr → Event_no mapping for building eventIdMap later
-    const ptrToNumMap = new Map<number, number>();
     
     for (const row of eventData) {
       const eventNum = typeof row.Event_no === 'number' ? row.Event_no : Number(row.Event_no || 0);
@@ -642,7 +642,11 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       
       const hytekStatusRaw = row.Event_stat || row.Event_status || row.Event_Status || null;
       let hytekStatus: string | null = null;
-      const scoreEvent = row.Score_event === true || row.Score_event === 1 || row.Score_event === "Y";
+      const scoreEventRaw = row.Score_event;
+      const scoreEvent = scoreEventRaw === true || scoreEventRaw === 1 || scoreEventRaw === -1 ||
+        scoreEventRaw === "Y" || scoreEventRaw === "y" ||
+        (typeof scoreEventRaw === 'number' && scoreEventRaw !== 0) ||
+        (typeof scoreEventRaw === 'string' && scoreEventRaw.trim().toLowerCase() === 'true');
       let isScored = scoreEvent;
       
       if (hytekStatusRaw != null) {
@@ -670,11 +674,16 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           case 'c':
           case 'scored':
             hytekStatus = 'scored';
+            isScored = true;
             break;
           default:
             hytekStatus = statusStr;
             break;
         }
+      }
+      
+      if (eventNum > 0) {
+        console.log(`   📊 Event ${eventNum}: Score_event=${JSON.stringify(scoreEventRaw)} (type=${typeof scoreEventRaw}), Event_stat=${JSON.stringify(hytekStatusRaw)}, isScored=${isScored}`);
       }
       
       // Get session info for this event (if available) - use Event_ptr to match Sess_ptr
@@ -1225,6 +1234,43 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
     
     if (skippedMissingAthlete > 0 || skippedMissingEvent > 0) {
       console.log(`   ⚠️  Skipped ${skippedMissingAthlete} entries (missing athlete), ${skippedMissingEvent} entries (missing event)`);
+    }
+    
+    // Post-import: Infer is_scored from Ev_score values
+    // If any entry in an event has Ev_score > 0, mark that event as scored
+    const eventsWithScores = new Set<number>();
+    const withEvScore = entryData.filter(r => r.Ev_score != null && Number(r.Ev_score) > 0);
+    console.log(`   🔍 Entries with Ev_score > 0: ${withEvScore.length}`);
+    for (const row of withEvScore) {
+      const eventPtr = typeof row.Event_ptr === 'number' ? row.Event_ptr : Number(row.Event_ptr || 0);
+      if (eventPtr > 0) eventsWithScores.add(eventPtr);
+    }
+    
+    if (eventsWithScores.size > 0) {
+      const scoredPtrs = Array.from(eventsWithScores);
+      const eventNums = scoredPtrs.map(ptr => ptrToNumMap.get(ptr)).filter(n => n != null);
+      console.log(`   🏆 Events with Ev_score data (inferred scored): ${eventsWithScores.size} events (Event_no: ${eventNums.join(', ')})`);
+      
+      // Build list of event IDs to mark as scored
+      // eventIdMap is keyed by Event_ptr (not Event_no)
+      const eventIdsToMark: string[] = [];
+      for (const ptr of scoredPtrs) {
+        const eventId = eventIdMap.get(ptr);
+        if (eventId) eventIdsToMark.push(eventId);
+      }
+      
+      if (eventIdsToMark.length > 0) {
+        if (isEdgeMode && sqliteDb) {
+          const placeholders = eventIdsToMark.map(() => '?').join(',');
+          const updateResult = sqliteDb.prepare(`UPDATE events SET is_scored = 1 WHERE id IN (${placeholders}) AND (is_scored IS NULL OR is_scored = 0)`).run(...eventIdsToMark);
+          console.log(`   ✅ Marked ${updateResult.changes} additional events as scored (from Ev_score inference)`);
+        } else if (db) {
+          for (const eid of eventIdsToMark) {
+            await db.execute(sql`UPDATE events SET is_scored = true WHERE id = ${eid} AND (is_scored IS NULL OR is_scored = false)`);
+          }
+          console.log(`   ✅ Marked up to ${eventIdsToMark.length} additional events as scored (from Ev_score inference)`);
+        }
+      }
     }
   } catch (error) {
     console.error("   ❌ Error importing entries:", error);
