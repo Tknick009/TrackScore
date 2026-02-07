@@ -78,11 +78,18 @@ export function FieldAthleteCard({ result, isLeader, isPodium, athleteBests }: F
           >
             {athleteName}
           </h2>
-          {result.isDisqualified && (
-            <span className="text-[48px] font-[700] text-[hsl(var(--display-warning))]">
-              DQ
-            </span>
-          )}
+          {(() => {
+            const notes = (result as any).notes;
+            const statusCodes = ['DNF', 'DQ', 'DNS', 'SCR', 'NH', 'NM', 'FOUL', 'FS', 'NT'];
+            const statusLabel = notes && statusCodes.includes(String(notes).toUpperCase()) 
+              ? String(notes).toUpperCase() 
+              : result.isDisqualified ? 'DQ' : null;
+            return statusLabel ? (
+              <span className="text-[48px] font-[700] text-[hsl(var(--display-warning))]">
+                {statusLabel}
+              </span>
+            ) : null;
+          })()}
         </div>
         {result.team && (
           <p className="text-[40px] text-[hsl(var(--display-muted))] leading-none mb-1">

@@ -128,11 +128,18 @@ function TrackResultsDisplay({ event, mode }: { event: EventWithEntries; mode: s
                 >
                   {athleteName}
                 </h2>
-                {result.isDisqualified && (
-                  <span className="text-[48px] font-[700] text-[hsl(var(--display-warning))]">
-                    DQ
-                  </span>
-                )}
+                {(() => {
+                  const notes = (result as any).notes;
+                  const statusCodes = ['DNF', 'DQ', 'DNS', 'SCR', 'NH', 'NM', 'FOUL', 'FS', 'NT'];
+                  const statusLabel = notes && statusCodes.includes(String(notes).toUpperCase()) 
+                    ? String(notes).toUpperCase() 
+                    : result.isDisqualified ? 'DQ' : null;
+                  return statusLabel ? (
+                    <span className="text-[48px] font-[700] text-[hsl(var(--display-warning))]">
+                      {statusLabel}
+                    </span>
+                  ) : null;
+                })()}
               </div>
               {/* Team name - 40px */}
               {result.team && (

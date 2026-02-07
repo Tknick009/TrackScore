@@ -1080,7 +1080,11 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           finalPoints: row.Ev_score != null && Number(row.Ev_score) > 0 ? Number(row.Ev_score) : null,
           
           // Flags (proper boolean parsing)
-          isDisqualified: row.dq_type !== null && row.dq_type !== undefined && row.dq_type !== "",
+          // Only set isDisqualified for actual DQ (Fin_stat='D'), NOT for DNF or other status types
+          // HyTek's dq_type field is used for ALL non-standard finishes, not just DQs
+          isDisqualified: [row.Fin_stat, row.Sem_stat, row.Qtr_stat, row.Pre_stat].some(
+            s => s != null && String(s).trim().toUpperCase() === 'D'
+          ),
           isScratched: row.Scr_stat === true || row.Scr_stat === "Y" || row.Scr_stat === "y" ||
             [row.Fin_stat, row.Sem_stat, row.Qtr_stat, row.Pre_stat].some(s => s != null && String(s).trim().toUpperCase() === 'S'),
           
@@ -1104,7 +1108,11 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
               }
             }
             if (row.dq_type != null && String(row.dq_type).trim() !== '') {
-              return String(row.dq_type).trim().toUpperCase();
+              const dqVal = String(row.dq_type).trim().toUpperCase();
+              if (dqVal === 'F' || dqVal === 'DNF') return 'DNF';
+              if (dqVal === 'D' || dqVal === 'DQ') return 'DQ';
+              if (dqVal === 'X' || dqVal === 'DNS') return 'DNS';
+              return dqVal;
             }
             return null;
           })(),
