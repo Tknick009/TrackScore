@@ -1078,6 +1078,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           finalWind: row.Fin_wind ? Number(row.Fin_wind) : null,
           
           finalPoints: row.Ev_score != null && Number(row.Ev_score) > 0 ? Number(row.Ev_score) : null,
+          scoredPoints: row.Ev_score != null && Number(row.Ev_score) > 0 ? Number(row.Ev_score) : null,
           
           // Flags (proper boolean parsing)
           // Only set isDisqualified for actual DQ (Fin_stat='D'), NOT for DNF or other status types
@@ -1193,6 +1194,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
                 quarterfinalPoints: sql`excluded.quarterfinal_points`,
                 semifinalPoints: sql`excluded.semifinal_points`,
                 finalPoints: sql`excluded.final_points`,
+                scoredPoints: sql`excluded.scored_points`,
                 
                 isDisqualified: sql`excluded.is_disqualified`,
                 isScratched: sql`excluded.is_scratched`,

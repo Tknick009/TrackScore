@@ -178,7 +178,7 @@ import {
   type InsertExternalScoreboard,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, sql, and, not, inArray, count, isNull, isNotNull, desc } from "drizzle-orm";
+import { eq, sql, and, or, not, inArray, count, isNull, isNotNull, desc, gt } from "drizzle-orm";
 
 // Helper type for record books with records
 export type RecordBookWithRecords = SelectRecordBook & { records: SelectRecord[] };
@@ -2224,6 +2224,7 @@ export class DatabaseStorage implements IStorage {
       .select({
         eventId: entries.eventId,
         finalPlace: entries.finalPlace,
+        scoredPoints: entries.scoredPoints,
         teamId: athletes.teamId,
         teamName: teams.name,
       })
@@ -2232,8 +2233,11 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(teams, eq(athletes.teamId, teams.id))
       .where(and(
         inArray(entries.eventId, scoredEventIds),
-        isNotNull(entries.finalPlace),
         isNotNull(athletes.teamId),
+        or(
+          and(isNotNull(entries.scoredPoints), gt(entries.scoredPoints, 0)),
+          isNotNull(entries.finalPlace),
+        ),
       ))
       .orderBy(entries.eventId, entries.finalPlace);
 
@@ -2269,15 +2273,19 @@ export class DatabaseStorage implements IStorage {
       const teamScorerCount = new Map<string, number>();
 
       for (const entry of eventEntries) {
-        if (!entry.teamId || !entry.teamName || !entry.finalPlace) continue;
+        if (!entry.teamId || !entry.teamName) continue;
 
-        if (maxScorers > 0) {
-          const count = teamScorerCount.get(entry.teamId) || 0;
-          if (count >= maxScorers) continue;
-          teamScorerCount.set(entry.teamId, count + 1);
+        let pts = 0;
+        if (entry.scoredPoints != null && entry.scoredPoints > 0) {
+          pts = entry.scoredPoints;
+        } else if (entry.finalPlace && ptsMap && ptsMap.size > 0) {
+          if (maxScorers > 0) {
+            const count = teamScorerCount.get(entry.teamId) || 0;
+            if (count >= maxScorers) continue;
+            teamScorerCount.set(entry.teamId, count + 1);
+          }
+          pts = ptsMap.get(entry.finalPlace) || 0;
         }
-
-        const pts = ptsMap.get(entry.finalPlace) || 0;
         if (pts === 0) continue;
 
         if (!teamScores.has(entry.teamId)) {
