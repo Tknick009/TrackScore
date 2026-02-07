@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute } from "wouter";
-import { Settings, Image, X, Save, MapPin, Calendar as CalendarIcon, Palette, RotateCcw, FileText, Check, AlertCircle, Database, Trash2, AlertTriangle } from "lucide-react";
+import { Settings, Image, X, Save, MapPin, Calendar as CalendarIcon, Palette, RotateCcw, FileText, Check, AlertCircle, Database, Trash2, AlertTriangle, FolderOpen } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import type { Meet } from "@shared/schema";
@@ -112,6 +112,10 @@ export default function MeetSetup() {
   const [evtFilePath, setEvtFilePath] = useState("");
   const [hasEvtChanges, setHasEvtChanges] = useState(false);
   
+  // Lynx files directory state (for LFF field event standings)
+  const [lynxFilesDir, setLynxFilesDir] = useState("");
+  const [hasLynxDirChanges, setHasLynxDirChanges] = useState(false);
+
   // HyTek MDB watcher state
   const [mdbDirectory, setMdbDirectory] = useState("");
   const [hasMdbChanges, setHasMdbChanges] = useState(false);
@@ -366,6 +370,36 @@ export default function MeetSetup() {
     },
   });
   
+  // Lynx files directory (ingestion settings) - for LFF field event standings
+  const { data: ingestionSettings } = useQuery<{ lynxFilesDirectory: string | null; lynxFilesEnabled: boolean }>({
+    queryKey: ["/api/meets", meetId, "ingestion-settings"],
+    enabled: !!meetId,
+  });
+
+  useEffect(() => {
+    if (ingestionSettings?.lynxFilesDirectory) {
+      setLynxFilesDir(ingestionSettings.lynxFilesDirectory);
+    }
+  }, [ingestionSettings]);
+
+  const saveLynxDirMutation = useMutation({
+    mutationFn: async (data: { lynxFilesDirectory: string; lynxFilesEnabled: boolean }) => {
+      return await apiRequest("PATCH", `/api/meets/${meetId}/ingestion-settings`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/meets", meetId, "ingestion-settings"] });
+      toast({ title: "Lynx files directory saved" });
+      setHasLynxDirChanges(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to save Lynx files directory",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const reimportMdbMutation = useMutation({
     mutationFn: async (meetIdToReimport: string) => {
       return await apiRequest("POST", `/api/hytek-mdb-watcher/${meetIdToReimport}/reimport`, {});
@@ -890,6 +924,75 @@ export default function MeetSetup() {
                   Stop Watcher
                 </Button>
               </>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card data-testid="card-lynx-files">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FolderOpen className="w-5 h-5" />
+            Lynx Files Directory
+          </CardTitle>
+          <CardDescription>
+            Directory containing LIF and LFF files from FinishLynx and FieldLynx. When a field event display is idle for 120 seconds, the system automatically parses LFF files from this directory to show combined standings.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="lynx-files-dir">Directory Path</Label>
+            <div className="flex gap-2">
+              <Input
+                id="lynx-files-dir"
+                value={lynxFilesDir}
+                onChange={(e) => {
+                  setLynxFilesDir(e.target.value);
+                  setHasLynxDirChanges(true);
+                }}
+                placeholder="/path/to/lynx/results"
+                className="flex-1 font-mono text-sm"
+                data-testid="input-lynx-files-dir"
+              />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Full path to the directory where FinishLynx writes LIF/LFF result files (e.g., C:\Lynx\Results)
+            </p>
+          </div>
+
+          {ingestionSettings?.lynxFilesEnabled && ingestionSettings?.lynxFilesDirectory && (
+            <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+              <Check className="w-4 h-4" />
+              <span>Directory configured - field standings will auto-display after 120s idle</span>
+            </div>
+          )}
+
+          <div className="flex gap-3">
+            <Button
+              onClick={() => {
+                if (meetId && lynxFilesDir) {
+                  saveLynxDirMutation.mutate({ lynxFilesDirectory: lynxFilesDir, lynxFilesEnabled: true });
+                }
+              }}
+              disabled={!lynxFilesDir || saveLynxDirMutation.isPending || (!hasLynxDirChanges && ingestionSettings?.lynxFilesEnabled === true)}
+              data-testid="button-save-lynx-dir"
+            >
+              <Save className="w-4 h-4 mr-2" />
+              {saveLynxDirMutation.isPending ? "Saving..." : "Save Directory"}
+            </Button>
+
+            {ingestionSettings?.lynxFilesEnabled && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  saveLynxDirMutation.mutate({ lynxFilesDirectory: '', lynxFilesEnabled: false });
+                  setLynxFilesDir('');
+                }}
+                data-testid="button-clear-lynx-dir"
+              >
+                <X className="w-4 h-4 mr-2" />
+                Clear
+              </Button>
             )}
           </div>
         </CardContent>
