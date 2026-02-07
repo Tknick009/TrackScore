@@ -6739,8 +6739,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     // Update field port state to reset the standings timer
     // This will exit standings mode if active and reset the idle timer
-    if (currentFieldPort) {
-      updateFieldPortState(currentFieldPort, eventNumber, data.round || 1);
+    // Prefer sourcePort from TCP listener over currentFieldPort from HTTP
+    const resolvedFieldPort = (data.sourcePort && data.sourcePort >= FIELD_PORT_MIN && data.sourcePort <= FIELD_PORT_MAX) ? data.sourcePort : currentFieldPort;
+    if (resolvedFieldPort) {
+      updateFieldPortState(resolvedFieldPort, eventNumber, data.round || 1);
     }
     
     liveState.activeFieldEvents.set(eventNumber, {
@@ -6818,8 +6820,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Multi-events use 'multi_field' instead of 'field_results' to show points
     const displayMode = isMultiEvent ? 'multi_field' : 'field_results';
     
-    // Get current field port for routing (set by /api/lynx/raw endpoint)
-    const fieldPort = currentFieldPort;
+    // Get field port for routing: prefer sourcePort from TCP listener, fall back to currentFieldPort from HTTP
+    const fieldPort = (data.sourcePort && data.sourcePort >= FIELD_PORT_MIN && data.sourcePort <= FIELD_PORT_MAX) ? data.sourcePort : currentFieldPort;
     
     // Broadcast field event update with accumulated results
     // Include fieldPort for port-based routing - displays can filter by port
@@ -7103,6 +7105,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             { port: 4555, portType: 'results' as LynxPortType, name: 'FinishLynx Results' },
             { port: 4556, portType: 'clock' as LynxPortType, name: 'FinishLynx Clock' },
             { port: 4557, portType: 'field' as LynxPortType, name: 'FieldLynx' },
+            { port: 4560, portType: 'field' as LynxPortType, name: 'FieldLynx Port 4560' },
+            { port: 4561, portType: 'field' as LynxPortType, name: 'FieldLynx Port 4561' },
+            { port: 4562, portType: 'field' as LynxPortType, name: 'FieldLynx Port 4562' },
+            { port: 4563, portType: 'field' as LynxPortType, name: 'FieldLynx Port 4563' },
+            { port: 4564, portType: 'field' as LynxPortType, name: 'FieldLynx Port 4564' },
+            { port: 4565, portType: 'field' as LynxPortType, name: 'FieldLynx Port 4565' },
+            { port: 4566, portType: 'field' as LynxPortType, name: 'FieldLynx Port 4566' },
+            { port: 4567, portType: 'field' as LynxPortType, name: 'FieldLynx Port 4567' },
+            { port: 4568, portType: 'field' as LynxPortType, name: 'FieldLynx Port 4568' },
+            { port: 4569, portType: 'field' as LynxPortType, name: 'FieldLynx Port 4569' },
           ];
           lynxListener.configure(edgeDefaultConfig);
           lynxListener.start();

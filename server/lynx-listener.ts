@@ -17,7 +17,7 @@ interface LynxListenerEvents {
   'result': (eventNumber: number, lane: number, place: number, time: string, athleteName?: string) => void;
   'field-result': (eventNumber: number, athleteName: string, place: number, mark: string, attemptNumber: number, attempts?: string) => void;
   'field-athlete-up': (eventNumber: number, athleteName: string, attemptNumber: number, mark?: string) => void;
-  'start-list': (eventNumber: number, heat: number, entries: LynxStartListEntry[], metadata?: { eventName?: string; distance?: string; round?: number; sourcePortType?: LynxPortType }) => void;
+  'start-list': (eventNumber: number, heat: number, entries: LynxStartListEntry[], metadata?: { eventName?: string; distance?: string; round?: number; sourcePortType?: LynxPortType; sourcePort?: number }) => void;
   'connection': (portType: LynxPortType, connected: boolean) => void;
   'error': (error: Error, portType: LynxPortType) => void;
 }
@@ -88,11 +88,12 @@ interface AggregatedEvent {
   emitScheduled?: boolean; // Prevent scheduling multiple emits
   type: 'S' | 'T' | 'F';
   sourcePortType?: LynxPortType; // Track if data came from big board port
+  sourcePort?: number; // Track the actual TCP port number for routing
 }
 
 export class LynxListener extends EventEmitter {
-  private servers: Map<LynxPortType, net.Server> = new Map();
-  private clients: Map<LynxPortType, Set<net.Socket>> = new Map();
+  private servers: Map<string, net.Server> = new Map();
+  private clients: Map<string, Set<net.Socket>> = new Map();
   private buffers: Map<net.Socket, string> = new Map();
   private configs: PortConfig[] = [];
   private currentEventNumber: number = 0;
@@ -253,6 +254,7 @@ export class LynxListener extends EventEmitter {
             eventName: event.eventName,
             round: event.round,
             sourcePortType: event.sourcePortType, // Pass through for channel routing
+            sourcePort: event.sourcePort, // Pass through actual TCP port
           });
         }
         
@@ -263,6 +265,7 @@ export class LynxListener extends EventEmitter {
           eventName: event.eventName,
           results: sortedEntries,
           sourcePortType: event.sourcePortType, // Pass through for channel routing
+          sourcePort: event.sourcePort, // Pass through actual TCP port for routing
         });
         break;
     }
@@ -323,10 +326,11 @@ export class LynxListener extends EventEmitter {
     const server = net.createServer((socket) => {
       console.log(`[Lynx:${config.name}] Client connected from ${socket.remoteAddress}`);
       
-      let clients = this.clients.get(config.portType);
+      const serverKey = `${config.portType}_${config.port}`;
+      let clients = this.clients.get(serverKey);
       if (!clients) {
         clients = new Set();
-        this.clients.set(config.portType, clients);
+        this.clients.set(serverKey, clients);
       }
       clients.add(socket);
       this.buffers.set(socket, '');
@@ -339,9 +343,11 @@ export class LynxListener extends EventEmitter {
 
       socket.on('close', () => {
         console.log(`[Lynx:${config.name}] Client disconnected`);
-        clients?.delete(socket);
+        const closeKey = `${config.portType}_${config.port}`;
+        const closeClients = this.clients.get(closeKey);
+        closeClients?.delete(socket);
         this.buffers.delete(socket);
-        if (clients?.size === 0) {
+        if (closeClients?.size === 0) {
           this.emit('connection', config.portType, false);
         }
       });
@@ -361,7 +367,7 @@ export class LynxListener extends EventEmitter {
       console.log(`[Lynx:${config.name}] Listening on port ${config.port}`);
     });
 
-    this.servers.set(config.portType, server);
+    this.servers.set(`${config.portType}_${config.port}`, server);
   }
 
   private handleData(socket: net.Socket, data: Buffer, config: PortConfig) {
@@ -1160,7 +1166,7 @@ export class LynxListener extends EventEmitter {
     if (name) packet.athleteName = name;
     
     if (name || data.BIB) {
-      const key = this.getAggregationKey(eventNum, flight, 'F', round, config.name);
+      const key = this.getAggregationKey(eventNum, flight, 'F', round, String(config.port));
       let aggregated = this.aggregatedEvents.get(key);
       
       // Use persisted event name if DN not in this message
@@ -1180,6 +1186,7 @@ export class LynxListener extends EventEmitter {
           firstUpdate: now,
           type: 'F',
           sourcePortType: config.portType, // Track source port for channel routing
+          sourcePort: config.port, // Track actual TCP port number for routing
         };
         this.aggregatedEvents.set(key, aggregated);
       } else if (resolvedEventName && !aggregated.eventName) {
@@ -1426,12 +1433,12 @@ export class LynxListener extends EventEmitter {
   }
 
   stop() {
-    Array.from(this.servers.entries()).forEach(([portType, server]) => {
+    Array.from(this.servers.entries()).forEach(([key, server]) => {
       server.close(() => {
-        console.log(`[Lynx] Stopped listener for ${portType}`);
+        console.log(`[Lynx] Stopped listener for ${key}`);
       });
       
-      const clients = this.clients.get(portType);
+      const clients = this.clients.get(key);
       if (clients) {
         Array.from(clients).forEach(client => {
           client.destroy();
@@ -1442,12 +1449,17 @@ export class LynxListener extends EventEmitter {
     this.servers.clear();
   }
 
-  getStatus(): { portType: LynxPortType; connected: boolean; clientCount: number }[] {
-    return this.configs.map(config => ({
-      portType: config.portType,
-      connected: (this.clients.get(config.portType)?.size || 0) > 0,
-      clientCount: this.clients.get(config.portType)?.size || 0,
-    }));
+  getStatus(): { portType: LynxPortType; port: number; name: string; connected: boolean; clientCount: number }[] {
+    return this.configs.map(config => {
+      const key = `${config.portType}_${config.port}`;
+      return {
+        portType: config.portType,
+        port: config.port,
+        name: config.name,
+        connected: (this.clients.get(key)?.size || 0) > 0,
+        clientCount: this.clients.get(key)?.size || 0,
+      };
+    });
   }
 
   getCurrentEventNumber(): number {
