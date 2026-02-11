@@ -854,6 +854,8 @@ export const displayDevices = pgTable("display_devices", {
   pagingInterval: integer("paging_interval").default(5), // Seconds between page scrolls (1-60)
   fieldPort: integer("field_port"),
   isBigBoard: boolean("is_big_board").default(false),
+  displayWidth: integer("display_width"),
+  displayHeight: integer("display_height"),
   status: text("status").default("offline"), // online, offline, idle
   lastSeenAt: timestamp("last_seen_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -1256,7 +1258,7 @@ export const SCENE_DISPLAY_MODES = [
 export type SceneDisplayMode = typeof SCENE_DISPLAY_MODES[number];
 
 // Display types that can have scene mappings
-export const SCENE_DISPLAY_TYPES = ['P10', 'P6', 'BigBoard'] as const;
+export const SCENE_DISPLAY_TYPES = ['P10', 'P6', 'BigBoard', 'Custom'] as const;
 export type SceneDisplayType = typeof SCENE_DISPLAY_TYPES[number];
 
 // Scene Template Mappings - Links custom scenes to display types and modes

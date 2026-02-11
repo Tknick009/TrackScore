@@ -405,7 +405,7 @@ export default function DisplayControlPage() {
   });
 
   // Display types and modes for the grid
-  const displayTypes = ['P10', 'P6', 'BigBoard'] as const;
+  const displayTypes = ['P10', 'P6', 'BigBoard', 'Custom'] as const;
   const displayModes = [
     'start_list', 
     'running_time', 
@@ -1014,6 +1014,7 @@ export default function DisplayControlPage() {
                         <SelectItem value="P10">P10 Display (192 x 96)</SelectItem>
                         <SelectItem value="P6">P6 Display (288 x 144)</SelectItem>
                         <SelectItem value="BigBoard">Big Board (1920 x 1080)</SelectItem>
+                        <SelectItem value="Custom">Custom Resolution</SelectItem>
                         <SelectItem value="Broadcast">Broadcast (Ticker & Clock)</SelectItem>
                       </SelectContent>
                     </Select>

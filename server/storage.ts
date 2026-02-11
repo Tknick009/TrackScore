@@ -258,7 +258,7 @@ export interface IStorage {
   createOrUpdateDisplayDevice(device: InsertDisplayDevice & { lastIp?: string }): Promise<DisplayDevice>;
   updateDisplayDeviceStatus(id: string, status: string, lastIp?: string): Promise<DisplayDevice | undefined>;
   updateDisplayDeviceMode(id: string, displayMode: 'track' | 'field'): Promise<DisplayDevice | undefined>;
-  updateDisplayDeviceType(id: string, displayType: string, deviceName?: string): Promise<DisplayDevice | undefined>;
+  updateDisplayDeviceType(id: string, displayType: string, deviceName?: string, displayWidth?: number, displayHeight?: number): Promise<DisplayDevice | undefined>;
   updateDisplayAutoMode(id: string, autoMode: boolean): Promise<DisplayDevice | undefined>;
   updateDisplayDevice(id: string, updates: Partial<{ pagingSize: number; pagingInterval: number; fieldPort: number | null; isBigBoard: boolean }>): Promise<DisplayDevice | undefined>;
   assignEventToDisplay(displayId: string, eventId: string | null): Promise<DisplayDevice | undefined>;
@@ -1220,13 +1220,10 @@ export class DatabaseStorage implements IStorage {
     return device || undefined;
   }
 
-  async createOrUpdateDisplayDevice(device: InsertDisplayDevice & { lastIp?: string; displayType?: string }): Promise<DisplayDevice> {
-    // Check if device with this name already exists for this meet
+  async createOrUpdateDisplayDevice(device: InsertDisplayDevice & { lastIp?: string; displayType?: string; displayWidth?: number; displayHeight?: number }): Promise<DisplayDevice> {
     const existing = await this.getDisplayDeviceByName(device.meetId, device.deviceName);
     
     if (existing) {
-      // Update existing device - also update displayType if provided
-      // Preserve existing autoMode setting
       const updateData: any = {
         status: 'online',
         lastSeenAt: new Date(),
@@ -1234,6 +1231,12 @@ export class DatabaseStorage implements IStorage {
       };
       if (device.displayType) {
         updateData.displayType = device.displayType;
+      }
+      if (device.displayWidth !== undefined) {
+        updateData.displayWidth = device.displayWidth;
+      }
+      if (device.displayHeight !== undefined) {
+        updateData.displayHeight = device.displayHeight;
       }
       const [updated] = await db
         .update(displayDevices)
@@ -1243,13 +1246,14 @@ export class DatabaseStorage implements IStorage {
       return updated;
     }
     
-    // Create new device with autoMode=true by default
     const [newDevice] = await db
       .insert(displayDevices)
       .values({
         ...device,
         displayType: device.displayType || 'P10',
-        autoMode: true, // New devices start with auto-mode enabled
+        displayWidth: device.displayWidth ?? null,
+        displayHeight: device.displayHeight ?? null,
+        autoMode: true,
         status: 'online',
         lastSeenAt: new Date(),
       })
@@ -1290,7 +1294,7 @@ export class DatabaseStorage implements IStorage {
     return updated || undefined;
   }
 
-  async updateDisplayDeviceType(id: string, displayType: string, deviceName?: string): Promise<DisplayDevice | undefined> {
+  async updateDisplayDeviceType(id: string, displayType: string, deviceName?: string, displayWidth?: number, displayHeight?: number): Promise<DisplayDevice | undefined> {
     const updateData: any = { 
       displayType,
       lastSeenAt: new Date(),
@@ -1298,6 +1302,12 @@ export class DatabaseStorage implements IStorage {
     
     if (deviceName) {
       updateData.deviceName = deviceName;
+    }
+    if (displayWidth !== undefined) {
+      updateData.displayWidth = displayWidth;
+    }
+    if (displayHeight !== undefined) {
+      updateData.displayHeight = displayHeight;
     }
     
     const [updated] = await db

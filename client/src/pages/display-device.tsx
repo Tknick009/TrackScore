@@ -239,6 +239,9 @@ export default function DisplayDevice() {
   });
   const [selectedMeetId, setSelectedMeetId] = useState<string | null>(null);
   const [deviceName, setDeviceName] = useState<string>(getLastDeviceName());
+  const [selectedDisplayType, setSelectedDisplayType] = useState<string>('P10');
+  const [customWidth, setCustomWidth] = useState<number>(1920);
+  const [customHeight, setCustomHeight] = useState<number>(1080);
   const [registeredDeviceId, setRegisteredDeviceId] = useState<string | null>(null);
   const registeredDeviceIdRef = useRef<string | null>(null);
   // Big board toggle - when true, subscribes to 'track_mode_change_big' channel
@@ -371,7 +374,9 @@ export default function DisplayDevice() {
           meetId: meetId,
           deviceName: displayName,
           displayType: displayType,
-          deviceId: storedId, // Send stored ID for reconnection matching
+          deviceId: storedId,
+          displayWidth: displayType === 'Custom' ? customWidth : undefined,
+          displayHeight: displayType === 'Custom' ? customHeight : undefined,
         }));
       };
 
@@ -1060,7 +1065,7 @@ export default function DisplayDevice() {
       deviceNameRef.current = deviceName.trim();
       setState(prev => ({ 
         ...prev, 
-        displayType: 'P10',
+        displayType: selectedDisplayType as any,
         meetId: selectedMeetId,
         setupComplete: true 
       }));
@@ -1132,6 +1137,52 @@ export default function DisplayDevice() {
             </div>
           </div>
           
+          {/* Display Type Selector */}
+          <div className="mb-10">
+            <label className="block text-gray-300 text-sm font-medium mb-3 text-center">
+              Display Type
+            </label>
+            <div className="max-w-md mx-auto">
+              <Select value={selectedDisplayType} onValueChange={setSelectedDisplayType}>
+                <SelectTrigger className="w-full bg-gray-900 border-gray-700 text-white h-14 text-lg" data-testid="select-display-type">
+                  <SelectValue placeholder="Choose display type..." />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-900 border-gray-700">
+                  <SelectItem value="P10" className="text-white hover:bg-gray-800">P10 (192x96)</SelectItem>
+                  <SelectItem value="P6" className="text-white hover:bg-gray-800">P6 (288x144)</SelectItem>
+                  <SelectItem value="BigBoard" className="text-white hover:bg-gray-800">BigBoard (1920x1080)</SelectItem>
+                  <SelectItem value="Custom" className="text-white hover:bg-gray-800">Custom Resolution</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {selectedDisplayType === 'Custom' && (
+              <div className="max-w-md mx-auto mt-4 flex gap-4">
+                <div className="flex-1">
+                  <label className="block text-gray-400 text-xs mb-1 text-center">Width (px)</label>
+                  <Input
+                    type="number"
+                    value={customWidth}
+                    onChange={(e) => setCustomWidth(parseInt(e.target.value) || 1920)}
+                    min={1}
+                    className="w-full bg-gray-900 border-gray-700 text-white h-14 text-lg text-center"
+                    data-testid="input-custom-width"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-gray-400 text-xs mb-1 text-center">Height (px)</label>
+                  <Input
+                    type="number"
+                    value={customHeight}
+                    onChange={(e) => setCustomHeight(parseInt(e.target.value) || 1080)}
+                    min={1}
+                    className="w-full bg-gray-900 border-gray-700 text-white h-14 text-lg text-center"
+                    data-testid="input-custom-height"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+          
           {/* Start Button */}
           <div className="text-center">
             <button
@@ -1172,6 +1223,8 @@ export default function DisplayDevice() {
       liveEventData={state.liveEventData}
       pagingSize={state.pagingSize}
       pagingInterval={state.pagingInterval}
+      customWidth={state.displayType === 'Custom' ? customWidth : undefined}
+      customHeight={state.displayType === 'Custom' ? customHeight : undefined}
     />
   );
 }
@@ -1189,13 +1242,15 @@ interface DisplayRendererProps {
   liveEventData: LiveEventData | null;
   pagingSize: number;
   pagingInterval: number;
+  customWidth?: number;
+  customHeight?: number;
 }
 
 interface EventWithEntries extends Event {
   entries: any[];
 }
 
-function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTime, liveEventData, pagingSize, pagingInterval }: DisplayRendererProps) {
+function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTime, liveEventData, pagingSize, pagingInterval, customWidth, customHeight }: DisplayRendererProps) {
   const { data: meet } = useQuery<Meet>({
     queryKey: ['/api/meets', meetId],
     enabled: !!meetId,
@@ -1243,9 +1298,11 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     if (effectiveSceneId) {
       const capability = DISPLAY_CAPABILITIES[displayType];
       const isSingleAthleteDisplay = capability.maxAthletes === 1;
+      const effectiveWidth = displayType === 'Custom' && customWidth ? customWidth : capability.resolution.width;
+      const effectiveHeight = displayType === 'Custom' && customHeight ? customHeight : capability.resolution.height;
       
       // P10/P6: Fixed-size rendering at exact native resolution at position 0,0
-      // BigBoard: Full viewport rendering with scaling
+      // BigBoard/Custom: Full viewport rendering with scaling
       if (isSingleAthleteDisplay) {
         return (
           <SceneCanvas
@@ -1257,13 +1314,13 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             liveClockTime={liveClockTime}
             pagingSize={pagingSize}
             pagingInterval={pagingInterval}
-            displayWidth={capability.resolution.width}
-            displayHeight={capability.resolution.height}
+            displayWidth={effectiveWidth}
+            displayHeight={effectiveHeight}
           />
         );
       }
       
-      // BigBoard uses full viewport with scaling
+      // BigBoard/Custom uses full viewport with scaling
       return (
         <SceneCanvas
           sceneId={effectiveSceneId}
@@ -1274,6 +1331,8 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
           liveClockTime={liveClockTime}
           pagingSize={pagingSize}
           pagingInterval={pagingInterval}
+          displayWidth={effectiveWidth}
+          displayHeight={effectiveHeight}
         />
       );
     }

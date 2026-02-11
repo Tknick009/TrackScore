@@ -1,7 +1,7 @@
 import type { ComponentType } from "react";
 import type { EventWithEntries, Meet } from "@shared/schema";
 
-export type DisplayType = 'P10' | 'P6' | 'BigBoard' | 'Broadcast';
+export type DisplayType = 'P10' | 'P6' | 'BigBoard' | 'Broadcast' | 'Custom';
 export type LayoutKind = 'single' | 'multi';
 
 export interface DisplayCapability {
@@ -35,6 +35,12 @@ export const DISPLAY_CAPABILITIES: Record<DisplayType, DisplayCapability> = {
     resolution: { width: 1920, height: 1080 },
     allowedLayoutKinds: ['multi'],
     description: 'Broadcast overlay with ticker, clock, and logo',
+  },
+  Custom: {
+    maxAthletes: 8,
+    resolution: { width: 1920, height: 1080 },
+    allowedLayoutKinds: ['single', 'multi'],
+    description: 'Custom resolution display',
   },
 };
 
@@ -131,13 +137,15 @@ export const TEMPLATE_REGISTRY: TemplateMetadata[] = [
 ];
 
 export function getTemplatesForDisplay(displayType: DisplayType): TemplateMetadata[] {
-  return TEMPLATE_REGISTRY.filter(t => t.supportedDisplays.includes(displayType));
+  const effectiveType = displayType === 'Custom' ? 'BigBoard' : displayType;
+  return TEMPLATE_REGISTRY.filter(t => t.supportedDisplays.includes(effectiveType));
 }
 
 export function isTemplateCompatible(templateId: string, displayType: DisplayType): boolean {
   const template = TEMPLATE_REGISTRY.find(t => t.id === templateId);
   if (!template) return false;
-  return template.supportedDisplays.includes(displayType);
+  const effectiveType = displayType === 'Custom' ? 'BigBoard' : displayType;
+  return template.supportedDisplays.includes(effectiveType);
 }
 
 export function getMaxAthletesForDisplay(displayType: DisplayType): number {

@@ -172,6 +172,8 @@ export class SQLiteStorage implements IStorage {
     this.createTables();
     try { this.db.prepare('ALTER TABLE display_devices ADD COLUMN field_port INTEGER DEFAULT NULL').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE display_devices ADD COLUMN is_big_board INTEGER DEFAULT 0').run(); } catch(e) {}
+    try { this.db.prepare('ALTER TABLE display_devices ADD COLUMN display_width INTEGER').run(); } catch(e) {}
+    try { this.db.prepare('ALTER TABLE display_devices ADD COLUMN display_height INTEGER').run(); } catch(e) {}
   }
 
   private createTables(): void {
@@ -395,6 +397,8 @@ export class SQLiteStorage implements IStorage {
         paging_interval INTEGER DEFAULT 5,
         field_port INTEGER DEFAULT NULL,
         is_big_board INTEGER DEFAULT 0,
+        display_width INTEGER,
+        display_height INTEGER,
         current_template TEXT,
         last_ip TEXT,
         last_seen_at TEXT,
@@ -1810,6 +1814,8 @@ export class SQLiteStorage implements IStorage {
       pagingInterval: row.paging_interval ?? 5,
       fieldPort: row.field_port ?? null,
       isBigBoard: this.toBoolean(row.is_big_board ?? false),
+      displayWidth: row.display_width ?? null,
+      displayHeight: row.display_height ?? null,
       currentTemplate: row.current_template,
       lastIp: row.last_ip,
       lastSeenAt: row.last_seen_at ? new Date(row.last_seen_at) : null,
@@ -1841,22 +1847,31 @@ export class SQLiteStorage implements IStorage {
     return row ? this.mapDisplayDeviceRow(row) : undefined;
   }
 
-  async createOrUpdateDisplayDevice(device: InsertDisplayDevice & { lastIp?: string }): Promise<DisplayDevice> {
+  async createOrUpdateDisplayDevice(device: InsertDisplayDevice & { lastIp?: string; displayWidth?: number; displayHeight?: number }): Promise<DisplayDevice> {
     const existing = await this.getDisplayDeviceByName(device.meetId, device.deviceName);
     
     if (existing) {
-      this.db.prepare(`
-        UPDATE display_devices SET status = 'online', last_seen_at = datetime('now'), last_ip = COALESCE(?, last_ip)
-        WHERE id = ?
-      `).run(device.lastIp ?? null, existing.id);
+      const dw = (device as any).displayWidth;
+      const dh = (device as any).displayHeight;
+      if (dw !== undefined || dh !== undefined) {
+        this.db.prepare(`
+          UPDATE display_devices SET status = 'online', last_seen_at = datetime('now'), last_ip = COALESCE(?, last_ip), display_width = COALESCE(?, display_width), display_height = COALESCE(?, display_height)
+          WHERE id = ?
+        `).run(device.lastIp ?? null, dw ?? null, dh ?? null, existing.id);
+      } else {
+        this.db.prepare(`
+          UPDATE display_devices SET status = 'online', last_seen_at = datetime('now'), last_ip = COALESCE(?, last_ip)
+          WHERE id = ?
+        `).run(device.lastIp ?? null, existing.id);
+      }
       return (await this.getDisplayDevice(existing.id))!;
     }
 
     const id = this.generateId();
     this.db.prepare(`
-      INSERT INTO display_devices (id, meet_id, device_name, display_type, display_mode, status, last_ip, last_seen_at)
-      VALUES (?, ?, ?, ?, ?, 'online', ?, datetime('now'))
-    `).run(id, device.meetId, device.deviceName, (device as any).displayType || 'P10', device.displayMode || 'track', device.lastIp ?? null);
+      INSERT INTO display_devices (id, meet_id, device_name, display_type, display_mode, status, last_ip, last_seen_at, display_width, display_height)
+      VALUES (?, ?, ?, ?, ?, 'online', ?, datetime('now'), ?, ?)
+    `).run(id, device.meetId, device.deviceName, (device as any).displayType || 'P10', device.displayMode || 'track', device.lastIp ?? null, (device as any).displayWidth ?? null, (device as any).displayHeight ?? null);
     
     const created = (await this.getDisplayDevice(id))!;
     this.logSyncEvent('display_devices', id, 'insert', created);
@@ -1885,12 +1900,23 @@ export class SQLiteStorage implements IStorage {
     return updated;
   }
 
-  async updateDisplayDeviceType(id: string, displayType: string, deviceName?: string): Promise<DisplayDevice | undefined> {
+  async updateDisplayDeviceType(id: string, displayType: string, deviceName?: string, displayWidth?: number, displayHeight?: number): Promise<DisplayDevice | undefined> {
+    const sets: string[] = ['display_type = ?', "last_seen_at = datetime('now')"];
+    const params: any[] = [displayType];
     if (deviceName) {
-      this.db.prepare(`UPDATE display_devices SET display_type = ?, device_name = ?, last_seen_at = datetime('now') WHERE id = ?`).run(displayType, deviceName, id);
-    } else {
-      this.db.prepare(`UPDATE display_devices SET display_type = ?, last_seen_at = datetime('now') WHERE id = ?`).run(displayType, id);
+      sets.push('device_name = ?');
+      params.push(deviceName);
     }
+    if (displayWidth !== undefined) {
+      sets.push('display_width = ?');
+      params.push(displayWidth);
+    }
+    if (displayHeight !== undefined) {
+      sets.push('display_height = ?');
+      params.push(displayHeight);
+    }
+    params.push(id);
+    this.db.prepare(`UPDATE display_devices SET ${sets.join(', ')} WHERE id = ?`).run(...params);
     const updated = await this.getDisplayDevice(id);
     if (updated) this.logSyncEvent('display_devices', id, 'update', updated);
     return updated;

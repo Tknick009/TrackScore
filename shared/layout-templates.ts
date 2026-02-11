@@ -3,7 +3,7 @@
 
 import type { InsertLayoutZone } from './schema';
 
-export type DisplayType = 'P10' | 'P6' | 'BigBoard';
+export type DisplayType = 'P10' | 'P6' | 'BigBoard' | 'Custom';
 
 export interface LayoutTemplate {
   id: string;

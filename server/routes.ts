@@ -2556,7 +2556,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update display device config (fieldPort, isBigBoard, pagingSize, pagingInterval, displayType)
   app.patch("/api/display-devices/:id", async (req, res) => {
     try {
-      const { fieldPort, isBigBoard, pagingSize, pagingInterval, displayType } = req.body;
+      const { fieldPort, isBigBoard, pagingSize, pagingInterval, displayType, displayWidth, displayHeight } = req.body;
       const id = req.params.id;
 
       const device = await storage.getDisplayDevice(id);
@@ -2564,12 +2564,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Device not found" });
       }
 
-      const validDisplayTypes = ['P10', 'P6', 'BigBoard', 'Broadcast'];
+      const validDisplayTypes = ['P10', 'P6', 'BigBoard', 'Broadcast', 'Custom'];
       if (displayType) {
         if (!validDisplayTypes.includes(displayType)) {
           return res.status(400).json({ error: `Invalid display type. Must be one of: ${validDisplayTypes.join(', ')}` });
         }
-        await storage.updateDisplayDeviceType(id, displayType);
+        await storage.updateDisplayDeviceType(id, displayType, undefined, displayWidth, displayHeight);
       }
 
       const updates: Partial<{ pagingSize: number; pagingInterval: number; fieldPort: number | null; isBigBoard: boolean }> = {};
@@ -5331,7 +5331,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Handle display device registration
         if (data.type === 'register_display_device') {
-          const { meetId, deviceName, displayType, deviceId: clientDeviceId } = data;
+          const { meetId, deviceName, displayType, deviceId: clientDeviceId, displayWidth, displayHeight } = data;
           
           if (meetId && deviceName) {
             console.log(`Display device registering: ${deviceName} (${displayType}) for meet ${meetId}, clientDeviceId: ${clientDeviceId || 'new'}`);
@@ -5345,9 +5345,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   // Update existing device status
                   device = await storage.updateDisplayDeviceStatus(clientDeviceId, 'online');
                   
-                  // Update displayType and deviceName if they changed
                   if (device && displayType && (displayType !== existingDevice.displayType || deviceName !== existingDevice.deviceName)) {
-                    device = await storage.updateDisplayDeviceType(clientDeviceId, displayType, deviceName) || device;
+                    device = await storage.updateDisplayDeviceType(clientDeviceId, displayType, deviceName, displayWidth, displayHeight) || device;
                     console.log(`Updated device type: ${deviceName} (${displayType})`);
                   }
                   
@@ -5361,7 +5360,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   meetId,
                   deviceName,
                   displayType: displayType || 'P10',
-                });
+                  displayWidth: displayType === 'Custom' ? displayWidth : undefined,
+                  displayHeight: displayType === 'Custom' ? displayHeight : undefined,
+                } as any);
                 console.log(`Created new device: ${device.deviceName} (${device.id})`);
               }
               
