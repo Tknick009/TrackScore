@@ -1236,11 +1236,184 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       console.log(`   ⚠️  Skipped ${skippedMissingAthlete} entries (missing athlete), ${skippedMissingEvent} entries (missing event)`);
     }
     
-    // Post-import: Infer is_scored from Ev_score values
+    // 5b. IMPORT RELAY ENTRIES
+    // Relay results live in a separate "Relay" table in HyTek MDB
+    // Each row represents one relay team's entry in a relay event, with Ev_score for team scoring
+    let relayImported = 0;
+    try {
+      const relayTable = reader.getTable("Relay");
+      const relayData = relayTable.getData();
+      console.log(`\n   🏃‍♂️ Importing Relay entries (${relayData.length} rows)...`);
+      
+      // Get relay member mapping from RelayNames table
+      // We need at least one athlete per relay to create an entry (entries require athlete_id)
+      const relayMemberMap = new Map<number, number>(); // Relay_no -> first Ath_no
+      try {
+        const relayNamesTable = reader.getTable("RelayNames");
+        const relayNamesData = relayNamesTable.getData();
+        for (const rn of relayNamesData) {
+          const relayNo = Number(rn.Relay_no || 0);
+          const athNo = Number(rn.Ath_no || 0);
+          if (relayNo > 0 && athNo > 0 && !relayMemberMap.has(relayNo)) {
+            relayMemberMap.set(relayNo, athNo);
+          }
+        }
+        console.log(`   📋 Found relay members for ${relayMemberMap.size} relay teams`);
+      } catch (e) {
+        console.log(`   ⚠️  RelayNames table not found, will use team-based fallback`);
+      }
+      
+      const relayEntryBatch: any[] = [];
+      let relaySkipped = 0;
+      
+      for (const row of relayData) {
+        const eventPtr = typeof row.Event_ptr === 'number' ? row.Event_ptr : Number(row.Event_ptr || 0);
+        const teamNo = typeof row.Team_no === 'number' ? row.Team_no : Number(row.Team_no || 0);
+        const relayNo = typeof row.Relay_no === 'number' ? row.Relay_no : Number(row.Relay_no || 0);
+        
+        const eventId = eventIdMap.get(eventPtr);
+        const teamId = teamNo ? teamIdMap.get(teamNo) || null : null;
+        
+        if (!eventId) { relaySkipped++; continue; }
+        
+        // Find an athlete for this relay entry
+        // First try RelayNames, then find any athlete on this team
+        let athleteId: string | null = null;
+        const memberAthNo = relayMemberMap.get(relayNo);
+        if (memberAthNo) {
+          athleteId = athleteIdMap.get(memberAthNo) || null;
+        }
+        
+        // Fallback: find any athlete on this team that we have mapped
+        if (!athleteId && teamNo) {
+          const athEntries = Array.from(athleteIdMap.entries());
+          for (const [athNo, id] of athEntries) {
+            const athEntry = entryData.find((e: any) => Number(e.Ath_no) === athNo && Number(e.Team_no) === teamNo);
+            if (athEntry) {
+              athleteId = id;
+              break;
+            }
+          }
+        }
+        
+        if (!athleteId) { relaySkipped++; continue; }
+        
+        const seedMark = row.ActualSeed_time ? (typeof row.ActualSeed_time === 'number' ? row.ActualSeed_time : parseFloat(String(row.ActualSeed_time))) : null;
+        const evScore = row.Ev_score != null && Number(row.Ev_score) > 0 ? Number(row.Ev_score) : null;
+        
+        relayEntryBatch.push({
+          eventId,
+          athleteId,
+          teamId,
+          divisionId: null,
+          seedMark,
+          resultType: "time",
+          preliminaryHeat: row.Pre_heat ? Number(row.Pre_heat) : null,
+          preliminaryLane: row.Pre_lane ? Number(row.Pre_lane) : null,
+          preliminaryMark: row.Pre_Time ? Number(row.Pre_Time) : null,
+          preliminaryPlace: row.Pre_jdplace ? Number(row.Pre_jdplace) : (row.Pre_place ? Number(row.Pre_place) : null),
+          preliminaryWind: null,
+          quarterfinalHeat: null, quarterfinalLane: null, quarterfinalMark: null, quarterfinalPlace: null, quarterfinalWind: null,
+          semifinalHeat: null, semifinalLane: null, semifinalMark: null, semifinalPlace: null, semifinalWind: null,
+          finalHeat: row.Fin_heat ? Number(row.Fin_heat) : null,
+          finalLane: row.Fin_lane ? Number(row.Fin_lane) : null,
+          finalMark: row.Fin_Time ? Number(row.Fin_Time) : null,
+          finalPlace: row.Fin_jdplace ? Number(row.Fin_jdplace) : (row.Fin_place ? Number(row.Fin_place) : null),
+          finalWind: null,
+          finalPoints: evScore,
+          scoredPoints: evScore,
+          isDisqualified: row.Fin_stat != null && String(row.Fin_stat).trim().toUpperCase() === 'D',
+          isScratched: row.Scr_stat === true || row.Scr_stat === "Y",
+          notes: row.Fin_stat != null && String(row.Fin_stat).trim() !== '' && String(row.Fin_stat).trim() !== ' ' 
+            ? String(row.Fin_stat).trim().toUpperCase() : null,
+        });
+      }
+      
+      if (relayEntryBatch.length > 0) {
+        if (isEdgeMode && sqliteDb) {
+          const upsertStmt = sqliteDb.prepare(`
+            INSERT INTO entries (id, event_id, athlete_id, team_id, division_id, seed_mark, result_type,
+              preliminary_heat, preliminary_lane, preliminary_mark, preliminary_place, preliminary_wind,
+              quarterfinal_heat, quarterfinal_lane, quarterfinal_mark, quarterfinal_place, quarterfinal_wind,
+              semifinal_heat, semifinal_lane, semifinal_mark, semifinal_place, semifinal_wind,
+              final_heat, final_lane, final_mark, final_place, final_wind,
+              scored_points,
+              is_disqualified, is_scratched, notes)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(event_id, athlete_id) DO UPDATE SET
+              team_id=excluded.team_id, division_id=excluded.division_id, seed_mark=excluded.seed_mark, result_type=excluded.result_type,
+              preliminary_heat=excluded.preliminary_heat, preliminary_lane=excluded.preliminary_lane,
+              preliminary_mark=excluded.preliminary_mark, preliminary_place=excluded.preliminary_place, preliminary_wind=excluded.preliminary_wind,
+              quarterfinal_heat=excluded.quarterfinal_heat, quarterfinal_lane=excluded.quarterfinal_lane,
+              quarterfinal_mark=excluded.quarterfinal_mark, quarterfinal_place=excluded.quarterfinal_place, quarterfinal_wind=excluded.quarterfinal_wind,
+              semifinal_heat=excluded.semifinal_heat, semifinal_lane=excluded.semifinal_lane,
+              semifinal_mark=excluded.semifinal_mark, semifinal_place=excluded.semifinal_place, semifinal_wind=excluded.semifinal_wind,
+              final_heat=excluded.final_heat, final_lane=excluded.final_lane,
+              final_mark=excluded.final_mark, final_place=excluded.final_place, final_wind=excluded.final_wind,
+              scored_points=excluded.scored_points,
+              is_disqualified=excluded.is_disqualified, is_scratched=excluded.is_scratched, notes=excluded.notes
+          `);
+          const insertBatch = sqliteDb.transaction((items: any[]) => {
+            for (const item of items) {
+              upsertStmt.run(
+                randomUUID(), item.eventId, item.athleteId, item.teamId, item.divisionId,
+                item.seedMark, item.resultType,
+                item.preliminaryHeat, item.preliminaryLane, item.preliminaryMark, item.preliminaryPlace, item.preliminaryWind,
+                item.quarterfinalHeat, item.quarterfinalLane, item.quarterfinalMark, item.quarterfinalPlace, item.quarterfinalWind,
+                item.semifinalHeat, item.semifinalLane, item.semifinalMark, item.semifinalPlace, item.semifinalWind,
+                item.finalHeat, item.finalLane, item.finalMark, item.finalPlace, item.finalWind,
+                item.scoredPoints,
+                item.isDisqualified ? 1 : 0, item.isScratched ? 1 : 0, item.notes
+              );
+            }
+          });
+          insertBatch(relayEntryBatch);
+        } else {
+          await db!.insert(entries).values(relayEntryBatch)
+            .onConflictDoUpdate({
+              target: [entries.eventId, entries.athleteId],
+              set: {
+                seedMark: sql`excluded.seed_mark`,
+                resultType: sql`excluded.result_type`,
+                teamId: sql`excluded.team_id`,
+                divisionId: sql`excluded.division_id`,
+                finalHeat: sql`excluded.final_heat`,
+                finalLane: sql`excluded.final_lane`,
+                finalMark: sql`excluded.final_mark`,
+                finalPlace: sql`excluded.final_place`,
+                finalPoints: sql`excluded.final_points`,
+                scoredPoints: sql`excluded.scored_points`,
+                isDisqualified: sql`excluded.is_disqualified`,
+                isScratched: sql`excluded.is_scratched`,
+                notes: sql`excluded.notes`,
+              }
+            });
+        }
+        relayImported = relayEntryBatch.length;
+        stats.entries += relayImported;
+      }
+      console.log(`   ✅ Imported ${relayImported} relay entries`);
+      if (relaySkipped > 0) {
+        console.log(`   ⚠️  Skipped ${relaySkipped} relay entries (missing event/athlete)`);
+      }
+    } catch (relayError) {
+      console.log(`   ⚠️  Relay table not found or could not be read: ${(relayError as Error).message}`);
+    }
+    
+    // Post-import: Infer is_scored from Ev_score values (both individual AND relay entries)
     // If any entry in an event has Ev_score > 0, mark that event as scored
     const eventsWithScores = new Set<number>();
     const withEvScore = entryData.filter(r => r.Ev_score != null && Number(r.Ev_score) > 0);
-    console.log(`   🔍 Entries with Ev_score > 0: ${withEvScore.length}`);
+    // Also check relay data for Ev_score
+    try {
+      const relayData2 = reader.getTable("Relay").getData();
+      const relayWithScore = relayData2.filter((r: any) => r.Ev_score != null && Number(r.Ev_score) > 0);
+      for (const row of relayWithScore) {
+        const eventPtr = typeof row.Event_ptr === 'number' ? row.Event_ptr : Number(row.Event_ptr || 0);
+        if (eventPtr > 0) eventsWithScores.add(eventPtr);
+      }
+    } catch (e) { /* relay table already processed above */ }
+    console.log(`   🔍 Entries with Ev_score > 0: ${withEvScore.length} individual + relay`);
     for (const row of withEvScore) {
       const eventPtr = typeof row.Event_ptr === 'number' ? row.Event_ptr : Number(row.Event_ptr || 0);
       if (eventPtr > 0) eventsWithScores.add(eventPtr);
