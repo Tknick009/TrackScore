@@ -1437,11 +1437,11 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
               fontFamily: "'Barlow Semi Condensed', sans-serif" 
             }}
           >
-            <div className="text-center">
+            <div className="flex items-center justify-center" style={{ width: '80%', height: '80%' }}>
               <img 
                 src={meet.logoUrl!} 
                 alt={meet?.name || 'Meet Logo'} 
-                className="max-h-[60vh] max-w-[80vw] mx-auto object-contain"
+                style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
               />
             </div>
           </div>
@@ -1562,11 +1562,11 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             fontFamily: "'Barlow Semi Condensed', sans-serif" 
           }}
         >
-          <div className="text-center">
+          <div className="flex flex-col items-center justify-center" style={{ width: '80%', height: '80%' }}>
             <img 
               src={meet!.logoUrl!} 
               alt={meet?.name || 'Meet Logo'} 
-              className="max-h-[60vh] max-w-[80vw] mx-auto object-contain"
+              style={{ maxWidth: '100%', maxHeight: '70%', objectFit: 'contain' }}
             />
             <div className="mt-8">
               <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full ${isConnected ? 'bg-blue-900/50 text-blue-400' : 'bg-yellow-900/50 text-yellow-400'}`}>
@@ -1711,11 +1711,11 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             fontFamily: "'Barlow Semi Condensed', sans-serif" 
           }}
         >
-          <div className="text-center">
+          <div className="flex items-center justify-center" style={{ width: '80%', height: '80%' }}>
             <img 
               src={meet!.logoUrl!} 
               alt={meet?.name || 'Meet Logo'} 
-              className="max-h-[60vh] max-w-[80vw] mx-auto object-contain"
+              style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
             />
           </div>
         </div>
