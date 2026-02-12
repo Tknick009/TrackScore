@@ -1267,12 +1267,85 @@ export function SceneCanvas({
   
   const backgroundColor = scene.backgroundColor || "hsl(var(--display-bg))";
   
-  // Check if we have fixed display dimensions (P10/P6)
+  // Check if we have fixed display dimensions (P10/P6/Custom)
   const isFixedSize = displayWidth !== undefined && displayHeight !== undefined;
   
   if (isFixedSize) {
-    // Fixed-size rendering for P10/P6: exact pixel dimensions at position 0,0
-    // No scaling, no centering - just the raw native resolution
+    // For P10/P6: the scene is designed at the native resolution, render 1:1
+    // For Custom: the scene is designed at a larger resolution (e.g. 1920x1080),
+    // scale it down to fit within the custom pixel box
+    const designWidth = scene.canvasWidth || displayWidth;
+    const designHeight = scene.canvasHeight || displayHeight;
+    
+    // Check if we need scaling (custom display with a scene designed at different resolution)
+    const needsScaling = designWidth !== displayWidth || designHeight !== displayHeight;
+    
+    if (needsScaling) {
+      // Scale the design canvas to fit within the fixed pixel box
+      const scaleX = displayWidth / designWidth;
+      const scaleY = displayHeight / designHeight;
+      const scale = Math.min(scaleX, scaleY);
+      
+      const scaledWidth = designWidth * scale;
+      const scaledHeight = designHeight * scale;
+      const offsetX = (displayWidth - scaledWidth) / 2;
+      const offsetY = (displayHeight - scaledHeight) / 2;
+      
+      return (
+        <div 
+          className="overflow-hidden display-layout"
+          style={{ 
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: displayWidth,
+            height: displayHeight,
+            backgroundColor: '#000',
+          }}
+          data-testid="scene-canvas"
+        >
+          <div
+            key={`scene-${sceneId}`}
+            style={{
+              position: 'absolute',
+              left: offsetX,
+              top: offsetY,
+              width: designWidth,
+              height: designHeight,
+              transform: `scale(${scale})`,
+              transformOrigin: 'top left',
+              backgroundColor,
+            }}
+          >
+            {sortedObjects.map((obj) => (
+              <SceneObjectRenderer 
+                key={obj.id} 
+                object={obj} 
+                meetId={meetId}
+                canvasWidth={designWidth}
+                canvasHeight={designHeight}
+                eventNumber={eventNumber}
+                pageIndex={currentPageIndex}
+                pageSize={pagingSize}
+                sharedLatestLiveData={liveData}
+                liveClockTime={liveClockTime}
+              />
+            ))}
+            
+            {sortedObjects.length === 0 && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="text-center text-[hsl(var(--display-muted))]">
+                  <Trophy className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                  <p className="text-xs font-stadium">Empty</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+    
+    // No scaling needed (P10/P6) - render at exact pixel dimensions
     const canvasWidth = displayWidth;
     const canvasHeight = displayHeight;
     

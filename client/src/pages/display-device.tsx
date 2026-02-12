@@ -1290,6 +1290,12 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     { template, sceneId, currentSceneData }
   );
 
+  const isCustomDisplay = displayType === 'Custom';
+  const effectiveResWidth = isCustomDisplay && customWidth ? customWidth : DISPLAY_CAPABILITIES[displayType].resolution.width;
+  const effectiveResHeight = isCustomDisplay && customHeight ? customHeight : DISPLAY_CAPABILITIES[displayType].resolution.height;
+  const containerStyle = isCustomDisplay ? { width: `${effectiveResWidth}px`, height: `${effectiveResHeight}px` } : {};
+  const containerClass = isCustomDisplay ? '' : 'h-screen w-screen';
+
   const renderContent = (overrideProps?: { template?: string | null; sceneId?: number | null; currentSceneData?: any }) => {
     const effectiveTemplate = overrideProps?.template !== undefined ? overrideProps.template : template;
     const effectiveSceneId = overrideProps?.sceneId !== undefined ? overrideProps.sceneId : sceneId;
@@ -1298,8 +1304,8 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     if (effectiveSceneId) {
       const capability = DISPLAY_CAPABILITIES[displayType];
       const isSingleAthleteDisplay = capability.maxAthletes === 1;
-      const effectiveWidth = displayType === 'Custom' && customWidth ? customWidth : capability.resolution.width;
-      const effectiveHeight = displayType === 'Custom' && customHeight ? customHeight : capability.resolution.height;
+      const effectiveWidth = effectiveResWidth;
+      const effectiveHeight = effectiveResHeight;
       
       // P10/P6: Fixed-size rendering at exact native resolution at position 0,0
       // BigBoard/Custom: Full viewport rendering with scaling
@@ -1382,8 +1388,8 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             <div 
               className="flex items-center justify-center overflow-hidden"
               style={{ 
-                width: `${capability.resolution.width}px`, 
-                height: `${capability.resolution.height}px`,
+                width: `${effectiveResWidth}px`, 
+                height: `${effectiveResHeight}px`,
                 background: gradientBackground,
                 fontFamily: "'Barlow Semi Condensed', sans-serif"
               }}
@@ -1406,8 +1412,8 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
           <div 
             className="bg-black flex items-center justify-center"
             style={{ 
-              width: `${capability.resolution.width}px`, 
-              height: `${capability.resolution.height}px`,
+              width: `${effectiveResWidth}px`, 
+              height: `${effectiveResHeight}px`,
               fontFamily: "'Barlow Semi Condensed', sans-serif"
             }}
           >
@@ -1424,8 +1430,9 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
       if (hasLogo) {
         return (
           <div 
-            className="h-screen w-screen flex items-center justify-center overflow-hidden"
+            className={`${containerClass} flex items-center justify-center overflow-hidden`}
             style={{ 
+              ...containerStyle,
               background: gradientBackground,
               fontFamily: "'Barlow Semi Condensed', sans-serif" 
             }}
@@ -1443,13 +1450,13 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
       
       // No logo - show black screen with green dot and display name
       return (
-        <div className="h-screen w-screen bg-black flex items-center justify-center overflow-hidden">
+        <div className={`${containerClass} bg-black flex items-center justify-center overflow-hidden`} style={containerStyle}>
           <div className="text-white text-center" style={{ fontFamily: "'Barlow Semi Condensed', sans-serif" }}>
             <div className={`w-6 h-6 rounded-full mx-auto mb-4 ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`}></div>
             <p className="text-3xl font-bold" style={{ color: meet?.textColor || '#FFFFFF' }}>
               {displayType === 'BigBoard' ? 'Big Board' : displayType}
             </p>
-            <p className="text-sm text-gray-500 mt-2">{capability.resolution.width}x{capability.resolution.height}</p>
+            <p className="text-sm text-gray-500 mt-2">{effectiveResWidth}x{effectiveResHeight}</p>
           </div>
         </div>
       );
@@ -1459,7 +1466,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
       const standings = teamStandings as any[] | undefined;
       if (!standings || standings.length === 0) {
         return (
-          <div className="h-screen w-screen bg-black flex items-center justify-center">
+          <div className={`${containerClass} bg-black flex items-center justify-center`} style={containerStyle}>
             <div className="text-white text-center" style={{ fontFamily: "'Barlow Semi Condensed', sans-serif" }}>
               <h1 className="text-4xl font-bold mb-4">Team Standings</h1>
               <p className="text-xl text-gray-400">No scoring data available</p>
@@ -1468,7 +1475,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
         );
       }
       return (
-        <div className="h-screen w-screen bg-black overflow-hidden p-8" style={{ fontFamily: "'Barlow Semi Condensed', sans-serif" }}>
+        <div className={`${containerClass} bg-black overflow-hidden p-8`} style={{ ...containerStyle, fontFamily: "'Barlow Semi Condensed', sans-serif" }}>
           <h1 className="text-5xl font-bold text-white text-center mb-8">
             {meet?.name || 'Team Standings'}
           </h1>
@@ -1514,8 +1521,8 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
         <div 
           className="flex items-center justify-center overflow-hidden"
           style={{ 
-            width: `${capability.resolution.width}px`, 
-            height: `${capability.resolution.height}px`,
+            width: `${effectiveResWidth}px`, 
+            height: `${effectiveResHeight}px`,
             background: waitingGradient,
             fontFamily: "'Barlow Semi Condensed', sans-serif"
           }}
@@ -1534,8 +1541,8 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
         <div 
           className="bg-black flex items-center justify-center"
           style={{ 
-            width: `${capability.resolution.width}px`, 
-            height: `${capability.resolution.height}px`,
+            width: `${effectiveResWidth}px`, 
+            height: `${effectiveResHeight}px`,
             fontFamily: "'Barlow Semi Condensed', sans-serif"
           }}
         >
@@ -1548,8 +1555,9 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     ) : (
       waitingHasLogo ? (
         <div 
-          className="h-screen w-screen flex items-center justify-center overflow-hidden"
+          className={`${containerClass} flex items-center justify-center overflow-hidden`}
           style={{ 
+            ...containerStyle,
             background: waitingGradient,
             fontFamily: "'Barlow Semi Condensed', sans-serif" 
           }}
@@ -1569,7 +1577,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
           </div>
         </div>
       ) : (
-        <div className="h-screen w-screen bg-black flex items-center justify-center">
+        <div className={`${containerClass} bg-black flex items-center justify-center`} style={containerStyle}>
           <div className="text-white text-center" style={{ fontFamily: "'Barlow Semi Condensed', sans-serif" }}>
             <div className={`w-6 h-6 rounded-full mx-auto mb-4 ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`}></div>
             <p className="text-3xl font-bold">{displayType === 'BigBoard' ? 'Big Board' : displayType}</p>
@@ -1696,8 +1704,9 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     if (fallbackHasLogo) {
       return (
         <div 
-          className="h-screen w-screen flex items-center justify-center overflow-hidden"
+          className={`${containerClass} flex items-center justify-center overflow-hidden`}
           style={{ 
+            ...containerStyle,
             background: fallbackGradient,
             fontFamily: "'Barlow Semi Condensed', sans-serif" 
           }}
@@ -1714,11 +1723,11 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     }
     
     return (
-      <div className="h-screen w-screen bg-black flex items-center justify-center overflow-hidden">
+      <div className={`${containerClass} bg-black flex items-center justify-center overflow-hidden`} style={containerStyle}>
         <div className="text-white text-center" style={{ fontFamily: "'Barlow Semi Condensed', sans-serif" }}>
           <div className={`w-6 h-6 rounded-full mx-auto mb-4 ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`}></div>
           <p className="text-3xl font-bold">{displayType === 'BigBoard' ? 'Big Board' : displayType}</p>
-          <p className="text-sm text-gray-500 mt-2">{capability.resolution.width}x{capability.resolution.height}</p>
+          <p className="text-sm text-gray-500 mt-2">{effectiveResWidth}x{effectiveResHeight}</p>
         </div>
       </div>
     );
