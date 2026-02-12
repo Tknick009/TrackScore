@@ -1724,9 +1724,9 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     );
   };
 
-  // Get fixed dimensions for P10/P6 displays
+  // Get fixed dimensions for P10/P6/Custom displays
   const resolution = DISPLAY_CAPABILITIES[displayType].resolution;
-  const isFixedSizeDisplay = displayType === 'P10' || displayType === 'P6';
+  const isFixedSizeDisplay = displayType === 'P10' || displayType === 'P6' || displayType === 'Custom';
 
   // Ref for incoming layer to attach transitionend handler
   const incomingLayerRef = useRef<HTMLDivElement>(null);
@@ -1760,7 +1760,9 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
   };
 
   if (isFixedSizeDisplay) {
-    // P10 and P6 use exact pixel dimensions at position 0,0
+    // P10, P6, and Custom use exact pixel dimensions at position 0,0
+    const fixedWidth = displayType === 'Custom' && customWidth ? customWidth : resolution.width;
+    const fixedHeight = displayType === 'Custom' && customHeight ? customHeight : resolution.height;
     return (
       <div className="bg-black min-h-screen">
         <div 
@@ -1768,8 +1770,8 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             position: 'absolute',
             top: 0,
             left: 0,
-            width: `${resolution.width}px`,
-            height: `${resolution.height}px`,
+            width: `${fixedWidth}px`,
+            height: `${fixedHeight}px`,
             overflow: 'hidden',
             backgroundColor: '#000',
           }}
