@@ -709,11 +709,11 @@ export function SceneObjectRenderer({
             <span className="whitespace-nowrap">{textContent || ""}</span>
             {qualifierBadge && (
               <span 
-                className="ml-3 px-3 py-1 rounded font-bold"
+                className="ml-6 px-3 py-1 rounded font-bold"
                 style={{
-                  backgroundColor: '#22c55e',
-                  color: '#166534',
-                  fontSize: `calc(${resolvedFontSize} * 0.8)`,
+                  backgroundColor: '#15803d',
+                  color: '#ffffff',
+                  fontSize: `calc(${resolvedFontSize} * 0.75)`,
                 }}
               >
                 {qualifierBadge}
