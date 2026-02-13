@@ -550,7 +550,8 @@ export function SceneObjectRenderer({
           const advanceByTime = liveData.advanceByTime;
           let qualifierStatus = '';
           const entryPlace = parseInt(String(firstEntry?.place || '0'));
-          if (entryPlace > 0 && advanceByPlace) {
+          const roundCheckStr = String(liveData.roundName || liveData.round || '').toLowerCase();
+          if (entryPlace > 0 && advanceByPlace && !roundCheckStr.includes('final')) {
             if (entryPlace <= advanceByPlace) {
               qualifierStatus = 'Q'; // Qualified by place
             }
@@ -558,8 +559,11 @@ export function SceneObjectRenderer({
             // and is typically set by the backend or manually
           }
           
+          const roundNameStr = String(liveData.roundName || liveData.round || '').toLowerCase();
+          const isFinalRound = roundNameStr.includes('final');
+          
           let advancementFormula = '';
-          if (advanceByPlace || advanceByTime) {
+          if (!isFinalRound && (advanceByPlace || advanceByTime)) {
             const place = advanceByPlace || 0;
             const time = advanceByTime || 0;
             if (place > 0 && time > 0) {
@@ -690,7 +694,8 @@ export function SceneObjectRenderer({
           const entry = entries[qualIdx];
           const advanceByPlace = liveData.advanceByPlace;
           const entryPlace = parseInt(String(entry?.place || '0'));
-          if (entryPlace > 0 && advanceByPlace && entryPlace <= advanceByPlace) {
+          const roundStr = String(liveData.roundName || liveData.round || '').toLowerCase();
+          if (entryPlace > 0 && advanceByPlace && entryPlace <= advanceByPlace && !roundStr.includes('final')) {
             qualifierBadge = 'Q';
           }
         }
