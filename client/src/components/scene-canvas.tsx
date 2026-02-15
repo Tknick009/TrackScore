@@ -692,11 +692,15 @@ export function SceneObjectRenderer({
           const entries = Array.isArray(liveData.entries) ? liveData.entries : [];
           const qualIdx = (dataBinding.athleteIndex || 0) + pageOffset;
           const entry = entries[qualIdx];
-          const advanceByPlace = liveData.advanceByPlace;
-          const entryPlace = parseInt(String(entry?.place || '0'));
-          const roundStr = String(liveData.roundName || liveData.round || '').toLowerCase();
-          if (entryPlace > 0 && advanceByPlace && entryPlace <= advanceByPlace && !roundStr.includes('final')) {
-            qualifierBadge = 'Q';
+          if (entry?.qualifier) {
+            qualifierBadge = entry.qualifier;
+          } else {
+            const advanceByPlace = liveData.advanceByPlace;
+            const entryPlace = parseInt(String(entry?.place || '0'));
+            const roundStr = String(liveData.roundName || liveData.round || '').toLowerCase();
+            if (entryPlace > 0 && advanceByPlace && entryPlace <= advanceByPlace && !roundStr.includes('final')) {
+              qualifierBadge = 'Q';
+            }
           }
         }
         
@@ -716,7 +720,7 @@ export function SceneObjectRenderer({
               <span 
                 className="ml-6 px-3 py-1 rounded font-bold"
                 style={{
-                  backgroundColor: '#15803d',
+                  backgroundColor: qualifierBadge === 'q' ? '#1e40af' : '#15803d',
                   color: '#ffffff',
                   fontSize: `calc(${resolvedFontSize} * 0.75)`,
                 }}
@@ -1169,17 +1173,21 @@ export function SceneCanvas({
     const nonDNSEntries = entries.filter((entry: any) => !isDNS(entry));
     
     if (isResults) {
-      // Results mode: only show entries with time or place
-      const resultsEntries = nonDNSEntries.filter((entry: any) => {
-        const hasTime = entry.time && String(entry.time).trim() !== '';
-        const hasPlace = entry.place && String(entry.place).trim() !== '';
-        return hasTime || hasPlace;
-      });
-      // Sort by place
-      const sortedEntries = [...resultsEntries].sort((a: any, b: any) => {
-        const placeA = parseInt(a.place) || 999;
-        const placeB = parseInt(b.place) || 999;
-        return placeA - placeB;
+      const sortedEntries = [...nonDNSEntries].sort((a: any, b: any) => {
+        const hasTimeA = a.time && String(a.time).trim() !== '';
+        const hasPlaceA = a.place && String(a.place).trim() !== '';
+        const hasResultA = hasTimeA || hasPlaceA;
+        const hasTimeB = b.time && String(b.time).trim() !== '';
+        const hasPlaceB = b.place && String(b.place).trim() !== '';
+        const hasResultB = hasTimeB || hasPlaceB;
+        if (hasResultA && !hasResultB) return -1;
+        if (!hasResultA && hasResultB) return 1;
+        if (hasResultA && hasResultB) {
+          const placeA = parseInt(a.place) || 999;
+          const placeB = parseInt(b.place) || 999;
+          return placeA - placeB;
+        }
+        return 0;
       });
       return {
         ...rawLiveData,

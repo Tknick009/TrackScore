@@ -2679,14 +2679,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const sortedEntries = entriesToShow.sort((a, b) => {
         const aFields = getRoundFields(a);
         const bFields = getRoundFields(b);
+        const aHeat = aFields.heat || 0;
+        const bHeat = bFields.heat || 0;
+        if (aHeat !== bHeat) return aHeat - bHeat;
         if (aFields.place && bFields.place) {
           return aFields.place - bFields.place;
         }
         if (aFields.place) return -1;
         if (bFields.place) return 1;
-        if (aFields.heat && bFields.heat) {
-          if (aFields.heat !== bFields.heat) return aFields.heat - bFields.heat;
-        }
+        const aMark = typeof aFields.mark === 'number' ? aFields.mark : 999;
+        const bMark = typeof bFields.mark === 'number' ? bFields.mark : 999;
+        if (aMark !== bMark) return aMark - bMark;
         if (aFields.lane && bFields.lane) {
           return aFields.lane - bFields.lane;
         }
@@ -2739,6 +2742,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const isTrackEvent = event.eventType ? !['high_jump','pole_vault','long_jump','triple_jump','shot_put','discus','hammer','javelin','weight_throw'].some(ft => event.eventType!.toLowerCase().includes(ft.replace('_',''))) : true;
       
+      const eventAdvanceByPlace = (event as any).advanceByPlace || 0;
+      const eventAdvanceByTime = (event as any).advanceByTime || 0;
+      const isPrelimRound = selectedRound !== 'final';
+      
+      const qualifierTimeSet = new Set<string>();
+      if (isPrelimRound && eventAdvanceByTime > 0 && isTrackEvent) {
+        const nonPlaceQualifiers: { entryId: string; mark: number }[] = [];
+        sortedEntries.forEach(entry => {
+          const fields = getRoundFields(entry);
+          const place = fields.place || 0;
+          const mark = fields.mark;
+          if (typeof mark === 'number' && mark > 0 && (!place || place > eventAdvanceByPlace)) {
+            nonPlaceQualifiers.push({ entryId: entry.id, mark });
+          }
+        });
+        nonPlaceQualifiers.sort((a, b) => a.mark - b.mark);
+        const timeQualifiers = nonPlaceQualifiers.slice(0, eventAdvanceByTime);
+        timeQualifiers.forEach(q => qualifierTimeSet.add(q.entryId));
+      }
+      
       const enrichedEntries = sortedEntries.map((entry, index) => {
         const athlete = entry.athleteId ? athleteMap.get(entry.athleteId) : null;
         const teamId = entry.teamId || athlete?.teamId;
@@ -2770,6 +2793,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
         
+        let qualifier = '';
+        if (isPrelimRound && !isKnownStatus && !entry.isDisqualified && !entry.isScratched) {
+          const place = fields.place || 0;
+          if (place > 0 && eventAdvanceByPlace > 0 && place <= eventAdvanceByPlace) {
+            qualifier = 'Q';
+          } else if (qualifierTimeSet.has(entry.id)) {
+            qualifier = 'q';
+          }
+        }
+        
         const teamName = team?.name || team?.shortName || '';
         const teamAbbrev = team?.abbreviation || team?.shortName || '';
         return {
@@ -2786,6 +2819,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           mark: markValue,
           result: markValue,
           place: fields.place,
+          qualifier,
         };
       });
       
@@ -2826,6 +2860,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
         
+        const maxHeat = sortedEntries.reduce((max, e) => {
+          const h = getRoundFields(e).heat || 0;
+          return h > max ? h : max;
+        }, 0);
+        
         connectedDevice.ws.send(JSON.stringify({
           type: 'display_command',
           template: sceneId ? null : defaultTemplate,
@@ -2835,8 +2874,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             eventNumber: event.eventNumber || 0,
             eventName: event.name,
             roundName: roundLabel,
+            totalHeats: maxHeat,
             mode: 'results',
             entries: enrichedEntries,
+            advanceByPlace: eventAdvanceByPlace || undefined,
+            advanceByTime: eventAdvanceByTime || undefined,
           },
           pagingSize: lines,
           pagingInterval: lines,
