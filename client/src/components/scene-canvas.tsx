@@ -423,14 +423,20 @@ export function SceneObjectRenderer({
         }
         
         if (!logoUrl) {
-          // Show empty space instead of placeholder when no logo available
           return <div className="h-full" />;
         }
+        const logoIsAthleteBound = logoFieldKey === 'school-logo';
         return (
-          <LogoImage 
-            logoUrl={logoUrl} 
-            objectFit={componentConfig.objectFit || componentConfig.imageFit || "contain"} 
-          />
+          <div style={{ 
+            width: '100%', height: '100%',
+            opacity: logoIsAthleteBound ? contentFadeOpacity : 1,
+            transition: 'opacity 0.3s ease-in-out',
+          }}>
+            <LogoImage 
+              logoUrl={logoUrl} 
+              objectFit={componentConfig.objectFit || componentConfig.imageFit || "contain"} 
+            />
+          </div>
         );
         
       case "text":
