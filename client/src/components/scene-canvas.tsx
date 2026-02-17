@@ -252,11 +252,9 @@ export function SceneObjectRenderer({
     shouldHide = true;
   }
   
-  // Fade TEXT only for entries without timing data (50% opacity until first split)
-  // Only applies during active running modes - not during armed/start_list or results
-  // The box/background stays fully visible, only the text fades
-  // Exception: unused row slots (no entry at index) always fade at 50% in ANY mode
-  let textFadeOpacity = 1; // Default to full opacity
+  // Determine content opacity: entries without timing data fade their text to near-invisible
+  // while keeping the background row fully visible. When data arrives, text snaps to full opacity.
+  let contentFadeOpacity = 1;
   const rawAthleteIndex = dataBinding.athleteIndex;
   const pageOffset = (pageIndex || 0) * (pageSize || 8);
   const athleteIndex = rawAthleteIndex !== undefined ? rawAthleteIndex + pageOffset : undefined;
@@ -268,7 +266,7 @@ export function SceneObjectRenderer({
     const entries = Array.isArray(liveData.entries) ? liveData.entries : [];
     const entry = entries[athleteIndex];
     if (!entry) {
-      textFadeOpacity = 0.25;
+      contentFadeOpacity = 0;
     } else if (!isResultsMode && !isPreRaceMode) {
       const hasLastSplit = entry.lastSplit && String(entry.lastSplit).trim() !== '';
       const hasCumulativeSplit = entry.cumulativeSplit && String(entry.cumulativeSplit).trim() !== '';
@@ -276,13 +274,13 @@ export function SceneObjectRenderer({
       const hasRunningTime = entry.runningTime && String(entry.runningTime).trim() !== '';
       const hasPlace = entry.place && String(entry.place).trim() !== '';
       const hasTimingData = hasLastSplit || hasCumulativeSplit || hasTime || hasRunningTime || hasPlace;
-      textFadeOpacity = hasTimingData ? 1 : 0.5;
+      contentFadeOpacity = hasTimingData ? 1 : 0;
     }
   }
   
-  // Apply fade opacity to entire object (background + content) when no timing data
+  // Background/container always stays at full configured opacity
   const baseOpacity = styleConfig.opacity ?? 1;
-  const effectiveOpacity = shouldHide ? 0 : (baseOpacity * textFadeOpacity);
+  const effectiveOpacity = shouldHide ? 0 : baseOpacity;
   
   const objectStyle: React.CSSProperties = {
     position: "absolute",
@@ -713,6 +711,8 @@ export function SceneObjectRenderer({
               fontWeight: componentConfig.fontWeight || (styleConfig as any).fontWeight || "normal",
               color: componentConfig.textColor || styleConfig.textColor || "hsl(var(--display-fg))",
               letterSpacing: '-0.02em',
+              opacity: contentFadeOpacity,
+              transition: 'opacity 0.3s ease-in-out',
             }}
           >
             <span className="whitespace-nowrap">{textContent || ""}</span>
