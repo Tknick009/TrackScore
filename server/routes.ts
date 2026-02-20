@@ -6617,8 +6617,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     try {
       // Auto-activate event when data arrives (set to in_progress if scheduled)
-      const matchingEvents = await storage.getEventsByLynxEventNumber(eventNumber);
-      for (const event of matchingEvents) {
+      const allMatchingEvents = await storage.getEventsByLynxEventNumber(eventNumber);
+
+      // Get total heats from EVT watcher for the active meet (based on connected displays)
+      const roundNum = data.round ? parseInt(String(data.round)) : 1;
+      const activeMeetId = getActiveMeetIdFromDisplays();
+
+      // Filter to active meet's events to avoid stale data from old meets
+      const matchingEvents = activeMeetId 
+        ? allMatchingEvents.filter(e => e.meetId === activeMeetId) 
+        : allMatchingEvents;
+      // Fallback to all events if no matches in active meet
+      const effectiveEvents = matchingEvents.length > 0 ? matchingEvents : allMatchingEvents;
+
+      for (const event of effectiveEvents) {
         if (event.status === 'scheduled') {
           await storage.updateEventStatus(event.id, 'in_progress');
           console.log(`[Lynx] Auto-activated event ${event.name} (${event.id}) to in_progress`);
@@ -6626,21 +6638,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Get total heats from EVT watcher for the active meet (based on connected displays)
-      const roundNum = data.round ? parseInt(String(data.round)) : 1;
-      const activeMeetId = getActiveMeetIdFromDisplays();
       let evtHeats: number | null = null;
       if (activeMeetId) {
         evtHeats = getTotalHeatsFromCache(activeMeetId, data.eventNumber, roundNum);
         console.log(`[Lynx Heat] eventNumber=${data.eventNumber}, round=${roundNum}, totalHeats=${evtHeats} (active meet: ${activeMeetId})`);
       } else {
-        // Fallback to searching all watchers if no displays connected
         evtHeats = getTotalHeatsFromAnyWatcher(data.eventNumber, roundNum);
         console.log(`[Lynx Heat] eventNumber=${data.eventNumber}, round=${roundNum}, totalHeats=${evtHeats} (no active meet, searched all)`);
       }
       const totalHeats = evtHeats ?? 1;
       
       // Get round name and advancement formula from database if event exists
+      // Use only events from the active meet to avoid stale advancement formulas from old meets
       let roundName = 'Finals';
       let totalRounds = 1;
       let advanceByPlace: number | null = null;
@@ -6649,8 +6658,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let eventType: string | null = null;
       let eventGender: string | null = null;
       
-      if (matchingEvents.length > 0) {
-        const event = matchingEvents[0];
+      if (effectiveEvents.length > 0) {
+        const event = effectiveEvents[0];
         totalRounds = event.numRounds || 1;
         advanceByPlace = event.advanceByPlace ?? null;
         advanceByTime = event.advanceByTime ?? null;
@@ -6845,8 +6854,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     try {
       // Auto-activate event when data arrives (set to in_progress if scheduled)
-      const matchingEvents = await storage.getEventsByLynxEventNumber(eventNumber);
-      for (const event of matchingEvents) {
+      const allFieldMatchEvents = await storage.getEventsByLynxEventNumber(eventNumber);
+      // Filter to active meet's events to avoid stale data from old meets
+      const fieldActiveMeetId = getActiveMeetIdFromDisplays();
+      const fieldMeetFiltered = fieldActiveMeetId 
+        ? allFieldMatchEvents.filter(e => e.meetId === fieldActiveMeetId) 
+        : allFieldMatchEvents;
+      const fieldEffectiveEvents = fieldMeetFiltered.length > 0 ? fieldMeetFiltered : allFieldMatchEvents;
+      
+      for (const event of fieldEffectiveEvents) {
         if (event.status === 'scheduled') {
           await storage.updateEventStatus(event.id, 'in_progress');
           console.log(`[Lynx] Auto-activated field event ${event.name} (${event.id}) to in_progress`);
@@ -7072,9 +7088,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     let eventGender: string | null = null;
     
     try {
-      const matchingEvents = await storage.getEventsByLynxEventNumber(eventNumber);
-      if (matchingEvents.length > 0) {
-        const event = matchingEvents[0];
+      const allMatchEvents = await storage.getEventsByLynxEventNumber(eventNumber);
+      // Filter to active meet's events to avoid stale advancement formulas from old meets
+      const meetFilteredEvents = activeMeetId 
+        ? allMatchEvents.filter(e => e.meetId === activeMeetId) 
+        : allMatchEvents;
+      const effectiveMatchEvents = meetFilteredEvents.length > 0 ? meetFilteredEvents : allMatchEvents;
+      
+      if (effectiveMatchEvents.length > 0) {
+        const event = effectiveMatchEvents[0];
         totalRounds = event.numRounds || 1;
         advanceByPlace = event.advanceByPlace ?? null;
         advanceByTime = event.advanceByTime ?? null;
