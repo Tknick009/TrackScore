@@ -284,6 +284,36 @@ function getActiveMeetIdFromDisplays(): string | null {
   return activeMeetId;
 }
 
+// Cached active meet ID from database (for local/edge mode without connected displays)
+let cachedDbActiveMeetId: string | null = null;
+let cachedDbActiveMeetTimestamp = 0;
+
+// Get the active meet ID, preferring connected displays, then falling back to database
+async function getActiveMeetId(): Promise<string | null> {
+  // First try connected displays
+  const fromDisplays = getActiveMeetIdFromDisplays();
+  if (fromDisplays) return fromDisplays;
+  
+  // Fallback: get most recent in_progress or upcoming meet from database
+  // Cache for 10 seconds to avoid hitting DB on every Lynx message
+  const now = Date.now();
+  if (cachedDbActiveMeetId && (now - cachedDbActiveMeetTimestamp) < 10000) {
+    return cachedDbActiveMeetId;
+  }
+  
+  try {
+    const meets = await storage.getMeets();
+    const activeMeet = meets.find(m => m.status === 'in_progress') 
+      || meets.find(m => m.status === 'scheduled')
+      || (meets.length > 0 ? meets[meets.length - 1] : null);
+    cachedDbActiveMeetId = activeMeet?.id || null;
+    cachedDbActiveMeetTimestamp = now;
+    return cachedDbActiveMeetId;
+  } catch (error) {
+    return null;
+  }
+}
+
 // Helper to broadcast current event state
 async function broadcastCurrentEvent() {
   const currentEvent = await storage.getCurrentEvent();
@@ -6619,9 +6649,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Auto-activate event when data arrives (set to in_progress if scheduled)
       const allMatchingEvents = await storage.getEventsByLynxEventNumber(eventNumber);
 
-      // Get total heats from EVT watcher for the active meet (based on connected displays)
+      // Get total heats from EVT watcher for the active meet
       const roundNum = data.round ? parseInt(String(data.round)) : 1;
-      const activeMeetId = getActiveMeetIdFromDisplays();
+      const activeMeetId = await getActiveMeetId();
 
       // Filter to active meet's events to avoid stale data from old meets
       const matchingEvents = activeMeetId 
@@ -6856,7 +6886,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Auto-activate event when data arrives (set to in_progress if scheduled)
       const allFieldMatchEvents = await storage.getEventsByLynxEventNumber(eventNumber);
       // Filter to active meet's events to avoid stale data from old meets
-      const fieldActiveMeetId = getActiveMeetIdFromDisplays();
+      const fieldActiveMeetId = await getActiveMeetId();
       const fieldMeetFiltered = fieldActiveMeetId 
         ? allFieldMatchEvents.filter(e => e.meetId === fieldActiveMeetId) 
         : allFieldMatchEvents;
@@ -7064,9 +7094,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     console.log(`[Lynx] Start list (${isBigBoard ? 'BIG BOARD' : 'standard'}): Event ${eventNumber}, Heat ${heat}, +${entries.length} entries, total: ${acc.entries.length}`);
     
-    // Get total heats from EVT watcher for the active meet (based on connected displays)
+    // Get total heats from EVT watcher for the active meet
     const roundNum = metadata?.round ? parseInt(String(metadata.round)) : 1;
-    const activeMeetId = getActiveMeetIdFromDisplays();
+    const activeMeetId = await getActiveMeetId();
     let evtHeats: number | null = null;
     if (activeMeetId) {
       evtHeats = getTotalHeatsFromCache(activeMeetId, eventNumber, roundNum);
