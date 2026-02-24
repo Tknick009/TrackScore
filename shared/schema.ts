@@ -1834,7 +1834,7 @@ export type WSMessage =
   | { type: "field_athlete_up"; data: { eventNumber: number; athleteName: string; attemptNumber: number; mark?: string } }
   | { type: "lynx_connection"; data: { portType: LynxPortType; connected: boolean } }
   | { type: "field_event_update"; sessionId: number; eventId: string; meetId: string | null; update: FieldEventUpdatePayload }
-  | { type: "lap_counter_update"; lap: number };
+  | { type: "lap_counter_update"; lap: number; mode: "lap" | "logo" };
 
 export type OverlayType = 'lower-third' | 'scorebug' | 'athlete-spotlight' | 'team-standings';
 
