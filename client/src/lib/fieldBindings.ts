@@ -228,6 +228,14 @@ export const FIELD_BINDINGS: Record<string, FieldBinding> = {
     dataKey: 'qualifier',
     category: 'result',
   },
+  'attempt': {
+    key: 'attempt',
+    label: 'Attempt',
+    type: 'text',
+    description: 'Current attempt info: vertical shows X/O/P sequence, horizontal shows "Att: N"',
+    dataKey: 'attempt',
+    category: 'result',
+  },
   'event-points': {
     key: 'event-points',
     label: 'Event Points',

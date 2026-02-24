@@ -739,6 +739,7 @@ export default function SimpleSceneEditor() {
       case 'last-split': return athleteData.lastSplit;
       case 'cumulative-split': return athleteData.cumulativeSplit;
       case 'qualifier': return athleteData.qualifier;
+      case 'attempt': return 'Att: 3';
       case 'event-points': return athleteData.eventPoints;
       case 'total-points': return athleteData.totalPoints;
       case 'time-with-points': return `${athleteData.time} = ${athleteData.eventPoints} pts`;

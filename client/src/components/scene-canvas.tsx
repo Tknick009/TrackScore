@@ -9,6 +9,7 @@ import type {
   SceneObjectConfig,
   SceneObjectStyle
 } from "@shared/schema";
+import { isHeightEvent } from "@shared/schema";
 import { 
   LiveResultsBoard, 
   LiveTimeBoard, 
@@ -612,6 +613,15 @@ export function SceneObjectRenderer({
             ? (firstEntry?.affiliation || firstEntry?.team || '').substring(4).trim()
             : (firstEntry?.affiliation || firstEntry?.team);
           
+          const isVerticalEvent = (liveData.eventType && isHeightEvent(liveData.eventType))
+            || eventName.toLowerCase().includes('high jump') || eventName.toLowerCase().includes('pole vault');
+          let attemptDisplay = '';
+          if (isVerticalEvent && firstEntry?.attempts) {
+            attemptDisplay = String(firstEntry.attempts);
+          } else if (firstEntry?.attemptNumber) {
+            attemptDisplay = `Att: ${firstEntry.attemptNumber}`;
+          }
+          
           const fieldMap: Record<string, any> = {
             'event-name': eventName,
             'event-number': liveData.eventNumber,
@@ -638,6 +648,7 @@ export function SceneObjectRenderer({
             'bib': firstEntry?.bib,
             'advancement-formula': advancementFormula,
             'qualifier': qualifierStatus,
+            'attempt': attemptDisplay,
             'event-points': eventPoints > 0 ? eventPoints : '',
             'total-points': totalPoints,
             'time-with-points': timeWithPoints,
