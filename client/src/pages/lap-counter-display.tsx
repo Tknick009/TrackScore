@@ -75,7 +75,7 @@ export default function LapCounterDisplay() {
     return () => ws.removeEventListener("message", handler);
   }, [ws]);
 
-  const numberSize = lap === 0 ? 40 : lap >= 10 ? 52 : 64;
+  const numberSize = lap === 0 ? 60 : lap >= 10 ? 76 : 90;
 
   return (
     <div
