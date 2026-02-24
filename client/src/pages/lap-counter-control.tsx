@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useWebSocket } from "@/contexts/WebSocketContext";
-import { Image } from "lucide-react";
+import { Image, ChevronLeft } from "lucide-react";
 
 interface Meet {
   id: string;
@@ -13,11 +13,10 @@ interface Meet {
 const LAP_BUTTONS = Array.from({ length: 25 }, (_, i) => i + 1);
 
 export default function LapCounterControl() {
+  const [meets, setMeets] = useState<Meet[]>([]);
+  const [meet, setMeet] = useState<Meet | null>(null);
   const [activeLap, setActiveLap] = useState<number>(0);
   const [mode, setMode] = useState<"lap" | "logo">("lap");
-  const [meet, setMeet] = useState<Meet | null>(null);
-  const [meets, setMeets] = useState<Meet[]>([]);
-  const [meetId, setMeetId] = useState<string>(() => new URLSearchParams(window.location.search).get("meetId") ?? "");
   const [sending, setSending] = useState(false);
   const ws = useWebSocket();
 
@@ -27,30 +26,14 @@ export default function LapCounterControl() {
   useEffect(() => {
     fetch("/api/meets")
       .then((r) => r.json())
-      .then((list: Meet[]) => {
-        setMeets(list);
-        if (!meetId && list.length === 1) {
-          setMeetId(list[0].id);
-        }
-      })
+      .then((list: Meet[]) => setMeets(list))
       .catch(() => {});
   }, []);
 
   useEffect(() => {
-    if (!meetId) return;
-    fetch(`/api/meets/${meetId}`)
-      .then((r) => r.json())
-      .then((d) => setMeet(d))
-      .catch(() => {});
-  }, [meetId]);
-
-  useEffect(() => {
     fetch("/api/lap-counter")
       .then((r) => r.json())
-      .then((d) => {
-        setActiveLap(d.lap);
-        setMode(d.mode ?? "lap");
-      })
+      .then((d) => { setActiveLap(d.lap); setMode(d.mode ?? "lap"); })
       .catch(() => {});
   }, []);
 
@@ -116,9 +99,39 @@ export default function LapCounterControl() {
     }
   }
 
-  const displayUrl = meetId
-    ? `${window.location.origin}/lap-counter/display?meetId=${meetId}`
-    : `${window.location.origin}/lap-counter/display`;
+  if (!meet) {
+    return (
+      <div
+        className="min-h-screen flex flex-col items-center justify-center gap-6 p-6"
+        style={{ background: "#111827" }}
+        data-testid="lap-counter-meet-picker"
+      >
+        <h1 className="text-white text-3xl font-bold tracking-wide">Lap Counter</h1>
+        <p className="text-gray-400 text-lg">Select a meet to continue</p>
+        <div className="w-full max-w-sm flex flex-col gap-3">
+          {meets.length === 0 && (
+            <p className="text-gray-500 text-center">Loading meets...</p>
+          )}
+          {meets.map((m) => (
+            <button
+              key={m.id}
+              data-testid={`button-meet-${m.id}`}
+              onClick={() => setMeet(m)}
+              className="w-full rounded-xl px-5 py-4 text-left flex items-center gap-4 transition-transform duration-75 active:scale-95"
+              style={{ background: m.secondaryColor ?? "#1e3a5f" }}
+            >
+              {m.logoUrl && (
+                <img src={m.logoUrl} alt={m.name} className="w-10 h-10 object-contain flex-shrink-0" />
+              )}
+              <span className="text-white font-bold text-xl">{m.name}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const displayUrl = `${window.location.origin}/lap-counter/display?meetId=${meet.id}`;
 
   return (
     <div
@@ -131,34 +144,25 @@ export default function LapCounterControl() {
         style={{ background: secondary }}
       >
         <div className="flex items-center gap-3">
-          {meet?.logoUrl && (
+          <button
+            data-testid="button-back-to-meets"
+            onClick={() => setMeet(null)}
+            className="text-white/70 hover:text-white transition-colors"
+          >
+            <ChevronLeft className="w-6 h-6" />
+          </button>
+          {meet.logoUrl && (
             <img src={meet.logoUrl} alt={meet.name} className="h-8 w-8 object-contain" />
           )}
-          <h1 className="text-white text-xl font-bold tracking-wide">Lap Counter</h1>
+          <h1 className="text-white text-xl font-bold tracking-wide">{meet.name}</h1>
         </div>
-        <div className="flex items-center gap-3">
-          {meets.length > 1 && (
-            <select
-              data-testid="select-meet"
-              value={meetId}
-              onChange={(e) => setMeetId(e.target.value)}
-              className="rounded-md px-2 py-1 text-sm text-white border border-white/20"
-              style={{ background: primary }}
-            >
-              <option value="">— Select Meet —</option>
-              {meets.map((m) => (
-                <option key={m.id} value={m.id}>{m.name}</option>
-              ))}
-            </select>
-          )}
-          <div className="text-right">
-            <div className="text-white/60 text-xs">Current</div>
-            <div
-              className="text-white text-3xl font-black tabular-nums w-12 text-center"
-              data-testid="text-current-lap"
-            >
-              {mode === "logo" ? <Image className="w-6 h-6 mx-auto" /> : (activeLap === 0 ? "—" : activeLap)}
-            </div>
+        <div className="text-right">
+          <div className="text-white/60 text-xs">Current Lap</div>
+          <div
+            className="text-white text-3xl font-black tabular-nums w-14 text-center"
+            data-testid="text-current-lap"
+          >
+            {mode === "logo" ? "—" : (activeLap === 0 ? "—" : activeLap)}
           </div>
         </div>
       </header>
@@ -193,7 +197,7 @@ export default function LapCounterControl() {
           <button
             data-testid="button-show-logo"
             onClick={showLogo}
-            disabled={sending || !meet?.logoUrl}
+            disabled={sending || !meet.logoUrl}
             className="rounded-xl py-3 flex items-center justify-center gap-2 font-bold text-white transition-transform duration-75 active:scale-95 disabled:opacity-40"
             style={{
               background: mode === "logo" ? primary : "#374151",
