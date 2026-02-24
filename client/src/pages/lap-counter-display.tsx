@@ -45,10 +45,7 @@ export default function LapCounterDisplay() {
   useEffect(() => {
     fetch("/api/lap-counter")
       .then((r) => r.json())
-      .then((d) => {
-        setLap(d.lap);
-        setMode(d.mode ?? "lap");
-      })
+      .then((d) => { setLap(d.lap); setMode(d.mode ?? "lap"); })
       .catch(() => {});
   }, []);
 
@@ -75,7 +72,7 @@ export default function LapCounterDisplay() {
     return () => ws.removeEventListener("message", handler);
   }, [ws]);
 
-  const fontSize = lap === 0 ? 48 : lap >= 10 ? 72 : 96;
+  const numberSize = lap === 0 ? 40 : lap >= 10 ? 58 : 72;
 
   return (
     <div
@@ -84,11 +81,12 @@ export default function LapCounterDisplay() {
         width: "128px",
         height: "128px",
         overflow: "hidden",
-        background: `linear-gradient(135deg, ${primary}, ${secondary})`,
+        background: `linear-gradient(160deg, ${primary}, ${secondary})`,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         flexDirection: "column",
+        gap: "2px",
         margin: 0,
         padding: 0,
       }}
@@ -98,28 +96,40 @@ export default function LapCounterDisplay() {
           src={meet.logoUrl}
           alt={meet.name}
           data-testid="img-meet-logo-display"
-          style={{
-            width: "112px",
-            height: "112px",
-            objectFit: "contain",
-            display: "block",
-          }}
+          style={{ width: "110px", height: "110px", objectFit: "contain" }}
         />
       ) : (
-        <span
-          data-testid="text-display-lap"
-          style={{
-            color: "#ffffff",
-            fontFamily: "'Roboto Condensed', 'Arial Narrow', Arial, sans-serif",
-            fontWeight: 900,
-            fontSize: `${fontSize}px`,
-            lineHeight: 1,
-            letterSpacing: "-0.02em",
-            userSelect: "none",
-          }}
-        >
-          {lap === 0 ? "—" : lap}
-        </span>
+        <>
+          <span
+            data-testid="text-laps-to-go-label"
+            style={{
+              color: "rgba(255,255,255,0.85)",
+              fontFamily: "'Roboto Condensed', 'Arial Narrow', Arial, sans-serif",
+              fontWeight: 700,
+              fontSize: "13px",
+              lineHeight: 1,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              userSelect: "none",
+            }}
+          >
+            Laps To Go
+          </span>
+          <span
+            data-testid="text-display-lap"
+            style={{
+              color: "#ffffff",
+              fontFamily: "'Roboto Condensed', 'Arial Narrow', Arial, sans-serif",
+              fontWeight: 900,
+              fontSize: `${numberSize}px`,
+              lineHeight: 1,
+              letterSpacing: "-0.02em",
+              userSelect: "none",
+            }}
+          >
+            {lap === 0 ? "—" : lap}
+          </span>
+        </>
       )}
     </div>
   );
