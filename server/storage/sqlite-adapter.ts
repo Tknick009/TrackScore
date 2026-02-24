@@ -2916,9 +2916,15 @@ export class SQLiteStorage implements IStorage {
 
   // ============= TEAM STANDINGS QUERIES =============
   async getTeamStandings(meetId: string, scope?: { gender?: string; division?: string }): Promise<TeamStandingsEntry[]> {
-    const rules = this.db.prepare(
-      'SELECT gender, place, ind_score, rel_score FROM meet_scoring_rules WHERE meet_id = ? ORDER BY place'
-    ).all(meetId) as any[];
+    let rules: any[] = [];
+    try {
+      rules = this.db.prepare(
+        'SELECT gender, place, ind_score, rel_score FROM meet_scoring_rules WHERE meet_id = ? ORDER BY place'
+      ).all(meetId) as any[];
+    } catch (e) {
+      console.warn('[getTeamStandings] meet_scoring_rules table not found (schema needs migration):', (e as any)?.message);
+      return [];
+    }
 
     const indPointsMap = new Map<string, Map<number, number>>();
     const relPointsMap = new Map<string, Map<number, number>>();
@@ -2930,9 +2936,15 @@ export class SQLiteStorage implements IStorage {
       if (rule.rel_score > 0) relPointsMap.get(g)!.set(rule.place, rule.rel_score);
     }
 
-    const meetRow = this.db.prepare('SELECT ind_max_scorers_per_team, rel_max_scorers_per_team FROM meets WHERE id = ?').get(meetId) as any;
-    const indMaxScorers = meetRow?.ind_max_scorers_per_team || 0;
-    const relMaxScorers = meetRow?.rel_max_scorers_per_team || 0;
+    let indMaxScorers = 0;
+    let relMaxScorers = 0;
+    try {
+      const meetRow = this.db.prepare('SELECT ind_max_scorers_per_team, rel_max_scorers_per_team FROM meets WHERE id = ?').get(meetId) as any;
+      indMaxScorers = meetRow?.ind_max_scorers_per_team || 0;
+      relMaxScorers = meetRow?.rel_max_scorers_per_team || 0;
+    } catch (e) {
+      console.warn('[getTeamStandings] Could not read max scorers columns (schema may need migration):', (e as any)?.message);
+    }
 
     let eventsQuery = 'SELECT id, name, gender, event_type FROM events WHERE meet_id = ? AND is_scored = 1';
     const eventsParams: any[] = [meetId];
@@ -3017,23 +3029,27 @@ export class SQLiteStorage implements IStorage {
       }
     }
 
-    const meetTeamsRows = this.db.prepare(
-      'SELECT id, name, men_score_override, women_score_override FROM teams WHERE meet_id = ?'
-    ).all(meetId) as any[];
+    try {
+      const meetTeamsRows = this.db.prepare(
+        'SELECT id, name, men_score_override, women_score_override FROM teams WHERE meet_id = ?'
+      ).all(meetId) as any[];
 
-    for (const team of meetTeamsRows) {
-      const override = scope?.gender === 'W' ? team.women_score_override : team.men_score_override;
-      if (override !== null && override !== undefined) {
-        if (teamScores.has(team.id)) {
-          teamScores.get(team.id)!.totalPoints = override;
-        } else {
-          teamScores.set(team.id, {
-            teamName: team.name,
-            totalPoints: override,
-            events: new Map(),
-          });
+      for (const team of meetTeamsRows) {
+        const override = scope?.gender === 'W' ? team.women_score_override : team.men_score_override;
+        if (override !== null && override !== undefined) {
+          if (teamScores.has(team.id)) {
+            teamScores.get(team.id)!.totalPoints = override;
+          } else {
+            teamScores.set(team.id, {
+              teamName: team.name,
+              totalPoints: override,
+              events: new Map(),
+            });
+          }
         }
       }
+    } catch (e) {
+      console.warn('[getTeamStandings] Could not read score override columns (schema may need migration):', (e as any)?.message);
     }
 
     const standings: TeamStandingsEntry[] = Array.from(teamScores.entries())
