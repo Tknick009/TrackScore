@@ -75,7 +75,7 @@ export default function LapCounterDisplay() {
     return () => ws.removeEventListener("message", handler);
   }, [ws]);
 
-  const numberSize = lap === 0 ? 60 : lap >= 10 ? 76 : 90;
+  const numberSize = lap === 0 ? 72 : lap >= 10 ? 82 : 96;
 
   return (
     <div
@@ -89,7 +89,7 @@ export default function LapCounterDisplay() {
         alignItems: "center",
         justifyContent: "center",
         flexDirection: "column",
-        gap: "1px",
+        gap: "0px",
         margin: 0,
         padding: 0,
       }}
@@ -109,7 +109,7 @@ export default function LapCounterDisplay() {
               color: "rgba(255,255,255,0.9)",
               fontFamily: "'Roboto Condensed', 'Arial Narrow', Arial, sans-serif",
               fontWeight: 700,
-              fontSize: "18px",
+              fontSize: "14px",
               lineHeight: 1,
               letterSpacing: "0.04em",
               textTransform: "uppercase",
