@@ -2328,6 +2328,7 @@ export class DatabaseStorage implements IStorage {
 
     const meetTeams = await db.select({
       id: teams.id,
+      name: teams.name,
       menScoreOverride: teams.menScoreOverride,
       womenScoreOverride: teams.womenScoreOverride,
     }).from(teams).where(eq(teams.meetId, meetId));
@@ -2338,9 +2339,8 @@ export class DatabaseStorage implements IStorage {
         if (teamScores.has(team.id)) {
           teamScores.get(team.id)!.totalPoints = override;
         } else {
-          const teamRecord = await db.select({ name: teams.name }).from(teams).where(eq(teams.id, team.id)).limit(1);
           teamScores.set(team.id, {
-            teamName: teamRecord[0]?.name || 'Unknown',
+            teamName: team.name,
             totalPoints: override,
             events: new Map(),
           });

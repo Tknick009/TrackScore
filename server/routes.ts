@@ -1650,11 +1650,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Team not found" });
       }
       
+      const numericScore = score !== null && score !== undefined && score !== '' ? Number(score) : null;
+      if (numericScore !== null && (!isFinite(numericScore) || numericScore < 0)) {
+        return res.status(400).json({ error: "Score must be a non-negative number" });
+      }
+      
       const updateData: any = {};
       if (gender === 'M') {
-        updateData.menScoreOverride = score !== null && score !== undefined ? Number(score) : null;
+        updateData.menScoreOverride = numericScore;
       } else {
-        updateData.womenScoreOverride = score !== null && score !== undefined ? Number(score) : null;
+        updateData.womenScoreOverride = numericScore;
       }
       
       await storage.updateTeam(teamId, updateData);

@@ -3018,7 +3018,7 @@ export class SQLiteStorage implements IStorage {
     }
 
     const meetTeamsRows = this.db.prepare(
-      'SELECT id, men_score_override, women_score_override FROM teams WHERE meet_id = ?'
+      'SELECT id, name, men_score_override, women_score_override FROM teams WHERE meet_id = ?'
     ).all(meetId) as any[];
 
     for (const team of meetTeamsRows) {
@@ -3027,9 +3027,8 @@ export class SQLiteStorage implements IStorage {
         if (teamScores.has(team.id)) {
           teamScores.get(team.id)!.totalPoints = override;
         } else {
-          const teamRecord = this.db.prepare('SELECT name FROM teams WHERE id = ?').get(team.id) as any;
           teamScores.set(team.id, {
-            teamName: teamRecord?.name || 'Unknown',
+            teamName: team.name,
             totalPoints: override,
             events: new Map(),
           });

@@ -32,6 +32,7 @@ The frontend utilizes React with shadcn/ui, Radix UI, and Tailwind CSS, adhering
 - **Scene Layout Mapping System:** Displays switch scenes based on FinishLynx layout commands using configurable `scene_template_mappings` that associate (meetId, displayType, displayMode) to a specific scene.
 - **Auto-Mode Track Display System:** Displays automatically switch templates based on live Lynx timing data, managing four auto states (idle, armed, running, results).
 - **Display Content Modes:** Provides FinishLynx Results (automatic), Hytek Results (manual push), and Team Scores (aggregated scoring) via a tile-based interface.
+- **Team Score Editing:** Operators can manually override team scores from the Schedule page when the system scores incorrectly. Per-gender score overrides stored on the teams table (`menScoreOverride`, `womenScoreOverride`). Refresh button re-imports from HyTek MDB and clears overrides.
 - **Total Heats and Round Name Display:** WebSocket broadcasts include `totalHeats` and `roundName` for enhanced event context.
 - **Broadcast Display Type:** Full-screen overlay display for streaming, featuring an animated ticker, running clock, and meet logo.
 - **Athlete Bests (Personal Records):** Stores and displays college and season personal records.
