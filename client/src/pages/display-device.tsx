@@ -260,6 +260,8 @@ export default function DisplayDevice() {
   const [fieldDisplayType, setFieldDisplayType] = useState<'vertical' | 'horizontal'>('horizontal');
   const fieldDisplayTypeRef = useRef<'vertical' | 'horizontal'>('horizontal');
   
+  const autoModeRef = useRef<boolean>(true);
+  
   const wsRef = useRef<WebSocket | null>(null);
   const deviceNameRef = useRef<string>('');
 
@@ -407,6 +409,9 @@ export default function DisplayDevice() {
               if (deviceData.displayType) {
                 setState(prev => ({ ...prev, displayType: deviceData.displayType }));
               }
+              if (deviceData.autoMode !== undefined) {
+                autoModeRef.current = deviceData.autoMode !== false;
+              }
             }
           }
           
@@ -495,13 +500,19 @@ export default function DisplayDevice() {
             }
           }
           
+          if (message.type === 'auto_mode_update') {
+            const newAutoMode = message.autoMode !== false;
+            autoModeRef.current = newAutoMode;
+            console.log(`[Display] Auto-mode ${newAutoMode ? 'ENABLED' : 'DISABLED'}`);
+          }
+          
           // Clock update - just pass through exactly what FinishLynx sends
           if (message.type === 'clock_update') {
             const data = message.data;
             if (data) {
               // Reset layout mode debouncing when system is armed
               // This ensures each new heat gets fresh scene switching
-              if (data.command === 'armed') {
+              if (data.command === 'armed' && autoModeRef.current) {
                 console.log(`[Display] System ARMED - resetting layout mode for fresh scene switching`);
                 currentLayoutModeRef.current = null;
               }
@@ -576,6 +587,11 @@ export default function DisplayDevice() {
           const myLayoutChannel = isBigBoardRef.current ? 'layout_command_big' : 'layout_command';
           if (message.type === myLayoutChannel) {
             const layoutName = message.data?.layoutName?.toLowerCase() || '';
+            
+            if (!autoModeRef.current) {
+              console.log(`[Display] Auto-mode disabled - ignoring layout command: "${layoutName}"`);
+              return;
+            }
             
             // Map FinishLynx layout names to displayMode values used in Scene Layout Mappings:
             // start_list, running_time, track_results, field_results, field_standings, team_scores
@@ -705,6 +721,10 @@ export default function DisplayDevice() {
           // Listen to 'track_mode_change_big' for big board displays, 'track_mode_change' for small boards
           const myChannel = isBigBoardRef.current ? 'track_mode_change_big' : 'track_mode_change';
           if (message.type === myChannel) {
+            if (!autoModeRef.current) {
+              console.log(`[Display] Auto-mode disabled - ignoring track mode change`);
+              return;
+            }
             const data = message.data;
             if (data) {
               const entries = data.entries || data.results || [];
@@ -836,6 +856,11 @@ export default function DisplayDevice() {
                 }));
               }
               
+              if (!autoModeRef.current) {
+                console.log(`[Display] Auto-mode disabled - ignoring field mode scene switch`);
+                return;
+              }
+              
               // Port-based routing for liveEventData (single): In field mode, only show data from our selected port
               // Track mode displays ignore field data, field mode displays filter by port
               if (isFieldModeRef.current) {
@@ -963,6 +988,11 @@ export default function DisplayDevice() {
                     [data.fieldPort]: portStandingsData,
                   },
                 }));
+              }
+              
+              if (!autoModeRef.current) {
+                console.log(`[Display] Auto-mode disabled - ignoring field standings scene switch`);
+                return;
               }
               
               // For liveEventData (single): only update when in field mode

@@ -2752,7 +2752,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const ceilToPrecision = (val: number, precision: number): number => {
         const factor = Math.pow(10, precision);
-        return Math.ceil(val * factor - 0.0000001) / factor;
+        return Math.ceil(val * factor - 1e-9) / factor;
       };
       const formatTimeSeconds = (seconds: number, precision: number = 2): string => {
         const rounded = ceilToPrecision(seconds, precision);
@@ -2815,7 +2815,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } else {
           const rawMark = fields.mark ?? entry.seedMark ?? '';
           if (typeof rawMark === 'number') {
-            markValue = (isTrackEvent && entry.resultType === 'time') 
+            markValue = isTrackEvent 
               ? formatTimeSeconds(rawMark) 
               : rawMark.toFixed(2);
           } else {
@@ -5472,6 +5472,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   fieldPort: device.fieldPort,
                   isBigBoard: device.isBigBoard,
                   displayMode: device.displayMode,
+                  autoMode: deviceAutoMode,
                 }
               }));
               
