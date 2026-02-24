@@ -1636,6 +1636,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/teams/:id/score-override", async (req, res) => {
+    try {
+      const teamId = req.params.id;
+      const { gender, score } = req.body;
+      
+      if (!gender || (gender !== 'M' && gender !== 'W')) {
+        return res.status(400).json({ error: "Gender must be 'M' or 'W'" });
+      }
+      
+      const team = await storage.getTeam(teamId);
+      if (!team) {
+        return res.status(404).json({ error: "Team not found" });
+      }
+      
+      const updateData: any = {};
+      if (gender === 'M') {
+        updateData.menScoreOverride = score !== null && score !== undefined ? Number(score) : null;
+      } else {
+        updateData.womenScoreOverride = score !== null && score !== undefined ? Number(score) : null;
+      }
+      
+      await storage.updateTeam(teamId, updateData);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error updating team score override:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/meets/:meetId/refresh-team-scores", async (req, res) => {
+    try {
+      const meetId = req.params.meetId;
+      
+      const meetTeams = await storage.getTeamsByMeetId(meetId);
+      for (const team of meetTeams) {
+        await storage.updateTeam(team.id, { 
+          menScoreOverride: null, 
+          womenScoreOverride: null 
+        });
+      }
+      
+      const meet = await storage.getMeet(meetId);
+      if (meet?.mdbPath) {
+        try {
+          const { importCompleteMDB } = await import('./import-mdb-complete');
+          await importCompleteMDB(meet.mdbPath, meetId);
+          console.log(`[Refresh Team Scores] Re-imported MDB for meet ${meetId}`);
+        } catch (err) {
+          console.log(`[Refresh Team Scores] MDB re-import failed:`, err);
+        }
+      }
+      
+      const [menStandings, womenStandings] = await Promise.all([
+        storage.getTeamStandings(meetId, { gender: "M" }),
+        storage.getTeamStandings(meetId, { gender: "W" }),
+      ]);
+      
+      res.json({ men: menStandings, women: womenStandings });
+    } catch (error: any) {
+      console.error("Error refreshing team scores:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Divisions
   app.get("/api/divisions", async (req, res) => {
     const divisions = await storage.getDivisions();

@@ -311,6 +311,8 @@ export const teams = pgTable("teams", {
   name: text("name").notNull(),
   shortName: text("short_name"),
   abbreviation: text("abbreviation"),
+  menScoreOverride: real("men_score_override"),
+  womenScoreOverride: real("women_score_override"),
 }, (table) => ({
   meetIdIdx: index("teams_meet_id_idx").on(table.meetId),
   meetTeamUnique: unique("teams_meet_team_unique").on(table.meetId, table.teamNumber),

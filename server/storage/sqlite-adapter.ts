@@ -219,6 +219,8 @@ export class SQLiteStorage implements IStorage {
         name TEXT NOT NULL,
         short_name TEXT,
         abbreviation TEXT,
+        men_score_override REAL,
+        women_score_override REAL,
         UNIQUE(meet_id, team_number)
       );
       CREATE INDEX IF NOT EXISTS teams_meet_id_idx ON teams(meet_id);
@@ -1033,6 +1035,8 @@ export class SQLiteStorage implements IStorage {
       name: row.name,
       shortName: row.short_name,
       abbreviation: row.abbreviation,
+      menScoreOverride: row.men_score_override ?? null,
+      womenScoreOverride: row.women_score_override ?? null,
     };
   }
 
@@ -1677,6 +1681,23 @@ export class SQLiteStorage implements IStorage {
     const created = (await this.getTeam(id))!;
     this.logSyncEvent('teams', id, 'insert', created);
     return created;
+  }
+
+  async updateTeam(id: string, data: Partial<Team>): Promise<Team> {
+    const sets: string[] = [];
+    const values: any[] = [];
+    if (data.name !== undefined) { sets.push('name = ?'); values.push(data.name); }
+    if (data.shortName !== undefined) { sets.push('short_name = ?'); values.push(data.shortName); }
+    if (data.abbreviation !== undefined) { sets.push('abbreviation = ?'); values.push(data.abbreviation); }
+    if ('menScoreOverride' in data) { sets.push('men_score_override = ?'); values.push(data.menScoreOverride ?? null); }
+    if ('womenScoreOverride' in data) { sets.push('women_score_override = ?'); values.push(data.womenScoreOverride ?? null); }
+
+    if (sets.length > 0) {
+      values.push(id);
+      this.db.prepare(`UPDATE teams SET ${sets.join(', ')} WHERE id = ?`).run(...values);
+    }
+    const updated = (await this.getTeam(id))!;
+    return updated;
   }
 
   // ============= DIVISIONS =============
@@ -2992,6 +3013,26 @@ export class SQLiteStorage implements IStorage {
           existing.points += pts;
         } else {
           team.events.set(evt.id, { eventName: evt.name, points: pts });
+        }
+      }
+    }
+
+    const meetTeamsRows = this.db.prepare(
+      'SELECT id, men_score_override, women_score_override FROM teams WHERE meet_id = ?'
+    ).all(meetId) as any[];
+
+    for (const team of meetTeamsRows) {
+      const override = scope?.gender === 'W' ? team.women_score_override : team.men_score_override;
+      if (override !== null && override !== undefined) {
+        if (teamScores.has(team.id)) {
+          teamScores.get(team.id)!.totalPoints = override;
+        } else {
+          const teamRecord = this.db.prepare('SELECT name FROM teams WHERE id = ?').get(team.id) as any;
+          teamScores.set(team.id, {
+            teamName: teamRecord?.name || 'Unknown',
+            totalPoints: override,
+            events: new Map(),
+          });
         }
       }
     }

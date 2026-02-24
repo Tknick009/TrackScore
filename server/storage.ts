@@ -234,6 +234,7 @@ export interface IStorage {
   getTeam(id: string): Promise<Team | undefined>;
   getTeamsByMeetId(meetId: string): Promise<Team[]>;
   createTeam(team: InsertTeam): Promise<Team>;
+  updateTeam(id: string, data: Partial<Team>): Promise<Team>;
 
   // Divisions
   getDivisions(): Promise<Division[]>;
@@ -1046,6 +1047,18 @@ export class DatabaseStorage implements IStorage {
       .values(insertTeam)
       .returning();
     return team;
+  }
+
+  async updateTeam(id: string, data: Partial<Team>): Promise<Team> {
+    const updateData: Record<string, any> = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.shortName !== undefined) updateData.shortName = data.shortName;
+    if (data.abbreviation !== undefined) updateData.abbreviation = data.abbreviation;
+    if ('menScoreOverride' in data) updateData.menScoreOverride = data.menScoreOverride;
+    if ('womenScoreOverride' in data) updateData.womenScoreOverride = data.womenScoreOverride;
+
+    const [updated] = await db.update(teams).set(updateData).where(eq(teams.id, id)).returning();
+    return updated;
   }
 
   // Divisions
@@ -2309,6 +2322,28 @@ export class DatabaseStorage implements IStorage {
           existing.points += pts;
         } else {
           team.events.set(evt.id, { eventName: evt.name, points: pts });
+        }
+      }
+    }
+
+    const meetTeams = await db.select({
+      id: teams.id,
+      menScoreOverride: teams.menScoreOverride,
+      womenScoreOverride: teams.womenScoreOverride,
+    }).from(teams).where(eq(teams.meetId, meetId));
+
+    for (const team of meetTeams) {
+      const override = scope?.gender === 'W' ? team.womenScoreOverride : team.menScoreOverride;
+      if (override !== null && override !== undefined) {
+        if (teamScores.has(team.id)) {
+          teamScores.get(team.id)!.totalPoints = override;
+        } else {
+          const teamRecord = await db.select({ name: teams.name }).from(teams).where(eq(teams.id, team.id)).limit(1);
+          teamScores.set(team.id, {
+            teamName: teamRecord[0]?.name || 'Unknown',
+            totalPoints: override,
+            events: new Map(),
+          });
         }
       }
     }

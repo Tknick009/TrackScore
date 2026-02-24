@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Calendar, Clock, Timer, Target, ArrowUpDown, Edit2, Check, X, Trophy } from "lucide-react";
+import { Calendar, Clock, Timer, Target, ArrowUpDown, Edit2, Check, X, Trophy, RefreshCw } from "lucide-react";
 import { Link } from "wouter";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -185,7 +185,67 @@ function EventStatusBadge({ event }: { event: Event }) {
   return <Badge variant="outline" className="bg-white text-gray-700 dark:bg-gray-200 dark:text-gray-700" data-testid={`badge-status-${event.id}`}>Unseeded</Badge>;
 }
 
-function StandingsTable({ title, standings }: { title: string; standings: TeamStandingsEntry[] }) {
+function StandingsTable({ title, standings, gender, meetId }: { 
+  title: string; 
+  standings: TeamStandingsEntry[]; 
+  gender: 'M' | 'W';
+  meetId: string;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedScores, setEditedScores] = useState<Record<string, string>>({});
+  const { toast } = useToast();
+
+  const saveMutation = useMutation({
+    mutationFn: async (overrides: { teamId: string; score: number | null }[]) => {
+      await Promise.all(
+        overrides.map(({ teamId, score }) =>
+          apiRequest("PATCH", `/api/teams/${teamId}/score-override`, { gender, score })
+        )
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/public/meets", meetId, "team-standings"] });
+      setIsEditing(false);
+      setEditedScores({});
+      toast({ title: "Scores updated" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error saving scores", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const handleStartEdit = () => {
+    const scores: Record<string, string> = {};
+    for (const team of standings) {
+      scores[team.teamId] = String(team.totalPoints);
+    }
+    setEditedScores(scores);
+    setIsEditing(true);
+  };
+
+  const handleSave = () => {
+    const overrides = standings
+      .filter(team => {
+        const edited = editedScores[team.teamId];
+        return edited !== undefined && Number(edited) !== team.totalPoints;
+      })
+      .map(team => ({
+        teamId: team.teamId,
+        score: Number(editedScores[team.teamId]),
+      }));
+    
+    if (overrides.length === 0) {
+      setIsEditing(false);
+      return;
+    }
+    saveMutation.mutate(overrides);
+  };
+
+  const handleCancel = () => {
+    setIsEditing(false);
+    setEditedScores({});
+  };
+
   if (standings.length === 0) {
     return (
       <div>
@@ -197,7 +257,44 @@ function StandingsTable({ title, standings }: { title: string; standings: TeamSt
 
   return (
     <div>
-      <h3 className="text-sm font-semibold mb-2 text-muted-foreground">{title}</h3>
+      <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+        <h3 className="text-sm font-semibold text-muted-foreground">{title}</h3>
+        <div className="flex items-center gap-1">
+          {isEditing ? (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleSave}
+                disabled={saveMutation.isPending}
+                data-testid={`button-save-scores-${gender}`}
+              >
+                <Check className="w-4 h-4 mr-1" />
+                Save
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleCancel}
+                data-testid={`button-cancel-scores-${gender}`}
+              >
+                <X className="w-4 h-4 mr-1" />
+                Cancel
+              </Button>
+            </>
+          ) : (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleStartEdit}
+              data-testid={`button-edit-scores-${gender}`}
+            >
+              <Edit2 className="w-4 h-4 mr-1" />
+              Edit
+            </Button>
+          )}
+        </div>
+      </div>
       <div className="rounded-md border overflow-hidden">
         <table className="w-full text-sm">
           <thead>
@@ -222,7 +319,20 @@ function StandingsTable({ title, standings }: { title: string; standings: TeamSt
                   </div>
                 </td>
                 <td className="px-3 py-2 text-right text-muted-foreground">{team.eventCount}</td>
-                <td className="px-3 py-2 text-right font-semibold">{team.totalPoints}</td>
+                <td className="px-3 py-2 text-right font-semibold">
+                  {isEditing ? (
+                    <Input
+                      type="number"
+                      step="0.5"
+                      className="w-20 text-right ml-auto"
+                      value={editedScores[team.teamId] ?? String(team.totalPoints)}
+                      onChange={(e) => setEditedScores(prev => ({ ...prev, [team.teamId]: e.target.value }))}
+                      data-testid={`input-score-${gender}-${team.teamId}`}
+                    />
+                  ) : (
+                    <span data-testid={`text-score-${gender}-${team.teamId}`}>{team.totalPoints}</span>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -260,6 +370,20 @@ export default function Schedule() {
   });
   const menStandings = teamStandingsData?.men ?? [];
   const womenStandings = teamStandingsData?.women ?? [];
+  const { toast } = useToast();
+
+  const refreshMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("POST", `/api/meets/${currentMeetId}/refresh-team-scores`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/public/meets", currentMeetId, "team-standings"] });
+      toast({ title: "Team scores refreshed from HyTek" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error refreshing scores", description: err.message, variant: "destructive" });
+    },
+  });
 
   const liveEvents = events.filter(e => e.status === "in_progress");
   const scoredEvents = events.filter(e => e.status === "completed" || e.isScored || e.hytekStatus === 'scored');
@@ -477,16 +601,26 @@ export default function Schedule() {
 
         {currentMeetId && (
           <div className="mt-6 pb-4">
-            <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
               <Trophy className="w-5 h-5 text-muted-foreground" />
               <h2 className="text-lg font-semibold">Team Scores</h2>
+              <Button 
+                size="sm" 
+                variant="outline"
+                onClick={() => refreshMutation.mutate()}
+                disabled={refreshMutation.isPending}
+                data-testid="button-refresh-scores"
+              >
+                <RefreshCw className={`w-4 h-4 mr-1 ${refreshMutation.isPending ? 'animate-spin' : ''}`} />
+                Refresh from HyTek
+              </Button>
             </div>
             {menStandings.length === 0 && womenStandings.length === 0 ? (
               <p className="text-sm text-muted-foreground">No scored events yet. Mark events as scored to see team totals here.</p>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <StandingsTable title="Men's Standings" standings={menStandings} />
-                <StandingsTable title="Women's Standings" standings={womenStandings} />
+                <StandingsTable title="Men's Standings" standings={menStandings} gender="M" meetId={currentMeetId} />
+                <StandingsTable title="Women's Standings" standings={womenStandings} gender="W" meetId={currentMeetId} />
               </div>
             )}
           </div>
