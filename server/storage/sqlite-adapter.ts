@@ -143,6 +143,7 @@ export interface SyncEvent {
 export class SQLiteStorage implements IStorage {
   private db: Database.Database;
   private qrCodes: Map<string, QRCodeMeta> = new Map();
+  private _scoringRulesWarningLogged = false;
 
   getSqliteDb(): Database.Database {
     return this.db;
@@ -2922,7 +2923,10 @@ export class SQLiteStorage implements IStorage {
         'SELECT gender, place, ind_score, rel_score FROM meet_scoring_rules WHERE meet_id = ? ORDER BY place'
       ).all(meetId) as any[];
     } catch (e) {
-      console.warn('[getTeamStandings] meet_scoring_rules table not found (schema needs migration):', (e as any)?.message);
+      if (!this._scoringRulesWarningLogged) {
+        console.warn('[getTeamStandings] meet_scoring_rules table not found — run db:push to migrate. Scoring will be unavailable until then.');
+        this._scoringRulesWarningLogged = true;
+      }
       return [];
     }
 
