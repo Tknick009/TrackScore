@@ -1,6 +1,7 @@
 import * as net from 'net';
 import { EventEmitter } from 'events';
 import type { LynxPacket, LynxPortType, TrackDisplayMode, FieldDisplayMode } from '@shared/schema';
+import { captureManager } from './capture-manager';
 
 interface PortConfig {
   port: number;
@@ -338,6 +339,7 @@ export class LynxListener extends EventEmitter {
       this.emit('connection', config.portType, true);
 
       socket.on('data', (data) => {
+        captureManager.record(config.port, config.name, socket.remoteAddress || '', data);
         this.handleData(socket, data, config);
       });
 

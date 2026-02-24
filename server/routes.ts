@@ -88,6 +88,7 @@ import { externalScoreboardService, buildFieldScoreboardPayload } from './extern
 import * as fs from 'fs';
 import * as path from 'path';
 import { APP_VERSION, VERSION_DATE, RELEASE_NOTES } from '@shared/version';
+import { captureManager, type CaptureChunk } from './capture-manager';
 
 function abbreviateEventName(name: string): string {
   const n = name.trim();
@@ -9047,6 +9048,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
+  });
+
+  // ============= RAW CAPTURE ROUTES =============
+  app.post('/api/capture/start', (_req, res) => {
+    const session = captureManager.start();
+    res.json({ sessionId: session.id, startedAt: session.startedAt });
+  });
+
+  app.post('/api/capture/stop', (_req, res) => {
+    captureManager.stop();
+    res.json({ success: true });
+  });
+
+  app.get('/api/capture/status', (_req, res) => {
+    const session = captureManager.getSession();
+    res.json({
+      active: captureManager.isActive(),
+      sessionId: session?.id ?? null,
+      startedAt: session?.startedAt ?? null,
+      chunkCount: session?.chunks.length ?? 0,
+    });
+  });
+
+  app.get('/api/capture/chunks', (_req, res) => {
+    const session = captureManager.getSession();
+    res.json(session?.chunks ?? []);
+  });
+
+  app.get('/api/capture/files', (_req, res) => {
+    res.json(captureManager.listFiles());
+  });
+
+  app.get('/api/capture/files/:name', (req, res) => {
+    const content = captureManager.readFile(req.params.name);
+    if (!content) return res.status(404).json({ error: 'File not found' });
+    res.setHeader('Content-Type', 'text/plain');
+    res.send(content);
+  });
+
+  // Wire capture live-stream into WebSocket broadcasts
+  captureManager.onBroadcast((chunk: CaptureChunk) => {
+    broadcastToDisplays({ type: 'raw_capture', data: chunk } as any);
   });
 
   return httpServer;
