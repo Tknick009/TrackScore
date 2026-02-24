@@ -2219,12 +2219,18 @@ export class DatabaseStorage implements IStorage {
       if (rule.relScore > 0) relPointsMap.get(g)!.set(rule.place, rule.relScore);
     }
 
-    const meetRecord = await db.select({
-      indMaxScorersPerTeam: meets.indMaxScorersPerTeam,
-      relMaxScorersPerTeam: meets.relMaxScorersPerTeam,
-    }).from(meets).where(eq(meets.id, meetId)).limit(1);
-    const indMaxScorers = meetRecord[0]?.indMaxScorersPerTeam || 0;
-    const relMaxScorers = meetRecord[0]?.relMaxScorersPerTeam || 0;
+    let indMaxScorers = 0;
+    let relMaxScorers = 0;
+    try {
+      const meetRecord = await db.select({
+        indMaxScorersPerTeam: meets.indMaxScorersPerTeam,
+        relMaxScorersPerTeam: meets.relMaxScorersPerTeam,
+      }).from(meets).where(eq(meets.id, meetId)).limit(1);
+      indMaxScorers = meetRecord[0]?.indMaxScorersPerTeam || 0;
+      relMaxScorers = meetRecord[0]?.relMaxScorersPerTeam || 0;
+    } catch (e) {
+      console.warn('[getTeamStandings] Could not read max scorers columns (schema may need migration):', (e as any)?.message);
+    }
 
     const scoredEventsConditions = [
       eq(events.meetId, meetId),
@@ -2326,26 +2332,30 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    const meetTeams = await db.select({
-      id: teams.id,
-      name: teams.name,
-      menScoreOverride: teams.menScoreOverride,
-      womenScoreOverride: teams.womenScoreOverride,
-    }).from(teams).where(eq(teams.meetId, meetId));
+    try {
+      const meetTeams = await db.select({
+        id: teams.id,
+        name: teams.name,
+        menScoreOverride: teams.menScoreOverride,
+        womenScoreOverride: teams.womenScoreOverride,
+      }).from(teams).where(eq(teams.meetId, meetId));
 
-    for (const team of meetTeams) {
-      const override = scope?.gender === 'W' ? team.womenScoreOverride : team.menScoreOverride;
-      if (override !== null && override !== undefined) {
-        if (teamScores.has(team.id)) {
-          teamScores.get(team.id)!.totalPoints = override;
-        } else {
-          teamScores.set(team.id, {
-            teamName: team.name,
-            totalPoints: override,
-            events: new Map(),
-          });
+      for (const team of meetTeams) {
+        const override = scope?.gender === 'W' ? team.womenScoreOverride : team.menScoreOverride;
+        if (override !== null && override !== undefined) {
+          if (teamScores.has(team.id)) {
+            teamScores.get(team.id)!.totalPoints = override;
+          } else {
+            teamScores.set(team.id, {
+              teamName: team.name,
+              totalPoints: override,
+              events: new Map(),
+            });
+          }
         }
       }
+    } catch (e) {
+      console.warn('[getTeamStandings] Could not read score override columns (schema may need migration):', (e as any)?.message);
     }
 
     const standings: TeamStandingsEntry[] = Array.from(teamScores.entries())

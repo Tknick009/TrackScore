@@ -4883,6 +4883,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(standings);
     } catch (error: any) {
+      console.error('[standings] Error computing team standings:', error);
       res.status(500).json({ error: error.message });
     }
   });
