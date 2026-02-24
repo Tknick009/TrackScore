@@ -5447,6 +5447,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ success: true });
   });
 
+  // ===== LAP COUNTER =====
+  let currentLap = 0;
+
+  app.get("/api/lap-counter", (_req, res) => {
+    res.json({ lap: currentLap });
+  });
+
+  app.post("/api/lap-counter", (req, res) => {
+    const { lap } = req.body;
+    const parsed = Number(lap);
+    if (!Number.isInteger(parsed) || parsed < 0 || parsed > 25) {
+      return res.status(400).json({ error: "Lap must be an integer 0-25" });
+    }
+    currentLap = parsed;
+    broadcastToDisplays({ type: "lap_counter_update", lap: currentLap });
+    res.json({ lap: currentLap });
+  });
+
   const httpServer = createServer(app);
 
   // WebSocket Server on /ws path

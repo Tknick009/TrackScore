@@ -40,6 +40,8 @@ import FieldEventsControl from "@/pages/field-events-control";
 import ExternalScoreboards from "@/pages/external-scoreboards";
 import CloudSync from "@/pages/cloud-sync";
 import LoadMeet from "@/pages/load-meet";
+import LapCounterControl from "@/pages/lap-counter-control";
+import LapCounterDisplay from "@/pages/lap-counter-display";
 import NotFound from "@/pages/not-found";
 
 function MeetSyncWrapper({ meetId, children }: { meetId: string; children: React.ReactNode }) {
@@ -142,6 +144,8 @@ function Router() {
       <Route path="/field-app" component={FieldApp} />
       <Route path="/field/:accessCode" component={FieldOfficialPage} />
       <Route path="/field" component={FieldOfficialPage} />
+      <Route path="/lap-counter/display" component={LapCounterDisplay} />
+      <Route path="/lap-counter" component={LapCounterControl} />
       <Route path="/control/:meetId/scene-editor">{() => <MeetControlRouter />}</Route>
       <Route path="/control/:meetId/events/:eventId">{() => <MeetControlRouter />}</Route>
       <Route path="/control/:meetId/layouts/designer/:layoutId">{() => <MeetControlRouter />}</Route>
