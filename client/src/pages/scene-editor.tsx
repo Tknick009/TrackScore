@@ -1740,6 +1740,46 @@ export default function SceneEditor() {
                         </div>
                       )}
                       
+                      {/* Field Port - which FieldLynx port this object binds to (4560-4569) */}
+                      {((selectedObject.dataBinding as SceneDataBinding)?.sourceType === 'live-data' ||
+                        (selectedObject.dataBinding as SceneDataBinding)?.sourceType === 'current-field') && (
+                        <div className="space-y-2">
+                          <Label className="text-xs">Field Port</Label>
+                          <Select
+                            value={String((selectedObject.dataBinding as SceneDataBinding)?.fieldPort || 'default')}
+                            onValueChange={(value) => updateObjectMutation.mutate({
+                              id: selectedObject.id,
+                              data: {
+                                dataBinding: {
+                                  ...(selectedObject.dataBinding as SceneDataBinding || {}),
+                                  fieldPort: value === 'default' ? undefined : parseInt(value),
+                                },
+                              },
+                            })}
+                          >
+                            <SelectTrigger data-testid="select-field-port">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="default">Default (device port)</SelectItem>
+                              <SelectItem value="4560">Port 4560</SelectItem>
+                              <SelectItem value="4561">Port 4561</SelectItem>
+                              <SelectItem value="4562">Port 4562</SelectItem>
+                              <SelectItem value="4563">Port 4563</SelectItem>
+                              <SelectItem value="4564">Port 4564</SelectItem>
+                              <SelectItem value="4565">Port 4565</SelectItem>
+                              <SelectItem value="4566">Port 4566</SelectItem>
+                              <SelectItem value="4567">Port 4567</SelectItem>
+                              <SelectItem value="4568">Port 4568</SelectItem>
+                              <SelectItem value="4569">Port 4569</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground">
+                            Bind this object to a specific FieldLynx port for multi-event displays
+                          </p>
+                        </div>
+                      )}
+
                       {/* Line Number for athlete data objects - ResulTV-style paging */}
                       {((selectedObject.dataBinding as SceneDataBinding)?.sourceType === 'live-data' ||
                         (selectedObject.dataBinding as SceneDataBinding)?.sourceType === 'current-field') && (

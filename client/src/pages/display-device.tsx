@@ -170,6 +170,7 @@ interface DisplayDeviceState {
   liveClockTime: string | null;
   liveClockCommand: string | null;  // Command from FinishLynx (e.g., 'armed')
   liveEventData: LiveEventData | null;
+  liveEventDataByPort: Record<number, LiveEventData>;
   pagingSize: number;
   pagingInterval: number;
 }
@@ -234,6 +235,7 @@ export default function DisplayDevice() {
     liveClockTime: null,
     liveClockCommand: null,
     liveEventData: null,
+    liveEventDataByPort: {},
     pagingSize: 8,
     pagingInterval: 5,
   });
@@ -810,16 +812,36 @@ export default function DisplayDevice() {
           if (isGlobalFieldChange || isPortSpecificFieldChange) {
             const data = message.data;
             if (data) {
-              // Port-based routing: In field mode, only show data from our selected port
+              const dataPort = data.fieldPort;
+              const myPort = fieldPortRef.current;
+              
+              // Always store in liveEventDataByPort for multi-field-event scene support
+              if (dataPort) {
+                const portEventData: any = {
+                  eventNumber: data.eventNumber,
+                  eventName: data.eventName || '',
+                  mode: data.mode,
+                  wind: data.wind,
+                  entries: data.results || [],
+                  isMultiEvent: data.isMultiEvent,
+                  eventType: data.eventType,
+                  gender: data.gender,
+                };
+                setState(prev => ({
+                  ...prev,
+                  liveEventDataByPort: {
+                    ...prev.liveEventDataByPort,
+                    [dataPort]: portEventData,
+                  },
+                }));
+              }
+              
+              // Port-based routing for liveEventData (single): In field mode, only show data from our selected port
               // Track mode displays ignore field data, field mode displays filter by port
               if (isFieldModeRef.current) {
-                // Check if this data is for our port
-                const dataPort = data.fieldPort;
-                const myPort = fieldPortRef.current;
-                
-                // If data has a port and it doesn't match ours, ignore it
+                // If data has a port and it doesn't match ours, skip updating liveEventData (single)
                 if (dataPort && dataPort !== myPort) {
-                  console.log(`[Display] Ignoring field data for port ${dataPort}, we're listening on ${myPort}`);
+                  console.log(`[Display] Field data for port ${dataPort} stored in map, skipping liveEventData (listening on ${myPort})`);
                   return;
                 }
                 
@@ -833,7 +855,7 @@ export default function DisplayDevice() {
                 
                 console.log(`[Display] Field mode change (port ${myPort}): Event ${data.eventNumber}, ${data.results?.length || 0} results`);
               } else {
-                // Track mode - ignore field data
+                // Track mode - ignore field data for liveEventData
                 console.log(`[Display] Ignoring field data - display is in track mode`);
                 return;
               }
@@ -920,10 +942,32 @@ export default function DisplayDevice() {
           if (message.type === 'field_standings') {
             const data = message.data;
             if (data && isFieldModeRef.current) {
-              // Port-based routing: only show standings for our port
               const myPort = fieldPortRef.current;
+              
+              // Always store in liveEventDataByPort for multi-field-event scene support
+              if (data.fieldPort) {
+                const portStandingsData: any = {
+                  eventNumber: data.eventNumber,
+                  eventName: data.eventName || '',
+                  heat: data.currentPage,
+                  totalHeats: data.totalPages,
+                  mode: 'field_standings',
+                  entries: data.entries || [],
+                  isStandings: true,
+                  isVerticalEvent: data.isVerticalEvent,
+                };
+                setState(prev => ({
+                  ...prev,
+                  liveEventDataByPort: {
+                    ...prev.liveEventDataByPort,
+                    [data.fieldPort]: portStandingsData,
+                  },
+                }));
+              }
+              
+              // Port-based routing: only update liveEventData (single) for our port
               if (data.fieldPort && data.fieldPort !== myPort) {
-                console.log(`[Display] Ignoring field standings for port ${data.fieldPort}, we're listening on ${myPort}`);
+                console.log(`[Display] Field standings for port ${data.fieldPort} stored in map, skipping liveEventData (listening on ${myPort})`);
                 return;
               }
               
@@ -1221,6 +1265,7 @@ export default function DisplayDevice() {
       isConnected={state.isConnected}
       liveClockTime={state.liveClockTime}
       liveEventData={state.liveEventData}
+      liveEventDataByPort={state.liveEventDataByPort}
       pagingSize={state.pagingSize}
       pagingInterval={state.pagingInterval}
       customWidth={state.displayType === 'Custom' ? customWidth : undefined}
@@ -1240,6 +1285,7 @@ interface DisplayRendererProps {
   isConnected: boolean;
   liveClockTime: string | null;
   liveEventData: LiveEventData | null;
+  liveEventDataByPort: Record<number, LiveEventData>;
   pagingSize: number;
   pagingInterval: number;
   customWidth?: number;
@@ -1250,7 +1296,7 @@ interface EventWithEntries extends Event {
   entries: any[];
 }
 
-function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTime, liveEventData, pagingSize, pagingInterval, customWidth, customHeight }: DisplayRendererProps) {
+function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTime, liveEventData, liveEventDataByPort, pagingSize, pagingInterval, customWidth, customHeight }: DisplayRendererProps) {
   const { data: meet } = useQuery<Meet>({
     queryKey: ['/api/meets', meetId],
     enabled: !!meetId,
@@ -1317,6 +1363,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             objects={effectiveSceneData?.objects}
             meetId={meetId || undefined}
             liveEventData={liveEventData}
+            liveEventDataByPort={liveEventDataByPort}
             liveClockTime={liveClockTime}
             pagingSize={pagingSize}
             pagingInterval={pagingInterval}
@@ -1334,6 +1381,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
           objects={effectiveSceneData?.objects}
           meetId={meetId || undefined}
           liveEventData={liveEventData}
+          liveEventDataByPort={liveEventDataByPort}
           liveClockTime={liveClockTime}
           pagingSize={pagingSize}
           pagingInterval={pagingInterval}

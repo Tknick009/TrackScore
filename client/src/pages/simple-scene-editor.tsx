@@ -53,6 +53,7 @@ interface LayoutBox {
   conditionalVisibility?: 'always' | 'hide-when-no-wind' | 'hide-when-nwi';  // Wind-based visibility control
   zIndex: number;
   athleteIndex?: number;  // ResulTV-style line number (0-indexed). Line 1 = 0, Line 2 = 1, etc.
+  fieldPort?: number;     // FieldLynx port (4560-4569) for multi-field-event displays
   style?: {
     fontSize?: number;
     fontWeight?: string;
@@ -355,7 +356,7 @@ export default function SimpleSceneEditor() {
       width: box.width,
       height: box.height,
       zIndex: box.zIndex,
-      dataBinding: { sourceType, fieldKey: box.fieldKey || undefined, athleteIndex: box.athleteIndex },
+      dataBinding: { sourceType, fieldKey: box.fieldKey || undefined, athleteIndex: box.athleteIndex, fieldPort: box.fieldPort },
       config: {
         dynamicText: box.staticText,
         staticImageUrl: box.staticImageUrl,
@@ -380,6 +381,7 @@ export default function SimpleSceneEditor() {
     hideWhenFieldNonNumeric: (obj.config as any)?.hideWhenFieldNonNumeric,
     conditionalVisibility: (obj.config as any)?.conditionalVisibility,
     athleteIndex: (obj.dataBinding as any)?.athleteIndex,
+    fieldPort: (obj.dataBinding as any)?.fieldPort,
     zIndex: obj.zIndex,
     style: obj.style as any,
   });
@@ -2007,6 +2009,38 @@ export default function SimpleSceneEditor() {
                 </p>
               </div>
               
+              {/* Field Port for multi-field-event displays */}
+              <Separator />
+              <div className="space-y-2">
+                <Label>Field Port</Label>
+                <Select
+                  value={String(selectedBox.fieldPort || 'default')}
+                  onValueChange={(value) => updateSelectedBox({ 
+                    fieldPort: value === 'default' ? undefined : parseInt(value)
+                  })}
+                >
+                  <SelectTrigger data-testid="select-field-port">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">Default (device port)</SelectItem>
+                    <SelectItem value="4560">Port 4560</SelectItem>
+                    <SelectItem value="4561">Port 4561</SelectItem>
+                    <SelectItem value="4562">Port 4562</SelectItem>
+                    <SelectItem value="4563">Port 4563</SelectItem>
+                    <SelectItem value="4564">Port 4564</SelectItem>
+                    <SelectItem value="4565">Port 4565</SelectItem>
+                    <SelectItem value="4566">Port 4566</SelectItem>
+                    <SelectItem value="4567">Port 4567</SelectItem>
+                    <SelectItem value="4568">Port 4568</SelectItem>
+                    <SelectItem value="4569">Port 4569</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Bind to a specific FieldLynx port for multi-event displays
+                </p>
+              </div>
+
               {/* Line Number for ResulTV-style multi-athlete layouts */}
               <Separator />
               <div className="space-y-2">

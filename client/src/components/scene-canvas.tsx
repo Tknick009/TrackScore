@@ -86,6 +86,7 @@ export interface SceneCanvasProps {
   meetId?: string;
   eventNumber?: string;
   liveEventData?: any;
+  liveEventDataByPort?: Record<number, any>;
   liveClockTime?: string | null;
   pagingSize?: number;
   pagingInterval?: number;
@@ -1131,6 +1132,7 @@ export function SceneCanvas({
   meetId,
   eventNumber,
   liveEventData: propLiveEventData,
+  liveEventDataByPort,
   liveClockTime,
   pagingSize = 8,
   pagingInterval = 5,
@@ -1336,20 +1338,25 @@ export function SceneCanvas({
               backgroundColor,
             }}
           >
-            {sortedObjects.map((obj) => (
-              <SceneObjectRenderer 
-                key={obj.id} 
-                object={obj} 
-                meetId={meetId}
-                canvasWidth={designWidth}
-                canvasHeight={designHeight}
-                eventNumber={eventNumber}
-                pageIndex={currentPageIndex}
-                pageSize={pagingSize}
-                sharedLatestLiveData={liveData}
-                liveClockTime={liveClockTime}
-              />
-            ))}
+            {sortedObjects.map((obj) => {
+              const objectLiveData = obj.dataBinding?.fieldPort && liveEventDataByPort?.[obj.dataBinding.fieldPort]
+                ? liveEventDataByPort[obj.dataBinding.fieldPort]
+                : liveData;
+              return (
+                <SceneObjectRenderer 
+                  key={obj.id} 
+                  object={obj} 
+                  meetId={meetId}
+                  canvasWidth={designWidth}
+                  canvasHeight={designHeight}
+                  eventNumber={eventNumber}
+                  pageIndex={currentPageIndex}
+                  pageSize={pagingSize}
+                  sharedLatestLiveData={objectLiveData}
+                  liveClockTime={liveClockTime}
+                />
+              );
+            })}
             
             {sortedObjects.length === 0 && (
               <div className="absolute inset-0 flex items-center justify-center">
@@ -1381,20 +1388,25 @@ export function SceneCanvas({
         data-testid="scene-canvas"
         key={`scene-${sceneId}`}
       >
-        {sortedObjects.map((obj) => (
-          <SceneObjectRenderer 
-            key={obj.id} 
-            object={obj} 
-            meetId={meetId}
-            canvasWidth={canvasWidth}
-            canvasHeight={canvasHeight}
-            eventNumber={eventNumber}
-            pageIndex={currentPageIndex}
-            pageSize={pagingSize}
-            sharedLatestLiveData={liveData}
-            liveClockTime={liveClockTime}
-          />
-        ))}
+        {sortedObjects.map((obj) => {
+          const objectLiveData = obj.dataBinding?.fieldPort && liveEventDataByPort?.[obj.dataBinding.fieldPort]
+            ? liveEventDataByPort[obj.dataBinding.fieldPort]
+            : liveData;
+          return (
+            <SceneObjectRenderer 
+              key={obj.id} 
+              object={obj} 
+              meetId={meetId}
+              canvasWidth={canvasWidth}
+              canvasHeight={canvasHeight}
+              eventNumber={eventNumber}
+              pageIndex={currentPageIndex}
+              pageSize={pagingSize}
+              sharedLatestLiveData={objectLiveData}
+              liveClockTime={liveClockTime}
+            />
+          );
+        })}
         
         {sortedObjects.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center">
@@ -1440,20 +1452,25 @@ export function SceneCanvas({
           backgroundColor,
         }}
       >
-        {sortedObjects.map((obj) => (
-          <SceneObjectRenderer 
-            key={obj.id} 
-            object={obj} 
-            meetId={meetId}
-            canvasWidth={designWidth}
-            canvasHeight={designHeight}
-            eventNumber={eventNumber}
-            pageIndex={currentPageIndex}
-            pageSize={pagingSize}
-            sharedLatestLiveData={liveData}
-            liveClockTime={liveClockTime}
-          />
-        ))}
+        {sortedObjects.map((obj) => {
+          const objectLiveData = obj.dataBinding?.fieldPort && liveEventDataByPort?.[obj.dataBinding.fieldPort]
+            ? liveEventDataByPort[obj.dataBinding.fieldPort]
+            : liveData;
+          return (
+            <SceneObjectRenderer 
+              key={obj.id} 
+              object={obj} 
+              meetId={meetId}
+              canvasWidth={designWidth}
+              canvasHeight={designHeight}
+              eventNumber={eventNumber}
+              pageIndex={currentPageIndex}
+              pageSize={pagingSize}
+              sharedLatestLiveData={objectLiveData}
+              liveClockTime={liveClockTime}
+            />
+          );
+        })}
         
         {sortedObjects.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center">

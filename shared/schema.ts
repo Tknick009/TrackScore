@@ -1044,6 +1044,7 @@ export type SceneDataBinding = {
   sourceType: DataSourceType;
   eventIds?: string[];        // For 'events' type - specific event IDs
   lynxPort?: number;          // For 'live-data' or 'current-field' - which Lynx port
+  fieldPort?: number;         // For field event objects - which field port (4560-4569) to bind to
   divisionId?: string;        // For 'standings' - filter by division
   limit?: number;             // Max number of results to show
   heatNumber?: number;        // For specific heat display
