@@ -941,10 +941,10 @@ export default function DisplayDevice() {
           // Handle field_standings (auto-standings from parsed LFF files after 120s idle)
           if (message.type === 'field_standings') {
             const data = message.data;
-            if (data && isFieldModeRef.current) {
+            if (data) {
               const myPort = fieldPortRef.current;
               
-              // Always store in liveEventDataByPort for multi-field-event scene support
+              // Always store in liveEventDataByPort for multi-field-event scene support (regardless of field/track mode)
               if (data.fieldPort) {
                 const portStandingsData: any = {
                   eventNumber: data.eventNumber,
@@ -963,6 +963,12 @@ export default function DisplayDevice() {
                     [data.fieldPort]: portStandingsData,
                   },
                 }));
+              }
+              
+              // For liveEventData (single): only update when in field mode
+              if (!isFieldModeRef.current) {
+                console.log(`[Display] Field standings stored in port map, skipping liveEventData - display is in track mode`);
+                return;
               }
               
               // Port-based routing: only update liveEventData (single) for our port
