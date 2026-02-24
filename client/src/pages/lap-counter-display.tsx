@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useWebSocket } from "@/contexts/WebSocketContext";
 
 interface Meet {
@@ -13,11 +13,10 @@ export default function LapCounterDisplay() {
   const [lap, setLap] = useState<number>(0);
   const [mode, setMode] = useState<"lap" | "logo">("lap");
   const [meet, setMeet] = useState<Meet | null>(null);
+  const meetIdRef = useRef<string | null>(null);
   const ws = useWebSocket();
 
-  const params = new URLSearchParams(window.location.search);
-  const meetId = params.get("meetId");
-
+  const urlMeetId = new URLSearchParams(window.location.search).get("meetId");
   const primary = meet?.primaryColor ?? "#0066CC";
   const secondary = meet?.secondaryColor ?? "#003366";
 
@@ -31,31 +30,34 @@ export default function LapCounterDisplay() {
     document.body.style.margin = "0";
     document.body.style.padding = "0";
     return () => {
-      document.documentElement.style.width = "";
-      document.documentElement.style.height = "";
-      document.documentElement.style.overflow = "";
-      document.body.style.width = "";
-      document.body.style.height = "";
-      document.body.style.overflow = "";
-      document.body.style.margin = "";
-      document.body.style.padding = "";
+      document.documentElement.style.cssText = "";
+      document.body.style.cssText = "";
     };
   }, []);
+
+  function loadMeet(id: string) {
+    if (meetIdRef.current === id) return;
+    meetIdRef.current = id;
+    fetch(`/api/meets/${id}`)
+      .then((r) => r.json())
+      .then((d) => setMeet(d))
+      .catch(() => {});
+  }
 
   useEffect(() => {
     fetch("/api/lap-counter")
       .then((r) => r.json())
-      .then((d) => { setLap(d.lap); setMode(d.mode ?? "lap"); })
+      .then((d) => {
+        setLap(d.lap);
+        setMode(d.mode ?? "lap");
+        if (d.meetId) loadMeet(d.meetId);
+      })
       .catch(() => {});
   }, []);
 
   useEffect(() => {
-    if (!meetId) return;
-    fetch(`/api/meets/${meetId}`)
-      .then((r) => r.json())
-      .then((d) => setMeet(d))
-      .catch(() => {});
-  }, [meetId]);
+    if (urlMeetId) loadMeet(urlMeetId);
+  }, [urlMeetId]);
 
   useEffect(() => {
     if (!ws) return;
@@ -65,6 +67,7 @@ export default function LapCounterDisplay() {
         if (data.type === "lap_counter_update") {
           setLap(data.lap);
           setMode(data.mode ?? "lap");
+          if (data.meetId) loadMeet(data.meetId);
         }
       } catch {}
     };
@@ -72,7 +75,7 @@ export default function LapCounterDisplay() {
     return () => ws.removeEventListener("message", handler);
   }, [ws]);
 
-  const numberSize = lap === 0 ? 40 : lap >= 10 ? 58 : 72;
+  const numberSize = lap === 0 ? 40 : lap >= 10 ? 52 : 64;
 
   return (
     <div
@@ -86,7 +89,7 @@ export default function LapCounterDisplay() {
         alignItems: "center",
         justifyContent: "center",
         flexDirection: "column",
-        gap: "2px",
+        gap: "1px",
         margin: 0,
         padding: 0,
       }}
@@ -103,12 +106,12 @@ export default function LapCounterDisplay() {
           <span
             data-testid="text-laps-to-go-label"
             style={{
-              color: "rgba(255,255,255,0.85)",
+              color: "rgba(255,255,255,0.9)",
               fontFamily: "'Roboto Condensed', 'Arial Narrow', Arial, sans-serif",
               fontWeight: 700,
-              fontSize: "13px",
+              fontSize: "18px",
               lineHeight: 1,
-              letterSpacing: "0.08em",
+              letterSpacing: "0.04em",
               textTransform: "uppercase",
               userSelect: "none",
             }}

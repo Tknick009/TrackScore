@@ -5450,17 +5450,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===== LAP COUNTER =====
   let currentLap = 0;
   let currentLapMode: "lap" | "logo" = "lap";
+  let currentLapMeetId: string | undefined = undefined;
 
   app.get("/api/lap-counter", (_req, res) => {
-    res.json({ lap: currentLap, mode: currentLapMode });
+    res.json({ lap: currentLap, mode: currentLapMode, meetId: currentLapMeetId });
   });
 
   app.post("/api/lap-counter", (req, res) => {
-    const { lap, mode } = req.body;
+    const { lap, mode, meetId } = req.body;
+    if (meetId) currentLapMeetId = meetId;
     if (mode === "logo") {
       currentLapMode = "logo";
-      broadcastToDisplays({ type: "lap_counter_update", lap: currentLap, mode: "logo" });
-      return res.json({ lap: currentLap, mode: currentLapMode });
+      broadcastToDisplays({ type: "lap_counter_update", lap: currentLap, mode: "logo", meetId: currentLapMeetId });
+      return res.json({ lap: currentLap, mode: currentLapMode, meetId: currentLapMeetId });
     }
     const parsed = Number(lap);
     if (!Number.isInteger(parsed) || parsed < 0 || parsed > 25) {
@@ -5468,8 +5470,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     currentLap = parsed;
     currentLapMode = "lap";
-    broadcastToDisplays({ type: "lap_counter_update", lap: currentLap, mode: "lap" });
-    res.json({ lap: currentLap, mode: currentLapMode });
+    broadcastToDisplays({ type: "lap_counter_update", lap: currentLap, mode: "lap", meetId: currentLapMeetId });
+    res.json({ lap: currentLap, mode: currentLapMode, meetId: currentLapMeetId });
   });
 
   const httpServer = createServer(app);

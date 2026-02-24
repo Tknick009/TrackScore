@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useWebSocket } from "@/contexts/WebSocketContext";
-import { Image, ChevronLeft, Maximize } from "lucide-react";
+import { Image, ChevronLeft, Maximize, Minimize } from "lucide-react";
 
 interface Meet {
   id: string;
@@ -18,6 +18,7 @@ export default function LapCounterControl() {
   const [activeLap, setActiveLap] = useState<number>(0);
   const [mode, setMode] = useState<"lap" | "logo">("lap");
   const [sending, setSending] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const ws = useWebSocket();
 
@@ -56,60 +57,58 @@ export default function LapCounterControl() {
     return () => ws.removeEventListener("message", handler);
   }, [ws]);
 
-  function requestFullscreen() {
-    const el = rootRef.current ?? document.documentElement;
-    if (el.requestFullscreen) {
-      el.requestFullscreen().catch(() => {});
-    } else if ((el as any).webkitRequestFullscreen) {
-      (el as any).webkitRequestFullscreen();
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onChange);
+    document.addEventListener("webkitfullscreenchange", onChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", onChange);
+      document.removeEventListener("webkitfullscreenchange", onChange);
+    };
+  }, []);
+
+  function toggleFullscreen() {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    } else {
+      const el = rootRef.current ?? document.documentElement;
+      if (el.requestFullscreen) {
+        el.requestFullscreen().catch(() => {});
+      } else if ((el as any).webkitRequestFullscreen) {
+        (el as any).webkitRequestFullscreen();
+      }
+    }
+  }
+
+  async function post(body: object) {
+    if (sending) return;
+    setSending(true);
+    try {
+      await fetch("/api/lap-counter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ meetId: meet?.id, ...body }),
+      });
+    } finally {
+      setSending(false);
     }
   }
 
   async function selectLap(lap: number) {
-    if (sending) return;
-    setSending(true);
-    try {
-      await fetch("/api/lap-counter", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lap, mode: "lap" }),
-      });
-      setActiveLap(lap);
-      setMode("lap");
-    } finally {
-      setSending(false);
-    }
+    await post({ lap, mode: "lap" });
+    setActiveLap(lap);
+    setMode("lap");
   }
 
   async function showLogo() {
-    if (sending) return;
-    setSending(true);
-    try {
-      await fetch("/api/lap-counter", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "logo" }),
-      });
-      setMode("logo");
-    } finally {
-      setSending(false);
-    }
+    await post({ mode: "logo" });
+    setMode("logo");
   }
 
   async function clearDisplay() {
-    if (sending) return;
-    setSending(true);
-    try {
-      await fetch("/api/lap-counter", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lap: 0, mode: "lap" }),
-      });
-      setActiveLap(0);
-      setMode("lap");
-    } finally {
-      setSending(false);
-    }
+    await post({ lap: 0, mode: "lap" });
+    setActiveLap(0);
+    setMode("lap");
   }
 
   if (!meet) {
@@ -141,11 +140,7 @@ export default function LapCounterControl() {
               style={{ background: m.secondaryColor ?? "#1e3a5f" }}
             >
               {m.logoUrl && (
-                <img
-                  src={m.logoUrl}
-                  alt={m.name}
-                  className="w-12 h-12 object-contain flex-shrink-0"
-                />
+                <img src={m.logoUrl} alt={m.name} className="w-12 h-12 object-contain flex-shrink-0" />
               )}
               <span className="text-white font-bold text-2xl">{m.name}</span>
             </button>
@@ -194,11 +189,14 @@ export default function LapCounterControl() {
           </div>
           <button
             data-testid="button-fullscreen"
-            onClick={requestFullscreen}
-            className="text-white/60 active:text-white p-1"
-            title="Full screen"
+            onClick={toggleFullscreen}
+            className="text-white/70 active:text-white p-1"
+            title={isFullscreen ? "Exit full screen" : "Full screen"}
           >
-            <Maximize className="w-6 h-6" />
+            {isFullscreen
+              ? <Minimize className="w-6 h-6" />
+              : <Maximize className="w-6 h-6" />
+            }
           </button>
         </div>
       </header>
@@ -258,12 +256,7 @@ export default function LapCounterControl() {
         <div className="text-center flex-shrink-0">
           <p className="text-gray-600 text-xs">
             Display:{" "}
-            <a
-              href={displayUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="text-blue-500 underline break-all"
-            >
+            <a href={displayUrl} target="_blank" rel="noreferrer" className="text-blue-500 underline break-all">
               {displayUrl}
             </a>
           </p>
