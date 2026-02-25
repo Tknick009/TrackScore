@@ -66,17 +66,33 @@ interface LynxFieldResult {
 }
 
 // Clean event name by removing common suffixes like "Run" and "Dash" from FinishLynx
-// Convert a metric field mark (meters as string) to US feet-inches format: "5-03.38"
-// Returns the original string unchanged if it's not a parseable number (DNS, NM, FOUL, X, --, etc.)
+// Convert a metric field mark (meters as string) to US feet-inches format: "20-9¼"
+// Rounds DOWN to nearest ¼ inch. Returns original string for non-numeric values.
+// If mark is already in feet-inches format (e.g. "20-09.50") it is returned as-is.
 function metersToFeetInches(meters: string | undefined): string {
   if (!meters) return '';
+  // If A-net already sent feet-inches (e.g. "20-09.50"), don't re-convert — use as-is.
+  if (/^\d+-\d/.test(meters)) return meters;
   const m = parseFloat(meters);
   if (isNaN(m) || m <= 0) return meters;
   const totalInches = m * 39.3701;
   const feet = Math.floor(totalInches / 12);
-  const inches = totalInches % 12;
-  const inchesStr = inches.toFixed(2).padStart(5, '0');  // e.g. "03.38"
-  return `${feet}-${inchesStr}`;
+  // Round DOWN to nearest ¼ inch
+  const rawInches = totalInches % 12;
+  const quarterInches = Math.floor(rawInches / 0.25);
+  const wholeInches = Math.floor(quarterInches / 4);
+  const remainder = quarterInches % 4;
+  const fractionMap: Record<number, string> = { 0: '', 1: '¼', 2: '½', 3: '¾' };
+  const fraction = fractionMap[remainder];
+  return `${feet}-${wholeInches}${fraction}`;
+}
+
+// Resolve the display mark: prefer A-net's MC field, then detect if M is already English,
+// otherwise convert from metric. A-net always sends MC="" even when it has a converted
+// value in other configurations, so we treat empty MC the same as absent.
+function resolveMarkConverted(rawMark: string | undefined, mcField: string | undefined): string {
+  if (mcField && mcField.trim() !== '') return mcField.trim(); // A-net provided it
+  return metersToFeetInches(rawMark);                          // detect/convert ourselves
 }
 
 function cleanEventName(name: string | undefined): string | undefined {
@@ -1258,7 +1274,7 @@ export class LynxListener extends EventEmitter {
         attemptNumber: data.AN,
         attempts: attempts,
         wind: wind,
-        markConverted: data.MC || metersToFeetInches(mark),
+        markConverted: resolveMarkConverted(mark, data.MC),
         bestMark: data.FSM,
         orderOfDraw: data.OD,
         orderOfDrawName: data.ODN,
