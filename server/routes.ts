@@ -199,6 +199,7 @@ interface ConnectedDisplayDevice {
   autoMode: boolean; // Auto-switching based on Lynx timing data
   pagingSize: number; // Number of results per page (1-20)
   pagingInterval: number; // Seconds between page scrolls (1-60)
+  fieldPort?: number; // Which TCP field port this display is subscribed to
 }
 const connectedDisplayDevices = new Map<string, ConnectedDisplayDevice>();
 
@@ -2750,6 +2751,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const finalDevice = await storage.getDisplayDevice(id);
+
+      // Update in-memory connected device record so server-side field broadcasts
+      // are immediately filtered to the correct port — no client-side state race
+      const connectedDevice = connectedDisplayDevices.get(id);
+      if (connectedDevice && finalDevice) {
+        connectedDevice.fieldPort = finalDevice.fieldPort ?? undefined;
+        if (finalDevice.displayType) connectedDevice.displayType = finalDevice.displayType;
+        if (finalDevice.pagingSize !== undefined) connectedDevice.pagingSize = finalDevice.pagingSize ?? 8;
+        if (finalDevice.pagingInterval !== undefined) connectedDevice.pagingInterval = finalDevice.pagingInterval ?? 5;
+      }
 
       broadcastToDisplays({
         type: 'device_config_update',
@@ -5623,6 +5634,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 autoMode: deviceAutoMode,
                 pagingSize: device.pagingSize ?? 8,
                 pagingInterval: device.pagingInterval ?? 5,
+                fieldPort: device.fieldPort ?? undefined,
               });
               
               // Send registration confirmation with assigned event
@@ -7119,21 +7131,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       fieldPort, // Port number for device routing (4560-4569)
     };
     
-    // Broadcast to global channel (for displays not using port-based routing)
-    broadcastToDisplays({
-      type: 'field_mode_change',
-      data: fieldBroadcastData,
-    } as WSMessage);
-    
-    // Also broadcast to port-specific channel if a field port is set
-    // This allows displays to subscribe to specific field events
-    if (fieldPort) {
-      broadcastToDisplays({
-        type: `field_mode_change_${fieldPort}`,
-        data: fieldBroadcastData,
-      } as WSMessage);
-      console.log(`[Lynx] Broadcast field data to port-specific channel: field_mode_change_${fieldPort}`);
+    // Send field data ONLY to displays configured for this exact port.
+    // This is server-side filtering — no client-side state is involved,
+    // so port changes take effect the moment the DB and in-memory map are updated.
+    const fieldMsg = JSON.stringify({ type: `field_mode_change_${fieldPort}`, data: fieldBroadcastData });
+    let fieldRecipients = 0;
+    for (const [, dev] of connectedDisplayDevices) {
+      if (dev.fieldPort === fieldPort && dev.ws.readyState === dev.ws.OPEN) {
+        dev.ws.send(fieldMsg);
+        fieldRecipients++;
+      }
     }
+    // Fallback: also send to legacy display clients that are NOT registered devices
+    // (e.g. plain browser tabs that never sent register_display_device)
+    // For these we still use the type-prefixed channel so clients can self-filter.
+    const registeredWs = new Set([...connectedDisplayDevices.values()].map(d => d.ws));
+    for (const client of displayClients) {
+      if (!registeredWs.has(client) && client.readyState === client.OPEN) {
+        client.send(fieldMsg);
+      }
+    }
+    console.log(`[Lynx] Field data port ${fieldPort} → sent to ${fieldRecipients} registered device(s)`);
   });
 
   lynxListener.on('field-result', async (eventNumber, athleteName, place, mark, attemptNumber, attempts) => {
