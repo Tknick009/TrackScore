@@ -104,6 +104,7 @@ export default function DisplayControlPage() {
   const [pagingLines, setPagingLines] = useState<Record<string, number>>({});
   const [teamScoreGender, setTeamScoreGender] = useState<Record<string, 'M' | 'W'>>({});
   const [eventSearch, setEventSearch] = useState('');
+  const [pendingFieldPort, setPendingFieldPort] = useState<Record<string, number>>({});
 
   const baseUrl = typeof window !== 'undefined' 
     ? `${window.location.protocol}//${window.location.host}` 
@@ -963,27 +964,47 @@ export default function DisplayControlPage() {
                         <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
                           <div className="space-y-2">
                             <Label>Field Port</Label>
-                            <Select
-                              value={String(selectedDevice.fieldPort || 4560)}
-                              onValueChange={(val) => {
-                                const port = parseInt(val);
-                                apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}`, { fieldPort: port });
-                                queryClient.invalidateQueries({ queryKey: ['/api/display-devices/meet', currentMeetId] });
-                              }}
-                            >
-                              <SelectTrigger data-testid="select-field-port">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {Array.from({ length: 10 }, (_, i) => 4560 + i).map(port => (
-                                  <SelectItem key={port} value={String(port)}>
-                                    Port {port}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <div className="flex gap-2">
+                              <Select
+                                value={String(pendingFieldPort[selectedDevice.id] ?? selectedDevice.fieldPort ?? 4560)}
+                                onValueChange={(val) => {
+                                  setPendingFieldPort(prev => ({ ...prev, [selectedDevice.id]: parseInt(val) }));
+                                }}
+                              >
+                                <SelectTrigger data-testid="select-field-port" className="flex-1">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {Array.from({ length: 10 }, (_, i) => 4560 + i).map(port => (
+                                    <SelectItem key={port} value={String(port)}>
+                                      Port {port}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <Button
+                                data-testid="button-send-field-port"
+                                onClick={async () => {
+                                  const port = pendingFieldPort[selectedDevice.id] ?? selectedDevice.fieldPort ?? 4560;
+                                  await apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}`, { fieldPort: port });
+                                  await queryClient.invalidateQueries({ queryKey: ['/api/display-devices/meet', currentMeetId] });
+                                  setPendingFieldPort(prev => {
+                                    const next = { ...prev };
+                                    delete next[selectedDevice.id];
+                                    return next;
+                                  });
+                                  toast({ title: `Port ${port} locked`, description: `${selectedDevice.deviceName} is now receiving from port ${port}` });
+                                }}
+                                disabled={!pendingFieldPort[selectedDevice.id] || pendingFieldPort[selectedDevice.id] === selectedDevice.fieldPort}
+                              >
+                                <Send className="w-4 h-4 mr-1" />
+                                Send
+                              </Button>
+                            </div>
                             <p className="text-xs text-muted-foreground">
-                              Configure Athletic Field App to send this field event to the selected port
+                              {pendingFieldPort[selectedDevice.id] && pendingFieldPort[selectedDevice.id] !== selectedDevice.fieldPort
+                                ? `Click Send to lock this display onto port ${pendingFieldPort[selectedDevice.id]}`
+                                : `Locked to port ${selectedDevice.fieldPort ?? 4560} — change port then click Send`}
                             </p>
                           </div>
                         </div>
