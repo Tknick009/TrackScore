@@ -164,6 +164,21 @@ export class LynxListener extends EventEmitter {
           const laneB = parseInt(b.lane) || 999;
           return laneA - laneB;
         }
+      } else if (event.type === 'F') {
+        // Field results: athletes with marks sort by place; no-mark athletes after
+        const hasMark = (e: any) => e.mark && e.mark !== '';
+        const markA = hasMark(a);
+        const markB = hasMark(b);
+        if (markA && markB) {
+          const placeA = parseInt(a.place) || 999;
+          const placeB = parseInt(b.place) || 999;
+          return placeA - placeB;
+        } else if (markA) {
+          return -1; // a has mark, b doesn't — a goes first
+        } else if (markB) {
+          return 1;
+        }
+        // Both no mark — keep original order
       }
       return 0;
     });
@@ -1336,71 +1351,115 @@ export class LynxListener extends EventEmitter {
   }
 
   private parseLegacyFieldLine(line: string, packet: LynxPacket) {
-    const parts = line.split(/\s+/).filter(Boolean);
-    
-    if (parts.length >= 1) {
-      const eventNum = parseInt(parts[0]);
-      if (!isNaN(eventNum) && eventNum > 0) {
-        packet.eventNumber = eventNum;
-        if (eventNum !== this.currentEventNumber) {
-          this.currentEventNumber = eventNum;
-          this.emit('field-mode-change', eventNum, 'athlete_up', { eventNumber: eventNum });
-        }
-      }
+    // Detect LSS binary format: record starts with \x01 R \x02
+    const lssIdx = line.indexOf('\x01R\x02');
+    if (lssIdx !== -1) {
+      this.parseLSSFieldRecord(line.slice(lssIdx + 3), packet);
+      return;
+    }
+    // Also detect \x01 (SOH) alone as record start (some FieldLynx versions)
+    const sohIdx = line.indexOf('\x01');
+    if (sohIdx !== -1 && line.includes('\x05')) {
+      this.parseLSSFieldRecord(line.slice(sohIdx + 1).replace(/^\x02/, ''), packet);
+      return;
+    }
+  }
+
+  /**
+   * Parse FieldLynx LSS binary record format.
+   *
+   * After stripping the \x01R\x02 header, fields are delimited by \x05 (ENQ):
+   *   [0]  "" (empty)
+   *   [1]  Event name        e.g. "Boys Weight Throw"
+   *   [2]  "" (empty)
+   *   [3]  Event number      e.g. "27"
+   *   [4]  Flight            e.g. "1"
+   *   [5]  Status            e.g. "FIN"
+   *   [6]  Units             e.g. "English"
+   *   [7]  Event type        e.g. "Horizontal" | "Vertical"
+   *   [8]  Place             e.g. "7"
+   *   [9]  Bib               e.g. "1087"
+   *   [10] Athlete name      e.g. "Matthew Denicola"
+   *   [11] Team/school       e.g. "Mount Markham"
+   *   [12] English mark      e.g. "49-00"  (empty if not yet thrown)
+   *   [13] Metric mark       e.g. "14.93"  (empty if not yet thrown)
+   *   [14] Wind              (empty for field events)
+   *   [15+] attempt data
+   */
+  private parseLSSFieldRecord(data: string, packet: LynxPacket) {
+    const fields = data.split('\x05');
+
+    const eventName  = fields[1]?.trim() || '';
+    const eventNum   = parseInt(fields[3]) || 0;
+    const flight     = parseInt(fields[4]) || 1;
+    const status     = fields[5]?.trim() || '';
+    const place      = fields[8]?.trim() || '';
+    const bib        = fields[9]?.trim() || '';
+    const name       = fields[10]?.trim() || '';
+    const team       = fields[11]?.trim() || '';
+    const markEng    = fields[12]?.trim() || '';
+    const markMet    = fields[13]?.trim() || '';
+
+    if (!name && !bib) return;
+
+    const resolvedEventNum = eventNum || this.currentEventNumber;
+
+    packet.eventNumber = resolvedEventNum;
+    if (place) packet.place = parseInt(place);
+    if (markEng) packet.fieldMark = markEng;
+    if (name) packet.athleteName = name;
+
+    if (eventName) this.eventNamesByNumber.set(resolvedEventNum, eventName);
+    if (eventNum) this.currentEventNumber = eventNum;
+
+    const resolvedEventName = eventName || this.eventNamesByNumber.get(resolvedEventNum);
+    const key = this.getAggregationKey(resolvedEventNum, flight, 'F', 1, String(packet.sourcePort));
+
+    let aggregated = this.aggregatedEvents.get(key);
+    if (!aggregated) {
+      const now = Date.now();
+      aggregated = {
+        eventNumber: resolvedEventNum,
+        heat: flight,
+        round: 1,
+        status,
+        eventName: resolvedEventName,
+        entries: [],
+        lastUpdate: now,
+        firstUpdate: now,
+        type: 'F',
+        sourcePortType: 'field',
+        sourcePort: packet.sourcePort,
+      };
+      this.aggregatedEvents.set(key, aggregated);
+    } else {
+      if (resolvedEventName && !aggregated.eventName) aggregated.eventName = resolvedEventName;
     }
 
-    const attemptMatch = line.match(/\b(Att|Attempt|Try)[\s:#]*(\d+)\b/i);
-    if (attemptMatch) {
-      packet.attemptNumber = parseInt(attemptMatch[2]);
+    const entry: LynxFieldResult = {
+      place,
+      bib,
+      name,
+      affiliation: team,
+      mark: markEng || undefined,
+      markConverted: markMet || undefined,
+      wind: '',
+    };
+
+    const existingIdx = aggregated.entries.findIndex(
+      e => (e as LynxFieldResult).bib === bib ||
+           (e as LynxFieldResult).name === name
+    );
+    if (existingIdx >= 0) {
+      aggregated.entries[existingIdx] = entry;
+    } else {
+      aggregated.entries.push(entry);
     }
 
-    const heightMatch = line.match(/(\d+\.\d{2})\s*m/i);
-    if (heightMatch) {
-      packet.fieldMark = heightMatch[1];
-    }
+    aggregated.lastUpdate = Date.now();
+    this.scheduleAggregationEmit(key);
 
-    const distanceMatch = line.match(/(\d+-\d{1,2}(?:\.\d+)?)/);
-    if (distanceMatch) {
-      packet.fieldMark = distanceMatch[1];
-    }
-
-    const xoMatch = line.match(/\b([XOP-])\b/);
-    if (xoMatch) {
-      const result = xoMatch[1].toUpperCase();
-      if (result === 'X' || result === 'O' || result === 'P' || result === '-') {
-        packet.attemptResult = result as 'X' | 'O' | 'P' | '-';
-      }
-    }
-
-    const nameMatch = line.match(/[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+/);
-    if (nameMatch) {
-      packet.athleteName = nameMatch[0];
-    }
-
-    if (packet.athleteName || packet.attemptNumber) {
-      this.emit('field-mode-change', this.currentEventNumber, 'athlete_up', {
-        athlete: packet.athleteName,
-        attempt: packet.attemptNumber,
-        mark: packet.fieldMark,
-        result: packet.attemptResult,
-      });
-      
-      if (packet.athleteName) {
-        this.emit('field-athlete-up', 
-          this.currentEventNumber,
-          packet.athleteName,
-          packet.attemptNumber || 1,
-          packet.fieldMark
-        );
-      }
-    }
-
-    if (packet.attemptResult) {
-      this.emit('field-mode-change', this.currentEventNumber, 'result_posted', {
-        result: packet.attemptResult,
-        mark: packet.fieldMark,
-      });
-    }
+    console.log(`[Lynx:LSS] Field event ${resolvedEventNum} (${resolvedEventName}) — ${name} (${team}) place=${place || '?'} mark=${markEng || 'none'}`);
   }
 
   private parseStartListLine(line: string, packet: LynxPacket, config: PortConfig) {
