@@ -1637,7 +1637,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Look up team by affiliation name for curtain colors
+  // Look up team by affiliation name — returns colors + logo URL for curtain use
   app.get("/api/teams/by-affiliation", async (req, res) => {
     try {
       const { name, meetId } = req.query;
@@ -1654,7 +1654,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         nameStr.includes(t.name.toLowerCase().trim())
       );
       if (!match) return res.status(404).json({ error: "Team not found" });
-      res.json({ id: match.id, name: match.name, primaryColor: match.primaryColor, secondaryColor: match.secondaryColor });
+
+      // Look up logo URL for this team
+      let logoUrl: string | null = null;
+      try {
+        const logo = await storage.getTeamLogo(match.id);
+        if (logo) logoUrl = fileStorage.publicUrlForKey(logo.storageKey);
+      } catch { /* no logo */ }
+
+      res.json({
+        id: match.id,
+        name: match.name,
+        primaryColor: match.primaryColor || null,
+        secondaryColor: match.secondaryColor || null,
+        logoUrl,
+      });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

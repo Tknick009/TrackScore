@@ -94,10 +94,8 @@ export function FieldTransitionRenderer({
         prevCalledBibRef.current = calledId;
 
         const school = calledUp.affiliation || calledUp.team || '';
-        const src = school
-          ? `/api/assets/school-logo?name=${encodeURIComponent(school)}`
-          : null;
 
+        let logoUrl: string | null = null;
         let primary = curtainColor;
         let secondary = curtainColor;
 
@@ -111,6 +109,9 @@ export function FieldTransitionRenderer({
             );
             if (res.ok) {
               const teamData = await res.json();
+              // Logo URL comes directly from the endpoint now
+              if (teamData?.logoUrl) logoUrl = teamData.logoUrl;
+              // Team brand colors — fall back to curtainColor if not set
               if (teamData?.primaryColor) {
                 primary = teamData.primaryColor;
                 secondary = teamData.secondaryColor || teamData.primaryColor;
@@ -121,7 +122,7 @@ export function FieldTransitionRenderer({
           }
         }
 
-        runCurtain(src, primary, secondary);
+        runCurtain(logoUrl, primary, secondary);
       } catch {
         /* ignore parse errors */
       }
