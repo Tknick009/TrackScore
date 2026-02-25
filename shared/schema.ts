@@ -1002,6 +1002,7 @@ export const LAYOUT_OBJECT_TYPES = [
   'wind-reading',       // Wind speed display
   'split-times',        // Split times display
   'record-indicator',   // Meet/facility record indicator
+  'field-transition',   // Curtain-wipe overlay triggered by field athlete call-up
 ] as const;
 export type LayoutObjectType = typeof LAYOUT_OBJECT_TYPES[number];
 

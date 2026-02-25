@@ -56,6 +56,7 @@ const OBJECT_TYPE_INFO: Record<LayoutObjectType, { name: string; icon: typeof Ty
   'wind-reading': { name: 'Wind Reading', icon: Wind, category: 'data', description: 'Wind speed display' },
   'split-times': { name: 'Split Times', icon: Clock, category: 'timing', description: 'Split times display' },
   'record-indicator': { name: 'Record Indicator', icon: Award, category: 'data', description: 'Record alert indicator' },
+  'field-transition': { name: 'Field Transition', icon: Layers, category: 'field', description: 'Curtain-wipe overlay on athlete call-up' },
 };
 
 const OBJECT_CATEGORIES = [
@@ -86,6 +87,7 @@ const DEFAULT_OBJECT_SIZES: Record<LayoutObjectType, { width: number; height: nu
   'wind-reading': { width: 15, height: 8 },
   'split-times': { width: 40, height: 30 },
   'record-indicator': { width: 20, height: 8 },
+  'field-transition': { width: 50, height: 50 },
 };
 
 // Field code presets for data binding
@@ -652,6 +654,17 @@ export default function SceneEditor() {
           <div className="w-full h-full flex items-center justify-center p-1" data-testid="preview-wind-reading">
             <Wind className="w-4 h-4 mr-1 text-white/70" />
             <span className="text-lg font-mono text-white">WIND</span>
+          </div>
+        );
+      }
+
+      case 'field-transition': {
+        const ftPreviewPort = (object.config as any)?.fieldPort;
+        return (
+          <div className="w-full h-full flex flex-col items-center justify-center gap-1 border-2 border-dashed border-blue-400/50 bg-blue-500/10" data-testid="preview-field-transition">
+            <Layers className="w-5 h-5 text-blue-400/70" />
+            <span className="text-[9px] font-mono text-blue-300/80 uppercase">Transition</span>
+            <span className="text-[8px] text-blue-300/50">{ftPreviewPort ? `Port ${ftPreviewPort}` : 'No port'}</span>
           </div>
         );
       }
@@ -1923,6 +1936,48 @@ export default function SceneEditor() {
                                 </Badge>
                               ))}
                             </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Field Transition config */}
+                      {selectedObject.objectType === 'field-transition' && (
+                        <div className="space-y-3 mt-4 p-3 bg-muted/50 rounded-md">
+                          <h5 className="font-medium text-xs text-muted-foreground">Field Transition</h5>
+                          <div className="space-y-2">
+                            <Label className="text-xs">Field Port</Label>
+                            <Select
+                              value={String((selectedObject.config as any)?.fieldPort || 'none')}
+                              onValueChange={(value) => updateObjectMutation.mutate({
+                                id: selectedObject.id,
+                                data: {
+                                  config: {
+                                    ...(selectedObject.config as SceneObjectConfig || {}),
+                                    fieldPort: value === 'none' ? undefined : parseInt(value),
+                                  },
+                                },
+                              })}
+                            >
+                              <SelectTrigger data-testid="select-transition-port">
+                                <SelectValue placeholder="Select port..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">— Not set —</SelectItem>
+                                <SelectItem value="4560">Port 4560</SelectItem>
+                                <SelectItem value="4561">Port 4561</SelectItem>
+                                <SelectItem value="4562">Port 4562</SelectItem>
+                                <SelectItem value="4563">Port 4563</SelectItem>
+                                <SelectItem value="4564">Port 4564</SelectItem>
+                                <SelectItem value="4565">Port 4565</SelectItem>
+                                <SelectItem value="4566">Port 4566</SelectItem>
+                                <SelectItem value="4567">Port 4567</SelectItem>
+                                <SelectItem value="4568">Port 4568</SelectItem>
+                                <SelectItem value="4569">Port 4569</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                              Curtain fires whenever a new athlete is called up on this port. Set the object background color to choose the curtain color.
+                            </p>
                           </div>
                         </div>
                       )}
