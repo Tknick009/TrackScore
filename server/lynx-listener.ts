@@ -74,7 +74,8 @@ function metersToFeetInches(meters: string | undefined): string {
   // If A-net already sent feet-inches (e.g. "20-09.50"), don't re-convert — use as-is.
   if (/^\d+-\d/.test(meters)) return meters;
   const m = parseFloat(meters);
-  if (isNaN(m) || m <= 0) return meters;
+  // Non-numeric marks (FOUL, NM, PASS, X, etc.) — return empty so they don't show twice
+  if (isNaN(m) || m <= 0) return '';
   const totalInches = m * 39.3701;
   const feet = Math.floor(totalInches / 12);
   // Round DOWN to nearest ¼ inch
