@@ -1637,38 +1637,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Look up team by affiliation name — returns colors + logo URL for curtain use
+  // Look up team by affiliation name — returns logo URL + colors for curtain use.
+  // Logo: exact-match against /public/logos/NCAA/{name}.png (no fuzzy matching).
+  // Colors: manually set team colors take priority; otherwise extracted from the logo.
   app.get("/api/teams/by-affiliation", async (req, res) => {
     try {
       const { name, meetId } = req.query;
       if (!name) return res.status(400).json({ error: "name required" });
-      const nameStr = String(name).toLowerCase().trim();
-      const teamsToSearch = meetId
-        ? await storage.getTeamsByMeetId(String(meetId))
-        : await storage.getTeams();
-      const match = teamsToSearch.find(t =>
-        t.name.toLowerCase().trim() === nameStr ||
-        (t.shortName && t.shortName.toLowerCase().trim() === nameStr) ||
-        (t.abbreviation && t.abbreviation.toLowerCase().trim() === nameStr) ||
-        t.name.toLowerCase().includes(nameStr) ||
-        nameStr.includes(t.name.toLowerCase().trim())
-      );
-      if (!match) return res.status(404).json({ error: "Team not found" });
+      const nameStr = String(name).trim();
 
-      // Look up logo URL for this team
+      // 1. Check for NCAA logo by exact name match
+      const ncaaLogoPath = path.join(process.cwd(), 'public', 'logos', 'NCAA', `${nameStr}.png`);
       let logoUrl: string | null = null;
-      try {
-        const logo = await storage.getTeamLogo(match.id);
-        if (logo) logoUrl = fileStorage.publicUrlForKey(logo.storageKey);
-      } catch { /* no logo */ }
+      let primaryColor: string | null = null;
+      let secondaryColor: string | null = null;
 
-      res.json({
-        id: match.id,
-        name: match.name,
-        primaryColor: match.primaryColor || null,
-        secondaryColor: match.secondaryColor || null,
-        logoUrl,
-      });
+      const logoExists = await import('fs/promises').then(fs => fs.access(ncaaLogoPath).then(() => true).catch(() => false));
+      if (logoExists) {
+        logoUrl = `/logos/NCAA/${encodeURIComponent(nameStr)}.png`;
+        // Extract dominant colors from the logo
+        try {
+          const fs = await import('fs/promises');
+          const buf = await fs.readFile(ncaaLogoPath);
+          const colors = await fileStorage.extractColorsFromImage(buf);
+          primaryColor = colors.primaryColor;
+          secondaryColor = colors.secondaryColor;
+        } catch { /* use defaults if extraction fails */ }
+      }
+
+      // 2. Look up team in DB for manually overridden colors
+      try {
+        const teamsToSearch = meetId
+          ? await storage.getTeamsByMeetId(String(meetId))
+          : await storage.getTeams();
+        const match = teamsToSearch.find(t =>
+          t.name.trim() === nameStr ||
+          (t.shortName && t.shortName.trim() === nameStr) ||
+          (t.abbreviation && t.abbreviation.trim() === nameStr)
+        );
+        if (match) {
+          // Manually set colors override extracted colors
+          if (match.primaryColor) primaryColor = match.primaryColor;
+          if (match.secondaryColor) secondaryColor = match.secondaryColor;
+          // Uploaded logo overrides NCAA static logo
+          const uploadedLogo = await storage.getTeamLogo(match.id);
+          if (uploadedLogo) logoUrl = fileStorage.publicUrlForKey(uploadedLogo.storageKey);
+        }
+      } catch { /* DB lookup is best-effort */ }
+
+      res.json({ name: nameStr, logoUrl, primaryColor, secondaryColor });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
