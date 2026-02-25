@@ -65,12 +65,12 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === `${basePath}/field-events`}>
-                  <Link href={`${basePath}/field-events`} data-testid="link-field-events">
-                    <Target />
-                    <span>Field Events</span>
-                  </Link>
-                </SidebarMenuButton>
+                  <SidebarMenuButton asChild isActive={location === "/field-command" || location === `${basePath}/field-events`}>
+                    <Link href="/field-command" data-testid="link-field-events">
+                      <Target />
+                      <span>Field Events</span>
+                    </Link>
+                  </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
