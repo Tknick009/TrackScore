@@ -88,10 +88,10 @@ function isWindAffectedFieldEvent(eventType: string): boolean {
   return eventType === "long_jump" || eventType === "triple_jump";
 }
 
-function metersToFeetInches(meters: number): string {
-  const totalInches = meters * 39.3701;
-  const feet = Math.floor(totalInches / 12);
-  const inches = totalInches % 12;
+function metersToFeetInchesDisplay(meters: number): string {
+  const totalFeet = meters / 0.3048;
+  const feet = Math.floor(totalFeet);
+  const inches = (totalFeet - feet) * 12;
   const wholeInches = Math.floor(inches);
   const fraction = inches - wholeInches;
   
@@ -278,7 +278,7 @@ function HeightsDialog({ sessionId, open, onOpenChange }: HeightsDialogProps) {
               />
               {newHeightMeters && !isNaN(parseFloat(newHeightMeters)) && (
                 <p className="text-xs text-muted-foreground mt-1">
-                  = {metersToFeetInches(parseFloat(newHeightMeters))}
+                  = {metersToFeetInchesDisplay(parseFloat(newHeightMeters))}
                 </p>
               )}
             </div>
@@ -327,7 +327,7 @@ function HeightsDialog({ sessionId, open, onOpenChange }: HeightsDialogProps) {
                           data-testid={`input-height-${index}`}
                         />
                         <span className="text-sm text-muted-foreground whitespace-nowrap">
-                          {metersToFeetInches(height.heightMeters)}
+                          {metersToFeetInchesDisplay(height.heightMeters)}
                         </span>
                       </div>
                     </div>

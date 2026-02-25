@@ -306,7 +306,7 @@ async function getActiveMeetId(): Promise<string | null> {
   try {
     const meets = await storage.getMeets();
     const activeMeet = meets.find(m => m.status === 'in_progress') 
-      || meets.find(m => m.status === 'scheduled')
+      || meets.find(m => m.status === 'upcoming')
       || (meets.length > 0 ? meets[meets.length - 1] : null);
     cachedDbActiveMeetId = activeMeet?.id || null;
     cachedDbActiveMeetTimestamp = now;
