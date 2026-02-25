@@ -912,6 +912,18 @@ export default function DisplayDevice() {
               if (currentLayoutModeRef.current !== targetDisplayMode && displayType) {
                 let sceneId = getSceneForModeRef.current(displayType, targetDisplayMode);
                 
+                // Try the opposite orientation before falling back to generic
+                if (!sceneId) {
+                  const altOrientation = myFieldType === 'horizontal'
+                    ? (isMultiEvent ? 'multi_field_vertical' : 'field_results_vertical')
+                    : (isMultiEvent ? 'multi_field_horizontal' : 'field_results_horizontal');
+                  sceneId = getSceneForModeRef.current(displayType, altOrientation);
+                  if (sceneId) {
+                    console.log(`[Display] No scene for ${targetDisplayMode}, trying alternate orientation ${altOrientation}`);
+                    targetDisplayMode = altOrientation;
+                  }
+                }
+                
                 // Fallback to generic mode if specific mode not found
                 if (!sceneId) {
                   sceneId = getSceneForModeRef.current(displayType, fallbackMode);
