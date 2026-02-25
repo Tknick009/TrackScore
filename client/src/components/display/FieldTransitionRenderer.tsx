@@ -8,7 +8,7 @@ export function FieldTransitionRenderer({
   curtainColor,
   meetId,
 }: {
-  fieldPort: number;
+  fieldPort?: number;
   curtainColor: string;
   meetId?: string;
 }) {
@@ -38,18 +38,22 @@ export function FieldTransitionRenderer({
     setSecondaryColor(secondary);
     setPhase('coverStart');
 
+    // 30ms: ensure browser paints the initial (off-screen) position before animating
     timersRef.current.push(setTimeout(() => {
       if (versionRef.current !== version) return;
       setPhase('covering');
 
+      // 650ms cover animation finishes → pause with logo visible
       timersRef.current.push(setTimeout(() => {
         if (versionRef.current !== version) return;
         setPhase('paused');
 
+        // 1600ms pause → open
         timersRef.current.push(setTimeout(() => {
           if (versionRef.current !== version) return;
           setPhase('reveal');
 
+          // 750ms reveal finishes → idle
           timersRef.current.push(setTimeout(() => {
             if (versionRef.current !== version) return;
             setPhase('idle');
@@ -62,12 +66,20 @@ export function FieldTransitionRenderer({
   useEffect(() => () => clearTimers(), [clearTimers]);
 
   useEffect(() => {
-    if (!ws || !fieldPort) return;
+    if (!ws) return;
 
     const handleMessage = async (e: MessageEvent) => {
       try {
         const msg = JSON.parse(e.data);
-        if (msg.type !== `field_mode_change_${fieldPort}`) return;
+
+        // Accept port-specific channel (when fieldPort is configured) OR global channel
+        const portMatch = fieldPort && msg.type === `field_mode_change_${fieldPort}`;
+        const globalMatch = msg.type === 'field_mode_change';
+        if (!portMatch && !globalMatch) return;
+
+        // If both port-specific and global fire, prefer port-specific
+        // (global fires first on the same tick, port-specific fires right after)
+        // No issue in practice since we debounce by calledId
 
         const results: any[] = msg.data?.results || [];
         const calledUp = results.find((r: any) => !r.mark || String(r.mark).trim() === '');
@@ -137,15 +149,19 @@ export function FieldTransitionRenderer({
     ? 'transform 0.65s cubic-bezier(0.4, 0, 0.2, 1)'
     : 'none';
 
-  const leftCoverTransform = isInitial ? 'translateX(100%)' : 'translateX(0)';
-  const rightCoverTransform = isInitial ? 'translateX(100%)' : 'translateX(0)';
-
+  // Panels start off-screen right (coverStart), sweep left to cover (covering),
+  // hold (paused), then split outward (reveal)
   const leftTransform = isReveal
     ? 'translateX(-100%)'
-    : leftCoverTransform;
+    : isInitial
+    ? 'translateX(100%)'
+    : 'translateX(0)';
+
   const rightTransform = isReveal
     ? 'translateX(100%)'
-    : rightCoverTransform;
+    : isInitial
+    ? 'translateX(100%)'
+    : 'translateX(0)';
 
   const panelBase: React.CSSProperties = {
     position: 'absolute',
@@ -154,28 +170,16 @@ export function FieldTransitionRenderer({
     width: '50%',
     background: gradient,
     zIndex: 50,
-    overflow: 'hidden',
     transition: panelTransition,
   };
 
-  const leftPanelStyle: React.CSSProperties = {
-    ...panelBase,
-    left: 0,
-    transform: leftTransform,
-  };
-
-  const rightPanelStyle: React.CSSProperties = {
-    ...panelBase,
-    right: 0,
-    transform: rightTransform,
-  };
-
-  const showLogo = !isReveal && logoSrc;
+  // Only show logo when panels are fully closed
+  const showLogo = isPaused && !!logoSrc;
 
   return (
     <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', zIndex: 50, pointerEvents: 'none' }}>
-      <div style={leftPanelStyle} />
-      <div style={rightPanelStyle} />
+      <div style={{ ...panelBase, left: 0, transform: leftTransform }} />
+      <div style={{ ...panelBase, right: 0, transform: rightTransform }} />
       {showLogo && (
         <div
           style={{
