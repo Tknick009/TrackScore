@@ -76,10 +76,10 @@ function getAthleteDisplayInfo(athlete: EnrichedAthlete) {
   return { name: "Unknown Athlete", bib: "-", team: "" };
 }
 
-function metersToFeetInches(meters: number): string {
-  const totalInches = meters * 39.3701;
-  const feet = Math.floor(totalInches / 12);
-  const remainingInches = totalInches % 12;
+function metersToFeetInchesDisplay(meters: number): string {
+  const totalFeet = meters / 0.3048;
+  const feet = Math.floor(totalFeet);
+  const remainingInches = (totalFeet - feet) * 12;
   const wholeInches = Math.floor(remainingInches);
   const fraction = remainingInches - wholeInches;
   
@@ -308,7 +308,7 @@ function HeightsDialog({
               />
               {newHeightMeters && !isNaN(parseFloat(newHeightMeters)) && (
                 <p className="text-xs text-muted-foreground mt-1">
-                  = {metersToFeetInches(parseFloat(newHeightMeters))}
+                  = {metersToFeetInchesDisplay(parseFloat(newHeightMeters))}
                 </p>
               )}
             </div>
@@ -357,7 +357,7 @@ function HeightsDialog({
                           data-testid={`input-height-official-${index}`}
                         />
                         <span className="text-sm text-muted-foreground whitespace-nowrap">
-                          {metersToFeetInches(height.heightMeters)}
+                          {metersToFeetInchesDisplay(height.heightMeters)}
                         </span>
                       </div>
                     </div>
@@ -1539,8 +1539,20 @@ function ReviewMarksView({
 
 // ==================== VERTICAL EVENT HELPERS ====================
 
-function formatHeightMark(meters: number): string {
-  return `${meters.toFixed(2)}m`;
+function formatHeightMark(meters: number, unit: 'metric' | 'english' = 'metric'): string {
+  if (unit === 'metric') {
+    return `${meters.toFixed(2)}m`;
+  }
+  const totalFeet = meters / 0.3048;
+  const feet = Math.floor(totalFeet);
+  const inches = (totalFeet - feet) * 12;
+  const inchesWhole = Math.floor(inches);
+  const inchesFrac = inches - inchesWhole;
+  if (inchesFrac > 0.001) {
+    const inchesFormatted = inches.toFixed(2).padStart(5, '0');
+    return `${feet}-${inchesFormatted}`;
+  }
+  return `${feet}-${inchesWhole.toString().padStart(2, '0')}`;
 }
 
 function getAthleteHeightAttempts(athleteId: number, heightIndex: number, marks: FieldEventMark[]): FieldEventMark[] {
@@ -1555,7 +1567,7 @@ function getAthleteAttemptsAtHeight(athleteId: number, heightIndex: number, mark
   for (const mark of heightMarks) {
     if (mark.markType === 'cleared') {
       display += 'O';
-      break;
+      // Don't break — show all recorded attempts at this height
     } else if (mark.markType === 'missed') {
       display += 'X';
     } else if (mark.markType === 'pass') {
@@ -1566,19 +1578,29 @@ function getAthleteAttemptsAtHeight(athleteId: number, heightIndex: number, mark
 }
 
 function isAthleteEliminated(athleteId: number, marks: FieldEventMark[], heights: FieldHeight[]): boolean {
-  let consecutiveMisses = 0;
-  const sortedMarks = [...marks]
-    .filter(m => m.athleteId === athleteId)
-    .sort((a, b) => a.attemptNumber - b.attemptNumber);
-  
-  for (const mark of sortedMarks) {
-    if (mark.markType === 'missed') {
-      consecutiveMisses++;
-      if (consecutiveMisses >= 3) {
-        return true;
+  const athleteMarks = marks.filter(m => m.athleteId === athleteId);
+  if (!athleteMarks.length) return false;
+
+  // Group marks by heightIndex and check for 3 consecutive misses at any single height
+  const marksByHeight = new Map<number, FieldEventMark[]>();
+  for (const mark of athleteMarks) {
+    if (mark.heightIndex === null || mark.heightIndex === undefined) continue;
+    const existing = marksByHeight.get(mark.heightIndex) || [];
+    existing.push(mark);
+    marksByHeight.set(mark.heightIndex, existing);
+  }
+
+  for (const [, heightMarks] of marksByHeight) {
+    let consecutiveMisses = 0;
+    for (const mark of heightMarks) {
+      if (mark.markType === 'missed') {
+        consecutiveMisses++;
+        if (consecutiveMisses >= 3) {
+          return true;
+        }
+      } else if (mark.markType === 'cleared') {
+        consecutiveMisses = 0;
       }
-    } else if (mark.markType === 'cleared') {
-      consecutiveMisses = 0;
     }
   }
   return false;
@@ -2910,25 +2932,25 @@ function FieldEntryUI({
 
   const { data: session, isLoading: sessionLoading, error: sessionError } = useQuery<FieldEventSessionWithDetails>({
     queryKey: ["/api/field-sessions", sessionId, "full"],
-    refetchInterval: 5000,
+    refetchInterval: 30000, // WebSocket handles real-time updates; this is a fallback
   });
 
   const { data: athletes, isLoading: athletesLoading } = useQuery<EnrichedAthlete[]>({
     queryKey: ["/api/field-sessions", sessionId, "athletes"],
-    refetchInterval: 5000,
+    refetchInterval: 30000, // WebSocket handles real-time updates; this is a fallback
     enabled: !!session,
   });
 
   const { data: marks } = useQuery<FieldEventMark[]>({
     queryKey: ["/api/field-sessions", sessionId, "marks"],
-    refetchInterval: 5000,
+    refetchInterval: 30000, // WebSocket handles real-time updates; this is a fallback
     enabled: !!session,
   });
 
   // Fetch heights for vertical events
   const { data: heights } = useQuery<FieldHeight[]>({
     queryKey: ["/api/field-sessions", sessionId, "heights"],
-    refetchInterval: 5000,
+    refetchInterval: 30000, // WebSocket handles real-time updates; this is a fallback
     enabled: !!session,
   });
 

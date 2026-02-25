@@ -60,11 +60,10 @@ export function isHeightEvent(eventType: string): boolean {
 }
 
 // Wind-affected events (IAAF rules: winds >+2.0 m/s make results ineligible for records)
+// Note: 60m and 60m_hurdles are indoor events — no wind measurement applies
 export const WIND_AFFECTED_EVENT_TYPES = [
-  "60m",
   "100m",
   "200m",
-  "60m_hurdles",
   "100m_hurdles",
   "110m_hurdles",
   "4x100m",
@@ -1837,7 +1836,15 @@ export type WSMessage =
   | { type: "field_athlete_up"; data: { eventNumber: number; athleteName: string; attemptNumber: number; mark?: string } }
   | { type: "lynx_connection"; data: { portType: LynxPortType; connected: boolean } }
   | { type: "field_event_update"; sessionId: number; eventId: string; meetId: string | null; update: FieldEventUpdatePayload }
-  | { type: "lap_counter_update"; lap: number; mode: "lap" | "logo"; meetId?: string };
+  | { type: "lap_counter_update"; lap: number; mode: "lap" | "logo"; meetId?: string }
+  | { type: "device_registered"; data: { deviceId: string; deviceName: string; meetId: string; assignedEventId?: string | null; status?: string; displayType?: string; fieldPort?: string | null; isBigBoard?: boolean; displayMode?: string; autoMode?: boolean } }
+  | { type: "device_registration_error"; error: string }
+  | { type: "layout-command"; data: { layout: string; command: any } }
+  | { type: "lynx_clock"; data: { time: string; isRunning: boolean } }
+  | { type: "lynx_wind"; data: { wind: string } }
+  | { type: "lynx_page"; data: any }
+  | { type: "hytek_import_complete"; meetId: string }
+  | { type: "heat_counts_update"; meetId: string; heatCounts: any[] };
 
 export type OverlayType = 'lower-third' | 'scorebug' | 'athlete-spotlight' | 'team-standings';
 
