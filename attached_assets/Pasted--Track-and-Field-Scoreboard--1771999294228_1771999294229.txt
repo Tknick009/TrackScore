@@ -1,0 +1,436 @@
+============================================
+  Track and Field Scoreboard
+============================================
+
+Checking for Node.js...
+Node.js found.
+
+Source directory not found: C:\Users\LTR-48\Dropbox\scoreboard
+Skipping sync - edit SOURCE_DIR in this file to enable sync.
+
+Starting server...
+Server will run at http://localhost:5000
+Press Ctrl+C to stop.
+
+🔄 Running in EDGE mode with SQLite database: ./data/scoreboard.db
+✅ Scoring presets initialized
+✅ Split defaults initialized
+✅ ResulTV parser event handlers registered
+[Track Heat Watcher] Started watching: attached_assets/lynx_1769144528277.evt for meet f08ef411-31e7-4255-a24f-eceacc3a5238
+[Track Heat Watcher] Initialized watcher for meet f08ef411-31e7-4255-a24f-eceacc3a5238
+[Lynx] Started 14 listeners
+✅ Lynx listeners auto-started for Edge Mode on default ports
+   - Big Board Results: port 4554 (results_big)
+   - FinishLynx Results: port 4555 (results)
+   - FinishLynx Clock: port 4556 (clock)
+   - FieldLynx: port 4557 (field)
+   - FieldLynx Port 4560: port 4560 (field)
+   - FieldLynx Port 4561: port 4561 (field)
+   - FieldLynx Port 4562: port 4562 (field)
+   - FieldLynx Port 4563: port 4563 (field)
+   - FieldLynx Port 4564: port 4564 (field)
+   - FieldLynx Port 4565: port 4565 (field)
+   - FieldLynx Port 4566: port 4566 (field)
+   - FieldLynx Port 4567: port 4567 (field)
+   - FieldLynx Port 4568: port 4568 (field)
+   - FieldLynx Port 4569: port 4569 (field)
+[Lynx:Big Board Results] Listening on port 4554
+[Lynx:FinishLynx Results] Listening on port 4555
+[Lynx:FinishLynx Clock] Listening on port 4556
+[Lynx:FieldLynx] Listening on port 4557
+[Lynx:FieldLynx Port 4560] Listening on port 4560
+[Lynx:FieldLynx Port 4561] Listening on port 4561
+[Lynx:FieldLynx Port 4562] Listening on port 4562
+[Lynx:FieldLynx Port 4563] Listening on port 4563
+[Lynx:FieldLynx Port 4564] Listening on port 4564
+[Lynx:FieldLynx Port 4565] Listening on port 4565
+[Lynx:FieldLynx Port 4566] Listening on port 4566
+[Lynx:FieldLynx Port 4567] Listening on port 4567
+[Lynx:FieldLynx Port 4568] Listening on port 4568
+[Lynx:FieldLynx Port 4569] Listening on port 4569
+[Track Heat Watcher] File detected: attached_assets\lynx_1769144528277.evt
+[Track Heat Watcher] Event 19 Round 1: 2 heats
+[Track Heat Watcher] Event 20 Round 1: 1 heats
+[Track Heat Watcher] Event 17 Round 1: 1 heats
+[Track Heat Watcher] Event 18 Round 1: 1 heats
+[Track Heat Watcher] Event 1 Round 1: 1 heats
+[Track Heat Watcher] Event 2 Round 1: 1 heats
+[Track Heat Watcher] Event 3 Round 1: 1 heats
+[Track Heat Watcher] Event 4 Round 1: 1 heats
+[Track Heat Watcher] Event 11 Round 1: 1 heats
+[Track Heat Watcher] Event 12 Round 1: 1 heats
+[Track Heat Watcher] Event 37 Round 1: 1 heats
+[Track Heat Watcher] Event 38 Round 1: 1 heats
+[Track Heat Watcher] Event 15 Round 1: 1 heats
+[Track Heat Watcher] Event 16 Round 1: 1 heats
+[Track Heat Watcher] Event 7 Round 1: 1 heats
+[Track Heat Watcher] Event 8 Round 1: 1 heats
+[Track Heat Watcher] Event 5 Round 1: 1 heats
+[Track Heat Watcher] Event 6 Round 1: 1 heats
+[Track Heat Watcher] Event 21 Round 1: 1 heats
+[Track Heat Watcher] Event 22 Round 1: 1 heats
+[Track Heat Watcher] Event 9 Round 1: 1 heats
+[Track Heat Watcher] Event 10 Round 1: 1 heats
+[Track Heat Watcher] Broadcast heat counts for meet f08ef411-31e7-4255-a24f-eceacc3a5238: [
+  { eventNumber: 19, round: 1, totalHeats: 2 },
+  { eventNumber: 20, round: 1, totalHeats: 1 },
+  { eventNumber: 17, round: 1, totalHeats: 1 },
+  { eventNumber: 18, round: 1, totalHeats: 1 },
+  { eventNumber: 1, round: 1, totalHeats: 1 },
+  { eventNumber: 2, round: 1, totalHeats: 1 },
+  { eventNumber: 3, round: 1, totalHeats: 1 },
+  { eventNumber: 4, round: 1, totalHeats: 1 },
+  { eventNumber: 11, round: 1, totalHeats: 1 },
+  { eventNumber: 12, round: 1, totalHeats: 1 },
+  { eventNumber: 37, round: 1, totalHeats: 1 },
+  { eventNumber: 38, round: 1, totalHeats: 1 },
+  { eventNumber: 15, round: 1, totalHeats: 1 },
+  { eventNumber: 16, round: 1, totalHeats: 1 },
+  { eventNumber: 7, round: 1, totalHeats: 1 },
+  { eventNumber: 8, round: 1, totalHeats: 1 },
+  { eventNumber: 5, round: 1, totalHeats: 1 },
+  { eventNumber: 6, round: 1, totalHeats: 1 },
+  { eventNumber: 21, round: 1, totalHeats: 1 },
+  { eventNumber: 22, round: 1, totalHeats: 1 },
+  { eventNumber: 9, round: 1, totalHeats: 1 },
+  { eventNumber: 10, round: 1, totalHeats: 1 }
+]
+[Track Heat Watcher] Processed 23 event entries, 22 unique events
+12:50:25 AM [express] serving on port 5000
+🔄 Starting auto-refresh service...
+[EVT Watcher] Initialized 0 watchers
+WebSocket client connected
+Display device registering: LTR-48 (P10) for meet b30c00da-853e-4ce6-9624-1a5a93a30a31, clientDeviceId: b7c43330-c56a-42d0-bf22-a4ab0e1d8ffb
+Reconnected existing device: LTR-48 (b7c43330-c56a-42d0-bf22-a4ab0e1d8ffb)
+Display device registered: LTR-48 (b7c43330-c56a-42d0-bf22-a4ab0e1d8ffb)
+12:50:26 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 46ms
+WebSocket client connected
+
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+WebSocket client connected
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:50:31 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 4m…
+12:50:31 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 9ms
+12:50:33 AM [express] GET /api/display-devices/b7c43330-c56a-42d0-bf22-a4ab0e1d8ffb/auto-mode 304 in …
+WebSocket client disconnected
+12:50:34 AM [express] GET /api/edge-config 304 in 2ms :: {"cloudUrl":"","edgeId":""}
+12:50:34 AM [express] GET /api/version 304 in 1ms :: {"version":"1.1.0","date":"2026-01-13","releaseN…
+12:50:34 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31 304 in 2ms :: {"id":"b30c00…
+12:50:34 AM [express] GET /api/display-devices/meet/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 2ms :…
+12:50:34 AM [express] GET /api/events 304 in 1ms :: []
+12:50:34 AM [express] GET /api/scene-template-mappings/b30c00da-853e-4ce6-9624-1a5a93a30a31 304 in 4m…
+12:50:34 AM [express] GET /api/layout-scenes 304 in 8ms :: [{"id":1,"meetId":"b30c00da-853e-4ce6-9624…
+WebSocket client connected
+WebSocket client connected
+12:50:35 AM [express] GET /api/display-devices/b7c43330-c56a-42d0-bf22-a4ab0e1d8ffb/auto-mode 304 in …
+12:50:35 AM [express] GET /api/display-devices/b7c43330-c56a-42d0-bf22-a4ab0e1d8ffb/paging 304 in 1ms…
+12:50:36 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 4ms
+WebSocket client disconnected
+Display device offline: LTR-48
+WebSocket client disconnected
+12:50:39 AM [express] GET /api/display-devices/meet/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 1ms :…
+12:50:40 AM [express] GET /api/meets 304 in 1ms :: [{"id":"b30c00da-853e-4ce6-9624-1a5a93a30a31","sea…
+12:50:40 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31 304 in 3ms :: {"id":"b30c00…
+WebSocket client connected
+12:50:40 AM [express] GET /api/display-devices/b7c43330-c56a-42d0-bf22-a4ab0e1d8ffb/auto-mode 200 in …
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:50:43 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:50:43 AM [express] GET /api/scene-template-mappings/b30c00da-853e-4ce6-9624-1a5a93a30a31 304 in 1m…
+12:50:43 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 12ms
+WebSocket client connected
+Display device registering: LTR-48 (P10) for meet b30c00da-853e-4ce6-9624-1a5a93a30a31, clientDeviceId: b7c43330-c56a-42d0-bf22-a4ab0e1d8ffb
+Reconnected existing device: LTR-48 (b7c43330-c56a-42d0-bf22-a4ab0e1d8ffb)
+Display device registered: LTR-48 (b7c43330-c56a-42d0-bf22-a4ab0e1d8ffb)
+12:50:44 AM [express] GET /api/display-devices/meet/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 0ms :…
+12:50:45 AM [express] GET /api/display-devices/b7c43330-c56a-42d0-bf22-a4ab0e1d8ffb/auto-mode 200 in …
+12:50:46 AM [express] PATCH /api/display-devices/b7c43330-c56a-42d0-bf22-a4ab0e1d8ffb/mode 200 in 1ms…
+[Auto-Mode] LTR-48: DISABLED
+12:50:46 AM [express] POST /api/display-devices/b7c43330-c56a-42d0-bf22-a4ab0e1d8ffb/auto-mode 200 in…
+12:50:46 AM [express] GET /api/display-devices/b7c43330-c56a-42d0-bf22-a4ab0e1d8ffb/auto-mode 200 in …
+12:50:48 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 5ms
+12:50:51 AM [express] GET /api/display-devices/b7c43330-c56a-42d0-bf22-a4ab0e1d8ffb/auto-mode 304 in …
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:50:53 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:50:53 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 5ms
+12:50:56 AM [express] GET /api/display-devices/b7c43330-c56a-42d0-bf22-a4ab0e1d8ffb/auto-mode 304 in …
+12:50:58 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 4ms
+[Lynx:FieldLynx Port 4560] Client connected from 127.0.0.1
+[Lynx] Connection field: connected
+12:51:02 AM [express] GET /api/display-devices/b7c43330-c56a-42d0-bf22-a4ab0e1d8ffb/auto-mode 304 in …
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:51:03 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:51:03 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+12:51:07 AM [express] GET /api/display-devices/b7c43330-c56a-42d0-bf22-a4ab0e1d8ffb/auto-mode 304 in …
+12:51:08 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+12:51:12 AM [express] GET /api/display-devices/b7c43330-c56a-42d0-bf22-a4ab0e1d8ffb/auto-mode 304 in …
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:51:13 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 0m…
+12:51:13 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+12:51:17 AM [express] GET /api/display-devices/b7c43330-c56a-42d0-bf22-a4ab0e1d8ffb/auto-mode 304 in …
+12:51:18 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 4ms
+12:51:22 AM [express] GET /api/display-devices/b7c43330-c56a-42d0-bf22-a4ab0e1d8ffb/auto-mode 304 in …
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:51:23 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:51:23 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+12:51:27 AM [express] GET /api/display-devices/b7c43330-c56a-42d0-bf22-a4ab0e1d8ffb/auto-mode 304 in …
+12:51:29 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 4ms
+12:51:32 AM [express] GET /api/display-devices/b7c43330-c56a-42d0-bf22-a4ab0e1d8ffb/auto-mode 304 in …
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:51:33 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:51:34 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+[Lynx:FieldLynx Port 4560] Client connected from 127.0.0.1
+[Lynx] Connection field: connected
+12:51:39 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:51:43 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:51:44 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+12:51:49 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 4ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:51:53 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:51:54 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+12:51:59 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:52:03 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 0m…
+12:52:04 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+12:52:09 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:52:14 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:52:14 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+12:52:19 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:52:24 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:52:24 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+12:52:29 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 5ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:52:34 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:52:34 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+12:52:39 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:52:44 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:52:44 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 2ms
+12:52:49 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:52:54 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:52:54 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 2ms
+12:52:59 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:53:04 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:53:04 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+12:53:09 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:53:14 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:53:14 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+12:53:19 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:53:24 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:53:24 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 5ms
+12:53:29 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 5ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:53:34 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:53:34 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 4ms
+12:53:39 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:53:44 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:53:44 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+12:53:49 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 2ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:53:54 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 0m…
+12:53:54 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+12:53:59 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 5ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:54:04 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:54:04 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+12:54:09 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:54:14 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 0m…
+12:54:14 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 4ms
+12:54:19 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:54:24 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:54:24 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+12:54:29 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 2ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:54:34 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 2m…
+12:54:34 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 7ms
+12:54:39 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 9ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:54:44 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:54:44 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 10ms
+12:54:49 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 4ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:54:54 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:54:54 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+WebSocket client disconnected
+Display device offline: LTR-48
+WebSocket client disconnected
+12:54:59 AM [express] GET /api/display-devices/meet/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 1ms :…
+12:54:59 AM [express] GET /api/meets 304 in 2ms :: [{"id":"b30c00da-853e-4ce6-9624-1a5a93a30a31","sea…
+12:54:59 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31 304 in 1ms :: {"id":"b30c00…
+WebSocket client connected
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:55:03 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:55:03 AM [express] GET /api/scene-template-mappings/b30c00da-853e-4ce6-9624-1a5a93a30a31 304 in 1m…
+12:55:03 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 8ms
+WebSocket client connected
+Display device registering: LTR-48 (P10) for meet b30c00da-853e-4ce6-9624-1a5a93a30a31, clientDeviceId: b7c43330-c56a-42d0-bf22-a4ab0e1d8ffb
+Reconnected existing device: LTR-48 (b7c43330-c56a-42d0-bf22-a4ab0e1d8ffb)
+Display device registered: LTR-48 (b7c43330-c56a-42d0-bf22-a4ab0e1d8ffb)
+12:55:03 AM [express] GET /api/display-devices/meet/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 0ms :…
+12:55:08 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 4ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:55:13 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 2m…
+12:55:13 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 7ms
+12:55:18 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 7ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:55:23 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:55:23 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 7ms
+12:55:28 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 7ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:55:33 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:55:33 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 4ms
+12:55:38 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 6ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:55:43 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:55:43 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 5ms
+12:55:48 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 7ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:55:53 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:55:53 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 8ms
+12:55:58 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 6ms
+12:55:59 AM [express] GET /api/display-devices/b7c43330-c56a-42d0-bf22-a4ab0e1d8ffb/auto-mode 304 in …
+12:56:01 AM [express] PATCH /api/display-devices/b7c43330-c56a-42d0-bf22-a4ab0e1d8ffb/mode 200 in 1ms…
+[Auto-Mode] LTR-48: DISABLED
+12:56:01 AM [express] POST /api/display-devices/b7c43330-c56a-42d0-bf22-a4ab0e1d8ffb/auto-mode 200 in…
+12:56:01 AM [express] GET /api/display-devices/b7c43330-c56a-42d0-bf22-a4ab0e1d8ffb/auto-mode 200 in …
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:56:03 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:56:03 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 2ms
+12:56:08 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 7ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:56:13 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:56:13 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+12:56:18 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:56:23 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 2m…
+12:56:23 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 9ms
+12:56:28 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 9ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:56:33 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:56:33 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 4ms
+12:56:38 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 6ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:56:43 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:56:43 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+12:56:48 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:56:53 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:56:53 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+12:56:58 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 4ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:57:03 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 2m…
+12:57:03 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 7ms
+12:57:08 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 9ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:57:13 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 2m…
+12:57:13 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 10ms
+12:57:18 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 10ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:57:23 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:57:23 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 7ms
+12:57:28 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 9ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:57:33 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:57:33 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 9ms
+12:57:38 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 8ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:57:43 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 2m…
+12:57:43 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 8ms
+12:57:48 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 5ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:57:53 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:57:53 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 7ms
+12:57:58 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 9ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:58:03 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:58:03 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 8ms
+12:58:08 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 8ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:58:13 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:58:13 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 7ms
+12:58:18 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 6ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:58:23 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 2m…
+12:58:23 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 6ms
+12:58:28 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 16ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:58:33 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 2m…
+12:58:33 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 8ms
+12:58:38 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 7ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:58:43 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:58:43 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 7ms
+12:58:48 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 6ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:58:53 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 2m…
+12:58:54 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 6ms
+12:58:59 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 6ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:59:03 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:59:04 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 6ms
+12:59:09 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 6ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:59:13 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:59:14 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 5ms
+12:59:19 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:59:23 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+12:59:24 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+12:59:29 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:59:33 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 3m…
+12:59:34 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 7ms
+12:59:39 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 8ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:59:43 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 3m…
+12:59:44 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 6ms
+12:59:49 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 8ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+12:59:53 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 2m…
+12:59:54 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 9ms
+12:59:59 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 7ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+1:00:03 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+1:00:04 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 8ms
+1:00:09 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 6ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+1:00:13 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 2m…
+1:00:14 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 8ms
+1:00:19 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 10ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+1:00:23 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 2m…
+1:00:24 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 7ms
+1:00:29 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 4ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+1:00:33 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 2m…
+1:00:34 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 7ms
+1:00:39 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 7ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+1:00:43 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+1:00:44 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 6ms
+1:00:49 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 3ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+1:00:53 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+1:00:54 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 6ms
+1:00:59 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 8ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+1:01:03 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 1m…
+1:01:04 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 7ms
+1:01:09 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 6ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+1:01:13 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 2m…
+1:01:14 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 6ms
+1:01:19 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 7ms
+[getTeamStandings] meet_scoring_rules table not found (schema needs migration): no such table: meet_scoring_rules
+1:01:23 AM [express] GET /api/meets/b30c00da-853e-4ce6-9624-1a5a93a30a31/scoring/standings 304 in 2m…
+1:01:24 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 200 in 6ms
+1:01:29 AM [express] GET /api/events/current/b30c00da-853e-4ce6-9624-1a5a93a30a31 
