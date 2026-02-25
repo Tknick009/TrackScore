@@ -66,6 +66,19 @@ interface LynxFieldResult {
 }
 
 // Clean event name by removing common suffixes like "Run" and "Dash" from FinishLynx
+// Convert a metric field mark (meters as string) to US feet-inches format: "5-03.38"
+// Returns the original string unchanged if it's not a parseable number (DNS, NM, FOUL, X, --, etc.)
+function metersToFeetInches(meters: string | undefined): string {
+  if (!meters) return '';
+  const m = parseFloat(meters);
+  if (isNaN(m) || m <= 0) return meters;
+  const totalInches = m * 39.3701;
+  const feet = Math.floor(totalInches / 12);
+  const inches = totalInches % 12;
+  const inchesStr = inches.toFixed(2).padStart(5, '0');  // e.g. "03.38"
+  return `${feet}-${inchesStr}`;
+}
+
 function cleanEventName(name: string | undefined): string | undefined {
   if (!name) return name;
   // Replace "Meter" or "Meters" with "M" (e.g., "Men 3000 Meter Steeplechase" -> "Men 3000M Steeplechase")
@@ -1233,7 +1246,7 @@ export class LynxListener extends EventEmitter {
         attemptNumber: data.AN,
         attempts: attempts,
         wind: wind,
-        markConverted: data.MC,
+        markConverted: data.MC || metersToFeetInches(mark),
         bestMark: data.FSM,
         orderOfDraw: data.OD,
         orderOfDrawName: data.ODN,

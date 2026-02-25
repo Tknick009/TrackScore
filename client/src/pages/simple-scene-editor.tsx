@@ -736,6 +736,7 @@ export default function SimpleSceneEditor() {
       case 'last-name-qualifier': return athleteData.lastName;
       case 'school': return athleteData.affiliation;
       case 'time': return athleteData.time;
+      case 'mark-converted': return '23-08.75';
       case 'reaction-time': return athleteData.reactionTime;
       case 'last-split': return athleteData.lastSplit;
       case 'cumulative-split': return athleteData.cumulativeSplit;

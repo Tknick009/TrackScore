@@ -110,10 +110,18 @@ export const FIELD_BINDINGS: Record<string, FieldBinding> = {
   },
   'time': {
     key: 'time',
-    label: 'Time/Mark',
+    label: 'Time/Mark (Metric)',
     type: 'text',
-    description: 'Finish time or field mark',
+    description: 'Finish time or field mark in metric (e.g. 7.23m)',
     dataKey: 'time',
+    category: 'result',
+  },
+  'mark-converted': {
+    key: 'mark-converted',
+    label: 'Mark (English)',
+    type: 'text',
+    description: 'Field mark converted to feet-inches (e.g. 23-08.75)',
+    dataKey: 'markConverted',
     category: 'result',
   },
   'last-split': {

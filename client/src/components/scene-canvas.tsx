@@ -643,6 +643,7 @@ export function SceneObjectRenderer({
             'last-name-qualifier-badge': qualifierStatus,
             'school': schoolDisplay,
             'time': firstEntry?.time || firstEntry?.mark,
+            'mark-converted': firstEntry?.markConverted || '',
             'last-split': firstEntry?.lastSplit,
             'cumulative-split': firstEntry?.cumulativeSplit,
             'reaction-time': firstEntry?.reactionTime,
