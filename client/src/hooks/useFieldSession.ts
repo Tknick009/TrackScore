@@ -14,6 +14,7 @@ import type {
   Entry,
 } from "@shared/schema";
 import { isHeightEvent } from "@shared/schema";
+import { metersToFeetInchesString, formatHeightMark as _sharedFormatHeightMark } from "@shared/formatting";
 
 const DEVICE_NAME_KEY = "fieldDeviceName";
 
@@ -40,8 +41,8 @@ export function getAthleteDisplayInfo(athlete: EnrichedAthlete) {
   return { name: "Unknown Athlete", bib: "-", team: "" };
 }
 
-export function formatHeightMark(meters: number): string {
-  return `${meters.toFixed(2)}m`;
+export function formatHeightMark(meters: number, unit: 'metric' | 'english' = 'metric'): string {
+  return _sharedFormatHeightMark(meters, unit);
 }
 
 export function getAthleteHeightAttempts(athleteId: number, heightIndex: number, marks: FieldEventMark[]): FieldEventMark[] {
@@ -110,28 +111,7 @@ export function countTotalMisses(athleteId: number, marks: FieldEventMark[]): nu
 }
 
 export function metersToFeetInches(meters: number): string {
-  const totalInches = meters * 39.3701;
-  const feet = Math.floor(totalInches / 12);
-  const remainingInches = totalInches % 12;
-  const wholeInches = Math.floor(remainingInches);
-  const fraction = remainingInches - wholeInches;
-
-  let fractionStr = "";
-  if (fraction >= 0.875) {
-    fractionStr = "";
-    return `${feet}' ${wholeInches + 1}"`;
-  } else if (fraction >= 0.625) {
-    fractionStr = "3/4";
-  } else if (fraction >= 0.375) {
-    fractionStr = "1/2";
-  } else if (fraction >= 0.125) {
-    fractionStr = "1/4";
-  }
-
-  if (fractionStr) {
-    return `${feet}' ${wholeInches} ${fractionStr}"`;
-  }
-  return `${feet}' ${wholeInches}"`;
+  return metersToFeetInchesString(meters);
 }
 
 /**
