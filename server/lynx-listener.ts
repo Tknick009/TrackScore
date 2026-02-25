@@ -88,12 +88,11 @@ function metersToFeetInches(meters: string | undefined): string {
   return `${feet}-${wholeInches}${fraction}`;
 }
 
-// Resolve the display mark: prefer A-net's MC field, then detect if M is already English,
-// otherwise convert from metric. A-net always sends MC="" even when it has a converted
-// value in other configurations, so we treat empty MC the same as absent.
-function resolveMarkConverted(rawMark: string | undefined, mcField: string | undefined): string {
-  if (mcField && mcField.trim() !== '') return mcField.trim(); // A-net provided it
-  return metersToFeetInches(rawMark);                          // detect/convert ourselves
+// Resolve the display mark for English conversion.
+// We always run our own conversion because A-net's MC field uses decimal inches
+// (e.g. "40-6.5") rather than the ¼-inch fraction format we display (e.g. "40-6¾").
+function resolveMarkConverted(rawMark: string | undefined, _mcField: string | undefined): string {
+  return metersToFeetInches(rawMark);
 }
 
 function cleanEventName(name: string | undefined): string | undefined {
