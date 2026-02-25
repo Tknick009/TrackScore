@@ -6058,13 +6058,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       if (!activeMeet) {
-        console.log(`[Field Auto-Standings] No meet with lynx directory configured`);
+        // Mark as attempted so we don't spam every 10s — will retry when new data arrives
+        state.inStandingsMode = true;
         return;
       }
       
       const ingestionSettingsResult = ingestionSettings;
       if (!ingestionSettings?.lynxFilesDirectory) {
-        console.log(`[Field Auto-Standings] No lynx directory configured for meet ${activeMeet.id}`);
+        // Mark as attempted so we don't spam every 10s — will retry when new data arrives
+        state.inStandingsMode = true;
         return;
       }
       
@@ -6076,7 +6078,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       
       if (!standings || standings.athletes.length === 0) {
-        console.log(`[Field Auto-Standings] No LFF files found for event ${state.eventNumber} round ${state.roundNumber}`);
+        // Mark as attempted so we don't spam — will retry when new data arrives
+        state.inStandingsMode = true;
         return;
       }
       
