@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useMeet } from "@/contexts/MeetContext";
+import { useWebSocket } from "@/contexts/WebSocketContext";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -670,6 +671,28 @@ export default function FieldEventsControl() {
   const [horizontalPrelimAttempts, setHorizontalPrelimAttempts] = useState(3);
   const [horizontalFinalists, setHorizontalFinalists] = useState(8);
   const [horizontalFinalAttempts, setHorizontalFinalAttempts] = useState(3);
+
+  // WebSocket listener for real-time field event updates from remote officials
+  const ws = useWebSocket();
+  useEffect(() => {
+    if (!ws) return;
+
+    const handleMessage = (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'field_event_update') {
+          // A remote official updated a field session — refresh session list and athletes
+          queryClient.invalidateQueries({ queryKey: ["/api/field-sessions"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/field-athletes", "bySession"] });
+        }
+      } catch {
+        // Ignore non-JSON messages
+      }
+    };
+
+    ws.addEventListener('message', handleMessage);
+    return () => ws.removeEventListener('message', handleMessage);
+  }, [ws]);
   
 
   interface EVTConfigData {

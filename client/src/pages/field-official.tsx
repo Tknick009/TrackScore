@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import leoneTimingLogo from "@assets/LTR-Raulli-sm_1766156518063.png";
+import { useWebSocket } from "@/contexts/WebSocketContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -2931,6 +2932,38 @@ function FieldEntryUI({
     refetchInterval: 5000,
     enabled: !!session,
   });
+
+  // WebSocket listener for real-time field event updates from other clients
+  const ws = useWebSocket();
+  useEffect(() => {
+    if (!ws) return;
+
+    const handleMessage = (event: MessageEvent) => {
+      try {
+        const message = JSON.parse(event.data);
+        if (message.type === 'field_event_update' && message.sessionId === sessionId) {
+          // Another client updated this session — invalidate our cached data
+          queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "full"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "athletes"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "marks"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "heights"] });
+        }
+      } catch {
+        // Ignore non-JSON messages
+      }
+    };
+
+    // Subscribe to this field session for targeted updates
+    ws.send(JSON.stringify({ type: 'subscribe_field_session', sessionId }));
+    ws.addEventListener('message', handleMessage);
+
+    return () => {
+      ws.removeEventListener('message', handleMessage);
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'unsubscribe_field_session', sessionId }));
+      }
+    };
+  }, [ws, sessionId]);
 
   // Detect if this is a vertical event (high jump / pole vault)
   const isVertical = session ? (
