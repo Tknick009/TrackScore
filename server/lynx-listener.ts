@@ -581,6 +581,11 @@ export class LynxListener extends EventEmitter {
     }
   }
 
+  // Strip trailing commas before } or ] — FieldLynx sends non-standard JSON like "MC":"",}}
+  private sanitizeJson(str: string): string {
+    return str.replace(/,\s*([}\]])/g, '$1');
+  }
+
   // Parse multiple JSON objects from a concatenated string (for HTTP forward)
   // FinishLynx often sends concatenated JSON without delimiters: {...}{...}
   private parseJsonObjectsFromLine(input: string): any[] {
@@ -623,14 +628,14 @@ export class LynxListener extends EventEmitter {
             // FinishLynx messages have nested D object
             jsonStr = jsonStr.replace(/\}$/, '}}');
           }
-          const parsed = JSON.parse(jsonStr);
+          const parsed = JSON.parse(this.sanitizeJson(jsonStr));
           if (parsed && parsed.T) {
             results.push(parsed);
           }
         } catch {
           // Try without the extra brace fix
           try {
-            const parsed = JSON.parse(currentJson);
+            const parsed = JSON.parse(this.sanitizeJson(currentJson));
             if (parsed && parsed.T) {
               results.push(parsed);
             }
@@ -695,7 +700,7 @@ export class LynxListener extends EventEmitter {
       remaining = remaining.substring(endIndex);
       
       try {
-        const parsed = JSON.parse(jsonStr);
+        const parsed = JSON.parse(this.sanitizeJson(jsonStr));
         results.push(parsed);
       } catch {
         // Skip invalid JSON
@@ -712,10 +717,10 @@ export class LynxListener extends EventEmitter {
     if (jsonObjects.length === 0) {
       // Try legacy single JSON parse as fallback
       try {
-        const data = JSON.parse(line);
+        const data = JSON.parse(this.sanitizeJson(line));
         jsonObjects.push(data);
       } catch {
-        console.error(`[Lynx] No valid JSON found in line: ${line.substring(0, 100)}...`);
+        // Silently drop malformed/incomplete packets (e.g. FieldLynx keepalives with no values)
         return;
       }
     }
