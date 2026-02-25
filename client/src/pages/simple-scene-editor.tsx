@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { FieldTransitionRenderer } from "@/components/display/FieldTransitionRenderer";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -37,7 +38,7 @@ import {
   LayoutGrid, Minus, Download, FolderUp, Layers
 } from "lucide-react";
 
-type BoxType = 'text' | 'image';
+type BoxType = 'text' | 'image' | 'transition';
 
 interface LayoutBox {
   id: string;
@@ -350,7 +351,7 @@ export default function SimpleSceneEditor() {
     
     return {
       name: `Box ${box.id.slice(-4)}`,
-      objectType: box.type === 'image' ? 'logo' : 'text',
+      objectType: box.type === 'image' ? 'logo' : box.type === 'transition' ? 'field-transition' : 'text',
       x: box.x,
       y: box.y,
       width: box.width,
@@ -374,7 +375,7 @@ export default function SimpleSceneEditor() {
     y: obj.y,
     width: obj.width,
     height: obj.height,
-    type: obj.objectType === 'logo' ? 'image' : 'text',
+    type: obj.objectType === 'logo' ? 'image' : obj.objectType === 'field-transition' ? 'transition' : 'text',
     fieldKey: (obj.dataBinding as any)?.fieldKey || null,
     staticText: (obj.config as any)?.dynamicText,
     staticImageUrl: (obj.config as any)?.staticImageUrl,
@@ -1418,7 +1419,21 @@ export default function SimpleSceneEditor() {
                 }}
                 data-testid={`box-${box.id}`}
               >
-                {box.type === 'text' ? (
+                {box.type === 'transition' ? (
+                  showPreview ? (
+                    <FieldTransitionRenderer
+                      fieldPort={box.fieldPort!}
+                      curtainColor={box.style?.backgroundColor || '#001e57'}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center gap-1" style={{ border: '2px dashed rgba(99,179,237,0.5)', background: 'rgba(99,179,237,0.08)' }}>
+                      <Layers className="w-5 h-5" style={{ color: 'rgba(99,179,237,0.7)' }} />
+                      <span style={{ color: 'rgba(99,179,237,0.7)', fontSize: `${10 * (displayWidth / canvasWidth)}px`, fontFamily: 'monospace' }}>
+                        TRANSITION {box.fieldPort ? `· Port ${box.fieldPort}` : '· No port'}
+                      </span>
+                    </div>
+                  )
+                ) : box.type === 'text' ? (
                   <>
                     <span className="truncate">
                       {showPreview 
@@ -1589,8 +1604,40 @@ export default function SimpleSceneEditor() {
                     <Image className="w-4 h-4 mr-1" />
                     Image
                   </Button>
+                  <Button
+                    variant={selectedBox.type === 'transition' ? 'default' : 'outline'}
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => updateSelectedBox({ type: 'transition', fieldKey: null })}
+                    data-testid="button-type-transition"
+                  >
+                    <Layers className="w-4 h-4 mr-1" />
+                    Transition
+                  </Button>
                 </div>
               </div>
+
+              {/* Transition config — shown only for transition boxes */}
+              {selectedBox.type === 'transition' && (
+                <>
+                  <Separator />
+                  <div className="space-y-3 p-3 bg-muted/50 rounded-md">
+                    <Label className="text-xs font-medium">Curtain Color</Label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={selectedBox.style?.backgroundColor?.replace(/[^#\w]/g, '') || '#001e57'}
+                        onChange={(e) => updateSelectedBox({ style: { ...selectedBox.style, backgroundColor: e.target.value } })}
+                        className="w-10 h-8 rounded cursor-pointer border border-border"
+                        data-testid="input-curtain-color"
+                      />
+                      <span className="text-xs text-muted-foreground">
+                        Color of the curtain wipe. Set the Field Port below to activate.
+                      </span>
+                    </div>
+                  </div>
+                </>
+              )}
               
               <Separator />
               
