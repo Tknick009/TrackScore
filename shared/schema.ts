@@ -313,6 +313,8 @@ export const teams = pgTable("teams", {
   abbreviation: text("abbreviation"),
   menScoreOverride: real("men_score_override"),
   womenScoreOverride: real("women_score_override"),
+  primaryColor: text("primary_color"), // Team's primary brand color (hex)
+  secondaryColor: text("secondary_color"), // Team's secondary brand color (hex)
 }, (table) => ({
   meetIdIdx: index("teams_meet_id_idx").on(table.meetId),
   meetTeamUnique: unique("teams_meet_team_unique").on(table.meetId, table.teamNumber),

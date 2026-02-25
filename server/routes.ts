@@ -1637,6 +1637,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Look up team by affiliation name for curtain colors
+  app.get("/api/teams/by-affiliation", async (req, res) => {
+    try {
+      const { name, meetId } = req.query;
+      if (!name) return res.status(400).json({ error: "name required" });
+      const nameStr = String(name).toLowerCase().trim();
+      const teamsToSearch = meetId
+        ? await storage.getTeamsByMeetId(String(meetId))
+        : await storage.getTeams();
+      const match = teamsToSearch.find(t =>
+        t.name.toLowerCase().trim() === nameStr ||
+        (t.shortName && t.shortName.toLowerCase().trim() === nameStr) ||
+        (t.abbreviation && t.abbreviation.toLowerCase().trim() === nameStr) ||
+        t.name.toLowerCase().includes(nameStr) ||
+        nameStr.includes(t.name.toLowerCase().trim())
+      );
+      if (!match) return res.status(404).json({ error: "Team not found" });
+      res.json({ id: match.id, name: match.name, primaryColor: match.primaryColor, secondaryColor: match.secondaryColor });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Update team colors
+  app.patch("/api/teams/:id/colors", async (req, res) => {
+    try {
+      const { primaryColor, secondaryColor } = req.body;
+      const team = await storage.getTeam(req.params.id);
+      if (!team) return res.status(404).json({ error: "Team not found" });
+      const updated = await storage.updateTeam(req.params.id, { primaryColor, secondaryColor });
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.patch("/api/teams/:id/score-override", async (req, res) => {
     try {
       const teamId = req.params.id;

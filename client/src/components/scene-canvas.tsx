@@ -264,18 +264,20 @@ export function SceneObjectRenderer({
   const mode = liveData?.mode || '';
   const isResultsMode = mode === 'results' || mode === 'finished';
   const isPreRaceMode = mode === 'armed' || mode === 'start_list' || mode === '';
+  // Field event modes always show content — no timing-based fade
+  const isFieldMode = mode === 'standings' || mode === 'athlete_up' || mode === 'field_results' || mode === 'multi_field';
   
   if (athleteIndex !== undefined && athleteIndex >= 0 && liveData) {
     const entries = Array.isArray(liveData.entries) ? liveData.entries : [];
     const entry = entries[athleteIndex];
     if (!entry) {
       contentFadeOpacity = 0;
-    } else if (!isResultsMode && !isPreRaceMode) {
+    } else if (!isResultsMode && !isPreRaceMode && !isFieldMode) {
       const hasLastSplit = entry.lastSplit && String(entry.lastSplit).trim() !== '';
       const hasCumulativeSplit = entry.cumulativeSplit && String(entry.cumulativeSplit).trim() !== '';
       const hasTime = entry.time && String(entry.time).trim() !== '';
-      const hasRunningTime = entry.runningTime && String(entry.runningTime).trim() !== '';
-      const hasPlace = entry.place && String(entry.place).trim() !== '';
+      const hasRunningTime = entry.runningMode && String(entry.runningTime).trim() !== '';
+      const hasPlace = entry.place && String(entry.place).trim() !== '' && entry.place !== '--';
       const hasTimingData = hasLastSplit || hasCumulativeSplit || hasTime || hasRunningTime || hasPlace;
       contentFadeOpacity = hasTimingData ? 1 : 0;
     }
@@ -1106,6 +1108,7 @@ export function SceneObjectRenderer({
           <FieldTransitionRenderer
             fieldPort={ftPort}
             curtainColor={ftColor}
+            meetId={meetId}
           />
         );
       }
