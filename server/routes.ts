@@ -7045,48 +7045,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // Store field event data to database (accumulate results, don't overwrite)
-      const existing = await storage.getLiveEventData(eventNumber);
-      
-      // Merge with existing results if available
-      if (existing?.entries && Array.isArray(existing.entries)) {
-        const existingResults = existing.entries as any[];
-        for (const newResult of (data.results || [])) {
-          const existingIdx = existingResults.findIndex((e: any) => 
-            (e.bib && e.bib === newResult.bib) || (e.name && e.name === newResult.name)
-          );
-          if (existingIdx >= 0) {
-            existingResults[existingIdx] = { ...existingResults[existingIdx], ...newResult };
-          } else {
-            existingResults.push(newResult);
-          }
-        }
-        accumulatedResults = existingResults;
-      }
-      
-      // Identify the currently called-up athlete from the incoming batch (empty mark = on deck)
-      const calledUpAthlete = (data.results || []).find((r: any) => !r.mark || r.mark === '');
-      
-      const hasValidPlace = (e: any) => { const p = parseInt(e.place); return !isNaN(p) && p > 0; };
-
-      // Only re-sort when FinishLynx explicitly calls someone up (empty mark).
-      // When no one is called up (e.g. a foul was just recorded, standings update, etc.)
-      // preserve the existing order so the display stays on whoever was already shown.
-      if (calledUpAthlete) {
-        const isCalledUp = (e: any) =>
-          (calledUpAthlete.bib && e.bib === calledUpAthlete.bib) || e.name === calledUpAthlete.name;
-        accumulatedResults.sort((a: any, b: any) => {
-          const aUp = isCalledUp(a) ? 1 : 0;
-          const bUp = isCalledUp(b) ? 1 : 0;
-          if (aUp !== bUp) return bUp - aUp;
-          const aPlaced = hasValidPlace(a);
-          const bPlaced = hasValidPlace(b);
-          if (aPlaced && bPlaced) return (parseInt(a.place) || 999) - (parseInt(b.place) || 999);
-          if (aPlaced) return -1;
-          if (bPlaced) return 1;
-          return 0;
-        });
-      }
+      // Use exactly what FieldLynx sent — no merging with DB history.
+      // Past attempts are irrelevant; the display shows only the current live state.
+      accumulatedResults = data.results || [];
       
       await storage.upsertLiveEventData({
         eventNumber,

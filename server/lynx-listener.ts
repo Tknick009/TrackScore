@@ -178,20 +178,23 @@ export class LynxListener extends EventEmitter {
           return laneA - laneB;
         }
       } else if (event.type === 'F') {
-        // Field results: athletes with marks sort by place; no-mark athletes after
+        // Field results: called-up athlete (no mark) goes first so the display
+        // immediately shows whoever is on the runway/runway.
+        // Then athletes with valid numeric places by rank, then unplaced (FOUL/NM/etc).
         const hasMark = (e: any) => e.mark && e.mark !== '';
+        const hasValidPlace = (e: any) => { const p = parseInt(e.place); return !isNaN(p) && p > 0; };
         const markA = hasMark(a);
         const markB = hasMark(b);
-        if (markA && markB) {
-          const placeA = parseInt(a.place) || 999;
-          const placeB = parseInt(b.place) || 999;
-          return placeA - placeB;
-        } else if (markA) {
-          return -1; // a has mark, b doesn't — a goes first
-        } else if (markB) {
-          return 1;
-        }
-        // Both no mark — keep original order
+        if (!markA && !markB) return 0; // both called-up, keep order
+        if (!markA) return -1; // a has no mark (on deck) → goes first
+        if (!markB) return 1;  // b has no mark (on deck) → goes first
+        // Both have marks: placed athletes by rank, then unplaced (FOUL/NM)
+        const placedA = hasValidPlace(a);
+        const placedB = hasValidPlace(b);
+        if (placedA && placedB) return (parseInt(a.place) || 999) - (parseInt(b.place) || 999);
+        if (placedA) return -1;
+        if (placedB) return 1;
+        return 0; // both unplaced (foul/nm) — keep order
       }
       return 0;
     });
