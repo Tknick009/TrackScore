@@ -10,7 +10,7 @@ export function FieldTransitionRenderer({
   fieldPort: number;
   curtainColor: string;
 }) {
-  const { ws } = useWebSocket();
+  const ws = useWebSocket();
   const [phase, setPhase] = useState<CurtainPhase>('idle');
   const [logoSrc, setLogoSrc] = useState<string | null>(null);
   const prevCalledBibRef = useRef<string>('');
