@@ -169,45 +169,58 @@ export function FieldTransitionRenderer({
     top: 0,
     height: '100%',
     width: '50%',
+    overflow: 'hidden',
     background: gradient,
     zIndex: 50,
     transition: panelTransition,
   };
 
-  // Only show logo when panels are fully closed
-  const showLogo = isPaused && !!logoSrc;
+  // Logo image shared style — sized relative to full viewport
+  // maxWidth 65% of 200%-wide inner container = 65% of viewport
+  const logoImgStyle: React.CSSProperties = {
+    maxHeight: '65%',
+    maxWidth: '65%',
+    objectFit: 'contain',
+    filter: 'drop-shadow(0 4px 24px rgba(0,0,0,0.5))',
+    userSelect: 'none',
+  };
+
+  // Inner container spans full viewport width so logo appears centered on screen.
+  // Each panel's overflow:hidden then clips to its own half, so the logo splits at the seam.
+  const logoInnerBase: React.CSSProperties = {
+    position: 'absolute',
+    top: 0,
+    height: '100%',
+    width: '200%',         // = full viewport width
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    pointerEvents: 'none',
+  };
+
+  const hideLogoOnError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    (e.target as HTMLImageElement).style.display = 'none';
+  };
 
   return (
     <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', zIndex: 50, pointerEvents: 'none' }}>
-      <div style={{ ...panelBase, left: 0, transform: leftTransform }} />
-      <div style={{ ...panelBase, right: 0, transform: rightTransform }} />
-      {showLogo && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 51,
-            pointerEvents: 'none',
-          }}
-        >
-          <img
-            src={logoSrc}
-            alt=""
-            style={{
-              maxHeight: '65%',
-              maxWidth: '65%',
-              objectFit: 'contain',
-              filter: 'drop-shadow(0 4px 24px rgba(0,0,0,0.5))',
-            }}
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = 'none';
-            }}
-          />
-        </div>
-      )}
+      {/* Left panel — carries the left half of the logo */}
+      <div style={{ ...panelBase, left: 0, transform: leftTransform }}>
+        {logoSrc && (
+          <div style={{ ...logoInnerBase, left: 0 }}>
+            <img src={logoSrc} alt="" style={logoImgStyle} onError={hideLogoOnError} />
+          </div>
+        )}
+      </div>
+
+      {/* Right panel — carries the right half of the logo */}
+      <div style={{ ...panelBase, right: 0, transform: rightTransform }}>
+        {logoSrc && (
+          <div style={{ ...logoInnerBase, right: 0 }}>
+            <img src={logoSrc} alt="" style={logoImgStyle} onError={hideLogoOnError} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
