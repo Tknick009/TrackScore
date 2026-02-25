@@ -481,7 +481,7 @@ export default function DisplayDevice() {
             const data = message.data;
             const myDeviceId = registeredDeviceIdRef.current;
             if (data && data.deviceId === myDeviceId) {
-              console.log(`[Display] Device config update: fieldPort=${data.fieldPort}, isBigBoard=${data.isBigBoard}`);
+              console.log(`[Display] Device config update: fieldPort=${data.fieldPort}, isBigBoard=${data.isBigBoard}, displayMode=${data.displayMode}`);
               if (data.fieldPort !== undefined) {
                 setFieldPort(data.fieldPort ?? 4560);
               }
@@ -497,6 +497,10 @@ export default function DisplayDevice() {
               if (data.displayType !== undefined) {
                 setState(prev => ({ ...prev, displayType: data.displayType }));
               }
+              if (data.displayMode !== undefined) {
+                setIsFieldMode(data.displayMode === 'field');
+                console.log(`[Display] Display mode updated to: ${data.displayMode} (isFieldMode: ${data.displayMode === 'field'})`);
+              }
             }
           }
           
@@ -504,6 +508,16 @@ export default function DisplayDevice() {
             const newAutoMode = message.autoMode !== false;
             autoModeRef.current = newAutoMode;
             console.log(`[Display] Auto-mode ${newAutoMode ? 'ENABLED' : 'DISABLED'}`);
+          }
+
+          if (message.type === 'display_mode_change') {
+            const data = message.data;
+            const myDeviceId = registeredDeviceIdRef.current;
+            if (data && data.deviceId === myDeviceId && data.displayMode !== undefined) {
+              const isField = data.displayMode === 'field';
+              setIsFieldMode(isField);
+              console.log(`[Display] Display mode changed to: ${data.displayMode} (isFieldMode: ${isField})`);
+            }
           }
           
           // Clock update - just pass through exactly what FinishLynx sends
@@ -856,34 +870,28 @@ export default function DisplayDevice() {
                 }));
               }
               
-              if (!autoModeRef.current) {
-                console.log(`[Display] Auto-mode disabled - ignoring field mode scene switch`);
-                return;
-              }
-              
-              // Port-based routing for liveEventData (single): In field mode, only show data from our selected port
-              // Track mode displays ignore field data, field mode displays filter by port
-              if (isFieldModeRef.current) {
-                // If data has a port and it doesn't match ours, skip updating liveEventData (single)
-                if (dataPort && dataPort !== myPort) {
-                  console.log(`[Display] Field data for port ${dataPort} stored in map, skipping liveEventData (listening on ${myPort})`);
-                  return;
-                }
-                
-                // If this is a port-specific message, check if it's for our port
-                if (isPortSpecificFieldChange) {
-                  const messagePort = parseInt(message.type.replace('field_mode_change_', ''));
-                  if (messagePort !== myPort) {
-                    return; // Not for us
-                  }
-                }
-                
-                console.log(`[Display] Field mode change (port ${myPort}): Event ${data.eventNumber}, ${data.results?.length || 0} results`);
-              } else {
-                // Track mode - ignore field data for liveEventData
+              // Track mode displays ignore field data entirely
+              if (!isFieldModeRef.current) {
                 console.log(`[Display] Ignoring field data - display is in track mode`);
                 return;
               }
+              
+              // Field displays: auto-mode does not gate field data (it's a track-only concept)
+              // Port-based routing: only show data from our selected port
+              if (dataPort && dataPort !== myPort) {
+                console.log(`[Display] Field data for port ${dataPort} stored in map, skipping liveEventData (listening on ${myPort})`);
+                return;
+              }
+              
+              // If this is a port-specific message, check if it's for our port
+              if (isPortSpecificFieldChange) {
+                const messagePort = parseInt(message.type.replace('field_mode_change_', ''));
+                if (messagePort !== myPort) {
+                  return; // Not for us
+                }
+              }
+              
+              console.log(`[Display] Field mode change (port ${myPort}): Event ${data.eventNumber}, ${data.results?.length || 0} results`);
               
               // Determine the display mode based on field type (vertical vs horizontal) and multi-event status
               const isMultiEvent = data.isMultiEvent;

@@ -2693,6 +2693,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           isBigBoard: finalDevice?.isBigBoard,
           pagingSize: finalDevice?.pagingSize,
           pagingInterval: finalDevice?.pagingInterval,
+          displayMode: finalDevice?.displayMode,
         }
       } as WSMessage);
 
