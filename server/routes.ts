@@ -7069,13 +7069,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Sort results: called-up athlete first, then placed athletes by rank, then unplaced (FOUL/NM/etc)
       const hasValidPlace = (e: any) => { const p = parseInt(e.place); return !isNaN(p) && p > 0; };
-      const isCalledUp = (e: any) => calledUpAthlete && (
-        (calledUpAthlete.bib && e.bib === calledUpAthlete.bib) || e.name === calledUpAthlete.name
+
+      // When no athlete is explicitly called-up (e.g. a FOUL was just recorded with no next athlete
+      // called yet), pin the most-recently-acted athlete (has a mark but no valid place) to the top
+      // so the display stays on them instead of jumping to whoever has the best place.
+      const justActedAthlete = !calledUpAthlete
+        ? (data.results || []).find((r: any) => r.mark && r.mark !== '' && !hasValidPlace(r))
+        : null;
+
+      const pinnedAthlete = calledUpAthlete || justActedAthlete;
+      const isPinned = (e: any) => pinnedAthlete && (
+        (pinnedAthlete.bib && e.bib === pinnedAthlete.bib) || e.name === pinnedAthlete.name
       );
       accumulatedResults.sort((a: any, b: any) => {
-        const aUp = isCalledUp(a) ? 1 : 0;
-        const bUp = isCalledUp(b) ? 1 : 0;
-        if (aUp !== bUp) return bUp - aUp; // called-up athlete goes first
+        const aUp = isPinned(a) ? 1 : 0;
+        const bUp = isPinned(b) ? 1 : 0;
+        if (aUp !== bUp) return bUp - aUp; // pinned athlete goes first
         const aPlaced = hasValidPlace(a);
         const bPlaced = hasValidPlace(b);
         if (aPlaced && bPlaced) return (parseInt(a.place) || 999) - (parseInt(b.place) || 999);
