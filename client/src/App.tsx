@@ -26,7 +26,6 @@ import JudgePage from "@/pages/judge";
 import OverlayPage from "@/pages/overlay";
 import MasterDisplayPage from "@/pages/master-display";
 import VisualLayoutDesigner from "@/pages/visual-layout-designer";
-import SceneEditor from "@/pages/scene-editor";
 import SimpleSceneEditor from "@/pages/simple-scene-editor";
 import SceneDisplay from "@/pages/scene-display";
 import DisplayLauncher from "@/pages/display-launcher";
@@ -109,8 +108,7 @@ function MeetControlRouter() {
     if (subPath === "displays/control") return <DisplayControlPage />;
     if (subPath === "displays/customize") return <DisplayCustomizePage />;
     if (subPath === "layouts/designer" || subPath.startsWith("layouts/designer/")) return <LayoutDesigner />;
-    if (subPath === "scene-editor") return <SimpleSceneEditor />;
-    if (subPath === "scene-editor-advanced") return <SceneEditor />;
+    if (subPath === "scene-editor" || subPath === "scene-editor-advanced") return <SimpleSceneEditor />;
     if (subPath === "displays/launcher") return <DisplayLauncher />;
     if (subPath === "displays") return <DisplayHub />;
     if (subPath === "setup") return <MeetSetup />;
