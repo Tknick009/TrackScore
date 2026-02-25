@@ -19,13 +19,11 @@ import CheckIn from "@/pages/checkin";
 import Import from "@/pages/import";
 import DisplayCustomizePage from "@/pages/DisplayCustomizePage";
 import DisplayControlPage from "@/pages/display-control";
-import DisplayExamples from "@/pages/display-examples";
 import LayoutDesigner from "@/pages/layout-designer";
 import CompositeDisplayPage from "@/pages/composite-display";
 import JudgePage from "@/pages/judge";
 import OverlayPage from "@/pages/overlay";
 import MasterDisplayPage from "@/pages/master-display";
-import VisualLayoutDesigner from "@/pages/visual-layout-designer";
 import SimpleSceneEditor from "@/pages/simple-scene-editor";
 import SceneDisplay from "@/pages/scene-display";
 import DisplayLauncher from "@/pages/display-launcher";
@@ -131,12 +129,10 @@ function Router() {
       <Route path="/cloud-sync" component={CloudSync} />
       <Route path="/load-meet" component={LoadMeet} />
       <Route path="/meets/:id" component={MeetDetail} />
-      <Route path="/display-examples" component={DisplayExamples} />
       <Route path="/composite-display/:layoutId" component={CompositeDisplayPage} />
       <Route path="/judge" component={JudgePage} />
       <Route path="/overlay/:type" component={OverlayPage} />
       <Route path="/master-display" component={MasterDisplayPage} />
-      <Route path="/visual-designer" component={VisualLayoutDesigner} />
       <Route path="/scene-display/:sceneId" component={SceneDisplay} />
       <Route path="/scene-display" component={SceneDisplay} />
       <Route path="/preset-display/:templateId" component={PresetDisplay} />
