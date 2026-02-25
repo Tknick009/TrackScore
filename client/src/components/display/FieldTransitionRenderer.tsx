@@ -72,10 +72,12 @@ export function FieldTransitionRenderer({
       try {
         const msg = JSON.parse(e.data);
 
-        // Accept port-specific channel (when fieldPort is configured) OR global channel
+        // When a specific fieldPort is configured, only accept that port's channel.
+        // Only fall back to the global channel if no fieldPort is set — prevents
+        // all 5 boards triggering the curtain on every field event.
         const portMatch = fieldPort && msg.type === `field_mode_change_${fieldPort}`;
-        const globalMatch = msg.type === 'field_mode_change';
-        if (!portMatch && !globalMatch) return;
+        const globalFallback = !fieldPort && msg.type === 'field_mode_change';
+        if (!portMatch && !globalFallback) return;
 
         // If both port-specific and global fire, prefer port-specific
         // (global fires first on the same tick, port-specific fires right after)
