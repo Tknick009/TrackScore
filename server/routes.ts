@@ -5895,7 +5895,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { ports, meetId, saveToDatabase } = configSchema.parse(req.body);
       
       // Stop existing listeners
-      lynxListener.stop();
+      await lynxListener.stop();
       
       // Configure and start new listeners
       lynxListener.configure(ports);
@@ -5939,7 +5939,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Stop Lynx listeners
   app.post("/api/lynx/stop", async (req, res) => {
     try {
-      lynxListener.stop();
+      await lynxListener.stop();
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -5984,7 +5984,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         { port: fieldPort || 4003, portType: 'field' as const, name: 'Field', host },
       ];
       
-      lynxListener.stop();
+      await lynxListener.stop();
       lynxListener.configure(ports);
       
       if (enabled) {
@@ -6014,7 +6014,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Reconnect Lynx listeners
   app.post("/api/lynx/reconnect/:meetId", async (req, res) => {
     try {
-      lynxListener.stop();
+      await lynxListener.stop();
       lynxListener.start();
       res.json({ success: true, status: lynxListener.getStatus() });
     } catch (error: any) {

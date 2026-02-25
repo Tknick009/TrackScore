@@ -1432,20 +1432,24 @@ export class LynxListener extends EventEmitter {
     }
   }
 
-  stop() {
-    Array.from(this.servers.entries()).forEach(([key, server]) => {
-      server.close(() => {
-        console.log(`[Lynx] Stopped listener for ${key}`);
-      });
-      
-      const clients = this.clients.get(key);
-      if (clients) {
-        Array.from(clients).forEach(client => {
-          client.destroy();
+  async stop(): Promise<void> {
+    const closePromises = Array.from(this.servers.entries()).map(([key, server]) => {
+      return new Promise<void>((resolve) => {
+        // Destroy all existing client sockets immediately so close() fires right away
+        const clients = this.clients.get(key);
+        if (clients) {
+          Array.from(clients).forEach(c => c.destroy());
+          clients.clear();
+        }
+        // closeAllConnections() is Node 18.2+ — kills any lingering half-open sockets
+        (server as any).closeAllConnections?.();
+        server.close(() => {
+          console.log(`[Lynx] Stopped listener on ${key}`);
+          resolve();
         });
-        clients.clear();
-      }
+      });
     });
+    await Promise.all(closePromises);
     this.servers.clear();
   }
 
