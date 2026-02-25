@@ -483,7 +483,16 @@ export default function DisplayDevice() {
             if (data && data.deviceId === myDeviceId) {
               console.log(`[Display] Device config update: fieldPort=${data.fieldPort}, isBigBoard=${data.isBigBoard}, displayMode=${data.displayMode}`);
               if (data.fieldPort !== undefined) {
-                setFieldPort(data.fieldPort ?? 4560);
+                const newPort = data.fieldPort ?? 4560;
+                if (newPort !== fieldPortRef.current) {
+                  // Update ref immediately — don't wait for useEffect — so the filter
+                  // on the very next incoming message uses the correct port.
+                  fieldPortRef.current = newPort;
+                  // Clear any stale data that was showing from the old port so it
+                  // doesn't remain on screen until new data arrives.
+                  setState(prev => ({ ...prev, liveEventData: null }));
+                }
+                setFieldPort(newPort);
               }
               if (data.isBigBoard !== undefined) {
                 setIsBigBoard(!!data.isBigBoard);
