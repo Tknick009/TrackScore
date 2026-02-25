@@ -7222,6 +7222,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Display reads entries[0] for Line 1, entries[1] for Line 2, etc.
   // IMPORTANT: FinishLynx sends entries in display order - DO NOT sort!
   lynxListener.on('start-list', async (eventNumber, heat, entries, metadata) => {
+    // Field events emit a synthetic start-list so the server knows athletes are present,
+    // but they must NOT broadcast a start_list message — that would briefly flip the
+    // field display into track start_list mode and cause the PASS/FOUL flash.
+    // Field displays get all their data from field_mode_change / field_mode_change_<port>.
+    const isFieldSource = metadata?.sourcePortType === 'field';
+    if (isFieldSource) return;
+
     const isBigBoard = metadata?.sourcePortType === 'results_big';
     const acc = isBigBoard ? entryAccumulatorBig : entryAccumulator;
     
