@@ -595,7 +595,16 @@ export class LynxListener extends EventEmitter {
   }
 
   // Strip trailing commas before } or ] — FieldLynx sends non-standard JSON like "MC":"",}}
+  // Also fix unquoted string values — FieldLynx sends "DN":Men Weight Throw, (no quotes around value)
   private sanitizeJson(str: string): string {
+    // Fix unquoted string values: "KEY":unquoted text, → "KEY":"unquoted text",
+    // Only matches values starting with a letter (not digits, booleans, null, or already-quoted strings)
+    str = str.replace(/"([^"]+)":\s*([A-Za-z][^",{}\[\]]*?)(\s*[,}\]])/g, (match, key, value, end) => {
+      const trimmed = value.trim();
+      if (trimmed === 'true' || trimmed === 'false' || trimmed === 'null') return match;
+      return `"${key}":"${trimmed}"${end}`;
+    });
+    // Strip trailing commas before } or ]
     return str.replace(/,\s*([}\]])/g, '$1');
   }
 
