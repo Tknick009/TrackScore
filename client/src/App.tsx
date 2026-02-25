@@ -37,6 +37,7 @@ import MeetSetup from "@/pages/meet-setup";
 import FieldOfficialPage from "@/pages/field-official";
 import FieldApp from "@/pages/field-app";
 import FieldEventsControl from "@/pages/field-events-control";
+import FieldCommandCenter from "@/pages/field-command-center";
 import ExternalScoreboards from "@/pages/external-scoreboards";
 import CloudSync from "@/pages/cloud-sync";
 import LoadMeet from "@/pages/load-meet";
@@ -143,6 +144,7 @@ function Router() {
       <Route path="/preset-display/:templateId" component={PresetDisplay} />
       <Route path="/display" component={DisplayDevice} />
       <Route path="/field-app" component={FieldApp} />
+      <Route path="/field-command" component={FieldCommandCenter} />
       <Route path="/field/:accessCode" component={FieldOfficialPage} />
       <Route path="/field" component={FieldOfficialPage} />
       <Route path="/lap-counter/display" component={LapCounterDisplay} />
