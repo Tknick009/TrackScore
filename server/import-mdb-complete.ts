@@ -642,12 +642,10 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       
       const hytekStatusRaw = row.Event_stat || row.Event_status || row.Event_Status || null;
       let hytekStatus: string | null = null;
-      const scoreEventRaw = row.Score_event;
-      const scoreEvent = scoreEventRaw === true || scoreEventRaw === 1 || scoreEventRaw === -1 ||
-        scoreEventRaw === "Y" || scoreEventRaw === "y" ||
-        (typeof scoreEventRaw === 'number' && scoreEventRaw !== 0) ||
-        (typeof scoreEventRaw === 'string' && scoreEventRaw.trim().toLowerCase() === 'true');
-      let isScored = scoreEvent;
+      // Score_event means "eligible for team scoring" (i.e. points are awarded for this event)
+      // This is NOT the same as "event has been scored/completed" — don't use it as isScored
+      // isScored should only be true when Event_stat indicates the event is actually scored/done
+      let isScored = false;
       
       if (hytekStatusRaw != null) {
         const statusStr = String(hytekStatusRaw).trim();
@@ -683,7 +681,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       }
       
       if (eventNum > 0) {
-        console.log(`   📊 Event ${eventNum}: Score_event=${JSON.stringify(scoreEventRaw)} (type=${typeof scoreEventRaw}), Event_stat=${JSON.stringify(hytekStatusRaw)}, isScored=${isScored}`);
+        console.log(`   📊 Event ${eventNum}: Event_stat=${JSON.stringify(hytekStatusRaw)}, hytekStatus=${hytekStatus}, isScored=${isScored}`);
       }
       
       // Get session info for this event (if available) - use Event_ptr to match Sess_ptr

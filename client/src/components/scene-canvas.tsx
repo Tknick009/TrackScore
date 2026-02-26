@@ -690,7 +690,7 @@ export function SceneObjectRenderer({
               const rawPlace = firstEntry?.place;
               if (rawPlace === undefined || rawPlace === null || rawPlace === '') return rawPlace;
               const placeStr = String(rawPlace).trim();
-              return /^\d+$/.test(placeStr) ? `PL: ${placeStr}` : placeStr;
+              return placeStr;
             })(),
             'name': displayName,
             'first-name': isTeamScores ? (firstEntry?.name || '') : firstEntry?.firstName,
