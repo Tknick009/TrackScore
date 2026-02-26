@@ -1771,20 +1771,19 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
       fieldPort, // Port number for device routing (4560-4569)
     };
     
-    // Send field data ONLY to displays configured for this exact port.
-    // This is server-side filtering — no client-side state is involved,
-    // so port changes take effect the moment the DB and in-memory map are updated.
+    // Send field data to ALL connected display devices.
+    // Each scene object is bound to a specific port via dataBinding.fieldPort,
+    // so the client routes data to the correct object via liveEventDataByPort[port].
+    // This allows a single display to show 4+ field events from different ports simultaneously.
     const fieldMsg = JSON.stringify({ type: `field_mode_change_${fieldPort}`, data: fieldBroadcastData });
     let fieldRecipients = 0;
     for (const [, dev] of connectedDisplayDevices) {
-      if (dev.fieldPort === fieldPort && dev.ws.readyState === dev.ws.OPEN) {
+      if (dev.ws.readyState === dev.ws.OPEN) {
         dev.ws.send(fieldMsg);
         fieldRecipients++;
       }
     }
-    // Fallback: also send to legacy display clients that are NOT registered devices
-    // (e.g. plain browser tabs that never sent register_display_device)
-    // For these we still use the type-prefixed channel so clients can self-filter.
+    // Also send to legacy display clients that are NOT registered devices
     const registeredWs = new Set([...connectedDisplayDevices.values()].map(d => d.ws));
     for (const client of displayClients) {
       if (!registeredWs.has(client) && client.readyState === client.OPEN) {
