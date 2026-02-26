@@ -135,6 +135,7 @@ import {
   FieldSideBySide,
   SingleAthleteTrack,
   SingleAthleteField,
+  ProScoreboard,
 } from "@/components/display/templates";
 import { BroadcastDisplay } from "@/components/display/templates/BroadcastDisplay";
 import { 
@@ -1797,6 +1798,10 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             heat: liveEventData?.heat,
             round: liveEventData?.round,
           };
+      // Check if ProScoreboard template is selected
+      if (templateId === 'ProScoreboard' || templateId === 'pro-scoreboard') {
+        return <ProScoreboard event={eventWithLiveName as any} meet={meet} pagingSize={pagingSize} pagingIntervalMs={pagingInterval * 1000} />;
+      }
       return <BigBoard event={eventWithLiveName as any} meet={meet} pagingSize={pagingSize} pagingIntervalMs={pagingInterval * 1000} />;
     }
 
