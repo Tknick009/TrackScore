@@ -1101,6 +1101,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           .map((s: any, index: number) => ({
             place: String(index + 1),
             name: s.teamName || 'Unknown',
+            lastName: s.teamName || 'Unknown',
             affiliation: teamAbbrMap.get(s.teamId) || s.teamName || '',
             team: teamAbbrMap.get(s.teamId) || s.teamName || '',
             time: String(s.totalPoints || 0),
@@ -1123,6 +1124,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           .map((team, index: number) => ({
             place: String(index + 1),
             name: team.name || team.shortName || 'Unknown',
+            lastName: team.name || team.shortName || 'Unknown',
             affiliation: team.abbreviation || team.name || team.shortName || '',
             team: team.abbreviation || team.name || team.shortName || '',
             time: '0',
