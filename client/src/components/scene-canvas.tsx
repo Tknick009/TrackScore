@@ -1448,8 +1448,10 @@ export function SceneCanvas({
             }}
           >
             {sortedObjects.map((obj) => {
-              const objectLiveData = obj.dataBinding?.fieldPort && liveEventDataByPort?.[obj.dataBinding.fieldPort]
-                ? liveEventDataByPort[obj.dataBinding.fieldPort]
+              // If object is bound to a specific field port, ONLY show data from that port.
+              // Never fall back to global liveData — that would show the wrong event.
+              const objectLiveData = obj.dataBinding?.fieldPort
+                ? (liveEventDataByPort?.[obj.dataBinding.fieldPort] || null)
                 : liveData;
               return (
                 <SceneObjectRenderer 
@@ -1498,8 +1500,10 @@ export function SceneCanvas({
         key={`scene-${sceneId}`}
       >
         {sortedObjects.map((obj) => {
-          const objectLiveData = obj.dataBinding?.fieldPort && liveEventDataByPort?.[obj.dataBinding.fieldPort]
-            ? liveEventDataByPort[obj.dataBinding.fieldPort]
+          // If object is bound to a specific field port, ONLY show data from that port.
+          // Never fall back to global liveData — that would show the wrong event.
+          const objectLiveData = obj.dataBinding?.fieldPort
+            ? (liveEventDataByPort?.[obj.dataBinding.fieldPort] || null)
             : liveData;
           return (
             <SceneObjectRenderer 
@@ -1562,8 +1566,10 @@ export function SceneCanvas({
         }}
       >
         {sortedObjects.map((obj) => {
-          const objectLiveData = obj.dataBinding?.fieldPort && liveEventDataByPort?.[obj.dataBinding.fieldPort]
-            ? liveEventDataByPort[obj.dataBinding.fieldPort]
+          // If object is bound to a specific field port, ONLY show data from that port.
+          // Never fall back to global liveData — that would show the wrong event.
+          const objectLiveData = obj.dataBinding?.fieldPort
+            ? (liveEventDataByPort?.[obj.dataBinding.fieldPort] || null)
             : liveData;
           return (
             <SceneObjectRenderer 

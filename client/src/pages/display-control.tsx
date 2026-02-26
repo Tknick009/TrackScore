@@ -995,18 +995,16 @@ export default function DisplayControlPage() {
                                     delete next[selectedDevice.id];
                                     return next;
                                   });
-                                  toast({ title: `Port ${port} locked`, description: `${selectedDevice.deviceName} is now receiving from port ${port}` });
+                                  toast({ title: `Port ${port} set`, description: `${selectedDevice.deviceName} default port set to ${port}` });
                                 }}
                                 disabled={!pendingFieldPort[selectedDevice.id] || pendingFieldPort[selectedDevice.id] === selectedDevice.fieldPort}
                               >
                                 <Send className="w-4 h-4 mr-1" />
-                                Send
+                                Set
                               </Button>
                             </div>
                             <p className="text-xs text-muted-foreground">
-                              {pendingFieldPort[selectedDevice.id] && pendingFieldPort[selectedDevice.id] !== selectedDevice.fieldPort
-                                ? `Click Send to lock this display onto port ${pendingFieldPort[selectedDevice.id]}`
-                                : `Locked to port ${selectedDevice.fieldPort ?? 4560} — change port then click Send`}
+                              Default port for this device. Scene objects with their own port binding (set in Scene Editor) override this.
                             </p>
                           </div>
                         </div>
