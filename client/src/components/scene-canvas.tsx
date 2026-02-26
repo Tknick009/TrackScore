@@ -468,9 +468,12 @@ export function SceneObjectRenderer({
             const currentEventName = liveData.eventName || '';
             const eventNameLower = currentEventName.toLowerCase();
             const isRelayOrMedley = eventNameLower.includes('relay') || eventNameLower.includes('medley');
-            const schoolName = isRelayOrMedley 
-              ? (firstEntry?.name || firstEntry?.lastName || firstEntry?.affiliation || firstEntry?.team)
-              : (firstEntry?.lastName || firstEntry?.affiliation || firstEntry?.team);
+            const isTeamScoresMode = liveData.mode === 'team_scores';
+            const schoolName = isTeamScoresMode
+              ? (firstEntry?.name || firstEntry?.lastName || firstEntry?.team)
+              : isRelayOrMedley 
+                ? (firstEntry?.name || firstEntry?.affiliation || firstEntry?.team)
+                : (firstEntry?.affiliation || firstEntry?.team);
             if (schoolName) {
               logoUrl = `/logos/NCAA/${schoolName}.png`;
             }
