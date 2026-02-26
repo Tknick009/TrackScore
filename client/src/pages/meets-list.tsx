@@ -263,12 +263,12 @@ function MeetRow({ meet }: { meet: Meet }) {
 
   return (
     <div 
-      className="flex items-center gap-4 px-4 py-3 hover-elevate rounded-md border-b last:border-b-0" 
+      className="flex items-center gap-4 px-4 py-3 hover:bg-accent/50 transition-colors rounded-md border-b last:border-b-0" 
       data-testid={`row-meet-${meet.id}`}
     >
       {/* Date column */}
-      <div className="flex-shrink-0 w-20 text-center">
-        <div className="text-lg font-semibold text-foreground">{format(meetDate, "MMM d")}</div>
+      <div className="flex-shrink-0 w-16 text-center">
+        <div className="text-base font-semibold text-foreground">{format(meetDate, "MMM d")}</div>
         <div className="text-xs text-muted-foreground">{format(meetDate, "yyyy")}</div>
       </div>
       
@@ -467,17 +467,17 @@ export default function MeetsList() {
   }, [meets]);
 
   return (
-    <div className="min-h-screen w-full bg-background">
-      <div className="max-w-7xl mx-auto p-6 space-y-8">
+    <div className="min-h-screen w-full">
+      <div className="max-w-7xl mx-auto px-6 py-8 space-y-6">
         {/* Hero Section */}
-        <div className="space-y-6">
+        <div className="space-y-5">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <h1 className="text-4xl font-bold text-foreground mb-2" data-testid="heading-meets-list">
+              <h1 className="text-3xl font-bold tracking-tight text-foreground" data-testid="heading-meets-list">
                 Track & Field Meets
               </h1>
-              <p className="text-muted-foreground">
-                Manage your track and field competitions with professional scoreboard control
+              <p className="text-sm text-muted-foreground mt-1">
+                Manage competitions and scoreboard control
               </p>
             </div>
             <div className="flex gap-3 flex-wrap">
@@ -493,39 +493,31 @@ export default function MeetsList() {
 
           {/* Stats Cards */}
           {meets && meets.length > 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Card>
-                <CardContent className="p-4">
-                  <div className="text-2xl font-bold text-foreground" data-testid="stat-total-meets">
-                    {stats.total}
-                  </div>
-                  <div className="text-sm text-muted-foreground">Total Meets</div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="text-2xl font-bold text-primary" data-testid="stat-active-meets">
-                    {stats.active}
-                  </div>
-                  <div className="text-sm text-muted-foreground">Active Today</div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="text-2xl font-bold text-foreground" data-testid="stat-upcoming-meets">
-                    {stats.upcoming}
-                  </div>
-                  <div className="text-sm text-muted-foreground">Upcoming</div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="text-2xl font-bold text-muted-foreground" data-testid="stat-past-meets">
-                    {stats.past}
-                  </div>
-                  <div className="text-sm text-muted-foreground">Past</div>
-                </CardContent>
-              </Card>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="rounded-lg border bg-background px-4 py-3">
+                <div className="text-2xl font-bold text-foreground" data-testid="stat-total-meets">
+                  {stats.total}
+                </div>
+                <div className="text-xs text-muted-foreground">Total Meets</div>
+              </div>
+              <div className="rounded-lg border bg-background px-4 py-3">
+                <div className="text-2xl font-bold text-primary" data-testid="stat-active-meets">
+                  {stats.active}
+                </div>
+                <div className="text-xs text-muted-foreground">Active Today</div>
+              </div>
+              <div className="rounded-lg border bg-background px-4 py-3">
+                <div className="text-2xl font-bold text-foreground" data-testid="stat-upcoming-meets">
+                  {stats.upcoming}
+                </div>
+                <div className="text-xs text-muted-foreground">Upcoming</div>
+              </div>
+              <div className="rounded-lg border bg-background px-4 py-3">
+                <div className="text-2xl font-bold text-muted-foreground" data-testid="stat-past-meets">
+                  {stats.past}
+                </div>
+                <div className="text-xs text-muted-foreground">Past</div>
+              </div>
             </div>
           )}
 

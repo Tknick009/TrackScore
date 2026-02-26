@@ -8,12 +8,11 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Calendar, Clock, Timer, Target, ArrowUpDown, Edit2, Check, X, Trophy, RefreshCw, Play, Square, ChevronRight, Eye, Search } from "lucide-react";
+import { Calendar, Clock, Timer, Target, ArrowUpDown, Edit2, Check, X, Trophy, RefreshCw, Search } from "lucide-react";
 import { Link } from "wouter";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 
 type SortOption = 'time' | 'session' | 'number' | 'name' | 'status';
 
@@ -358,18 +357,6 @@ export default function Schedule() {
   const [searchQuery, setSearchQuery] = useState('');
   const { toast } = useToast();
 
-  const statusMutation = useMutation({
-    mutationFn: async ({ eventId, status }: { eventId: string; status: string }) => {
-      return await apiRequest('PATCH', `/api/events/${eventId}`, { status });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/events', currentMeetId] });
-    },
-    onError: (err: Error) => {
-      toast({ title: 'Failed to update status', description: err.message, variant: 'destructive' });
-    },
-  });
-
   const { data: events = [], isLoading } = useQuery<Event[]>({
     queryKey: ["/api/events", currentMeetId],
     queryFn: currentMeetId 
@@ -498,10 +485,10 @@ export default function Schedule() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="p-4 border-b space-y-3">
+      <div className="px-6 py-5 border-b bg-background space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <h1 className="text-xl font-semibold">Event Schedule</h1>
+            <h1 className="text-2xl font-bold tracking-tight">Event Schedule</h1>
             {liveEvents.length > 0 && (
               <Badge className="bg-green-600 text-white gap-1">
                 <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
@@ -614,10 +601,7 @@ export default function Schedule() {
                   {groupEvents.map((event: Event) => {
                     const isPrelim = (event.numRounds || 1) > 1;
                     return (
-                      <Card key={event.id} className="hover-elevate group">
-                        <CardContent className="p-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div key={event.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg border bg-background hover:bg-accent/50 transition-colors">
                               {/* Event type icon with color coding */}
                               <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
                                 event.status === 'in_progress' 
@@ -650,73 +634,11 @@ export default function Schedule() {
                                   <AdvancementFormulaEditor event={event} meetId={currentMeetId} />
                                 )}
                               </div>
-                            </div>
-                            {/* Quick action buttons */}
-                            <div className="flex items-center gap-1.5">
+                            {/* Status badge only - no action buttons */}
+                            <div className="flex items-center gap-1.5 shrink-0">
                               {currentMeetId && <EventStatusBadge event={event} />}
-                              <TooltipProvider delayDuration={300}>
-                                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  {/* Start / Stop toggle */}
-                                  {event.status !== 'completed' && event.status !== 'in_progress' && (
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            statusMutation.mutate({ eventId: event.id, status: 'in_progress' });
-                                          }}
-                                          data-testid={`button-start-event-${event.id}`}
-                                        >
-                                          <Play className="w-3.5 h-3.5" />
-                                        </Button>
-                                      </TooltipTrigger>
-                                      <TooltipContent side="top"><p>Start Event</p></TooltipContent>
-                                    </Tooltip>
-                                  )}
-                                  {event.status === 'in_progress' && (
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-7 w-7 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            statusMutation.mutate({ eventId: event.id, status: 'completed' });
-                                          }}
-                                          data-testid={`button-complete-event-${event.id}`}
-                                        >
-                                          <Square className="w-3.5 h-3.5" />
-                                        </Button>
-                                      </TooltipTrigger>
-                                      <TooltipContent side="top"><p>Complete Event</p></TooltipContent>
-                                    </Tooltip>
-                                  )}
-                                  {/* View event detail */}
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-7 w-7"
-                                        asChild
-                                      >
-                                        <Link href={`/control/${currentMeetId}/events/${event.id}`}>
-                                          <ChevronRight className="w-3.5 h-3.5" />
-                                        </Link>
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="top"><p>View Details</p></TooltipContent>
-                                  </Tooltip>
-                                </div>
-                              </TooltipProvider>
                             </div>
-                          </div>
-                        </CardContent>
-                      </Card>
+                      </div>
                     );
                   })}
                 </div>
