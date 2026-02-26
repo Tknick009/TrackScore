@@ -963,51 +963,17 @@ export default function DisplayControlPage() {
                           </Button>
                         </div>
                       ) : displayMode[selectedDevice.id] === 'field' ? (
-                        <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
-                          <div className="space-y-2">
-                            <Label>Field Port</Label>
-                            <div className="flex gap-2">
-                              <Select
-                                value={String(pendingFieldPort[selectedDevice.id] ?? selectedDevice.fieldPort ?? 4560)}
-                                onValueChange={(val) => {
-                                  setPendingFieldPort(prev => ({ ...prev, [selectedDevice.id]: parseInt(val) }));
-                                }}
-                              >
-                                <SelectTrigger data-testid="select-field-port" className="flex-1">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {Array.from({ length: 10 }, (_, i) => 4560 + i).map(port => (
-                                    <SelectItem key={port} value={String(port)}>
-                                      Port {port}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <Button
-                                data-testid="button-send-field-port"
-                                onClick={async () => {
-                                  const port = pendingFieldPort[selectedDevice.id] ?? selectedDevice.fieldPort ?? 4560;
-                                  await apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}`, { fieldPort: port });
-                                  await queryClient.invalidateQueries({ queryKey: ['/api/display-devices/meet', currentMeetId] });
-                                  setPendingFieldPort(prev => {
-                                    const next = { ...prev };
-                                    delete next[selectedDevice.id];
-                                    return next;
-                                  });
-                                  toast({ title: `Port ${port} locked`, description: `${selectedDevice.deviceName} is now receiving from port ${port}` });
-                                }}
-                                disabled={!pendingFieldPort[selectedDevice.id] || pendingFieldPort[selectedDevice.id] === selectedDevice.fieldPort}
-                              >
-                                <Send className="w-4 h-4 mr-1" />
-                                Send
-                              </Button>
+                        <div className="p-3 rounded-lg bg-orange-500/10 border border-orange-500/20">
+                          <div className="flex items-start gap-2">
+                            <Target className="w-4 h-4 text-orange-500 mt-0.5" />
+                            <div>
+                              <div className="text-sm font-medium text-orange-700 dark:text-orange-400">
+                                Field mode active
+                              </div>
+                              <div className="text-xs text-orange-600 dark:text-orange-500 mt-1">
+                                This display receives data from all field ports. Each scene object shows only the event bound to its port (set in the Scene Editor).
+                              </div>
                             </div>
-                            <p className="text-xs text-muted-foreground">
-                              {pendingFieldPort[selectedDevice.id] && pendingFieldPort[selectedDevice.id] !== selectedDevice.fieldPort
-                                ? `Click Send to lock this display onto port ${pendingFieldPort[selectedDevice.id]}`
-                                : `Locked to port ${selectedDevice.fieldPort ?? 4560} — change port then click Send`}
-                            </p>
                           </div>
                         </div>
                       ) : null}
