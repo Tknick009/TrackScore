@@ -1685,8 +1685,6 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     console.log(`[Lynx] Field mode change: Event ${eventNumber} → ${mode}`, data);
     
     // Update field port state to reset the standings timer
-    // This will exit standings mode if active and reset the idle timer
-    // Prefer sourcePort from TCP listener over currentFieldPort from HTTP
     const resolvedFieldPort = (data.sourcePort && data.sourcePort >= FIELD_PORT_MIN && data.sourcePort <= FIELD_PORT_MAX) ? data.sourcePort : currentFieldPort;
     if (resolvedFieldPort) {
       updateFieldPortState(resolvedFieldPort, eventNumber, data.round || 1);
@@ -1699,82 +1697,28 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
       mark: data.mark,
     });
     
-    let accumulatedResults = data.results || [];
-    let isMultiEvent = false;
-    let eventType: string | null = null;
-    let eventGender: string | null = null;
-    
-    try {
-      // Auto-activate event when data arrives (set to in_progress if scheduled)
-      const allFieldMatchEvents = await storage.getEventsByLynxEventNumber(eventNumber);
-      // Filter to active meet's events to avoid stale data from old meets
-      const fieldActiveMeetId = await getActiveMeetId();
-      const fieldMeetFiltered = fieldActiveMeetId 
-        ? allFieldMatchEvents.filter(e => e.meetId === fieldActiveMeetId) 
-        : allFieldMatchEvents;
-      const fieldEffectiveEvents = fieldMeetFiltered.length > 0 ? fieldMeetFiltered : allFieldMatchEvents;
-      
-      for (const event of fieldEffectiveEvents) {
-        if (event.status === 'scheduled') {
-          await storage.updateEventStatus(event.id, 'in_progress');
-          console.log(`[Lynx] Auto-activated field event ${event.name} (${event.id}) to in_progress`);
-          await broadcastCurrentEvent();
-        }
-        // Get multi-event info from first matching event
-        if (!eventType) {
-          isMultiEvent = event.isMultiEvent ?? false;
-          eventType = event.eventType ?? null;
-          eventGender = event.gender ?? null;
-        }
-      }
-      
-      // Use exactly what FieldLynx sent — no merging with DB history.
-      // Past attempts are irrelevant; the display shows only the current live state.
-      accumulatedResults = data.results || [];
-      
-      await storage.upsertLiveEventData({
-        eventNumber,
-        eventType: 'field',
-        mode,
-        heat: 1,
-        round: data.round || 1,
-        flight: data.flight || 1,
-        wind: data.wind,
-        status: data.officialStatus,
-        eventName: data.eventName,
-        entries: accumulatedResults,
-      });
-    } catch (error) {
-      console.error('[Lynx] Error storing field mode change:', error);
-    }
-    
-    // Determine display mode for scene template mapping
-    // Multi-events use 'multi_field' instead of 'field_results' to show points
-    const displayMode = isMultiEvent ? 'multi_field' : 'field_results';
+    const accumulatedResults = data.results || [];
     
     // Get field port for routing: prefer sourcePort from TCP listener, fall back to currentFieldPort from HTTP
     const fieldPort = (data.sourcePort && data.sourcePort >= FIELD_PORT_MIN && data.sourcePort <= FIELD_PORT_MAX) ? data.sourcePort : currentFieldPort;
     
-    // Broadcast field event update with accumulated results
-    // Include fieldPort for port-based routing - displays can filter by port
+    // === BROADCAST IMMEDIATELY — don't wait for DB writes ===
+    // This eliminates the ~3s delay caused by sequential await calls before broadcast.
     const fieldBroadcastData = {
       eventNumber,
       mode,
-      displayMode, // Scene template mapping mode (multi_field for multi-events)
+      displayMode: 'field_results', // Will be updated below if multi-event
       eventName: data.eventName,
       flight: data.flight,
       wind: data.wind,
       results: accumulatedResults,
-      isMultiEvent, // For multi-event points display
-      eventType, // For calculating multi-event points
-      gender: eventGender, // For calculating multi-event points
-      fieldPort, // Port number for device routing (4560-4569)
+      isMultiEvent: false,
+      eventType: null as string | null,
+      gender: null as string | null,
+      fieldPort,
     };
     
-    // Send field data to ALL connected display devices.
-    // Each scene object is bound to a specific port via dataBinding.fieldPort,
-    // so the client routes data to the correct object via liveEventDataByPort[port].
-    // This allows a single display to show 4+ field events from different ports simultaneously.
+    // Send field data to ALL connected display devices immediately.
     const fieldMsg = JSON.stringify({ type: `field_mode_change_${fieldPort}`, data: fieldBroadcastData });
     let fieldRecipients = 0;
     for (const [, dev] of connectedDisplayDevices) {
@@ -1790,7 +1734,56 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
         client.send(fieldMsg);
       }
     }
-    console.log(`[Lynx] Field data port ${fieldPort} → sent to ${fieldRecipients} registered device(s)`);
+    console.log(`[Lynx] Field data port ${fieldPort} → sent to ${fieldRecipients} device(s) (immediate)`);
+    
+    // === DB writes happen in the background — display already updated ===
+    try {
+      const allFieldMatchEvents = await storage.getEventsByLynxEventNumber(eventNumber);
+      const fieldActiveMeetId = await getActiveMeetId();
+      const fieldMeetFiltered = fieldActiveMeetId 
+        ? allFieldMatchEvents.filter(e => e.meetId === fieldActiveMeetId) 
+        : allFieldMatchEvents;
+      const fieldEffectiveEvents = fieldMeetFiltered.length > 0 ? fieldMeetFiltered : allFieldMatchEvents;
+      
+      for (const event of fieldEffectiveEvents) {
+        if (event.status === 'scheduled') {
+          await storage.updateEventStatus(event.id, 'in_progress');
+          console.log(`[Lynx] Auto-activated field event ${event.name} (${event.id}) to in_progress`);
+          await broadcastCurrentEvent();
+        }
+        // If this is a multi-event, send a corrected broadcast with multi-event info
+        if (event.isMultiEvent || event.eventType) {
+          const correctedData = {
+            ...fieldBroadcastData,
+            isMultiEvent: event.isMultiEvent ?? false,
+            eventType: event.eventType ?? null,
+            gender: event.gender ?? null,
+            displayMode: event.isMultiEvent ? 'multi_field' : 'field_results',
+          };
+          const correctedMsg = JSON.stringify({ type: `field_mode_change_${fieldPort}`, data: correctedData });
+          for (const [, dev] of connectedDisplayDevices) {
+            if (dev.ws.readyState === dev.ws.OPEN) {
+              dev.ws.send(correctedMsg);
+            }
+          }
+        }
+      }
+      
+      await storage.upsertLiveEventData({
+        eventNumber,
+        eventType: 'field',
+        mode,
+        heat: 1,
+        round: data.round || 1,
+        flight: data.flight || 1,
+        wind: data.wind,
+        status: data.officialStatus,
+        eventName: data.eventName,
+        entries: accumulatedResults,
+      });
+    } catch (error) {
+      console.error('[Lynx] Error in background field DB writes:', error);
+    }
   });
 
   lynxListener.on('field-result', async (eventNumber, athleteName, place, mark, attemptNumber, attempts) => {

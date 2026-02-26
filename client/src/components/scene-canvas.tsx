@@ -793,7 +793,28 @@ export function SceneObjectRenderer({
               transition: 'opacity 0.3s ease-in-out',
             }}
           >
-            <span className="whitespace-nowrap">{textContent || ""}</span>
+            {/* Render X/O/P attempt characters with colored backgrounds for vertical events */}
+            {fieldKey === 'attempt' && textContent && /^[XxOoPp]+$/.test(textContent) ? (
+              <span className="whitespace-nowrap flex gap-1">
+                {textContent.toUpperCase().split('').map((ch, ci) => (
+                  <span
+                    key={ci}
+                    className="inline-flex items-center justify-center rounded font-bold"
+                    style={{
+                      backgroundColor: ch === 'O' ? '#16a34a' : ch === 'X' ? '#dc2626' : '#2563eb',
+                      color: '#ffffff',
+                      padding: '0.1em 0.35em',
+                      minWidth: '1.5em',
+                      fontSize: 'inherit',
+                    }}
+                  >
+                    {ch}
+                  </span>
+                ))}
+              </span>
+            ) : (
+              <span className="whitespace-nowrap">{textContent || ""}</span>
+            )}
             {qualifierBadge && (
               <span 
                 className="ml-6 px-3 py-1 rounded font-bold"
@@ -1041,18 +1062,20 @@ export function SceneObjectRenderer({
                   return (
                     <div 
                       key={i}
-                      className={`min-w-12 h-12 px-2 rounded flex items-center justify-center ${
-                        isValid ? 'bg-[hsl(var(--display-accent))]' : 
-                        isFoul ? 'bg-[hsl(var(--display-muted))]' : 
-                        isPass ? 'bg-[hsl(var(--display-bg-elevated))]' :
-                        'border-2 border-[hsl(var(--display-border))]'
-                      }`}
+                      className="min-w-12 h-12 px-2 rounded flex items-center justify-center"
+                      style={{
+                        backgroundColor: isValid ? '#16a34a' :
+                          isFoul ? '#dc2626' :
+                          isPass ? '#2563eb' :
+                          'transparent',
+                        border: (!isValid && !isFoul && !isPass) ? '2px solid hsl(var(--display-border))' : 'none',
+                      }}
                     >
-                      <span className={`font-stadium-numbers text-sm font-[700] ${
-                        isValid ? 'text-[hsl(var(--display-bg))]' : 
-                        isFoul ? 'text-[hsl(var(--display-bg))]' :
-                        'text-[hsl(var(--display-fg))]'
-                      }`}>
+                      <span className="font-stadium-numbers text-sm font-[700]"
+                        style={{
+                          color: (isValid || isFoul || isPass) ? '#ffffff' : 'hsl(var(--display-fg))',
+                        }}
+                      >
                         {isValid && attempt.mark ? attempt.mark : 
                          isFoul ? 'X' : 
                          isPass ? 'P' : 
