@@ -491,13 +491,10 @@ export default function MeetSetup() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-4xl">
-      <div className="flex items-center gap-3">
-        <Settings className="w-8 h-8 text-primary" />
-        <div>
-          <h1 className="text-2xl font-bold" data-testid="heading-meet-setup">Meet Setup</h1>
-          <p className="text-muted-foreground">Configure your meet settings</p>
-        </div>
+    <div className="px-6 py-8 space-y-6 max-w-4xl">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight" data-testid="heading-meet-setup">Meet Setup</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">Configure your meet settings and integrations</p>
       </div>
 
       <Card data-testid="card-meet-logo">

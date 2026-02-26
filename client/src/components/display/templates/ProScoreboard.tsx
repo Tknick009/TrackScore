@@ -56,11 +56,17 @@ export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingInt
   };
 
   // Sort entries — keep ALL entries visible (DNS/FS/Scratch render at 50% opacity)
+  // Parse place values to numbers for reliable sorting
   const sortedEntries = useMemo(() => {
     return [...(event.entries || [])].sort((a, b) => {
-      if (a.finalPlace && b.finalPlace) return a.finalPlace - b.finalPlace;
-      if (a.finalPlace) return -1;
-      if (b.finalPlace) return 1;
+      const placeA = typeof a.finalPlace === 'number' ? a.finalPlace : parseInt(String(a.finalPlace));
+      const placeB = typeof b.finalPlace === 'number' ? b.finalPlace : parseInt(String(b.finalPlace));
+      const hasPlaceA = !isNaN(placeA) && placeA > 0;
+      const hasPlaceB = !isNaN(placeB) && placeB > 0;
+      
+      if (hasPlaceA && hasPlaceB) return placeA - placeB;
+      if (hasPlaceA) return -1;
+      if (hasPlaceB) return 1;
       return (a.finalLane || 0) - (b.finalLane || 0);
     });
   }, [event.entries]);
@@ -217,7 +223,8 @@ export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingInt
         >
           {pagedEntries.map((entry, index) => {
             const globalIndex = currentPage * pagingSize + index;
-            const position = entry.finalPlace ?? 0;
+            const rawPosition = entry.finalPlace;
+            const position = typeof rawPosition === 'number' ? rawPosition : (parseInt(String(rawPosition)) || 0);
             const isPodium = position >= 1 && position <= 3;
             const teamName = isRelay
               ? entry.team?.name || ''
@@ -229,17 +236,29 @@ export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingInt
             const teamLogo = (entry.team as Record<string, unknown>)?.logoUrl as string | undefined;
 
             const resultText = (() => {
-              if (entry.finalMark === null || entry.finalMark === undefined) return '';
-              if (displayMode === 'track') {
-                const val = entry.finalMark;
-                if (val >= 60) {
-                  const mins = Math.floor(val / 60);
-                  const secs = (val % 60).toFixed(2);
-                  return `${mins}:${secs.padStart(5, '0')}`;
-                }
-                return val.toFixed(2);
+              // Use pre-formatted performance string from server (enrichEntry) when available
+              if (entry.performance && typeof entry.performance === 'string' && entry.performance.trim() !== '') {
+                return entry.performance.trim();
               }
-              return `${entry.finalMark.toFixed(2)}m`;
+              if (entry.finalMark === null || entry.finalMark === undefined || entry.finalMark === '') return '';
+              const mark = entry.finalMark;
+              // String times from live FinishLynx data — return as-is
+              if (typeof mark === 'string') {
+                return mark.trim();
+              }
+              // Numeric times from database
+              if (typeof mark === 'number') {
+                if (displayMode === 'track') {
+                  if (mark >= 60) {
+                    const mins = Math.floor(mark / 60);
+                    const secs = (mark % 60).toFixed(2);
+                    return `${mins}:${secs.padStart(5, '0')}`;
+                  }
+                  return mark.toFixed(2);
+                }
+                return `${mark.toFixed(2)}m`;
+              }
+              return String(mark);
             })();
 
             // Status codes

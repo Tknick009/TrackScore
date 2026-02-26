@@ -1106,6 +1106,14 @@ export default function DisplayDevice() {
             }
           }
           
+          // Handle HyTek MDB import completion — invalidate React Query cache so display refetches
+          if (message.type === 'hytek_import_complete') {
+            console.log(`[Display] HyTek import complete for meet ${message.meetId}, invalidating cache`);
+            queryClient.invalidateQueries({ queryKey: ['/api/events'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/meets'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
+          }
+
           // Handle start_list updates from FinishLynx (pre-race athlete list)
           // Pure pass-through: show exactly what FinishLynx sends, no accumulation
           // Listen to 'start_list_big' for big board displays, 'start_list' for small boards
@@ -1762,7 +1770,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     if (isSingleAthleteDisplay && (currentEvent || liveEventData)) {
       // Use live FinishLynx data directly when currentEvent isn't loaded yet
       const eventWithLiveName = currentEvent 
-        ? { ...currentEvent, name: liveEventData?.eventName || '' }
+        ? { ...currentEvent, name: liveEventData?.eventName || currentEvent.name || '' }
         : {
             id: 0,
             name: liveEventData?.eventName || '',
@@ -1772,11 +1780,16 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
               const firstName = entry.firstName || entry.name?.split(' ')[0] || '';
               const lastName = entry.lastName || entry.name?.split(' ').slice(1).join(' ') || entry.name || '';
               const teamName = entry.affiliation || entry.team || '';
+              const rawPlace = entry.place;
+              const placeNum = rawPlace ? parseInt(String(rawPlace)) : undefined;
+              const finalPlace = !isNaN(placeNum as number) && placeNum! > 0 ? placeNum : rawPlace;
               return {
                 id: idx,
                 finalLane: entry.lane || idx + 1,
-                finalPlace: entry.place,
+                finalPlace,
                 finalMark: entry.time || entry.mark || entry.result || '',
+                lastSplit: entry.lastSplit || entry.cumulativeSplit || '',
+                reactionTime: entry.reactionTime || '',
                 athlete: {
                   firstName,
                   lastName,
@@ -1798,7 +1811,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     if (isRunningTimeTemplate) {
       // Use live FinishLynx data directly - always available before currentEvent loads
       const eventWithLiveName = currentEvent 
-        ? { ...currentEvent, name: liveEventData?.eventName || '' }
+        ? { ...currentEvent, name: liveEventData?.eventName || currentEvent.name || '' }
         : liveEventData ? {
             id: 0,
             name: liveEventData.eventName || '',
@@ -1811,21 +1824,21 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     }
 
     if ((isFieldResults || isFieldStandings) && currentEvent) {
-      // Always override event name with live FinishLynx data
+      // Use live FinishLynx name if available, otherwise keep DB name
       const eventWithLiveName = {
         ...currentEvent,
-        name: liveEventData?.eventName || '', // Always use live data for event name
+        name: liveEventData?.eventName || currentEvent.name || '',
       };
       return <FieldSideBySide event={eventWithLiveName as any} meet={meet} />;
     }
 
-    // For track results, start lists, and BigBoard - always use live data for event name (never database)
+    // For track results, start lists, and BigBoard - use live name if available, DB name as fallback
     if ((isTrackResults || isStartList || isBigBoard) && (currentEvent || liveEventData)) {
-      // Always override event name with live FinishLynx data
+      // Use live FinishLynx name if available, otherwise keep DB event name
       const eventWithLiveName = currentEvent 
         ? {
             ...currentEvent,
-            name: liveEventData?.eventName || '', // Always use live data for event name
+            name: liveEventData?.eventName || currentEvent.name || '',
           }
         : {
             id: 0,
@@ -1836,11 +1849,16 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
               const firstName = entry.firstName || entry.name?.split(' ')[0] || '';
               const lastName = entry.lastName || entry.name?.split(' ').slice(1).join(' ') || entry.name || '';
               const teamName = entry.affiliation || entry.team || '';
+              const rawPlace = entry.place;
+              const placeNum = rawPlace ? parseInt(String(rawPlace)) : undefined;
+              const finalPlace = !isNaN(placeNum as number) && placeNum! > 0 ? placeNum : rawPlace;
               return {
                 id: idx,
                 finalLane: entry.lane || idx + 1,
-                finalPlace: entry.place,
+                finalPlace,
                 finalMark: entry.time || entry.mark || entry.result || '',
+                lastSplit: entry.lastSplit || entry.cumulativeSplit || '',
+                reactionTime: entry.reactionTime || '',
                 athlete: {
                   firstName,
                   lastName,

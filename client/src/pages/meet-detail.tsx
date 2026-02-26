@@ -630,8 +630,8 @@ export default function MeetDetail() {
   }
 
   return (
-    <div className="min-h-screen w-full bg-background">
-      <div className="max-w-7xl mx-auto p-6 space-y-8">
+    <div className="min-h-screen w-full">
+      <div className="max-w-7xl mx-auto px-6 py-8 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between gap-4">
           <Link href="/">
@@ -659,7 +659,7 @@ export default function MeetDetail() {
           )}
           
           <div className="flex-1">
-            <h1 className="text-4xl font-bold text-foreground mb-2" data-testid="heading-meet-name">
+            <h1 className="text-3xl font-bold tracking-tight text-foreground" data-testid="heading-meet-name">
               {meet.name}
             </h1>
             <div className="flex flex-wrap items-center gap-4 text-muted-foreground">
@@ -688,62 +688,46 @@ export default function MeetDetail() {
         </div>
 
         {/* Overview Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <Trophy className="w-6 h-6 text-primary" />
-                </div>
-                <div>
-                  <div className="text-2xl font-bold" data-testid="stat-total-events">{stats.total}</div>
-                  <div className="text-sm text-muted-foreground">Total Events</div>
-                </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="rounded-lg border bg-background px-4 py-3">
+            <div className="flex items-center gap-3">
+              <Trophy className="w-5 h-5 text-primary" />
+              <div>
+                <div className="text-2xl font-bold" data-testid="stat-total-events">{stats.total}</div>
+                <div className="text-xs text-muted-foreground">Total Events</div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <Users className="w-6 h-6 text-primary" />
-                </div>
-                <div>
-                  <div className="text-2xl font-bold" data-testid="stat-total-athletes">{athletes.length}</div>
-                  <div className="text-sm text-muted-foreground">Athletes</div>
-                </div>
+          <div className="rounded-lg border bg-background px-4 py-3">
+            <div className="flex items-center gap-3">
+              <Users className="w-5 h-5 text-primary" />
+              <div>
+                <div className="text-2xl font-bold" data-testid="stat-total-athletes">{athletes.length}</div>
+                <div className="text-xs text-muted-foreground">Athletes</div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                  <PlayCircle className="w-6 h-6 text-amber-500" />
-                </div>
-                <div>
-                  <div className="text-2xl font-bold" data-testid="stat-in-progress">{stats.inProgress}</div>
-                  <div className="text-sm text-muted-foreground">In Progress</div>
-                </div>
+          <div className="rounded-lg border bg-background px-4 py-3">
+            <div className="flex items-center gap-3">
+              <PlayCircle className="w-5 h-5 text-amber-500" />
+              <div>
+                <div className="text-2xl font-bold" data-testid="stat-in-progress">{stats.inProgress}</div>
+                <div className="text-xs text-muted-foreground">In Progress</div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-lg bg-green-500/10 flex items-center justify-center">
-                  <CheckCircle2 className="w-6 h-6 text-green-500" />
-                </div>
-                <div>
-                  <div className="text-2xl font-bold" data-testid="stat-completed">{stats.completed}</div>
-                  <div className="text-sm text-muted-foreground">Completed</div>
-                </div>
+          <div className="rounded-lg border bg-background px-4 py-3">
+            <div className="flex items-center gap-3">
+              <CheckCircle2 className="w-5 h-5 text-green-500" />
+              <div>
+                <div className="text-2xl font-bold" data-testid="stat-completed">{stats.completed}</div>
+                <div className="text-xs text-muted-foreground">Completed</div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
 
         {/* Quick Actions */}

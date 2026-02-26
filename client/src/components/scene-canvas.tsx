@@ -690,7 +690,7 @@ export function SceneObjectRenderer({
               const rawPlace = firstEntry?.place;
               if (rawPlace === undefined || rawPlace === null || rawPlace === '') return rawPlace;
               const placeStr = String(rawPlace).trim();
-              return /^\d+$/.test(placeStr) ? `PL: ${placeStr}` : placeStr;
+              return placeStr;
             })(),
             'name': displayName,
             'first-name': isTeamScores ? (firstEntry?.name || '') : firstEntry?.firstName,
@@ -1263,7 +1263,34 @@ export function SceneCanvas({
     // instead of being hidden. The SceneObjectRenderer contentFadeOpacity logic handles dimming.
     
     if (isResults) {
-      const sortedEntries = [...entries].sort((a: any, b: any) => {
+      // If entries have times but no places, compute places from times
+      const hasAnyTime = entries.some((e: any) => e.time && String(e.time).trim() !== '');
+      const hasAnyPlace = entries.some((e: any) => e.place && String(e.place).trim() !== '' && /^\d+$/.test(String(e.place).trim()));
+      
+      let enrichedEntries = entries;
+      if (hasAnyTime && !hasAnyPlace) {
+        // Parse times and assign places
+        const parseTime = (t: string): number => {
+          if (!t || t.trim() === '') return Infinity;
+          const cleaned = t.trim();
+          if (/^[A-Za-z]/.test(cleaned)) return Infinity; // DNS, DNF, DQ, etc.
+          if (cleaned.includes(':')) {
+            const parts = cleaned.split(':');
+            return parseFloat(parts[0]) * 60 + parseFloat(parts[1]);
+          }
+          return parseFloat(cleaned) || Infinity;
+        };
+        enrichedEntries = [...entries];
+        const sorted = enrichedEntries
+          .map((e: any, idx: number) => ({ idx, time: parseTime(e.time || '') }))
+          .filter(e => e.time !== Infinity)
+          .sort((a, b) => a.time - b.time);
+        sorted.forEach((item, rank) => {
+          enrichedEntries[item.idx] = { ...enrichedEntries[item.idx], place: String(rank + 1) };
+        });
+      }
+      
+      const sortedEntries = [...enrichedEntries].sort((a: any, b: any) => {
         const hasTimeA = a.time && String(a.time).trim() !== '';
         const hasPlaceA = a.place && String(a.place).trim() !== '';
         const hasResultA = hasTimeA || hasPlaceA;

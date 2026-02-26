@@ -33,7 +33,8 @@ import {
   Database,
   ChevronRight,
   Search,
-  Target
+  Target,
+  Settings
 } from 'lucide-react';
 import { DISPLAY_CONTENT_TYPES } from '@shared/layout-templates';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -525,12 +526,12 @@ export default function DisplayControlPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="p-6 border-b">
+      <div className="px-6 py-5 border-b bg-background">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold" data-testid="text-page-title">Display Device Control</h1>
-            <p className="text-muted-foreground">
-              Manage connected display boards and assign events to each device
+            <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Display Control</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Manage connected display boards and assign content
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -1016,11 +1017,44 @@ export default function DisplayControlPage() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Device Settings</CardTitle>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Settings className="w-4 h-4" />
+                    Device Settings
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2 mb-4">
                     <Label className="text-sm font-medium">Display Type</Label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {[
+                        { value: 'P10', label: 'P10 Display', desc: '192 × 96' },
+                        { value: 'P6', label: 'P6 Display', desc: '288 × 144' },
+                        { value: 'BigBoard', label: 'Big Board', desc: '1920 × 1080' },
+                        { value: 'Custom', label: 'Custom', desc: 'Custom res' },
+                        { value: 'Broadcast', label: 'Broadcast', desc: 'Ticker & Clock' },
+                      ].map(opt => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => {
+                            apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}`, { displayType: opt.value });
+                            queryClient.invalidateQueries({ queryKey: ['/api/display-devices/meet', currentMeetId] });
+                          }}
+                          className={`p-3 rounded-lg border-2 text-left transition-all ${
+                            (selectedDevice.displayType || 'P10') === opt.value
+                              ? 'border-primary bg-primary/10'
+                              : 'border-border hover:bg-accent/50'
+                          }`}
+                          data-testid={`tile-display-type-${opt.value}`}
+                        >
+                          <div className="text-sm font-medium">{opt.label}</div>
+                          <div className="text-xs text-muted-foreground">{opt.desc}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Keep old select hidden for backwards compat but functionally replaced */}
+                  <div className="hidden">
                     <Select
                       value={selectedDevice.displayType || 'P10'}
                       onValueChange={(val) => {
@@ -1147,32 +1181,22 @@ export default function DisplayControlPage() {
                     </p>
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full border-collapse">
-                      <thead>
-                        <tr>
-                          <th className="text-left p-2 border-b text-sm font-medium text-muted-foreground">
-                            Display Mode
-                          </th>
-                          {displayTypes.map(type => (
-                            <th key={type} className="text-left p-2 border-b text-sm font-medium">
-                              {type}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {displayModes.map(mode => (
-                          <tr key={mode} className="border-b last:border-b-0">
-                            <td className="p-2 text-sm font-medium">
-                              {displayModeLabels[mode]}
-                            </td>
+                  <div className="space-y-4">
+                    {displayModes.map(mode => {
+                      const hasAnyMapping = displayTypes.some(type => getMappingForCell(type, mode));
+                      return (
+                        <div key={mode} className="rounded-lg border bg-background">
+                          <div className="px-4 py-3 border-b bg-muted/30">
+                            <span className="text-sm font-semibold">{displayModeLabels[mode]}</span>
+                          </div>
+                          <div className="p-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
                             {displayTypes.map(type => {
                               const mapping = getMappingForCell(type, mode);
                               const selectedScene = mapping ? layoutScenes.find(s => s.id === mapping.sceneId) : null;
                               
                               return (
-                                <td key={`${type}-${mode}`} className="p-2">
+                                <div key={`${type}-${mode}`} className="space-y-1">
+                                  <label className="text-xs text-muted-foreground font-medium">{type}</label>
                                   <Select
                                     value={mapping ? String(mapping.sceneId) : 'default'}
                                     onValueChange={(value) => {
@@ -1191,7 +1215,7 @@ export default function DisplayControlPage() {
                                     disabled={setMappingMutation.isPending || deleteMappingMutation.isPending}
                                   >
                                     <SelectTrigger 
-                                      className="w-[160px]"
+                                      className={`w-full text-xs h-8 ${selectedScene ? 'border-primary/40 bg-primary/5' : ''}`}
                                       data-testid={`select-mapping-${type}-${mode}`}
                                     >
                                       <SelectValue>
@@ -1207,13 +1231,13 @@ export default function DisplayControlPage() {
                                       ))}
                                     </SelectContent>
                                   </Select>
-                                </td>
+                                </div>
                               );
                             })}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>

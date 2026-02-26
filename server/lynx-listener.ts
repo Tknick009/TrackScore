@@ -977,6 +977,34 @@ export class LynxListener extends EventEmitter {
       }
     }
     
+    // If entries have times but no places, compute places from times
+    // This handles HyTek/FinishLynx configs that send results without the P field
+    const hasAnyTimeInEntries = entries.some(e => e.time && e.time.trim() !== '');
+    const hasAnyPlaceInEntries = entries.some(e => e.place && e.place.trim() !== '');
+    if (hasAnyTimeInEntries && !hasAnyPlaceInEntries) {
+      // Parse times and sort to assign places
+      const parseTime = (t: string): number => {
+        if (!t || t.trim() === '') return Infinity;
+        const cleaned = t.trim();
+        // Handle DNS, DNF, DQ, FS, SCR etc.
+        if (/^[A-Za-z]/.test(cleaned)) return Infinity;
+        // Handle mm:ss.xx format
+        if (cleaned.includes(':')) {
+          const parts = cleaned.split(':');
+          return parseFloat(parts[0]) * 60 + parseFloat(parts[1]);
+        }
+        return parseFloat(cleaned) || Infinity;
+      };
+      // Create sorted copy to determine places
+      const sorted = [...entries]
+        .map((e, idx) => ({ idx, time: parseTime(e.time) }))
+        .filter(e => e.time !== Infinity)
+        .sort((a, b) => a.time - b.time);
+      sorted.forEach((item, rank) => {
+        entries[item.idx].place = String(rank + 1);
+      });
+    }
+    
     // Determine mode from data
     const hasResults = entries.some(e => e.place && e.time && e.place.trim() !== '' && e.time.trim() !== '');
     const mode = hasResults ? 'results' : (this.isRunning ? 'running' : 'start_list');
