@@ -144,6 +144,7 @@ const LYNX_ONLY_MESSAGE_TYPES = new Set([
   'layout_command', 'layout_command_big',
   'lynx_clock', 'lynx_wind', 'lynx_page',
   'layout-command',
+  'board_update',
 ]);
 
 // Broadcast function - Layout switching is now controlled by FinishLynx via layout-command events

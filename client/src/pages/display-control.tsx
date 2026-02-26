@@ -771,6 +771,7 @@ export default function DisplayControlPage() {
                             setDisplayMode(prev => ({ ...prev, [selectedDevice.id]: 'field' }));
                             toggleAutoModeMutation.mutate({ deviceId: selectedDevice.id, enabled: false });
                             apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}/mode`, { displayMode: 'field' });
+                            apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}/content-mode`, { contentMode: 'field' });
                           }}
                           className={`p-4 rounded-lg border-2 transition-all text-left ${
                             displayMode[selectedDevice.id] === 'field' && !autoModeStatus?.autoMode
