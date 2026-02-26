@@ -668,7 +668,9 @@ export function SceneObjectRenderer({
           const isRelayOrMedleyText = eventNameLowerText.includes('relay') || eventNameLowerText.includes('medley');
           const displayName = isTeamScores 
             ? (firstEntry?.name || '')
-            : formatName(firstEntry?.firstName, firstEntry?.lastName, firstEntry?.name);
+            : isRelayOrMedleyText
+              ? (firstEntry?.name || firstEntry?.lastName || '')
+              : formatName(firstEntry?.firstName, firstEntry?.lastName, firstEntry?.name);
           
           const schoolDisplay = isRelayOrMedleyText
             ? (firstEntry?.affiliation || firstEntry?.team || '').substring(4).trim()
@@ -700,10 +702,10 @@ export function SceneObjectRenderer({
               return placeStr;
             })(),
             'name': displayName,
-            'first-name': isTeamScores ? (firstEntry?.name || '') : firstEntry?.firstName,
-            'last-name': isTeamScores ? (firstEntry?.name || '') : firstEntry?.lastName,
+            'first-name': isTeamScores ? (firstEntry?.name || '') : isRelayOrMedleyText ? '' : firstEntry?.firstName,
+            'last-name': isTeamScores ? (firstEntry?.name || '') : isRelayOrMedleyText ? (firstEntry?.name || firstEntry?.lastName || '') : firstEntry?.lastName,
             'name-qualifier': displayName,
-            'last-name-qualifier': isTeamScores ? (firstEntry?.name || '') : firstEntry?.lastName,
+            'last-name-qualifier': isTeamScores ? (firstEntry?.name || '') : isRelayOrMedleyText ? (firstEntry?.name || firstEntry?.lastName || '') : firstEntry?.lastName,
             'name-qualifier-badge': qualifierStatus,
             'last-name-qualifier-badge': qualifierStatus,
             'school': schoolDisplay,
