@@ -64,36 +64,75 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
 
   const sortedEntries = useMemo(() => {
     // Keep ALL entries visible — DNS/FS/Scratch render at 50% opacity
+    // Parse place values to numbers for reliable sorting
     return [...(displayedEntries || [])].sort((a, b) => {
-      if (a.finalPlace && b.finalPlace) return a.finalPlace - b.finalPlace;
-      if (a.finalPlace) return -1;
-      if (b.finalPlace) return 1;
+      const placeA = typeof a.finalPlace === 'number' ? a.finalPlace : parseInt(String(a.finalPlace));
+      const placeB = typeof b.finalPlace === 'number' ? b.finalPlace : parseInt(String(b.finalPlace));
+      const hasPlaceA = !isNaN(placeA) && placeA > 0;
+      const hasPlaceB = !isNaN(placeB) && placeB > 0;
+      
+      if (hasPlaceA && hasPlaceB) return placeA - placeB;
+      if (hasPlaceA) return -1;
+      if (hasPlaceB) return 1;
       return (a.finalLane || 0) - (b.finalLane || 0);
     });
   }, [displayedEntries]);
 
   const isRelay = event.eventType?.toLowerCase().includes('relay');
-  const status = event.status === 'completed' ? 'FINAL' : event.status === 'in_progress' ? 'IN PROGRESS' : 'SCHEDULED';
-  const windReading = event.entries?.[0]?.finalWind;
-  const windDisplay = windReading !== null && windReading !== undefined 
-    ? `WIND: ${windReading > 0 ? '+' : ''}${windReading.toFixed(1)}` 
-    : 'WIND: nwi';
-
-  const formatTime = (mark: number | null | undefined): string => {
-    if (mark === null || mark === undefined) return '';
-    const totalSeconds = mark / 1000;
-    if (totalSeconds >= 60) {
-      const minutes = Math.floor(totalSeconds / 60);
-      const seconds = (totalSeconds % 60).toFixed(2);
-      return `${minutes}:${seconds.padStart(5, '0')}`;
+  const isCompleted = event.status === 'completed';
+  const isStartList = event.status === 'scheduled' || event.status === 'upcoming';
+  const status = isCompleted ? 'FINAL' : event.status === 'in_progress' ? 'IN PROGRESS' : 'SCHEDULED';
+  
+  // Wind display - handle both numeric and string wind values
+  const windReading = (event as any).wind ?? event.entries?.[0]?.finalWind;
+  const windDisplay = (() => {
+    if (windReading === null || windReading === undefined) return 'WIND: nwi';
+    if (typeof windReading === 'string') {
+      const trimmed = windReading.trim();
+      return trimmed ? `WIND: ${trimmed}` : 'WIND: nwi';
     }
-    return totalSeconds.toFixed(2);
+    return `WIND: ${windReading > 0 ? '+' : ''}${windReading.toFixed(1)}`;
+  })();
+
+  // Format time - handles both string times from live data ("10.23", "1:45.67") 
+  // and numeric times from database (milliseconds)
+  const formatTime = (mark: any): string => {
+    if (mark === null || mark === undefined || mark === '') return '';
+    // If it's already a string (from live FinishLynx data), return as-is
+    if (typeof mark === 'string') {
+      const trimmed = mark.trim();
+      return trimmed;
+    }
+    // Numeric value from database (milliseconds)
+    if (typeof mark === 'number') {
+      const totalSeconds = mark / 1000;
+      if (totalSeconds >= 60) {
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = (totalSeconds % 60).toFixed(2);
+        return `${minutes}:${seconds.padStart(5, '0')}`;
+      }
+      return totalSeconds.toFixed(2);
+    }
+    return String(mark);
   };
 
+  // Get latest split - handles both array splits (database) and string splits (live data)
   const getLatestSplit = (entry: any): string => {
-    if (!entry.splits || entry.splits.length === 0) return '';
-    const lastSplit = entry.splits[entry.splits.length - 1];
-    return formatTime(lastSplit?.splitTime);
+    // Live data has lastSplit or cumulativeSplit as strings
+    if (entry.lastSplit) {
+      const split = String(entry.lastSplit).trim();
+      if (split !== '') return split;
+    }
+    if (entry.cumulativeSplit) {
+      const split = String(entry.cumulativeSplit).trim();
+      if (split !== '') return split;
+    }
+    // Database data has splits array
+    if (entry.splits && entry.splits.length > 0) {
+      const lastSplit = entry.splits[entry.splits.length - 1];
+      return formatTime(lastSplit?.splitTime);
+    }
+    return '';
   };
 
   return (
@@ -178,11 +217,13 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
             const finalTime = formatTime(entry.finalMark);
             const splitTime = getLatestSplit(entry);
             
+            // Parse place for display
+            const placeVal = typeof entry.finalPlace === 'number' ? entry.finalPlace : parseInt(String(entry.finalPlace));
+            const hasPlace = !isNaN(placeVal) && placeVal > 0;
+            
             // Opacity: DNS/FS/Scratch = 50%, no data yet = 50%, has data = 100%
             const dimmed = isDimmedEntry(entry);
             const hasResultData = finalTime !== '' || splitTime !== '';
-            const isCompleted = event.status === 'completed';
-            const isStartList = event.status === 'scheduled' || event.status === 'upcoming';
             let rowOpacity = 1;
             if (dimmed) {
               rowOpacity = 0.5;
@@ -209,11 +250,12 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
                   }}
                 >
                   <div className="flex items-center w-full gap-6">
+                    {/* Place/Rank — show place when results are in, lane when not */}
                     <span 
                       className="text-white font-black w-20 text-center shrink-0"
                       style={{ fontSize: '56px', fontWeight: 900, fontFamily: "'Bebas Neue', sans-serif" }}
                     >
-                      {entry.finalLane || index + 1}
+                      {hasPlace ? placeVal : (entry.finalLane || index + 1)}
                     </span>
 
                     <div className="w-14 h-14 shrink-0 flex items-center justify-center">

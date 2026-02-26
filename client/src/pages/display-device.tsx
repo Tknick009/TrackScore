@@ -1772,11 +1772,16 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
               const firstName = entry.firstName || entry.name?.split(' ')[0] || '';
               const lastName = entry.lastName || entry.name?.split(' ').slice(1).join(' ') || entry.name || '';
               const teamName = entry.affiliation || entry.team || '';
+              const rawPlace = entry.place;
+              const placeNum = rawPlace ? parseInt(String(rawPlace)) : undefined;
+              const finalPlace = !isNaN(placeNum as number) && placeNum! > 0 ? placeNum : rawPlace;
               return {
                 id: idx,
                 finalLane: entry.lane || idx + 1,
-                finalPlace: entry.place,
+                finalPlace,
                 finalMark: entry.time || entry.mark || entry.result || '',
+                lastSplit: entry.lastSplit || entry.cumulativeSplit || '',
+                reactionTime: entry.reactionTime || '',
                 athlete: {
                   firstName,
                   lastName,
@@ -1836,11 +1841,16 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
               const firstName = entry.firstName || entry.name?.split(' ')[0] || '';
               const lastName = entry.lastName || entry.name?.split(' ').slice(1).join(' ') || entry.name || '';
               const teamName = entry.affiliation || entry.team || '';
+              const rawPlace = entry.place;
+              const placeNum = rawPlace ? parseInt(String(rawPlace)) : undefined;
+              const finalPlace = !isNaN(placeNum as number) && placeNum! > 0 ? placeNum : rawPlace;
               return {
                 id: idx,
                 finalLane: entry.lane || idx + 1,
-                finalPlace: entry.place,
+                finalPlace,
                 finalMark: entry.time || entry.mark || entry.result || '',
+                lastSplit: entry.lastSplit || entry.cumulativeSplit || '',
+                reactionTime: entry.reactionTime || '',
                 athlete: {
                   firstName,
                   lastName,
