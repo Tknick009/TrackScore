@@ -202,6 +202,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
   const athleteIdMap = new Map<number, string>();
   const eventIdMap = new Map<number, string>();
   const ptrToNumMap = new Map<number, number>();
+  const multiEventPtrs = new Set<number>(); // Track which Event_ptrs are multi-events (heptathlon, pentathlon, etc.)
   
   // Statistics tracking
   const stats: ImportStatistics = {
@@ -870,6 +871,11 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       // Auto-detect multi-event (Decathlon, Heptathlon, Pentathlon) from event name
       const isMultiEvent = /\b(decathlon|heptathlon|pentathlon)\b/i.test(eventName);
       
+      // Track which Event_ptrs are multi-events so we can set resultType='points' during entry import
+      if (isMultiEvent) {
+        multiEventPtrs.add(eventPtr);
+      }
+      
       eventBatch.push({
         meetId,
         eventNumber: eventNum,
@@ -983,6 +989,31 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
   // ===========================
   console.log("\n🎯 Importing Entries (athlete-event registrations & results)...");
   
+  // Build multi-event points map from Entrymulti table
+  // Entrymulti has per-component event points (Fin_points) for each athlete in a multi-event
+  // We sum them to get the total points per athlete per parent event
+  const multiEventPointsMap = new Map<string, number>(); // key: "eventPtr_athNo" -> total points
+  try {
+    const entryMultiTable = reader.getTable("Entrymulti");
+    const entryMultiData = entryMultiTable.getData();
+    console.log(`   \n📊 Reading Entrymulti table (${entryMultiData.length} rows) for multi-event points...`);
+    
+    for (const row of entryMultiData) {
+      const eventPtr = typeof row.Event_ptr === 'number' ? row.Event_ptr : Number(row.Event_ptr || 0);
+      const athNo = typeof row.Ath_no === 'number' ? row.Ath_no : Number(row.Ath_no || 0);
+      const finPoints = typeof row.Fin_points === 'number' ? row.Fin_points : Number(row.Fin_points || 0);
+      
+      if (eventPtr > 0 && athNo > 0 && finPoints > 0) {
+        const key = `${eventPtr}_${athNo}`;
+        multiEventPointsMap.set(key, (multiEventPointsMap.get(key) || 0) + finPoints);
+      }
+    }
+    
+    console.log(`   🏅 Multi-event points computed for ${multiEventPointsMap.size} athlete-event combinations`);
+  } catch (e) {
+    console.log(`   ⚠️  Entrymulti table not found or could not be read: ${(e as Error).message}`);
+  }
+  
   // Get event details for result type determination
   const eventDetailsMap = new Map<string, { eventType: string }>();
   if (isEdgeMode && sqliteDb) {
@@ -1027,8 +1058,11 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         
         // Determine result type from event type
         const eventDetails = eventDetailsMap.get(eventId);
+        const isMultiEventEntry = multiEventPtrs.has(eventPtr);
         let resultType = "time"; // default for track events
-        if (eventDetails) {
+        if (isMultiEventEntry) {
+          resultType = "points"; // Multi-event entries use points as their mark
+        } else if (eventDetails) {
           const et = eventDetails.eventType;
           if (et.includes('jump') || et.includes('vault')) {
             resultType = "distance"; // or "height" for high jump/pole vault
@@ -1080,7 +1114,20 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           // Final round
           finalHeat: row.Fin_heat ? Number(row.Fin_heat) : null,
           finalLane: row.Fin_lane ? Number(row.Fin_lane) : null,
-          finalMark: row.Fin_Time ? Number(row.Fin_Time) : null,
+          // For multi-events, Fin_Time contains total points (e.g., 3915).
+          // If Fin_Time is 0 or missing, try to get total from Entrymulti sum.
+          finalMark: (() => {
+            const finTime = row.Fin_Time ? Number(row.Fin_Time) : null;
+            if (isMultiEventEntry) {
+              // Use Fin_Time if it has a positive value (HyTek stores total points there)
+              if (finTime && finTime > 0) return finTime;
+              // Otherwise compute from Entrymulti component points
+              const key = `${eventPtr}_${athNo}`;
+              const multiPts = multiEventPointsMap.get(key);
+              return multiPts && multiPts > 0 ? multiPts : null;
+            }
+            return finTime;
+          })(),
           finalPlace: row.Fin_jdplace ? Number(row.Fin_jdplace) : (row.Fin_place ? Number(row.Fin_place) : null),
           finalWind: row.Fin_wind ? Number(row.Fin_wind) : null,
           

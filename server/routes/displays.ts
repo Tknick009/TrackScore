@@ -713,17 +713,29 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       
       const entriesToShow = relevantEntries.length > 0 ? relevantEntries : allEntries;
       
+      // Detect multi-event early for sorting (multi-events sort by points descending)
+      const isMultiEventForSort = (event as any).isMultiEvent === true || /\b(decathlon|heptathlon|pentathlon)\b/i.test(event.name || '');
+      
       const sortedEntries = entriesToShow.sort((a, b) => {
         const aFields = getRoundFields(a);
         const bFields = getRoundFields(b);
-        const aHeat = aFields.heat || 0;
-        const bHeat = bFields.heat || 0;
-        if (aHeat !== bHeat) return aHeat - bHeat;
+        // Sort by place first if available
         if (aFields.place && bFields.place) {
           return aFields.place - bFields.place;
         }
         if (aFields.place) return -1;
         if (bFields.place) return 1;
+        // For multi-events, sort by mark (points) descending — higher is better
+        if (isMultiEventForSort) {
+          const aMark = typeof aFields.mark === 'number' ? aFields.mark : 0;
+          const bMark = typeof bFields.mark === 'number' ? bFields.mark : 0;
+          if (aMark !== bMark) return bMark - aMark; // descending
+          return (a.seedMark || 0) - (b.seedMark || 0);
+        }
+        // For regular events, sort by heat then mark ascending
+        const aHeat = aFields.heat || 0;
+        const bHeat = bFields.heat || 0;
+        if (aHeat !== bHeat) return aHeat - bHeat;
         const aMark = typeof aFields.mark === 'number' ? aFields.mark : 999;
         const bMark = typeof bFields.mark === 'number' ? bFields.mark : 999;
         if (aMark !== bMark) return aMark - bMark;
@@ -778,6 +790,10 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       };
       
       const isTrackEvent = event.eventType ? !['high_jump','pole_vault','long_jump','triple_jump','shot_put','discus','hammer','javelin','weight_throw'].some(ft => event.eventType!.toLowerCase().includes(ft.replace('_',''))) : true;
+      
+      // Detect multi-event (heptathlon, pentathlon, decathlon)
+      // Multi-event marks are total points (integer), not times or distances
+      const isMultiEvent = (event as any).isMultiEvent === true || /\b(decathlon|heptathlon|pentathlon)\b/i.test(event.name || '');
       
       // Detect relay events for proper name display
       const eventNameLower = (event.name || '').toLowerCase();
@@ -845,9 +861,14 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         } else {
           const rawMark = fields.mark ?? entry.seedMark ?? '';
           if (typeof rawMark === 'number') {
-            markValue = isTrackEvent 
-              ? formatTimeSeconds(rawMark) 
-              : rawMark.toFixed(2);
+            if (isMultiEvent) {
+              // Multi-event marks are total points — display as integer
+              markValue = Math.round(rawMark).toString();
+            } else if (isTrackEvent) {
+              markValue = formatTimeSeconds(rawMark);
+            } else {
+              markValue = rawMark.toFixed(2);
+            }
           } else {
             markValue = rawMark;
           }
@@ -894,6 +915,12 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           isScratched: entry.isScratched || false,
           isDisqualified: entry.isDisqualified || false,
           statusCode: isKnownStatus ? dqCode : null,
+          // Multi-event points: totalPoints is the athlete's accumulated points across all component events
+          // eventPoints is per-component (same as mark for multi-events)
+          ...(isMultiEvent ? {
+            totalPoints: markValue,
+            eventPoints: markValue,
+          } : {}),
         };
       });
       
@@ -962,6 +989,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
             isRelay: isRelayEvent,
             wind: windReading,
             isFieldEvent: !isTrackEvent,
+            isMultiEvent,
           },
           pagingSize: lines,
           pagingInterval: lines,

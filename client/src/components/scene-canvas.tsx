@@ -644,7 +644,10 @@ export function SceneObjectRenderer({
           
           let eventPoints = 0;
           let timeWithPoints = '';
-          if (isMultiEvent && performance && hasScoring(eventTypeForScoring)) {
+          // Use server-provided eventPoints if available (e.g., from HyTek MDB import)
+          if (firstEntry?.eventPoints) {
+            eventPoints = typeof firstEntry.eventPoints === 'number' ? firstEntry.eventPoints : parseInt(String(firstEntry.eventPoints)) || 0;
+          } else if (isMultiEvent && performance && hasScoring(eventTypeForScoring)) {
             eventPoints = calculateMultiEventPoints(eventTypeForScoring, performance, entryGender);
           }
           
