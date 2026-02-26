@@ -841,7 +841,13 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         timeQualifiers.forEach(q => qualifierTimeSet.add(q.entryId));
       }
       
-      const enrichedEntries = sortedEntries.map((entry, index) => {
+      // Filter out scratches and DNS before building display entries
+      const displayEntries = sortedEntries.filter(entry => {
+        const dqCode = entry.notes ? String(entry.notes).trim().toUpperCase() : '';
+        return !entry.isScratched && dqCode !== 'SCR' && dqCode !== 'DNS';
+      });
+      
+      const enrichedEntries = displayEntries.map((entry, index) => {
         const athlete = entry.athleteId ? athleteMap.get(entry.athleteId) : null;
         const teamId = entry.teamId || athlete?.teamId;
         const team = teamId ? teamMap.get(teamId) : null;
@@ -1095,6 +1101,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           .map((s: any, index: number) => ({
             place: String(index + 1),
             name: s.teamName || 'Unknown',
+            lastName: s.teamName || 'Unknown',
             affiliation: teamAbbrMap.get(s.teamId) || s.teamName || '',
             team: teamAbbrMap.get(s.teamId) || s.teamName || '',
             time: String(s.totalPoints || 0),
@@ -1117,6 +1124,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           .map((team, index: number) => ({
             place: String(index + 1),
             name: team.name || team.shortName || 'Unknown',
+            lastName: team.name || team.shortName || 'Unknown',
             affiliation: team.abbreviation || team.name || team.shortName || '',
             team: team.abbreviation || team.name || team.shortName || '',
             time: '0',
