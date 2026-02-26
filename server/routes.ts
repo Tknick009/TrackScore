@@ -136,11 +136,36 @@ async function prefetchSceneData(sceneId: number): Promise<{ scene: any; objects
   }
 }
 
+// FinishLynx-specific message types that should NOT override non-lynx displays
+const LYNX_ONLY_MESSAGE_TYPES = new Set([
+  'track_mode_change', 'track_mode_change_big',
+  'start_list', 'start_list_big',
+  'clock_update',
+  'layout_command', 'layout_command_big',
+  'lynx_clock', 'lynx_wind', 'lynx_page',
+  'layout-command',
+]);
+
 // Broadcast function - Layout switching is now controlled by FinishLynx via layout-command events
+// Devices in non-lynx contentMode (hytek, team_scores, field) will NOT receive FinishLynx track messages
 function broadcastToDisplays(message: WSMessage) {
   const messageStr = JSON.stringify(message);
+  const isLynxMessage = LYNX_ONLY_MESSAGE_TYPES.has(message.type);
+
+  // Build set of WS connections that should skip this message (non-lynx devices)
+  let skipWs: Set<WebSocket> | null = null;
+  if (isLynxMessage) {
+    skipWs = new Set();
+    connectedDisplayDevices.forEach((device) => {
+      if (device.contentMode !== 'lynx') {
+        skipWs!.add(device.ws);
+      }
+    });
+  }
+
   displayClients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN) {
+      if (skipWs && skipWs.has(client)) return; // Skip non-lynx devices for lynx messages
       client.send(messageStr);
     }
   });
@@ -583,6 +608,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 pagingSize: device.pagingSize ?? 8,
                 pagingInterval: device.pagingInterval ?? 5,
                 fieldPort: device.fieldPort ?? undefined,
+                contentMode: 'lynx',
               });
               
               // Send registration confirmation with assigned event

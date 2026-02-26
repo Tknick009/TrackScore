@@ -3,6 +3,8 @@ import type { WSMessage } from "@shared/schema";
 import type multer from "multer";
 import type { FileStorage } from "./file-storage";
 
+export type ContentMode = 'lynx' | 'hytek' | 'team_scores' | 'field';
+
 export interface ConnectedDisplayDevice {
   ws: WebSocket;
   deviceId: string;
@@ -13,6 +15,7 @@ export interface ConnectedDisplayDevice {
   pagingSize: number;
   pagingInterval: number;
   fieldPort?: number;
+  contentMode: ContentMode;
 }
 
 export interface RouteContext {

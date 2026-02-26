@@ -912,6 +912,8 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       // Find the connected WebSocket for this device
       const connectedDevice = connectedDisplayDevices.get(deviceId);
       if (connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {
+        // Lock device to hytek mode so FinishLynx broadcasts don't override it
+        connectedDevice.contentMode = 'hytek';
         // Update paging settings (lines = seconds)
         connectedDevice.pagingSize = lines;
         connectedDevice.pagingInterval = lines;
@@ -1100,6 +1102,8 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       // Find the connected WebSocket for this device
       const connectedDevice = connectedDisplayDevices.get(deviceId);
       if (connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {
+        // Lock device to team_scores mode so FinishLynx broadcasts don't override it
+        connectedDevice.contentMode = 'team_scores';
         // Update paging settings (lines = seconds)
         connectedDevice.pagingSize = lines;
         connectedDevice.pagingInterval = lines;
@@ -1162,6 +1166,41 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       }
     } catch (error: any) {
       console.error(`[Team Scores] Error:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Switch device content mode (lynx, hytek, team_scores, field)
+  // Used to unlock a device back to FinishLynx mode after showing HyTek/team scores/field
+  app.patch("/api/display-devices/:id/content-mode", async (req, res) => {
+    try {
+      const { contentMode } = req.body;
+      const deviceId = req.params.id;
+      
+      const validModes = ['lynx', 'hytek', 'team_scores', 'field'];
+      if (!contentMode || !validModes.includes(contentMode)) {
+        return res.status(400).json({ error: `contentMode must be one of: ${validModes.join(', ')}` });
+      }
+      
+      const connectedDevice = connectedDisplayDevices.get(deviceId);
+      if (connectedDevice) {
+        connectedDevice.contentMode = contentMode;
+        console.log(`[Content Mode] Device ${connectedDevice.deviceName} switched to ${contentMode}`);
+      }
+      
+      res.json({ success: true, contentMode });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get device content mode
+  app.get("/api/display-devices/:id/content-mode", async (req, res) => {
+    try {
+      const connectedDevice = connectedDisplayDevices.get(req.params.id);
+      const contentMode = connectedDevice?.contentMode || 'lynx';
+      res.json({ contentMode });
+    } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });

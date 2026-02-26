@@ -693,6 +693,7 @@ export default function DisplayControlPage() {
                           onClick={() => {
                             setDisplayMode(prev => ({ ...prev, [selectedDevice.id]: 'finishlynx' }));
                             toggleAutoModeMutation.mutate({ deviceId: selectedDevice.id, enabled: true });
+                            apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}/content-mode`, { contentMode: 'lynx' });
                           }}
                           className={`p-4 rounded-lg border-2 transition-all text-left ${
                             displayMode[selectedDevice.id] === 'finishlynx' || autoModeStatus?.autoMode
