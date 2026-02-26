@@ -699,9 +699,11 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         }
       };
       
+      const totalRounds = event.numRounds || 1;
       const roundLabel = selectedRound === 'preliminary' ? 'Prelims'
         : selectedRound === 'quarterfinal' ? 'Quarterfinals'
         : selectedRound === 'semifinal' ? 'Semis'
+        : totalRounds <= 1 ? '1st Round'
         : 'Final';
       
       const relevantEntries = allEntries.filter(entry => {
