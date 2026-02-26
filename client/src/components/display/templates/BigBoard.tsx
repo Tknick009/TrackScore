@@ -95,7 +95,7 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
   })();
 
   // Format time - handles both string times from live data ("10.23", "1:45.67") 
-  // and numeric times from database (milliseconds)
+  // and numeric times from database (seconds — HyTek MDB stores as seconds)
   const formatTime = (mark: any): string => {
     if (mark === null || mark === undefined || mark === '') return '';
     // If it's already a string (from live FinishLynx data), return as-is
@@ -103,15 +103,14 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
       const trimmed = mark.trim();
       return trimmed;
     }
-    // Numeric value from database (milliseconds)
+    // Numeric value from database — HyTek stores times in seconds (e.g. 10.23, 128.59)
     if (typeof mark === 'number') {
-      const totalSeconds = mark / 1000;
-      if (totalSeconds >= 60) {
-        const minutes = Math.floor(totalSeconds / 60);
-        const seconds = (totalSeconds % 60).toFixed(2);
+      if (mark >= 60) {
+        const minutes = Math.floor(mark / 60);
+        const seconds = (mark % 60).toFixed(2);
         return `${minutes}:${seconds.padStart(5, '0')}`;
       }
-      return totalSeconds.toFixed(2);
+      return mark.toFixed(2);
     }
     return String(mark);
   };
@@ -214,7 +213,9 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
             const displayName = isRelay 
               ? entry.team?.name || 'Unknown Team'
               : `${entry.athlete?.lastName || ''}`;
-            const finalTime = formatTime(entry.finalMark);
+            // Use pre-formatted performance string from server (enrichEntry) when available,
+            // otherwise format the raw numeric finalMark
+            const finalTime = entry.performance || formatTime(entry.finalMark);
             const splitTime = getLatestSplit(entry);
             
             // Parse place for display

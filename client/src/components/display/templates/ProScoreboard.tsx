@@ -236,6 +236,10 @@ export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingInt
             const teamLogo = (entry.team as Record<string, unknown>)?.logoUrl as string | undefined;
 
             const resultText = (() => {
+              // Use pre-formatted performance string from server (enrichEntry) when available
+              if (entry.performance && typeof entry.performance === 'string' && entry.performance.trim() !== '') {
+                return entry.performance.trim();
+              }
               if (entry.finalMark === null || entry.finalMark === undefined || entry.finalMark === '') return '';
               const mark = entry.finalMark;
               // String times from live FinishLynx data — return as-is
