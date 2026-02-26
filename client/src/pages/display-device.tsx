@@ -888,22 +888,7 @@ export default function DisplayDevice() {
                 return;
               }
               
-              // Field displays: auto-mode does not gate field data (it's a track-only concept)
-              // Port-based routing: only show data from our selected port
-              if (dataPort && dataPort !== myPort) {
-                console.log(`[Display] Field data for port ${dataPort} stored in map, skipping liveEventData (listening on ${myPort})`);
-                return;
-              }
-              
-              // If this is a port-specific message, check if it's for our port
-              if (isPortSpecificFieldChange) {
-                const messagePort = parseInt(message.type.replace('field_mode_change_', ''));
-                if (messagePort !== myPort) {
-                  return; // Not for us
-                }
-              }
-              
-              console.log(`[Display] Field mode change (port ${myPort}): Event ${data.eventNumber}, ${data.results?.length || 0} results`);
+              console.log(`[Display] Field mode change (port ${dataPort}): Event ${data.eventNumber}, ${data.results?.length || 0} results`);
               
               // Determine the display mode based on field type (vertical vs horizontal) and multi-event status
               const isMultiEvent = data.isMultiEvent;
@@ -920,7 +905,9 @@ export default function DisplayDevice() {
               // Fallback to generic modes if specific modes don't have mappings
               const fallbackMode = isMultiEvent ? 'multi_field' : 'field_results';
               
-              // Try to switch to the appropriate scene
+              // Switch scene from logo to field results when ANY field port data arrives.
+              // This allows a display with 4 field event objects (each on different ports)
+              // to switch away from the logo as soon as the first event sends data.
               if (currentLayoutModeRef.current !== targetDisplayMode && displayType) {
                 let sceneId = getSceneForModeRef.current(displayType, targetDisplayMode);
                 
@@ -974,24 +961,28 @@ export default function DisplayDevice() {
                 }
               }
               
-              setState(prev => ({
-                ...prev,
-                liveEventData: {
-                  eventNumber: data.eventNumber,
-                  eventName: data.eventName || prev.liveEventData?.eventName || '',
-                  heat: prev.liveEventData?.heat,
-                  totalHeats: prev.liveEventData?.totalHeats,
-                  round: prev.liveEventData?.round,
-                  mode: data.mode,
-                  wind: data.wind,
-                  distance: prev.liveEventData?.distance,
-                  entries: data.results || [],
-                  // Pass through multi-event info for points calculation
-                  isMultiEvent: data.isMultiEvent,
-                  eventType: data.eventType,
-                  gender: data.gender,
-                },
-              }));
+              // Update liveEventData for the primary port (backward compat for single-event displays)
+              // For multi-event displays, each scene object reads from liveEventDataByPort[port] instead
+              if (!dataPort || dataPort === myPort) {
+                setState(prev => ({
+                  ...prev,
+                  liveEventData: {
+                    eventNumber: data.eventNumber,
+                    eventName: data.eventName || prev.liveEventData?.eventName || '',
+                    heat: prev.liveEventData?.heat,
+                    totalHeats: prev.liveEventData?.totalHeats,
+                    round: prev.liveEventData?.round,
+                    mode: data.mode,
+                    wind: data.wind,
+                    distance: prev.liveEventData?.distance,
+                    entries: data.results || [],
+                    // Pass through multi-event info for points calculation
+                    isMultiEvent: data.isMultiEvent,
+                    eventType: data.eventType,
+                    gender: data.gender,
+                  },
+                }));
+              }
             }
           }
           
@@ -1030,12 +1021,6 @@ export default function DisplayDevice() {
               // For liveEventData (single): only update when in field mode
               if (!isFieldModeRef.current) {
                 console.log(`[Display] Field standings stored in port map, skipping liveEventData - display is in track mode`);
-                return;
-              }
-              
-              // Port-based routing: only update liveEventData (single) for our port
-              if (data.fieldPort && data.fieldPort !== myPort) {
-                console.log(`[Display] Field standings for port ${data.fieldPort} stored in map, skipping liveEventData (listening on ${myPort})`);
                 return;
               }
               
@@ -1085,24 +1070,26 @@ export default function DisplayDevice() {
                 }
               }
               
-              // Update the live event data with standings entries
-              // Use the actual mode that was set (field_standings or field_results fallback)
-              const usedMode = currentLayoutModeRef.current || 'field_standings';
-              setState(prev => ({
-                ...prev,
-                liveEventData: {
-                  eventNumber: data.eventNumber,
-                  eventName: data.eventName || prev.liveEventData?.eventName || '',
-                  heat: data.currentPage, // Use page as heat for display
-                  totalHeats: data.totalPages,
-                  mode: usedMode,
-                  entries: data.entries || [],
-                  isStandings: true,
-                  isVerticalEvent: data.isVerticalEvent,
-                  wind: undefined,
-                  distance: prev.liveEventData?.distance,
-                },
-              }));
+              // Update liveEventData for the primary port (backward compat for single-event displays)
+              // For multi-event displays, each scene object reads from liveEventDataByPort[port] instead
+              if (!data.fieldPort || data.fieldPort === myPort) {
+                const usedMode = currentLayoutModeRef.current || 'field_standings';
+                setState(prev => ({
+                  ...prev,
+                  liveEventData: {
+                    eventNumber: data.eventNumber,
+                    eventName: data.eventName || prev.liveEventData?.eventName || '',
+                    heat: data.currentPage, // Use page as heat for display
+                    totalHeats: data.totalPages,
+                    mode: usedMode,
+                    entries: data.entries || [],
+                    isStandings: true,
+                    isVerticalEvent: data.isVerticalEvent,
+                    wind: undefined,
+                    distance: prev.liveEventData?.distance,
+                  },
+                }));
+              }
             }
           }
           
