@@ -189,7 +189,7 @@ export interface IStorage {
   getEvent(id: string): Promise<Event | undefined>;
   getEventsByMeetId(meetId: string): Promise<Event[]>;
   getEventsByLynxEventNumber(lynxEventNumber: number): Promise<Event[]>;
-  getCurrentEvent(): Promise<EventWithEntries | undefined>;
+  getCurrentEvent(meetId?: string): Promise<EventWithEntries | undefined>;
   createEvent(event: InsertEvent): Promise<Event>;
   updateEventStatus(id: string, status: string): Promise<Event | undefined>;
   updateEvent(id: string, updates: Record<string, any>): Promise<Event | undefined>;
@@ -604,8 +604,23 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(events).where(eq(events.eventNumber, lynxEventNumber));
   }
 
-  async getCurrentEvent(): Promise<EventWithEntries | undefined> {
-    const allEvents = await db.select().from(events);
+  async getCurrentEvent(meetId?: string): Promise<EventWithEntries | undefined> {
+    // If a meetId is provided, scope to that meet's events only
+    // This prevents pulling events from other meets
+    let allEvents: Event[];
+    if (meetId) {
+      allEvents = await db.select().from(events).where(eq(events.meetId, meetId));
+    } else {
+      // Fallback: try to find the active meet first, then scope to it
+      const allMeets = await db.select().from(meets);
+      const activeMeet = allMeets.find(m => m.status === 'in_progress')
+        || allMeets.find(m => m.status === 'upcoming');
+      if (activeMeet) {
+        allEvents = await db.select().from(events).where(eq(events.meetId, activeMeet.id));
+      } else {
+        allEvents = await db.select().from(events);
+      }
+    }
     
     // Priority: in_progress > scheduled > completed
     let currentEvent = allEvents.find((e) => e.status === "in_progress");

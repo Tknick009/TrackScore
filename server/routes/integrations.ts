@@ -1546,6 +1546,9 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
         displayMode = 'multi_track';
       }
       
+      // Suppress advancement data on finals — no Q badges or advancement formula on final rounds
+      const isFinalRound = roundName === 'Finals';
+      
       // Broadcast to different channels based on source port
       // Big board data goes to 'track_mode_change_big', regular goes to 'track_mode_change'
       const messageType = isBigBoard ? 'track_mode_change_big' : 'track_mode_change';
@@ -1558,8 +1561,8 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
           totalHeats, // Include total heats for "Heat X of Y" display
           roundName, // Include round name for "Prelims", "Finals", etc.
           totalRounds, // Total rounds configured for event
-          advanceByPlace, // For qualifier display (big Q)
-          advanceByTime, // For qualifier display (little q)
+          advanceByPlace: isFinalRound ? null : advanceByPlace, // Suppress on finals
+          advanceByTime: isFinalRound ? null : advanceByTime, // Suppress on finals
           isMultiEvent, // For multi-event points display
           eventType, // For calculating multi-event points
           gender: eventGender, // For calculating multi-event points
@@ -1968,6 +1971,9 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
       console.error('[Lynx] Error getting round info:', error);
     }
     
+    // Suppress advancement data on finals — no Q badges or advancement formula on final rounds
+    const isFinalRound = roundName === 'Finals';
+    
     // Broadcast entries in arrival order (FinishLynx controls display order)
     // Display maps by array position: Line 1 = entries[0], Line 2 = entries[1], etc.
     const messageType = isBigBoard ? 'start_list_big' : 'start_list';
@@ -1979,8 +1985,8 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
         totalHeats, // Include total heats for "Heat X of Y" display
         roundName, // Include round name for "Prelims", "Finals", etc.
         totalRounds, // Total rounds configured for event
-        advanceByPlace, // For qualifier display (big Q)
-        advanceByTime, // For qualifier display (little q)
+        advanceByPlace: isFinalRound ? null : advanceByPlace, // Suppress on finals
+        advanceByTime: isFinalRound ? null : advanceByTime, // Suppress on finals
         isMultiEvent, // For multi-event points display
         eventType, // For calculating multi-event points
         gender: eventGender, // For calculating multi-event points

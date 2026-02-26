@@ -398,9 +398,14 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
                 
                 // Get total heats - first check EVT watcher cache, then fall back to database
                 let totalHeats = 1;
-                const matchingEvents = await storage.getEventsByLynxEventNumber(latestLive.eventNumber);
-                if (matchingEvents.length > 0) {
-                  const event = matchingEvents[0];
+                const allMatchingEvents = await storage.getEventsByLynxEventNumber(latestLive.eventNumber);
+                // Filter to the device's meet to avoid pulling data from other meets
+                const matchingEvents = device.meetId
+                  ? allMatchingEvents.filter(e => e.meetId === device.meetId)
+                  : allMatchingEvents;
+                const effectiveEvents = matchingEvents.length > 0 ? matchingEvents : allMatchingEvents;
+                if (effectiveEvents.length > 0) {
+                  const event = effectiveEvents[0];
                   const roundNum = latestLive.round ? parseInt(String(latestLive.round)) : 1;
                   
                   // First try the EVT watcher cache
@@ -772,9 +777,32 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       
       const isTrackEvent = event.eventType ? !['high_jump','pole_vault','long_jump','triple_jump','shot_put','discus','hammer','javelin','weight_throw'].some(ft => event.eventType!.toLowerCase().includes(ft.replace('_',''))) : true;
       
-      const eventAdvanceByPlace = (event as any).advanceByPlace || 0;
-      const eventAdvanceByTime = (event as any).advanceByTime || 0;
-      const isPrelimRound = selectedRound !== 'final';
+      // Detect relay events for proper name display
+      const eventNameLower = (event.name || '').toLowerCase();
+      const eventTypeLower = (event.eventType || '').toLowerCase();
+      const isRelayEvent = eventNameLower.includes('relay') || eventNameLower.includes('medley') || eventTypeLower.startsWith('4x') || eventTypeLower.includes('relay') || /^\d+x\d+/.test(eventTypeLower);
+      
+      // Fetch wind readings for this event (track events only)
+      let windReading: string | null = null;
+      if (isTrackEvent) {
+        try {
+          const windReadings = await storage.getWindReadings(eventId);
+          if (windReadings.length > 0) {
+            // Use the most recent wind reading
+            const latestWind = windReadings[windReadings.length - 1];
+            if (latestWind.windSpeed !== null && latestWind.windSpeed !== undefined) {
+              windReading = String(latestWind.windSpeed);
+            }
+          }
+        } catch (err) {
+          // Wind readings not available, continue without
+        }
+      }
+      
+      const isFinalRound = selectedRound === 'final';
+      const eventAdvanceByPlace = isFinalRound ? 0 : ((event as any).advanceByPlace || 0);
+      const eventAdvanceByTime = isFinalRound ? 0 : ((event as any).advanceByTime || 0);
+      const isPrelimRound = !isFinalRound;
       
       const qualifierTimeSet = new Set<string>();
       if (isPrelimRound && eventAdvanceByTime > 0 && isTrackEvent) {
@@ -835,14 +863,25 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         
         const teamName = team?.name || team?.shortName || '';
         const teamAbbrev = team?.abbreviation || team?.shortName || '';
+        
+        // For relay events, use team name as the athlete name
+        let displayFirstName = athlete?.firstName || '';
+        let displayLastName = athlete?.lastName || '';
+        let displayName = athlete ? `${athlete.firstName} ${athlete.lastName}`.trim() : 'Unknown';
+        if (isRelayEvent && teamName) {
+          displayName = teamName;
+          displayFirstName = '';
+          displayLastName = teamName;
+        }
+        
         return {
           position,
           lane: fields.lane || 0,
           heat: fields.heat || 0,
           bib: athlete?.bibNumber || athlete?.athleteNumber?.toString() || '',
-          firstName: athlete?.firstName || '',
-          lastName: athlete?.lastName || '',
-          name: athlete ? `${athlete.firstName} ${athlete.lastName}`.trim() : 'Unknown',
+          firstName: displayFirstName,
+          lastName: displayLastName,
+          name: displayName,
           team: teamAbbrev,
           affiliation: teamName,
           time: markValue,
@@ -850,6 +889,9 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           result: markValue,
           place: fields.place,
           qualifier,
+          isScratched: entry.isScratched || false,
+          isDisqualified: entry.isDisqualified || false,
+          statusCode: isKnownStatus ? dqCode : null,
         };
       });
       
@@ -907,8 +949,15 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
             totalHeats: maxHeat,
             mode: 'results',
             entries: enrichedEntries,
-            advanceByPlace: eventAdvanceByPlace || undefined,
-            advanceByTime: eventAdvanceByTime || undefined,
+            // Only send advancement data for non-final rounds
+            advanceByPlace: isFinalRound ? null : (eventAdvanceByPlace || undefined),
+            advanceByTime: isFinalRound ? null : (eventAdvanceByTime || undefined),
+            // Additional metadata for better display rendering
+            eventType: event.eventType || 'track',
+            gender: event.gender || '',
+            isRelay: isRelayEvent,
+            wind: windReading,
+            isFieldEvent: !isTrackEvent,
           },
           pagingSize: lines,
           pagingInterval: lines,
@@ -984,64 +1033,62 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         console.log('[Team Scores] getTeamStandings failed, falling back to manual scoring');
       }
       
-      // If getTeamStandings returned results, use them
+      // Get team logos for all paths
+      const logoMap = new Map<string, string>();
+      try {
+        const allLogos = await storage.getTeamLogosByMeet(device.meetId);
+        for (const logo of allLogos) {
+          logoMap.set(logo.teamId, fileStorage.publicUrlForKey(logo.storageKey));
+        }
+      } catch {}
+      
+      // Get team abbreviations from teams table for richer display
+      const teamAbbrMap = new Map<string, string>();
+      try {
+        const allTeams = await storage.getTeamsByMeetId(device.meetId);
+        for (const t of allTeams) {
+          if (t.abbreviation) teamAbbrMap.set(t.id, t.abbreviation);
+        }
+      } catch {}
+      
+      // Build team entries from standings (getTeamStandings is the canonical source)
       let teamEntries: any[];
       if (standings.length > 0) {
-        // Get team logos
-        const logoMap = new Map<string, string>();
-        try {
-          const allLogos = await storage.getTeamLogosByMeet(device.meetId);
-          for (const logo of allLogos) {
-            logoMap.set(logo.teamId, fileStorage.publicUrlForKey(logo.storageKey));
-          }
-        } catch {}
-        
         teamEntries = standings
           .filter((s: any) => (s.totalPoints || 0) > 0)
           .map((s: any, index: number) => ({
             place: String(index + 1),
             name: s.teamName || 'Unknown',
-            affiliation: s.teamAbbreviation || s.teamName || '',
-            team: s.teamAbbreviation || s.teamName || '',
+            affiliation: teamAbbrMap.get(s.teamId) || s.teamName || '',
+            team: teamAbbrMap.get(s.teamId) || s.teamName || '',
             time: String(s.totalPoints || 0),
             mark: String(s.totalPoints || 0),
+            points: s.totalPoints || 0,
             logoUrl: logoMap.get(s.teamId) || null,
+            eventCount: s.eventCount || 0,
+            eventBreakdown: s.eventBreakdown || [],
           }));
       } else {
-        // Fallback: get all teams and manual scoring
+        // Fallback: no scoring rules configured — show teams with 0 points
         const teams = await storage.getTeamsByMeetId(device.meetId);
         if (teams.length === 0) {
           return res.status(400).json({ error: "No teams found for this meet", warning: true });
         }
         
-        let teamScores: Map<string, number> = new Map();
-        try {
-          const scoringResults = await storage.getTeamScoringResultsByMeet(device.meetId);
-          for (const result of scoringResults) {
-            if (result.gender && result.gender !== selectedGender) continue;
-            const current = teamScores.get(result.teamId) || 0;
-            teamScores.set(result.teamId, current + (result.points || 0));
-            hasScores = true;
-          }
-        } catch (err) {
-          console.log('[Team Scores] No scoring results available');
-        }
-        
-        const sortedTeams = [...teams].sort((a: typeof teams[0], b: typeof teams[0]) => {
-          const scoreA = teamScores.get(a.id) || 0;
-          const scoreB = teamScores.get(b.id) || 0;
-          return scoreB - scoreA;
-        });
-        
-        teamEntries = sortedTeams
-          .filter((team: typeof teams[0]) => (teamScores.get(team.id) || 0) > 0)
-          .map((team: typeof teams[0], index: number) => ({
+        // Without scoring rules, just list the teams alphabetically
+        teamEntries = teams
+          .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+          .map((team, index: number) => ({
             place: String(index + 1),
             name: team.name || team.shortName || 'Unknown',
             affiliation: team.abbreviation || team.name || team.shortName || '',
             team: team.abbreviation || team.name || team.shortName || '',
-            time: String(teamScores.get(team.id) || 0),
-            mark: String(teamScores.get(team.id) || 0),
+            time: '0',
+            mark: '0',
+            points: 0,
+            logoUrl: logoMap.get(team.id) || null,
+            eventCount: 0,
+            eventBreakdown: [],
           }));
       }
       
