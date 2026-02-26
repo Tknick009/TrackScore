@@ -45,15 +45,19 @@ export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingInt
 
   const displayClock = liveTime || clock;
 
-  // Sort entries
+  // Helper to check if an entry is DNS, FS, or Scratch (dimmed to 50% opacity, not hidden)
+  const isDimmedEntry = (entry: EntryWithDetails) => {
+    const time = String(entry.finalMark ?? '').toUpperCase().trim();
+    const place = String(entry.finalPlace ?? '').toUpperCase().trim();
+    const notes = String((entry as Record<string, unknown>).notes ?? '').toUpperCase().trim();
+    return time === 'DNS' || place === 'DNS' || time === 'FS' || place === 'FS'
+      || time === 'SCR' || place === 'SCR' || notes === 'DNS' || notes === 'FS' || notes === 'SCR'
+      || (entry as Record<string, unknown>).isScratched === true;
+  };
+
+  // Sort entries — keep ALL entries visible (DNS/FS/Scratch render at 50% opacity)
   const sortedEntries = useMemo(() => {
-    const isDNS = (entry: EntryWithDetails) => {
-      const time = String(entry.finalMark ?? '').toUpperCase().trim();
-      const place = String(entry.finalPlace ?? '').toUpperCase().trim();
-      return time === 'DNS' || place === 'DNS';
-    };
-    const valid = (event.entries || []).filter(e => !isDNS(e));
-    return [...valid].sort((a, b) => {
+    return [...(event.entries || [])].sort((a, b) => {
       if (a.finalPlace && b.finalPlace) return a.finalPlace - b.finalPlace;
       if (a.finalPlace) return -1;
       if (b.finalPlace) return 1;
@@ -251,6 +255,21 @@ export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingInt
               ? 'rgba(255,255,255,0.02)'
               : 'transparent';
 
+            // Opacity: DNS/FS/Scratch = 50%, no data yet = 50%, has data = 100%
+            const dimmed = isDimmedEntry(entry);
+            const hasResultData = resultText !== '' && resultText !== '--';
+            const isStartList = !isCompleted && !isLive;
+            let rowOpacity = 1;
+            if (dimmed) {
+              rowOpacity = 0.5;
+            } else if (isStartList) {
+              rowOpacity = 1; // Start list: filled rows at full opacity
+            } else if (!isCompleted && !hasResultData) {
+              rowOpacity = 0.5; // Running: no result yet = dimmed
+            } else if (isCompleted && !hasResultData) {
+              rowOpacity = 0.5; // Results: no time yet = dimmed
+            }
+
             return (
               <div
                 key={entry.id || index}
@@ -258,6 +277,8 @@ export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingInt
                 style={{
                   backgroundColor: rowBg,
                   borderBottom: '1px solid rgba(255,255,255,0.04)',
+                  opacity: rowOpacity,
+                  transition: 'opacity 0.3s ease-in-out',
                 }}
               >
                 {/* Lane / number */}
