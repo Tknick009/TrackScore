@@ -841,7 +841,13 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         timeQualifiers.forEach(q => qualifierTimeSet.add(q.entryId));
       }
       
-      const enrichedEntries = sortedEntries.map((entry, index) => {
+      // Filter out scratches and DNS before building display entries
+      const displayEntries = sortedEntries.filter(entry => {
+        const dqCode = entry.notes ? String(entry.notes).trim().toUpperCase() : '';
+        return !entry.isScratched && dqCode !== 'SCR' && dqCode !== 'DNS';
+      });
+      
+      const enrichedEntries = displayEntries.map((entry, index) => {
         const athlete = entry.athleteId ? athleteMap.get(entry.athleteId) : null;
         const teamId = entry.teamId || athlete?.teamId;
         const team = teamId ? teamMap.get(teamId) : null;
