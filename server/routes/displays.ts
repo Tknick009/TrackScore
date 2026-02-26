@@ -1017,9 +1017,10 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
   // Send Team Scores to a display device
   app.post("/api/display-devices/:id/team-scores", async (req, res) => {
     try {
-      const { pagingLines, gender } = req.body;
+      const { pagingLines, gender, maxPages } = req.body;
       const deviceId = req.params.id;
       const selectedGender: string = gender === 'W' ? 'W' : 'M';
+      const effectiveMaxPages = Math.max(0, parseInt(maxPages) || 0);
       const genderLabel = selectedGender === 'W' ? "Women's" : "Men's";
       
       // Get the device
@@ -1176,6 +1177,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           },
           pagingSize: lines,
           pagingInterval: lines,
+          maxPages: effectiveMaxPages,
         }));
         
         // Update database with paging settings
@@ -1184,7 +1186,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           pagingInterval: lines,
         });
         
-        console.log(`[Team Scores] Sent ${teamEntries.length} ${genderLabel} teams to ${device.deviceName} (paging: ${lines} lines/${lines}s, hasScores: ${hasScores})`);
+        console.log(`[Team Scores] Sent ${teamEntries.length} ${genderLabel} teams to ${device.deviceName} (paging: ${lines} lines/${lines}s, maxPages: ${effectiveMaxPages || 'all'}, hasScores: ${hasScores})`);
         res.json({ 
           success: true, 
           delivered: true, 

@@ -104,6 +104,7 @@ export default function DisplayControlPage() {
   const [selectedHytekItem, setSelectedHytekItem] = useState<Record<string, string>>({});
   const [pagingLines, setPagingLines] = useState<Record<string, number>>({});
   const [teamScoreGender, setTeamScoreGender] = useState<Record<string, 'M' | 'W'>>({});
+  const [maxPages, setMaxPages] = useState<Record<string, number>>({});
   const [eventSearch, setEventSearch] = useState('');
   const [pendingFieldPort, setPendingFieldPort] = useState<Record<string, number>>({});
 
@@ -330,8 +331,8 @@ export default function DisplayControlPage() {
 
   // Send Team Scores mutation
   const sendTeamScoresMutation = useMutation({
-    mutationFn: async ({ deviceId, pagingLines, gender }: { deviceId: string; pagingLines: number; gender: 'M' | 'W' }) => {
-      const response = await apiRequest('POST', `/api/display-devices/${deviceId}/team-scores`, { pagingLines, gender });
+    mutationFn: async ({ deviceId, pagingLines, gender, maxPages: mp }: { deviceId: string; pagingLines: number; gender: 'M' | 'W'; maxPages?: number }) => {
+      const response = await apiRequest('POST', `/api/display-devices/${deviceId}/team-scores`, { pagingLines, gender, maxPages: mp || 0 });
       return response.json();
     },
     onSuccess: (data) => {
@@ -944,14 +945,40 @@ export default function DisplayControlPage() {
                             </div>
                           </div>
 
+                          <div className="space-y-2">
+                            <Label>Max Pages</Label>
+                            <div className="flex items-center gap-2">
+                              <Select
+                                value={String(maxPages[selectedDevice.id] || 0)}
+                                onValueChange={(value) => {
+                                  setMaxPages(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }));
+                                }}
+                              >
+                                <SelectTrigger className="w-24" data-testid="select-teamscores-maxpages">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {[0, 1, 2, 3, 5, 10].map(n => (
+                                    <SelectItem key={n} value={String(n)}>{n === 0 ? 'All' : String(n)}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <span className="text-sm text-muted-foreground">
+                                {(maxPages[selectedDevice.id] || 0) === 0 ? 'show all pages' : `only show first ${maxPages[selectedDevice.id]} page${maxPages[selectedDevice.id] === 1 ? '' : 's'}`}
+                              </span>
+                            </div>
+                          </div>
+
                           <Button
                             onClick={() => {
                               const lines = pagingLines[selectedDevice.id] || 8;
                               const gender = teamScoreGender[selectedDevice.id] || 'M';
+                              const mp = maxPages[selectedDevice.id] || 0;
                               sendTeamScoresMutation.mutate({
                                 deviceId: selectedDevice.id,
                                 pagingLines: lines,
                                 gender,
+                                maxPages: mp,
                               });
                             }}
                             disabled={sendTeamScoresMutation.isPending}

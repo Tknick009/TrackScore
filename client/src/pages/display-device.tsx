@@ -174,6 +174,7 @@ interface DisplayDeviceState {
   liveEventDataByPort: Record<number, LiveEventData>;
   pagingSize: number;
   pagingInterval: number;
+  maxPages: number;
 }
 
 // Storage helpers for device identity - keyed by device name for persistence across type changes
@@ -239,6 +240,7 @@ export default function DisplayDevice() {
     liveEventDataByPort: {},
     pagingSize: 8,
     pagingInterval: 5,
+    maxPages: 0,
   });
   const [selectedMeetId, setSelectedMeetId] = useState<string | null>(null);
   const [deviceName, setDeviceName] = useState<string>(getLastDeviceName());
@@ -466,6 +468,7 @@ export default function DisplayDevice() {
                   : prev.liveEventData,
                 pagingSize: message.pagingSize ?? prev.pagingSize,
                 pagingInterval: message.pagingInterval ?? prev.pagingInterval,
+                maxPages: message.maxPages ?? prev.maxPages,
               };
             });
           }
@@ -475,6 +478,7 @@ export default function DisplayDevice() {
               ...prev,
               pagingSize: message.pagingSize ?? prev.pagingSize,
               pagingInterval: message.pagingInterval ?? prev.pagingInterval,
+              maxPages: message.maxPages ?? prev.maxPages,
             }));
           }
 
@@ -1332,6 +1336,7 @@ export default function DisplayDevice() {
       liveEventDataByPort={state.liveEventDataByPort}
       pagingSize={state.pagingSize}
       pagingInterval={state.pagingInterval}
+      maxPages={state.maxPages}
       customWidth={state.displayType === 'Custom' ? customWidth : undefined}
       customHeight={state.displayType === 'Custom' ? customHeight : undefined}
     />
@@ -1352,6 +1357,7 @@ interface DisplayRendererProps {
   liveEventDataByPort: Record<number, LiveEventData>;
   pagingSize: number;
   pagingInterval: number;
+  maxPages: number;
   customWidth?: number;
   customHeight?: number;
 }
@@ -1360,7 +1366,7 @@ interface EventWithEntries extends Event {
   entries: any[];
 }
 
-function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTime, liveEventData, liveEventDataByPort, pagingSize, pagingInterval, customWidth, customHeight }: DisplayRendererProps) {
+function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTime, liveEventData, liveEventDataByPort, pagingSize, pagingInterval, maxPages, customWidth, customHeight }: DisplayRendererProps) {
   const { data: meet } = useQuery<Meet>({
     queryKey: ['/api/meets', meetId],
     enabled: !!meetId,
@@ -1431,6 +1437,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             liveClockTime={liveClockTime}
             pagingSize={pagingSize}
             pagingInterval={pagingInterval}
+            maxPages={maxPages}
             displayWidth={effectiveWidth}
             displayHeight={effectiveHeight}
           />
@@ -1449,6 +1456,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
           liveClockTime={liveClockTime}
           pagingSize={pagingSize}
           pagingInterval={pagingInterval}
+          maxPages={maxPages}
           displayWidth={effectiveWidth}
           displayHeight={effectiveHeight}
         />

@@ -92,6 +92,7 @@ export interface SceneCanvasProps {
   liveClockTime?: string | null;
   pagingSize?: number;
   pagingInterval?: number;
+  maxPages?: number;
   // For fixed-size displays (P10/P6): target display resolution
   displayWidth?: number;
   displayHeight?: number;
@@ -735,13 +736,17 @@ export function SceneObjectRenderer({
         if (fieldKey === 'team-score-badges' && liveData?.scoredEventNames) {
           const badgeNames: string[] = Array.isArray(liveData.scoredEventNames) ? liveData.scoredEventNames : [];
           const badgeColor = componentConfig.textColor || styleConfig.textColor || "hsl(var(--display-fg))";
-          const badgeFontSize = typeof numericTextFontSize === 'number'
+          const baseBadgeFontSize = typeof numericTextFontSize === 'number'
             ? Math.max(10, numericTextFontSize * 0.65)
             : 12;
+          // Auto-shrink badges to fit on one line: reduce font size based on badge count
+          const badgeCount = badgeNames.length;
+          const shrinkFactor = badgeCount > 20 ? 0.5 : badgeCount > 15 ? 0.6 : badgeCount > 10 ? 0.7 : badgeCount > 6 ? 0.85 : 1;
+          const badgeFontSize = Math.max(6, baseBadgeFontSize * shrinkFactor);
           return (
             <div 
-              className="flex items-center h-full px-2"
-              style={{ justifyContent, flexWrap: 'wrap', gap: '4px', alignContent: 'center', overflow: 'hidden' }}
+              className="flex items-center h-full px-1"
+              style={{ justifyContent, flexWrap: 'nowrap', gap: `${Math.max(1, badgeFontSize * 0.25)}px`, alignContent: 'center', overflow: 'hidden' }}
             >
               {badgeNames.map((name, i) => (
                 <span
@@ -751,9 +756,10 @@ export function SceneObjectRenderer({
                     backgroundColor: 'hsl(var(--display-accent) / 0.2)',
                     color: badgeColor,
                     fontSize: `${badgeFontSize}px`,
-                    padding: `${Math.max(1, badgeFontSize * 0.2)}px ${Math.max(3, badgeFontSize * 0.5)}px`,
-                    lineHeight: 1.3,
+                    padding: `${Math.max(1, badgeFontSize * 0.15)}px ${Math.max(2, badgeFontSize * 0.3)}px`,
+                    lineHeight: 1.2,
                     border: '1px solid hsl(var(--display-accent) / 0.4)',
+                    flexShrink: 0,
                   }}
                 >
                   {name}
@@ -1252,6 +1258,7 @@ export function SceneCanvas({
   liveClockTime,
   pagingSize = 8,
   pagingInterval = 5,
+  maxPages = 0,
   displayWidth,
   displayHeight,
 }: SceneCanvasProps) {
@@ -1352,7 +1359,9 @@ export function SceneCanvas({
     return entries.length;
   }, [liveData]);
   
-  const totalPages = Math.max(1, Math.ceil(totalEntries / pagingSize));
+  const rawTotalPages = Math.max(1, Math.ceil(totalEntries / pagingSize));
+  // maxPages limits how many pages cycle (0 = no limit, show all)
+  const totalPages = maxPages > 0 ? Math.min(rawTotalPages, maxPages) : rawTotalPages;
   
   useEffect(() => {
     if (totalPages <= 1 || pagingInterval <= 0) {
