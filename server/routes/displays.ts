@@ -700,10 +700,13 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       };
       
       const totalRounds = event.numRounds || 1;
-      const roundLabel = selectedRound === 'preliminary' ? 'Prelims'
+      // Determine the correct round label:
+      // - For multi-round events, label based on which round is selected
+      // - For single-round events, it's always the "Final" (the only round IS the final)
+      // - Auto-detect: if we're viewing final data and entries have finalMark/finalPlace, it's "Final"
+      const roundLabel = selectedRound === 'preliminary' ? (totalRounds > 1 ? 'Prelims' : 'Final')
         : selectedRound === 'quarterfinal' ? 'Quarterfinals'
         : selectedRound === 'semifinal' ? 'Semis'
-        : totalRounds <= 1 ? '1st Round'
         : 'Final';
       
       const relevantEntries = allEntries.filter(entry => {
