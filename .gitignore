@@ -4,3 +4,10 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+
+# Replit scratch files
+attached_assets/
+
+# Old update/fix zip bundles
+*.zip
+!public/**/*.zip
