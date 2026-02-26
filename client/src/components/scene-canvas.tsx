@@ -255,8 +255,11 @@ export function SceneObjectRenderer({
     shouldHide = true;
   }
   
-  // Determine content opacity: entries without timing data fade their text to near-invisible
-  // while keeping the background row fully visible. When data arrives, text snaps to full opacity.
+  // Determine content opacity based on display mode:
+  // - Start list: filled rows = 100%, empty rows = 50%, DNS/FS/Scratch = 50%
+  // - Running time: all rows start at 50%, rows with split data → 100%
+  // - Results: all rows start at 50%, rows with a time → 100%
+  // - Field modes: always 100% (no timing-based fade)
   let contentFadeOpacity = 1;
   const rawAthleteIndex = dataBinding.athleteIndex;
   const pageOffset = (pageIndex || 0) * (pageSize || 8);
@@ -264,6 +267,7 @@ export function SceneObjectRenderer({
   const mode = liveData?.mode || '';
   const isResultsMode = mode === 'results' || mode === 'finished';
   const isPreRaceMode = mode === 'armed' || mode === 'start_list' || mode === '';
+  const isRunningMode = mode === 'running' || mode === 'running_time';
   // Field event modes always show content — no timing-based fade
   const isFieldMode = mode === 'standings' || mode === 'athlete_up' || mode === 'field_results' || mode === 'multi_field';
   
@@ -271,15 +275,62 @@ export function SceneObjectRenderer({
     const entries = Array.isArray(liveData.entries) ? liveData.entries : [];
     const entry = entries[athleteIndex];
     if (!entry) {
-      contentFadeOpacity = 0;
-    } else if (!isResultsMode && !isPreRaceMode && !isFieldMode) {
-      const hasLastSplit = entry.lastSplit && String(entry.lastSplit).trim() !== '';
-      const hasCumulativeSplit = entry.cumulativeSplit && String(entry.cumulativeSplit).trim() !== '';
-      const hasTime = entry.time && String(entry.time).trim() !== '';
-      const hasRunningTime = entry.runningMode && String(entry.runningTime).trim() !== '';
-      const hasPlace = entry.place && String(entry.place).trim() !== '' && entry.place !== '--';
-      const hasTimingData = hasLastSplit || hasCumulativeSplit || hasTime || hasRunningTime || hasPlace;
-      contentFadeOpacity = hasTimingData ? 1 : 0;
+      // Empty row (no athlete data) — dim to 50%
+      contentFadeOpacity = 0.5;
+    } else if (isFieldMode) {
+      // Field events always show at full opacity
+      contentFadeOpacity = 1;
+    } else {
+      // Check if entry is DNS, FS (false start), or Scratch
+      const timeStr = String(entry.time || '').toUpperCase().trim();
+      const placeStr = String(entry.place || '').toUpperCase().trim();
+      const markStr = String(entry.mark || '').toUpperCase().trim();
+      const isDNS = timeStr === 'DNS' || placeStr === 'DNS' || markStr === 'DNS';
+      const isFS = timeStr === 'FS' || placeStr === 'FS' || markStr === 'FS';
+      const isScratch = timeStr === 'SCR' || placeStr === 'SCR' || markStr === 'SCR' 
+        || entry.isScratched === true;
+      const isDimmedStatus = isDNS || isFS || isScratch;
+      
+      if (isPreRaceMode) {
+        // Start list: filled rows = 100%, DNS/FS/Scratch = 50%
+        contentFadeOpacity = isDimmedStatus ? 0.5 : 1;
+      } else if (isRunningMode) {
+        // Running time: 50% until split data arrives, then 100%
+        // DNS/FS/Scratch stay at 50%
+        if (isDimmedStatus) {
+          contentFadeOpacity = 0.5;
+        } else {
+          const hasLastSplit = entry.lastSplit && String(entry.lastSplit).trim() !== '';
+          const hasCumulativeSplit = entry.cumulativeSplit && String(entry.cumulativeSplit).trim() !== '';
+          const hasRunningTime = entry.runningTime && String(entry.runningTime).trim() !== '';
+          const hasTimingData = hasLastSplit || hasCumulativeSplit || hasRunningTime;
+          contentFadeOpacity = hasTimingData ? 1 : 0.5;
+        }
+      } else if (isResultsMode) {
+        // Results: 50% until they receive a time, then 100%
+        // DNS/FS/Scratch stay at 50%
+        if (isDimmedStatus) {
+          contentFadeOpacity = 0.5;
+        } else {
+          const hasTime = entry.time && String(entry.time).trim() !== '';
+          const hasPlace = entry.place && String(entry.place).trim() !== '' && entry.place !== '--';
+          const hasResult = hasTime || hasPlace;
+          contentFadeOpacity = hasResult ? 1 : 0.5;
+        }
+      } else {
+        // Any other mode (e.g., track_mode_change): same as running logic
+        if (isDimmedStatus) {
+          contentFadeOpacity = 0.5;
+        } else {
+          const hasLastSplit = entry.lastSplit && String(entry.lastSplit).trim() !== '';
+          const hasCumulativeSplit = entry.cumulativeSplit && String(entry.cumulativeSplit).trim() !== '';
+          const hasTime = entry.time && String(entry.time).trim() !== '';
+          const hasRunningTime = entry.runningTime && String(entry.runningTime).trim() !== '';
+          const hasPlace = entry.place && String(entry.place).trim() !== '' && entry.place !== '--';
+          const hasTimingData = hasLastSplit || hasCumulativeSplit || hasTime || hasRunningTime || hasPlace;
+          contentFadeOpacity = hasTimingData ? 1 : 0.5;
+        }
+      }
     }
   }
   
@@ -1208,19 +1259,11 @@ export function SceneCanvas({
     const mode = rawLiveData.mode || '';
     const isResults = mode === 'results' || mode === 'finished';
     
-    // Helper to check if an entry is DNS (Did Not Start) - only DNS entries are hidden
-    const isDNS = (entry: any) => {
-      const time = String(entry.time || '').toUpperCase().trim();
-      const place = String(entry.place || '').toUpperCase().trim();
-      const mark = String(entry.mark || '').toUpperCase().trim();
-      return time === 'DNS' || place === 'DNS' || mark === 'DNS';
-    };
-    
-    // Filter out ONLY DNS entries - all other entries remain visible
-    const nonDNSEntries = entries.filter((entry: any) => !isDNS(entry));
+    // Keep ALL entries visible (including DNS/FS/Scratch) — they render at 50% opacity
+    // instead of being hidden. The SceneObjectRenderer contentFadeOpacity logic handles dimming.
     
     if (isResults) {
-      const sortedEntries = [...nonDNSEntries].sort((a: any, b: any) => {
+      const sortedEntries = [...entries].sort((a: any, b: any) => {
         const hasTimeA = a.time && String(a.time).trim() !== '';
         const hasPlaceA = a.place && String(a.place).trim() !== '';
         const hasResultA = hasTimeA || hasPlaceA;
@@ -1242,11 +1285,11 @@ export function SceneCanvas({
       };
     }
     
-    // For running/start_list modes: show all entries except DNS
-    // Entries without timing data will appear at 50% opacity (handled by textFadeOpacity)
+    // For running/start_list modes: show all entries
+    // DNS/FS/Scratch entries render at 50% opacity (handled by SceneObjectRenderer)
     return {
       ...rawLiveData,
-      entries: nonDNSEntries,
+      entries: entries,
     };
   }, [rawLiveData]);
   

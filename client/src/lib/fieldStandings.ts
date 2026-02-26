@@ -11,6 +11,14 @@ import type {
   FieldHeight,
 } from "@shared/schema";
 import { isHeightEvent, isDistanceEvent } from "@shared/schema";
+// Re-export formatting utilities from shared module (canonical source)
+export {
+  feetInchesToMeters,
+  metersToFeetInches,
+  formatDistanceMark,
+  formatHeightMark,
+} from "@shared/formatting";
+import { metersToFeetInches, formatDistanceMark, formatHeightMark } from "@shared/formatting";
 
 export interface HorizontalStanding {
   athleteId: number;
@@ -32,56 +40,6 @@ export interface VerticalStanding {
   attemptSequence: string;
   isTied: boolean;
   isEliminated: boolean;
-}
-
-const METERS_PER_FOOT = 0.3048;
-const INCHES_PER_FOOT = 12;
-
-export function feetInchesToMeters(feet: number, inches: number): number {
-  const totalInches = feet * INCHES_PER_FOOT + inches;
-  const totalFeet = totalInches / INCHES_PER_FOOT;
-  return totalFeet * METERS_PER_FOOT;
-}
-
-export function metersToFeetInches(meters: number): { feet: number; inches: number } {
-  const totalFeet = meters / METERS_PER_FOOT;
-  const feet = Math.floor(totalFeet);
-  const inches = (totalFeet - feet) * INCHES_PER_FOOT;
-  return { feet, inches };
-}
-
-export function formatDistanceMark(meters: number, unit: 'metric' | 'english' = 'metric'): string {
-  if (unit === 'metric') {
-    return `${meters.toFixed(2)}m`;
-  }
-  
-  const { feet, inches } = metersToFeetInches(meters);
-  const inchesWhole = Math.floor(inches);
-  const inchesFrac = inches - inchesWhole;
-  
-  if (inchesFrac > 0.001) {
-    const inchesFormatted = inches.toFixed(2).padStart(5, '0');
-    return `${feet}-${inchesFormatted}`;
-  }
-  
-  return `${feet}-${inchesWhole.toString().padStart(2, '0')}`;
-}
-
-export function formatHeightMark(meters: number, unit: 'metric' | 'english' = 'metric'): string {
-  if (unit === 'metric') {
-    return `${meters.toFixed(2)}m`;
-  }
-  
-  const { feet, inches } = metersToFeetInches(meters);
-  const inchesWhole = Math.floor(inches);
-  const inchesFrac = inches - inchesWhole;
-  
-  if (inchesFrac > 0.001) {
-    const inchesFormatted = inches.toFixed(2).padStart(5, '0');
-    return `${feet}-${inchesFormatted}`;
-  }
-  
-  return `${feet}-${inchesWhole.toString().padStart(2, '0')}`;
 }
 
 export function getVerticalAttemptSequence(

@@ -1,0 +1,1489 @@
+import type { Express } from "express";
+import { z } from "zod";
+import { storage } from "../storage";
+import {
+  isHeightEvent,
+  insertDisplayThemeSchema,
+  insertBoardConfigSchema,
+  insertDisplayLayoutSchema,
+  insertLayoutCellSchema,
+  overlayConfigSchema,
+  type WSMessage,
+} from "@shared/schema";
+import { mergeFlightsForEvent } from "../parsers/lff-parser";
+import {
+  calculateHorizontalStandings,
+  calculateVerticalStandings,
+} from "../field-standings";
+import type { RouteContext } from "../route-context";
+import { getTotalHeatsFromCache } from '../track-heat-watcher';
+
+const overlayUpdateSchema = z.object({
+  overlayType: z.enum(['lower-third', 'scorebug', 'athlete-spotlight', 'team-standings']),
+  data: z.object({
+    meetId: z.string().optional(),
+    eventId: z.string().optional(),
+    athleteId: z.string().optional(),
+    teamId: z.string().optional()
+  })
+});
+
+const overlayHideSchema = z.object({
+  overlayType: z.enum(['lower-third', 'scorebug', 'athlete-spotlight', 'team-standings'])
+});
+
+export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
+  const {
+    broadcastToDisplays, sendToDisplayDevice, connectedDisplayDevices,
+    prefetchSceneData, getDisplayModeFromTemplate, abbreviateEventName, fileStorage
+  } = ctx;
+
+  // ===== DISPLAY REGISTRATION =====
+  app.post("/api/displays/register", async (req, res) => {
+    try {
+      const { meetCode, computerName } = req.body;
+      
+      if (!meetCode || !computerName) {
+        return res.status(400).json({ error: "meetCode and computerName are required" });
+      }
+
+      const result = await storage.registerDisplay(meetCode, computerName);
+      
+      if (!result) {
+        return res.status(404).json({ error: "Meet not found with the provided code" });
+      }
+
+      res.json({
+        displayId: result.display.id,
+        authToken: result.display.authToken,
+        meetId: result.meet.id,
+        meetName: result.meet.name,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/displays/:id/assign", async (req, res) => {
+    try {
+      const { targetType, targetId, layout } = req.body;
+      
+      if (!targetType) {
+        return res.status(400).json({ error: "targetType is required" });
+      }
+
+      const assignment = await storage.assignDisplay(req.params.id, {
+        targetType,
+        targetId,
+        layout,
+      });
+
+      if (!assignment) {
+        return res.status(404).json({ error: "Display not found" });
+      }
+
+      res.json(assignment);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/displays/meet/:meetId", async (req, res) => {
+    try {
+      const displays = await storage.getDisplaysByMeet(req.params.meetId);
+      
+      const displaysWithAssignments = await Promise.all(
+        displays.map(async (display) => {
+          const assignment = await storage.getDisplayAssignment(display.id);
+          return {
+            ...display,
+            assignment,
+          };
+        })
+      );
+
+      res.json(displaysWithAssignments);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/displays/:id/heartbeat", async (req, res) => {
+    try {
+      await storage.updateDisplayHeartbeat(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ===== DISPLAY DEVICES =====
+  // ===== DISPLAY DEVICES (Remote Display Control) =====
+
+  // Get all display devices for a meet
+  app.get("/api/display-devices/meet/:meetId", async (req, res) => {
+    try {
+      const devices = await storage.getDisplayDevices(req.params.meetId);
+      res.json(devices);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Register a display device (called when display connects)
+  app.post("/api/display-devices/register", async (req, res) => {
+    try {
+      const { meetId, deviceName } = req.body;
+      
+      if (!meetId || !deviceName) {
+        return res.status(400).json({ error: "meetId and deviceName are required" });
+      }
+
+      // Get client IP for tracking
+      const clientIp = req.headers['x-forwarded-for'] as string || 
+                       req.socket.remoteAddress || 
+                       'unknown';
+
+      const device = await storage.createOrUpdateDisplayDevice({
+        meetId,
+        deviceName,
+        lastIp: clientIp,
+      });
+
+      res.json(device);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Update device status (heartbeat)
+  app.post("/api/display-devices/:id/heartbeat", async (req, res) => {
+    try {
+      const clientIp = req.headers['x-forwarded-for'] as string || 
+                       req.socket.remoteAddress || 
+                       'unknown';
+
+      const device = await storage.updateDisplayDeviceStatus(req.params.id, 'online', clientIp);
+      
+      if (!device) {
+        return res.status(404).json({ error: "Display device not found" });
+      }
+
+      res.json(device);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Assign an event to a display device (only for field mode displays)
+  app.patch("/api/display-devices/:id/assign-event", async (req, res) => {
+    try {
+      const { eventId } = req.body;
+      
+      // Get current device to check mode
+      const existingDevice = await storage.getDisplayDevice(req.params.id);
+      if (!existingDevice) {
+        return res.status(404).json({ error: "Display device not found" });
+      }
+      
+      // Only field mode displays can have events manually assigned
+      if (existingDevice.displayMode === 'track') {
+        return res.status(400).json({ 
+          error: "Track displays cannot be manually assigned to events. They automatically show data from Lynx." 
+        });
+      }
+      
+      const device = await storage.assignEventToDisplay(req.params.id, eventId || null);
+      
+      if (!device) {
+        return res.status(404).json({ error: "Display device not found" });
+      }
+
+      // Get the event data if an event is assigned
+      let eventData = null;
+      if (eventId) {
+        eventData = await storage.getEventWithEntries(eventId);
+      }
+
+      // Get the meet for context
+      const meets = await storage.getMeets();
+      const meet = meets.find(m => m.id === device.meetId);
+
+      // Broadcast the assignment with event data to all connected displays
+      broadcastToDisplays({
+        type: 'display_assignment',
+        data: {
+          deviceId: device.id,
+          deviceName: device.deviceName,
+          eventId: device.assignedEventId,
+          event: eventData,
+          meet: meet,
+        }
+      } as WSMessage);
+
+      res.json(device);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Set display mode (track = auto from Lynx, field = manual assignment)
+  app.patch("/api/display-devices/:id/mode", async (req, res) => {
+    try {
+      const { displayMode } = req.body;
+      
+      if (!displayMode || !['track', 'field'].includes(displayMode)) {
+        return res.status(400).json({ error: "displayMode must be 'track' or 'field'" });
+      }
+      
+      const device = await storage.updateDisplayDeviceMode(req.params.id, displayMode);
+      
+      if (!device) {
+        return res.status(404).json({ error: "Display device not found" });
+      }
+
+      // Broadcast the mode change
+      broadcastToDisplays({
+        type: 'display_mode_change',
+        data: {
+          deviceId: device.id,
+          deviceName: device.deviceName,
+          displayMode: device.displayMode,
+        }
+      } as WSMessage);
+
+      res.json(device);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Set device offline
+  app.patch("/api/display-devices/:id/offline", async (req, res) => {
+    try {
+      const device = await storage.updateDisplayDeviceStatus(req.params.id, 'offline');
+      
+      if (!device) {
+        return res.status(404).json({ error: "Display device not found" });
+      }
+
+      res.json(device);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Delete a display device
+  app.delete("/api/display-devices/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deleteDisplayDevice(req.params.id);
+      
+      if (!deleted) {
+        return res.status(404).json({ error: "Display device not found" });
+      }
+
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Send command to a display device (push template/content)
+  app.post("/api/display-devices/:id/command", async (req, res) => {
+    try {
+      const { template, eventId } = req.body;
+      const deviceId = req.params.id;
+      
+      // Get the device
+      const device = await storage.getDisplayDevice(deviceId);
+      if (!device) {
+        return res.status(404).json({ error: "Display device not found" });
+      }
+      
+      // Validate template compatibility with device display type
+      // Display type capabilities:
+      // - P10 (192x96): 1 athlete max
+      // - P6 (288x144): 1 athlete max  
+      // - BigBoard (1920x1080): 8 athletes max
+      const displayType = device.displayType || 'P10';
+      const isSingleAthleteDisplay = displayType === 'P10' || displayType === 'P6';
+      
+      if (template && isSingleAthleteDisplay) {
+        // Use the shared layout templates registry to validate compatibility
+        const { getTemplateById } = await import('@shared/layout-templates');
+        const templateInfo = getTemplateById(template);
+        
+        // Check if template exists in registry and has display type metadata
+        if (templateInfo) {
+          // Template found in registry - check if its displayType matches device
+          if (templateInfo.displayType === 'BigBoard') {
+            return res.status(400).json({ 
+              error: `Template '${template}' is a BigBoard template and not compatible with ${displayType} displays. P10/P6 displays can only show one athlete at a time.`,
+              suggestion: template.includes('field') 
+                ? `${displayType.toLowerCase()}-field-results`
+                : `${displayType.toLowerCase()}-results`,
+              displayType: displayType,
+              maxAthletes: 1
+            });
+          }
+        } else {
+          // Template not in registry - check by prefix/name patterns
+          const templateLower = template.toLowerCase();
+          
+          // Explicitly incompatible: BigBoard templates and multi-athlete components
+          const isExplicitlyIncompatible = 
+            templateLower.startsWith('bigboard-') ||
+            templateLower === 'bigboard' ||
+            ['compiledresults', 'runningresults', 'fieldsidebyside'].includes(templateLower.replace(/-/g, ''));
+          
+          if (isExplicitlyIncompatible) {
+            return res.status(400).json({ 
+              error: `Template '${template}' is not compatible with ${displayType} displays. P10/P6 displays can only show one athlete at a time.`,
+              suggestion: templateLower.includes('field') 
+                ? `${displayType.toLowerCase()}-field-results`
+                : `${displayType.toLowerCase()}-results`,
+              displayType: displayType,
+              maxAthletes: 1
+            });
+          }
+        }
+      }
+      
+      // Update the template in database
+      if (template !== undefined) {
+        await storage.updateDisplayTemplate(deviceId, template);
+      }
+      
+      // If setting an event, update that too
+      if (eventId !== undefined) {
+        await storage.assignEventToDisplay(deviceId, eventId);
+      }
+      
+      // Find the connected WebSocket for this device
+      const connectedDevice = connectedDisplayDevices.get(deviceId);
+      if (connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {
+        // Look up custom scene mapping if template is provided
+        let sceneId: number | null = null;
+        let sceneData: { scene: any; objects: any[] } | null = null;
+        let liveEventData: any = null;
+        
+        if (template && device.meetId) {
+          const displayMode = getDisplayModeFromTemplate(template);
+          if (displayMode) {
+            try {
+              const mapping = await storage.getSceneTemplateMappingByTypeAndMode(
+                device.meetId,
+                displayType,
+                displayMode
+              );
+              if (mapping) {
+                sceneId = mapping.sceneId;
+                // Pre-fetch scene data for instant switching
+                sceneData = await prefetchSceneData(sceneId);
+                console.log(`[Manual Command] ${device.deviceName}: Using custom scene ${sceneId} for ${displayMode}`);
+              }
+            } catch (err) {
+              console.error(`[Manual Command] Error looking up scene mapping:`, err);
+            }
+          }
+          
+          // Get latest live event data for modes that need it
+          if (displayMode === 'start_list' || displayMode === 'running_time' || displayMode === 'track_results') {
+            try {
+              // Get the most recent live event data
+              const liveData = await storage.getLiveEventsByMeet();
+              if (liveData && liveData.length > 0) {
+                // Use the most recent entry
+                const latestLive = liveData[0];
+                
+                // Get total heats - first check EVT watcher cache, then fall back to database
+                let totalHeats = 1;
+                const allMatchingEvents = await storage.getEventsByLynxEventNumber(latestLive.eventNumber);
+                // Filter to the device's meet to avoid pulling data from other meets
+                const matchingEvents = device.meetId
+                  ? allMatchingEvents.filter(e => e.meetId === device.meetId)
+                  : allMatchingEvents;
+                const effectiveEvents = matchingEvents.length > 0 ? matchingEvents : allMatchingEvents;
+                if (effectiveEvents.length > 0) {
+                  const event = effectiveEvents[0];
+                  const roundNum = latestLive.round ? parseInt(String(latestLive.round)) : 1;
+                  
+                  // First try the EVT watcher cache
+                  const cachedHeats = getTotalHeatsFromCache(event.meetId, latestLive.eventNumber, roundNum);
+                  if (cachedHeats !== null) {
+                    totalHeats = cachedHeats;
+                  } else {
+                    // Fall back to database calculation
+                    const roundStr = latestLive.round ? String(latestLive.round).toLowerCase() : undefined;
+                    totalHeats = await storage.getTotalHeatsForEvent(event.id, roundStr);
+                  }
+                }
+                
+                liveEventData = {
+                  eventNumber: latestLive.eventNumber,
+                  eventName: latestLive.eventName,
+                  mode: latestLive.mode,
+                  heat: latestLive.heat,
+                  totalHeats, // Total heats from database for "Heat X of Y" display
+                  round: latestLive.round,
+                  entries: latestLive.entries,
+                  wind: latestLive.wind,
+                };
+              }
+            } catch (err) {
+              console.error(`[Manual Command] Error getting live data:`, err);
+            }
+          }
+        }
+        
+        // Send command to the display device
+        connectedDevice.ws.send(JSON.stringify({
+          type: 'display_command',
+          template: sceneId ? null : template, // Use template only if no custom scene
+          sceneId: sceneId, // Custom scene ID (if mapped)
+          sceneData: sceneData, // Pre-fetched scene data for instant switching
+          eventId,
+          liveEventData,
+          pagingSize: connectedDevice.pagingSize,
+          pagingInterval: connectedDevice.pagingInterval,
+        }));
+        
+        res.json({ success: true, delivered: true, sceneId });
+      } else {
+        // Device not connected, but command saved to database
+        res.json({ success: true, delivered: false, message: "Device offline - command saved for when it reconnects" });
+      }
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Toggle auto-mode for a display device
+  app.post("/api/display-devices/:id/auto-mode", async (req, res) => {
+    try {
+      const { enabled } = req.body;
+      const deviceId = req.params.id;
+      
+      // Persist to database
+      const autoModeValue = enabled !== false;
+      const updatedDevice = await storage.updateDisplayAutoMode(deviceId, autoModeValue);
+      
+      if (!updatedDevice) {
+        return res.status(404).json({ error: "Device not found" });
+      }
+      
+      // Update in-memory state if device is connected
+      const connectedDevice = connectedDisplayDevices.get(deviceId);
+      if (connectedDevice) {
+        connectedDevice.autoMode = autoModeValue;
+        
+        // Notify the device of auto-mode status
+        // Layout switching is now controlled by FinishLynx via layout-command events
+        if (connectedDevice.ws.readyState === WebSocket.OPEN) {
+          connectedDevice.ws.send(JSON.stringify({
+            type: 'auto_mode_update',
+            autoMode: connectedDevice.autoMode,
+          }));
+        }
+      }
+      
+      console.log(`[Auto-Mode] ${updatedDevice.deviceName}: ${autoModeValue ? 'ENABLED' : 'DISABLED'}`);
+      
+      res.json({ success: true, autoMode: autoModeValue });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Get auto-mode status for a display device
+  app.get("/api/display-devices/:id/auto-mode", async (req, res) => {
+    try {
+      const deviceId = req.params.id;
+      
+      // Get persisted value from database
+      const device = await storage.getDisplayDevice(deviceId);
+      if (!device) {
+        return res.status(404).json({ error: "Device not found" });
+      }
+      
+      const connectedDevice = connectedDisplayDevices.get(deviceId);
+      const isConnected = !!connectedDevice;
+      
+      res.json({ 
+        connected: isConnected, 
+        autoMode: device.autoMode ?? true // Default to true
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get paging settings for a display device
+  app.get("/api/display-devices/:id/paging", async (req, res) => {
+    try {
+      const device = await storage.getDisplayDevice(req.params.id);
+      if (!device) {
+        return res.status(404).json({ error: "Device not found" });
+      }
+      res.json({ 
+        pagingSize: device.pagingSize ?? 8,
+        pagingInterval: device.pagingInterval ?? 5
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Update paging settings for a display device
+  app.patch("/api/display-devices/:id/paging", async (req, res) => {
+    try {
+      const { pagingSize, pagingInterval } = req.body;
+      const deviceId = req.params.id;
+      
+      // Validate inputs
+      const size = Math.max(1, Math.min(20, parseInt(pagingSize) || 8));
+      const interval = Math.max(1, Math.min(60, parseInt(pagingInterval) || 5));
+      
+      const device = await storage.getDisplayDevice(deviceId);
+      if (!device) {
+        return res.status(404).json({ error: "Device not found" });
+      }
+      
+      // Update paging settings in database
+      const updated = await storage.updateDisplayDevice(deviceId, { 
+        pagingSize: size, 
+        pagingInterval: interval 
+      });
+      
+      // Update the in-memory device record with new paging settings
+      const connectedDevice = connectedDisplayDevices.get(deviceId);
+      if (connectedDevice) {
+        connectedDevice.pagingSize = size;
+        connectedDevice.pagingInterval = interval;
+        
+        // Notify the connected device of the new settings
+        if (connectedDevice.ws.readyState === WebSocket.OPEN) {
+          connectedDevice.ws.send(JSON.stringify({
+            type: 'paging_settings',
+            pagingSize: size,
+            pagingInterval: interval,
+          }));
+        }
+      }
+      
+      res.json({ success: true, pagingSize: size, pagingInterval: interval });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Update display device config (fieldPort, isBigBoard, pagingSize, pagingInterval, displayType)
+  app.patch("/api/display-devices/:id", async (req, res) => {
+    try {
+      const { fieldPort, isBigBoard, pagingSize, pagingInterval, displayType, displayWidth, displayHeight } = req.body;
+      const id = req.params.id;
+
+      const device = await storage.getDisplayDevice(id);
+      if (!device) {
+        return res.status(404).json({ error: "Device not found" });
+      }
+
+      const validDisplayTypes = ['P10', 'P6', 'BigBoard', 'Broadcast', 'Custom'];
+      if (displayType) {
+        if (!validDisplayTypes.includes(displayType)) {
+          return res.status(400).json({ error: `Invalid display type. Must be one of: ${validDisplayTypes.join(', ')}` });
+        }
+        await storage.updateDisplayDeviceType(id, displayType, undefined, displayWidth, displayHeight);
+      }
+
+      const updates: Partial<{ pagingSize: number; pagingInterval: number; fieldPort: number | null; isBigBoard: boolean }> = {};
+      if (fieldPort !== undefined) updates.fieldPort = fieldPort;
+      if (isBigBoard !== undefined) updates.isBigBoard = isBigBoard;
+      if (pagingSize !== undefined) updates.pagingSize = Math.max(1, Math.min(20, parseInt(pagingSize) || 8));
+      if (pagingInterval !== undefined) updates.pagingInterval = Math.max(1, Math.min(60, parseInt(pagingInterval) || 5));
+
+      if (Object.keys(updates).length > 0) {
+        await storage.updateDisplayDevice(id, updates);
+      }
+
+      const finalDevice = await storage.getDisplayDevice(id);
+
+      // Update in-memory connected device record so server-side field broadcasts
+      // are immediately filtered to the correct port — no client-side state race
+      const connectedDevice = connectedDisplayDevices.get(id);
+      if (connectedDevice && finalDevice) {
+        connectedDevice.fieldPort = finalDevice.fieldPort ?? undefined;
+        if (finalDevice.displayType) connectedDevice.displayType = finalDevice.displayType;
+        if (finalDevice.pagingSize !== undefined) connectedDevice.pagingSize = finalDevice.pagingSize ?? 8;
+        if (finalDevice.pagingInterval !== undefined) connectedDevice.pagingInterval = finalDevice.pagingInterval ?? 5;
+      }
+
+      broadcastToDisplays({
+        type: 'device_config_update',
+        data: {
+          deviceId: id,
+          displayType: finalDevice?.displayType,
+          fieldPort: finalDevice?.fieldPort,
+          isBigBoard: finalDevice?.isBigBoard,
+          pagingSize: finalDevice?.pagingSize,
+          pagingInterval: finalDevice?.pagingInterval,
+          displayMode: finalDevice?.displayMode,
+        }
+      } as WSMessage);
+
+      res.json(finalDevice);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Send Hytek Results to a display device (compiled results from database)
+  app.post("/api/display-devices/:id/hytek-results", async (req, res) => {
+    try {
+      const { eventId, pagingLines, round } = req.body;
+      const deviceId = req.params.id;
+      
+      if (!eventId) {
+        return res.status(400).json({ error: "eventId is required" });
+      }
+      
+      const device = await storage.getDisplayDevice(deviceId);
+      if (!device) {
+        return res.status(404).json({ error: "Display device not found" });
+      }
+      
+      const event = await storage.getEvent(eventId);
+      if (!event) {
+        return res.status(404).json({ error: "Event not found" });
+      }
+      
+      const allEntries = await storage.getEntriesByEvent(eventId);
+      
+      if (allEntries.length === 0) {
+        return res.status(400).json({ error: "No entries found for this event", warning: true });
+      }
+      
+      const selectedRound = round || 'final';
+      
+      const getRoundFields = (entry: any) => {
+        switch (selectedRound) {
+          case 'preliminary':
+            return {
+              mark: entry.preliminaryMark,
+              place: entry.preliminaryPlace,
+              heat: entry.preliminaryHeat,
+              lane: entry.preliminaryLane,
+            };
+          case 'quarterfinal':
+            return {
+              mark: entry.quarterfinalMark,
+              place: entry.quarterfinalPlace,
+              heat: entry.quarterfinalHeat,
+              lane: entry.quarterfinalLane,
+            };
+          case 'semifinal':
+            return {
+              mark: entry.semifinalMark,
+              place: entry.semifinalPlace,
+              heat: entry.semifinalHeat,
+              lane: entry.semifinalLane,
+            };
+          case 'final':
+          default:
+            return {
+              mark: entry.finalMark,
+              place: entry.finalPlace,
+              heat: entry.finalHeat,
+              lane: entry.finalLane || entry.finalsLane,
+            };
+        }
+      };
+      
+      const roundLabel = selectedRound === 'preliminary' ? 'Prelims'
+        : selectedRound === 'quarterfinal' ? 'Quarterfinals'
+        : selectedRound === 'semifinal' ? 'Semis'
+        : 'Final';
+      
+      const relevantEntries = allEntries.filter(entry => {
+        const fields = getRoundFields(entry);
+        return fields.heat != null || fields.lane != null || fields.mark != null || fields.place != null;
+      });
+      
+      const entriesToShow = relevantEntries.length > 0 ? relevantEntries : allEntries;
+      
+      const sortedEntries = entriesToShow.sort((a, b) => {
+        const aFields = getRoundFields(a);
+        const bFields = getRoundFields(b);
+        const aHeat = aFields.heat || 0;
+        const bHeat = bFields.heat || 0;
+        if (aHeat !== bHeat) return aHeat - bHeat;
+        if (aFields.place && bFields.place) {
+          return aFields.place - bFields.place;
+        }
+        if (aFields.place) return -1;
+        if (bFields.place) return 1;
+        const aMark = typeof aFields.mark === 'number' ? aFields.mark : 999;
+        const bMark = typeof bFields.mark === 'number' ? bFields.mark : 999;
+        if (aMark !== bMark) return aMark - bMark;
+        if (aFields.lane && bFields.lane) {
+          return aFields.lane - bFields.lane;
+        }
+        return (a.seedMark || 999) - (b.seedMark || 999);
+      });
+      
+      const athleteIds = sortedEntries.map(e => e.athleteId).filter((id): id is string => !!id);
+      const uniqueAthleteIds = [...new Set(athleteIds)];
+      
+      const athleteMap = new Map<string, any>();
+      const teamMap = new Map<string, any>();
+      
+      if (uniqueAthleteIds.length > 0) {
+        const athletes = await Promise.all(uniqueAthleteIds.map(id => storage.getAthlete(id)));
+        athletes.forEach(a => { if (a) athleteMap.set(a.id, a); });
+      }
+      
+      const teamIds = new Set<string>();
+      sortedEntries.forEach(e => {
+        if (e.teamId) teamIds.add(e.teamId);
+      });
+      athleteMap.forEach(a => {
+        if (a.teamId) teamIds.add(a.teamId);
+      });
+      
+      if (teamIds.size > 0) {
+        const teams = await Promise.all([...teamIds].map(id => storage.getTeam(id)));
+        teams.forEach(t => { if (t) teamMap.set(t.id, t); });
+      }
+      
+      const ceilToPrecision = (val: number, precision: number): number => {
+        const factor = Math.pow(10, precision);
+        return Math.ceil(val * factor - 1e-9) / factor;
+      };
+      const formatTimeSeconds = (seconds: number, precision: number = 2): string => {
+        const rounded = ceilToPrecision(seconds, precision);
+        if (rounded >= 3600) {
+          const hours = Math.floor(rounded / 3600);
+          const mins = Math.floor((rounded % 3600) / 60);
+          const secs = ceilToPrecision(rounded % 60, precision).toFixed(precision);
+          return `${hours}:${String(mins).padStart(2, '0')}:${secs.padStart(precision + 3, '0')}`;
+        }
+        if (rounded >= 60) {
+          const mins = Math.floor(rounded / 60);
+          const secs = ceilToPrecision(rounded % 60, precision).toFixed(precision);
+          return `${mins}:${secs.padStart(precision + 3, '0')}`;
+        }
+        return rounded.toFixed(precision);
+      };
+      
+      const isTrackEvent = event.eventType ? !['high_jump','pole_vault','long_jump','triple_jump','shot_put','discus','hammer','javelin','weight_throw'].some(ft => event.eventType!.toLowerCase().includes(ft.replace('_',''))) : true;
+      
+      // Detect relay events for proper name display
+      const eventNameLower = (event.name || '').toLowerCase();
+      const eventTypeLower = (event.eventType || '').toLowerCase();
+      const isRelayEvent = eventNameLower.includes('relay') || eventNameLower.includes('medley') || eventTypeLower.startsWith('4x') || eventTypeLower.includes('relay') || /^\d+x\d+/.test(eventTypeLower);
+      
+      // Fetch wind readings for this event (track events only)
+      let windReading: string | null = null;
+      if (isTrackEvent) {
+        try {
+          const windReadings = await storage.getWindReadings(eventId);
+          if (windReadings.length > 0) {
+            // Use the most recent wind reading
+            const latestWind = windReadings[windReadings.length - 1];
+            if (latestWind.windSpeed !== null && latestWind.windSpeed !== undefined) {
+              windReading = String(latestWind.windSpeed);
+            }
+          }
+        } catch (err) {
+          // Wind readings not available, continue without
+        }
+      }
+      
+      const isFinalRound = selectedRound === 'final';
+      const eventAdvanceByPlace = isFinalRound ? 0 : ((event as any).advanceByPlace || 0);
+      const eventAdvanceByTime = isFinalRound ? 0 : ((event as any).advanceByTime || 0);
+      const isPrelimRound = !isFinalRound;
+      
+      const qualifierTimeSet = new Set<string>();
+      if (isPrelimRound && eventAdvanceByTime > 0 && isTrackEvent) {
+        const nonPlaceQualifiers: { entryId: string; mark: number }[] = [];
+        sortedEntries.forEach(entry => {
+          const fields = getRoundFields(entry);
+          const place = fields.place || 0;
+          const mark = fields.mark;
+          if (typeof mark === 'number' && mark > 0 && (!place || place > eventAdvanceByPlace)) {
+            nonPlaceQualifiers.push({ entryId: entry.id, mark });
+          }
+        });
+        nonPlaceQualifiers.sort((a, b) => a.mark - b.mark);
+        const timeQualifiers = nonPlaceQualifiers.slice(0, eventAdvanceByTime);
+        timeQualifiers.forEach(q => qualifierTimeSet.add(q.entryId));
+      }
+      
+      const enrichedEntries = sortedEntries.map((entry, index) => {
+        const athlete = entry.athleteId ? athleteMap.get(entry.athleteId) : null;
+        const teamId = entry.teamId || athlete?.teamId;
+        const team = teamId ? teamMap.get(teamId) : null;
+        const fields = getRoundFields(entry);
+        const position = fields.place || (index + 1);
+        
+        const dqCode = entry.notes ? String(entry.notes).trim().toUpperCase() : null;
+        const knownStatusCodes = ['NH', 'NM', 'FOUL', 'DNS', 'DNF', 'DQ', 'SCR', 'FS', 'NT'];
+        const isKnownStatus = dqCode && knownStatusCodes.includes(dqCode);
+        
+        let markValue: string;
+        if (isKnownStatus) {
+          markValue = dqCode!;
+        } else if (entry.isDisqualified && dqCode) {
+          markValue = dqCode;
+        } else if (entry.isDisqualified) {
+          markValue = 'DQ';
+        } else if (entry.isScratched) {
+          markValue = 'SCR';
+        } else {
+          const rawMark = fields.mark ?? entry.seedMark ?? '';
+          if (typeof rawMark === 'number') {
+            markValue = isTrackEvent 
+              ? formatTimeSeconds(rawMark) 
+              : rawMark.toFixed(2);
+          } else {
+            markValue = rawMark;
+          }
+        }
+        
+        let qualifier = '';
+        if (isPrelimRound && !isKnownStatus && !entry.isDisqualified && !entry.isScratched) {
+          const place = fields.place || 0;
+          if (place > 0 && eventAdvanceByPlace > 0 && place <= eventAdvanceByPlace) {
+            qualifier = 'Q';
+          } else if (qualifierTimeSet.has(entry.id)) {
+            qualifier = 'q';
+          }
+        }
+        
+        const teamName = team?.name || team?.shortName || '';
+        const teamAbbrev = team?.abbreviation || team?.shortName || '';
+        
+        // For relay events, use team name as the athlete name
+        let displayFirstName = athlete?.firstName || '';
+        let displayLastName = athlete?.lastName || '';
+        let displayName = athlete ? `${athlete.firstName} ${athlete.lastName}`.trim() : 'Unknown';
+        if (isRelayEvent && teamName) {
+          displayName = teamName;
+          displayFirstName = '';
+          displayLastName = teamName;
+        }
+        
+        return {
+          position,
+          lane: fields.lane || 0,
+          heat: fields.heat || 0,
+          bib: athlete?.bibNumber || athlete?.athleteNumber?.toString() || '',
+          firstName: displayFirstName,
+          lastName: displayLastName,
+          name: displayName,
+          team: teamAbbrev,
+          affiliation: teamName,
+          time: markValue,
+          mark: markValue,
+          result: markValue,
+          place: fields.place,
+          qualifier,
+          isScratched: entry.isScratched || false,
+          isDisqualified: entry.isDisqualified || false,
+          statusCode: isKnownStatus ? dqCode : null,
+        };
+      });
+      
+      // Use paging lines (lines = seconds)
+      const lines = Math.max(1, Math.min(20, parseInt(pagingLines) || 8));
+      
+      // Determine display type and select appropriate template
+      const displayType = device.displayType || 'P10';
+      const isSingleAthleteDisplay = displayType === 'P10' || displayType === 'P6';
+      
+      // For P10/P6 displays, use single-athlete template; for BigBoard, use compiled results
+      const defaultTemplate = isSingleAthleteDisplay 
+        ? `${displayType.toLowerCase()}-results` 
+        : 'bigboard-compiled-results';
+      
+      // Find the connected WebSocket for this device
+      const connectedDevice = connectedDisplayDevices.get(deviceId);
+      if (connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {
+        // Update paging settings (lines = seconds)
+        connectedDevice.pagingSize = lines;
+        connectedDevice.pagingInterval = lines;
+        
+        let sceneId: number | null = null;
+        let sceneData: { scene: any; objects: any[] } | null = null;
+        
+        if (device.meetId) {
+          try {
+            let mapping = await storage.getSceneTemplateMappingByTypeAndMode(device.meetId, displayType, 'hytek_results');
+            if (!mapping) {
+              mapping = await storage.getSceneTemplateMappingByTypeAndMode(device.meetId, displayType, 'track_results');
+            }
+            if (mapping) {
+              sceneId = mapping.sceneId;
+              sceneData = await prefetchSceneData(sceneId);
+            }
+          } catch (err) {
+            console.error(`[Hytek Results] Error looking up scene mapping:`, err);
+          }
+        }
+        
+        const maxHeat = sortedEntries.reduce((max, e) => {
+          const h = getRoundFields(e).heat || 0;
+          return h > max ? h : max;
+        }, 0);
+        
+        connectedDevice.ws.send(JSON.stringify({
+          type: 'display_command',
+          template: sceneId ? null : defaultTemplate,
+          sceneId,
+          sceneData,
+          liveEventData: {
+            eventNumber: event.eventNumber || 0,
+            eventName: event.name,
+            roundName: roundLabel,
+            totalHeats: maxHeat,
+            mode: 'results',
+            entries: enrichedEntries,
+            // Only send advancement data for non-final rounds
+            advanceByPlace: isFinalRound ? null : (eventAdvanceByPlace || undefined),
+            advanceByTime: isFinalRound ? null : (eventAdvanceByTime || undefined),
+            // Additional metadata for better display rendering
+            eventType: event.eventType || 'track',
+            gender: event.gender || '',
+            isRelay: isRelayEvent,
+            wind: windReading,
+            isFieldEvent: !isTrackEvent,
+          },
+          pagingSize: lines,
+          pagingInterval: lines,
+        }));
+        
+        await storage.updateDisplayDevice(deviceId, {
+          pagingSize: lines,
+          pagingInterval: lines,
+        });
+        
+        console.log(`[Hytek Results] Sent ${enrichedEntries.length} entries (${roundLabel}) to ${device.deviceName} (${displayType}, paging: ${lines} lines/${lines}s)`);
+        res.json({ success: true, delivered: true, entryCount: enrichedEntries.length });
+      } else {
+        res.json({ success: false, delivered: false, message: "Device offline" });
+      }
+    } catch (error: any) {
+      console.error(`[Hytek Results] Error:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Send Team Scores to a display device
+  app.post("/api/display-devices/:id/team-scores", async (req, res) => {
+    try {
+      const { pagingLines, gender } = req.body;
+      const deviceId = req.params.id;
+      const selectedGender: string = gender === 'W' ? 'W' : 'M';
+      const genderLabel = selectedGender === 'W' ? "Women's" : "Men's";
+      
+      // Get the device
+      const device = await storage.getDisplayDevice(deviceId);
+      if (!device) {
+        return res.status(404).json({ error: "Display device not found" });
+      }
+      
+      if (!device.meetId) {
+        return res.status(400).json({ error: "Device has no assigned meet" });
+      }
+      
+      // Collect scored events for this gender (names + count)
+      let totalEventsScored = 0;
+      let scoredEventNames: string[] = [];
+      try {
+        const allEvents = await storage.getEventsByMeetId(device.meetId);
+        const filtered = allEvents.filter((e: any) => {
+          if (!e.isScored) return false;
+          const g = (e.gender || '').toUpperCase().charAt(0);
+          return selectedGender === 'M' ? (g === 'M' || g === '') : (g === 'W' || g === 'F');
+        });
+        totalEventsScored = filtered.length;
+        scoredEventNames = filtered
+          .sort((a: any, b: any) => (a.eventNumber || 0) - (b.eventNumber || 0))
+          .map((e: any) => {
+            const raw = e.name || '';
+            const stripped = raw
+              .replace(/^(Men'?s?|Women'?s?)\s+/i, '')
+              .replace(/\s+/g, ' ')
+              .trim();
+            return abbreviateEventName(stripped);
+          })
+          .filter((n: string) => n.length > 0);
+      } catch (err) {
+        console.log('[Team Scores] Could not count scored events');
+      }
+      
+      // Use getTeamStandings which handles gender-filtered scoring
+      let standings: any[] = [];
+      let hasScores = false;
+      try {
+        standings = await storage.getTeamStandings(device.meetId, { gender: selectedGender });
+        hasScores = standings.some((s: any) => (s.totalPoints || 0) > 0);
+      } catch (err) {
+        console.log('[Team Scores] getTeamStandings failed, falling back to manual scoring');
+      }
+      
+      // Get team logos for all paths
+      const logoMap = new Map<string, string>();
+      try {
+        const allLogos = await storage.getTeamLogosByMeet(device.meetId);
+        for (const logo of allLogos) {
+          logoMap.set(logo.teamId, fileStorage.publicUrlForKey(logo.storageKey));
+        }
+      } catch {}
+      
+      // Get team abbreviations from teams table for richer display
+      const teamAbbrMap = new Map<string, string>();
+      try {
+        const allTeams = await storage.getTeamsByMeetId(device.meetId);
+        for (const t of allTeams) {
+          if (t.abbreviation) teamAbbrMap.set(t.id, t.abbreviation);
+        }
+      } catch {}
+      
+      // Build team entries from standings (getTeamStandings is the canonical source)
+      let teamEntries: any[];
+      if (standings.length > 0) {
+        teamEntries = standings
+          .filter((s: any) => (s.totalPoints || 0) > 0)
+          .map((s: any, index: number) => ({
+            place: String(index + 1),
+            name: s.teamName || 'Unknown',
+            affiliation: teamAbbrMap.get(s.teamId) || s.teamName || '',
+            team: teamAbbrMap.get(s.teamId) || s.teamName || '',
+            time: String(s.totalPoints || 0),
+            mark: String(s.totalPoints || 0),
+            points: s.totalPoints || 0,
+            logoUrl: logoMap.get(s.teamId) || null,
+            eventCount: s.eventCount || 0,
+            eventBreakdown: s.eventBreakdown || [],
+          }));
+      } else {
+        // Fallback: no scoring rules configured — show teams with 0 points
+        const teams = await storage.getTeamsByMeetId(device.meetId);
+        if (teams.length === 0) {
+          return res.status(400).json({ error: "No teams found for this meet", warning: true });
+        }
+        
+        // Without scoring rules, just list the teams alphabetically
+        teamEntries = teams
+          .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+          .map((team, index: number) => ({
+            place: String(index + 1),
+            name: team.name || team.shortName || 'Unknown',
+            affiliation: team.abbreviation || team.name || team.shortName || '',
+            team: team.abbreviation || team.name || team.shortName || '',
+            time: '0',
+            mark: '0',
+            points: 0,
+            logoUrl: logoMap.get(team.id) || null,
+            eventCount: 0,
+            eventBreakdown: [],
+          }));
+      }
+      
+      // Use paging lines (lines = seconds)
+      const lines = Math.max(1, Math.min(20, parseInt(pagingLines) || 8));
+      
+      // Find the connected WebSocket for this device
+      const connectedDevice = connectedDisplayDevices.get(deviceId);
+      if (connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {
+        // Update paging settings (lines = seconds)
+        connectedDevice.pagingSize = lines;
+        connectedDevice.pagingInterval = lines;
+        
+        // Look up custom scene mapping for team_scores mode
+        const displayType = device.displayType || 'P10';
+        let sceneId: number | null = null;
+        let sceneData: { scene: any; objects: any[] } | null = null;
+        
+        if (device.meetId) {
+          try {
+            const mapping = await storage.getSceneTemplateMappingByTypeAndMode(
+              device.meetId,
+              displayType,
+              'team_scores'
+            );
+            if (mapping) {
+              sceneId = mapping.sceneId;
+              sceneData = await prefetchSceneData(sceneId);
+            }
+          } catch (err) {
+            console.error(`[Team Scores] Error looking up scene mapping:`, err);
+          }
+        }
+        
+        // Send command to the display device
+        connectedDevice.ws.send(JSON.stringify({
+          type: 'display_command',
+          template: sceneId ? null : 'team-scores',
+          sceneId,
+          sceneData,
+          liveEventData: {
+            mode: 'team_scores',
+            eventName: `${genderLabel} Team Scores`,
+            gender: selectedGender,
+            totalEventsScored,
+            scoredEventNames,
+            entries: teamEntries,
+          },
+          pagingSize: lines,
+          pagingInterval: lines,
+        }));
+        
+        // Update database with paging settings
+        await storage.updateDisplayDevice(deviceId, {
+          pagingSize: lines,
+          pagingInterval: lines,
+        });
+        
+        console.log(`[Team Scores] Sent ${teamEntries.length} ${genderLabel} teams to ${device.deviceName} (paging: ${lines} lines/${lines}s, hasScores: ${hasScores})`);
+        res.json({ 
+          success: true, 
+          delivered: true, 
+          teamCount: teamEntries.length,
+          hasScores,
+          warning: hasScores ? undefined : "No scoring data available - all teams will show 0 points"
+        });
+      } else {
+        res.json({ success: false, delivered: false, message: "Device offline" });
+      }
+    } catch (error: any) {
+      console.error(`[Team Scores] Error:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ===== DISPLAY THEMES =====
+  // ===== DISPLAY THEMES =====
+
+  // Get all themes for a meet
+  app.get("/api/meets/:meetId/themes", async (req, res) => {
+    try {
+      const themes = await storage.getDisplayThemes(req.params.meetId);
+      res.json(themes);
+    } catch (error) {
+      console.error("Error fetching display themes:", error);
+      res.status(500).json({ error: "Failed to fetch display themes" });
+    }
+  });
+
+  // Get default theme for a meet
+  app.get("/api/meets/:meetId/themes/default", async (req, res) => {
+    try {
+      const theme = await storage.getDefaultDisplayTheme(req.params.meetId);
+      if (!theme) {
+        return res.status(404).json({ error: "Default theme not found" });
+      }
+      res.json(theme);
+    } catch (error) {
+      console.error("Error fetching default theme:", error);
+      res.status(500).json({ error: "Failed to fetch default theme" });
+    }
+  });
+
+  // Create a new theme
+  app.post("/api/meets/:meetId/themes", async (req, res) => {
+    try {
+      const parsed = insertDisplayThemeSchema.parse({
+        ...req.body,
+        meetId: req.params.meetId,
+      });
+      const theme = await storage.createDisplayTheme(parsed);
+      res.json(theme);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid theme data", details: error.errors });
+      }
+      console.error("Error creating display theme:", error);
+      res.status(500).json({ error: "Failed to create display theme" });
+    }
+  });
+
+  // Update a theme
+  app.patch("/api/themes/:id", async (req, res) => {
+    try {
+      const parsed = insertDisplayThemeSchema.partial().parse(req.body);
+      const theme = await storage.updateDisplayTheme(req.params.id, parsed);
+      if (!theme) {
+        return res.status(404).json({ error: "Theme not found" });
+      }
+      res.json(theme);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid theme data", details: error.errors });
+      }
+      console.error("Error updating display theme:", error);
+      res.status(500).json({ error: "Failed to update display theme" });
+    }
+  });
+
+  // Delete a theme
+  app.delete("/api/themes/:id", async (req, res) => {
+    try {
+      await storage.deleteDisplayTheme(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting display theme:", error);
+      res.status(500).json({ error: "Failed to delete display theme" });
+    }
+  });
+
+  // ===== BOARD CONFIGS =====
+  // ===== BOARD CONFIGS =====
+
+  // Get board config
+  app.get("/api/meets/:meetId/boards/:boardId/config", async (req, res) => {
+    try {
+      const config = await storage.getBoardConfig(req.params.boardId, req.params.meetId);
+      res.json(config || null);
+    } catch (error) {
+      console.error("Error fetching board config:", error);
+      res.status(500).json({ error: "Failed to fetch board config" });
+    }
+  });
+
+  // Create or update board config
+  app.put("/api/meets/:meetId/boards/:boardId/config", async (req, res) => {
+    try {
+      // Check if config exists
+      const existing = await storage.getBoardConfig(req.params.boardId, req.params.meetId);
+      
+      if (existing) {
+        // Update existing
+        const parsed = insertBoardConfigSchema.partial().parse(req.body);
+        const updated = await storage.updateBoardConfig(existing.id, parsed);
+        return res.json(updated);
+      } else {
+        // Create new
+        const parsed = insertBoardConfigSchema.parse({
+          ...req.body,
+          meetId: req.params.meetId,
+          boardId: req.params.boardId,
+        });
+        const created = await storage.createBoardConfig(parsed);
+        return res.json(created);
+      }
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid config data", details: error.errors });
+      }
+      console.error("Error saving board config:", error);
+      res.status(500).json({ error: "Failed to save board config" });
+    }
+  });
+
+  // Delete board config
+  app.delete("/api/boards/:boardId/config", async (req, res) => {
+    try {
+      const meetId = req.query.meetId as string;
+      if (!meetId) {
+        return res.status(400).json({ error: "meetId query parameter required" });
+      }
+      
+      const config = await storage.getBoardConfig(req.params.boardId, meetId);
+      if (config) {
+        await storage.deleteBoardConfig(config.id);
+      }
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting board config:", error);
+      res.status(500).json({ error: "Failed to delete board config" });
+    }
+  });
+
+  // ===== DISPLAY LAYOUTS =====
+  // ===== DISPLAY LAYOUTS =====
+
+  // Get all layouts for a meet
+  app.get("/api/display-layouts/meet/:meetId", async (req, res) => {
+    try {
+      const layouts = await storage.getDisplayLayoutsByMeet(req.params.meetId);
+      res.json(layouts);
+    } catch (error) {
+      console.error("Error fetching display layouts:", error);
+      res.status(500).json({ error: "Failed to fetch display layouts" });
+    }
+  });
+
+  // Get a specific layout by ID
+  app.get("/api/display-layouts/:id", async (req, res) => {
+    try {
+      const layout = await storage.getDisplayLayoutById(req.params.id);
+      if (!layout) {
+        return res.status(404).json({ error: "Layout not found" });
+      }
+      res.json(layout);
+    } catch (error) {
+      console.error("Error fetching display layout:", error);
+      res.status(500).json({ error: "Failed to fetch display layout" });
+    }
+  });
+
+  // Create a new display layout
+  app.post("/api/display-layouts", async (req, res) => {
+    try {
+      const parsed = insertDisplayLayoutSchema.parse(req.body);
+      const layout = await storage.createDisplayLayout(parsed);
+      res.json(layout);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid layout data", details: error.errors });
+      }
+      console.error("Error creating display layout:", error);
+      res.status(500).json({ error: "Failed to create display layout" });
+    }
+  });
+
+  // Update a display layout
+  app.patch("/api/display-layouts/:id", async (req, res) => {
+    try {
+      const parsed = insertDisplayLayoutSchema.partial().parse(req.body);
+      const layout = await storage.updateDisplayLayout(req.params.id, parsed);
+      res.json(layout);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid layout data", details: error.errors });
+      }
+      console.error("Error updating display layout:", error);
+      res.status(500).json({ error: "Failed to update display layout" });
+    }
+  });
+
+  // Delete a display layout
+  app.delete("/api/display-layouts/:id", async (req, res) => {
+    try {
+      await storage.deleteDisplayLayout(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting display layout:", error);
+      res.status(500).json({ error: "Failed to delete display layout" });
+    }
+  });
+
+  // ===== LAYOUT CELLS =====
+  // ===== LAYOUT CELLS =====
+
+  // Get all cells for a layout
+  app.get("/api/layout-cells/layout/:layoutId", async (req, res) => {
+    try {
+      const cells = await storage.getLayoutCellsByLayout(req.params.layoutId);
+      res.json(cells);
+    } catch (error) {
+      console.error("Error fetching layout cells:", error);
+      res.status(500).json({ error: "Failed to fetch layout cells" });
+    }
+  });
+
+  // Create a new layout cell
+  app.post("/api/layout-cells", async (req, res) => {
+    try {
+      const parsed = insertLayoutCellSchema.parse(req.body);
+      const cell = await storage.createLayoutCell(parsed);
+      res.json(cell);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid cell data", details: error.errors });
+      }
+      console.error("Error creating layout cell:", error);
+      res.status(500).json({ error: "Failed to create layout cell" });
+    }
+  });
+
+  // Update a layout cell
+  app.patch("/api/layout-cells/:id", async (req, res) => {
+    try {
+      const parsed = insertLayoutCellSchema.partial().parse(req.body);
+      const cell = await storage.updateLayoutCell(req.params.id, parsed);
+      
+      // Broadcast layout_update to all connected displays when cell is updated
+      // This ensures other clients stay in sync when cells are auto-cleared or manually edited
+      broadcastToDisplays({
+        type: "layout_update",
+        data: { layoutId: cell.layoutId, cellId: cell.id },
+      });
+      
+      res.json(cell);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid cell data", details: error.errors });
+      }
+      console.error("Error updating layout cell:", error);
+      res.status(500).json({ error: "Failed to update layout cell" });
+    }
+  });
+
+  // Delete a layout cell
+  app.delete("/api/layout-cells/:id", async (req, res) => {
+    try {
+      await storage.deleteLayoutCell(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting layout cell:", error);
+      res.status(500).json({ error: "Failed to delete layout cell" });
+    }
+  });
+
+  // ===== OVERLAY CONTROL =====
+  // ===== OVERLAY CONTROL =====
+
+  app.post("/api/overlay/show", async (req, res) => {
+    try {
+      const validated = overlayConfigSchema.parse(req.body);
+      
+      broadcastToDisplays({
+        type: 'overlay_show',
+        ...validated
+      });
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        res.status(400).json({ error: "Invalid overlay configuration", details: error.errors });
+      } else {
+        res.status(500).json({ error: error.message });
+      }
+    }
+  });
+
+  app.post("/api/overlay/hide", async (req, res) => {
+    try {
+      const validated = overlayHideSchema.parse(req.body);
+      
+      broadcastToDisplays({
+        type: 'overlay_hide',
+        ...validated
+      });
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ error: "Invalid overlay type" });
+    }
+  });
+
+  app.post("/api/overlay/update", async (req, res) => {
+    try {
+      const validated = overlayUpdateSchema.parse(req.body);
+      
+      broadcastToDisplays({
+        type: 'overlay_update',
+        ...validated
+      });
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ error: "Invalid overlay update configuration" });
+    }
+  });
+
+}

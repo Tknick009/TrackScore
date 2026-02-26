@@ -8,11 +8,12 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Calendar, Clock, Timer, Target, ArrowUpDown, Edit2, Check, X, Trophy, RefreshCw } from "lucide-react";
+import { Calendar, Clock, Timer, Target, ArrowUpDown, Edit2, Check, X, Trophy, RefreshCw, Play, Square, ChevronRight, Eye, Search } from "lucide-react";
 import { Link } from "wouter";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 
 type SortOption = 'time' | 'session' | 'number' | 'name' | 'status';
 
@@ -354,6 +355,20 @@ function isTrackEvent(eventType: string): boolean {
 export default function Schedule() {
   const { currentMeetId, currentMeet } = useMeet();
   const [sortBy, setSortBy] = useState<SortOption>('time');
+  const [searchQuery, setSearchQuery] = useState('');
+  const { toast } = useToast();
+
+  const statusMutation = useMutation({
+    mutationFn: async ({ eventId, status }: { eventId: string; status: string }) => {
+      return await apiRequest('PATCH', `/api/events/${eventId}`, { status });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/events', currentMeetId] });
+    },
+    onError: (err: Error) => {
+      toast({ title: 'Failed to update status', description: err.message, variant: 'destructive' });
+    },
+  });
 
   const { data: events = [], isLoading } = useQuery<Event[]>({
     queryKey: ["/api/events", currentMeetId],
@@ -370,7 +385,6 @@ export default function Schedule() {
   });
   const menStandings = teamStandingsData?.men ?? [];
   const womenStandings = teamStandingsData?.women ?? [];
-  const { toast } = useToast();
 
   const refreshMutation = useMutation({
     mutationFn: async () => {
@@ -385,14 +399,26 @@ export default function Schedule() {
     },
   });
 
-  const liveEvents = events.filter(e => e.status === "in_progress");
-  const scoredEvents = events.filter(e => e.status === "completed" || e.isScored || e.hytekStatus === 'scored');
-  const doneEvents = events.filter(e => !scoredEvents.includes(e) && e.hytekStatus === 'done');
-  const seededEvents = events.filter(e => !scoredEvents.includes(e) && !doneEvents.includes(e) && e.status !== "in_progress" && e.hytekStatus === 'seeded');
-  const unseededEvents = events.filter(e => !scoredEvents.includes(e) && !doneEvents.includes(e) && !seededEvents.includes(e) && e.status !== "in_progress");
+  // Filter events by search query
+  const filteredEvents = useMemo(() => {
+    if (!searchQuery.trim()) return events;
+    const q = searchQuery.toLowerCase();
+    return events.filter(e => 
+      (e.name || '').toLowerCase().includes(q) ||
+      (e.eventType || '').toLowerCase().includes(q) ||
+      (e.gender || '').toLowerCase().includes(q) ||
+      String(e.eventNumber || '').includes(q)
+    );
+  }, [events, searchQuery]);
+
+  const liveEvents = filteredEvents.filter(e => e.status === "in_progress");
+  const scoredEvents = filteredEvents.filter(e => e.status === "completed" || e.isScored || e.hytekStatus === 'scored');
+  const doneEvents = filteredEvents.filter(e => !scoredEvents.includes(e) && e.hytekStatus === 'done');
+  const seededEvents = filteredEvents.filter(e => !scoredEvents.includes(e) && !doneEvents.includes(e) && e.status !== "in_progress" && e.hytekStatus === 'seeded');
+  const unseededEvents = filteredEvents.filter(e => !scoredEvents.includes(e) && !doneEvents.includes(e) && !seededEvents.includes(e) && e.status !== "in_progress");
 
   const sortedEvents = useMemo(() => {
-    return [...events].sort((a, b) => {
+    return [...filteredEvents].sort((a, b) => {
       // Always keep live events at top
       if (a.status === "in_progress" && b.status !== "in_progress") return -1;
       if (b.status === "in_progress" && a.status !== "in_progress") return 1;
@@ -428,7 +454,7 @@ export default function Schedule() {
           return 0;
       }
     });
-  }, [events, sortBy]);
+  }, [filteredEvents, sortBy]);
 
   // Group by date when sorting by time, or by session when sorting by session
   const eventsByGroup = useMemo(() => {
@@ -472,39 +498,70 @@ export default function Schedule() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between p-4 border-b">
-        <div className="flex items-center gap-4">
-          <h1 className="text-xl font-semibold">Event Schedule</h1>
-          {liveEvents.length > 0 && (
-            <Badge className="bg-green-600 text-white gap-1">
-              <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-              {liveEvents.length} Live
+      <div className="p-4 border-b space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <h1 className="text-xl font-semibold">Event Schedule</h1>
+            {liveEvents.length > 0 && (
+              <Badge className="bg-green-600 text-white gap-1">
+                <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                {liveEvents.length} Live
+              </Badge>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            {/* Search bar */}
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search events..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 w-[200px] h-9"
+                data-testid="input-schedule-search"
+              />
+            </div>
+            <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+              <SelectTrigger className="w-[140px] h-9" data-testid="select-schedule-sort">
+                <ArrowUpDown className="w-3.5 h-3.5 mr-1.5" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="time">By Time</SelectItem>
+                <SelectItem value="session">By Session</SelectItem>
+                <SelectItem value="number">By Event #</SelectItem>
+                <SelectItem value="name">By Name</SelectItem>
+                <SelectItem value="status">By Status</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        {/* Status summary chips */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <Badge variant="outline" className="text-xs gap-1 font-normal">
+            <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground" />
+            {unseededEvents.length} unseeded
+          </Badge>
+          <Badge variant="outline" className="text-xs gap-1 font-normal">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+            {seededEvents.length} seeded
+          </Badge>
+          <Badge variant="outline" className="text-xs gap-1 font-normal">
+            <span className="w-1.5 h-1.5 rounded-full bg-yellow-500" />
+            {doneEvents.length} done
+          </Badge>
+          <Badge variant="outline" className="text-xs gap-1 font-normal">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+            {scoredEvents.length} scored
+          </Badge>
+          {searchQuery && (
+            <Badge variant="secondary" className="text-xs gap-1">
+              {filteredEvents.length} of {events.length} shown
+              <button onClick={() => setSearchQuery('')} className="ml-1 hover:text-foreground">
+                <X className="w-3 h-3" />
+              </button>
             </Badge>
           )}
-        </div>
-        <div className="flex items-center gap-4">
-          <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-            <SelectTrigger className="w-[160px]" data-testid="select-schedule-sort">
-              <ArrowUpDown className="w-4 h-4 mr-2" />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="time">By Time</SelectItem>
-              <SelectItem value="session">By Session</SelectItem>
-              <SelectItem value="number">By Event #</SelectItem>
-              <SelectItem value="name">By Name</SelectItem>
-              <SelectItem value="status">By Status</SelectItem>
-            </SelectContent>
-          </Select>
-          <div className="flex items-center gap-3 text-sm text-muted-foreground">
-            <span>{unseededEvents.length} unseeded</span>
-            <span className="text-border">|</span>
-            <span>{seededEvents.length} seeded</span>
-            <span className="text-border">|</span>
-            <span>{doneEvents.length} done</span>
-            <span className="text-border">|</span>
-            <span>{scoredEvents.length} scored</span>
-          </div>
         </div>
       </div>
 
@@ -557,26 +614,35 @@ export default function Schedule() {
                   {groupEvents.map((event: Event) => {
                     const isPrelim = (event.numRounds || 1) > 1;
                     return (
-                      <Card key={event.id} className="hover-elevate">
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between gap-4">
+                      <Card key={event.id} className="hover-elevate group">
+                        <CardContent className="p-3">
+                          <div className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-3 min-w-0 flex-1">
-                              {isTrackEvent(event.eventType) ? (
-                                <Timer className="w-5 h-5 text-muted-foreground shrink-0" />
-                              ) : (
-                                <Target className="w-5 h-5 text-muted-foreground shrink-0" />
-                              )}
+                              {/* Event type icon with color coding */}
+                              <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                                event.status === 'in_progress' 
+                                  ? 'bg-green-500/10 text-green-600' 
+                                  : event.status === 'completed'
+                                  ? 'bg-muted text-muted-foreground'
+                                  : 'bg-primary/5 text-primary/70'
+                              }`}>
+                                {isTrackEvent(event.eventType) ? (
+                                  <Timer className="w-4 h-4" />
+                                ) : (
+                                  <Target className="w-4 h-4" />
+                                )}
+                              </div>
                               <div className="min-w-0 flex-1">
-                                <div className="font-medium truncate">{event.name}</div>
-                                <div className="text-sm text-muted-foreground flex items-center gap-2 flex-wrap">
+                                <div className="font-medium truncate text-sm">{event.name}</div>
+                                <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
                                   {event.eventTime && (
                                     <span className="flex items-center gap-1">
                                       <Clock className="w-3 h-3" />
                                       {event.eventTime}
                                     </span>
                                   )}
-                                  {event.eventNumber && (
-                                    <span>Event #{event.eventNumber}</span>
+                                  {event.eventNumber != null && (
+                                    <span className="font-mono">#{event.eventNumber}</span>
                                   )}
                                   <span className="capitalize">{event.gender}</span>
                                 </div>
@@ -585,8 +651,68 @@ export default function Schedule() {
                                 )}
                               </div>
                             </div>
-                            <div className="flex items-center gap-2">
+                            {/* Quick action buttons */}
+                            <div className="flex items-center gap-1.5">
                               {currentMeetId && <EventStatusBadge event={event} />}
+                              <TooltipProvider delayDuration={300}>
+                                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  {/* Start / Stop toggle */}
+                                  {event.status !== 'completed' && event.status !== 'in_progress' && (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            statusMutation.mutate({ eventId: event.id, status: 'in_progress' });
+                                          }}
+                                          data-testid={`button-start-event-${event.id}`}
+                                        >
+                                          <Play className="w-3.5 h-3.5" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top"><p>Start Event</p></TooltipContent>
+                                    </Tooltip>
+                                  )}
+                                  {event.status === 'in_progress' && (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-7 w-7 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            statusMutation.mutate({ eventId: event.id, status: 'completed' });
+                                          }}
+                                          data-testid={`button-complete-event-${event.id}`}
+                                        >
+                                          <Square className="w-3.5 h-3.5" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top"><p>Complete Event</p></TooltipContent>
+                                    </Tooltip>
+                                  )}
+                                  {/* View event detail */}
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7"
+                                        asChild
+                                      >
+                                        <Link href={`/control/${currentMeetId}/events/${event.id}`}>
+                                          <ChevronRight className="w-3.5 h-3.5" />
+                                        </Link>
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top"><p>View Details</p></TooltipContent>
+                                  </Tooltip>
+                                </div>
+                              </TooltipProvider>
                             </div>
                           </div>
                         </CardContent>

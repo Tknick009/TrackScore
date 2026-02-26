@@ -21,6 +21,13 @@ import type {
   FieldHeight,
 } from "@shared/schema";
 import { isHeightEvent, isDistanceEvent } from "@shared/schema";
+// Re-export formatting utilities from shared module (canonical source)
+export {
+  feetInchesToMeters,
+  metersToFeetInches,
+  formatDistanceMark,
+  formatHeightMark,
+} from "@shared/formatting";
 
 // ====================
 // TYPES
@@ -54,88 +61,9 @@ export interface VerticalStanding {
   isEliminated: boolean;
 }
 
-// ====================
-// UNIT CONVERSION UTILITIES
-// ====================
-
-const METERS_PER_FOOT = 0.3048;
-const INCHES_PER_FOOT = 12;
-
-/**
- * Convert feet and inches to meters
- * @param feet - Number of feet
- * @param inches - Number of inches (can include decimals)
- * @returns Distance in meters
- */
-export function feetInchesToMeters(feet: number, inches: number): number {
-  const totalInches = feet * INCHES_PER_FOOT + inches;
-  const totalFeet = totalInches / INCHES_PER_FOOT;
-  return totalFeet * METERS_PER_FOOT;
-}
-
-/**
- * Convert meters to feet and inches
- * @param meters - Distance in meters
- * @returns Object with feet (whole number) and inches (with decimals)
- */
-export function metersToFeetInches(meters: number): { feet: number; inches: number } {
-  const totalFeet = meters / METERS_PER_FOOT;
-  const feet = Math.floor(totalFeet);
-  const inches = (totalFeet - feet) * INCHES_PER_FOOT;
-  return { feet, inches };
-}
-
-// ====================
-// FORMATTING UTILITIES
-// ====================
-
-/**
- * Format a distance measurement for display
- * @param meters - Distance in meters
- * @param unit - 'metric' for meters (e.g., "17.52m") or 'english' for feet-inches (e.g., "57-06.25")
- * @returns Formatted string
- */
-export function formatDistanceMark(meters: number, unit: 'metric' | 'english'): string {
-  if (unit === 'metric') {
-    return `${meters.toFixed(2)}m`;
-  }
-  
-  const { feet, inches } = metersToFeetInches(meters);
-  const inchesWhole = Math.floor(inches);
-  const inchesFrac = inches - inchesWhole;
-  
-  if (inchesFrac > 0.001) {
-    // Include fractional inches (to 2 decimal places)
-    const inchesFormatted = inches.toFixed(2).padStart(5, '0');
-    return `${feet}-${inchesFormatted}`;
-  }
-  
-  // Whole inches only
-  return `${feet}-${inchesWhole.toString().padStart(2, '0')}`;
-}
-
-/**
- * Format a height measurement for display
- * @param meters - Height in meters
- * @param unit - 'metric' for meters (e.g., "2.15m") or 'english' for feet-inches (e.g., "7-00.50")
- * @returns Formatted string
- */
-export function formatHeightMark(meters: number, unit: 'metric' | 'english'): string {
-  if (unit === 'metric') {
-    return `${meters.toFixed(2)}m`;
-  }
-  
-  const { feet, inches } = metersToFeetInches(meters);
-  const inchesWhole = Math.floor(inches);
-  const inchesFrac = inches - inchesWhole;
-  
-  if (inchesFrac > 0.001) {
-    const inchesFormatted = inches.toFixed(2).padStart(5, '0');
-    return `${feet}-${inchesFormatted}`;
-  }
-  
-  return `${feet}-${inchesWhole.toString().padStart(2, '0')}`;
-}
+// Unit conversion and formatting utilities are imported from @shared/formatting
+// and re-exported above. Local implementations removed to avoid duplication.
+import { feetInchesToMeters, metersToFeetInches, formatDistanceMark, formatHeightMark } from "@shared/formatting";
 
 // ====================
 // VERTICAL EVENT UTILITIES

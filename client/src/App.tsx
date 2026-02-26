@@ -19,14 +19,11 @@ import CheckIn from "@/pages/checkin";
 import Import from "@/pages/import";
 import DisplayCustomizePage from "@/pages/DisplayCustomizePage";
 import DisplayControlPage from "@/pages/display-control";
-import DisplayExamples from "@/pages/display-examples";
 import LayoutDesigner from "@/pages/layout-designer";
 import CompositeDisplayPage from "@/pages/composite-display";
 import JudgePage from "@/pages/judge";
 import OverlayPage from "@/pages/overlay";
 import MasterDisplayPage from "@/pages/master-display";
-import VisualLayoutDesigner from "@/pages/visual-layout-designer";
-import SceneEditor from "@/pages/scene-editor";
 import SimpleSceneEditor from "@/pages/simple-scene-editor";
 import SceneDisplay from "@/pages/scene-display";
 import DisplayLauncher from "@/pages/display-launcher";
@@ -37,6 +34,7 @@ import MeetSetup from "@/pages/meet-setup";
 import FieldOfficialPage from "@/pages/field-official";
 import FieldApp from "@/pages/field-app";
 import FieldEventsControl from "@/pages/field-events-control";
+import FieldCommandCenter from "@/pages/field-command-center";
 import ExternalScoreboards from "@/pages/external-scoreboards";
 import CloudSync from "@/pages/cloud-sync";
 import LoadMeet from "@/pages/load-meet";
@@ -108,8 +106,7 @@ function MeetControlRouter() {
     if (subPath === "displays/control") return <DisplayControlPage />;
     if (subPath === "displays/customize") return <DisplayCustomizePage />;
     if (subPath === "layouts/designer" || subPath.startsWith("layouts/designer/")) return <LayoutDesigner />;
-    if (subPath === "scene-editor") return <SimpleSceneEditor />;
-    if (subPath === "scene-editor-advanced") return <SceneEditor />;
+    if (subPath === "scene-editor" || subPath === "scene-editor-advanced") return <SimpleSceneEditor />;
     if (subPath === "displays/launcher") return <DisplayLauncher />;
     if (subPath === "displays") return <DisplayHub />;
     if (subPath === "setup") return <MeetSetup />;
@@ -132,17 +129,16 @@ function Router() {
       <Route path="/cloud-sync" component={CloudSync} />
       <Route path="/load-meet" component={LoadMeet} />
       <Route path="/meets/:id" component={MeetDetail} />
-      <Route path="/display-examples" component={DisplayExamples} />
       <Route path="/composite-display/:layoutId" component={CompositeDisplayPage} />
       <Route path="/judge" component={JudgePage} />
       <Route path="/overlay/:type" component={OverlayPage} />
       <Route path="/master-display" component={MasterDisplayPage} />
-      <Route path="/visual-designer" component={VisualLayoutDesigner} />
       <Route path="/scene-display/:sceneId" component={SceneDisplay} />
       <Route path="/scene-display" component={SceneDisplay} />
       <Route path="/preset-display/:templateId" component={PresetDisplay} />
       <Route path="/display" component={DisplayDevice} />
       <Route path="/field-app" component={FieldApp} />
+      <Route path="/field-command" component={FieldCommandCenter} />
       <Route path="/field/:accessCode" component={FieldOfficialPage} />
       <Route path="/field" component={FieldOfficialPage} />
       <Route path="/lap-counter/display" component={LapCounterDisplay} />

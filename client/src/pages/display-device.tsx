@@ -135,6 +135,7 @@ import {
   FieldSideBySide,
   SingleAthleteTrack,
   SingleAthleteField,
+  ProScoreboard,
 } from "@/components/display/templates";
 import { BroadcastDisplay } from "@/components/display/templates/BroadcastDisplay";
 import { 
@@ -836,8 +837,10 @@ export default function DisplayDevice() {
                     wind: data.wind,
                     distance: data.distance || prev.liveEventData?.distance,
                     entries: entries.length > 0 ? entries : (prev.liveEventData?.entries || []),
-                    advanceByPlace: eventChanged ? (data.advanceByPlace ?? null) : (data.advanceByPlace ?? prev.liveEventData?.advanceByPlace),
-                    advanceByTime: eventChanged ? (data.advanceByTime ?? null) : (data.advanceByTime ?? prev.liveEventData?.advanceByTime),
+                    // Always use the server's value for advancement data — never carry over from previous events
+                    // This prevents Q badges from showing on events that don't have qualifiers
+                    advanceByPlace: eventChanged ? (data.advanceByPlace ?? null) : (data.advanceByPlace !== undefined ? data.advanceByPlace : prev.liveEventData?.advanceByPlace),
+                    advanceByTime: eventChanged ? (data.advanceByTime ?? null) : (data.advanceByTime !== undefined ? data.advanceByTime : prev.liveEventData?.advanceByTime),
                     isMultiEvent: data.isMultiEvent,
                     eventType: data.eventType,
                     gender: data.gender,
@@ -1126,8 +1129,9 @@ export default function DisplayDevice() {
                     entries: data.entries || [],
                     wind: prev.liveEventData?.wind,
                     distance: data.distance || prev.liveEventData?.distance,
-                    advanceByPlace: eventChanged ? (data.advanceByPlace ?? null) : (data.advanceByPlace ?? prev.liveEventData?.advanceByPlace),
-                    advanceByTime: eventChanged ? (data.advanceByTime ?? null) : (data.advanceByTime ?? prev.liveEventData?.advanceByTime),
+                    // Always use the server's value for advancement data — never carry over from previous events
+                    advanceByPlace: eventChanged ? (data.advanceByPlace ?? null) : (data.advanceByPlace !== undefined ? data.advanceByPlace : prev.liveEventData?.advanceByPlace),
+                    advanceByTime: eventChanged ? (data.advanceByTime ?? null) : (data.advanceByTime !== undefined ? data.advanceByTime : prev.liveEventData?.advanceByTime),
                     isMultiEvent: data.isMultiEvent ?? (eventChanged ? undefined : prev.liveEventData?.isMultiEvent),
                     eventType: data.eventType ?? (eventChanged ? undefined : prev.liveEventData?.eventType),
                     gender: data.gender ?? (eventChanged ? undefined : prev.liveEventData?.gender),
@@ -1576,7 +1580,15 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     }
 
     if (isTeamScores) {
-      const standings = teamStandings as any[] | undefined;
+      // Prefer live WebSocket data (pushed from server via team-scores endpoint)
+      // Fall back to static query data
+      const liveTeamEntries = liveEventData?.mode === 'team_scores' ? liveEventData.entries : null;
+      const standings = liveTeamEntries || teamStandings as any[] | undefined;
+      const title = liveEventData?.mode === 'team_scores' 
+        ? (liveEventData.eventName || 'Team Standings')
+        : (meet?.name || 'Team Standings');
+      const eventsScored = liveEventData?.totalEventsScored;
+      
       if (!standings || standings.length === 0) {
         return (
           <div className={`${containerClass} bg-black flex items-center justify-center`} style={containerStyle}>
@@ -1587,37 +1599,84 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
           </div>
         );
       }
+      
+      // Use meet colors for styling
+      const accentColor = meet?.primaryColor || '#0088DC';
+      
       return (
-        <div className={`${containerClass} bg-black overflow-hidden p-8`} style={{ ...containerStyle, fontFamily: "'Barlow Semi Condensed', sans-serif" }}>
-          <h1 className="text-5xl font-bold text-white text-center mb-8">
-            {meet?.name || 'Team Standings'}
-          </h1>
-          <div className="max-w-4xl mx-auto">
-            {standings.slice(0, 10).map((team: any, index: number) => (
-              <div 
-                key={team.teamId || index}
-                className="flex items-center justify-between py-5 px-8 mb-3 rounded text-white"
-                style={{
-                  background: `linear-gradient(90deg, 
-                    rgba(0, 140, 220, 0.65) 0%, 
-                    rgba(0, 160, 255, 0.45) 40%, 
-                    rgba(0, 140, 220, 0.25) 80%,
-                    transparent 100%
-                  )`,
-                }}
-              >
-                <div className="flex items-center gap-6">
-                  <span className="text-5xl font-black w-16" style={{ fontWeight: 900 }}>{index + 1}</span>
-                  {team.teamLogo && (
-                    <img src={team.teamLogo} alt="" className="h-12 w-12 object-contain" />
-                  )}
-                  <span className="text-3xl font-bold">{team.teamName || team.name}</span>
-                </div>
-                <span className="text-5xl font-black text-yellow-400" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
-                  {team.totalPoints || team.points || 0}
-                </span>
-              </div>
-            ))}
+        <div className={`${containerClass} bg-black overflow-hidden`} style={{ ...containerStyle, fontFamily: "'Barlow Semi Condensed', sans-serif" }}>
+          {/* Header */}
+          <div className="px-8 pt-6 pb-4">
+            <h1 className="text-5xl font-bold text-white text-center">
+              {title}
+            </h1>
+            {eventsScored != null && (
+              <p className="text-center text-gray-400 text-lg mt-2">
+                {eventsScored} Events Scored
+              </p>
+            )}
+          </div>
+          
+          {/* Team list */}
+          <div className="px-8 pb-6">
+            <div className="max-w-5xl mx-auto space-y-2">
+              {standings.slice(0, 12).map((team: any, index: number) => {
+                const teamName = team.teamName || team.name || 'Unknown';
+                const teamPoints = team.totalPoints || team.points || parseInt(team.time) || 0;
+                const teamLogo = team.teamLogo || team.logoUrl;
+                const rank = parseInt(team.place) || index + 1;
+                
+                // Podium styling: gold/silver/bronze for top 3
+                const podiumColors: Record<number, string> = {
+                  1: '#FFD700',
+                  2: '#C0C0C0',
+                  3: '#CD7F32',
+                };
+                const rankColor = podiumColors[rank] || '#FFFFFF';
+                
+                return (
+                  <div 
+                    key={team.teamId || index}
+                    className="flex items-center justify-between py-4 px-6 rounded-lg text-white"
+                    style={{
+                      background: rank <= 3
+                        ? `linear-gradient(90deg, ${accentColor}44 0%, ${accentColor}22 60%, transparent 100%)`
+                        : `linear-gradient(90deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 60%, transparent 100%)`,
+                      borderLeft: rank <= 3 ? `4px solid ${podiumColors[rank]}` : '4px solid transparent',
+                    }}
+                  >
+                    <div className="flex items-center gap-5">
+                      <span 
+                        className="text-4xl font-black w-14 text-right"
+                        style={{ color: rankColor, fontWeight: 900 }}
+                      >
+                        {rank}
+                      </span>
+                      {teamLogo && (
+                        <img src={teamLogo} alt="" className="h-10 w-10 object-contain flex-shrink-0" />
+                      )}
+                      <span className="text-2xl font-bold">{teamName}</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      {team.eventCount > 0 && (
+                        <span className="text-sm text-gray-400">
+                          {team.eventCount} events
+                        </span>
+                      )}
+                      <span 
+                        className="text-4xl font-black min-w-[80px] text-right"
+                        style={{ 
+                          color: rank <= 3 ? podiumColors[rank] : '#FBBF24',
+                          fontFamily: "'Bebas Neue', 'Barlow Semi Condensed', sans-serif",
+                        }}
+                      >
+                        {teamPoints}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       );
@@ -1797,6 +1856,10 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             heat: liveEventData?.heat,
             round: liveEventData?.round,
           };
+      // Check if ProScoreboard template is selected
+      if (templateId === 'ProScoreboard' || templateId === 'pro-scoreboard') {
+        return <ProScoreboard event={eventWithLiveName as any} meet={meet} pagingSize={pagingSize} pagingIntervalMs={pagingInterval * 1000} />;
+      }
       return <BigBoard event={eventWithLiveName as any} meet={meet} pagingSize={pagingSize} pagingIntervalMs={pagingInterval * 1000} />;
     }
 

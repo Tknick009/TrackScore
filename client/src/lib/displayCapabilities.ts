@@ -134,6 +134,15 @@ export const TEMPLATE_REGISTRY: TemplateMetadata[] = [
     maxAthletes: 20,
     category: 'both',
   },
+  {
+    id: 'ProScoreboard',
+    name: 'Pro Scoreboard',
+    description: 'Professional broadcast-quality scoreboard with clean typography and podium highlights',
+    layoutKind: 'multi',
+    supportedDisplays: ['BigBoard', 'Custom'],
+    maxAthletes: 8,
+    category: 'both',
+  },
 ];
 
 export function getTemplatesForDisplay(displayType: DisplayType): TemplateMetadata[] {

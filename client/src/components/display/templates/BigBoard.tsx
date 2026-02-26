@@ -54,18 +54,17 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
 
   const displayClock = liveTime || clock;
 
+  // Helper to check if an entry is DNS, FS, or Scratch (dimmed to 50% opacity, not hidden)
+  const isDimmedEntry = (entry: any) => {
+    const time = String(entry.time || entry.finalMark || '').toUpperCase().trim();
+    const place = String(entry.place || entry.finalPlace || '').toUpperCase().trim();
+    return time === 'DNS' || place === 'DNS' || time === 'FS' || place === 'FS' 
+      || time === 'SCR' || place === 'SCR' || entry.isScratched === true;
+  };
+
   const sortedEntries = useMemo(() => {
-    // Filter out ONLY DNS entries - all others remain visible
-    // Entries without timing data will show at reduced opacity (handled in rendering)
-    const isDNS = (entry: any) => {
-      const time = String(entry.time || entry.finalMark || '').toUpperCase().trim();
-      const place = String(entry.place || entry.finalPlace || '').toUpperCase().trim();
-      return time === 'DNS' || place === 'DNS';
-    };
-    
-    const nonDNSEntries = (displayedEntries || []).filter((entry: any) => !isDNS(entry));
-    
-    return [...nonDNSEntries].sort((a, b) => {
+    // Keep ALL entries visible — DNS/FS/Scratch render at 50% opacity
+    return [...(displayedEntries || [])].sort((a, b) => {
       if (a.finalPlace && b.finalPlace) return a.finalPlace - b.finalPlace;
       if (a.finalPlace) return -1;
       if (b.finalPlace) return 1;
@@ -178,9 +177,25 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
               : `${entry.athlete?.lastName || ''}`;
             const finalTime = formatTime(entry.finalMark);
             const splitTime = getLatestSplit(entry);
+            
+            // Opacity: DNS/FS/Scratch = 50%, no data yet = 50%, has data = 100%
+            const dimmed = isDimmedEntry(entry);
+            const hasResultData = finalTime !== '' || splitTime !== '';
+            const isCompleted = event.status === 'completed';
+            const isStartList = event.status === 'scheduled' || event.status === 'upcoming';
+            let rowOpacity = 1;
+            if (dimmed) {
+              rowOpacity = 0.5;
+            } else if (isStartList) {
+              rowOpacity = 1; // Start list: filled rows at full opacity
+            } else if (!isCompleted && !hasResultData) {
+              rowOpacity = 0.5; // Running: no split/time yet = dimmed
+            } else if (isCompleted && !hasResultData) {
+              rowOpacity = 0.5; // Results: no time yet = dimmed
+            }
 
             return (
-              <div key={entry.id || index} className="relative flex-1 min-h-0">
+              <div key={entry.id || index} className="relative flex-1 min-h-0" style={{ opacity: rowOpacity, transition: 'opacity 0.3s ease-in-out' }}>
                 <div 
                   className="absolute inset-0 flex items-center px-6 rounded-sm overflow-hidden"
                   style={{

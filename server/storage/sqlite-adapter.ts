@@ -1136,8 +1136,21 @@ export class SQLiteStorage implements IStorage {
     return fallbackRows.map((row: any) => this.mapEventRow(row));
   }
 
-  async getCurrentEvent(): Promise<EventWithEntries | undefined> {
-    const allEvents = await this.getEvents();
+  async getCurrentEvent(meetId?: string): Promise<EventWithEntries | undefined> {
+    let allEvents: Event[];
+    if (meetId) {
+      allEvents = await this.getEventsByMeetId(meetId);
+    } else {
+      // Try to find the active meet first, then scope to it
+      const allMeets = await this.getMeets();
+      const activeMeet = allMeets.find(m => m.status === 'in_progress')
+        || allMeets.find(m => m.status === 'upcoming');
+      if (activeMeet) {
+        allEvents = await this.getEventsByMeetId(activeMeet.id);
+      } else {
+        allEvents = await this.getEvents();
+      }
+    }
     let currentEvent = allEvents.find((e) => e.status === "in_progress");
     if (!currentEvent) {
       currentEvent = allEvents.find((e) => e.status === "scheduled");

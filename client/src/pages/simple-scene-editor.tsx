@@ -35,8 +35,104 @@ import {
   MousePointer, Square, Copy, Clipboard,
   Type, Image, ChevronLeft, Upload,
   Grid3X3, ZoomIn, ZoomOut, Undo2, Pencil,
-  LayoutGrid, Minus, Download, FolderUp, Layers
+  LayoutGrid, Minus, Download, FolderUp, Layers,
+  Palette, RotateCcw
 } from "lucide-react";
+
+// ── Color Scheme Presets ──────────────────────────────────────────────
+interface ColorScheme {
+  name: string;
+  description: string;
+  canvasBg: string;
+  boxBg: string;
+  textColor: string;
+  borderColor: string;
+  accentBg: string;
+  accentText: string;
+}
+
+const COLOR_SCHEME_PRESETS: ColorScheme[] = [
+  {
+    name: 'Classic Dark',
+    description: 'White text on dark background',
+    canvasBg: '#000000',
+    boxBg: '#1a1a2e',
+    textColor: '#ffffff',
+    borderColor: '#333355',
+    accentBg: '#0f3460',
+    accentText: '#e0e0ff',
+  },
+  {
+    name: 'Stadium Blue',
+    description: 'Professional blue sports theme',
+    canvasBg: '#001e3c',
+    boxBg: '#002b5c',
+    textColor: '#ffffff',
+    borderColor: '#0066cc',
+    accentBg: '#0050a0',
+    accentText: '#8ecfff',
+  },
+  {
+    name: 'Championship Gold',
+    description: 'Black and gold premium look',
+    canvasBg: '#0a0a0a',
+    boxBg: '#1a1a0a',
+    textColor: '#ffd700',
+    borderColor: '#aa8800',
+    accentBg: '#2a2a00',
+    accentText: '#ffffff',
+  },
+  {
+    name: 'Emerald Field',
+    description: 'Green field-inspired theme',
+    canvasBg: '#001a0a',
+    boxBg: '#002e14',
+    textColor: '#e0ffe0',
+    borderColor: '#00662e',
+    accentBg: '#004d22',
+    accentText: '#ffffff',
+  },
+  {
+    name: 'Clean White',
+    description: 'Light theme for bright venues',
+    canvasBg: '#f0f2f5',
+    boxBg: '#ffffff',
+    textColor: '#1a1a1a',
+    borderColor: '#d0d5dd',
+    accentBg: '#e8edf3',
+    accentText: '#003366',
+  },
+  {
+    name: 'Crimson Red',
+    description: 'Bold red sports theme',
+    canvasBg: '#0a0000',
+    boxBg: '#2d0000',
+    textColor: '#ffffff',
+    borderColor: '#880000',
+    accentBg: '#550000',
+    accentText: '#ff9999',
+  },
+  {
+    name: 'Sunset Orange',
+    description: 'Warm energetic display',
+    canvasBg: '#1a0a00',
+    boxBg: '#2e1500',
+    textColor: '#ffe8cc',
+    borderColor: '#cc6600',
+    accentBg: '#993d00',
+    accentText: '#ffffff',
+  },
+  {
+    name: 'Purple Reign',
+    description: 'Royal purple theme',
+    canvasBg: '#0a001a',
+    boxBg: '#1a0033',
+    textColor: '#e8ccff',
+    borderColor: '#6600cc',
+    accentBg: '#4d0099',
+    accentText: '#ffffff',
+  },
+];
 
 type BoxType = 'text' | 'image' | 'transition';
 
@@ -129,11 +225,72 @@ export default function SimpleSceneEditor() {
   const [sceneImportFile, setSceneImportFile] = useState<File | null>(null);
   const [sceneImportLoading, setSceneImportLoading] = useState(false);
   
+  // Global color scheme dialog
+  const [showColorSchemeDialog, setShowColorSchemeDialog] = useState(false);
+  const [selectedScheme, setSelectedScheme] = useState<ColorScheme | null>(null);
+  const [customScheme, setCustomScheme] = useState<ColorScheme>({
+    name: 'Custom',
+    description: 'Your custom color scheme',
+    canvasBg: '#000000',
+    boxBg: '#1a1a2e',
+    textColor: '#ffffff',
+    borderColor: '#333355',
+    accentBg: '#0f3460',
+    accentText: '#e0e0ff',
+  });
+  const [applyToTransparent, setApplyToTransparent] = useState(false);
+  
   // Scene dimensions (default 1920x1080)
   const [canvasWidth, setCanvasWidth] = useState(1920);
   const [canvasHeight, setCanvasHeight] = useState(1080);
   
   const selectedBox = boxes.find(b => b.id === selectedBoxId);
+  
+  // Apply a global color scheme to all boxes in the scene
+  const applyColorScheme = useCallback((scheme: ColorScheme) => {
+    setBoxes(prev => prev.map(box => {
+      // Skip transparent boxes unless user opted in
+      if (!applyToTransparent && box.style?.backgroundStyle === 'transparent') {
+        // Still update text color for transparent boxes
+        return {
+          ...box,
+          style: {
+            ...box.style,
+            textColor: scheme.textColor,
+          },
+        };
+      }
+      
+      // Skip image boxes — only update border
+      if (box.type === 'image') {
+        return {
+          ...box,
+          style: {
+            ...box.style,
+            borderColor: scheme.borderColor,
+          },
+        };
+      }
+      
+      return {
+        ...box,
+        style: {
+          ...box.style,
+          backgroundColor: box.style?.backgroundColor === box.style?.backgroundColor ? scheme.boxBg : scheme.accentBg,
+          textColor: scheme.textColor,
+          borderColor: scheme.borderColor,
+        },
+      };
+    }));
+    
+    // Update scene background color
+    if (currentScene) {
+      setCurrentScene({ ...currentScene, backgroundColor: scheme.canvasBg });
+    }
+    
+    toast({ title: `Applied "${scheme.name}" color scheme`, description: `Updated ${boxes.length} boxes` });
+    setShowColorSchemeDialog(false);
+  }, [boxes, currentScene, applyToTransparent, toast]);
   
   // Fetch existing scenes
   const { data: scenes = [] } = useQuery<LayoutSceneWithObjects[]>({
@@ -1327,6 +1484,19 @@ export default function SimpleSceneEditor() {
             <Separator orientation="vertical" className="h-6" />
             
             <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowColorSchemeDialog(true)}
+              title="Change color scheme for all tiles at once"
+              data-testid="button-color-scheme"
+            >
+              <Palette className="w-4 h-4 mr-1" />
+              Color Scheme
+            </Button>
+            
+            <Separator orientation="vertical" className="h-6" />
+            
+            <Button
               onClick={handleSave}
               disabled={saveMutation.isPending}
               data-testid="button-save"
@@ -2140,6 +2310,225 @@ export default function SimpleSceneEditor() {
           </div>
         )}
       </div>
+      
+      {/* Global Color Scheme Dialog */}
+      <Dialog open={showColorSchemeDialog} onOpenChange={setShowColorSchemeDialog}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Palette className="w-5 h-5" />
+              Global Color Scheme
+            </DialogTitle>
+            <DialogDescription>
+              Apply a color scheme to all tiles in this scene at once. This changes background, text, and border colors for every box.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-6 py-4">
+            {/* Preset Schemes */}
+            <div className="space-y-3">
+              <Label className="text-sm font-semibold">Preset Themes</Label>
+              <div className="grid grid-cols-2 gap-3">
+                {COLOR_SCHEME_PRESETS.map((scheme) => (
+                  <button
+                    key={scheme.name}
+                    className={`relative p-3 rounded-lg border-2 text-left transition-all hover:scale-[1.02] ${
+                      selectedScheme?.name === scheme.name 
+                        ? 'border-primary ring-2 ring-primary/20' 
+                        : 'border-border hover:border-primary/50'
+                    }`}
+                    onClick={() => setSelectedScheme(scheme)}
+                    data-testid={`button-scheme-${scheme.name.replace(/\s+/g, '-').toLowerCase()}`}
+                  >
+                    {/* Color preview bar */}
+                    <div className="flex gap-1 mb-2 h-6 rounded overflow-hidden">
+                      <div className="flex-1" style={{ backgroundColor: scheme.canvasBg }} />
+                      <div className="flex-1" style={{ backgroundColor: scheme.boxBg }} />
+                      <div className="flex-1" style={{ backgroundColor: scheme.accentBg }} />
+                      <div className="flex-1" style={{ backgroundColor: scheme.borderColor }} />
+                    </div>
+                    {/* Preview text */}
+                    <div 
+                      className="px-2 py-1 rounded text-xs mb-1.5"
+                      style={{ 
+                        backgroundColor: scheme.boxBg, 
+                        color: scheme.textColor,
+                        border: `1px solid ${scheme.borderColor}` 
+                      }}
+                    >
+                      Aa Preview
+                    </div>
+                    <div className="font-medium text-sm">{scheme.name}</div>
+                    <div className="text-xs text-muted-foreground">{scheme.description}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            <Separator />
+            
+            {/* Custom Colors */}
+            <div className="space-y-3">
+              <Label className="text-sm font-semibold">Custom Colors</Label>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Canvas BG</Label>
+                  <div className="flex gap-1.5 items-center">
+                    <Input
+                      type="color"
+                      value={customScheme.canvasBg}
+                      onChange={(e) => {
+                        const updated = { ...customScheme, canvasBg: e.target.value };
+                        setCustomScheme(updated);
+                        setSelectedScheme(updated);
+                      }}
+                      className="h-8 w-12 cursor-pointer p-0.5"
+                    />
+                    <span className="text-xs font-mono text-muted-foreground">{customScheme.canvasBg}</span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Box BG</Label>
+                  <div className="flex gap-1.5 items-center">
+                    <Input
+                      type="color"
+                      value={customScheme.boxBg}
+                      onChange={(e) => {
+                        const updated = { ...customScheme, boxBg: e.target.value };
+                        setCustomScheme(updated);
+                        setSelectedScheme(updated);
+                      }}
+                      className="h-8 w-12 cursor-pointer p-0.5"
+                    />
+                    <span className="text-xs font-mono text-muted-foreground">{customScheme.boxBg}</span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Text</Label>
+                  <div className="flex gap-1.5 items-center">
+                    <Input
+                      type="color"
+                      value={customScheme.textColor}
+                      onChange={(e) => {
+                        const updated = { ...customScheme, textColor: e.target.value };
+                        setCustomScheme(updated);
+                        setSelectedScheme(updated);
+                      }}
+                      className="h-8 w-12 cursor-pointer p-0.5"
+                    />
+                    <span className="text-xs font-mono text-muted-foreground">{customScheme.textColor}</span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Border</Label>
+                  <div className="flex gap-1.5 items-center">
+                    <Input
+                      type="color"
+                      value={customScheme.borderColor}
+                      onChange={(e) => {
+                        const updated = { ...customScheme, borderColor: e.target.value };
+                        setCustomScheme(updated);
+                        setSelectedScheme(updated);
+                      }}
+                      className="h-8 w-12 cursor-pointer p-0.5"
+                    />
+                    <span className="text-xs font-mono text-muted-foreground">{customScheme.borderColor}</span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Accent BG</Label>
+                  <div className="flex gap-1.5 items-center">
+                    <Input
+                      type="color"
+                      value={customScheme.accentBg}
+                      onChange={(e) => {
+                        const updated = { ...customScheme, accentBg: e.target.value };
+                        setCustomScheme(updated);
+                        setSelectedScheme(updated);
+                      }}
+                      className="h-8 w-12 cursor-pointer p-0.5"
+                    />
+                    <span className="text-xs font-mono text-muted-foreground">{customScheme.accentBg}</span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Accent Text</Label>
+                  <div className="flex gap-1.5 items-center">
+                    <Input
+                      type="color"
+                      value={customScheme.accentText}
+                      onChange={(e) => {
+                        const updated = { ...customScheme, accentText: e.target.value };
+                        setCustomScheme(updated);
+                        setSelectedScheme(updated);
+                      }}
+                      className="h-8 w-12 cursor-pointer p-0.5"
+                    />
+                    <span className="text-xs font-mono text-muted-foreground">{customScheme.accentText}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <Separator />
+            
+            {/* Options */}
+            <div className="flex items-center gap-2">
+              <Checkbox 
+                id="applyToTransparent" 
+                checked={applyToTransparent}
+                onCheckedChange={(checked) => setApplyToTransparent(checked === true)}
+              />
+              <Label htmlFor="applyToTransparent" className="text-sm">
+                Also override transparent backgrounds
+              </Label>
+            </div>
+            
+            {/* Preview */}
+            {selectedScheme && (
+              <div className="rounded-lg overflow-hidden" style={{ backgroundColor: selectedScheme.canvasBg }}>
+                <div className="p-4 space-y-2">
+                  <div 
+                    className="px-4 py-2 rounded"
+                    style={{ 
+                      backgroundColor: selectedScheme.boxBg,
+                      color: selectedScheme.textColor,
+                      border: `2px solid ${selectedScheme.borderColor}`,
+                    }}
+                  >
+                    <div className="text-lg font-bold">Sample Header Text</div>
+                    <div className="text-sm opacity-80">Team Name - Lane 4</div>
+                  </div>
+                  <div 
+                    className="px-4 py-2 rounded"
+                    style={{ 
+                      backgroundColor: selectedScheme.accentBg,
+                      color: selectedScheme.accentText,
+                      border: `1px solid ${selectedScheme.borderColor}`,
+                    }}
+                  >
+                    <div className="text-sm">12.45s - 1st Place</div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowColorSchemeDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => selectedScheme && applyColorScheme(selectedScheme)}
+              disabled={!selectedScheme}
+              data-testid="button-apply-scheme"
+            >
+              <Palette className="w-4 h-4 mr-1" />
+              Apply to All Tiles
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
