@@ -720,6 +720,7 @@ export default function DisplayControlPage() {
                           onClick={() => {
                             setDisplayMode(prev => ({ ...prev, [selectedDevice.id]: 'hytek' }));
                             toggleAutoModeMutation.mutate({ deviceId: selectedDevice.id, enabled: false });
+                            apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}/content-mode`, { contentMode: 'hytek' });
                           }}
                           className={`p-4 rounded-lg border-2 transition-all text-left ${
                             displayMode[selectedDevice.id] === 'hytek' && !autoModeStatus?.autoMode
@@ -745,6 +746,7 @@ export default function DisplayControlPage() {
                           onClick={() => {
                             setDisplayMode(prev => ({ ...prev, [selectedDevice.id]: 'teamscores' }));
                             toggleAutoModeMutation.mutate({ deviceId: selectedDevice.id, enabled: false });
+                            apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}/content-mode`, { contentMode: 'team_scores' });
                           }}
                           className={`p-4 rounded-lg border-2 transition-all text-left ${
                             displayMode[selectedDevice.id] === 'teamscores' && !autoModeStatus?.autoMode
