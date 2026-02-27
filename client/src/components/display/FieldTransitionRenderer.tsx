@@ -3,6 +3,26 @@ import { useWebSocket } from "@/contexts/WebSocketContext";
 
 type CurtainPhase = 'idle' | 'coverStart' | 'covering' | 'paused' | 'reveal';
 
+// Darken a color by reducing RGB channels
+function darkenColor(color: string, amount: number): string {
+  if (color.startsWith('#')) {
+    const hex = color.slice(1);
+    const num = parseInt(hex, 16);
+    const r = Math.max(0, ((num >> 16) & 0xff) - amount);
+    const g = Math.max(0, ((num >> 8) & 0xff) - amount);
+    const b = Math.max(0, (num & 0xff) - amount);
+    return `rgb(${r}, ${g}, ${b})`;
+  }
+  const match = color.match(/(\d+)/g);
+  if (match && match.length >= 3) {
+    const r = Math.max(0, parseInt(match[0]) - amount);
+    const g = Math.max(0, parseInt(match[1]) - amount);
+    const b = Math.max(0, parseInt(match[2]) - amount);
+    return `rgb(${r}, ${g}, ${b})`;
+  }
+  return color;
+}
+
 export function FieldTransitionRenderer({
   fieldPort,
   curtainColor,
@@ -17,6 +37,8 @@ export function FieldTransitionRenderer({
   const [primaryColor, setPrimaryColor] = useState<string>(curtainColor);
   const [secondaryColor, setSecondaryColor] = useState<string>(curtainColor);
   const [logoSrc, setLogoSrc] = useState<string | null>(null);
+  const [athleteName, setAthleteName] = useState<string>('');
+  const [athleteSchool, setAthleteSchool] = useState<string>('');
   const prevCalledBibRef = useRef<string>('');
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const versionRef = useRef(0);
@@ -29,37 +51,37 @@ export function FieldTransitionRenderer({
   const runCurtain = useCallback((
     newLogoSrc: string | null,
     primary: string,
-    secondary: string
+    secondary: string,
+    name: string,
+    school: string,
   ) => {
     clearTimers();
     const version = ++versionRef.current;
     setLogoSrc(newLogoSrc);
     setPrimaryColor(primary);
     setSecondaryColor(secondary);
+    setAthleteName(name);
+    setAthleteSchool(school);
     setPhase('coverStart');
 
-    // 30ms: ensure browser paints the initial (off-screen) position before animating
     timersRef.current.push(setTimeout(() => {
       if (versionRef.current !== version) return;
       setPhase('covering');
 
-      // 650ms cover animation finishes → pause with logo visible
       timersRef.current.push(setTimeout(() => {
         if (versionRef.current !== version) return;
         setPhase('paused');
 
-        // 1600ms pause → open
         timersRef.current.push(setTimeout(() => {
           if (versionRef.current !== version) return;
           setPhase('reveal');
 
-          // 750ms reveal finishes → idle
           timersRef.current.push(setTimeout(() => {
             if (versionRef.current !== version) return;
             setPhase('idle');
-          }, 750));
-        }, 1600));
-      }, 650));
+          }, 700));
+        }, 1400));
+      }, 600));
     }, 30));
   }, [clearTimers]);
 
@@ -72,16 +94,9 @@ export function FieldTransitionRenderer({
       try {
         const msg = JSON.parse(e.data);
 
-        // When a specific fieldPort is configured, only accept that port's channel.
-        // Only fall back to the global channel if no fieldPort is set — prevents
-        // all 5 boards triggering the curtain on every field event.
         const portMatch = fieldPort && msg.type === `field_mode_change_${fieldPort}`;
         const globalFallback = !fieldPort && msg.type === 'field_mode_change';
         if (!portMatch && !globalFallback) return;
-
-        // If both port-specific and global fire, prefer port-specific
-        // (global fires first on the same tick, port-specific fires right after)
-        // No issue in practice since we debounce by calledId
 
         const results: any[] = msg.data?.results || [];
         const calledUp = results.find((r: any) => !r.mark || String(r.mark).trim() === '');
@@ -96,6 +111,7 @@ export function FieldTransitionRenderer({
         prevCalledBibRef.current = calledId;
 
         const school = calledUp.affiliation || calledUp.team || '';
+        const name = calledUp.name || '';
 
         let logoUrl: string | null = null;
         let primary = curtainColor;
@@ -111,9 +127,7 @@ export function FieldTransitionRenderer({
             );
             if (res.ok) {
               const teamData = await res.json();
-              // Logo URL comes directly from the endpoint now
               if (teamData?.logoUrl) logoUrl = teamData.logoUrl;
-              // Team brand colors — fall back to curtainColor if not set
               if (teamData?.primaryColor) {
                 primary = teamData.primaryColor;
                 secondary = teamData.secondaryColor || teamData.primaryColor;
@@ -124,7 +138,7 @@ export function FieldTransitionRenderer({
           }
         }
 
-        runCurtain(logoUrl, primary, secondary);
+        runCurtain(logoUrl, primary, secondary, name, school);
       } catch {
         /* ignore parse errors */
       }
@@ -141,19 +155,17 @@ export function FieldTransitionRenderer({
   const isReveal = phase === 'reveal';
   const isInitial = phase === 'coverStart';
 
-  const gradient =
-    primaryColor !== secondaryColor
-      ? `linear-gradient(135deg, ${primaryColor} 0%, ${secondaryColor} 100%)`
-      : primaryColor;
+  // Rich multi-stop gradient for depth
+  const darkPrimary = darkenColor(primaryColor, 40);
+  const darkSecondary = darkenColor(secondaryColor, 30);
+  const gradient = `linear-gradient(135deg, ${darkPrimary} 0%, ${primaryColor} 35%, ${secondaryColor} 65%, ${darkSecondary} 100%)`;
 
   const panelTransition = isReveal
-    ? 'transform 0.75s cubic-bezier(0.4, 0, 0.2, 1)'
+    ? 'transform 0.7s cubic-bezier(0.25, 0, 0.15, 1)'
     : isCovering
-    ? 'transform 0.65s cubic-bezier(0.4, 0, 0.2, 1)'
+    ? 'transform 0.6s cubic-bezier(0.4, 0, 0.2, 1)'
     : 'none';
 
-  // Panels start off-screen right (coverStart), sweep left to cover (covering),
-  // hold (paused), then split outward (reveal)
   const leftTransform = isReveal
     ? 'translateX(-100%)'
     : isInitial
@@ -166,6 +178,10 @@ export function FieldTransitionRenderer({
     ? 'translateX(100%)'
     : 'translateX(0)';
 
+  // Logo fades in during covering, fully visible on pause, fades on reveal
+  const logoOpacity = isPaused ? 1 : isCovering ? 0.6 : 0;
+  const logoScale = isPaused ? 1 : isCovering ? 0.9 : 0.75;
+
   const panelBase: React.CSSProperties = {
     position: 'absolute',
     top: 0,
@@ -177,27 +193,89 @@ export function FieldTransitionRenderer({
     transition: panelTransition,
   };
 
-  // Logo image shared style — sized relative to full viewport
-  // maxWidth 65% of 200%-wide inner container = 65% of viewport
-  const logoImgStyle: React.CSSProperties = {
-    maxHeight: '65%',
-    maxWidth: '65%',
-    objectFit: 'contain',
-    filter: 'drop-shadow(0 4px 24px rgba(0,0,0,0.5))',
-    userSelect: 'none',
+  // Subtle diagonal stripe texture
+  const stripeOverlay: React.CSSProperties = {
+    position: 'absolute',
+    inset: 0,
+    background: `repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 8px,
+      rgba(255,255,255,0.03) 8px,
+      rgba(255,255,255,0.03) 16px
+    )`,
+    pointerEvents: 'none',
   };
 
-  // Inner container spans full viewport width so logo appears centered on screen.
-  // Each panel's overflow:hidden then clips to its own half, so the logo splits at the seam.
-  const logoInnerBase: React.CSSProperties = {
+  // Soft vignette for depth
+  const vignetteOverlay: React.CSSProperties = {
+    position: 'absolute',
+    inset: 0,
+    background: 'radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.35) 100%)',
+    pointerEvents: 'none',
+  };
+
+  // Thin decorative accent line
+  const accentLineBase: React.CSSProperties = {
+    position: 'absolute',
+    left: '10%',
+    right: '10%',
+    height: '2px',
+    background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent)',
+    opacity: isPaused ? 1 : 0,
+    transition: 'opacity 0.4s ease 0.15s',
+    pointerEvents: 'none',
+  };
+
+  // Inner container spans full viewport so logo + text appears centered
+  const innerContainerBase: React.CSSProperties = {
     position: 'absolute',
     top: 0,
     height: '100%',
-    width: '200%',         // = full viewport width
+    width: '200%',
     display: 'flex',
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
     pointerEvents: 'none',
+    opacity: logoOpacity,
+    transform: `scale(${logoScale})`,
+    transition: 'opacity 0.4s ease, transform 0.4s ease',
+  };
+
+  const logoImgStyle: React.CSSProperties = {
+    maxHeight: '48%',
+    maxWidth: '48%',
+    objectFit: 'contain',
+    filter: 'drop-shadow(0 6px 30px rgba(0,0,0,0.55)) drop-shadow(0 2px 8px rgba(0,0,0,0.3))',
+    userSelect: 'none',
+  };
+
+  const nameStyle: React.CSSProperties = {
+    color: 'white',
+    fontFamily: "'Oswald', 'Impact', sans-serif",
+    fontSize: '28px',
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '3px',
+    textShadow: '0 2px 12px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.3)',
+    marginTop: logoSrc ? '16px' : '0',
+    opacity: isPaused ? 1 : 0,
+    transform: isPaused ? 'translateY(0)' : 'translateY(10px)',
+    transition: 'opacity 0.5s ease 0.15s, transform 0.5s ease 0.15s',
+  };
+
+  const schoolStyle: React.CSSProperties = {
+    color: 'rgba(255,255,255,0.65)',
+    fontFamily: "'Oswald', 'Impact', sans-serif",
+    fontSize: '16px',
+    fontWeight: 400,
+    textTransform: 'uppercase',
+    letterSpacing: '5px',
+    marginTop: '4px',
+    opacity: isPaused ? 1 : 0,
+    transform: isPaused ? 'translateY(0)' : 'translateY(10px)',
+    transition: 'opacity 0.5s ease 0.25s, transform 0.5s ease 0.25s',
   };
 
   const hideLogoOnError = (e: React.SyntheticEvent<HTMLImageElement>) => {
@@ -206,22 +284,30 @@ export function FieldTransitionRenderer({
 
   return (
     <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', zIndex: 50, pointerEvents: 'none' }}>
-      {/* Left panel — carries the left half of the logo */}
+      {/* Left panel */}
       <div style={{ ...panelBase, left: 0, transform: leftTransform }}>
-        {logoSrc && (
-          <div style={{ ...logoInnerBase, left: 0 }}>
-            <img src={logoSrc} alt="" style={logoImgStyle} onError={hideLogoOnError} />
-          </div>
-        )}
+        <div style={stripeOverlay} />
+        <div style={vignetteOverlay} />
+        <div style={{ ...accentLineBase, top: '12%', width: '200%', left: 0 }} />
+        <div style={{ ...accentLineBase, bottom: '12%', width: '200%', left: 0 }} />
+        <div style={{ ...innerContainerBase, left: 0 }}>
+          {logoSrc && <img src={logoSrc} alt="" style={logoImgStyle} onError={hideLogoOnError} />}
+          {athleteName && <div style={nameStyle}>{athleteName}</div>}
+          {athleteSchool && <div style={schoolStyle}>{athleteSchool}</div>}
+        </div>
       </div>
 
-      {/* Right panel — carries the right half of the logo */}
+      {/* Right panel */}
       <div style={{ ...panelBase, right: 0, transform: rightTransform }}>
-        {logoSrc && (
-          <div style={{ ...logoInnerBase, right: 0 }}>
-            <img src={logoSrc} alt="" style={logoImgStyle} onError={hideLogoOnError} />
-          </div>
-        )}
+        <div style={stripeOverlay} />
+        <div style={vignetteOverlay} />
+        <div style={{ ...accentLineBase, top: '12%', width: '200%', right: 0 }} />
+        <div style={{ ...accentLineBase, bottom: '12%', width: '200%', right: 0 }} />
+        <div style={{ ...innerContainerBase, right: 0 }}>
+          {logoSrc && <img src={logoSrc} alt="" style={logoImgStyle} onError={hideLogoOnError} />}
+          {athleteName && <div style={nameStyle}>{athleteName}</div>}
+          {athleteSchool && <div style={schoolStyle}>{athleteSchool}</div>}
+        </div>
       </div>
     </div>
   );

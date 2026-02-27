@@ -30,7 +30,8 @@ function extractDominantColor(imgElement: HTMLImageElement): Promise<string> {
       const imageData = ctx.getImageData(0, 0, size, size);
       const data = imageData.data;
 
-      let r = 0, g = 0, b = 0, count = 0;
+      // Use a simple color bucketing approach for more vibrant results
+      const buckets: Map<string, { r: number; g: number; b: number; count: number }> = new Map();
 
       for (let i = 0; i < data.length; i += 4) {
         const alpha = data[i + 3];
@@ -40,30 +41,56 @@ function extractDominantColor(imgElement: HTMLImageElement): Promise<string> {
         const pg = data[i + 1];
         const pb = data[i + 2];
 
-        if (pr > 240 && pg > 240 && pb > 240) continue;
-        if (pr < 15 && pg < 15 && pb < 15) continue;
+        // Skip near-white and near-black pixels
+        if (pr > 230 && pg > 230 && pb > 230) continue;
+        if (pr < 20 && pg < 20 && pb < 20) continue;
+        // Skip very grey pixels (low saturation)
+        const maxC = Math.max(pr, pg, pb);
+        const minC = Math.min(pr, pg, pb);
+        if (maxC - minC < 25 && maxC < 200) continue;
 
-        r += pr;
-        g += pg;
-        b += pb;
-        count++;
+        // Bucket by rounding to nearest 32
+        const kr = Math.round(pr / 32) * 32;
+        const kg = Math.round(pg / 32) * 32;
+        const kb = Math.round(pb / 32) * 32;
+        const key = `${kr},${kg},${kb}`;
+        const existing = buckets.get(key);
+        if (existing) {
+          existing.r += pr;
+          existing.g += pg;
+          existing.b += pb;
+          existing.count++;
+        } else {
+          buckets.set(key, { r: pr, g: pg, b: pb, count: 1 });
+        }
       }
 
-      if (count === 0) {
+      if (buckets.size === 0) {
         resolve('#1e3a8a');
         return;
       }
 
-      r = Math.round(r / count);
-      g = Math.round(g / count);
-      b = Math.round(b / count);
-
-      const max = Math.max(r, g, b);
-      if (max < 60) {
-        r = Math.min(255, r + 40);
-        g = Math.min(255, g + 40);
-        b = Math.min(255, b + 40);
+      // Pick the largest bucket
+      let best = { r: 30, g: 58, b: 138, count: 0 };
+      for (const bucket of buckets.values()) {
+        if (bucket.count > best.count) best = bucket;
       }
+
+      let r = Math.round(best.r / best.count);
+      let g = Math.round(best.g / best.count);
+      let b = Math.round(best.b / best.count);
+
+      // Boost saturation slightly for richer appearance
+      const avg = (r + g + b) / 3;
+      const satBoost = 1.25;
+      r = Math.min(255, Math.max(0, Math.round(avg + (r - avg) * satBoost)));
+      g = Math.min(255, Math.max(0, Math.round(avg + (g - avg) * satBoost)));
+      b = Math.min(255, Math.max(0, Math.round(avg + (b - avg) * satBoost)));
+
+      // Darken slightly so it works better as a background
+      r = Math.round(r * 0.85);
+      g = Math.round(g * 0.85);
+      b = Math.round(b * 0.85);
 
       resolve(`rgb(${r}, ${g}, ${b})`);
     } catch (e) {
@@ -191,8 +218,45 @@ export function PictureBoardTransition({
 
   const isRevealed = phase === 'content' || phase === 'reveal';
 
+  // Build a richer gradient from the extracted team color
+  const darken = (rgb: string, amt: number) => {
+    const m = rgb.match(/(\d+)/g);
+    if (!m || m.length < 3) return rgb;
+    return `rgb(${Math.max(0, +m[0] - amt)}, ${Math.max(0, +m[1] - amt)}, ${Math.max(0, +m[2] - amt)})`;
+  };
+  const darkColor = darken(teamColor, 45);
+  const panelGradient = `linear-gradient(135deg, ${darkColor} 0%, ${teamColor} 40%, ${teamColor} 60%, ${darkColor} 100%)`;
+
+  // Shared texture overlay styles
+  const stripeOverlay: React.CSSProperties = {
+    position: 'absolute', inset: 0, pointerEvents: 'none',
+    background: `repeating-linear-gradient(-45deg, transparent, transparent 8px, rgba(255,255,255,0.03) 8px, rgba(255,255,255,0.03) 16px)`,
+  };
+  const vignetteOverlay: React.CSSProperties = {
+    position: 'absolute', inset: 0, pointerEvents: 'none',
+    background: 'radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.35) 100%)',
+  };
+  const accentLine = (top: boolean): React.CSSProperties => ({
+    position: 'absolute', left: '10%', right: '10%', height: '2px',
+    ...(top ? { top: '12%' } : { bottom: '12%' }),
+    background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)',
+    pointerEvents: 'none',
+  });
+
+  const logoImgShared: React.CSSProperties = {
+    filter: 'drop-shadow(0 6px 30px rgba(0,0,0,0.55)) drop-shadow(0 2px 8px rgba(0,0,0,0.3))',
+    userSelect: 'none',
+  };
+
+  const fallbackTextStyle: React.CSSProperties = {
+    fontFamily: "'Oswald', 'Impact', sans-serif",
+    textShadow: '0 2px 12px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.3)',
+    letterSpacing: '3px',
+  };
+
   return (
     <div className="relative w-full h-full overflow-hidden">
+      {/* Content layer */}
       <div 
         className="absolute inset-0 z-0"
         style={{ opacity: isRevealed ? 1 : 0, transition: 'opacity 0.3s ease-in-out' }}
@@ -200,55 +264,62 @@ export function PictureBoardTransition({
         {children(displayedEntry, isRevealed)}
       </div>
 
+      {/* Full curtain — sweeps in from the right */}
       <div
         className="absolute inset-0 z-20 flex items-center justify-center"
         style={{
-          backgroundColor: teamColor,
+          background: panelGradient,
           transform: phase === 'curtain' ? 'translateX(0)' : 'translateX(100%)',
-          transition: phase === 'curtain' ? 'transform 0.5s ease-out' : 'none',
+          transition: phase === 'curtain' ? 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)' : 'none',
         }}
       >
+        <div style={stripeOverlay} />
+        <div style={vignetteOverlay} />
+        <div style={accentLine(true)} />
+        <div style={accentLine(false)} />
         {displayLogo ? (
           <img 
             src={displayLogo} 
             alt="Team Logo" 
-            className="max-h-[70%] max-w-[70%] object-contain"
-            style={{ filter: 'drop-shadow(0 2px 8px rgba(0, 0, 0, 0.4))' }}
+            className="max-h-[55%] max-w-[55%] object-contain"
+            style={logoImgShared}
           />
         ) : (
           <div 
-            className="text-white text-4xl font-bold"
-            style={{ fontFamily: "'Oswald', sans-serif", textShadow: '0 2px 4px rgba(0,0,0,0.3)' }}
+            className="text-white text-4xl font-bold uppercase"
+            style={fallbackTextStyle}
           >
             {meet?.name || 'ATHLETICS'}
           </div>
         )}
       </div>
 
+      {/* Left split panel */}
       <div
-        className="absolute top-0 left-0 w-1/2 h-full z-30 flex items-center justify-center overflow-hidden"
+        className="absolute top-0 left-0 w-1/2 h-full z-30 overflow-hidden"
         style={{
-          backgroundColor: teamColor,
+          background: panelGradient,
           opacity: phase === 'split' || phase === 'reveal' ? 1 : 0,
           transform: phase === 'reveal' || phase === 'content' ? 'translateX(-100%)' : 'translateX(0)',
-          transition: phase === 'reveal' || phase === 'content' ? 'transform 0.6s ease-in-out' : 'none',
+          transition: phase === 'reveal' || phase === 'content' ? 'transform 0.65s cubic-bezier(0.25, 0, 0.15, 1)' : 'none',
         }}
       >
-        <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>
+        <div style={stripeOverlay} />
+        <div style={vignetteOverlay} />
+        <div style={accentLine(true)} />
+        <div style={accentLine(false)} />
+        <div style={{ position: 'absolute', top: 0, left: 0, width: '200%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
           {displayLogo ? (
             <img 
               src={displayLogo} 
               alt="Team Logo" 
-              className="max-h-[70%] object-contain"
-              style={{ 
-                height: '140px',
-                filter: 'drop-shadow(0 2px 8px rgba(0, 0, 0, 0.4))' 
-              }}
+              className="object-contain"
+              style={{ height: '140px', ...logoImgShared }}
             />
           ) : (
             <div 
-              className="text-white text-2xl font-bold whitespace-nowrap"
-              style={{ fontFamily: "'Oswald', sans-serif" }}
+              className="text-white text-2xl font-bold whitespace-nowrap uppercase"
+              style={fallbackTextStyle}
             >
               {meet?.name || 'ATHLETICS'}
             </div>
@@ -256,30 +327,32 @@ export function PictureBoardTransition({
         </div>
       </div>
 
+      {/* Right split panel */}
       <div
-        className="absolute top-0 right-0 w-1/2 h-full z-30 flex items-center justify-center overflow-hidden"
+        className="absolute top-0 right-0 w-1/2 h-full z-30 overflow-hidden"
         style={{
-          backgroundColor: teamColor,
+          background: panelGradient,
           opacity: phase === 'split' || phase === 'reveal' ? 1 : 0,
           transform: phase === 'reveal' || phase === 'content' ? 'translateX(100%)' : 'translateX(0)',
-          transition: phase === 'reveal' || phase === 'content' ? 'transform 0.6s ease-in-out' : 'none',
+          transition: phase === 'reveal' || phase === 'content' ? 'transform 0.65s cubic-bezier(0.25, 0, 0.15, 1)' : 'none',
         }}
       >
-        <div style={{ position: 'absolute', right: '50%', transform: 'translateX(50%)' }}>
+        <div style={stripeOverlay} />
+        <div style={vignetteOverlay} />
+        <div style={accentLine(true)} />
+        <div style={accentLine(false)} />
+        <div style={{ position: 'absolute', top: 0, right: 0, width: '200%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
           {displayLogo ? (
             <img 
               src={displayLogo} 
               alt="Team Logo" 
-              className="max-h-[70%] object-contain"
-              style={{ 
-                height: '140px',
-                filter: 'drop-shadow(0 2px 8px rgba(0, 0, 0, 0.4))' 
-              }}
+              className="object-contain"
+              style={{ height: '140px', ...logoImgShared }}
             />
           ) : (
             <div 
-              className="text-white text-2xl font-bold whitespace-nowrap"
-              style={{ fontFamily: "'Oswald', sans-serif" }}
+              className="text-white text-2xl font-bold whitespace-nowrap uppercase"
+              style={fallbackTextStyle}
             >
               {meet?.name || 'ATHLETICS'}
             </div>
