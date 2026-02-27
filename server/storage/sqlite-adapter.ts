@@ -175,6 +175,7 @@ export class SQLiteStorage implements IStorage {
     try { this.db.prepare('ALTER TABLE display_devices ADD COLUMN is_big_board INTEGER DEFAULT 0').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE display_devices ADD COLUMN display_width INTEGER').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE display_devices ADD COLUMN display_height INTEGER').run(); } catch(e) {}
+    try { this.db.prepare('ALTER TABLE meet_ingestion_settings ADD COLUMN headshot_directory TEXT').run(); } catch(e) {}
   }
 
   private createTables(): void {
@@ -869,6 +870,7 @@ export class SQLiteStorage implements IStorage {
         hytek_mdb_last_import_at TEXT,
         hytek_mdb_last_hash TEXT,
         hytek_mdb_poll_interval_sec INTEGER DEFAULT 60,
+        headshot_directory TEXT,
         created_at TEXT DEFAULT (datetime('now')),
         updated_at TEXT DEFAULT (datetime('now'))
       );
@@ -4482,6 +4484,7 @@ export class SQLiteStorage implements IStorage {
       hytekMdbLastImportAt: row.hytek_mdb_last_import_at ? new Date(row.hytek_mdb_last_import_at) : null,
       hytekMdbLastHash: row.hytek_mdb_last_hash,
       hytekMdbPollIntervalSec: row.hytek_mdb_poll_interval_sec,
+      headshotDirectory: row.headshot_directory,
       createdAt: row.created_at ? new Date(row.created_at) : new Date(),
       updatedAt: row.updated_at ? new Date(row.updated_at) : new Date(),
     };
@@ -4494,16 +4497,17 @@ export class SQLiteStorage implements IStorage {
 
   async upsertIngestionSettings(settings: InsertMeetIngestionSettings): Promise<MeetIngestionSettings> {
     this.db.prepare(`
-      INSERT INTO meet_ingestion_settings (meet_id, lynx_files_directory, lynx_files_enabled, hytek_mdb_path, hytek_mdb_enabled, hytek_mdb_poll_interval_sec, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+      INSERT INTO meet_ingestion_settings (meet_id, lynx_files_directory, lynx_files_enabled, hytek_mdb_path, hytek_mdb_enabled, hytek_mdb_poll_interval_sec, headshot_directory, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
       ON CONFLICT(meet_id) DO UPDATE SET
         lynx_files_directory = excluded.lynx_files_directory,
         lynx_files_enabled = excluded.lynx_files_enabled,
         hytek_mdb_path = excluded.hytek_mdb_path,
         hytek_mdb_enabled = excluded.hytek_mdb_enabled,
         hytek_mdb_poll_interval_sec = excluded.hytek_mdb_poll_interval_sec,
+        headshot_directory = excluded.headshot_directory,
         updated_at = datetime('now')
-    `).run(settings.meetId, settings.lynxFilesDirectory ?? null, this.fromBoolean(settings.lynxFilesEnabled ?? false), settings.hytekMdbPath ?? null, this.fromBoolean(settings.hytekMdbEnabled ?? false), settings.hytekMdbPollIntervalSec ?? 60);
+    `).run(settings.meetId, settings.lynxFilesDirectory ?? null, this.fromBoolean(settings.lynxFilesEnabled ?? false), settings.hytekMdbPath ?? null, this.fromBoolean(settings.hytekMdbEnabled ?? false), settings.hytekMdbPollIntervalSec ?? 60, (settings as any).headshotDirectory ?? null);
     
     return (await this.getIngestionSettings(settings.meetId))!;
   }
@@ -4517,6 +4521,7 @@ export class SQLiteStorage implements IStorage {
     if (updates.hytekMdbPath !== undefined) { setClause.push('hytek_mdb_path = ?'); values.push(updates.hytekMdbPath); }
     if (updates.hytekMdbEnabled !== undefined) { setClause.push('hytek_mdb_enabled = ?'); values.push(this.fromBoolean(updates.hytekMdbEnabled)); }
     if (updates.hytekMdbPollIntervalSec !== undefined) { setClause.push('hytek_mdb_poll_interval_sec = ?'); values.push(updates.hytekMdbPollIntervalSec); }
+    if ((updates as any).headshotDirectory !== undefined) { setClause.push('headshot_directory = ?'); values.push((updates as any).headshotDirectory); }
     
     setClause.push("updated_at = datetime('now')");
 

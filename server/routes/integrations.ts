@@ -1266,6 +1266,7 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
         lynxFilesEnabled: false,
         hytekMdbPath: null,
         hytekMdbEnabled: false,
+        headshotDirectory: null,
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -2713,6 +2714,113 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     try {
       const bests = await storage.getAthleteBestsByMeet(req.params.meetId);
       res.json(bests);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ===== HEADSHOT DIRECTORY LOOKUP =====
+  
+  // Get headshot URL for an athlete by school/first/last name from headshot directory
+  // Pattern: School_FirstName_LastName.png (e.g., Duke_John_Smith.png)
+  app.get('/api/meets/:meetId/headshot', async (req, res) => {
+    try {
+      const { meetId } = req.params;
+      const { school, firstName, lastName } = req.query;
+      
+      if (!school || !firstName || !lastName) {
+        return res.status(400).json({ error: 'school, firstName, and lastName query params required' });
+      }
+      
+      // Get headshot directory from ingestion settings
+      const settings = await storage.getIngestionSettings(meetId);
+      const headshotDir = (settings as any)?.headshotDirectory;
+      
+      if (!headshotDir) {
+        return res.status(404).json({ error: 'No headshot directory configured' });
+      }
+      
+      const fsPromises = await import('fs/promises');
+      const pathModule = await import('path');
+      
+      // Build filename pattern: School_FirstName_LastName.png
+      const schoolStr = String(school).trim();
+      const firstStr = String(firstName).trim();
+      const lastStr = String(lastName).trim();
+      const baseFilename = `${schoolStr}_${firstStr}_${lastStr}`;
+      
+      // Try multiple extensions
+      const extensions = ['.png', '.jpg', '.jpeg', '.PNG', '.JPG', '.JPEG'];
+      let foundPath: string | null = null;
+      
+      for (const ext of extensions) {
+        const filePath = pathModule.default.join(headshotDir, `${baseFilename}${ext}`);
+        try {
+          await fsPromises.access(filePath);
+          foundPath = filePath;
+          break;
+        } catch {
+          // Try next extension
+        }
+      }
+      
+      // Also try case-insensitive match by listing directory
+      if (!foundPath) {
+        try {
+          const files = await fsPromises.readdir(headshotDir);
+          const lowerBase = baseFilename.toLowerCase();
+          const match = files.find(f => {
+            const name = f.substring(0, f.lastIndexOf('.'));
+            return name.toLowerCase() === lowerBase;
+          });
+          if (match) {
+            foundPath = pathModule.default.join(headshotDir, match);
+          }
+        } catch {
+          // Directory not readable
+        }
+      }
+      
+      if (!foundPath) {
+        return res.status(404).json({ error: 'Headshot not found' });
+      }
+      
+      // Send the file
+      res.sendFile(foundPath);
+    } catch (error: any) {
+      console.error('Headshot lookup error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Test headshot directory - check if directory exists and list available headshots
+  app.post('/api/meets/:meetId/ingestion-settings/test-headshot-directory', async (req, res) => {
+    try {
+      const { directory } = req.body;
+      if (!directory) {
+        return res.json({ valid: false, error: 'No directory specified' });
+      }
+      
+      const fsPromises = await import('fs/promises');
+      
+      try {
+        const stat = await fsPromises.stat(directory);
+        if (!stat.isDirectory()) {
+          return res.json({ valid: false, error: 'Path is not a directory' });
+        }
+        
+        const files = await fsPromises.readdir(directory);
+        const imageFiles = files.filter(f => /\.(png|jpg|jpeg|gif)$/i.test(f));
+        
+        res.json({
+          valid: true,
+          totalFiles: files.length,
+          imageFiles: imageFiles.length,
+          sampleFiles: imageFiles.slice(0, 10),
+        });
+      } catch (e: any) {
+        res.json({ valid: false, error: `Cannot access directory: ${e.message}` });
+      }
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

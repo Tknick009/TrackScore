@@ -502,6 +502,19 @@ export function SceneObjectRenderer({
         
         if (componentConfig.logoType === "meet") {
           logoUrl = meet?.logoUrl;
+        } else if (logoFieldKey === "athlete-photo" && liveData) {
+          // Athlete headshot from directory: School_FirstName_LastName.png
+          const photoAthleteIndex = (dataBinding.athleteIndex || 0) + pageOffset;
+          const photoEntries = Array.isArray(liveData.entries) ? liveData.entries : [];
+          const photoEntry = photoEntries.length > photoAthleteIndex ? photoEntries[photoAthleteIndex] : null;
+          if (photoEntry) {
+            const school = photoEntry.affiliation || photoEntry.team || '';
+            const firstName = photoEntry.firstName || '';
+            const lastName = photoEntry.lastName || '';
+            if (school && firstName && lastName) {
+              logoUrl = `/api/meets/${meetId}/headshot?school=${encodeURIComponent(school)}&firstName=${encodeURIComponent(firstName)}&lastName=${encodeURIComponent(lastName)}`;
+            }
+          }
         } else if (logoFieldKey === "school-logo" && liveData) {
           const logoAthleteIndex = (dataBinding.athleteIndex || 0) + pageOffset;
           const entries = Array.isArray(liveData.entries) ? liveData.entries : [];
@@ -529,7 +542,7 @@ export function SceneObjectRenderer({
         if (!logoUrl) {
           return <div className="h-full" />;
         }
-        const logoIsAthleteBound = logoFieldKey === 'school-logo';
+        const logoIsAthleteBound = logoFieldKey === 'school-logo' || logoFieldKey === 'athlete-photo';
         return (
           <div style={{ 
             width: '100%', height: '100%',
