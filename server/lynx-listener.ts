@@ -53,6 +53,8 @@ interface LynxFieldResult {
   lane?: string;  // Lane number from field messages
   name?: string;
   affiliation?: string;
+  firstName?: string;
+  lastName?: string;
   bib?: string;
   mark?: string;
   attemptNumber?: string;
@@ -1297,6 +1299,8 @@ export class LynxListener extends EventEmitter {
         lane: data.L || '',  // Capture lane from field messages
         name: name,
         affiliation: data.AF,
+        firstName: data.FN,
+        lastName: data.LN,
         bib: data.BIB,
         mark: mark,
         attemptNumber: data.AN,
