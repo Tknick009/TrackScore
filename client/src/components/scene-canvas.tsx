@@ -766,15 +766,48 @@ export function SceneObjectRenderer({
           // Look up meet record and facility record for this event
           let meetRecordDisplay = '';
           let facilityRecordDisplay = '';
+          let athleteMatchesMR = false;
+          let athleteMatchesFR = false;
           if (eventRecords.length > 0) {
             const meetRec = eventRecords.find((r: any) => r.bookScope === 'meet');
             const facRec = eventRecords.find((r: any) => r.bookScope === 'facility');
             if (meetRec) {
               meetRecordDisplay = `MR: ${meetRec.performance} - ${meetRec.athleteName}${meetRec.team ? ` (${meetRec.team})` : ''}`;
+              // Check if this athlete IS the meet record holder
+              if (firstEntry) {
+                const holderName = (meetRec.athleteName || '').toLowerCase();
+                const entryLast = (firstEntry.lastName || '').toLowerCase();
+                const entryFirst = (firstEntry.firstName || '').toLowerCase();
+                const entryName = (firstEntry.name || '').toLowerCase();
+                if ((entryLast && holderName.includes(entryLast)) || (entryName && holderName.includes(entryName))) {
+                  athleteMatchesMR = true;
+                }
+              }
             }
             if (facRec) {
               facilityRecordDisplay = `FR: ${facRec.performance} - ${facRec.athleteName}${facRec.team ? ` (${facRec.team})` : ''}`;
+              if (firstEntry) {
+                const holderName = (facRec.athleteName || '').toLowerCase();
+                const entryLast = (firstEntry.lastName || '').toLowerCase();
+                const entryFirst = (firstEntry.firstName || '').toLowerCase();
+                const entryName = (firstEntry.name || '').toLowerCase();
+                if ((entryLast && holderName.includes(entryLast)) || (entryName && holderName.includes(entryName))) {
+                  athleteMatchesFR = true;
+                }
+              }
             }
+          }
+          
+          // Determine single priority record tag: MR > FR > PB > SB
+          let recordTag = '';
+          if (athleteMatchesMR) {
+            recordTag = 'MR';
+          } else if (athleteMatchesFR) {
+            recordTag = 'FR';
+          } else if (athletePB) {
+            recordTag = 'PB';
+          } else if (athleteSB) {
+            recordTag = 'SB';
           }
           
           const fieldMap: Record<string, any> = {
@@ -822,6 +855,11 @@ export function SceneObjectRenderer({
             // Meet record / Facility record from MDB import
             'meet-record': meetRecordDisplay,
             'facility-record': facilityRecordDisplay,
+            // Single priority record tag (MR > FR > PB > SB)
+            'record-tag': recordTag,
+            // Name with record tag appended (for combined display)
+            'name-record-tag': displayName,
+            'last-name-record-tag': isTeamScores ? (firstEntry?.name || '') : isRelayOrMedleyText ? (firstEntry?.name || firstEntry?.lastName || '') : firstEntry?.lastName,
           };
           const resolvedValue = fieldMap[fieldKey];
           if (resolvedValue !== undefined && resolvedValue !== null && resolvedValue !== '') {
@@ -894,6 +932,55 @@ export function SceneObjectRenderer({
           }
         }
         
+        // Check if this is a record-tag field to show the single priority badge (MR > FR > PB > SB)
+        const isRecordTagField = fieldKey === 'name-record-tag' || fieldKey === 'last-name-record-tag' || fieldKey === 'record-tag';
+        let recordTagBadge: string | null = null;
+        if (isRecordTagField && liveData) {
+          const entries = Array.isArray(liveData.entries) ? liveData.entries : [];
+          const rtIdx = (dataBinding.athleteIndex || 0) + pageOffset;
+          const rtEntry = entries[rtIdx];
+          
+          // Determine the tag for this specific athlete
+          // Priority: MR > FR > PB > SB
+          let thisMR = false;
+          let thisFR = false;
+          let thisPB = false;
+          let thisSB = false;
+          
+          // Check MR/FR: does this athlete hold the record?
+          if (eventRecords.length > 0 && rtEntry) {
+            const meetRec = eventRecords.find((r: any) => r.bookScope === 'meet');
+            const facRec = eventRecords.find((r: any) => r.bookScope === 'facility');
+            const eLast = (rtEntry.lastName || '').toLowerCase();
+            const eName = (rtEntry.name || '').toLowerCase();
+            if (meetRec) {
+              const h = (meetRec.athleteName || '').toLowerCase();
+              if ((eLast && h.includes(eLast)) || (eName && h.includes(eName))) thisMR = true;
+            }
+            if (facRec) {
+              const h = (facRec.athleteName || '').toLowerCase();
+              if ((eLast && h.includes(eLast)) || (eName && h.includes(eName))) thisFR = true;
+            }
+          }
+          
+          // Check PB/SB from imported bests
+          if (rtEntry && athleteBests.length > 0) {
+            const aid = rtEntry.athleteId;
+            if (aid) {
+              const bests = athleteBests.filter((b: any) => b.athleteId === aid);
+              for (const b of bests) {
+                if (b.bestType === 'college' && b.mark) thisPB = true;
+                if (b.bestType === 'season' && b.mark) thisSB = true;
+              }
+            }
+          }
+          
+          if (thisMR) recordTagBadge = 'MR';
+          else if (thisFR) recordTagBadge = 'FR';
+          else if (thisPB) recordTagBadge = 'PB';
+          else if (thisSB) recordTagBadge = 'SB';
+        }
+        
         return (
           <div 
             className="flex items-center h-full p-2 overflow-hidden"
@@ -939,6 +1026,22 @@ export function SceneObjectRenderer({
                 }}
               >
                 {qualifierBadge}
+              </span>
+            )}
+            {recordTagBadge && (
+              <span 
+                className="ml-4 px-3 py-1 rounded font-bold"
+                style={{
+                  backgroundColor: recordTagBadge === 'MR' ? '#b91c1c' 
+                    : recordTagBadge === 'FR' ? '#7c3aed' 
+                    : recordTagBadge === 'PB' ? '#0369a1' 
+                    : '#ca8a04',
+                  color: '#ffffff',
+                  fontSize: `calc(${resolvedFontSize} * 0.65)`,
+                  letterSpacing: '0.05em',
+                }}
+              >
+                {recordTagBadge}
               </span>
             )}
           </div>
