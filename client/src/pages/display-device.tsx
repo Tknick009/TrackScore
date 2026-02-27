@@ -611,9 +611,11 @@ export default function DisplayDevice() {
           // Layout command from FinishLynx - switch scenes based on Scene Layout Mapping
           // Maps FinishLynx layout names to displayMode, then looks up scene from mappings
           // DEBOUNCING: Ignore duplicate layout commands to prevent glitchy transitions
-          // Listen to 'layout_command_big' for big board displays, 'layout_command' for small boards
-          const myLayoutChannel = isBigBoardRef.current ? 'layout_command_big' : 'layout_command';
-          if (message.type === myLayoutChannel) {
+          // Big boards listen to both 'layout_command_big' AND 'layout_command' (fallback if no big board port connected)
+          const isMyLayoutCommand = isBigBoardRef.current
+            ? (message.type === 'layout_command_big' || message.type === 'layout_command')
+            : message.type === 'layout_command';
+          if (isMyLayoutCommand) {
             const layoutName = message.data?.layoutName?.toLowerCase() || '';
             
             if (!autoModeRef.current) {
@@ -746,9 +748,11 @@ export default function DisplayDevice() {
           
           // Handle track mode change updates from FinishLynx (event switching)
           // NO SMART LOGIC - just pass through exactly what FinishLynx sends
-          // Listen to 'track_mode_change_big' for big board displays, 'track_mode_change' for small boards
-          const myChannel = isBigBoardRef.current ? 'track_mode_change_big' : 'track_mode_change';
-          if (message.type === myChannel) {
+          // Big boards listen to both 'track_mode_change_big' AND 'track_mode_change' (fallback if no big board port connected)
+          const isMyTrackChannel = isBigBoardRef.current
+            ? (message.type === 'track_mode_change_big' || message.type === 'track_mode_change')
+            : message.type === 'track_mode_change';
+          if (isMyTrackChannel) {
             if (!autoModeRef.current) {
               console.log(`[Display] Auto-mode disabled - ignoring track mode change`);
               return;
@@ -1107,9 +1111,11 @@ export default function DisplayDevice() {
 
           // Handle start_list updates from FinishLynx (pre-race athlete list)
           // Pure pass-through: show exactly what FinishLynx sends, no accumulation
-          // Listen to 'start_list_big' for big board displays, 'start_list' for small boards
-          const myStartListChannel = isBigBoardRef.current ? 'start_list_big' : 'start_list';
-          if (message.type === myStartListChannel) {
+          // Big boards listen to both 'start_list_big' AND 'start_list' (fallback if no big board port connected)
+          const isMyStartListChannel = isBigBoardRef.current
+            ? (message.type === 'start_list_big' || message.type === 'start_list')
+            : message.type === 'start_list';
+          if (isMyStartListChannel) {
             const data = message.data;
             if (data) {
               console.log(`[Display] Start list (${isBigBoardRef.current ? 'BIG BOARD' : 'standard'}): Event ${data.eventNumber}, Heat ${data.heat}, ${data.entries?.length || 0} entries`);
