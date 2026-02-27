@@ -48,20 +48,24 @@ function StaticRunningClock({
 
 // Robust logo component with proper error handling
 // Falls back to 0.png when logo fails to load
-const LogoImage = memo(function LogoImage({ logoUrl, objectFit }: { logoUrl: string; objectFit: string }) {
+const LogoImage = memo(function LogoImage({ logoUrl, objectFit, fallbackUrl }: { logoUrl: string; objectFit: string; fallbackUrl?: string }) {
   const [currentUrl, setCurrentUrl] = useState(logoUrl);
-  const triedFallback = useRef(false);
+  const fallbackStage = useRef(0); // 0 = original, 1 = fallbackUrl, 2 = 0.png
   
   // Reset when logoUrl prop changes
   useEffect(() => {
     setCurrentUrl(logoUrl);
-    triedFallback.current = false;
-  }, [logoUrl]);
+    fallbackStage.current = 0;
+  }, [logoUrl, fallbackUrl]);
   
   const handleError = () => {
-    // If the original URL failed and we haven't tried fallback yet, use 0.png
-    if (!triedFallback.current && currentUrl !== '/logos/NCAA/0.png') {
-      triedFallback.current = true;
+    if (fallbackStage.current === 0 && fallbackUrl) {
+      // First fallback: try the provided fallback URL (e.g. school logo)
+      fallbackStage.current = 1;
+      setCurrentUrl(fallbackUrl);
+    } else if (fallbackStage.current <= 1 && currentUrl !== '/logos/NCAA/0.png') {
+      // Final fallback: generic placeholder
+      fallbackStage.current = 2;
       setCurrentUrl('/logos/NCAA/0.png');
     }
   };
@@ -96,6 +100,8 @@ export interface SceneCanvasProps {
   // For fixed-size displays (P10/P6): target display resolution
   displayWidth?: number;
   displayHeight?: number;
+  // Device-level field port — used as fallback for field-transition objects that don't have a port set
+  deviceFieldPort?: number;
 }
 
 function useEventWithEntries(eventId: string | null | undefined) {
@@ -192,7 +198,8 @@ export function SceneObjectRenderer({
   pageIndex = 0,
   pageSize = 8,
   sharedLatestLiveData,
-  liveClockTime
+  liveClockTime,
+  deviceFieldPort
 }: { 
   object: SelectLayoutObject; 
   meetId?: string;
@@ -203,6 +210,7 @@ export function SceneObjectRenderer({
   pageSize?: number;
   sharedLatestLiveData?: any;
   liveClockTime?: string | null;
+  deviceFieldPort?: number;
 }) {
   const dataBinding: SceneDataBinding = object.dataBinding || { sourceType: 'static' };
   const componentConfig: SceneObjectConfig = object.config || {};
@@ -498,6 +506,7 @@ export function SceneObjectRenderer({
         
       case "logo":
         let logoUrl: string | null | undefined = null;
+        let logoFallbackUrl: string | undefined = undefined;
         const logoFieldKey = dataBinding.fieldKey as string | undefined;
         
         if (componentConfig.logoType === "meet") {
@@ -509,10 +518,29 @@ export function SceneObjectRenderer({
           const photoEntry = photoEntries.length > photoAthleteIndex ? photoEntries[photoAthleteIndex] : null;
           if (photoEntry) {
             const school = photoEntry.affiliation || photoEntry.team || '';
-            const firstName = photoEntry.firstName || '';
-            const lastName = photoEntry.lastName || '';
+            let firstName = photoEntry.firstName || '';
+            let lastName = photoEntry.lastName || '';
+            // Fallback: parse firstName/lastName from full name field (for field events)
+            if ((!firstName || !lastName) && photoEntry.name) {
+              const fullName = String(photoEntry.name).trim();
+              if (fullName.includes(',')) {
+                // "Last, First" format
+                const parts = fullName.split(',').map((s: string) => s.trim());
+                lastName = lastName || parts[0] || '';
+                firstName = firstName || parts[1] || '';
+              } else {
+                // "First Last" format
+                const parts = fullName.split(/\s+/);
+                firstName = firstName || parts[0] || '';
+                lastName = lastName || parts.slice(1).join(' ') || '';
+              }
+            }
             if (school && firstName && lastName) {
               logoUrl = `/api/meets/${meetId}/headshot?school=${encodeURIComponent(school)}&firstName=${encodeURIComponent(firstName)}&lastName=${encodeURIComponent(lastName)}`;
+            }
+            // Build school logo fallback URL so if headshot is missing, school logo is shown
+            if (school) {
+              logoFallbackUrl = `/logos/NCAA/${school}.png`;
             }
           }
         } else if (logoFieldKey === "school-logo" && liveData) {
@@ -551,7 +579,8 @@ export function SceneObjectRenderer({
           }}>
             <LogoImage 
               logoUrl={logoUrl} 
-              objectFit={componentConfig.objectFit || componentConfig.imageFit || "contain"} 
+              objectFit={componentConfig.objectFit || componentConfig.imageFit || "contain"}
+              fallbackUrl={logoFallbackUrl}
             />
           </div>
         );
@@ -1426,7 +1455,8 @@ export function SceneObjectRenderer({
         );
         
       case "field-transition": {
-        const ftPort = (componentConfig.fieldPort || dataBinding.fieldPort) as number | undefined;
+        // Use object-level port if set, otherwise fall back to device-level field port
+        const ftPort = (componentConfig.fieldPort || dataBinding.fieldPort || deviceFieldPort) as number | undefined;
         const ftColor = bgColor !== 'transparent' && bgColor ? bgColor : '#001e57';
         if (!ftPort) {
           return (
@@ -1504,6 +1534,7 @@ export function SceneCanvas({
   maxPages = 0,
   displayWidth,
   displayHeight,
+  deviceFieldPort,
 }: SceneCanvasProps) {
   const [dimensions, setDimensions] = useState({ width: 1920, height: 1080 });
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
@@ -1743,6 +1774,7 @@ export function SceneCanvas({
                   pageSize={pagingSize}
                   sharedLatestLiveData={objectLiveData}
                   liveClockTime={liveClockTime}
+                  deviceFieldPort={deviceFieldPort}
                 />
               );
             })}
@@ -1795,6 +1827,7 @@ export function SceneCanvas({
               pageSize={pagingSize}
               sharedLatestLiveData={objectLiveData}
               liveClockTime={liveClockTime}
+              deviceFieldPort={deviceFieldPort}
             />
           );
         })}
@@ -1861,6 +1894,7 @@ export function SceneCanvas({
               pageSize={pagingSize}
               sharedLatestLiveData={objectLiveData}
               liveClockTime={liveClockTime}
+              deviceFieldPort={deviceFieldPort}
             />
           );
         })}

@@ -922,10 +922,12 @@ export default function DisplayDevice() {
               // Fallback to generic modes if specific modes don't have mappings
               const fallbackMode = isMultiEvent ? 'multi_field' : 'field_results';
               
-              // Switch scene from logo to field results when ANY field port data arrives.
-              // This allows a display with 4 field event objects (each on different ports)
-              // to switch away from the logo as soon as the first event sends data.
-              if (currentLayoutModeRef.current !== targetDisplayMode && displayType) {
+              // Only switch scene when data arrives for this device's assigned port.
+              // This prevents a device on port 4560 from switching when port 4561 data arrives.
+              if (dataPort && dataPort !== myPort) {
+                console.log(`[Display] Ignoring field scene switch - data port ${dataPort} !== my port ${myPort}`);
+                // Still store in liveEventDataByPort above, but don't switch scene
+              } else if (currentLayoutModeRef.current !== targetDisplayMode && displayType) {
                 let sceneId = getSceneForModeRef.current(displayType, targetDisplayMode);
                 
                 // Try the opposite orientation before falling back to generic
@@ -1043,8 +1045,10 @@ export default function DisplayDevice() {
               
               console.log(`[Display] Field standings received: Event ${data.eventNumber}, Page ${data.currentPage}/${data.totalPages}, ${data.entries?.length} athletes`);
               
-              // Switch to field_standings scene if we have a mapping for it
-              if (displayType) {
+              // Only switch scene when standings arrive for this device's assigned port.
+              if (data.fieldPort && data.fieldPort !== myPort) {
+                console.log(`[Display] Ignoring field standings scene switch - data port ${data.fieldPort} !== my port ${myPort}`);
+              } else if (displayType) {
                 let sceneId = getSceneForModeRef.current(displayType, 'field_standings');
                 let actualMode = 'field_standings';
                 
@@ -1352,6 +1356,7 @@ export default function DisplayDevice() {
       maxPages={state.maxPages}
       customWidth={state.displayType === 'Custom' ? customWidth : undefined}
       customHeight={state.displayType === 'Custom' ? customHeight : undefined}
+      fieldPort={fieldPort}
     />
   );
 }
@@ -1373,13 +1378,14 @@ interface DisplayRendererProps {
   maxPages: number;
   customWidth?: number;
   customHeight?: number;
+  fieldPort?: number;
 }
 
 interface EventWithEntries extends Event {
   entries: any[];
 }
 
-function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTime, liveEventData, liveEventDataByPort, pagingSize, pagingInterval, maxPages, customWidth, customHeight }: DisplayRendererProps) {
+function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTime, liveEventData, liveEventDataByPort, pagingSize, pagingInterval, maxPages, customWidth, customHeight, fieldPort }: DisplayRendererProps) {
   const { data: meet } = useQuery<Meet>({
     queryKey: ['/api/meets', meetId],
     enabled: !!meetId,
@@ -1453,6 +1459,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             maxPages={maxPages}
             displayWidth={effectiveWidth}
             displayHeight={effectiveHeight}
+            deviceFieldPort={fieldPort}
           />
         );
       }
@@ -1472,6 +1479,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
           maxPages={maxPages}
           displayWidth={effectiveWidth}
           displayHeight={effectiveHeight}
+          deviceFieldPort={fieldPort}
         />
       );
     }
