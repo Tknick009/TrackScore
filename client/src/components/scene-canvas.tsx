@@ -152,6 +152,37 @@ function useTeamStandings(meetId: string | null | undefined) {
   });
 }
 
+// Fetch records for a specific event type and gender (for record-indicator and text bindings)
+function useEventRecords(eventType: string | null | undefined, gender: string | null | undefined) {
+  return useQuery<any[]>({
+    queryKey: ['/api/records/by-event', eventType, gender],
+    queryFn: async () => {
+      if (!eventType) return [];
+      const g = gender || 'male';
+      const res = await fetch(`/api/records/by-event?eventType=${encodeURIComponent(eventType)}&gender=${encodeURIComponent(g)}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!eventType,
+    staleTime: 30000,
+  });
+}
+
+// Fetch athlete bests for a meet (for SB/PB display)
+function useAthleteBests(meetId: string | null | undefined) {
+  return useQuery<any[]>({
+    queryKey: ['/api/meets', meetId, 'athlete-bests'],
+    queryFn: async () => {
+      if (!meetId) return [];
+      const res = await fetch(`/api/meets/${meetId}/athlete-bests`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!meetId,
+    staleTime: 30000,
+  });
+}
+
 export function SceneObjectRenderer({ 
   object, 
   meetId,
@@ -213,6 +244,19 @@ export function SceneObjectRenderer({
   
   const { data: standings } = useTeamStandings(
     dataBinding.sourceType === "standings" ? meetId : null
+  );
+
+  // Fetch records for display - derive event type from live data
+  const liveEventType = liveData?.eventType || '';
+  const liveGender = liveData?.gender || '';
+  const { data: eventRecords = [] } = useEventRecords(
+    (object.objectType === 'record-indicator' || object.objectType === 'text') ? liveEventType : null,
+    liveGender
+  );
+
+  // Fetch athlete bests for SB/PB display
+  const { data: athleteBests = [] } = useAthleteBests(
+    (object.objectType === 'text' && meetId) ? meetId : null
   );
   
   const left = (object.x / 100) * canvasWidth;
@@ -685,6 +729,54 @@ export function SceneObjectRenderer({
             attemptDisplay = `Att: ${firstEntry.attemptNumber}`;
           }
           
+          // Look up athlete SB/PB from imported bests
+          let athleteSB = '';
+          let athletePB = '';
+          if (firstEntry && athleteBests.length > 0) {
+            // Try to match by athleteId if available, or by name
+            const entryAthleteId = firstEntry.athleteId;
+            const matchingBests = entryAthleteId
+              ? athleteBests.filter((b: any) => b.athleteId === entryAthleteId)
+              : [];
+            
+            for (const best of matchingBests) {
+              if (best.bestType === 'season' && best.mark) {
+                const mark = Number(best.mark);
+                if (mark >= 60) {
+                  const mins = Math.floor(mark / 60);
+                  const secs = mark - mins * 60;
+                  athleteSB = `${mins}:${secs.toFixed(2).padStart(5, '0')}`;
+                } else {
+                  athleteSB = mark.toFixed(2);
+                }
+              }
+              if (best.bestType === 'college' && best.mark) {
+                const mark = Number(best.mark);
+                if (mark >= 60) {
+                  const mins = Math.floor(mark / 60);
+                  const secs = mark - mins * 60;
+                  athletePB = `${mins}:${secs.toFixed(2).padStart(5, '0')}`;
+                } else {
+                  athletePB = mark.toFixed(2);
+                }
+              }
+            }
+          }
+          
+          // Look up meet record and facility record for this event
+          let meetRecordDisplay = '';
+          let facilityRecordDisplay = '';
+          if (eventRecords.length > 0) {
+            const meetRec = eventRecords.find((r: any) => r.bookScope === 'meet');
+            const facRec = eventRecords.find((r: any) => r.bookScope === 'facility');
+            if (meetRec) {
+              meetRecordDisplay = `MR: ${meetRec.performance} - ${meetRec.athleteName}${meetRec.team ? ` (${meetRec.team})` : ''}`;
+            }
+            if (facRec) {
+              facilityRecordDisplay = `FR: ${facRec.performance} - ${facRec.athleteName}${facRec.team ? ` (${facRec.team})` : ''}`;
+            }
+          }
+          
           const fieldMap: Record<string, any> = {
             'event-name': eventName,
             'event-number': liveData.eventNumber,
@@ -722,6 +814,14 @@ export function SceneObjectRenderer({
             'total-points': totalPoints,
             'time-with-points': timeWithPoints,
             'total-events-scored': liveData.totalEventsScored != null ? `Events Scored: ${liveData.totalEventsScored}` : '',
+            // Season best / Personal best from CSV import
+            'season-best': athleteSB,
+            'personal-best': athletePB,
+            'sb': athleteSB,
+            'pb': athletePB,
+            // Meet record / Facility record from MDB import
+            'meet-record': meetRecordDisplay,
+            'facility-record': facilityRecordDisplay,
           };
           const resolvedValue = fieldMap[fieldKey];
           if (resolvedValue !== undefined && resolvedValue !== null && resolvedValue !== '') {
@@ -1143,9 +1243,30 @@ export function SceneObjectRenderer({
         );
         
       case "record-indicator":
-        const recordsList = liveData?.records || (componentConfig as any).records || [];
-        const recordPriority: Record<string, number> = { 'WR': 1, 'AR': 2, 'NR': 3, 'CR': 4, 'MR': 5, 'PR': 6, 'SB': 7 };
-        const sortedRecords = [...recordsList].sort((a: any, b: any) => 
+        // Use live records OR fetched event records from database
+        const rawRecordsList = liveData?.records || (componentConfig as any).records || [];
+        // Merge database records into the display list
+        const dbRecordsMapped = eventRecords.map((r: any) => {
+          const scope = r.bookScope || '';
+          const type = scope === 'meet' ? 'MR' : scope === 'facility' ? 'FR' : 'CR';
+          return {
+            type,
+            mark: r.performance,
+            holder: r.athleteName,
+            team: r.team,
+            year: r.date ? new Date(r.date).getFullYear() : '',
+          };
+        });
+        const recordsList = [...rawRecordsList, ...dbRecordsMapped];
+        // Deduplicate by type (keep first occurrence)
+        const seenTypes = new Set<string>();
+        const uniqueRecords = recordsList.filter((r: any) => {
+          if (seenTypes.has(r.type)) return false;
+          seenTypes.add(r.type);
+          return true;
+        });
+        const recordPriority: Record<string, number> = { 'WR': 1, 'AR': 2, 'NR': 3, 'CR': 4, 'MR': 5, 'FR': 6, 'PR': 7, 'SB': 8 };
+        const sortedRecords = [...uniqueRecords].sort((a: any, b: any) => 
           (recordPriority[a.type] || 99) - (recordPriority[b.type] || 99)
         );
         const topRecord = sortedRecords[0];
@@ -1154,29 +1275,30 @@ export function SceneObjectRenderer({
           <div className="h-full bg-[hsl(var(--display-bg))] p-3 flex flex-col items-center justify-center gap-2">
             {hasRecords ? (
               <>
-                <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-[hsl(var(--display-accent))]">
-                  <Trophy className="w-5 h-5 text-[hsl(var(--display-bg))]" />
-                  <span className="font-stadium text-lg font-[700] text-[hsl(var(--display-bg))]">
-                    {topRecord.type || "RECORD"}
-                  </span>
-                </div>
-                {topRecord.mark && (
-                  <span className="font-stadium-numbers text-xl font-[700] text-[hsl(var(--display-fg))]">
-                    {topRecord.mark}
-                  </span>
-                )}
-                {sortedRecords.length > 1 && (
-                  <div className="flex gap-2 mt-1">
-                    {sortedRecords.slice(1, 3).map((record: any, i: number) => (
-                      <span 
-                        key={i}
-                        className="px-2 py-1 text-xs rounded bg-[hsl(var(--display-bg-elevated))] text-[hsl(var(--display-muted))]"
-                      >
+                {sortedRecords.slice(0, 3).map((record: any, i: number) => (
+                  <div key={i} className={`flex items-center gap-2 ${i === 0 ? '' : 'opacity-80'}`}>
+                    <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full ${
+                      i === 0 ? 'bg-[hsl(var(--display-accent))]' : 'bg-[hsl(var(--display-bg-elevated))]'
+                    }`}>
+                      {i === 0 && <Trophy className="w-4 h-4 text-[hsl(var(--display-bg))]" />}
+                      <span className={`font-stadium text-sm font-[700] ${
+                        i === 0 ? 'text-[hsl(var(--display-bg))]' : 'text-[hsl(var(--display-muted))]'
+                      }`}>
                         {record.type}
                       </span>
-                    ))}
+                    </span>
+                    {record.mark && (
+                      <span className="font-stadium-numbers text-base font-[700] text-[hsl(var(--display-fg))]">
+                        {record.mark}
+                      </span>
+                    )}
+                    {record.holder && (
+                      <span className="font-stadium text-xs text-[hsl(var(--display-muted))]">
+                        {record.holder}{record.year ? ` (${record.year})` : ''}
+                      </span>
+                    )}
                   </div>
-                )}
+                ))}
               </>
             ) : (
               <div className="text-[hsl(var(--display-muted))] text-center">

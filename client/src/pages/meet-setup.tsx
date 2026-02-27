@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute } from "wouter";
-import { Settings, Image, X, Save, MapPin, Calendar as CalendarIcon, Palette, RotateCcw, FileText, Check, AlertCircle, Database, Trash2, AlertTriangle, FolderOpen } from "lucide-react";
+import { Settings, Image, X, Save, MapPin, Calendar as CalendarIcon, Palette, RotateCcw, FileText, Check, AlertCircle, Database, Trash2, AlertTriangle, FolderOpen, Upload, Trophy } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import type { Meet } from "@shared/schema";
@@ -119,6 +119,17 @@ export default function MeetSetup() {
   // HyTek MDB watcher state
   const [mdbDirectory, setMdbDirectory] = useState("");
   const [hasMdbChanges, setHasMdbChanges] = useState(false);
+
+  // CSV import state for athlete bests
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [csvImportResult, setCsvImportResult] = useState<{
+    success: boolean;
+    imported: number;
+    skipped: number;
+    unmatched: number;
+    unmatchedNames: string[];
+    totalRows: number;
+  } | null>(null);
 
   // Initialize form values when meet data loads
   useEffect(() => {
@@ -412,6 +423,39 @@ export default function MeetSetup() {
     onError: (error: Error) => {
       toast({
         title: "Failed to re-import",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const importCsvMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetch(`/api/meets/${meetId}/import-athlete-bests`, {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || "Import failed");
+      }
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setCsvImportResult(data);
+      setCsvFile(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/meets", meetId, "athlete-bests"] });
+      toast({
+        title: "CSV Import Complete",
+        description: `Imported ${data.imported} bests. ${data.unmatched} athletes not matched.`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "CSV Import Failed",
         description: error.message,
         variant: "destructive",
       });
@@ -992,6 +1036,79 @@ export default function MeetSetup() {
               </Button>
             )}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* CSV Import for Season/Personal Bests */}
+      <Card data-testid="card-csv-import">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Trophy className="w-5 h-5" />
+            Season / Personal Bests (CSV Import)
+          </CardTitle>
+          <CardDescription>
+            Import athlete season bests (SB) and personal bests (PB) from a CSV file. The CSV should have columns: Event, Gender, Last Name, First Name, School, SB, pb
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="csv-file">CSV File</Label>
+            <div className="flex gap-2">
+              <Input
+                id="csv-file"
+                type="file"
+                accept=".csv"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    setCsvFile(file);
+                    setCsvImportResult(null);
+                  }
+                }}
+                className="flex-1"
+                data-testid="input-csv-file"
+              />
+            </div>
+            {csvFile && (
+              <p className="text-sm text-muted-foreground">
+                Selected: {csvFile.name} ({(csvFile.size / 1024).toFixed(1)} KB)
+              </p>
+            )}
+          </div>
+
+          <Button
+            onClick={() => csvFile && importCsvMutation.mutate(csvFile)}
+            disabled={!csvFile || importCsvMutation.isPending}
+            data-testid="button-import-csv"
+          >
+            <Upload className="w-4 h-4 mr-2" />
+            {importCsvMutation.isPending ? "Importing..." : "Import Bests"}
+          </Button>
+
+          {csvImportResult && (
+            <div className="rounded-md border p-4 space-y-2">
+              <div className="flex items-center gap-2 text-sm">
+                <Check className="w-4 h-4 text-green-600" />
+                <span className="font-medium">Import Results:</span>
+              </div>
+              <div className="text-sm space-y-1 ml-6">
+                <p>Total rows: {csvImportResult.totalRows}</p>
+                <p className="text-green-600">Bests imported: {csvImportResult.imported}</p>
+                <p className="text-yellow-600">Skipped (no SB/PB data): {csvImportResult.skipped}</p>
+                <p className="text-orange-600">Unmatched athletes: {csvImportResult.unmatched}</p>
+                {csvImportResult.unmatchedNames.length > 0 && (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-muted-foreground">Show unmatched names</summary>
+                    <ul className="mt-1 list-disc list-inside text-xs text-muted-foreground">
+                      {csvImportResult.unmatchedNames.map((name, i) => (
+                        <li key={i}>{name}</li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

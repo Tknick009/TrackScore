@@ -1,7 +1,7 @@
 import { readFileSync } from "fs";
 import MDBReader from "mdb-reader";
 import { db } from "./db";
-import { meets, teams, divisions, athletes, events, entries, entrySplits, meetScoringRules } from "@shared/schema";
+import { meets, teams, divisions, athletes, events, entries, entrySplits, meetScoringRules, recordBooks, records } from "@shared/schema";
 import { sql } from "drizzle-orm";
 import { parseComm1 } from "./parse-comm1";
 import { randomUUID } from "crypto";
@@ -1594,6 +1594,226 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
     console.log("   ⚠️  Scoring table not found or could not be read:", (error as Error).message);
   }
 
+  // ===========================
+  // 7. IMPORT RECORDS (Meet/Facility Records from RecordsbyEvent table)
+  // ===========================
+  console.log("\n🏆 Importing Records (Meet/Facility Records)...");
+  let recordsImported = 0;
+  try {
+    const recordsTable = reader.getTable("RecordsbyEvent");
+    const recordsData = recordsTable.getData();
+    console.log(`   📊 RecordsbyEvent table has ${recordsData.length} rows`);
+    
+    if (recordsData.length > 0) {
+      // Group records by tag_ptr to create separate record books
+      const tagGroups = new Map<number, any[]>();
+      for (const row of recordsData) {
+        const tagPtr = Number(row.tag_ptr || 0);
+        if (!tagGroups.has(tagPtr)) {
+          tagGroups.set(tagPtr, []);
+        }
+        tagGroups.get(tagPtr)!.push(row);
+      }
+      
+      console.log(`   📝 Found ${tagGroups.size} record type(s): tag_ptrs = [${Array.from(tagGroups.keys()).join(', ')}]`);
+      
+      // HyTek standard tag_ptr naming: We'll name them based on the tag_ptr value
+      // Common HyTek conventions: 6=Meet Record, 14=Facility Record, 16=Conference Record
+      const tagNameMap: Record<number, { name: string; scope: 'meet' | 'facility' | 'custom' }> = {
+        6: { name: 'Meet Record', scope: 'meet' },
+        14: { name: 'Facility Record', scope: 'facility' },
+      };
+      
+      // Build event name lookup from eventIdMap (Event_ptr -> event name/type)
+      // We already have ptrToNumMap (Event_ptr -> eventNumber) and eventBatch has names
+      const eventNameByPtr = new Map<number, { name: string; eventType: string; gender: string }>();
+      for (const evt of eventBatch) {
+        for (const [ptr, num] of Array.from(ptrToNumMap.entries())) {
+          if (num === evt.eventNumber) {
+            eventNameByPtr.set(ptr, { name: evt.name, eventType: evt.eventType, gender: evt.gender });
+            break;
+          }
+        }
+      }
+      
+      for (const [tagPtr, tagRecords] of Array.from(tagGroups.entries())) {
+        const tagInfo = tagNameMap[tagPtr] || { name: `Record Book (Tag ${tagPtr})`, scope: 'custom' as const };
+        
+        // Create or find record book
+        let bookId: number;
+        if (!isEdgeMode || !sqliteDb) {
+          // PostgreSQL mode - create record book
+          const existingBooks = await db!.select().from(recordBooks).where(sql`${recordBooks.name} = ${tagInfo.name}`);
+          if (existingBooks.length > 0) {
+            bookId = existingBooks[0].id;
+            // Delete existing records for re-import
+            await db!.delete(records).where(sql`${records.recordBookId} = ${bookId}`);
+          } else {
+            const [newBook] = await db!.insert(recordBooks).values({
+              name: tagInfo.name,
+              description: `Imported from HyTek MDB (tag_ptr=${tagPtr})`,
+              scope: tagInfo.scope,
+              isActive: true,
+            }).returning();
+            bookId = newBook.id;
+          }
+          
+          // Insert records for this book
+          const recordBatch = [];
+          for (const row of tagRecords) {
+            const eventPtr = Number(row.event_ptr || 0);
+            const eventInfo = eventNameByPtr.get(eventPtr);
+            if (!eventInfo) continue;
+            
+            const holder = String(row.Record_Holder || '').trim();
+            if (!holder) continue;
+            
+            const team = String(row.Record_Holderteam || '').trim();
+            const rawTime = Number(row.Record_Time || 0);
+            const year = Number(row.Record_year || 0);
+            const month = Number(row.Record_month || 1);
+            const day = Number(row.Record_day || 1);
+            const gender = String(row.tag_gender || '').trim().toUpperCase();
+            
+            // Convert HyTek time format (hundredths of seconds stored as float) to display format
+            let performance: string;
+            if (rawTime > 0) {
+              const totalSeconds = rawTime;
+              if (totalSeconds >= 60) {
+                const minutes = Math.floor(totalSeconds / 60);
+                const seconds = totalSeconds - (minutes * 60);
+                performance = `${minutes}:${seconds.toFixed(2).padStart(5, '0')}`;
+              } else {
+                performance = totalSeconds.toFixed(2);
+              }
+            } else {
+              performance = '0.00';
+            }
+            
+            // Map gender
+            const recordGender = gender === 'M' ? 'male' : gender === 'F' ? 'female' : 'unknown';
+            
+            // Build date
+            const recordDate = new Date(year > 0 ? year : 2000, month > 0 ? month - 1 : 0, day > 0 ? day : 1);
+            
+            recordBatch.push({
+              recordBookId: bookId,
+              eventType: eventInfo.eventType,
+              gender: recordGender,
+              performance,
+              athleteName: holder,
+              team: team || null,
+              date: recordDate,
+              location: null,
+              wind: null,
+              notes: `Event: ${eventInfo.name}`,
+              verifiedBy: 'HyTek MDB Import',
+            });
+          }
+          
+          if (recordBatch.length > 0) {
+            await db!.insert(records).values(recordBatch);
+            recordsImported += recordBatch.length;
+            console.log(`   ✅ Imported ${recordBatch.length} records for "${tagInfo.name}" (tag_ptr=${tagPtr})`);
+          }
+        } else {
+          // SQLite/Edge mode
+          sqliteDb.exec(`
+            CREATE TABLE IF NOT EXISTS record_books (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              name TEXT NOT NULL,
+              description TEXT,
+              scope TEXT NOT NULL DEFAULT 'custom',
+              is_active INTEGER DEFAULT 1,
+              created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS records (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              record_book_id INTEGER NOT NULL REFERENCES record_books(id) ON DELETE CASCADE,
+              event_type TEXT NOT NULL,
+              gender TEXT NOT NULL,
+              performance TEXT NOT NULL,
+              athlete_name TEXT NOT NULL,
+              team TEXT,
+              date TEXT NOT NULL,
+              location TEXT,
+              wind TEXT,
+              notes TEXT,
+              verified_by TEXT,
+              created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+          `);
+          
+          // Find or create record book
+          let existingBook = sqliteDb.prepare('SELECT id FROM record_books WHERE name = ?').get(tagInfo.name);
+          if (existingBook) {
+            bookId = existingBook.id;
+            sqliteDb.prepare('DELETE FROM records WHERE record_book_id = ?').run(bookId);
+          } else {
+            const result = sqliteDb.prepare('INSERT INTO record_books (name, description, scope, is_active) VALUES (?, ?, ?, 1)').run(
+              tagInfo.name, `Imported from HyTek MDB (tag_ptr=${tagPtr})`, tagInfo.scope
+            );
+            bookId = result.lastInsertRowid as number;
+          }
+          
+          const insertRecordStmt = sqliteDb.prepare(`
+            INSERT INTO records (record_book_id, event_type, gender, performance, athlete_name, team, date, notes, verified_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `);
+          
+          const insertRecords = sqliteDb.transaction((rows: any[]) => {
+            for (const row of rows) {
+              const eventPtr = Number(row.event_ptr || 0);
+              const eventInfo = eventNameByPtr.get(eventPtr);
+              if (!eventInfo) continue;
+              
+              const holder = String(row.Record_Holder || '').trim();
+              if (!holder) continue;
+              
+              const team = String(row.Record_Holderteam || '').trim();
+              const rawTime = Number(row.Record_Time || 0);
+              const year = Number(row.Record_year || 0);
+              const month = Number(row.Record_month || 1);
+              const day = Number(row.Record_day || 1);
+              const gender = String(row.tag_gender || '').trim().toUpperCase();
+              
+              let performance: string;
+              if (rawTime > 0) {
+                const totalSeconds = rawTime;
+                if (totalSeconds >= 60) {
+                  const minutes = Math.floor(totalSeconds / 60);
+                  const seconds = totalSeconds - (minutes * 60);
+                  performance = `${minutes}:${seconds.toFixed(2).padStart(5, '0')}`;
+                } else {
+                  performance = totalSeconds.toFixed(2);
+                }
+              } else {
+                performance = '0.00';
+              }
+              
+              const recordGender = gender === 'M' ? 'male' : gender === 'F' ? 'female' : 'unknown';
+              const recordDate = `${year > 0 ? year : 2000}-${String(month > 0 ? month : 1).padStart(2, '0')}-${String(day > 0 ? day : 1).padStart(2, '0')}`;
+              
+              insertRecordStmt.run(bookId, eventInfo.eventType, recordGender, performance, holder, team || null, recordDate, `Event: ${eventInfo.name}`, 'HyTek MDB Import');
+              recordsImported++;
+            }
+          });
+          
+          insertRecords(tagRecords);
+          console.log(`   ✅ Imported records for "${tagInfo.name}" (tag_ptr=${tagPtr})`);
+        }
+      }
+    }
+    
+    if (recordsImported > 0) {
+      console.log(`   ✅ Total records imported: ${recordsImported}`);
+    } else {
+      console.log("   ⚠️  No records found to import");
+    }
+  } catch (error) {
+    console.log("   ⚠️  RecordsbyEvent table not found or could not be read:", (error as Error).message);
+  }
+
   console.log("\n✅ IMPORT COMPLETE!\n");
   console.log("Summary:");
   console.log(`  - Teams: ${stats.teams}`);
@@ -1601,6 +1821,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
   console.log(`  - Athletes: ${stats.athletes}`);
   console.log(`  - Events: ${stats.events}`);
   console.log(`  - Entries: ${stats.entries}`);
+  console.log(`  - Records: ${recordsImported}`);
   
   return stats;
 }
