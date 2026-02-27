@@ -336,6 +336,19 @@ export default function DisplayDevice() {
     fieldDisplayTypeRef.current = fieldDisplayType;
   }, [fieldDisplayType]);
 
+  // Force black background on html/body for display device page
+  // Prevents white background from showing around non-full-screen layouts (reduces power draw on display laptops)
+  useEffect(() => {
+    const prevBodyBg = document.body.style.backgroundColor;
+    const prevHtmlBg = document.documentElement.style.backgroundColor;
+    document.body.style.backgroundColor = '#000';
+    document.documentElement.style.backgroundColor = '#000';
+    return () => {
+      document.body.style.backgroundColor = prevBodyBg;
+      document.documentElement.style.backgroundColor = prevHtmlBg;
+    };
+  }, []);
+
   // WebSocket connection - runs when setup is complete
   useEffect(() => {
     if (!state.setupComplete || !state.displayType || !state.meetId) return;
