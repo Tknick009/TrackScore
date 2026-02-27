@@ -611,7 +611,7 @@ export default function DisplayDevice() {
           // Layout command from FinishLynx - switch scenes based on Scene Layout Mapping
           // Maps FinishLynx layout names to displayMode, then looks up scene from mappings
           // DEBOUNCING: Ignore duplicate layout commands to prevent glitchy transitions
-          // Listen to 'layout_command_big' for big board displays, 'layout_command' for small boards
+          // Big boards ONLY listen to 'layout_command_big' so they stay on meet title unless big board port is connected
           const myLayoutChannel = isBigBoardRef.current ? 'layout_command_big' : 'layout_command';
           if (message.type === myLayoutChannel) {
             const layoutName = message.data?.layoutName?.toLowerCase() || '';
@@ -746,7 +746,7 @@ export default function DisplayDevice() {
           
           // Handle track mode change updates from FinishLynx (event switching)
           // NO SMART LOGIC - just pass through exactly what FinishLynx sends
-          // Listen to 'track_mode_change_big' for big board displays, 'track_mode_change' for small boards
+          // Big boards ONLY listen to 'track_mode_change_big' so they stay on meet title unless big board port is connected
           const myChannel = isBigBoardRef.current ? 'track_mode_change_big' : 'track_mode_change';
           if (message.type === myChannel) {
             if (!autoModeRef.current) {
@@ -1107,7 +1107,7 @@ export default function DisplayDevice() {
 
           // Handle start_list updates from FinishLynx (pre-race athlete list)
           // Pure pass-through: show exactly what FinishLynx sends, no accumulation
-          // Listen to 'start_list_big' for big board displays, 'start_list' for small boards
+          // Big boards ONLY listen to 'start_list_big' so they stay on meet title unless big board port is connected
           const myStartListChannel = isBigBoardRef.current ? 'start_list_big' : 'start_list';
           if (message.type === myStartListChannel) {
             const data = message.data;

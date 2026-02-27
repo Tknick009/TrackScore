@@ -1266,6 +1266,7 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
         lynxFilesEnabled: false,
         hytekMdbPath: null,
         hytekMdbEnabled: false,
+        headshotDirectory: null,
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -2532,5 +2533,325 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
   // Wire capture live-stream into WebSocket broadcasts
   captureManager.onBroadcast((chunk: CaptureChunk) => {
     broadcastToDisplays({ type: 'raw_capture', data: chunk } as any);
+  });
+
+  // ===== CSV IMPORT FOR SEASON/PERSONAL BESTS =====
+  
+  // Import athlete season/personal bests from CSV file
+  // CSV format: Event,Gender,Last Name,First Name,School,SB,pb,Rank,Profile
+  app.post('/api/meets/:meetId/import-athlete-bests', upload.single('file'), async (req, res) => {
+    try {
+      const meetId = req.params.meetId;
+      const meet = await storage.getMeet(meetId);
+      if (!meet) {
+        return res.status(404).json({ error: 'Meet not found' });
+      }
+      
+      if (!req.file) {
+        return res.status(400).json({ error: 'No CSV file uploaded' });
+      }
+      
+      const csvContent = req.file.buffer.toString('utf-8');
+      const lines = csvContent.split('\n').filter(l => l.trim());
+      
+      if (lines.length < 2) {
+        return res.status(400).json({ error: 'CSV file is empty or has no data rows' });
+      }
+      
+      // Parse header to find column indices
+      const header = lines[0].split(',').map(h => h.trim().toLowerCase());
+      const eventIdx = header.indexOf('event');
+      const genderIdx = header.indexOf('gender');
+      const lastNameIdx = header.findIndex(h => h.includes('last'));
+      const firstNameIdx = header.findIndex(h => h.includes('first'));
+      const schoolIdx = header.findIndex(h => h === 'school');
+      const sbIdx = header.findIndex(h => h === 'sb');
+      const pbIdx = header.findIndex(h => h === 'pb');
+      const rankIdx = header.findIndex(h => h === 'rank');
+      const profileIdx = header.findIndex(h => h === 'profile');
+      
+      if (eventIdx === -1 || genderIdx === -1) {
+        return res.status(400).json({ error: 'CSV must have Event and Gender columns' });
+      }
+      
+      // Get all athletes for this meet to match by name/school
+      const meetAthletes = await storage.getAthletesByMeetId(meetId);
+      const meetTeams = await storage.getTeamsByMeetId(meetId);
+      
+      // Build a lookup map: "lastname_firstname_school" -> athleteId
+      const athleteLookup = new Map<string, string>();
+      const teamNameMap = new Map<string, string>(); // teamId -> teamName
+      for (const team of meetTeams) {
+        teamNameMap.set(team.id, team.name);
+      }
+      for (const athlete of meetAthletes) {
+        const lastName = (athlete.lastName || '').trim().toLowerCase();
+        const firstName = (athlete.firstName || '').trim().toLowerCase();
+        const teamName = (athlete.teamId ? teamNameMap.get(athlete.teamId) || '' : '').toLowerCase();
+        // Multiple keys for flexible matching
+        athleteLookup.set(`${lastName}_${firstName}`, athlete.id);
+        if (teamName) {
+          athleteLookup.set(`${lastName}_${firstName}_${teamName}`, athlete.id);
+        }
+      }
+      
+      // Parse CSV rows and build bests
+      let imported = 0;
+      let skipped = 0;
+      let unmatched = 0;
+      const unmatchedNames: string[] = [];
+      
+      // Helper to parse time string like "01:21.8" or "4.57" to seconds
+      const parseTimeToSeconds = (timeStr: string): number | null => {
+        if (!timeStr || !timeStr.trim()) return null;
+        const cleaned = timeStr.trim();
+        
+        // mm:ss.xx format
+        const minMatch = cleaned.match(/^(\d+):(\d+(?:\.\d+)?)$/);
+        if (minMatch) {
+          return parseFloat(minMatch[1]) * 60 + parseFloat(minMatch[2]);
+        }
+        
+        // Pure seconds (e.g., "4.57", "10.23")
+        const secMatch = cleaned.match(/^(\d+(?:\.\d+)?)$/);
+        if (secMatch) {
+          return parseFloat(secMatch[1]);
+        }
+        
+        // Distance format for field events (e.g., "15.24m" or "15.24")
+        const distMatch = cleaned.match(/^(\d+(?:\.\d+)?)\s*m?$/);
+        if (distMatch) {
+          return parseFloat(distMatch[1]);
+        }
+        
+        return null;
+      };
+      
+      for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(',').map(c => c.trim());
+        if (cols.length < Math.max(eventIdx, genderIdx) + 1) continue;
+        
+        const eventCode = cols[eventIdx] || '';
+        const gender = cols[genderIdx] || '';
+        const lastName = lastNameIdx >= 0 ? (cols[lastNameIdx] || '').trim() : '';
+        const firstName = firstNameIdx >= 0 ? (cols[firstNameIdx] || '').trim() : '';
+        const school = schoolIdx >= 0 ? (cols[schoolIdx] || '').trim() : '';
+        const sbStr = sbIdx >= 0 ? (cols[sbIdx] || '').trim() : '';
+        const pbStr = pbIdx >= 0 ? (cols[pbIdx] || '').trim() : '';
+        
+        if (!lastName && !firstName) continue;
+        if (!sbStr && !pbStr) {
+          skipped++;
+          continue;
+        }
+        
+        // Try to match athlete
+        const lookupKey1 = `${lastName.toLowerCase()}_${firstName.toLowerCase()}_${school.toLowerCase()}`;
+        const lookupKey2 = `${lastName.toLowerCase()}_${firstName.toLowerCase()}`;
+        const athleteId = athleteLookup.get(lookupKey1) || athleteLookup.get(lookupKey2);
+        
+        if (!athleteId) {
+          unmatched++;
+          if (unmatchedNames.length < 20) {
+            unmatchedNames.push(`${firstName} ${lastName} (${school})`);
+          }
+          continue;
+        }
+        
+        // Parse season best
+        const sbValue = parseTimeToSeconds(sbStr);
+        if (sbValue !== null) {
+          try {
+            await storage.upsertAthleteBest({
+              athleteId,
+              eventType: eventCode,
+              bestType: 'season',
+              mark: sbValue,
+              source: 'csv_import',
+              meetName: meet.name,
+            });
+            imported++;
+          } catch (e) {
+            // Skip duplicates or constraint errors
+          }
+        }
+        
+        // Parse personal best
+        const pbValue = parseTimeToSeconds(pbStr);
+        if (pbValue !== null) {
+          try {
+            await storage.upsertAthleteBest({
+              athleteId,
+              eventType: eventCode,
+              bestType: 'college',
+              mark: pbValue,
+              source: 'csv_import',
+              meetName: meet.name,
+            });
+            imported++;
+          } catch (e) {
+            // Skip duplicates or constraint errors
+          }
+        }
+      }
+      
+      res.json({
+        success: true,
+        imported,
+        skipped,
+        unmatched,
+        unmatchedNames: unmatchedNames.slice(0, 20),
+        totalRows: lines.length - 1,
+      });
+    } catch (error: any) {
+      console.error('CSV import error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get athlete bests for a meet (for display pipeline)
+  app.get('/api/meets/:meetId/athlete-bests', async (req, res) => {
+    try {
+      const bests = await storage.getAthleteBestsByMeet(req.params.meetId);
+      res.json(bests);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ===== HEADSHOT DIRECTORY LOOKUP =====
+  
+  // Get headshot URL for an athlete by school/first/last name from headshot directory
+  // Pattern: School_FirstName_LastName.png (e.g., Duke_John_Smith.png)
+  app.get('/api/meets/:meetId/headshot', async (req, res) => {
+    try {
+      const { meetId } = req.params;
+      const { school, firstName, lastName } = req.query;
+      
+      if (!school || !firstName || !lastName) {
+        return res.status(400).json({ error: 'school, firstName, and lastName query params required' });
+      }
+      
+      // Get headshot directory from ingestion settings
+      const settings = await storage.getIngestionSettings(meetId);
+      const headshotDir = (settings as any)?.headshotDirectory;
+      
+      if (!headshotDir) {
+        return res.status(404).json({ error: 'No headshot directory configured' });
+      }
+      
+      const fsPromises = await import('fs/promises');
+      const pathModule = await import('path');
+      
+      // Build filename pattern: School_FirstName_LastName.png
+      const schoolStr = String(school).trim();
+      const firstStr = String(firstName).trim();
+      const lastStr = String(lastName).trim();
+      const baseFilename = `${schoolStr}_${firstStr}_${lastStr}`;
+      
+      // Try multiple extensions
+      const extensions = ['.png', '.jpg', '.jpeg', '.PNG', '.JPG', '.JPEG'];
+      let foundPath: string | null = null;
+      
+      for (const ext of extensions) {
+        const filePath = pathModule.default.join(headshotDir, `${baseFilename}${ext}`);
+        try {
+          await fsPromises.access(filePath);
+          foundPath = filePath;
+          break;
+        } catch {
+          // Try next extension
+        }
+      }
+      
+      // Also try case-insensitive match by listing directory
+      if (!foundPath) {
+        try {
+          const files = await fsPromises.readdir(headshotDir);
+          const lowerBase = baseFilename.toLowerCase();
+          const match = files.find(f => {
+            const name = f.substring(0, f.lastIndexOf('.'));
+            return name.toLowerCase() === lowerBase;
+          });
+          if (match) {
+            foundPath = pathModule.default.join(headshotDir, match);
+          }
+        } catch {
+          // Directory not readable
+        }
+      }
+      
+      if (!foundPath) {
+        return res.status(404).json({ error: 'Headshot not found' });
+      }
+      
+      // Send the file
+      res.sendFile(foundPath);
+    } catch (error: any) {
+      console.error('Headshot lookup error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Test headshot directory - check if directory exists and list available headshots
+  app.post('/api/meets/:meetId/ingestion-settings/test-headshot-directory', async (req, res) => {
+    try {
+      const { directory } = req.body;
+      if (!directory) {
+        return res.json({ valid: false, error: 'No directory specified' });
+      }
+      
+      const fsPromises = await import('fs/promises');
+      
+      try {
+        const stat = await fsPromises.stat(directory);
+        if (!stat.isDirectory()) {
+          return res.json({ valid: false, error: 'Path is not a directory' });
+        }
+        
+        const files = await fsPromises.readdir(directory);
+        const imageFiles = files.filter(f => /\.(png|jpg|jpeg|gif)$/i.test(f));
+        
+        res.json({
+          valid: true,
+          totalFiles: files.length,
+          imageFiles: imageFiles.length,
+          sampleFiles: imageFiles.slice(0, 10),
+        });
+      } catch (e: any) {
+        res.json({ valid: false, error: `Cannot access directory: ${e.message}` });
+      }
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get records for a specific event type and gender (for display pipeline)
+  app.get('/api/records/by-event', async (req, res) => {
+    try {
+      const { eventType, gender } = req.query;
+      if (!eventType) {
+        return res.status(400).json({ error: 'eventType parameter is required' });
+      }
+      const recs = await storage.getRecordsByEvent(
+        eventType as string,
+        (gender as string) || 'male'
+      );
+      
+      // Enrich with record book names
+      const bookIds = [...new Set(recs.map(r => r.recordBookId))];
+      const books = await Promise.all(bookIds.map(id => storage.getRecordBook(id)));
+      const bookMap = new Map(books.filter(Boolean).map(b => [b!.id, b!]));
+      
+      const enriched = recs.map(r => ({
+        ...r,
+        bookName: bookMap.get(r.recordBookId)?.name || 'Unknown',
+        bookScope: bookMap.get(r.recordBookId)?.scope || 'custom',
+      }));
+      
+      res.json(enriched);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
   });
 }

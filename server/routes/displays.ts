@@ -34,7 +34,7 @@ const overlayHideSchema = z.object({
 
 export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
   const {
-    broadcastToDisplays, sendToDisplayDevice, connectedDisplayDevices,
+    broadcastToDisplays, broadcastCurrentEvent, sendToDisplayDevice, connectedDisplayDevices,
     prefetchSceneData, getDisplayModeFromTemplate, abbreviateEventName, fileStorage
   } = ctx;
 
@@ -1227,6 +1227,12 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       if (connectedDevice) {
         connectedDevice.contentMode = contentMode;
         console.log(`[Content Mode] Device ${connectedDevice.deviceName} switched to ${contentMode}`);
+        
+        // When switching back to lynx, immediately send the current event state
+        // so the display updates right away instead of waiting for the next broadcast
+        if (contentMode === 'lynx') {
+          broadcastCurrentEvent().catch(console.error);
+        }
       }
       
       res.json({ success: true, contentMode });
