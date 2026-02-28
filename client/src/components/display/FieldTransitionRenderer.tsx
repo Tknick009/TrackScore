@@ -26,6 +26,8 @@ export function FieldTransitionRenderer({
   curtainColor,
   meetId,
   liveData,
+  canvasWidth,
+  canvasHeight,
 }: {
   curtainColor: string;
   meetId?: string;
@@ -34,6 +36,10 @@ export function FieldTransitionRenderer({
   // WebSocket context directly, but that's a SEPARATE unregistered connection that never receives
   // field_mode_change messages from the server.
   liveData?: { entries?: any[]; results?: any[] } | null;
+  // Canvas dimensions for responsive scaling — the curtain scales text/logo relative to
+  // a 1080p reference so it looks correct on P10 (192x96) through BigBoard (1920x1080).
+  canvasWidth?: number;
+  canvasHeight?: number;
 }) {
   const [phase, setPhase] = useState<CurtainPhase>('idle');
   const [primaryColor, setPrimaryColor] = useState<string>(curtainColor);
@@ -150,6 +156,12 @@ export function FieldTransitionRenderer({
   const isReveal = phase === 'reveal';
   const isInitial = phase === 'coverStart';
 
+  // Scale factor: sizes are designed for 1080p (1920x1080). Scale proportionally to actual canvas.
+  // Use the smaller dimension (height) as the reference since that's the constraining axis.
+  const refHeight = 1080;
+  const effectiveHeight = canvasHeight || refHeight;
+  const s = effectiveHeight / refHeight; // e.g. 96/1080 ≈ 0.089 for P10
+
   // Rich multi-stop gradient for depth
   const darkPrimary = darkenColor(primaryColor, 40);
   const darkSecondary = darkenColor(secondaryColor, 30);
@@ -188,16 +200,17 @@ export function FieldTransitionRenderer({
     transition: panelTransition,
   };
 
-  // Subtle diagonal stripe texture
+  // Subtle diagonal stripe texture — scale stripe width with display size
+  const stripeSize = Math.max(1, Math.round(8 * s));
   const stripeOverlay: React.CSSProperties = {
     position: 'absolute',
     inset: 0,
     background: `repeating-linear-gradient(
       -45deg,
       transparent,
-      transparent 8px,
-      rgba(255,255,255,0.03) 8px,
-      rgba(255,255,255,0.03) 16px
+      transparent ${stripeSize}px,
+      rgba(255,255,255,0.03) ${stripeSize}px,
+      rgba(255,255,255,0.03) ${stripeSize * 2}px
     )`,
     pointerEvents: 'none',
   };
@@ -210,12 +223,13 @@ export function FieldTransitionRenderer({
     pointerEvents: 'none',
   };
 
-  // Thin decorative accent line
+  // Thin decorative accent line — scale thickness
+  const lineHeight = Math.max(1, Math.round(2 * s));
   const accentLineBase: React.CSSProperties = {
     position: 'absolute',
     left: '10%',
     right: '10%',
-    height: '2px',
+    height: `${lineHeight}px`,
     background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent)',
     opacity: isPaused ? 1 : 0,
     transition: 'opacity 0.4s ease 0.15s',
@@ -238,39 +252,61 @@ export function FieldTransitionRenderer({
     transition: 'opacity 0.4s ease, transform 0.4s ease',
   };
 
+  // On very small displays (P10), the logo should take less space to leave room for text
+  const logoMaxPct = effectiveHeight < 200 ? '35%' : '48%';
+  const shadowBlur1 = Math.max(1, Math.round(30 * s));
+  const shadowBlur2 = Math.max(1, Math.round(8 * s));
   const logoImgStyle: React.CSSProperties = {
-    maxHeight: '48%',
-    maxWidth: '48%',
+    maxHeight: logoMaxPct,
+    maxWidth: logoMaxPct,
     objectFit: 'contain',
-    filter: 'drop-shadow(0 6px 30px rgba(0,0,0,0.55)) drop-shadow(0 2px 8px rgba(0,0,0,0.3))',
+    filter: `drop-shadow(0 ${Math.max(1, Math.round(6 * s))}px ${shadowBlur1}px rgba(0,0,0,0.55)) drop-shadow(0 ${Math.max(1, Math.round(2 * s))}px ${shadowBlur2}px rgba(0,0,0,0.3))`,
     userSelect: 'none',
   };
 
+  // Scale font sizes, spacing, and shadows proportionally
+  const nameFontSize = Math.max(6, Math.round(28 * s));
+  const nameLetterSpacing = Math.max(0.5, Math.round(3 * s));
+  const nameMarginTop = logoSrc ? Math.max(2, Math.round(16 * s)) : 0;
   const nameStyle: React.CSSProperties = {
     color: 'white',
     fontFamily: "'Oswald', 'Impact', sans-serif",
-    fontSize: '28px',
+    fontSize: `${nameFontSize}px`,
     fontWeight: 700,
     textTransform: 'uppercase',
-    letterSpacing: '3px',
-    textShadow: '0 2px 12px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.3)',
-    marginTop: logoSrc ? '16px' : '0',
+    letterSpacing: `${nameLetterSpacing}px`,
+    textShadow: `0 ${Math.max(1, Math.round(2 * s))}px ${Math.max(2, Math.round(12 * s))}px rgba(0,0,0,0.5), 0 ${Math.max(1, Math.round(1 * s))}px ${Math.max(1, Math.round(3 * s))}px rgba(0,0,0,0.3)`,
+    marginTop: `${nameMarginTop}px`,
     opacity: isPaused ? 1 : 0,
-    transform: isPaused ? 'translateY(0)' : 'translateY(10px)',
+    transform: isPaused ? 'translateY(0)' : `translateY(${Math.max(2, Math.round(10 * s))}px)`,
     transition: 'opacity 0.5s ease 0.15s, transform 0.5s ease 0.15s',
+    lineHeight: 1.1,
+    textAlign: 'center',
+    maxWidth: '90%',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
   };
 
+  const schoolFontSize = Math.max(5, Math.round(16 * s));
+  const schoolLetterSpacing = Math.max(0.5, Math.round(5 * s));
   const schoolStyle: React.CSSProperties = {
     color: 'rgba(255,255,255,0.65)',
     fontFamily: "'Oswald', 'Impact', sans-serif",
-    fontSize: '16px',
+    fontSize: `${schoolFontSize}px`,
     fontWeight: 400,
     textTransform: 'uppercase',
-    letterSpacing: '5px',
-    marginTop: '4px',
+    letterSpacing: `${schoolLetterSpacing}px`,
+    marginTop: `${Math.max(1, Math.round(4 * s))}px`,
     opacity: isPaused ? 1 : 0,
-    transform: isPaused ? 'translateY(0)' : 'translateY(10px)',
+    transform: isPaused ? 'translateY(0)' : `translateY(${Math.max(2, Math.round(10 * s))}px)`,
     transition: 'opacity 0.5s ease 0.25s, transform 0.5s ease 0.25s',
+    lineHeight: 1.1,
+    textAlign: 'center',
+    maxWidth: '90%',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
   };
 
   const hideLogoOnError = (e: React.SyntheticEvent<HTMLImageElement>) => {

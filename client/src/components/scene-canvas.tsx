@@ -1477,6 +1477,8 @@ export function SceneObjectRenderer({
             curtainColor={ftColor}
             meetId={meetId}
             liveData={liveData}
+            canvasWidth={canvasWidth}
+            canvasHeight={canvasHeight}
           />
         );
       }
