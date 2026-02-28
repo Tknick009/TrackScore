@@ -1,12 +1,13 @@
-import { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback, useEffect, memo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useMeet } from "@/contexts/MeetContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Search, CheckCircle2, XCircle, ArrowUpDown, RefreshCw } from "lucide-react";
+import { Search, CheckCircle2, XCircle, ArrowUpDown, RefreshCw, Play } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -23,6 +24,7 @@ type AthleteMatch = {
   expectedFilename: string;
   matchedFile: string | null;
   hasHeadshot: boolean;
+  suggestedFile: string | null;
 };
 
 type HeadshotData = {
@@ -38,6 +40,8 @@ export default function HeadshotManager() {
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<"name" | "status">("status");
   const [filterStatus, setFilterStatus] = useState<"all" | "matched" | "missing">("all");
+  const [checkedAthletes, setCheckedAthletes] = useState<Set<string>>(new Set());
+  const [fileSelections, setFileSelections] = useState<Record<string, string>>({});
 
   const { data, isLoading, error } = useQuery<HeadshotData>({
     queryKey: ['/api/meets', currentMeetId, 'headshot-manager'],
@@ -64,6 +68,84 @@ export default function HeadshotManager() {
       toast({ title: 'Rename failed', description: error.message, variant: 'destructive' });
     },
   });
+
+  useEffect(() => {
+    if (data?.athletes) {
+      const newSelections: Record<string, string> = {};
+      for (const a of data.athletes) {
+        if (!a.hasHeadshot && a.suggestedFile) {
+          newSelections[a.athleteId] = a.suggestedFile;
+        }
+      }
+      setFileSelections(newSelections);
+      setCheckedAthletes(new Set());
+    }
+  }, [data]);
+
+  const bulkRenameMutation = useMutation({
+    mutationFn: async (renames: { oldFilename: string; newFilename: string }[]) => {
+      const res = await apiRequest('POST', `/api/meets/${currentMeetId}/headshot-manager/bulk-rename`, { renames });
+      return res.json();
+    },
+    onSuccess: (result: { success: number; failed: number; errors: string[] }) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/meets', currentMeetId, 'headshot-manager'] });
+      setCheckedAthletes(new Set());
+      toast({
+        title: 'Bulk rename complete',
+        description: `${result.success} renamed${result.failed > 0 ? `, ${result.failed} failed` : ''}`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Bulk rename failed', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  const handleToggleCheck = useCallback((athleteId: string, checked: boolean) => {
+    setCheckedAthletes(prev => {
+      const next = new Set(prev);
+      if (checked) next.add(athleteId);
+      else next.delete(athleteId);
+      return next;
+    });
+  }, []);
+
+  const handleFileSelect = useCallback((athleteId: string, filename: string) => {
+    setFileSelections(prev => ({ ...prev, [athleteId]: filename }));
+  }, []);
+
+  const handleBulkRename = useCallback(() => {
+    if (!data) return;
+    const renames: { oldFilename: string; newFilename: string }[] = [];
+    for (const athleteId of checkedAthletes) {
+      const athlete = data.athletes.find(a => a.athleteId === athleteId);
+      const selectedFile = fileSelections[athleteId];
+      if (athlete && selectedFile && !athlete.hasHeadshot) {
+        renames.push({ oldFilename: selectedFile, newFilename: athlete.expectedFilename });
+      }
+    }
+    if (renames.length > 0) {
+      bulkRenameMutation.mutate(renames);
+    }
+  }, [data, checkedAthletes, fileSelections, bulkRenameMutation]);
+
+  const handleSelectAllSuggested = useCallback(() => {
+    if (!data) return;
+    const newChecked = new Set<string>();
+    for (const a of data.athletes) {
+      if (!a.hasHeadshot && fileSelections[a.athleteId]) {
+        newChecked.add(a.athleteId);
+      }
+    }
+    setCheckedAthletes(newChecked);
+  }, [data, fileSelections]);
+
+  const handleDeselectAll = useCallback(() => {
+    setCheckedAthletes(new Set());
+  }, []);
+
+  const handleSingleRename = useCallback((oldFilename: string, newFilename: string) => {
+    renameMutation.mutate({ oldFilename, newFilename });
+  }, [renameMutation]);
 
   const filteredAndSorted = useMemo(() => {
     if (!data?.athletes) return [];
@@ -100,6 +182,7 @@ export default function HeadshotManager() {
   const matchedCount = data?.athletes.filter(a => a.hasHeadshot).length || 0;
   const missingCount = data?.athletes.filter(a => !a.hasHeadshot).length || 0;
   const totalCount = data?.athletes.length || 0;
+  const checkedCount = checkedAthletes.size;
 
   if (!currentMeetId) {
     return (
@@ -110,11 +193,11 @@ export default function HeadshotManager() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto p-6 space-y-6">
+    <div className="max-w-6xl mx-auto p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Headshot Manager</h1>
         <p className="text-muted-foreground mt-1">
-          Match athlete headshot files to database names. Rename unmatched files to fix mismatches.
+          Match athlete headshot files to database names. Check suggestions you accept, then bulk rename.
         </p>
         {data?.headshotDir && (
           <p className="text-sm text-muted-foreground mt-1 font-mono">{data.headshotDir}</p>
@@ -161,6 +244,30 @@ export default function HeadshotManager() {
             </Button>
           </div>
 
+          {/* Bulk actions bar */}
+          <div className="flex flex-wrap items-center gap-3 p-3 bg-muted/30 rounded-lg border">
+            <Button variant="outline" size="sm" onClick={handleSelectAllSuggested}>
+              Select All Suggested
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleDeselectAll}>
+              Deselect All
+            </Button>
+            <div className="flex-1" />
+            <span className="text-sm text-muted-foreground">
+              {checkedCount} selected
+            </span>
+            <Button
+              variant="default"
+              size="sm"
+              disabled={checkedCount === 0 || bulkRenameMutation.isPending}
+              onClick={handleBulkRename}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              <Play className="w-4 h-4 mr-1" />
+              Execute Rename ({checkedCount})
+            </Button>
+          </div>
+
           {/* Controls */}
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative flex-1 min-w-[200px]">
@@ -197,28 +304,31 @@ export default function HeadshotManager() {
             <table className="w-full text-sm">
               <thead className="bg-muted/50">
                 <tr>
-                  <th className="text-left px-4 py-2 font-medium">Status</th>
-                  <th className="text-left px-4 py-2 font-medium">Athlete</th>
-                  <th className="text-left px-4 py-2 font-medium">School</th>
-                  <th className="text-left px-4 py-2 font-medium">Expected File</th>
-                  <th className="text-left px-4 py-2 font-medium">Assign From Unmatched</th>
+                  <th className="text-left px-3 py-2 font-medium w-10"></th>
+                  <th className="text-left px-3 py-2 font-medium w-10">Status</th>
+                  <th className="text-left px-3 py-2 font-medium">Athlete</th>
+                  <th className="text-left px-3 py-2 font-medium">School</th>
+                  <th className="text-left px-3 py-2 font-medium">Expected File</th>
+                  <th className="text-left px-3 py-2 font-medium">Assign File</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredAndSorted.map((athlete) => (
-                  <AthleteRow
+                  <MemoAthleteRow
                     key={athlete.athleteId}
                     athlete={athlete}
                     orphanFiles={data.orphanFiles}
-                    onRename={(oldFilename, newFilename) => {
-                      renameMutation.mutate({ oldFilename, newFilename });
-                    }}
+                    isChecked={checkedAthletes.has(athlete.athleteId)}
+                    selectedFile={fileSelections[athlete.athleteId] || ""}
+                    onToggleCheck={handleToggleCheck}
+                    onFileSelect={handleFileSelect}
+                    onRename={handleSingleRename}
                     isRenaming={renameMutation.isPending}
                   />
                 ))}
                 {filteredAndSorted.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="text-center text-muted-foreground py-8">
+                    <td colSpan={6} className="text-center text-muted-foreground py-8">
                       No athletes found
                     </td>
                   </tr>
@@ -232,66 +342,98 @@ export default function HeadshotManager() {
   );
 }
 
-function AthleteRow({
-  athlete,
-  orphanFiles,
-  onRename,
-  isRenaming,
-}: {
+interface AthleteRowProps {
   athlete: AthleteMatch;
   orphanFiles: string[];
+  isChecked: boolean;
+  selectedFile: string;
+  onToggleCheck: (athleteId: string, checked: boolean) => void;
+  onFileSelect: (athleteId: string, filename: string) => void;
   onRename: (oldFilename: string, newFilename: string) => void;
   isRenaming: boolean;
-}) {
-  const [selectedFile, setSelectedFile] = useState("");
+}
+
+const MemoAthleteRow = memo(function AthleteRow({
+  athlete,
+  orphanFiles,
+  isChecked,
+  selectedFile,
+  onToggleCheck,
+  onFileSelect,
+  onRename,
+  isRenaming,
+}: AthleteRowProps) {
+  const handleCheck = useCallback((checked: boolean | "indeterminate") => {
+    onToggleCheck(athlete.athleteId, !!checked);
+  }, [athlete.athleteId, onToggleCheck]);
+
+  const handleFile = useCallback((filename: string) => {
+    onFileSelect(athlete.athleteId, filename);
+  }, [athlete.athleteId, onFileSelect]);
+
+  const handleRename = useCallback(() => {
+    if (selectedFile) {
+      onRename(selectedFile, athlete.expectedFilename);
+    }
+  }, [selectedFile, athlete.expectedFilename, onRename]);
 
   return (
     <tr className={`border-t ${athlete.hasHeadshot ? '' : 'bg-red-50 dark:bg-red-950/20'}`}>
-      <td className="px-4 py-2">
+      <td className="px-3 py-2">
+        {!athlete.hasHeadshot && selectedFile && (
+          <Checkbox
+            checked={isChecked}
+            onCheckedChange={handleCheck}
+          />
+        )}
+      </td>
+      <td className="px-3 py-2">
         {athlete.hasHeadshot ? (
           <CheckCircle2 className="w-5 h-5 text-green-600" />
         ) : (
           <XCircle className="w-5 h-5 text-red-500" />
         )}
       </td>
-      <td className="px-4 py-2 font-medium">
+      <td className="px-3 py-2 font-medium">
         {athlete.lastName}, {athlete.firstName}
       </td>
-      <td className="px-4 py-2 text-muted-foreground">
+      <td className="px-3 py-2 text-muted-foreground">
         {athlete.school}
       </td>
-      <td className="px-4 py-2 font-mono text-xs text-muted-foreground">
+      <td className="px-3 py-2 font-mono text-xs text-muted-foreground">
         {athlete.expectedFilename}
       </td>
-      <td className="px-4 py-2">
+      <td className="px-3 py-2">
         {!athlete.hasHeadshot && orphanFiles.length > 0 && (
-          <div className="flex items-center gap-2">
-            <Select value={selectedFile} onValueChange={setSelectedFile}>
-              <SelectTrigger className="w-48 h-8 text-xs">
-                <SelectValue placeholder="Pick a file..." />
-              </SelectTrigger>
-              <SelectContent>
-                {orphanFiles.map(f => (
-                  <SelectItem key={f} value={f} className="text-xs">
-                    {f}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              size="sm"
-              variant="default"
-              disabled={!selectedFile || isRenaming}
-              onClick={() => {
-                if (selectedFile) {
-                  onRename(selectedFile, athlete.expectedFilename);
-                  setSelectedFile("");
-                }
-              }}
-              className="h-8 text-xs"
-            >
-              Rename
-            </Button>
+          <div className="flex flex-col gap-1">
+            {athlete.suggestedFile && (
+              <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                Suggested: {athlete.suggestedFile}
+              </span>
+            )}
+            <div className="flex items-center gap-2">
+              <Select value={selectedFile} onValueChange={handleFile}>
+                <SelectTrigger className="w-56 h-8 text-xs">
+                  <SelectValue placeholder="Pick a file..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {orphanFiles.map(f => (
+                    <SelectItem key={f} value={f} className="text-xs">
+                      {f}{f === athlete.suggestedFile ? ' (suggested)' : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!selectedFile || isRenaming}
+                onClick={handleRename}
+                className="h-8 text-xs"
+              >
+                Rename
+              </Button>
+            </div>
           </div>
         )}
         {athlete.hasHeadshot && (
@@ -300,4 +442,13 @@ function AthleteRow({
       </td>
     </tr>
   );
-}
+}, (prevProps, nextProps) => {
+  return (
+    prevProps.isChecked === nextProps.isChecked &&
+    prevProps.selectedFile === nextProps.selectedFile &&
+    prevProps.isRenaming === nextProps.isRenaming &&
+    prevProps.athlete.athleteId === nextProps.athlete.athleteId &&
+    prevProps.athlete.hasHeadshot === nextProps.athlete.hasHeadshot &&
+    prevProps.orphanFiles === nextProps.orphanFiles
+  );
+});

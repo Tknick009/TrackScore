@@ -9,8 +9,11 @@ import { getResulTVParser } from "./parsers/resultv-parser";
 import type { TrackDisplayMode, FieldDisplayMode, Meet, FieldEventUpdatePayload } from "@shared/schema";
 import {
   isHeightEvent,
+  isTimeEvent,
+  parsePerformanceToSeconds,
   type DisplayBoardState,
   type WSMessage,
+  type EntryWithDetails,
 } from "@shared/schema";
 import { startWeatherPolling } from './weather-poller';
 import {
@@ -246,6 +249,125 @@ async function getActiveMeetId(): Promise<string | null> {
   }
 }
 
+// Compute PB/SB/MR/FR tags for each entry in an event
+async function enrichEntriesWithRecordTags(eventType: string, gender: string, entries: EntryWithDetails[]): Promise<void> {
+  try {
+    // Fetch all record books for this event type and gender
+    const matchingRecords = await storage.getRecordsByEvent(eventType, gender);
+    // Build a map of record book scope -> best performance (in base units)
+    const recordsByScope: Map<string, number> = new Map();
+    for (const record of matchingRecords) {
+      const perf = parsePerformanceToSeconds(record.performance);
+      if (perf === null) continue;
+      // Get the record book to know its scope
+      const book = await storage.getRecordBook(record.recordBookId);
+      if (!book) continue;
+      const scope = book.scope;
+      const existing = recordsByScope.get(scope);
+      if (existing === undefined) {
+        recordsByScope.set(scope, perf);
+      } else {
+        // Keep the best record (lowest for time, highest for distance/height)
+        if (isTimeEvent(eventType)) {
+          if (perf < existing) recordsByScope.set(scope, perf);
+        } else {
+          if (perf > existing) recordsByScope.set(scope, perf);
+        }
+      }
+    }
+
+    // Collect all athlete IDs that have a finalMark
+    const athleteIds = entries
+      .filter(e => e.finalMark !== null && e.finalMark !== undefined && e.athleteId)
+      .map(e => e.athleteId);
+
+    // Batch fetch athlete bests
+    const bestsByAthlete: Map<string, { season: number | null; college: number | null }> = new Map();
+    for (const athleteId of athleteIds) {
+      try {
+        const bests = await storage.getAthleteBests(athleteId);
+        const eventBests = bests.filter(b => b.eventType === eventType);
+        let seasonBest: number | null = null;
+        let collegeBest: number | null = null;
+        for (const b of eventBests) {
+          if (b.bestType === 'season' && b.mark !== null) {
+            if (seasonBest === null) seasonBest = b.mark;
+            else if (isTimeEvent(eventType) ? b.mark < seasonBest : b.mark > seasonBest) seasonBest = b.mark;
+          }
+          if (b.bestType === 'college' && b.mark !== null) {
+            if (collegeBest === null) collegeBest = b.mark;
+            else if (isTimeEvent(eventType) ? b.mark < collegeBest : b.mark > collegeBest) collegeBest = b.mark;
+          }
+        }
+        bestsByAthlete.set(athleteId, { season: seasonBest, college: collegeBest });
+      } catch {
+        // Skip if bests can't be fetched
+      }
+    }
+
+    // Now enrich each entry with tags
+    for (const entry of entries) {
+      const tags: string[] = [];
+      if (entry.finalMark === null || entry.finalMark === undefined) {
+        (entry as any).recordTags = tags;
+        continue;
+      }
+
+      // Convert finalMark to base units: finalMark is in ms for track, mm for field
+      // athlete_bests.mark is in seconds for track, meters for field
+      // records.performance is parsed by parsePerformanceToSeconds (returns seconds for track, meters for field)
+      const markInBaseUnits = entry.finalMark / 1000;
+      const isTime = isTimeEvent(eventType);
+
+      // Check MR (Meet Record)
+      const meetRecord = recordsByScope.get('meet');
+      if (meetRecord !== undefined) {
+        if (isTime ? markInBaseUnits < meetRecord : markInBaseUnits > meetRecord) {
+          tags.push('MR');
+        } else if (Math.abs(markInBaseUnits - meetRecord) < 0.005) {
+          tags.push('=MR');
+        }
+      }
+
+      // Check FR (Facility Record)
+      const facilityRecord = recordsByScope.get('facility');
+      if (facilityRecord !== undefined) {
+        if (isTime ? markInBaseUnits < facilityRecord : markInBaseUnits > facilityRecord) {
+          tags.push('FR');
+        } else if (Math.abs(markInBaseUnits - facilityRecord) < 0.005) {
+          tags.push('=FR');
+        }
+      }
+
+      // Check PB (Personal Best / College Best)
+      const athleteBests = bestsByAthlete.get(entry.athleteId);
+      if (athleteBests) {
+        if (athleteBests.college !== null) {
+          if (isTime ? markInBaseUnits < athleteBests.college : markInBaseUnits > athleteBests.college) {
+            tags.push('PB');
+          }
+        }
+        // Check SB (Season Best)
+        if (athleteBests.season !== null) {
+          if (isTime ? markInBaseUnits < athleteBests.season : markInBaseUnits > athleteBests.season) {
+            tags.push('SB');
+          }
+        }
+      }
+
+      (entry as any).recordTags = tags;
+    }
+  } catch (error) {
+    console.error('[RecordTags] Error enriching entries with record tags:', error);
+    // Don't fail the broadcast if tag enrichment fails
+    for (const entry of entries) {
+      if (!(entry as any).recordTags) {
+        (entry as any).recordTags = [];
+      }
+    }
+  }
+}
+
 // Helper to broadcast current event state
 async function broadcastCurrentEvent() {
   const currentEvent = await storage.getCurrentEvent();
@@ -262,6 +384,15 @@ async function broadcastCurrentEvent() {
     meet = meets.find(m => m.status === 'in_progress') 
         || meets.find(m => m.status === 'upcoming')
         || meets[0];
+  }
+
+  // Enrich entries with PB/SB/MR/FR tags before broadcasting
+  if (currentEvent?.entries && currentEvent.entries.length > 0) {
+    await enrichEntriesWithRecordTags(
+      currentEvent.eventType,
+      currentEvent.gender,
+      currentEvent.entries
+    );
   }
 
   const boardState: DisplayBoardState = {

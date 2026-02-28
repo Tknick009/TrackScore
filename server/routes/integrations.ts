@@ -2551,7 +2551,16 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
         return res.status(400).json({ error: 'No CSV file uploaded' });
       }
       
-      const csvContent = req.file.buffer.toString('utf-8');
+      // Support both memory storage (buffer) and disk storage (path)
+      let csvContent: string;
+      if (req.file.buffer) {
+        csvContent = req.file.buffer.toString('utf-8');
+      } else if (req.file.path) {
+        const fsRead = await import('fs/promises');
+        csvContent = await fsRead.readFile(req.file.path, 'utf-8');
+      } else {
+        return res.status(400).json({ error: 'Could not read uploaded file' });
+      }
       const lines = csvContent.split('\n').filter(l => l.trim());
       
       if (lines.length < 2) {
@@ -2828,6 +2837,43 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
 
   // ===== HEADSHOT MANAGER =====
 
+  // Levenshtein distance for fuzzy matching suggestions
+  function levenshtein(a: string, b: string): number {
+    const m = a.length, n = b.length;
+    const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+    for (let i = 0; i <= m; i++) dp[i][0] = i;
+    for (let j = 0; j <= n; j++) dp[0][j] = j;
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        dp[i][j] = a[i - 1] === b[j - 1]
+          ? dp[i - 1][j - 1]
+          : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+      }
+    }
+    return dp[m][n];
+  }
+
+  // Find best fuzzy match from orphan files for a given expected name
+  function findBestMatch(expected: string, orphanFiles: string[]): string | null {
+    if (orphanFiles.length === 0) return null;
+    const expectedLower = expected.toLowerCase();
+    let bestFile: string | null = null;
+    let bestScore = Infinity;
+    for (const f of orphanFiles) {
+      const nameWithoutExt = f.substring(0, f.lastIndexOf('.')).toLowerCase();
+      const dist = levenshtein(expectedLower, nameWithoutExt);
+      if (dist < bestScore) {
+        bestScore = dist;
+        bestFile = f;
+      }
+    }
+    // Only suggest if similarity is reasonable (distance < 60% of expected length)
+    if (bestFile && bestScore <= Math.ceil(expected.length * 0.6)) {
+      return bestFile;
+    }
+    return null;
+  }
+
   // List all athletes for a meet with headshot match status
   app.get('/api/meets/:meetId/headshot-manager', async (req, res) => {
     try {
@@ -2859,8 +2905,8 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
       }
 
       // Get all athletes for this meet
-      const athletes = await storage.getAthletesByMeet(meetId);
-      const teams = await storage.getTeamsByMeet(meetId);
+      const athletes = await storage.getAthletesByMeetId(meetId);
+      const teams = await storage.getTeamsByMeetId(meetId);
       const teamMap = new Map(teams.map(t => [t.id, t]));
 
       // For each athlete, check if a headshot file exists
@@ -2882,12 +2928,20 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
           expectedFilename,
           matchedFile,
           hasHeadshot: !!matchedFile,
+          suggestedFile: null as string | null,
         };
       });
 
       // Also find orphan files — headshot images that don't match any athlete
       const matchedFiles = new Set(results.filter(r => r.matchedFile).map(r => r.matchedFile!));
       const orphanFiles = imageFiles.filter(f => !matchedFiles.has(f));
+
+      // Fuzzy match: suggest best orphan file for each unmatched athlete
+      for (const r of results) {
+        if (!r.hasHeadshot) {
+          r.suggestedFile = findBestMatch(r.expectedFilename, orphanFiles);
+        }
+      }
 
       res.json({
         athletes: results,
@@ -2947,6 +3001,61 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
       res.json({ success: true, oldFilename, newFilename: `${newFilename}${ext}` });
     } catch (error: any) {
       console.error('Headshot rename error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Bulk rename headshot files
+  app.post('/api/meets/:meetId/headshot-manager/bulk-rename', async (req, res) => {
+    try {
+      const { meetId } = req.params;
+      const { renames } = req.body; // Array of { oldFilename, newFilename }
+
+      if (!Array.isArray(renames) || renames.length === 0) {
+        return res.status(400).json({ error: 'renames array is required' });
+      }
+
+      const settings = await storage.getIngestionSettings(meetId);
+      const headshotDir = (settings as any)?.headshotDirectory;
+
+      if (!headshotDir) {
+        return res.status(400).json({ error: 'No headshot directory configured' });
+      }
+
+      const fsPromises = await import('fs/promises');
+      const pathModule = await import('path');
+
+      const results: { success: number; failed: number; errors: string[] } = {
+        success: 0,
+        failed: 0,
+        errors: [],
+      };
+
+      for (const { oldFilename, newFilename } of renames) {
+        try {
+          const ext = oldFilename.substring(oldFilename.lastIndexOf('.'));
+          const oldPath = pathModule.default.join(headshotDir, oldFilename);
+          const newPath = pathModule.default.join(headshotDir, `${newFilename}${ext}`);
+
+          await fsPromises.access(oldPath);
+          try {
+            await fsPromises.access(newPath);
+            results.failed++;
+            results.errors.push(`${newFilename}${ext} already exists`);
+            continue;
+          } catch { /* Good */ }
+
+          await fsPromises.rename(oldPath, newPath);
+          results.success++;
+        } catch (e: any) {
+          results.failed++;
+          results.errors.push(`${oldFilename}: ${e.message}`);
+        }
+      }
+
+      res.json(results);
+    } catch (error: any) {
+      console.error('Headshot bulk rename error:', error);
       res.status(500).json({ error: error.message });
     }
   });

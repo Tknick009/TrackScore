@@ -254,6 +254,29 @@ export default function DisplayControlPage() {
     }
   });
 
+  // Remote refresh: force a display device to reload its page
+  const refreshDeviceMutation = useMutation({
+    mutationFn: async (deviceId: string) => {
+      const response = await apiRequest('POST', `/api/display-devices/${deviceId}/refresh`);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: data.delivered ? 'Refresh sent' : 'Device offline',
+        description: data.delivered
+          ? 'The display is reloading now.'
+          : 'The device is not connected — refresh will apply when it reconnects.',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Refresh failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
   // Auto-mode: Query status for selected device
   const { data: autoModeStatus } = useQuery<{ connected: boolean; autoMode: boolean }>({
     queryKey: ['/api/display-devices', selectedDeviceId, 'auto-mode'],
@@ -649,15 +672,27 @@ export default function DisplayControlPage() {
                         </CardDescription>
                       </div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => deleteDeviceMutation.mutate(selectedDevice.id)}
-                      disabled={deleteDeviceMutation.isPending}
-                      data-testid="button-delete-device"
-                    >
-                      <Trash2 className="w-4 h-4 text-destructive" />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="Refresh this display remotely"
+                        onClick={() => refreshDeviceMutation.mutate(selectedDevice.id)}
+                        disabled={refreshDeviceMutation.isPending || selectedDevice.status !== 'online'}
+                        data-testid="button-refresh-device"
+                      >
+                        <RefreshCw className={`w-4 h-4 ${refreshDeviceMutation.isPending ? 'animate-spin' : ''}`} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => deleteDeviceMutation.mutate(selectedDevice.id)}
+                        disabled={deleteDeviceMutation.isPending}
+                        data-testid="button-delete-device"
+                      >
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">

@@ -248,15 +248,24 @@ export function AthleteDetailDialog({ athlete, open, onOpenChange }: AthleteDeta
     }
   };
 
+  // Detect if an event type represents a time-based (track) event
+  // Handles both descriptive types ("sprint", "distance") and numeric codes ("3000", "800", "100H")
+  const isTimeBasedEvent = (eventType: string): boolean => {
+    const et = eventType.toLowerCase().trim();
+    // Known field event keywords
+    const fieldKeywords = ['jump', 'throw', 'put', 'vault', 'high', 'discus', 'javelin', 'hammer', 'shot', 'decathlon', 'heptathlon', 'pentathlon'];
+    if (fieldKeywords.some(k => et.includes(k))) return false;
+    // Known time event descriptive types
+    const timeKeywords = ['sprint', 'distance', 'hurdle', 'relay', 'steeplechase', 'race_walk', 'dash', 'run', 'meter', 'metre'];
+    if (timeKeywords.some(k => et.includes(k))) return true;
+    // Numeric event codes like "3000", "800", "100H", "110mH", "4x400" are time events
+    if (/^\d/.test(et)) return true;
+    // Default: treat as field
+    return false;
+  };
+
   const formatBestMark = (mark: number, eventType: string): string => {
-    const isTimeEvent = eventType.toLowerCase().includes('m') && 
-      !eventType.toLowerCase().includes('jump') && 
-      !eventType.toLowerCase().includes('throw') && 
-      !eventType.toLowerCase().includes('put') &&
-      !eventType.toLowerCase().includes('vault') &&
-      !eventType.toLowerCase().includes('high');
-    
-    if (isTimeEvent) {
+    if (isTimeBasedEvent(eventType)) {
       const minutes = Math.floor(mark / 60);
       const seconds = (mark % 60).toFixed(2);
       if (minutes > 0) {
@@ -270,9 +279,8 @@ export function AthleteDetailDialog({ athlete, open, onOpenChange }: AthleteDeta
   const formatMark = (mark: number | null, eventType: string): string => {
     if (mark === null) return "-";
     
-    // Time events (track) - format as time
-    const timeEvents = ['sprint', 'distance', 'hurdles', 'relay', 'steeplechase', 'race_walk'];
-    if (timeEvents.some(t => eventType.toLowerCase().includes(t))) {
+    if (isTimeBasedEvent(eventType)) {
+      // Seed marks and final marks from HyTek are stored in raw seconds
       const minutes = Math.floor(mark / 60);
       const seconds = (mark % 60).toFixed(2);
       if (minutes > 0) {
@@ -281,7 +289,7 @@ export function AthleteDetailDialog({ athlete, open, onOpenChange }: AthleteDeta
       return seconds;
     }
     
-    // Field events - format as distance/height
+    // Field events - marks from HyTek are stored in meters
     return `${mark.toFixed(2)}m`;
   };
 

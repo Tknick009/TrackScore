@@ -817,6 +817,42 @@ export function registerAthletesTeamsRoutes(app: Express, ctx: RouteContext) {
 
   // ===== LOGO MANAGER =====
 
+  // Levenshtein distance for fuzzy matching suggestions
+  function levenshteinLogo(a: string, b: string): number {
+    const m = a.length, n = b.length;
+    const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+    for (let i = 0; i <= m; i++) dp[i][0] = i;
+    for (let j = 0; j <= n; j++) dp[0][j] = j;
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        dp[i][j] = a[i - 1] === b[j - 1]
+          ? dp[i - 1][j - 1]
+          : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+      }
+    }
+    return dp[m][n];
+  }
+
+  function findBestLogoMatch(expected: string, orphanFiles: string[]): string | null {
+    if (orphanFiles.length === 0) return null;
+    const expectedLower = expected.toLowerCase();
+    let bestFile: string | null = null;
+    let bestScore = Infinity;
+    for (const f of orphanFiles) {
+      const nameWithoutExt = f.substring(0, f.lastIndexOf('.')).toLowerCase();
+      const dist = levenshteinLogo(expectedLower, nameWithoutExt);
+      if (dist < bestScore) {
+        bestScore = dist;
+        bestFile = f;
+      }
+    }
+    // Only suggest if similarity is reasonable (distance < 60% of expected length)
+    if (bestFile && bestScore <= Math.ceil(expected.length * 0.6)) {
+      return bestFile;
+    }
+    return null;
+  }
+
   // List all teams for a meet with logo match status against NCAA logo files
   app.get('/api/meets/:meetId/logo-manager', async (req, res) => {
     try {
@@ -850,7 +886,7 @@ export function registerAthletesTeamsRoutes(app: Express, ctx: RouteContext) {
       }
 
       // Get all teams for this meet
-      const teams = await storage.getTeamsByMeet(meetId);
+      const teams = await storage.getTeamsByMeetId(meetId);
 
       const results = teams.map(team => {
         const teamName = (team.name || '').trim();
@@ -872,12 +908,20 @@ export function registerAthletesTeamsRoutes(app: Express, ctx: RouteContext) {
           matchedFile,
           hasLogo: !!matchedFile,
           logoUrl: matchedFile ? `/logos/NCAA/${matchedFile}` : null,
+          suggestedFile: null as string | null,
         };
       });
 
       // Find orphan logo files that don't match any team in this meet
       const matchedFiles = new Set(results.filter(r => r.matchedFile).map(r => r.matchedFile!));
       const orphanFiles = logoFiles.filter(f => !matchedFiles.has(f));
+
+      // Fuzzy match: suggest best orphan file for each unmatched team
+      for (const r of results) {
+        if (!r.hasLogo) {
+          r.suggestedFile = findBestLogoMatch(r.expectedFilename, orphanFiles);
+        }
+      }
 
       res.json({
         teams: results,
@@ -925,6 +969,54 @@ export function registerAthletesTeamsRoutes(app: Express, ctx: RouteContext) {
       res.json({ success: true, oldFilename, newFilename: `${newFilename}${ext}` });
     } catch (error: any) {
       console.error('Logo rename error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Bulk rename logo files
+  app.post('/api/meets/:meetId/logo-manager/bulk-rename', async (req, res) => {
+    try {
+      const { renames } = req.body; // Array of { oldFilename, newFilename }
+
+      if (!Array.isArray(renames) || renames.length === 0) {
+        return res.status(400).json({ error: 'renames array is required' });
+      }
+
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      const logosDir = path.join(process.cwd(), 'public', 'logos', 'NCAA');
+
+      const results: { success: number; failed: number; errors: string[] } = {
+        success: 0,
+        failed: 0,
+        errors: [],
+      };
+
+      for (const { oldFilename, newFilename } of renames) {
+        try {
+          const ext = oldFilename.substring(oldFilename.lastIndexOf('.'));
+          const oldPath = path.join(logosDir, oldFilename);
+          const newPath = path.join(logosDir, `${newFilename}${ext}`);
+
+          await fs.access(oldPath);
+          try {
+            await fs.access(newPath);
+            results.failed++;
+            results.errors.push(`${newFilename}${ext} already exists`);
+            continue;
+          } catch { /* Good */ }
+
+          await fs.rename(oldPath, newPath);
+          results.success++;
+        } catch (e: any) {
+          results.failed++;
+          results.errors.push(`${oldFilename}: ${e.message}`);
+        }
+      }
+
+      res.json(results);
+    } catch (error: any) {
+      console.error('Logo bulk rename error:', error);
       res.status(500).json({ error: error.message });
     }
   });

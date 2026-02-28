@@ -119,6 +119,7 @@ function SingleAthleteFieldContent({ event, meet, athlete, isRevealed }: SingleA
     : 'ATHLETE';
   
   const teamName = (athlete.athlete as any)?.teamName || (athlete.athlete as any)?.team?.name || '';
+  const recordTags: string[] = (athlete as any).recordTags || [];
   const attempts = (athlete as any).attempts || [];
   const currentAttempt = attempts.length;
   const maxAttempts = 6;
@@ -191,16 +192,37 @@ function SingleAthleteFieldContent({ event, meet, athlete, isRevealed }: SingleA
           </div>
 
           <div className="flex flex-col items-center gap-2 mt-2">
-            <span 
-              className="text-white font-black tabular-nums"
-              style={{ 
-                fontSize: '64px', 
-                fontFamily: "'Bebas Neue', sans-serif",
-                textShadow: '0 0 20px rgba(0, 200, 255, 0.5)'
-              }}
-            >
-              {formatMark(athlete.finalMark)}
-            </span>
+            <div className="flex items-baseline gap-2">
+              <span 
+                className="text-white font-black tabular-nums"
+                style={{ 
+                  fontSize: '64px', 
+                  fontFamily: "'Bebas Neue', sans-serif",
+                  textShadow: '0 0 20px rgba(0, 200, 255, 0.5)'
+                }}
+              >
+                {formatMark(athlete.finalMark)}
+              </span>
+              {recordTags.length > 0 && (
+                <div className="flex gap-1">
+                  {recordTags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="font-bold uppercase rounded"
+                      style={{
+                        fontSize: '0.3em',
+                        padding: '0.15em 0.4em',
+                        backgroundColor: tag.includes('MR') || tag.includes('FR') ? 'rgba(255, 215, 0, 0.25)' : 'rgba(0, 200, 255, 0.2)',
+                        color: tag.includes('MR') || tag.includes('FR') ? '#ffd700' : '#00e5ff',
+                        border: `1px solid ${tag.includes('MR') || tag.includes('FR') ? 'rgba(255, 215, 0, 0.5)' : 'rgba(0, 200, 255, 0.4)'}`,
+                      }}
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
 
             <div className="flex gap-2 mt-1">
               {Array.from({ length: maxAttempts }).map((_, i) => (
