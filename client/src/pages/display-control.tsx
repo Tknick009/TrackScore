@@ -34,7 +34,8 @@ import {
   ChevronRight,
   Search,
   Target,
-  Settings
+  Settings,
+  Image
 } from 'lucide-react';
 import { DISPLAY_CONTENT_TYPES } from '@shared/layout-templates';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -684,6 +685,25 @@ export default function DisplayControlPage() {
                     </div>
                   ) : (
                     <>
+                      <div className="mb-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDisplayMode(prev => ({ ...prev, [selectedDevice.id]: undefined as any }));
+                            toggleAutoModeMutation.mutate({ deviceId: selectedDevice.id, enabled: false });
+                            sendCommandMutation.mutate({ deviceId: selectedDevice.id, template: 'meet-logo' });
+                          }}
+                          className="w-full p-3 rounded-lg border-2 transition-all text-left border-amber-500/50 bg-amber-500/10 hover:bg-amber-500/20 flex items-center gap-3"
+                          data-testid="tile-meet-logo"
+                        >
+                          <Image className="w-5 h-5 text-amber-500" />
+                          <div>
+                            <span className="font-medium">Return to Meet Logo</span>
+                            <p className="text-xs text-muted-foreground">Send device back to the meet logo screen</p>
+                          </div>
+                        </button>
+                      </div>
+
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         <button
                           type="button"
