@@ -1251,6 +1251,15 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         connectedDevice.contentMode = contentMode;
         console.log(`[Content Mode] Device ${connectedDevice.deviceName} switched to ${contentMode}`);
         
+        // Notify the display device of the content mode change so it updates immediately
+        if (connectedDevice.ws.readyState === WebSocket.OPEN) {
+          connectedDevice.ws.send(JSON.stringify({
+            type: 'content_mode_change',
+            contentMode,
+            deviceId,
+          }));
+        }
+        
         // When switching back to lynx, immediately send the current event state
         // so the display updates right away instead of waiting for the next broadcast
         if (contentMode === 'lynx') {

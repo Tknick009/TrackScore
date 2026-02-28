@@ -535,6 +535,32 @@ export default function DisplayDevice() {
             console.log(`[Display] Auto-mode ${newAutoMode ? 'ENABLED' : 'DISABLED'}`);
           }
 
+          // Handle content mode change from control panel — switches what the display is showing
+          // (lynx = live FinishLynx data, hytek = compiled results, team_scores, field)
+          if (message.type === 'content_mode_change') {
+            const newContentMode = message.contentMode;
+            console.log(`[Display] Content mode changed to: ${newContentMode}`);
+            
+            if (newContentMode === 'field') {
+              // Switch to field mode — set isFieldMode so field data is accepted
+              setIsFieldMode(true);
+              autoModeRef.current = false;
+              currentLayoutModeRef.current = null; // Reset so next field data triggers scene switch
+              console.log(`[Display] Switched to field content mode`);
+            } else if (newContentMode === 'lynx') {
+              // Switch back to FinishLynx — re-enable auto mode and reset layout
+              setIsFieldMode(false);
+              autoModeRef.current = true;
+              currentLayoutModeRef.current = null; // Reset so next FinishLynx data triggers scene switch
+              console.log(`[Display] Switched to FinishLynx content mode (auto-mode enabled)`);
+            } else if (newContentMode === 'hytek' || newContentMode === 'team_scores') {
+              // Switch to HyTek or Team Scores — disable auto mode so FinishLynx doesn't override
+              setIsFieldMode(false);
+              autoModeRef.current = false;
+              console.log(`[Display] Switched to ${newContentMode} content mode (auto-mode disabled)`);
+            }
+          }
+
           if (message.type === 'display_mode_change') {
             const data = message.data;
             const myDeviceId = registeredDeviceIdRef.current;
