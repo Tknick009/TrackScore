@@ -1114,10 +1114,42 @@ export default function DisplayDevice() {
             }
           }
           
-          // Handle remote refresh command — reload the page
+          // Handle remote refresh command — soft refresh (re-fetch all data without page reload)
+          // This preserves the auth session so remote boards don't require re-login
           if (message.type === 'refresh') {
-            console.log('[Display] Remote refresh command received — reloading page');
-            window.location.reload();
+            console.log('[Display] Remote refresh command received — soft refreshing data');
+            
+            // Invalidate ALL React Query caches so everything re-fetches fresh
+            queryClient.invalidateQueries();
+            
+            // Read current scene ID from state and re-fetch its data
+            setState(prev => {
+              const currentSceneId = prev.currentSceneId;
+              if (currentSceneId) {
+                // Async re-fetch scene data (fire and forget from setState)
+                Promise.all([
+                  fetch(`/api/layout-scenes/${currentSceneId}`),
+                  fetch(`/api/layout-objects?sceneId=${currentSceneId}`),
+                ]).then(async ([sceneRes, objectsRes]) => {
+                  if (sceneRes.ok && objectsRes.ok) {
+                    const scene = await sceneRes.json();
+                    const objects = await objectsRes.json();
+                    queryClient.setQueryData(['/api/layout-scenes', currentSceneId], scene);
+                    queryClient.setQueryData(['/api/layout-objects', { sceneId: currentSceneId }], objects);
+                    setState(p => ({
+                      ...p,
+                      currentSceneData: { scene, objects },
+                    }));
+                    console.log(`[Display] Soft refresh: re-fetched scene ${currentSceneId}`);
+                  }
+                }).catch(err => {
+                  console.error('[Display] Soft refresh failed:', err);
+                });
+              }
+              return prev; // Don't change state in this outer setState
+            });
+            
+            console.log('[Display] Soft refresh initiated — all caches invalidated');
             return;
           }
 
