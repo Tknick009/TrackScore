@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useWebSocket } from "@/contexts/WebSocketContext";
 
 type CurtainPhase = 'idle' | 'coverStart' | 'covering' | 'paused' | 'reveal';
 
@@ -24,15 +23,18 @@ function darkenColor(color: string, amount: number): string {
 }
 
 export function FieldTransitionRenderer({
-  fieldPort,
   curtainColor,
   meetId,
+  liveData,
 }: {
-  fieldPort?: number;
   curtainColor: string;
   meetId?: string;
+  // Live data prop — passed from SceneObjectRenderer which gets it from the display device's
+  // own WebSocket (registered as a display device). Previously this component listened on the
+  // WebSocket context directly, but that's a SEPARATE unregistered connection that never receives
+  // field_mode_change messages from the server.
+  liveData?: { entries?: any[]; results?: any[] } | null;
 }) {
-  const ws = useWebSocket();
   const [phase, setPhase] = useState<CurtainPhase>('idle');
   const [primaryColor, setPrimaryColor] = useState<string>(curtainColor);
   const [secondaryColor, setSecondaryColor] = useState<string>(curtainColor);
@@ -87,66 +89,59 @@ export function FieldTransitionRenderer({
 
   useEffect(() => () => clearTimers(), [clearTimers]);
 
+  // React to live data changes — detect when a new athlete is "called up" (entry with no mark).
+  // This replaces the old WebSocket listener approach. The live data comes from the display
+  // device's registered WebSocket via SceneObjectRenderer props, which correctly receives
+  // field_mode_change messages because the display device IS registered with the server.
   useEffect(() => {
-    if (!ws) return;
+    if (!liveData) return;
 
-    const handleMessage = async (e: MessageEvent) => {
-      try {
-        const msg = JSON.parse(e.data);
+    const entries: any[] = liveData.entries || liveData.results || [];
+    // Called-up athlete = entry with no mark (they're on deck / at the runway)
+    const calledUp = entries.find((r: any) => !r.mark || String(r.mark).trim() === '');
+    if (!calledUp) return;
 
-        const portMatch = fieldPort && msg.type === `field_mode_change_${fieldPort}`;
-        const globalFallback = !fieldPort && msg.type === 'field_mode_change';
-        if (!portMatch && !globalFallback) return;
+    const calledId = calledUp.bib
+      ? String(calledUp.bib)
+      : calledUp.name
+      ? String(calledUp.name)
+      : '';
+    if (!calledId || calledId === prevCalledBibRef.current) return;
+    prevCalledBibRef.current = calledId;
 
-        const results: any[] = msg.data?.results || [];
-        const calledUp = results.find((r: any) => !r.mark || String(r.mark).trim() === '');
-        if (!calledUp) return;
+    const school = calledUp.affiliation || calledUp.team || '';
+    const name = calledUp.name || '';
 
-        const calledId = calledUp.bib
-          ? String(calledUp.bib)
-          : calledUp.name
-          ? String(calledUp.name)
-          : '';
-        if (!calledId || calledId === prevCalledBibRef.current) return;
-        prevCalledBibRef.current = calledId;
+    // Fetch team colors and logo asynchronously, then trigger curtain
+    (async () => {
+      let logoUrl: string | null = null;
+      let primary = curtainColor;
+      let secondary = curtainColor;
 
-        const school = calledUp.affiliation || calledUp.team || '';
-        const name = calledUp.name || '';
-
-        let logoUrl: string | null = null;
-        let primary = curtainColor;
-        let secondary = curtainColor;
-
-        if (school) {
-          try {
-            const meetParam = meetId
-              ? `&meetId=${encodeURIComponent(meetId)}`
-              : '';
-            const res = await fetch(
-              `/api/teams/by-affiliation?name=${encodeURIComponent(school)}${meetParam}`
-            );
-            if (res.ok) {
-              const teamData = await res.json();
-              if (teamData?.logoUrl) logoUrl = teamData.logoUrl;
-              if (teamData?.primaryColor) {
-                primary = teamData.primaryColor;
-                secondary = teamData.secondaryColor || teamData.primaryColor;
-              }
+      if (school) {
+        try {
+          const meetParam = meetId
+            ? `&meetId=${encodeURIComponent(meetId)}`
+            : '';
+          const res = await fetch(
+            `/api/teams/by-affiliation?name=${encodeURIComponent(school)}${meetParam}`
+          );
+          if (res.ok) {
+            const teamData = await res.json();
+            if (teamData?.logoUrl) logoUrl = teamData.logoUrl;
+            if (teamData?.primaryColor) {
+              primary = teamData.primaryColor;
+              secondary = teamData.secondaryColor || teamData.primaryColor;
             }
-          } catch {
-            /* ignore */
           }
+        } catch {
+          /* ignore */
         }
-
-        runCurtain(logoUrl, primary, secondary, name, school);
-      } catch {
-        /* ignore parse errors */
       }
-    };
 
-    ws.addEventListener('message', handleMessage);
-    return () => ws.removeEventListener('message', handleMessage);
-  }, [ws, fieldPort, curtainColor, meetId, runCurtain]);
+      runCurtain(logoUrl, primary, secondary, name, school);
+    })();
+  }, [liveData, curtainColor, meetId, runCurtain]);
 
   if (phase === 'idle') return null;
 
