@@ -293,6 +293,26 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
                     >
                       {finalTime}
                     </span>
+
+                    {/* Record/Best Tags */}
+                    {((entry as any).recordTags || []).length > 0 && (
+                      <div className="flex gap-1 shrink-0 ml-3">
+                        {((entry as any).recordTags as string[]).map((tag: string) => (
+                          <span
+                            key={tag}
+                            className="font-bold uppercase px-2 py-0.5 rounded"
+                            style={{
+                              fontSize: '16px',
+                              backgroundColor: tag.includes('MR') || tag.includes('FR') ? 'rgba(255, 215, 0, 0.25)' : 'rgba(0, 200, 255, 0.2)',
+                              color: tag.includes('MR') || tag.includes('FR') ? '#ffd700' : '#00e5ff',
+                              border: `1px solid ${tag.includes('MR') || tag.includes('FR') ? 'rgba(255, 215, 0, 0.5)' : 'rgba(0, 200, 255, 0.4)'}`,
+                            }}
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 

@@ -365,7 +365,7 @@ export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingInt
                 </div>
 
                 {/* Result */}
-                <div className="w-[200px] text-right pr-2">
+                <div className="w-[250px] flex items-center justify-end gap-2 pr-2">
                   {statusLabel ? (
                     <span
                       className="text-amber-400/80 font-bold"
@@ -374,15 +374,35 @@ export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingInt
                       {statusLabel}
                     </span>
                   ) : (
-                    <span
-                      className="text-white font-bold tabular-nums"
-                      style={{
-                        fontSize: resultText ? '36px' : '24px',
-                        fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-                      }}
-                    >
-                      {resultText || '--'}
-                    </span>
+                    <>
+                      <span
+                        className="text-white font-bold tabular-nums"
+                        style={{
+                          fontSize: resultText ? '36px' : '24px',
+                          fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                        }}
+                      >
+                        {resultText || '--'}
+                      </span>
+                      {((entry as any).recordTags || []).length > 0 && (
+                        <div className="flex gap-0.5">
+                          {((entry as any).recordTags as string[]).map((tag: string) => (
+                            <span
+                              key={tag}
+                              className="font-bold uppercase px-1.5 py-0.5 rounded"
+                              style={{
+                                fontSize: '12px',
+                                backgroundColor: tag.includes('MR') || tag.includes('FR') ? 'rgba(255, 215, 0, 0.25)' : 'rgba(0, 200, 255, 0.2)',
+                                color: tag.includes('MR') || tag.includes('FR') ? '#ffd700' : '#00e5ff',
+                                border: `1px solid ${tag.includes('MR') || tag.includes('FR') ? 'rgba(255, 215, 0, 0.5)' : 'rgba(0, 200, 255, 0.4)'}`,
+                              }}
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </div>

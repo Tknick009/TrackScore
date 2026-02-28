@@ -70,6 +70,7 @@ export function SingleAthleteTrack({ event, meet, liveTime, focusIndex = 0 }: Si
     : 'ATHLETE';
   
   const teamName = (athlete.athlete as any)?.teamName || (athlete.athlete as any)?.team?.name || '';
+  const recordTags: string[] = (athlete as any).recordTags || [];
 
   return (
     <div 
@@ -156,6 +157,24 @@ export function SingleAthleteTrack({ event, meet, liveTime, focusIndex = 0 }: Si
             >
               {formatTime(athlete.finalMark)}
             </span>
+            {recordTags.length > 0 && (
+              <div className="flex gap-1 ml-2">
+                {recordTags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="font-bold uppercase px-2 py-0.5 rounded"
+                    style={{
+                      fontSize: '18px',
+                      backgroundColor: tag.includes('MR') || tag.includes('FR') ? 'rgba(255, 215, 0, 0.25)' : 'rgba(0, 200, 255, 0.2)',
+                      color: tag.includes('MR') || tag.includes('FR') ? '#ffd700' : '#00e5ff',
+                      border: `1px solid ${tag.includes('MR') || tag.includes('FR') ? 'rgba(255, 215, 0, 0.5)' : 'rgba(0, 200, 255, 0.4)'}`,
+                    }}
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

@@ -2551,7 +2551,16 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
         return res.status(400).json({ error: 'No CSV file uploaded' });
       }
       
-      const csvContent = req.file.buffer.toString('utf-8');
+      // Support both memory storage (buffer) and disk storage (path)
+      let csvContent: string;
+      if (req.file.buffer) {
+        csvContent = req.file.buffer.toString('utf-8');
+      } else if (req.file.path) {
+        const fsRead = await import('fs/promises');
+        csvContent = await fsRead.readFile(req.file.path, 'utf-8');
+      } else {
+        return res.status(400).json({ error: 'Could not read uploaded file' });
+      }
       const lines = csvContent.split('\n').filter(l => l.trim());
       
       if (lines.length < 2) {
