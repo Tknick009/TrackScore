@@ -27,6 +27,7 @@ export function FieldTransitionRenderer({
   meetId,
   liveData,
   liveEventDataByPort,
+  deviceFieldPort,
   canvasWidth,
   canvasHeight,
 }: {
@@ -37,8 +38,10 @@ export function FieldTransitionRenderer({
   // WebSocket context directly, but that's a SEPARATE unregistered connection that never receives
   // field_mode_change messages from the server.
   liveData?: { entries?: any[]; results?: any[] } | null;
-  // All field port data — so the curtain triggers on ANY field port, not just the device's primary port
+  // All field port data keyed by port number
   liveEventDataByPort?: Record<number, { entries?: any[]; results?: any[] }> | null;
+  // This device's assigned field port — curtain only fires for THIS port's data
+  deviceFieldPort?: number;
   // Canvas dimensions for responsive scaling — the curtain scales text/logo relative to
   // a 1080p reference so it looks correct on P10 (192x96) through BigBoard (1920x1080).
   canvasWidth?: number;
@@ -92,21 +95,26 @@ export function FieldTransitionRenderer({
 
   useEffect(() => () => clearTimers(), [clearTimers]);
 
-  // Merge all data sources: primary liveData + all port-specific data
-  // This ensures the curtain triggers for ANY field port, not just the device's primary port
+  // Get the live data for THIS device's assigned field port only.
+  // If the device has a specific port assigned, use only that port's data.
+  // This prevents the curtain from firing on ALL devices when ANY port updates.
   const mergedLiveData = useMemo(() => {
     const allSources: Array<{ entries?: any[]; results?: any[] }> = [];
-    if (liveData) allSources.push(liveData);
-    if (liveEventDataByPort) {
-      for (const portData of Object.values(liveEventDataByPort)) {
-        if (portData) allSources.push(portData);
-      }
+    
+    // If device has a specific field port, ONLY use that port's data
+    if (deviceFieldPort && liveEventDataByPort) {
+      const portData = liveEventDataByPort[deviceFieldPort];
+      if (portData) allSources.push(portData);
+    } else if (liveData) {
+      // No specific port assigned — use the global liveData (original behavior)
+      allSources.push(liveData);
     }
+    
     return allSources;
-  }, [liveData, liveEventDataByPort]);
+  }, [liveData, liveEventDataByPort, deviceFieldPort]);
 
   // React to live data changes — detect when a new athlete is "called up" (entry with no mark).
-  // Scans ALL field port data so the curtain fires for any field event, not just the primary port.
+  // Only scans this device's own field port data so the curtain fires only for the correct event.
   useEffect(() => {
     if (mergedLiveData.length === 0) return;
 

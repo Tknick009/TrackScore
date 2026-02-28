@@ -1482,6 +1482,7 @@ export function SceneObjectRenderer({
             meetId={meetId}
             liveData={liveData}
             liveEventDataByPort={liveEventDataByPort}
+            deviceFieldPort={deviceFieldPort}
             canvasWidth={canvasWidth}
             canvasHeight={canvasHeight}
           />
