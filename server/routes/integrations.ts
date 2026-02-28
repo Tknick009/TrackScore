@@ -2859,8 +2859,8 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
       }
 
       // Get all athletes for this meet
-      const athletes = await storage.getAthletesByMeet(meetId);
-      const teams = await storage.getTeamsByMeet(meetId);
+      const athletes = await storage.getAthletesByMeetId(meetId);
+      const teams = await storage.getTeamsByMeetId(meetId);
       const teamMap = new Map(teams.map(t => [t.id, t]));
 
       // For each athlete, check if a headshot file exists

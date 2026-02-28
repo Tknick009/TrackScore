@@ -850,7 +850,7 @@ export function registerAthletesTeamsRoutes(app: Express, ctx: RouteContext) {
       }
 
       // Get all teams for this meet
-      const teams = await storage.getTeamsByMeet(meetId);
+      const teams = await storage.getTeamsByMeetId(meetId);
 
       const results = teams.map(team => {
         const teamName = (team.name || '').trim();
