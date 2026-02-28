@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import React, { useState, useMemo, useCallback, useEffect, memo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useMeet } from "@/contexts/MeetContext";
 import { Button } from "@/components/ui/button";
@@ -142,6 +142,10 @@ export default function LogoManager() {
   const handleDeselectAll = useCallback(() => {
     setCheckedTeams(new Set());
   }, []);
+
+  const handleSingleRename = useCallback((oldFilename: string, newFilename: string) => {
+    renameMutation.mutate({ oldFilename, newFilename });
+  }, [renameMutation]);
 
   const filteredAndSorted = useMemo(() => {
     if (!data?.teams) return [];
@@ -302,17 +306,15 @@ export default function LogoManager() {
               </thead>
               <tbody>
                 {filteredAndSorted.map((team) => (
-                  <TeamRow
+                  <MemoTeamRow
                     key={team.teamId}
                     team={team}
                     orphanFiles={data.orphanFiles}
                     isChecked={checkedTeams.has(team.teamId)}
                     selectedFile={fileSelections[team.teamId] || ""}
-                    onToggleCheck={(checked) => handleToggleCheck(team.teamId, checked)}
-                    onFileSelect={(file) => handleFileSelect(team.teamId, file)}
-                    onRename={(oldFilename, newFilename) => {
-                      renameMutation.mutate({ oldFilename, newFilename });
-                    }}
+                    onToggleCheck={handleToggleCheck}
+                    onFileSelect={handleFileSelect}
+                    onRename={handleSingleRename}
                     isRenaming={renameMutation.isPending}
                   />
                 ))}
@@ -332,7 +334,18 @@ export default function LogoManager() {
   );
 }
 
-function TeamRow({
+interface TeamRowProps {
+  team: TeamMatch;
+  orphanFiles: string[];
+  isChecked: boolean;
+  selectedFile: string;
+  onToggleCheck: (teamId: string, checked: boolean) => void;
+  onFileSelect: (teamId: string, filename: string) => void;
+  onRename: (oldFilename: string, newFilename: string) => void;
+  isRenaming: boolean;
+}
+
+const MemoTeamRow = memo(function TeamRow({
   team,
   orphanFiles,
   isChecked,
@@ -341,23 +354,28 @@ function TeamRow({
   onFileSelect,
   onRename,
   isRenaming,
-}: {
-  team: TeamMatch;
-  orphanFiles: string[];
-  isChecked: boolean;
-  selectedFile: string;
-  onToggleCheck: (checked: boolean) => void;
-  onFileSelect: (file: string) => void;
-  onRename: (oldFilename: string, newFilename: string) => void;
-  isRenaming: boolean;
-}) {
+}: TeamRowProps) {
+  const handleCheck = useCallback((checked: boolean | "indeterminate") => {
+    onToggleCheck(team.teamId, !!checked);
+  }, [team.teamId, onToggleCheck]);
+
+  const handleFile = useCallback((filename: string) => {
+    onFileSelect(team.teamId, filename);
+  }, [team.teamId, onFileSelect]);
+
+  const handleRename = useCallback(() => {
+    if (selectedFile) {
+      onRename(selectedFile, team.expectedFilename);
+    }
+  }, [selectedFile, team.expectedFilename, onRename]);
+
   return (
     <tr className={`border-t ${team.hasLogo ? '' : 'bg-red-50 dark:bg-red-950/20'}`}>
       <td className="px-3 py-2">
         {!team.hasLogo && selectedFile && (
           <Checkbox
             checked={isChecked}
-            onCheckedChange={(checked) => onToggleCheck(!!checked)}
+            onCheckedChange={handleCheck}
           />
         )}
       </td>
@@ -391,7 +409,7 @@ function TeamRow({
               </span>
             )}
             <div className="flex items-center gap-2">
-              <Select value={selectedFile} onValueChange={onFileSelect}>
+              <Select value={selectedFile} onValueChange={handleFile}>
                 <SelectTrigger className="w-56 h-8 text-xs">
                   <SelectValue placeholder="Pick a file..." />
                 </SelectTrigger>
@@ -407,11 +425,7 @@ function TeamRow({
                 size="sm"
                 variant="outline"
                 disabled={!selectedFile || isRenaming}
-                onClick={() => {
-                  if (selectedFile) {
-                    onRename(selectedFile, team.expectedFilename);
-                  }
-                }}
+                onClick={handleRename}
                 className="h-8 text-xs"
               >
                 Rename
@@ -425,4 +439,13 @@ function TeamRow({
       </td>
     </tr>
   );
-}
+}, (prevProps, nextProps) => {
+  return (
+    prevProps.isChecked === nextProps.isChecked &&
+    prevProps.selectedFile === nextProps.selectedFile &&
+    prevProps.isRenaming === nextProps.isRenaming &&
+    prevProps.team.teamId === nextProps.team.teamId &&
+    prevProps.team.hasLogo === nextProps.team.hasLogo &&
+    prevProps.orphanFiles === nextProps.orphanFiles
+  );
+});

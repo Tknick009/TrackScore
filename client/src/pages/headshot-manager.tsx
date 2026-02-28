@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import React, { useState, useMemo, useCallback, useEffect, memo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useMeet } from "@/contexts/MeetContext";
 import { Button } from "@/components/ui/button";
@@ -142,6 +142,10 @@ export default function HeadshotManager() {
   const handleDeselectAll = useCallback(() => {
     setCheckedAthletes(new Set());
   }, []);
+
+  const handleSingleRename = useCallback((oldFilename: string, newFilename: string) => {
+    renameMutation.mutate({ oldFilename, newFilename });
+  }, [renameMutation]);
 
   const filteredAndSorted = useMemo(() => {
     if (!data?.athletes) return [];
@@ -310,17 +314,15 @@ export default function HeadshotManager() {
               </thead>
               <tbody>
                 {filteredAndSorted.map((athlete) => (
-                  <AthleteRow
+                  <MemoAthleteRow
                     key={athlete.athleteId}
                     athlete={athlete}
                     orphanFiles={data.orphanFiles}
                     isChecked={checkedAthletes.has(athlete.athleteId)}
                     selectedFile={fileSelections[athlete.athleteId] || ""}
-                    onToggleCheck={(checked) => handleToggleCheck(athlete.athleteId, checked)}
-                    onFileSelect={(file) => handleFileSelect(athlete.athleteId, file)}
-                    onRename={(oldFilename, newFilename) => {
-                      renameMutation.mutate({ oldFilename, newFilename });
-                    }}
+                    onToggleCheck={handleToggleCheck}
+                    onFileSelect={handleFileSelect}
+                    onRename={handleSingleRename}
                     isRenaming={renameMutation.isPending}
                   />
                 ))}
@@ -340,7 +342,18 @@ export default function HeadshotManager() {
   );
 }
 
-function AthleteRow({
+interface AthleteRowProps {
+  athlete: AthleteMatch;
+  orphanFiles: string[];
+  isChecked: boolean;
+  selectedFile: string;
+  onToggleCheck: (athleteId: string, checked: boolean) => void;
+  onFileSelect: (athleteId: string, filename: string) => void;
+  onRename: (oldFilename: string, newFilename: string) => void;
+  isRenaming: boolean;
+}
+
+const MemoAthleteRow = memo(function AthleteRow({
   athlete,
   orphanFiles,
   isChecked,
@@ -349,23 +362,28 @@ function AthleteRow({
   onFileSelect,
   onRename,
   isRenaming,
-}: {
-  athlete: AthleteMatch;
-  orphanFiles: string[];
-  isChecked: boolean;
-  selectedFile: string;
-  onToggleCheck: (checked: boolean) => void;
-  onFileSelect: (file: string) => void;
-  onRename: (oldFilename: string, newFilename: string) => void;
-  isRenaming: boolean;
-}) {
+}: AthleteRowProps) {
+  const handleCheck = useCallback((checked: boolean | "indeterminate") => {
+    onToggleCheck(athlete.athleteId, !!checked);
+  }, [athlete.athleteId, onToggleCheck]);
+
+  const handleFile = useCallback((filename: string) => {
+    onFileSelect(athlete.athleteId, filename);
+  }, [athlete.athleteId, onFileSelect]);
+
+  const handleRename = useCallback(() => {
+    if (selectedFile) {
+      onRename(selectedFile, athlete.expectedFilename);
+    }
+  }, [selectedFile, athlete.expectedFilename, onRename]);
+
   return (
     <tr className={`border-t ${athlete.hasHeadshot ? '' : 'bg-red-50 dark:bg-red-950/20'}`}>
       <td className="px-3 py-2">
         {!athlete.hasHeadshot && selectedFile && (
           <Checkbox
             checked={isChecked}
-            onCheckedChange={(checked) => onToggleCheck(!!checked)}
+            onCheckedChange={handleCheck}
           />
         )}
       </td>
@@ -394,7 +412,7 @@ function AthleteRow({
               </span>
             )}
             <div className="flex items-center gap-2">
-              <Select value={selectedFile} onValueChange={onFileSelect}>
+              <Select value={selectedFile} onValueChange={handleFile}>
                 <SelectTrigger className="w-56 h-8 text-xs">
                   <SelectValue placeholder="Pick a file..." />
                 </SelectTrigger>
@@ -410,11 +428,7 @@ function AthleteRow({
                 size="sm"
                 variant="outline"
                 disabled={!selectedFile || isRenaming}
-                onClick={() => {
-                  if (selectedFile) {
-                    onRename(selectedFile, athlete.expectedFilename);
-                  }
-                }}
+                onClick={handleRename}
                 className="h-8 text-xs"
               >
                 Rename
@@ -428,4 +442,13 @@ function AthleteRow({
       </td>
     </tr>
   );
-}
+}, (prevProps, nextProps) => {
+  return (
+    prevProps.isChecked === nextProps.isChecked &&
+    prevProps.selectedFile === nextProps.selectedFile &&
+    prevProps.isRenaming === nextProps.isRenaming &&
+    prevProps.athlete.athleteId === nextProps.athlete.athleteId &&
+    prevProps.athlete.hasHeadshot === nextProps.athlete.hasHeadshot &&
+    prevProps.orphanFiles === nextProps.orphanFiles
+  );
+});
