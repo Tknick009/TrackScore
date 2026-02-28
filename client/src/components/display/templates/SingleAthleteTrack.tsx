@@ -162,9 +162,10 @@ export function SingleAthleteTrack({ event, meet, liveTime, focusIndex = 0 }: Si
                 {recordTags.map((tag) => (
                   <span
                     key={tag}
-                    className="font-bold uppercase px-2 py-0.5 rounded"
+                    className="font-bold uppercase rounded"
                     style={{
-                      fontSize: '18px',
+                      fontSize: '0.3em',
+                      padding: '0.15em 0.4em',
                       backgroundColor: tag.includes('MR') || tag.includes('FR') ? 'rgba(255, 215, 0, 0.25)' : 'rgba(0, 200, 255, 0.2)',
                       color: tag.includes('MR') || tag.includes('FR') ? '#ffd700' : '#00e5ff',
                       border: `1px solid ${tag.includes('MR') || tag.includes('FR') ? 'rgba(255, 215, 0, 0.5)' : 'rgba(0, 200, 255, 0.4)'}`,
