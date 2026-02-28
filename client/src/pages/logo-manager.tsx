@@ -1,12 +1,13 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useMeet } from "@/contexts/MeetContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Search, CheckCircle2, XCircle, ArrowUpDown, RefreshCw } from "lucide-react";
+import { Search, CheckCircle2, XCircle, ArrowUpDown, RefreshCw, Play } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -39,6 +40,8 @@ export default function LogoManager() {
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<"name" | "status">("status");
   const [filterStatus, setFilterStatus] = useState<"all" | "matched" | "missing">("all");
+  const [checkedTeams, setCheckedTeams] = useState<Set<string>>(new Set());
+  const [fileSelections, setFileSelections] = useState<Record<string, string>>({});
 
   const { data, isLoading, error } = useQuery<LogoData>({
     queryKey: ['/api/meets', currentMeetId, 'logo-manager'],
@@ -65,6 +68,80 @@ export default function LogoManager() {
       toast({ title: 'Rename failed', description: error.message, variant: 'destructive' });
     },
   });
+
+  useEffect(() => {
+    if (data?.teams) {
+      const newSelections: Record<string, string> = {};
+      for (const t of data.teams) {
+        if (!t.hasLogo && t.suggestedFile) {
+          newSelections[t.teamId] = t.suggestedFile;
+        }
+      }
+      setFileSelections(newSelections);
+      setCheckedTeams(new Set());
+    }
+  }, [data]);
+
+  const bulkRenameMutation = useMutation({
+    mutationFn: async (renames: { oldFilename: string; newFilename: string }[]) => {
+      const res = await apiRequest('POST', `/api/meets/${currentMeetId}/logo-manager/bulk-rename`, { renames });
+      return res.json();
+    },
+    onSuccess: (result: { success: number; failed: number; errors: string[] }) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/meets', currentMeetId, 'logo-manager'] });
+      setCheckedTeams(new Set());
+      toast({
+        title: 'Bulk rename complete',
+        description: `${result.success} renamed${result.failed > 0 ? `, ${result.failed} failed` : ''}`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Bulk rename failed', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  const handleToggleCheck = useCallback((teamId: string, checked: boolean) => {
+    setCheckedTeams(prev => {
+      const next = new Set(prev);
+      if (checked) next.add(teamId);
+      else next.delete(teamId);
+      return next;
+    });
+  }, []);
+
+  const handleFileSelect = useCallback((teamId: string, filename: string) => {
+    setFileSelections(prev => ({ ...prev, [teamId]: filename }));
+  }, []);
+
+  const handleBulkRename = useCallback(() => {
+    if (!data) return;
+    const renames: { oldFilename: string; newFilename: string }[] = [];
+    for (const teamId of checkedTeams) {
+      const team = data.teams.find(t => t.teamId === teamId);
+      const selectedFile = fileSelections[teamId];
+      if (team && selectedFile && !team.hasLogo) {
+        renames.push({ oldFilename: selectedFile, newFilename: team.expectedFilename });
+      }
+    }
+    if (renames.length > 0) {
+      bulkRenameMutation.mutate(renames);
+    }
+  }, [data, checkedTeams, fileSelections, bulkRenameMutation]);
+
+  const handleSelectAllSuggested = useCallback(() => {
+    if (!data) return;
+    const newChecked = new Set<string>();
+    for (const t of data.teams) {
+      if (!t.hasLogo && fileSelections[t.teamId]) {
+        newChecked.add(t.teamId);
+      }
+    }
+    setCheckedTeams(newChecked);
+  }, [data, fileSelections]);
+
+  const handleDeselectAll = useCallback(() => {
+    setCheckedTeams(new Set());
+  }, []);
 
   const filteredAndSorted = useMemo(() => {
     if (!data?.teams) return [];
@@ -99,6 +176,7 @@ export default function LogoManager() {
   const matchedCount = data?.teams.filter(t => t.hasLogo).length || 0;
   const missingCount = data?.teams.filter(t => !t.hasLogo).length || 0;
   const totalCount = data?.teams.length || 0;
+  const checkedCount = checkedTeams.size;
 
   if (!currentMeetId) {
     return (
@@ -109,11 +187,11 @@ export default function LogoManager() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto p-6 space-y-6">
+    <div className="max-w-6xl mx-auto p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Team Logo Manager</h1>
         <p className="text-muted-foreground mt-1">
-          Match team logo files (public/logos/NCAA/) to team names from the database. Rename unmatched files to fix mismatches.
+          Match team logo files (public/logos/NCAA/) to team names from the database. Check suggestions you accept, then bulk rename.
         </p>
       </div>
 
@@ -154,6 +232,30 @@ export default function LogoManager() {
             </Button>
           </div>
 
+          {/* Bulk actions bar */}
+          <div className="flex flex-wrap items-center gap-3 p-3 bg-muted/30 rounded-lg border">
+            <Button variant="outline" size="sm" onClick={handleSelectAllSuggested}>
+              Select All Suggested
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleDeselectAll}>
+              Deselect All
+            </Button>
+            <div className="flex-1" />
+            <span className="text-sm text-muted-foreground">
+              {checkedCount} selected
+            </span>
+            <Button
+              variant="default"
+              size="sm"
+              disabled={checkedCount === 0 || bulkRenameMutation.isPending}
+              onClick={handleBulkRename}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              <Play className="w-4 h-4 mr-1" />
+              Execute Rename ({checkedCount})
+            </Button>
+          </div>
+
           {/* Controls */}
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative flex-1 min-w-[200px]">
@@ -190,11 +292,12 @@ export default function LogoManager() {
             <table className="w-full text-sm">
               <thead className="bg-muted/50">
                 <tr>
-                  <th className="text-left px-4 py-2 font-medium">Status</th>
-                  <th className="text-left px-4 py-2 font-medium">Preview</th>
-                  <th className="text-left px-4 py-2 font-medium">Team</th>
-                  <th className="text-left px-4 py-2 font-medium">Expected File</th>
-                  <th className="text-left px-4 py-2 font-medium">Assign From Unmatched</th>
+                  <th className="text-left px-3 py-2 font-medium w-10"></th>
+                  <th className="text-left px-3 py-2 font-medium w-10">Status</th>
+                  <th className="text-left px-3 py-2 font-medium">Preview</th>
+                  <th className="text-left px-3 py-2 font-medium">Team</th>
+                  <th className="text-left px-3 py-2 font-medium">Expected File</th>
+                  <th className="text-left px-3 py-2 font-medium">Assign File</th>
                 </tr>
               </thead>
               <tbody>
@@ -203,6 +306,10 @@ export default function LogoManager() {
                     key={team.teamId}
                     team={team}
                     orphanFiles={data.orphanFiles}
+                    isChecked={checkedTeams.has(team.teamId)}
+                    selectedFile={fileSelections[team.teamId] || ""}
+                    onToggleCheck={(checked) => handleToggleCheck(team.teamId, checked)}
+                    onFileSelect={(file) => handleFileSelect(team.teamId, file)}
                     onRename={(oldFilename, newFilename) => {
                       renameMutation.mutate({ oldFilename, newFilename });
                     }}
@@ -211,7 +318,7 @@ export default function LogoManager() {
                 ))}
                 {filteredAndSorted.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="text-center text-muted-foreground py-8">
+                    <td colSpan={6} className="text-center text-muted-foreground py-8">
                       No teams found
                     </td>
                   </tr>
@@ -228,40 +335,54 @@ export default function LogoManager() {
 function TeamRow({
   team,
   orphanFiles,
+  isChecked,
+  selectedFile,
+  onToggleCheck,
+  onFileSelect,
   onRename,
   isRenaming,
 }: {
   team: TeamMatch;
   orphanFiles: string[];
+  isChecked: boolean;
+  selectedFile: string;
+  onToggleCheck: (checked: boolean) => void;
+  onFileSelect: (file: string) => void;
   onRename: (oldFilename: string, newFilename: string) => void;
   isRenaming: boolean;
 }) {
-  const [selectedFile, setSelectedFile] = useState(team.suggestedFile || "");
-
   return (
     <tr className={`border-t ${team.hasLogo ? '' : 'bg-red-50 dark:bg-red-950/20'}`}>
-      <td className="px-4 py-2">
+      <td className="px-3 py-2">
+        {!team.hasLogo && selectedFile && (
+          <Checkbox
+            checked={isChecked}
+            onCheckedChange={(checked) => onToggleCheck(!!checked)}
+          />
+        )}
+      </td>
+      <td className="px-3 py-2">
         {team.hasLogo ? (
           <CheckCircle2 className="w-5 h-5 text-green-600" />
         ) : (
           <XCircle className="w-5 h-5 text-red-500" />
         )}
       </td>
-      <td className="px-4 py-2">
+      <td className="px-3 py-2">
         {team.logoUrl && (
           <img src={team.logoUrl} alt="" className="w-8 h-8 object-contain" />
         )}
       </td>
-      <td className="px-4 py-2 font-medium">
+      <td className="px-3 py-2 font-medium">
         {team.teamName}
         {team.affiliation && team.affiliation !== team.teamName && (
           <span className="text-muted-foreground text-xs ml-2">({team.affiliation})</span>
         )}
       </td>
-      <td className="px-4 py-2 font-mono text-xs text-muted-foreground">
+      <td className="px-3 py-2 font-mono text-xs text-muted-foreground">
         {team.expectedFilename}.png
       </td>
-      <td className="px-4 py-2">
+      <td className="px-3 py-2">
         {!team.hasLogo && orphanFiles.length > 0 && (
           <div className="flex flex-col gap-1">
             {team.suggestedFile && (
@@ -270,7 +391,7 @@ function TeamRow({
               </span>
             )}
             <div className="flex items-center gap-2">
-              <Select value={selectedFile} onValueChange={setSelectedFile}>
+              <Select value={selectedFile} onValueChange={onFileSelect}>
                 <SelectTrigger className="w-56 h-8 text-xs">
                   <SelectValue placeholder="Pick a file..." />
                 </SelectTrigger>
@@ -284,12 +405,11 @@ function TeamRow({
               </Select>
               <Button
                 size="sm"
-                variant="default"
+                variant="outline"
                 disabled={!selectedFile || isRenaming}
                 onClick={() => {
                   if (selectedFile) {
                     onRename(selectedFile, team.expectedFilename);
-                    setSelectedFile("");
                   }
                 }}
                 className="h-8 text-xs"

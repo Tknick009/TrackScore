@@ -2996,6 +2996,61 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     }
   });
 
+  // Bulk rename headshot files
+  app.post('/api/meets/:meetId/headshot-manager/bulk-rename', async (req, res) => {
+    try {
+      const { meetId } = req.params;
+      const { renames } = req.body; // Array of { oldFilename, newFilename }
+
+      if (!Array.isArray(renames) || renames.length === 0) {
+        return res.status(400).json({ error: 'renames array is required' });
+      }
+
+      const settings = await storage.getIngestionSettings(meetId);
+      const headshotDir = (settings as any)?.headshotDirectory;
+
+      if (!headshotDir) {
+        return res.status(400).json({ error: 'No headshot directory configured' });
+      }
+
+      const fsPromises = await import('fs/promises');
+      const pathModule = await import('path');
+
+      const results: { success: number; failed: number; errors: string[] } = {
+        success: 0,
+        failed: 0,
+        errors: [],
+      };
+
+      for (const { oldFilename, newFilename } of renames) {
+        try {
+          const ext = oldFilename.substring(oldFilename.lastIndexOf('.'));
+          const oldPath = pathModule.default.join(headshotDir, oldFilename);
+          const newPath = pathModule.default.join(headshotDir, `${newFilename}${ext}`);
+
+          await fsPromises.access(oldPath);
+          try {
+            await fsPromises.access(newPath);
+            results.failed++;
+            results.errors.push(`${newFilename}${ext} already exists`);
+            continue;
+          } catch { /* Good */ }
+
+          await fsPromises.rename(oldPath, newPath);
+          results.success++;
+        } catch (e: any) {
+          results.failed++;
+          results.errors.push(`${oldFilename}: ${e.message}`);
+        }
+      }
+
+      res.json(results);
+    } catch (error: any) {
+      console.error('Headshot bulk rename error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Get records for a specific event type and gender (for display pipeline)
   app.get('/api/records/by-event', async (req, res) => {
     try {
