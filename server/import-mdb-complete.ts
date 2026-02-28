@@ -158,6 +158,49 @@ export function generateEventName(mdbEvent: MDBEvent, isIndoor: boolean = false)
   return `${genderPrefix} ${distance}m ${eventTypeText}`;
 }
 
+// Generate a sub-event name from Eventmulti row data (stroke + distance)
+// Used for pentathlon/heptathlon sub-events like "60m Hurdles", "High Jump", etc.
+export function generateSubEventName(distance: number, stroke: string, trkField: string, isIndoor: boolean): string {
+  stroke = (stroke || '').trim();
+  trkField = (trkField || 'T').trim().toUpperCase();
+  
+  // Field events (Trk_Field = "F")
+  if (trkField === 'F') {
+    const fieldName = getFieldEventFromStroke(stroke, isIndoor);
+    if (fieldName) return fieldName;
+    return 'Field Event';
+  }
+  
+  // Track events (Trk_Field = "T")
+  if (stroke === 'E' || stroke === 'H') {
+    // Hurdles
+    if (distance > 0) return `${distance}m Hurdles`;
+    return 'Hurdles';
+  }
+  if (stroke === 'A') {
+    // Dash/Sprint
+    if (distance > 0) return `${distance}m`;
+    return 'Sprint';
+  }
+  if (stroke === 'B') {
+    // Distance run
+    if (distance > 0) return `${distance}m`;
+    return 'Run';
+  }
+  if (stroke === 'W') {
+    if (distance > 0) return `${distance}m Walk`;
+    return 'Walk';
+  }
+  if (stroke === 'D') {
+    if (distance > 0) return `${distance}m Steeplechase`;
+    return 'Steeplechase';
+  }
+  
+  // Fallback
+  if (distance > 0) return `${distance}m`;
+  return 'Event';
+}
+
 export async function importCompleteMDB(filePath: string, meetId: string): Promise<ImportStatistics> {
   console.log(`\n=== IMPORTING MDB FILE: ${filePath} ===\n`);
   console.log(`📍 Target Meet ID: ${meetId}\n`);
@@ -203,6 +246,8 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
   const eventIdMap = new Map<number, string>();
   const ptrToNumMap = new Map<number, number>();
   const multiEventPtrs = new Set<number>(); // Track which Event_ptrs are multi-events (heptathlon, pentathlon, etc.)
+  const multiEventMetaMap = new Map<number, { name: string; gender: string; eventNum: number }>(); // Event_ptr → parent event metadata
+  const subEventIdMap = new Map<string, string>(); // "eventPtr_multPtr" → child event ID (for Entrymulti import)
   
   // Statistics tracking
   const stats: ImportStatistics = {
@@ -874,6 +919,8 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       // Track which Event_ptrs are multi-events so we can set resultType='points' during entry import
       if (isMultiEvent) {
         multiEventPtrs.add(eventPtr);
+        // Store parent event metadata for sub-event name generation
+        multiEventMetaMap.set(eventPtr, { name: eventName, gender, eventNum });
       }
       
       eventBatch.push({
@@ -982,6 +1029,147 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
     }
   } catch (error) {
     console.error("   ❌ Error importing events:", error);
+  }
+  
+  // ===========================
+  // 4b. IMPORT MULTI-EVENT SUB-EVENTS (Pentathlon/Heptathlon/Decathlon components)
+  // ===========================
+  // Read Eventmulti table to create child events for each sub-event component
+  // e.g., "Women's Pentathlon - 60m Hurdles", "Women's Pentathlon - High Jump", etc.
+  console.log("\n🏅 Importing Multi-Event Sub-Events...");
+  try {
+    const eventMultiTable = reader.getTable("Eventmulti");
+    const eventMultiData = eventMultiTable.getData();
+    console.log(`   📊 Eventmulti table has ${eventMultiData.length} rows`);
+    
+    if (eventMultiData.length > 0 && multiEventMetaMap.size > 0) {
+      const subEventBatch: any[] = [];
+      
+      for (const row of eventMultiData) {
+        const eventPtr = typeof row.Event_ptr === 'number' ? row.Event_ptr : Number(row.Event_ptr || 0);
+        const multPtr = typeof row.Mult_ptr === 'number' ? row.Mult_ptr : Number(row.Mult_ptr || 0);
+        const distance = typeof row.Event_dist === 'number' ? row.Event_dist : Number(row.Event_dist || 0);
+        const stroke = String(row.Event_stroke || '').trim();
+        const trkField = String(row.Trk_Field || 'T').trim();
+        const multiEventNo = typeof row.MultiEvent_no === 'number' ? row.MultiEvent_no : Number(row.MultiEvent_no || 0);
+        
+        // Get parent event metadata
+        const parentMeta = multiEventMetaMap.get(eventPtr);
+        if (!parentMeta) {
+          console.log(`   ⚠️  Skipping sub-event Mult_ptr ${multPtr}: no parent event found for Event_ptr ${eventPtr}`);
+          continue;
+        }
+        
+        // Generate sub-event name from stroke/distance
+        const subEventName = generateSubEventName(distance, stroke, trkField, isIndoorMeet);
+        const fullName = `${parentMeta.name} - ${subEventName}`;
+        
+        // Generate unique event number: parentEventNum * 1000 + sub-event sequence number
+        const subEventNumber = parentMeta.eventNum * 1000 + multiEventNo;
+        
+        // Determine event type for the sub-event
+        let subEventType = 'multi_sub';
+        if (trkField === 'F') {
+          subEventType = getFieldEventType(stroke, isIndoorMeet);
+        } else if (distance > 0) {
+          subEventType = `${distance}m`;
+        }
+        
+        console.log(`   📝 Sub-event: ${fullName} (eventNum=${subEventNumber}, type=${subEventType})`);
+        
+        subEventBatch.push({
+          meetId,
+          eventNumber: subEventNumber,
+          name: fullName,
+          eventType: subEventType,
+          gender: parentMeta.gender,
+          distance: distance || null,
+          status: "scheduled",
+          numRounds: 1,
+          numLanes: row.Num_finlanes ? Number(row.Num_finlanes) : 8,
+          eventDate: null,
+          eventTime: null,
+          sessionName: null,
+          hytekStatus: 'done',
+          isScored: false,
+          advanceByPlace: null,
+          advanceByTime: null,
+          isMultiEvent: false, // Sub-events themselves are not multi-events
+          // Extra metadata for mapping
+          _eventPtr: eventPtr,
+          _multPtr: multPtr,
+        });
+      }
+      
+      if (subEventBatch.length > 0) {
+        if (isEdgeMode && sqliteDb) {
+          const subUpsertStmt = sqliteDb.prepare(`
+            INSERT INTO events (id, meet_id, event_number, name, event_type, gender, distance, status, num_rounds, num_lanes, event_date, event_time, session_name, hytek_status, is_scored, advance_by_place, advance_by_time, is_multi_event)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(meet_id, event_number) DO UPDATE SET
+              name=excluded.name, event_type=excluded.event_type, gender=excluded.gender, distance=excluded.distance,
+              status=excluded.status, num_rounds=excluded.num_rounds, num_lanes=excluded.num_lanes,
+              hytek_status=excluded.hytek_status, is_multi_event=excluded.is_multi_event
+          `);
+          const subInsertMany = sqliteDb.transaction((items: any[]) => {
+            for (const item of items) {
+              subUpsertStmt.run(
+                randomUUID(), item.meetId, item.eventNumber, item.name, item.eventType, item.gender,
+                item.distance, item.status, item.numRounds, item.numLanes,
+                null, null, null, item.hytekStatus, 0, null, null, 0
+              );
+            }
+          });
+          subInsertMany(subEventBatch);
+          
+          // Build subEventIdMap: look up the inserted sub-events by event_number
+          const allSubEvents = sqliteDb.prepare('SELECT id, event_number FROM events WHERE meet_id = ?').all(meetId);
+          for (const sub of subEventBatch) {
+            const inserted = allSubEvents.find((e: any) => e.event_number === sub.eventNumber);
+            if (inserted) {
+              const key = `${sub._eventPtr}_${sub._multPtr}`;
+              subEventIdMap.set(key, inserted.id);
+            }
+          }
+        } else {
+          const subInserted = await db!.insert(events).values(
+            subEventBatch.map(({ _eventPtr, _multPtr, ...rest }) => rest)
+          )
+            .onConflictDoUpdate({
+              target: [events.meetId, events.eventNumber],
+              set: {
+                name: sql`excluded.name`,
+                eventType: sql`excluded.event_type`,
+                gender: sql`excluded.gender`,
+                distance: sql`excluded.distance`,
+                status: sql`excluded.status`,
+                numRounds: sql`excluded.num_rounds`,
+                numLanes: sql`excluded.num_lanes`,
+                hytekStatus: sql`excluded.hytek_status`,
+                isMultiEvent: sql`excluded.is_multi_event`,
+              }
+            })
+            .returning();
+          
+          // Build subEventIdMap from returned rows
+          for (const sub of subEventBatch) {
+            const inserted = subInserted.find((e: any) => e.eventNumber === sub.eventNumber);
+            if (inserted) {
+              const key = `${sub._eventPtr}_${sub._multPtr}`;
+              subEventIdMap.set(key, inserted.id);
+            }
+          }
+        }
+        
+        stats.events += subEventBatch.length;
+        console.log(`   ✅ Imported ${subEventBatch.length} multi-event sub-events`);
+        console.log(`   📊 Sub-event ID mappings: ${subEventIdMap.size}`);
+      }
+    } else {
+      console.log(`   ℹ️  No multi-events found to import sub-events for`);
+    }
+  } catch (e) {
+    console.log(`   ⚠️  Eventmulti table not found or could not be read: ${(e as Error).message}`);
   }
   
   // ===========================
@@ -1443,6 +1631,144 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       }
     } catch (relayError) {
       console.log(`   ⚠️  Relay table not found or could not be read: ${(relayError as Error).message}`);
+    }
+    
+    // 5c. IMPORT MULTI-EVENT SUB-EVENT ENTRIES FROM Entrymulti
+    // Each row in Entrymulti has per-sub-event results (time/mark, points, place) for each athlete
+    if (subEventIdMap.size > 0) {
+      console.log(`\n   🏅 Importing multi-event sub-event entries from Entrymulti...`);
+      let multiEntryImported = 0;
+      let multiEntrySkipped = 0;
+      try {
+        const entryMultiTable2 = reader.getTable("Entrymulti");
+        const entryMultiData2 = entryMultiTable2.getData();
+        
+        const multiEntryBatch: any[] = [];
+        
+        for (const row of entryMultiData2) {
+          const eventPtr = typeof row.Event_ptr === 'number' ? row.Event_ptr : Number(row.Event_ptr || 0);
+          const multPtr = typeof row.Mult_ptr === 'number' ? row.Mult_ptr : Number(row.Mult_ptr || 0);
+          const athNo = typeof row.Ath_no === 'number' ? row.Ath_no : Number(row.Ath_no || 0);
+          
+          const subEventKey = `${eventPtr}_${multPtr}`;
+          const subEventId = subEventIdMap.get(subEventKey);
+          const athleteId = athleteIdMap.get(athNo);
+          
+          if (!subEventId || !athleteId) {
+            multiEntrySkipped++;
+            continue;
+          }
+          
+          // Get team info from the athlete's main entry
+          const teamNo = row.Team_no ? Number(row.Team_no) : null;
+          const teamId = teamNo ? teamIdMap.get(teamNo) || null : null;
+          
+          // Determine result type from the sub-event type
+          const subEventDetails = eventDetailsMap.get(subEventId);
+          let resultType = 'time'; // default for track sub-events
+          if (subEventDetails) {
+            const et = subEventDetails.eventType;
+            if (et.includes('jump') || et.includes('vault')) {
+              resultType = 'distance';
+            } else if (et.includes('throw') || et.includes('shot') || et.includes('discus') || et.includes('hammer') || et.includes('javelin')) {
+              resultType = 'distance';
+            }
+          }
+          
+          const finTime = row.Fin_time ? Number(row.Fin_time) : null;
+          const finPlace = row.Fin_jdplace ? Number(row.Fin_jdplace) : (row.Fin_place ? Number(row.Fin_place) : null);
+          const finPoints = row.Fin_points ? Number(row.Fin_points) : null;
+          const finWind = row.Fin_wind ? Number(row.Fin_wind) : null;
+          const finHeat = row.Fin_heat ? Number(row.Fin_heat) : null;
+          const finLane = row.Fin_lane ? Number(row.Fin_lane) : null;
+          
+          multiEntryBatch.push({
+            eventId: subEventId,
+            athleteId,
+            teamId,
+            divisionId: null,
+            seedMark: row.ActualSeed_time ? Number(row.ActualSeed_time) : null,
+            resultType,
+            preliminaryHeat: null, preliminaryLane: null, preliminaryMark: null, preliminaryPlace: null, preliminaryWind: null,
+            quarterfinalHeat: null, quarterfinalLane: null, quarterfinalMark: null, quarterfinalPlace: null, quarterfinalWind: null,
+            semifinalHeat: null, semifinalLane: null, semifinalMark: null, semifinalPlace: null, semifinalWind: null,
+            finalHeat: finHeat,
+            finalLane: finLane,
+            finalMark: finTime,
+            finalPlace: finPlace,
+            finalWind: finWind,
+            finalPoints: finPoints,
+            scoredPoints: null, // Sub-events don't have team scoring points
+            isDisqualified: row.Fin_stat != null && String(row.Fin_stat).trim().toUpperCase() === 'D',
+            isScratched: false,
+            notes: row.Fin_stat != null && String(row.Fin_stat).trim() !== '' && String(row.Fin_stat).trim() !== ' '
+              ? String(row.Fin_stat).trim().toUpperCase() : null,
+          });
+        }
+        
+        if (multiEntryBatch.length > 0) {
+          if (isEdgeMode && sqliteDb) {
+            const multiUpsertStmt = sqliteDb.prepare(`
+              INSERT INTO entries (id, event_id, athlete_id, team_id, division_id, seed_mark, result_type,
+                preliminary_heat, preliminary_lane, preliminary_mark, preliminary_place, preliminary_wind,
+                quarterfinal_heat, quarterfinal_lane, quarterfinal_mark, quarterfinal_place, quarterfinal_wind,
+                semifinal_heat, semifinal_lane, semifinal_mark, semifinal_place, semifinal_wind,
+                final_heat, final_lane, final_mark, final_place, final_wind,
+                scored_points,
+                is_disqualified, is_scratched, notes)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(event_id, athlete_id) DO UPDATE SET
+                team_id=excluded.team_id, seed_mark=excluded.seed_mark, result_type=excluded.result_type,
+                final_heat=excluded.final_heat, final_lane=excluded.final_lane,
+                final_mark=excluded.final_mark, final_place=excluded.final_place, final_wind=excluded.final_wind,
+                scored_points=excluded.scored_points,
+                is_disqualified=excluded.is_disqualified, is_scratched=excluded.is_scratched, notes=excluded.notes
+            `);
+            const multiInsertBatch = sqliteDb.transaction((items: any[]) => {
+              for (const item of items) {
+                multiUpsertStmt.run(
+                  randomUUID(), item.eventId, item.athleteId, item.teamId, item.divisionId,
+                  item.seedMark, item.resultType,
+                  item.preliminaryHeat, item.preliminaryLane, item.preliminaryMark, item.preliminaryPlace, item.preliminaryWind,
+                  item.quarterfinalHeat, item.quarterfinalLane, item.quarterfinalMark, item.quarterfinalPlace, item.quarterfinalWind,
+                  item.semifinalHeat, item.semifinalLane, item.semifinalMark, item.semifinalPlace, item.semifinalWind,
+                  item.finalHeat, item.finalLane, item.finalMark, item.finalPlace, item.finalWind,
+                  item.scoredPoints,
+                  item.isDisqualified ? 1 : 0, item.isScratched ? 1 : 0, item.notes
+                );
+              }
+            });
+            multiInsertBatch(multiEntryBatch);
+          } else {
+            await db!.insert(entries).values(multiEntryBatch)
+              .onConflictDoUpdate({
+                target: [entries.eventId, entries.athleteId],
+                set: {
+                  seedMark: sql`excluded.seed_mark`,
+                  resultType: sql`excluded.result_type`,
+                  teamId: sql`excluded.team_id`,
+                  finalHeat: sql`excluded.final_heat`,
+                  finalLane: sql`excluded.final_lane`,
+                  finalMark: sql`excluded.final_mark`,
+                  finalPlace: sql`excluded.final_place`,
+                  finalWind: sql`excluded.final_wind`,
+                  scoredPoints: sql`excluded.scored_points`,
+                  isDisqualified: sql`excluded.is_disqualified`,
+                  isScratched: sql`excluded.is_scratched`,
+                  notes: sql`excluded.notes`,
+                }
+              });
+          }
+          multiEntryImported = multiEntryBatch.length;
+          stats.entries += multiEntryImported;
+        }
+        console.log(`   ✅ Imported ${multiEntryImported} multi-event sub-event entries`);
+        if (multiEntrySkipped > 0) {
+          console.log(`   ⚠️  Skipped ${multiEntrySkipped} multi-event entries (missing sub-event or athlete)`);
+        }
+      } catch (multiEntryError) {
+        console.log(`   ⚠️  Could not import multi-event sub-event entries: ${(multiEntryError as Error).message}`);
+      }
     }
     
     // Post-import: Infer is_scored from Ev_score values (both individual AND relay entries)

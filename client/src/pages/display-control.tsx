@@ -34,7 +34,8 @@ import {
   ChevronRight,
   Search,
   Target,
-  Settings
+  Settings,
+  Image
 } from 'lucide-react';
 import { DISPLAY_CONTENT_TYPES } from '@shared/layout-templates';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -684,6 +685,25 @@ export default function DisplayControlPage() {
                     </div>
                   ) : (
                     <>
+                      <div className="mb-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDisplayMode(prev => ({ ...prev, [selectedDevice.id]: undefined as any }));
+                            toggleAutoModeMutation.mutate({ deviceId: selectedDevice.id, enabled: false });
+                            sendCommandMutation.mutate({ deviceId: selectedDevice.id, template: 'meet-logo' });
+                          }}
+                          className="w-full p-3 rounded-lg border-2 transition-all text-left border-amber-500/50 bg-amber-500/10 hover:bg-amber-500/20 flex items-center gap-3"
+                          data-testid="tile-meet-logo"
+                        >
+                          <Image className="w-5 h-5 text-amber-500" />
+                          <div>
+                            <span className="font-medium">Return to Meet Logo</span>
+                            <p className="text-xs text-muted-foreground">Send device back to the meet logo screen</p>
+                          </div>
+                        </button>
+                      </div>
+
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         <button
                           type="button"
@@ -826,18 +846,25 @@ export default function DisplayControlPage() {
                                 )}
                                 {hytekEventRoundItems.map(item => {
                                   const isSelected = selectedHytekItem[selectedDevice.id] === item.key;
+                                  // Detect sub-events: event number >= 1000 and name contains " - " (e.g., "Women's Pentathlon - 60m Hurdles")
+                                  const isSubEvent = (item.event.eventNumber || 0) >= 1000 && item.label.includes(' - ');
+                                  // For sub-events, show only the sub-event part after " - "
+                                  const displayLabel = isSubEvent ? item.label.split(' - ').slice(1).join(' - ') : item.label;
                                   return (
                                     <button
                                       key={item.key}
                                       onClick={() => setSelectedHytekItem(prev => ({ ...prev, [selectedDevice.id]: item.key }))}
-                                      className={`flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded-md cursor-pointer hover-elevate ${isSelected ? 'bg-accent' : ''}`}
+                                      className={`flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded-md cursor-pointer hover-elevate ${isSelected ? 'bg-accent' : ''} ${isSubEvent ? 'pl-6' : ''}`}
                                       data-testid={`button-hytek-${item.key}`}
                                     >
-                                      {item.event.eventTime && (
+                                      {!isSubEvent && item.event.eventTime && (
                                         <span className="text-muted-foreground shrink-0 w-16 text-xs">{item.event.eventTime}</span>
                                       )}
+                                      {isSubEvent && (
+                                        <span className="text-muted-foreground shrink-0 text-xs">↳</span>
+                                      )}
                                       <span className="truncate">
-                                        {item.label}
+                                        {displayLabel}
                                         {item.roundLabel && (
                                           <span className="text-muted-foreground"> - {item.roundLabel}</span>
                                         )}

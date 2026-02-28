@@ -26,6 +26,8 @@ export function FieldTransitionRenderer({
   curtainColor,
   meetId,
   liveData,
+  canvasWidth,
+  canvasHeight,
 }: {
   curtainColor: string;
   meetId?: string;
@@ -34,13 +36,15 @@ export function FieldTransitionRenderer({
   // WebSocket context directly, but that's a SEPARATE unregistered connection that never receives
   // field_mode_change messages from the server.
   liveData?: { entries?: any[]; results?: any[] } | null;
+  // Canvas dimensions for responsive scaling — the curtain scales text/logo relative to
+  // a 1080p reference so it looks correct on P10 (192x96) through BigBoard (1920x1080).
+  canvasWidth?: number;
+  canvasHeight?: number;
 }) {
   const [phase, setPhase] = useState<CurtainPhase>('idle');
   const [primaryColor, setPrimaryColor] = useState<string>(curtainColor);
   const [secondaryColor, setSecondaryColor] = useState<string>(curtainColor);
   const [logoSrc, setLogoSrc] = useState<string | null>(null);
-  const [athleteName, setAthleteName] = useState<string>('');
-  const [athleteSchool, setAthleteSchool] = useState<string>('');
   const prevCalledBibRef = useRef<string>('');
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const versionRef = useRef(0);
@@ -54,16 +58,12 @@ export function FieldTransitionRenderer({
     newLogoSrc: string | null,
     primary: string,
     secondary: string,
-    name: string,
-    school: string,
   ) => {
     clearTimers();
     const version = ++versionRef.current;
     setLogoSrc(newLogoSrc);
     setPrimaryColor(primary);
     setSecondaryColor(secondary);
-    setAthleteName(name);
-    setAthleteSchool(school);
     setPhase('coverStart');
 
     timersRef.current.push(setTimeout(() => {
@@ -139,7 +139,7 @@ export function FieldTransitionRenderer({
         }
       }
 
-      runCurtain(logoUrl, primary, secondary, name, school);
+      runCurtain(logoUrl, primary, secondary);
     })();
   }, [liveData, curtainColor, meetId, runCurtain]);
 
@@ -149,6 +149,12 @@ export function FieldTransitionRenderer({
   const isPaused = phase === 'paused';
   const isReveal = phase === 'reveal';
   const isInitial = phase === 'coverStart';
+
+  // Scale factor: sizes are designed for 1080p (1920x1080). Scale proportionally to actual canvas.
+  // Use the smaller dimension (height) as the reference since that's the constraining axis.
+  const refHeight = 1080;
+  const effectiveHeight = canvasHeight || refHeight;
+  const s = effectiveHeight / refHeight; // e.g. 96/1080 ≈ 0.089 for P10
 
   // Rich multi-stop gradient for depth
   const darkPrimary = darkenColor(primaryColor, 40);
@@ -188,16 +194,17 @@ export function FieldTransitionRenderer({
     transition: panelTransition,
   };
 
-  // Subtle diagonal stripe texture
+  // Subtle diagonal stripe texture — scale stripe width with display size
+  const stripeSize = Math.max(1, Math.round(8 * s));
   const stripeOverlay: React.CSSProperties = {
     position: 'absolute',
     inset: 0,
     background: `repeating-linear-gradient(
       -45deg,
       transparent,
-      transparent 8px,
-      rgba(255,255,255,0.03) 8px,
-      rgba(255,255,255,0.03) 16px
+      transparent ${stripeSize}px,
+      rgba(255,255,255,0.03) ${stripeSize}px,
+      rgba(255,255,255,0.03) ${stripeSize * 2}px
     )`,
     pointerEvents: 'none',
   };
@@ -210,12 +217,13 @@ export function FieldTransitionRenderer({
     pointerEvents: 'none',
   };
 
-  // Thin decorative accent line
+  // Thin decorative accent line — scale thickness
+  const lineHeight = Math.max(1, Math.round(2 * s));
   const accentLineBase: React.CSSProperties = {
     position: 'absolute',
     left: '10%',
     right: '10%',
-    height: '2px',
+    height: `${lineHeight}px`,
     background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent)',
     opacity: isPaused ? 1 : 0,
     transition: 'opacity 0.4s ease 0.15s',
@@ -238,40 +246,17 @@ export function FieldTransitionRenderer({
     transition: 'opacity 0.4s ease, transform 0.4s ease',
   };
 
+  // Logo as large as possible — fill most of the panel
+  const shadowBlur1 = Math.max(1, Math.round(30 * s));
+  const shadowBlur2 = Math.max(1, Math.round(8 * s));
   const logoImgStyle: React.CSSProperties = {
-    maxHeight: '48%',
-    maxWidth: '48%',
+    maxHeight: '75%',
+    maxWidth: '75%',
     objectFit: 'contain',
-    filter: 'drop-shadow(0 6px 30px rgba(0,0,0,0.55)) drop-shadow(0 2px 8px rgba(0,0,0,0.3))',
+    filter: `drop-shadow(0 ${Math.max(1, Math.round(6 * s))}px ${shadowBlur1}px rgba(0,0,0,0.55)) drop-shadow(0 ${Math.max(1, Math.round(2 * s))}px ${shadowBlur2}px rgba(0,0,0,0.3))`,
     userSelect: 'none',
   };
 
-  const nameStyle: React.CSSProperties = {
-    color: 'white',
-    fontFamily: "'Oswald', 'Impact', sans-serif",
-    fontSize: '28px',
-    fontWeight: 700,
-    textTransform: 'uppercase',
-    letterSpacing: '3px',
-    textShadow: '0 2px 12px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.3)',
-    marginTop: logoSrc ? '16px' : '0',
-    opacity: isPaused ? 1 : 0,
-    transform: isPaused ? 'translateY(0)' : 'translateY(10px)',
-    transition: 'opacity 0.5s ease 0.15s, transform 0.5s ease 0.15s',
-  };
-
-  const schoolStyle: React.CSSProperties = {
-    color: 'rgba(255,255,255,0.65)',
-    fontFamily: "'Oswald', 'Impact', sans-serif",
-    fontSize: '16px',
-    fontWeight: 400,
-    textTransform: 'uppercase',
-    letterSpacing: '5px',
-    marginTop: '4px',
-    opacity: isPaused ? 1 : 0,
-    transform: isPaused ? 'translateY(0)' : 'translateY(10px)',
-    transition: 'opacity 0.5s ease 0.25s, transform 0.5s ease 0.25s',
-  };
 
   const hideLogoOnError = (e: React.SyntheticEvent<HTMLImageElement>) => {
     (e.target as HTMLImageElement).style.display = 'none';
@@ -287,8 +272,6 @@ export function FieldTransitionRenderer({
         <div style={{ ...accentLineBase, bottom: '12%', width: '200%', left: 0 }} />
         <div style={{ ...innerContainerBase, left: 0 }}>
           {logoSrc && <img src={logoSrc} alt="" style={logoImgStyle} onError={hideLogoOnError} />}
-          {athleteName && <div style={nameStyle}>{athleteName}</div>}
-          {athleteSchool && <div style={schoolStyle}>{athleteSchool}</div>}
         </div>
       </div>
 
@@ -300,8 +283,6 @@ export function FieldTransitionRenderer({
         <div style={{ ...accentLineBase, bottom: '12%', width: '200%', right: 0 }} />
         <div style={{ ...innerContainerBase, right: 0 }}>
           {logoSrc && <img src={logoSrc} alt="" style={logoImgStyle} onError={hideLogoOnError} />}
-          {athleteName && <div style={nameStyle}>{athleteName}</div>}
-          {athleteSchool && <div style={schoolStyle}>{athleteSchool}</div>}
         </div>
       </div>
     </div>

@@ -1175,6 +1175,21 @@ export default function DisplayDevice() {
     }
   };
 
+  // "Return to Meet Logo" callback — resets display back to meet logo
+  // MUST be before early returns to satisfy React Rules of Hooks
+  const returnToMeetLogo = useCallback(() => {
+    console.log('[Display] Return to Meet Logo triggered');
+    currentLayoutModeRef.current = null;
+    setState(prev => ({
+      ...prev,
+      currentTemplate: 'meet-logo',
+      currentSceneId: null,
+      currentSceneData: null,
+      currentLayoutMode: null,
+      liveEventData: null,
+    }));
+  }, []);
+
   // Show setup screen if not complete
   if (!state.setupComplete) {
     const canStart = selectedMeetId && deviceName.trim();
@@ -1310,20 +1325,6 @@ export default function DisplayDevice() {
       </div>
     );
   }
-
-  // "Return to Meet Logo" callback — resets display back to meet logo
-  const returnToMeetLogo = useCallback(() => {
-    console.log('[Display] Return to Meet Logo triggered');
-    currentLayoutModeRef.current = null;
-    setState(prev => ({
-      ...prev,
-      currentTemplate: 'meet-logo',
-      currentSceneId: null,
-      currentSceneData: null,
-      currentLayoutMode: null,
-      liveEventData: null,
-    }));
-  }, []);
 
   // At this point, setupComplete is true, so displayType and meetId are guaranteed to be set
   return (

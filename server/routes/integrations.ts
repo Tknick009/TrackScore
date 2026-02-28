@@ -2826,6 +2826,131 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     }
   });
 
+  // ===== HEADSHOT MANAGER =====
+
+  // List all athletes for a meet with headshot match status
+  app.get('/api/meets/:meetId/headshot-manager', async (req, res) => {
+    try {
+      const { meetId } = req.params;
+      const settings = await storage.getIngestionSettings(meetId);
+      const headshotDir = (settings as any)?.headshotDirectory;
+
+      if (!headshotDir) {
+        return res.status(400).json({ error: 'No headshot directory configured. Set it in Meet Setup first.' });
+      }
+
+      const fsPromises = await import('fs/promises');
+      const pathModule = await import('path');
+
+      // Read all image files in the headshot directory
+      let imageFiles: string[] = [];
+      try {
+        const allFiles = await fsPromises.readdir(headshotDir);
+        imageFiles = allFiles.filter(f => /\.(png|jpg|jpeg|gif|webp)$/i.test(f));
+      } catch (e: any) {
+        return res.status(400).json({ error: `Cannot read headshot directory: ${e.message}` });
+      }
+
+      // Build a lookup map: lowercase filename (without extension) → actual filename
+      const fileMap = new Map<string, string>();
+      for (const f of imageFiles) {
+        const nameWithoutExt = f.substring(0, f.lastIndexOf('.')).toLowerCase();
+        fileMap.set(nameWithoutExt, f);
+      }
+
+      // Get all athletes for this meet
+      const athletes = await storage.getAthletesByMeet(meetId);
+      const teams = await storage.getTeamsByMeet(meetId);
+      const teamMap = new Map(teams.map(t => [t.id, t]));
+
+      // For each athlete, check if a headshot file exists
+      const results = athletes.map(athlete => {
+        const team = athlete.teamId ? teamMap.get(athlete.teamId) : null;
+        // Use team name (or affiliation) as the school part of the filename
+        const school = (team?.name || team?.affiliation || '').trim();
+        const firstName = (athlete.firstName || '').trim();
+        const lastName = (athlete.lastName || '').trim();
+        const expectedFilename = `${school}_${firstName}_${lastName}`;
+        const matchKey = expectedFilename.toLowerCase();
+        const matchedFile = fileMap.get(matchKey) || null;
+
+        return {
+          athleteId: athlete.id,
+          firstName,
+          lastName,
+          school,
+          expectedFilename,
+          matchedFile,
+          hasHeadshot: !!matchedFile,
+        };
+      });
+
+      // Also find orphan files — headshot images that don't match any athlete
+      const matchedFiles = new Set(results.filter(r => r.matchedFile).map(r => r.matchedFile!));
+      const orphanFiles = imageFiles.filter(f => !matchedFiles.has(f));
+
+      res.json({
+        athletes: results,
+        orphanFiles,
+        headshotDir,
+        totalImages: imageFiles.length,
+      });
+    } catch (error: any) {
+      console.error('Headshot manager error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Rename a headshot file to match an athlete's expected filename
+  app.post('/api/meets/:meetId/headshot-manager/rename', async (req, res) => {
+    try {
+      const { meetId } = req.params;
+      const { oldFilename, newFilename } = req.body;
+
+      if (!oldFilename || !newFilename) {
+        return res.status(400).json({ error: 'oldFilename and newFilename are required' });
+      }
+
+      const settings = await storage.getIngestionSettings(meetId);
+      const headshotDir = (settings as any)?.headshotDirectory;
+
+      if (!headshotDir) {
+        return res.status(400).json({ error: 'No headshot directory configured' });
+      }
+
+      const fsPromises = await import('fs/promises');
+      const pathModule = await import('path');
+
+      // Preserve original extension
+      const ext = oldFilename.substring(oldFilename.lastIndexOf('.'));
+      const oldPath = pathModule.default.join(headshotDir, oldFilename);
+      const newPath = pathModule.default.join(headshotDir, `${newFilename}${ext}`);
+
+      // Verify old file exists
+      try {
+        await fsPromises.access(oldPath);
+      } catch {
+        return res.status(404).json({ error: `File not found: ${oldFilename}` });
+      }
+
+      // Check new file doesn't already exist
+      try {
+        await fsPromises.access(newPath);
+        return res.status(409).json({ error: `File already exists: ${newFilename}${ext}` });
+      } catch {
+        // Good — doesn't exist
+      }
+
+      // Rename
+      await fsPromises.rename(oldPath, newPath);
+
+      res.json({ success: true, oldFilename, newFilename: `${newFilename}${ext}` });
+    } catch (error: any) {
+      console.error('Headshot rename error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Get records for a specific event type and gender (for display pipeline)
   app.get('/api/records/by-event', async (req, res) => {
     try {
