@@ -259,11 +259,12 @@ export default function DisplayDevice() {
   // Field port selection (4560-4569) for port-based routing
   const [fieldPort, setFieldPort] = useState<number>(4560);
   const fieldPortRef = useRef<number>(4560);
-  // Field display type: vertical (HJ/PV) or horizontal (LJ/SP/Discus/etc.)
-  const [fieldDisplayType, setFieldDisplayType] = useState<'vertical' | 'horizontal'>('horizontal');
-  const fieldDisplayTypeRef = useRef<'vertical' | 'horizontal'>('horizontal');
   
   const autoModeRef = useRef<boolean>(true);
+  
+  // Track whether this device has received data on its assigned port yet.
+  // Device stays on meet logo until its specific port receives data.
+  const hasReceivedPortDataRef = useRef<boolean>(false);
   
   const wsRef = useRef<WebSocket | null>(null);
   const deviceNameRef = useRef<string>('');
@@ -332,9 +333,6 @@ export default function DisplayDevice() {
     fieldPortRef.current = fieldPort;
   }, [fieldPort]);
   
-  useEffect(() => {
-    fieldDisplayTypeRef.current = fieldDisplayType;
-  }, [fieldDisplayType]);
 
   // Force black background on html/body for display device page
   // Prevents white background from showing around non-full-screen layouts (reduces power draw on display laptops)
@@ -768,6 +766,9 @@ export default function DisplayDevice() {
             }
             const data = message.data;
             if (data) {
+              // Mark that we've received track data on this device's port
+              hasReceivedPortDataRef.current = true;
+              
               const entries = data.entries || data.results || [];
               console.log(`[Display] Track mode change (${isBigBoardRef.current ? 'BIG BOARD' : 'standard'}): Event ${data.eventNumber}, mode=${data.mode}, ${entries.length} entries`);
               
@@ -905,22 +906,16 @@ export default function DisplayDevice() {
                 return;
               }
               
-              console.log(`[Display] Field mode change (port ${dataPort}): Event ${data.eventNumber}, ${data.results?.length || 0} results`);
-              
-              // Determine the display mode based on field type (vertical vs horizontal) and multi-event status
-              const isMultiEvent = data.isMultiEvent;
-              const myFieldType = fieldDisplayTypeRef.current; // 'vertical' or 'horizontal'
-              
-              // Build the target display mode
-              let targetDisplayMode: string;
-              if (isMultiEvent) {
-                targetDisplayMode = myFieldType === 'vertical' ? 'multi_field_vertical' : 'multi_field_horizontal';
-              } else {
-                targetDisplayMode = myFieldType === 'vertical' ? 'field_results_vertical' : 'field_results_horizontal';
+              // Mark that we've received data on our assigned port
+              if (!dataPort || dataPort === myPort) {
+                hasReceivedPortDataRef.current = true;
               }
               
-              // Fallback to generic modes if specific modes don't have mappings
-              const fallbackMode = isMultiEvent ? 'multi_field' : 'field_results';
+              console.log(`[Display] Field mode change (port ${dataPort}): Event ${data.eventNumber}, ${data.results?.length || 0} results`);
+              
+              // Determine the display mode — single field_results or multi_field
+              const isMultiEvent = data.isMultiEvent;
+              const targetDisplayMode = isMultiEvent ? 'multi_field' : 'field_results';
               
               // Only switch scene when data arrives for this device's assigned port.
               // This prevents a device on port 4560 from switching when port 4561 data arrives.
@@ -929,27 +924,6 @@ export default function DisplayDevice() {
                 // Still store in liveEventDataByPort above, but don't switch scene
               } else if (currentLayoutModeRef.current !== targetDisplayMode && displayType) {
                 let sceneId = getSceneForModeRef.current(displayType, targetDisplayMode);
-                
-                // Try the opposite orientation before falling back to generic
-                if (!sceneId) {
-                  const altOrientation = myFieldType === 'horizontal'
-                    ? (isMultiEvent ? 'multi_field_vertical' : 'field_results_vertical')
-                    : (isMultiEvent ? 'multi_field_horizontal' : 'field_results_horizontal');
-                  sceneId = getSceneForModeRef.current(displayType, altOrientation);
-                  if (sceneId) {
-                    console.log(`[Display] No scene for ${targetDisplayMode}, trying alternate orientation ${altOrientation}`);
-                    targetDisplayMode = altOrientation;
-                  }
-                }
-                
-                // Fallback to generic mode if specific mode not found
-                if (!sceneId) {
-                  sceneId = getSceneForModeRef.current(displayType, fallbackMode);
-                  if (sceneId) {
-                    console.log(`[Display] No scene for ${targetDisplayMode}, falling back to ${fallbackMode}`);
-                    targetDisplayMode = fallbackMode;
-                  }
-                }
                 
                 if (sceneId) {
                   console.log(`[Display] Field event switching to ${targetDisplayMode} scene: ${sceneId}`);
@@ -1337,6 +1311,20 @@ export default function DisplayDevice() {
     );
   }
 
+  // "Return to Meet Logo" callback — resets display back to meet logo
+  const returnToMeetLogo = useCallback(() => {
+    console.log('[Display] Return to Meet Logo triggered');
+    currentLayoutModeRef.current = null;
+    setState(prev => ({
+      ...prev,
+      currentTemplate: 'meet-logo',
+      currentSceneId: null,
+      currentSceneData: null,
+      currentLayoutMode: null,
+      liveEventData: null,
+    }));
+  }, []);
+
   // At this point, setupComplete is true, so displayType and meetId are guaranteed to be set
   return (
     <DisplayRenderer
@@ -1357,6 +1345,7 @@ export default function DisplayDevice() {
       customWidth={state.displayType === 'Custom' ? customWidth : undefined}
       customHeight={state.displayType === 'Custom' ? customHeight : undefined}
       fieldPort={fieldPort}
+      onReturnToLogo={returnToMeetLogo}
     />
   );
 }
@@ -1379,13 +1368,14 @@ interface DisplayRendererProps {
   customWidth?: number;
   customHeight?: number;
   fieldPort?: number;
+  onReturnToLogo?: () => void;
 }
 
 interface EventWithEntries extends Event {
   entries: any[];
 }
 
-function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTime, liveEventData, liveEventDataByPort, pagingSize, pagingInterval, maxPages, customWidth, customHeight, fieldPort }: DisplayRendererProps) {
+function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTime, liveEventData, liveEventDataByPort, pagingSize, pagingInterval, maxPages, customWidth, customHeight, fieldPort, onReturnToLogo }: DisplayRendererProps) {
   const { data: meet } = useQuery<Meet>({
     queryKey: ['/api/meets', meetId],
     enabled: !!meetId,
@@ -1978,6 +1968,49 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     return renderContent();
   };
 
+  // Wrapper div that shows "Return to Meet Logo" button on mouse hover
+  const wrapWithLogoButton = (content: React.ReactNode) => (
+    <div
+      style={{ position: 'relative', width: '100%', height: '100%' }}
+      onMouseMove={e => {
+        // Show the button container on mouse move
+        const btn = e.currentTarget.querySelector('[data-logo-btn]') as HTMLElement;
+        if (btn) {
+          btn.style.opacity = '1';
+          // Auto-hide after 3 seconds of no movement
+          clearTimeout((btn as any)._hideTimer);
+          (btn as any)._hideTimer = setTimeout(() => { btn.style.opacity = '0'; }, 3000);
+        }
+      }}
+    >
+      {content}
+      {onReturnToLogo && (
+        <button
+          data-logo-btn
+          onClick={onReturnToLogo}
+          title="Return to Meet Logo"
+          style={{
+            position: 'absolute',
+            top: 8,
+            right: 8,
+            zIndex: 9999,
+            background: 'rgba(0,0,0,0.6)',
+            color: '#fff',
+            border: '1px solid rgba(255,255,255,0.3)',
+            borderRadius: 6,
+            padding: '6px 14px',
+            fontSize: 13,
+            cursor: 'pointer',
+            opacity: 0,
+            transition: 'opacity 0.3s',
+          }}
+        >
+          ◀ Meet Logo
+        </button>
+      )}
+    </div>
+  );
+
   if (isFixedSizeDisplay) {
     // P10, P6, and Custom use exact pixel dimensions at position 0,0
     const fixedWidth = displayType === 'Custom' && customWidth ? customWidth : resolution.width;
@@ -1995,7 +2028,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             backgroundColor: '#000',
           }}
         >
-          {renderWithTransition()}
+          {wrapWithLogoButton(renderWithTransition())}
         </div>
       </div>
     );
@@ -2004,7 +2037,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
   // BigBoard uses full screen
   return (
     <div className="h-screen w-screen bg-black overflow-hidden" style={{ position: 'relative' }}>
-      {renderWithTransition()}
+      {wrapWithLogoButton(renderWithTransition())}
     </div>
   );
 }

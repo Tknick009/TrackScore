@@ -1252,14 +1252,10 @@ export const SCENE_DISPLAY_MODES = [
   'start_list',
   'running_time',
   'track_results',
-  'field_results',
-  'field_results_vertical',   // Vertical field events (HJ, PV) - height bar display
-  'field_results_horizontal', // Horizontal field events (LJ, TJ, SP, Discus) - distance display
+  'field_results',              // All field events (vertical & horizontal)
   'field_standings',
-  'multi_track',    // Multi-event track results (shows points)
-  'multi_field',    // Multi-event field results (shows points)
-  'multi_field_vertical',     // Multi-event vertical field results
-  'multi_field_horizontal',   // Multi-event horizontal field results
+  'multi_track',                // Multi-event track results (shows points)
+  'multi_field',                // Multi-event field results (shows points)
 ] as const;
 export type SceneDisplayMode = typeof SCENE_DISPLAY_MODES[number];
 

@@ -535,12 +535,26 @@ export function SceneObjectRenderer({
                 lastName = lastName || parts.slice(1).join(' ') || '';
               }
             }
-            if (school && firstName && lastName) {
+            // Detect relay/medley events — these don't have individual headshots
+            const currentEventNameForPhoto = liveData.eventName || '';
+            const eventLowerForPhoto = currentEventNameForPhoto.toLowerCase();
+            const isRelayOrMedleyPhoto = eventLowerForPhoto.includes('relay') || eventLowerForPhoto.includes('medley');
+            
+            if (isRelayOrMedleyPhoto) {
+              // For relays/medleys, fall back directly to team/affiliation logo
+              const teamNameForLogo = photoEntry.name || photoEntry.affiliation || photoEntry.team || '';
+              if (teamNameForLogo) {
+                logoUrl = `/logos/NCAA/${teamNameForLogo}.png`;
+              }
+            } else if (school && firstName && lastName) {
+              // Individual event — try headshot first
               logoUrl = `/api/meets/${meetId}/headshot?school=${encodeURIComponent(school)}&firstName=${encodeURIComponent(firstName)}&lastName=${encodeURIComponent(lastName)}`;
             }
             // Build school logo fallback URL so if headshot is missing, school logo is shown
-            if (school) {
-              logoFallbackUrl = `/logos/NCAA/${school}.png`;
+            // For relays/medleys this serves as a secondary fallback
+            const fallbackSchool = school || photoEntry.name || photoEntry.team || '';
+            if (fallbackSchool) {
+              logoFallbackUrl = `/logos/NCAA/${fallbackSchool}.png`;
             }
           }
         } else if (logoFieldKey === "school-logo" && liveData) {
@@ -1455,21 +1469,14 @@ export function SceneObjectRenderer({
         );
         
       case "field-transition": {
-        // Use object-level port if set, otherwise fall back to device-level field port
-        const ftPort = (componentConfig.fieldPort || dataBinding.fieldPort || deviceFieldPort) as number | undefined;
         const ftColor = bgColor !== 'transparent' && bgColor ? bgColor : '#001e57';
-        if (!ftPort) {
-          return (
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px dashed rgba(99,179,237,0.4)', background: 'rgba(99,179,237,0.05)' }}>
-              <span style={{ color: 'rgba(99,179,237,0.6)', fontSize: '11px', fontFamily: 'monospace' }}>No port set</span>
-            </div>
-          );
-        }
+        // Pass live data directly — FieldTransitionRenderer now reacts to data changes
+        // instead of trying to listen on a WebSocket (which was the wrong WS before)
         return (
           <FieldTransitionRenderer
-            fieldPort={ftPort}
             curtainColor={ftColor}
             meetId={meetId}
+            liveData={liveData}
           />
         );
       }
