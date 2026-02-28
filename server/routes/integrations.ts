@@ -2828,6 +2828,43 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
 
   // ===== HEADSHOT MANAGER =====
 
+  // Levenshtein distance for fuzzy matching suggestions
+  function levenshtein(a: string, b: string): number {
+    const m = a.length, n = b.length;
+    const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+    for (let i = 0; i <= m; i++) dp[i][0] = i;
+    for (let j = 0; j <= n; j++) dp[0][j] = j;
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        dp[i][j] = a[i - 1] === b[j - 1]
+          ? dp[i - 1][j - 1]
+          : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+      }
+    }
+    return dp[m][n];
+  }
+
+  // Find best fuzzy match from orphan files for a given expected name
+  function findBestMatch(expected: string, orphanFiles: string[]): string | null {
+    if (orphanFiles.length === 0) return null;
+    const expectedLower = expected.toLowerCase();
+    let bestFile: string | null = null;
+    let bestScore = Infinity;
+    for (const f of orphanFiles) {
+      const nameWithoutExt = f.substring(0, f.lastIndexOf('.')).toLowerCase();
+      const dist = levenshtein(expectedLower, nameWithoutExt);
+      if (dist < bestScore) {
+        bestScore = dist;
+        bestFile = f;
+      }
+    }
+    // Only suggest if similarity is reasonable (distance < 60% of expected length)
+    if (bestFile && bestScore <= Math.ceil(expected.length * 0.6)) {
+      return bestFile;
+    }
+    return null;
+  }
+
   // List all athletes for a meet with headshot match status
   app.get('/api/meets/:meetId/headshot-manager', async (req, res) => {
     try {
@@ -2882,12 +2919,20 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
           expectedFilename,
           matchedFile,
           hasHeadshot: !!matchedFile,
+          suggestedFile: null as string | null,
         };
       });
 
       // Also find orphan files — headshot images that don't match any athlete
       const matchedFiles = new Set(results.filter(r => r.matchedFile).map(r => r.matchedFile!));
       const orphanFiles = imageFiles.filter(f => !matchedFiles.has(f));
+
+      // Fuzzy match: suggest best orphan file for each unmatched athlete
+      for (const r of results) {
+        if (!r.hasHeadshot) {
+          r.suggestedFile = findBestMatch(r.expectedFilename, orphanFiles);
+        }
+      }
 
       res.json({
         athletes: results,

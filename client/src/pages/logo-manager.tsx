@@ -23,6 +23,7 @@ type TeamMatch = {
   matchedFile: string | null;
   hasLogo: boolean;
   logoUrl: string | null;
+  suggestedFile: string | null;
 };
 
 type LogoData = {
@@ -235,7 +236,7 @@ function TeamRow({
   onRename: (oldFilename: string, newFilename: string) => void;
   isRenaming: boolean;
 }) {
-  const [selectedFile, setSelectedFile] = useState("");
+  const [selectedFile, setSelectedFile] = useState(team.suggestedFile || "");
 
   return (
     <tr className={`border-t ${team.hasLogo ? '' : 'bg-red-50 dark:bg-red-950/20'}`}>
@@ -262,33 +263,40 @@ function TeamRow({
       </td>
       <td className="px-4 py-2">
         {!team.hasLogo && orphanFiles.length > 0 && (
-          <div className="flex items-center gap-2">
-            <Select value={selectedFile} onValueChange={setSelectedFile}>
-              <SelectTrigger className="w-48 h-8 text-xs">
-                <SelectValue placeholder="Pick a file..." />
-              </SelectTrigger>
-              <SelectContent>
-                {orphanFiles.map(f => (
-                  <SelectItem key={f} value={f} className="text-xs">
-                    {f}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              size="sm"
-              variant="default"
-              disabled={!selectedFile || isRenaming}
-              onClick={() => {
-                if (selectedFile) {
-                  onRename(selectedFile, team.expectedFilename);
-                  setSelectedFile("");
-                }
-              }}
-              className="h-8 text-xs"
-            >
-              Rename
-            </Button>
+          <div className="flex flex-col gap-1">
+            {team.suggestedFile && (
+              <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                Suggested: {team.suggestedFile}
+              </span>
+            )}
+            <div className="flex items-center gap-2">
+              <Select value={selectedFile} onValueChange={setSelectedFile}>
+                <SelectTrigger className="w-56 h-8 text-xs">
+                  <SelectValue placeholder="Pick a file..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {orphanFiles.map(f => (
+                    <SelectItem key={f} value={f} className="text-xs">
+                      {f}{f === team.suggestedFile ? ' (suggested)' : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                size="sm"
+                variant="default"
+                disabled={!selectedFile || isRenaming}
+                onClick={() => {
+                  if (selectedFile) {
+                    onRename(selectedFile, team.expectedFilename);
+                    setSelectedFile("");
+                  }
+                }}
+                className="h-8 text-xs"
+              >
+                Rename
+              </Button>
+            </div>
           </div>
         )}
         {team.hasLogo && (

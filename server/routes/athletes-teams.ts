@@ -817,6 +817,42 @@ export function registerAthletesTeamsRoutes(app: Express, ctx: RouteContext) {
 
   // ===== LOGO MANAGER =====
 
+  // Levenshtein distance for fuzzy matching suggestions
+  function levenshteinLogo(a: string, b: string): number {
+    const m = a.length, n = b.length;
+    const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+    for (let i = 0; i <= m; i++) dp[i][0] = i;
+    for (let j = 0; j <= n; j++) dp[0][j] = j;
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        dp[i][j] = a[i - 1] === b[j - 1]
+          ? dp[i - 1][j - 1]
+          : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+      }
+    }
+    return dp[m][n];
+  }
+
+  function findBestLogoMatch(expected: string, orphanFiles: string[]): string | null {
+    if (orphanFiles.length === 0) return null;
+    const expectedLower = expected.toLowerCase();
+    let bestFile: string | null = null;
+    let bestScore = Infinity;
+    for (const f of orphanFiles) {
+      const nameWithoutExt = f.substring(0, f.lastIndexOf('.')).toLowerCase();
+      const dist = levenshteinLogo(expectedLower, nameWithoutExt);
+      if (dist < bestScore) {
+        bestScore = dist;
+        bestFile = f;
+      }
+    }
+    // Only suggest if similarity is reasonable (distance < 60% of expected length)
+    if (bestFile && bestScore <= Math.ceil(expected.length * 0.6)) {
+      return bestFile;
+    }
+    return null;
+  }
+
   // List all teams for a meet with logo match status against NCAA logo files
   app.get('/api/meets/:meetId/logo-manager', async (req, res) => {
     try {
@@ -872,12 +908,20 @@ export function registerAthletesTeamsRoutes(app: Express, ctx: RouteContext) {
           matchedFile,
           hasLogo: !!matchedFile,
           logoUrl: matchedFile ? `/logos/NCAA/${matchedFile}` : null,
+          suggestedFile: null as string | null,
         };
       });
 
       // Find orphan logo files that don't match any team in this meet
       const matchedFiles = new Set(results.filter(r => r.matchedFile).map(r => r.matchedFile!));
       const orphanFiles = logoFiles.filter(f => !matchedFiles.has(f));
+
+      // Fuzzy match: suggest best orphan file for each unmatched team
+      for (const r of results) {
+        if (!r.hasLogo) {
+          r.suggestedFile = findBestLogoMatch(r.expectedFilename, orphanFiles);
+        }
+      }
 
       res.json({
         teams: results,

@@ -23,6 +23,7 @@ type AthleteMatch = {
   expectedFilename: string;
   matchedFile: string | null;
   hasHeadshot: boolean;
+  suggestedFile: string | null;
 };
 
 type HeadshotData = {
@@ -243,7 +244,7 @@ function AthleteRow({
   onRename: (oldFilename: string, newFilename: string) => void;
   isRenaming: boolean;
 }) {
-  const [selectedFile, setSelectedFile] = useState("");
+  const [selectedFile, setSelectedFile] = useState(athlete.suggestedFile || "");
 
   return (
     <tr className={`border-t ${athlete.hasHeadshot ? '' : 'bg-red-50 dark:bg-red-950/20'}`}>
@@ -265,33 +266,40 @@ function AthleteRow({
       </td>
       <td className="px-4 py-2">
         {!athlete.hasHeadshot && orphanFiles.length > 0 && (
-          <div className="flex items-center gap-2">
-            <Select value={selectedFile} onValueChange={setSelectedFile}>
-              <SelectTrigger className="w-48 h-8 text-xs">
-                <SelectValue placeholder="Pick a file..." />
-              </SelectTrigger>
-              <SelectContent>
-                {orphanFiles.map(f => (
-                  <SelectItem key={f} value={f} className="text-xs">
-                    {f}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              size="sm"
-              variant="default"
-              disabled={!selectedFile || isRenaming}
-              onClick={() => {
-                if (selectedFile) {
-                  onRename(selectedFile, athlete.expectedFilename);
-                  setSelectedFile("");
-                }
-              }}
-              className="h-8 text-xs"
-            >
-              Rename
-            </Button>
+          <div className="flex flex-col gap-1">
+            {athlete.suggestedFile && (
+              <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                Suggested: {athlete.suggestedFile}
+              </span>
+            )}
+            <div className="flex items-center gap-2">
+              <Select value={selectedFile} onValueChange={setSelectedFile}>
+                <SelectTrigger className="w-56 h-8 text-xs">
+                  <SelectValue placeholder="Pick a file..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {orphanFiles.map(f => (
+                    <SelectItem key={f} value={f} className="text-xs">
+                      {f}{f === athlete.suggestedFile ? ' (suggested)' : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                size="sm"
+                variant="default"
+                disabled={!selectedFile || isRenaming}
+                onClick={() => {
+                  if (selectedFile) {
+                    onRename(selectedFile, athlete.expectedFilename);
+                    setSelectedFile("");
+                  }
+                }}
+                className="h-8 text-xs"
+              >
+                Rename
+              </Button>
+            </div>
           </div>
         )}
         {athlete.hasHeadshot && (
