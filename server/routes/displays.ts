@@ -458,6 +458,29 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
     }
   });
 
+  // Remote refresh — send a reload command to a connected display device
+  app.post("/api/display-devices/:id/refresh", async (req, res) => {
+    try {
+      const deviceId = req.params.id;
+
+      const device = await storage.getDisplayDevice(deviceId);
+      if (!device) {
+        return res.status(404).json({ error: "Display device not found" });
+      }
+
+      const connectedDevice = connectedDisplayDevices.get(deviceId);
+      if (connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {
+        connectedDevice.ws.send(JSON.stringify({ type: 'refresh' }));
+        console.log(`[Remote Refresh] Sent refresh to ${device.deviceName}`);
+        res.json({ success: true, delivered: true });
+      } else {
+        res.json({ success: true, delivered: false, message: "Device offline — refresh will apply when it reconnects" });
+      }
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Toggle auto-mode for a display device
   app.post("/api/display-devices/:id/auto-mode", async (req, res) => {
     try {

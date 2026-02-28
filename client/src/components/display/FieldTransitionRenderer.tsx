@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 
 type CurtainPhase = 'idle' | 'coverStart' | 'covering' | 'paused' | 'reveal';
 
@@ -26,6 +26,7 @@ export function FieldTransitionRenderer({
   curtainColor,
   meetId,
   liveData,
+  liveEventDataByPort,
   canvasWidth,
   canvasHeight,
 }: {
@@ -36,6 +37,8 @@ export function FieldTransitionRenderer({
   // WebSocket context directly, but that's a SEPARATE unregistered connection that never receives
   // field_mode_change messages from the server.
   liveData?: { entries?: any[]; results?: any[] } | null;
+  // All field port data — so the curtain triggers on ANY field port, not just the device's primary port
+  liveEventDataByPort?: Record<number, { entries?: any[]; results?: any[] }> | null;
   // Canvas dimensions for responsive scaling — the curtain scales text/logo relative to
   // a 1080p reference so it looks correct on P10 (192x96) through BigBoard (1920x1080).
   canvasWidth?: number;
@@ -89,16 +92,34 @@ export function FieldTransitionRenderer({
 
   useEffect(() => () => clearTimers(), [clearTimers]);
 
-  // React to live data changes — detect when a new athlete is "called up" (entry with no mark).
-  // This replaces the old WebSocket listener approach. The live data comes from the display
-  // device's registered WebSocket via SceneObjectRenderer props, which correctly receives
-  // field_mode_change messages because the display device IS registered with the server.
-  useEffect(() => {
-    if (!liveData) return;
+  // Merge all data sources: primary liveData + all port-specific data
+  // This ensures the curtain triggers for ANY field port, not just the device's primary port
+  const mergedLiveData = useMemo(() => {
+    const allSources: Array<{ entries?: any[]; results?: any[] }> = [];
+    if (liveData) allSources.push(liveData);
+    if (liveEventDataByPort) {
+      for (const portData of Object.values(liveEventDataByPort)) {
+        if (portData) allSources.push(portData);
+      }
+    }
+    return allSources;
+  }, [liveData, liveEventDataByPort]);
 
-    const entries: any[] = liveData.entries || liveData.results || [];
-    // Called-up athlete = entry with no mark (they're on deck / at the runway)
-    const calledUp = entries.find((r: any) => !r.mark || String(r.mark).trim() === '');
+  // React to live data changes — detect when a new athlete is "called up" (entry with no mark).
+  // Scans ALL field port data so the curtain fires for any field event, not just the primary port.
+  useEffect(() => {
+    if (mergedLiveData.length === 0) return;
+
+    // Search all data sources for a called-up athlete
+    let calledUp: any = null;
+    for (const source of mergedLiveData) {
+      const entries: any[] = source.entries || source.results || [];
+      const found = entries.find((r: any) => !r.mark || String(r.mark).trim() === '');
+      if (found) {
+        calledUp = found;
+        break;
+      }
+    }
     if (!calledUp) return;
 
     const calledId = calledUp.bib
@@ -141,7 +162,7 @@ export function FieldTransitionRenderer({
 
       runCurtain(logoUrl, primary, secondary);
     })();
-  }, [liveData, curtainColor, meetId, runCurtain]);
+  }, [mergedLiveData, curtainColor, meetId, runCurtain]);
 
   if (phase === 'idle') return null;
 

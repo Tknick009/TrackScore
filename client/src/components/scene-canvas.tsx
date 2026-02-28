@@ -199,7 +199,8 @@ export function SceneObjectRenderer({
   pageSize = 8,
   sharedLatestLiveData,
   liveClockTime,
-  deviceFieldPort
+  deviceFieldPort,
+  liveEventDataByPort
 }: { 
   object: SelectLayoutObject; 
   meetId?: string;
@@ -211,6 +212,7 @@ export function SceneObjectRenderer({
   sharedLatestLiveData?: any;
   liveClockTime?: string | null;
   deviceFieldPort?: number;
+  liveEventDataByPort?: Record<number, any>;
 }) {
   const dataBinding: SceneDataBinding = object.dataBinding || { sourceType: 'static' };
   const componentConfig: SceneObjectConfig = object.config || {};
@@ -1479,6 +1481,7 @@ export function SceneObjectRenderer({
             curtainColor={ftColor}
             meetId={meetId}
             liveData={liveData}
+            liveEventDataByPort={liveEventDataByPort}
             canvasWidth={canvasWidth}
             canvasHeight={canvasHeight}
           />
@@ -1786,6 +1789,7 @@ export function SceneCanvas({
                   sharedLatestLiveData={objectLiveData}
                   liveClockTime={liveClockTime}
                   deviceFieldPort={deviceFieldPort}
+                  liveEventDataByPort={liveEventDataByPort}
                 />
               );
             })}
@@ -1839,6 +1843,7 @@ export function SceneCanvas({
               sharedLatestLiveData={objectLiveData}
               liveClockTime={liveClockTime}
               deviceFieldPort={deviceFieldPort}
+              liveEventDataByPort={liveEventDataByPort}
             />
           );
         })}
@@ -1906,6 +1911,7 @@ export function SceneCanvas({
               sharedLatestLiveData={objectLiveData}
               liveClockTime={liveClockTime}
               deviceFieldPort={deviceFieldPort}
+              liveEventDataByPort={liveEventDataByPort}
             />
           );
         })}

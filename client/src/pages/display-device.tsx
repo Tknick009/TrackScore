@@ -1088,6 +1088,13 @@ export default function DisplayDevice() {
             }
           }
           
+          // Handle remote refresh command — reload the page
+          if (message.type === 'refresh') {
+            console.log('[Display] Remote refresh command received — reloading page');
+            window.location.reload();
+            return;
+          }
+
           // Handle HyTek MDB import completion — invalidate React Query cache so display refetches
           if (message.type === 'hytek_import_complete') {
             console.log(`[Display] HyTek import complete for meet ${message.meetId}, invalidating cache`);
