@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useRoute } from "wouter";
-import { Settings, Image, X, Save, MapPin, Calendar as CalendarIcon, Palette, RotateCcw, FileText, Check, AlertCircle, Database, Trash2, AlertTriangle, FolderOpen, Upload, Trophy, User } from "lucide-react";
+import { useRoute, useLocation } from "wouter";
+import { Settings, Image, X, Save, MapPin, Calendar as CalendarIcon, Palette, RotateCcw, FileText, Check, AlertCircle, Database, Trash2, AlertTriangle, FolderOpen, Upload, Trophy, User, ExternalLink } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import type { Meet } from "@shared/schema";
@@ -1130,6 +1130,28 @@ export default function MeetSetup() {
                 Clear
               </Button>
             )}
+            {(ingestionSettings as any)?.headshotDirectory && (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  window.open(`/control/${meetId}/headshots`, '_blank');
+                }}
+                data-testid="button-manage-headshots"
+              >
+                <ExternalLink className="w-4 h-4 mr-2" />
+                Manage Headshots
+              </Button>
+            )}
+            <Button
+              variant="secondary"
+              onClick={() => {
+                window.open(`/control/${meetId}/logos`, '_blank');
+              }}
+              data-testid="button-manage-logos"
+            >
+              <ExternalLink className="w-4 h-4 mr-2" />
+              Manage Team Logos
+            </Button>
           </div>
         </CardContent>
       </Card>

@@ -815,6 +815,120 @@ export function registerAthletesTeamsRoutes(app: Express, ctx: RouteContext) {
   });
 
 
+  // ===== LOGO MANAGER =====
+
+  // List all teams for a meet with logo match status against NCAA logo files
+  app.get('/api/meets/:meetId/logo-manager', async (req, res) => {
+    try {
+      const { meetId } = req.params;
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      const logosDir = path.join(process.cwd(), 'public', 'logos', 'NCAA');
+
+      // Read all logo files
+      let logoFiles: string[] = [];
+      try {
+        const allFiles = await fs.readdir(logosDir);
+        logoFiles = allFiles.filter(f => /\.(png|jpg|jpeg|gif|svg|webp)$/i.test(f) && f !== '0.png');
+      } catch (e: any) {
+        return res.status(400).json({ error: `Cannot read logos directory: ${e.message}` });
+      }
+
+      // Build lookup map: lowercase name (without ext) → actual filename
+      const fileMap = new Map<string, string>();
+      for (const f of logoFiles) {
+        const nameWithoutExt = f.substring(0, f.lastIndexOf('.')).toLowerCase();
+        fileMap.set(nameWithoutExt, f);
+      }
+
+      // Normalize for matching (remove periods, normalize spaces)
+      const normalize = (s: string) => s.toLowerCase().replace(/\./g, '').replace(/\s+/g, ' ').trim();
+      const normalizedFileMap = new Map<string, string>();
+      for (const f of logoFiles) {
+        const nameWithoutExt = f.substring(0, f.lastIndexOf('.'));
+        normalizedFileMap.set(normalize(nameWithoutExt), f);
+      }
+
+      // Get all teams for this meet
+      const teams = await storage.getTeamsByMeet(meetId);
+
+      const results = teams.map(team => {
+        const teamName = (team.name || '').trim();
+        const lowerName = teamName.toLowerCase();
+
+        // Try exact match first
+        let matchedFile = fileMap.get(lowerName) || null;
+
+        // Try normalized match
+        if (!matchedFile) {
+          matchedFile = normalizedFileMap.get(normalize(teamName)) || null;
+        }
+
+        return {
+          teamId: team.id,
+          teamName,
+          affiliation: team.affiliation || '',
+          expectedFilename: teamName,
+          matchedFile,
+          hasLogo: !!matchedFile,
+          logoUrl: matchedFile ? `/logos/NCAA/${matchedFile}` : null,
+        };
+      });
+
+      // Find orphan logo files that don't match any team in this meet
+      const matchedFiles = new Set(results.filter(r => r.matchedFile).map(r => r.matchedFile!));
+      const orphanFiles = logoFiles.filter(f => !matchedFiles.has(f));
+
+      res.json({
+        teams: results,
+        orphanFiles,
+        logosDir,
+        totalLogos: logoFiles.length,
+      });
+    } catch (error: any) {
+      console.error('Logo manager error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Rename a logo file to match a team's expected filename
+  app.post('/api/meets/:meetId/logo-manager/rename', async (req, res) => {
+    try {
+      const { oldFilename, newFilename } = req.body;
+
+      if (!oldFilename || !newFilename) {
+        return res.status(400).json({ error: 'oldFilename and newFilename are required' });
+      }
+
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      const logosDir = path.join(process.cwd(), 'public', 'logos', 'NCAA');
+
+      const ext = oldFilename.substring(oldFilename.lastIndexOf('.'));
+      const oldPath = path.join(logosDir, oldFilename);
+      const newPath = path.join(logosDir, `${newFilename}${ext}`);
+
+      try {
+        await fs.access(oldPath);
+      } catch {
+        return res.status(404).json({ error: `File not found: ${oldFilename}` });
+      }
+
+      try {
+        await fs.access(newPath);
+        return res.status(409).json({ error: `File already exists: ${newFilename}${ext}` });
+      } catch {
+        // Good
+      }
+
+      await fs.rename(oldPath, newPath);
+      res.json({ success: true, oldFilename, newFilename: `${newFilename}${ext}` });
+    } catch (error: any) {
+      console.error('Logo rename error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // ===== ATHLETE BESTS =====
   // ==================== Athlete Bests API ====================
 

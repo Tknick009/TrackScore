@@ -41,6 +41,8 @@ import LoadMeet from "@/pages/load-meet";
 import LapCounterControl from "@/pages/lap-counter-control";
 import LapCounterDisplay from "@/pages/lap-counter-display";
 import FieldCapturePage from "@/pages/field-capture";
+import HeadshotManager from "@/pages/headshot-manager";
+import LogoManager from "@/pages/logo-manager";
 import NotFound from "@/pages/not-found";
 
 function MeetSyncWrapper({ meetId, children }: { meetId: string; children: React.ReactNode }) {
@@ -112,6 +114,8 @@ function MeetControlRouter() {
     if (subPath === "setup") return <MeetSetup />;
     if (subPath === "field-events") return <FieldEventsControl />;
     if (subPath === "external-scoreboards") return <ExternalScoreboards />;
+    if (subPath === "headshots") return <HeadshotManager />;
+    if (subPath === "logos") return <LogoManager />;
     return <NotFound />;
   };
   
