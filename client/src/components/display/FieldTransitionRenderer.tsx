@@ -45,8 +45,6 @@ export function FieldTransitionRenderer({
   const [primaryColor, setPrimaryColor] = useState<string>(curtainColor);
   const [secondaryColor, setSecondaryColor] = useState<string>(curtainColor);
   const [logoSrc, setLogoSrc] = useState<string | null>(null);
-  const [athleteName, setAthleteName] = useState<string>('');
-  const [athleteSchool, setAthleteSchool] = useState<string>('');
   const prevCalledBibRef = useRef<string>('');
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const versionRef = useRef(0);
@@ -60,16 +58,12 @@ export function FieldTransitionRenderer({
     newLogoSrc: string | null,
     primary: string,
     secondary: string,
-    name: string,
-    school: string,
   ) => {
     clearTimers();
     const version = ++versionRef.current;
     setLogoSrc(newLogoSrc);
     setPrimaryColor(primary);
     setSecondaryColor(secondary);
-    setAthleteName(name);
-    setAthleteSchool(school);
     setPhase('coverStart');
 
     timersRef.current.push(setTimeout(() => {
@@ -145,7 +139,7 @@ export function FieldTransitionRenderer({
         }
       }
 
-      runCurtain(logoUrl, primary, secondary, name, school);
+      runCurtain(logoUrl, primary, secondary);
     })();
   }, [liveData, curtainColor, meetId, runCurtain]);
 
@@ -252,62 +246,17 @@ export function FieldTransitionRenderer({
     transition: 'opacity 0.4s ease, transform 0.4s ease',
   };
 
-  // On very small displays (P10), the logo should take less space to leave room for text
-  const logoMaxPct = effectiveHeight < 200 ? '35%' : '48%';
+  // Logo as large as possible — fill most of the panel
   const shadowBlur1 = Math.max(1, Math.round(30 * s));
   const shadowBlur2 = Math.max(1, Math.round(8 * s));
   const logoImgStyle: React.CSSProperties = {
-    maxHeight: logoMaxPct,
-    maxWidth: logoMaxPct,
+    maxHeight: '75%',
+    maxWidth: '75%',
     objectFit: 'contain',
     filter: `drop-shadow(0 ${Math.max(1, Math.round(6 * s))}px ${shadowBlur1}px rgba(0,0,0,0.55)) drop-shadow(0 ${Math.max(1, Math.round(2 * s))}px ${shadowBlur2}px rgba(0,0,0,0.3))`,
     userSelect: 'none',
   };
 
-  // Scale font sizes, spacing, and shadows proportionally
-  const nameFontSize = Math.max(6, Math.round(28 * s));
-  const nameLetterSpacing = Math.max(0.5, Math.round(3 * s));
-  const nameMarginTop = logoSrc ? Math.max(2, Math.round(16 * s)) : 0;
-  const nameStyle: React.CSSProperties = {
-    color: 'white',
-    fontFamily: "'Oswald', 'Impact', sans-serif",
-    fontSize: `${nameFontSize}px`,
-    fontWeight: 700,
-    textTransform: 'uppercase',
-    letterSpacing: `${nameLetterSpacing}px`,
-    textShadow: `0 ${Math.max(1, Math.round(2 * s))}px ${Math.max(2, Math.round(12 * s))}px rgba(0,0,0,0.5), 0 ${Math.max(1, Math.round(1 * s))}px ${Math.max(1, Math.round(3 * s))}px rgba(0,0,0,0.3)`,
-    marginTop: `${nameMarginTop}px`,
-    opacity: isPaused ? 1 : 0,
-    transform: isPaused ? 'translateY(0)' : `translateY(${Math.max(2, Math.round(10 * s))}px)`,
-    transition: 'opacity 0.5s ease 0.15s, transform 0.5s ease 0.15s',
-    lineHeight: 1.1,
-    textAlign: 'center',
-    maxWidth: '90%',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-  };
-
-  const schoolFontSize = Math.max(5, Math.round(16 * s));
-  const schoolLetterSpacing = Math.max(0.5, Math.round(5 * s));
-  const schoolStyle: React.CSSProperties = {
-    color: 'rgba(255,255,255,0.65)',
-    fontFamily: "'Oswald', 'Impact', sans-serif",
-    fontSize: `${schoolFontSize}px`,
-    fontWeight: 400,
-    textTransform: 'uppercase',
-    letterSpacing: `${schoolLetterSpacing}px`,
-    marginTop: `${Math.max(1, Math.round(4 * s))}px`,
-    opacity: isPaused ? 1 : 0,
-    transform: isPaused ? 'translateY(0)' : `translateY(${Math.max(2, Math.round(10 * s))}px)`,
-    transition: 'opacity 0.5s ease 0.25s, transform 0.5s ease 0.25s',
-    lineHeight: 1.1,
-    textAlign: 'center',
-    maxWidth: '90%',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-  };
 
   const hideLogoOnError = (e: React.SyntheticEvent<HTMLImageElement>) => {
     (e.target as HTMLImageElement).style.display = 'none';
@@ -323,8 +272,6 @@ export function FieldTransitionRenderer({
         <div style={{ ...accentLineBase, bottom: '12%', width: '200%', left: 0 }} />
         <div style={{ ...innerContainerBase, left: 0 }}>
           {logoSrc && <img src={logoSrc} alt="" style={logoImgStyle} onError={hideLogoOnError} />}
-          {athleteName && <div style={nameStyle}>{athleteName}</div>}
-          {athleteSchool && <div style={schoolStyle}>{athleteSchool}</div>}
         </div>
       </div>
 
@@ -336,8 +283,6 @@ export function FieldTransitionRenderer({
         <div style={{ ...accentLineBase, bottom: '12%', width: '200%', right: 0 }} />
         <div style={{ ...innerContainerBase, right: 0 }}>
           {logoSrc && <img src={logoSrc} alt="" style={logoImgStyle} onError={hideLogoOnError} />}
-          {athleteName && <div style={nameStyle}>{athleteName}</div>}
-          {athleteSchool && <div style={schoolStyle}>{athleteSchool}</div>}
         </div>
       </div>
     </div>
