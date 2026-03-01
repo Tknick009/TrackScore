@@ -263,6 +263,11 @@ export default function DisplayDevice() {
   
   const autoModeRef = useRef<boolean>(true);
   
+  // Gate: don't process layout/mode commands until device_registered confirms
+  // our displayMode. Prevents track data from overriding field mode during
+  // the race window between WebSocket connect and registration response.
+  const isDeviceRegisteredRef = useRef<boolean>(false);
+  
   // Track whether this device has received data on its assigned port yet.
   // Device stays on meet logo until its specific port receives data.
   const hasReceivedPortDataRef = useRef<boolean>(false);
@@ -400,6 +405,7 @@ export default function DisplayDevice() {
           return;
         }
         console.log('Display device connected to WebSocket');
+        isDeviceRegisteredRef.current = false; // Reset gate until registration completes
         setState(prev => ({ ...prev, isConnected: true }));
         
         // Use stored device ID if available (per display type), otherwise server will create a new one
@@ -463,6 +469,8 @@ export default function DisplayDevice() {
               if (deviceData.autoMode !== undefined) {
                 autoModeRef.current = deviceData.autoMode !== false;
               }
+              // Open the gate — device is now registered with correct mode settings
+              isDeviceRegisteredRef.current = true;
             }
           }
           
@@ -724,6 +732,12 @@ export default function DisplayDevice() {
           if (message.type === myLayoutChannel) {
             const layoutName = message.data?.layoutName?.toLowerCase() || '';
             
+            // Don't process layout commands until registration confirms our displayMode
+            if (!isDeviceRegisteredRef.current) {
+              console.log(`[Display] Not yet registered - queuing layout command: "${layoutName}"`);
+              return;
+            }
+            
             if (!autoModeRef.current) {
               console.log(`[Display] Auto-mode disabled - ignoring layout command: "${layoutName}"`);
               return;
@@ -912,6 +926,11 @@ export default function DisplayDevice() {
           // Big boards ONLY listen to 'track_mode_change_big' so they stay on meet title unless big board port is connected
           const myChannel = isBigBoardRef.current ? 'track_mode_change_big' : 'track_mode_change';
           if (message.type === myChannel) {
+            // Don't process track data until registration confirms our displayMode
+            if (!isDeviceRegisteredRef.current) {
+              console.log(`[Display] Not yet registered - ignoring track mode change`);
+              return;
+            }
             if (!autoModeRef.current) {
               console.log(`[Display] Auto-mode disabled - ignoring track mode change`);
               return;
