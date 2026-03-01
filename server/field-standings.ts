@@ -124,8 +124,12 @@ export function getVerticalAttemptSequence(
 }
 
 /**
- * Determine if an athlete is eliminated from a vertical event
- * Elimination occurs after 3 consecutive misses at the same height
+ * Determine if an athlete is eliminated from a vertical event.
+ * Per IAAF/World Athletics rules, elimination occurs after 3 consecutive
+ * misses — tracked ACROSS heights, not just within a single height.
+ * Example: 2 misses at 1.90m then 1 miss at 1.95m = eliminated.
+ * A clear at any height resets the consecutive miss counter.
+ * Passes do NOT reset the counter (they are neutral).
  * 
  * @param marks - All marks for the athlete
  * @param heights - Height progression for the event
@@ -137,35 +141,24 @@ export function isEliminatedVertical(
 ): boolean {
   if (!marks.length) return false;
 
-  // Group marks by heightIndex
-  const marksByHeight = new Map<number, FieldEventMark[]>();
-  for (const mark of marks) {
-    if (mark.heightIndex === null || mark.heightIndex === undefined) continue;
-    
-    const existing = marksByHeight.get(mark.heightIndex) || [];
-    existing.push(mark);
-    marksByHeight.set(mark.heightIndex, existing);
-  }
+  // Sort all marks by attemptNumber to track consecutive misses across heights
+  const sortedMarks = [...marks]
+    .filter(m => m.heightIndex !== null && m.heightIndex !== undefined)
+    .sort((a, b) => a.attemptNumber - b.attemptNumber);
 
-  // Check each height for 3 consecutive misses
-  const entries = Array.from(marksByHeight.entries());
-  for (let i = 0; i < entries.length; i++) {
-    const heightMarks = entries[i][1];
-    // Count consecutive misses at this height
-    let consecutiveMisses = 0;
-    
-    for (const mark of heightMarks) {
-      if (mark.markType === 'missed') {
-        consecutiveMisses++;
-        if (consecutiveMisses >= 3) {
-          return true;
-        }
-      } else if (mark.markType === 'cleared') {
-        // Cleared resets the miss count for this height
-        consecutiveMisses = 0;
+  let consecutiveMisses = 0;
+  
+  for (const mark of sortedMarks) {
+    if (mark.markType === 'missed') {
+      consecutiveMisses++;
+      if (consecutiveMisses >= 3) {
+        return true;
       }
-      // Passes don't affect the miss count
+    } else if (mark.markType === 'cleared') {
+      // A successful clear resets the consecutive miss counter
+      consecutiveMisses = 0;
     }
+    // Passes don't affect the miss count (neutral)
   }
   
   return false;
