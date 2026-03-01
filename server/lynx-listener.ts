@@ -423,7 +423,16 @@ export class LynxListener extends EventEmitter {
 
   private handleData(socket: net.Socket, data: Buffer, config: PortConfig) {
     let buffer = this.buffers.get(socket) || '';
-    buffer += data.toString();
+    const rawStr = data.toString();
+    buffer += rawStr;
+    
+    // Log clock port data for diagnostics (first 100 chars, throttled)
+    if (config.portType === 'clock') {
+      const preview = rawStr.replace(/[\x00-\x1f]/g, '').substring(0, 100);
+      if (preview.trim()) {
+        console.log(`[Lynx:Clock] Raw data on port ${config.port}: ${preview}`);
+      }
+    }
     
     const { objects, remaining } = this.extractJsonObjects(buffer);
     this.buffers.set(socket, remaining);
@@ -795,7 +804,18 @@ export class LynxListener extends EventEmitter {
       if (!msgType && config.portType === 'clock') {
         const timeValue = data.t || data.time;
         const command = data.c;
+        console.log(`[Lynx:Clock] Emitting clock-update: time="${timeValue}" command="${command}"`);
         this.emit('clock-update', this.currentEventNumber, timeValue || '', command || '');
+        
+        // Handle armed command from clock port
+        if (command === 'armed') {
+          this.isRunning = false;
+          this.emit('clock-update', this.currentEventNumber, '', 'armed');
+        } else if (command === 'start' || command === 'running') {
+          this.isRunning = true;
+        } else if (command === 'stop') {
+          this.isRunning = false;
+        }
         continue;
       }
       
@@ -1052,8 +1072,19 @@ export class LynxListener extends EventEmitter {
         const timeValue = data.t || data.time;
         const command = data.c;
         
-        // Pass through raw clock data - no state tracking, no mode transitions
+        // Pass through raw clock data
+        console.log(`[Lynx:Clock] processJsonData clock-update: time="${timeValue}" command="${command}"`);
         this.emit('clock-update', this.currentEventNumber, timeValue || '', command || '');
+        
+        // Track running state from clock commands
+        if (command === 'armed') {
+          this.isRunning = false;
+          this.emit('clock-update', this.currentEventNumber, '', 'armed');
+        } else if (command === 'start' || command === 'running') {
+          this.isRunning = true;
+        } else if (command === 'stop') {
+          this.isRunning = false;
+        }
         return;
       }
 

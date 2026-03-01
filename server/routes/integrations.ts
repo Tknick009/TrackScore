@@ -1577,6 +1577,10 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
 
   // Clock handler - NO SMART LOGIC, just pass through exactly what FinishLynx sends
   lynxListener.on('clock-update', (eventNumber, time, command) => {
+    // Log clock broadcasts for diagnostics
+    if (command === 'start' || command === 'stop' || command === 'armed' || command === 'init') {
+      console.log(`[Lynx:Clock] Broadcasting clock_update: time="${time}" command="${command}" event=${eventNumber}`);
+    }
     // Just broadcast the raw clock data to all displays
     broadcastToDisplays({
       type: 'clock_update',
