@@ -723,6 +723,16 @@ export default function DisplayDevice() {
               return;
             }
             
+            // Field displays should ignore track-specific layout commands
+            // They only respond to field/standings/idle commands — not running_time, start_list, track_results
+            const isTrackCommand = (layoutName.includes('running') || layoutName.includes('time') ||
+              layoutName.includes('result') || layoutName.includes('start') || layoutName.includes('draw')) &&
+              !layoutName.includes('field');
+            if (isFieldModeRef.current && isTrackCommand) {
+              console.log(`[Display] Field display ignoring track layout command: "${layoutName}"`);
+              return;
+            }
+            
             // Map FinishLynx layout names to displayMode values used in Scene Layout Mappings:
             // start_list, running_time, track_results, field_results, field_standings, team_scores
             let displayMode: string | null = null;
