@@ -936,30 +936,17 @@ export default function DisplayDevice() {
                 return;
               }
               
-              // Only store port data for THIS device's port (or global data with no port)
-              // This prevents other ports' data from accumulating in state
-              if (dataPort && dataPort !== myPort) {
-                // Still allow liveEventDataByPort storage for multi-field scenes
-                // but only if the device is actually in field mode (checked above)
-                const portEventData: any = {
-                  eventNumber: data.eventNumber,
-                  eventName: data.eventName || '',
-                  mode: data.mode,
-                  wind: data.wind,
-                  entries: data.results || [],
-                  isMultiEvent: data.isMultiEvent,
-                  eventType: data.eventType,
-                  gender: data.gender,
-                };
-                setState(prev => ({
-                  ...prev,
-                  liveEventDataByPort: {
-                    ...prev.liveEventDataByPort,
-                    [dataPort]: portEventData,
-                  },
-                }));
-              } else if (dataPort) {
-                // This IS our port — store in both liveEventDataByPort and liveEventData
+              // STRICT PORT ISOLATION: Only store data for THIS device's assigned port.
+              // If data comes from a DIFFERENT port, discard it entirely — don't even
+              // put it in liveEventDataByPort. This guarantees the curtain and all other
+              // field components never see or react to another port's data.
+              if (dataPort && myPort && dataPort !== myPort) {
+                // Not our port — discard completely
+                return;
+              }
+              
+              // This IS our port (or global data with no port) — store it
+              if (dataPort) {
                 const portEventData: any = {
                   eventNumber: data.eventNumber,
                   eventName: data.eventName || '',
