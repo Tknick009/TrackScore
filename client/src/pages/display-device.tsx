@@ -610,8 +610,7 @@ export default function DisplayDevice() {
             }
           }
           
-          // Clock update - use ref for high-frequency updates to avoid full re-renders
-          // Only update state for command changes (armed, etc.) which are rare
+          // Clock update - update state on every tick so timer objects display correctly
           if (message.type === 'clock_update') {
             const data = message.data;
             if (data) {
@@ -622,21 +621,20 @@ export default function DisplayDevice() {
                 currentLayoutModeRef.current = null;
               }
               
-              // Write clock time directly to ref for smooth display
-              // The ClockBridge component reads from this ref via requestAnimationFrame
+              // Write clock time to ref for any components that read directly
               clockTimeRef.current = data.time || '';
               
-              // Only trigger a full state update when command changes (rare event)
-              // This prevents re-rendering the entire component tree ~10 times/second
+              // Update state on every tick so liveClockTime prop flows to timer/clock objects
               const newCommand = data.command || '';
-              if (newCommand !== lastClockCommandRef.current) {
+              const commandChanged = newCommand !== lastClockCommandRef.current;
+              if (commandChanged) {
                 lastClockCommandRef.current = newCommand;
-                setState(prev => ({
-                  ...prev,
-                  liveClockTime: data.time || '',
-                  liveClockCommand: newCommand,
-                }));
               }
+              setState(prev => ({
+                ...prev,
+                liveClockTime: data.time || '',
+                ...(commandChanged ? { liveClockCommand: newCommand } : {}),
+              }));
             }
           }
           

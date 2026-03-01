@@ -2794,7 +2794,8 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
         return res.status(404).json({ error: 'Headshot not found' });
       }
       
-      // Send the file
+      // Send the file with cache headers to avoid repeated disk reads
+      res.set('Cache-Control', 'public, max-age=3600');
       res.sendFile(foundPath);
     } catch (error: any) {
       console.error('Headshot lookup error:', error);

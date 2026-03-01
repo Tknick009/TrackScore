@@ -475,9 +475,10 @@ export function SceneObjectRenderer({
         const timerFontSize = typeof timerNumericSize === 'number' 
           ? `${timerNumericSize}px` 
           : (timerNumericSize === 'xlarge' ? '96px' : timerNumericSize === 'large' ? '72px' : timerNumericSize === 'medium' ? '48px' : '36px');
-        // Only show time from FinishLynx when race is running
+        // Use liveClockTime (from FinishLynx port 5556) as primary source,
+        // fall back to liveData.runningTime when race is running
         const timerIsRunning = liveData?.mode === 'running' || liveData?.isRunning === true;
-        const timerTime = timerIsRunning ? liveData?.runningTime : null;
+        const timerTime = liveClockTime || (timerIsRunning ? liveData?.runningTime : null);
         return (
           <div 
             className="flex items-center justify-center h-full bg-[hsl(var(--display-bg))]"
