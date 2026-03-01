@@ -90,6 +90,18 @@ const StaticRunningClock = memo(function StaticRunningClock({
     
     const parsed = parseTimeToMs(serverTime);
     if (parsed !== null) {
+      if (isRunningRef.current && lastServerMsRef.current !== null) {
+        // Already interpolating — only resync if drift is significant (>500ms)
+        // This prevents choppy jumps caused by React render delays resetting
+        // the reference point while rAF is smoothly counting
+        const currentElapsed = performance.now() - lastServerReceivedAtRef.current;
+        const currentInterpolated = lastServerMsRef.current + currentElapsed;
+        const drift = Math.abs(parsed - currentInterpolated);
+        if (drift < 500) {
+          return; // In sync — let rAF keep running smoothly
+        }
+      }
+      // First tick or significant drift — sync to server
       lastServerMsRef.current = parsed;
       lastServerReceivedAtRef.current = performance.now();
       isRunningRef.current = true;
