@@ -458,7 +458,8 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
     }
   });
 
-  // Remote refresh — send a reload command to a connected display device
+  // Remote refresh — send device config + reload command so display re-registers
+  // without requiring the user to manually re-enter settings on the remote board
   app.post("/api/display-devices/:id/refresh", async (req, res) => {
     try {
       const deviceId = req.params.id;
@@ -470,8 +471,25 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
 
       const connectedDevice = connectedDisplayDevices.get(deviceId);
       if (connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {
-        connectedDevice.ws.send(JSON.stringify({ type: 'refresh' }));
-        console.log(`[Remote Refresh] Sent refresh to ${device.deviceName}`);
+        // Send the full device config so the client can re-apply settings
+        // and re-enter fullscreen without manual login
+        connectedDevice.ws.send(JSON.stringify({
+          type: 'refresh',
+          data: {
+            deviceId: device.id,
+            deviceName: device.deviceName,
+            meetId: device.meetId,
+            displayType: device.displayType || 'P10',
+            fieldPort: device.fieldPort,
+            isBigBoard: device.isBigBoard,
+            displayMode: device.displayMode,
+            autoMode: device.autoMode ?? true,
+            displayWidth: device.displayWidth,
+            displayHeight: device.displayHeight,
+            assignedEventId: device.assignedEventId,
+          }
+        }));
+        console.log(`[Remote Refresh] Sent full config refresh to ${device.deviceName}`);
         res.json({ success: true, delivered: true });
       } else {
         res.json({ success: true, delivered: false, message: "Device offline — refresh will apply when it reconnects" });

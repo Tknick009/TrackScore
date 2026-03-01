@@ -268,6 +268,11 @@ export default function DisplayDevice() {
   
   const wsRef = useRef<WebSocket | null>(null);
   const deviceNameRef = useRef<string>('');
+  
+  // Clock refs for smooth updates without full re-renders
+  // clockTimeRef is written by WebSocket handler and read by ClockBridge via rAF
+  const clockTimeRef = useRef<string>('');
+  const lastClockCommandRef = useRef<string>('');
 
   const { data: meets } = useQuery<Meet[]>({
     queryKey: ['/api/meets'],
@@ -401,7 +406,7 @@ export default function DisplayDevice() {
       ws.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
-          console.log('WebSocket message received:', message.type);
+          // Reduce logging in production — only log important events, not every message
           
           if (message.type === 'device_registered') {
             console.log('Device successfully registered:', message.data);
@@ -523,8 +528,17 @@ export default function DisplayDevice() {
                 setState(prev => ({ ...prev, displayType: data.displayType }));
               }
               if (data.displayMode !== undefined) {
-                setIsFieldMode(data.displayMode === 'field');
-                console.log(`[Display] Display mode updated to: ${data.displayMode} (isFieldMode: ${data.displayMode === 'field'})`);
+                const isField = data.displayMode === 'field';
+                setIsFieldMode(isField);
+                // CRITICAL FIX: Sync autoMode when display mode changes via device_config_update
+                // Without this, field-mode devices still had autoMode=true, allowing track data to leak through
+                if (isField) {
+                  autoModeRef.current = false;
+                } else if (!isField && data.displayMode === 'track') {
+                  // Only re-enable auto mode when explicitly switching to track mode
+                  autoModeRef.current = true;
+                }
+                console.log(`[Display] Display mode updated to: ${data.displayMode} (isFieldMode: ${isField}, autoMode: ${autoModeRef.current})`);
               }
             }
           }
@@ -571,7 +585,8 @@ export default function DisplayDevice() {
             }
           }
           
-          // Clock update - just pass through exactly what FinishLynx sends
+          // Clock update - use ref for high-frequency updates to avoid full re-renders
+          // Only update state for command changes (armed, etc.) which are rare
           if (message.type === 'clock_update') {
             const data = message.data;
             if (data) {
@@ -582,11 +597,21 @@ export default function DisplayDevice() {
                 currentLayoutModeRef.current = null;
               }
               
-              setState(prev => ({
-                ...prev,
-                liveClockTime: data.time || '',
-                liveClockCommand: data.command || '',
-              }));
+              // Write clock time directly to ref for smooth display
+              // The ClockBridge component reads from this ref via requestAnimationFrame
+              clockTimeRef.current = data.time || '';
+              
+              // Only trigger a full state update when command changes (rare event)
+              // This prevents re-rendering the entire component tree ~10 times/second
+              const newCommand = data.command || '';
+              if (newCommand !== lastClockCommandRef.current) {
+                lastClockCommandRef.current = newCommand;
+                setState(prev => ({
+                  ...prev,
+                  liveClockTime: data.time || '',
+                  liveClockCommand: newCommand,
+                }));
+              }
             }
           }
           
@@ -905,8 +930,17 @@ export default function DisplayDevice() {
               const dataPort = data.fieldPort;
               const myPort = fieldPortRef.current;
               
-              // Always store in liveEventDataByPort for multi-field-event scene support
-              if (dataPort) {
+              // Track mode displays ignore field data entirely — don't even store it
+              // This prevents field data from bleeding into track-mode displays
+              if (!isFieldModeRef.current) {
+                return;
+              }
+              
+              // Only store port data for THIS device's port (or global data with no port)
+              // This prevents other ports' data from accumulating in state
+              if (dataPort && dataPort !== myPort) {
+                // Still allow liveEventDataByPort storage for multi-field scenes
+                // but only if the device is actually in field mode (checked above)
                 const portEventData: any = {
                   eventNumber: data.eventNumber,
                   eventName: data.eventName || '',
@@ -924,12 +958,25 @@ export default function DisplayDevice() {
                     [dataPort]: portEventData,
                   },
                 }));
-              }
-              
-              // Track mode displays ignore field data entirely
-              if (!isFieldModeRef.current) {
-                console.log(`[Display] Ignoring field data - display is in track mode`);
-                return;
+              } else if (dataPort) {
+                // This IS our port — store in both liveEventDataByPort and liveEventData
+                const portEventData: any = {
+                  eventNumber: data.eventNumber,
+                  eventName: data.eventName || '',
+                  mode: data.mode,
+                  wind: data.wind,
+                  entries: data.results || [],
+                  isMultiEvent: data.isMultiEvent,
+                  eventType: data.eventType,
+                  gender: data.gender,
+                };
+                setState(prev => ({
+                  ...prev,
+                  liveEventDataByPort: {
+                    ...prev.liveEventDataByPort,
+                    [dataPort]: portEventData,
+                  },
+                }));
               }
               
               // Mark that we've received data on our assigned port
@@ -1011,7 +1058,13 @@ export default function DisplayDevice() {
             if (data) {
               const myPort = fieldPortRef.current;
               
-              // Always store in liveEventDataByPort for multi-field-event scene support (regardless of field/track mode)
+              // Track mode displays ignore field standings entirely
+              if (!isFieldModeRef.current) {
+                return;
+              }
+              
+              // Store in liveEventDataByPort for multi-field-event scene support
+              // Only store if we're in field mode (checked above)
               if (data.fieldPort) {
                 const portStandingsData: any = {
                   eventNumber: data.eventNumber,
@@ -1033,13 +1086,6 @@ export default function DisplayDevice() {
               }
               
               if (!autoModeRef.current) {
-                console.log(`[Display] Auto-mode disabled - ignoring field standings scene switch`);
-                return;
-              }
-              
-              // For liveEventData (single): only update when in field mode
-              if (!isFieldModeRef.current) {
-                console.log(`[Display] Field standings stored in port map, skipping liveEventData - display is in track mode`);
                 return;
               }
               
@@ -1114,10 +1160,39 @@ export default function DisplayDevice() {
             }
           }
           
-          // Handle remote refresh command — soft refresh (re-fetch all data without page reload)
-          // This preserves the auth session so remote boards don't require re-login
+          // Handle remote refresh command — re-apply device settings and refresh all data
+          // The server sends the full device config so the display re-registers without
+          // the user having to manually re-enter settings on the remote board
           if (message.type === 'refresh') {
-            console.log('[Display] Remote refresh command received — soft refreshing data');
+            const refreshData = message.data;
+            console.log('[Display] Remote refresh command received', refreshData ? 'with device config' : 'without config');
+            
+            // If server sent device config, re-apply all settings
+            if (refreshData) {
+              // Re-apply display mode
+              if (refreshData.displayMode) {
+                const isField = refreshData.displayMode === 'field';
+                setIsFieldMode(isField);
+                isFieldModeRef.current = isField;
+                if (isField) {
+                  autoModeRef.current = false;
+                }
+              }
+              // Re-apply field port
+              if (refreshData.fieldPort) {
+                setFieldPort(refreshData.fieldPort);
+                fieldPortRef.current = refreshData.fieldPort;
+              }
+              // Re-apply big board flag
+              if (refreshData.isBigBoard !== undefined) {
+                setIsBigBoard(!!refreshData.isBigBoard);
+                isBigBoardRef.current = !!refreshData.isBigBoard;
+              }
+              // Re-apply auto mode
+              if (refreshData.autoMode !== undefined) {
+                autoModeRef.current = refreshData.autoMode;
+              }
+            }
             
             // Invalidate ALL React Query caches so everything re-fetches fresh
             queryClient.invalidateQueries();
@@ -1149,7 +1224,18 @@ export default function DisplayDevice() {
               return prev; // Don't change state in this outer setState
             });
             
-            console.log('[Display] Soft refresh initiated — all caches invalidated');
+            // Request fullscreen after refresh (browsers allow this from user-gesture-triggered events)
+            try {
+              if (document.documentElement.requestFullscreen && !document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {
+                  // Fullscreen request may fail if not triggered by user gesture — that's OK
+                });
+              }
+            } catch (e) {
+              // Fullscreen not supported or blocked — continue without it
+            }
+            
+            console.log('[Display] Remote refresh complete — settings re-applied, caches invalidated');
             return;
           }
 
@@ -1214,9 +1300,22 @@ export default function DisplayDevice() {
 
     connectWebSocket();
 
+    // WebSocket keepalive — send ping every 25s to prevent connection going stale
+    // This fixes screen lock-ups caused by silent WebSocket disconnects on remote boards
+    const keepaliveInterval = setInterval(() => {
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        try {
+          wsRef.current.send(JSON.stringify({ type: 'ping' }));
+        } catch (e) {
+          // Connection failed — will be caught by onclose handler
+        }
+      }
+    }, 25000);
+
     return () => {
       isCleaningUp = true;
       isConnectingRef.current = false;
+      clearInterval(keepaliveInterval);
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
@@ -1403,6 +1502,7 @@ export default function DisplayDevice() {
       deviceId={registeredDeviceId || 'pending'}
       isConnected={state.isConnected}
       liveClockTime={state.liveClockTime}
+      clockTimeRef={clockTimeRef}
       liveEventData={state.liveEventData}
       liveEventDataByPort={state.liveEventDataByPort}
       pagingSize={state.pagingSize}
@@ -1426,6 +1526,7 @@ interface DisplayRendererProps {
   deviceId: string;
   isConnected: boolean;
   liveClockTime: string | null;
+  clockTimeRef?: React.RefObject<string>;
   liveEventData: LiveEventData | null;
   liveEventDataByPort: Record<number, LiveEventData>;
   pagingSize: number;
@@ -1441,7 +1542,7 @@ interface EventWithEntries extends Event {
   entries: any[];
 }
 
-function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTime, liveEventData, liveEventDataByPort, pagingSize, pagingInterval, maxPages, customWidth, customHeight, fieldPort, onReturnToLogo }: DisplayRendererProps) {
+function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTime, clockTimeRef, liveEventData, liveEventDataByPort, pagingSize, pagingInterval, maxPages, customWidth, customHeight, fieldPort, onReturnToLogo }: DisplayRendererProps) {
   const { data: meet } = useQuery<Meet>({
     queryKey: ['/api/meets', meetId],
     enabled: !!meetId,

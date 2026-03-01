@@ -782,6 +782,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await storage.updateDisplayDeviceStatus(registeredDeviceId, 'online');
         }
         
+        // Handle keepalive ping from display devices — respond with pong
+        // This prevents silent WebSocket disconnects that cause screen lock-ups
+        if (data.type === 'ping') {
+          try {
+            ws.send(JSON.stringify({ type: 'pong' }));
+          } catch (e) {
+            // Connection may be closing
+          }
+        }
+        
         // Handle field session subscription
         if (data.type === 'subscribe_field_session') {
           const sessionId = parseInt(data.sessionId);
