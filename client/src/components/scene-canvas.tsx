@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, memo, useRef } from "react";
+import { useState, useEffect, useMemo, memo, useRef, useCallback } from "react";
 import { FieldTransitionRenderer } from "@/components/display/FieldTransitionRenderer";
 import { useQuery } from "@tanstack/react-query";
 import type { 
@@ -23,7 +23,8 @@ import { calculateMultiEventPoints, normalizeEventType, hasScoring, type Gender 
 import { Trophy, Clock, Users, User, Image, Type, Award, Loader2 } from "lucide-react";
 
 // Static clock display - shows exactly what FinishLynx sends, no local interpolation
-function StaticRunningClock({ 
+// Memoized to prevent re-renders when parent updates but clock time hasn't changed
+const StaticRunningClock = memo(function StaticRunningClock({ 
   serverTime, 
   fontSize,
   color
@@ -38,13 +39,16 @@ function StaticRunningClock({
       className="font-stadium-numbers font-[900]"
       style={{ 
         fontSize: fontSize || '48px',
-        color: color || 'hsl(var(--display-fg))'
+        color: color || 'hsl(var(--display-fg))',
+        // GPU-accelerated text rendering for smooth clock updates
+        willChange: 'contents',
+        contain: 'layout style paint',
       }}
     >
       {serverTime || ""}
     </div>
   );
-}
+});
 
 // Robust logo component with proper error handling
 // Falls back to 0.png when logo fails to load
@@ -408,6 +412,12 @@ export function SceneObjectRenderer({
     padding: styleConfig.padding ? `${styleConfig.padding}px` : undefined,
     paddingLeft: styleConfig.paddingLeft ? `${styleConfig.paddingLeft}px` : undefined,
     paddingRight: styleConfig.paddingRight ? `${styleConfig.paddingRight}px` : undefined,
+    // Smooth opacity transitions when results come in (50% → 100%)
+    transition: 'opacity 0.3s ease-out',
+    // GPU acceleration: promote this element to its own compositor layer
+    // This prevents layout thrash when sibling elements update
+    willChange: 'opacity',
+    contain: 'layout style paint',
     ...borderStyles,
   };
   
@@ -471,6 +481,10 @@ export function SceneObjectRenderer({
         return (
           <div 
             className="flex items-center justify-center h-full bg-[hsl(var(--display-bg))]"
+            style={{
+              // GPU-accelerated container for smooth clock digit updates
+              contain: 'layout style paint',
+            }}
           >
             <StaticRunningClock 
               serverTime={timerTime}
@@ -494,7 +508,11 @@ export function SceneObjectRenderer({
           <div className="flex flex-col justify-center h-full p-4 bg-[hsl(var(--display-bg))]">
             <h1 
               className="font-stadium font-[900] text-[hsl(var(--display-fg))] uppercase"
-              style={{ fontSize: headerFontSize }}
+              style={{ 
+                fontSize: headerFontSize,
+                // Smooth text transitions when event name changes
+                transition: 'opacity 0.2s ease-out',
+              }}
             >
               {headerEventName}
             </h1>
@@ -1572,8 +1590,19 @@ export function SceneCanvas({
   // Use entries in arrival order for start_list (FinishLynx controls display order)
   // Only sort results mode by place
   // DNS entries are completely hidden, all others are visible (50% opacity if no timing data)
+  //
+  // PERFORMANCE: Use a ref to store the previous result and only return a new object
+  // if the data actually changed. This prevents cascading re-renders of all child
+  // SceneObjectRenderer components when the raw data reference changes but content is the same.
+  const prevLiveDataRef = useRef<any>(null);
+  const prevLiveDataKeyRef = useRef<string>('');
+  
   const liveData = useMemo(() => {
-    if (!rawLiveData) return rawLiveData;
+    if (!rawLiveData) {
+      prevLiveDataRef.current = null;
+      prevLiveDataKeyRef.current = '';
+      return rawLiveData;
+    }
     
     const entries = rawLiveData.entries || rawLiveData.results || [];
     if (entries.length === 0) return rawLiveData;
@@ -1583,6 +1612,8 @@ export function SceneCanvas({
     
     // Keep ALL entries visible (including DNS/FS/Scratch) — they render at 50% opacity
     // instead of being hidden. The SceneObjectRenderer contentFadeOpacity logic handles dimming.
+    
+    let processedEntries = entries;
     
     if (isResults) {
       // If entries have times but no places, compute places from times
@@ -1612,7 +1643,7 @@ export function SceneCanvas({
         });
       }
       
-      const sortedEntries = [...enrichedEntries].sort((a: any, b: any) => {
+      processedEntries = [...enrichedEntries].sort((a: any, b: any) => {
         const hasTimeA = a.time && String(a.time).trim() !== '';
         const hasPlaceA = a.place && String(a.place).trim() !== '';
         const hasResultA = hasTimeA || hasPlaceA;
@@ -1628,18 +1659,26 @@ export function SceneCanvas({
         }
         return 0;
       });
-      return {
-        ...rawLiveData,
-        entries: sortedEntries,
-      };
     }
     
-    // For running/start_list modes: show all entries
-    // DNS/FS/Scratch entries render at 50% opacity (handled by SceneObjectRenderer)
-    return {
+    // PERFORMANCE: Create a content fingerprint to detect actual data changes.
+    // If the key hasn't changed, return the previous object reference to prevent
+    // cascading re-renders down the component tree.
+    const contentKey = `${rawLiveData.eventNumber}|${mode}|${processedEntries.length}|${
+      processedEntries.map((e: any) => `${e.bib || ''}:${e.time || ''}:${e.place || ''}:${e.mark || ''}`).join(',')
+    }`;
+    
+    if (contentKey === prevLiveDataKeyRef.current && prevLiveDataRef.current) {
+      return prevLiveDataRef.current;
+    }
+    
+    const result = {
       ...rawLiveData,
-      entries: entries,
+      entries: processedEntries,
     };
+    prevLiveDataRef.current = result;
+    prevLiveDataKeyRef.current = contentKey;
+    return result;
   }, [rawLiveData]);
   
   const totalEntries = useMemo(() => {
