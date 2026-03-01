@@ -22,8 +22,39 @@ import { formatHeatDisplay } from "@/lib/fieldBindings";
 import { calculateMultiEventPoints, normalizeEventType, hasScoring, type Gender } from "@shared/combined-scoring";
 import { Trophy, Clock, Users, User, Image, Type, Award, Loader2 } from "lucide-react";
 
-// Static clock display - shows exactly what FinishLynx sends, no local interpolation
-// Memoized to prevent re-renders when parent updates but clock time hasn't changed
+// Helper: parse time string (M:SS.dd or SS.dd) to total milliseconds
+function parseTimeToMs(timeStr: string): number | null {
+  if (!timeStr) return null;
+  // Match formats: "1:23.45", "23.45", "1:23.4", "23.4", "1:23", "23"
+  const match = timeStr.trim().match(/^(\d{1,2}):(\d{1,2})(?:\.(\d{1,3}))?$|^(\d{1,3})(?:\.(\d{1,3}))?$/);
+  if (!match) return null;
+  let minutes = 0, seconds = 0, frac = 0;
+  if (match[1] !== undefined) {
+    // M:SS.dd format
+    minutes = parseInt(match[1]);
+    seconds = parseInt(match[2]);
+    frac = match[3] ? parseInt(match[3].padEnd(3, '0')) : 0;
+  } else {
+    // SS.dd format
+    seconds = parseInt(match[4]);
+    frac = match[5] ? parseInt(match[5].padEnd(3, '0')) : 0;
+  }
+  return (minutes * 60 + seconds) * 1000 + frac;
+}
+
+// Helper: format milliseconds to M:SS.d (tenths precision for display)
+function formatMsToTime(ms: number): string {
+  if (ms < 0) ms = 0;
+  const totalSeconds = ms / 1000;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  // Format as M:SS.d (one decimal = tenths)
+  const secStr = seconds < 10 ? '0' + seconds.toFixed(1) : seconds.toFixed(1);
+  return `${minutes}:${secStr}`;
+}
+
+// Interpolating clock display - receives server ticks and smoothly counts between them
+// Uses requestAnimationFrame to fill in between FinishLynx ticks for buttery smooth tenths
 const StaticRunningClock = memo(function StaticRunningClock({ 
   serverTime, 
   fontSize,
@@ -33,9 +64,62 @@ const StaticRunningClock = memo(function StaticRunningClock({
   fontSize?: string;
   color?: string;
 }) {
-  // Display exactly what FinishLynx sends - no local counting
+  const displayRef = useRef<HTMLDivElement>(null);
+  // Track the last server tick: parsed ms value and when we received it (performance.now)
+  const lastServerMsRef = useRef<number | null>(null);
+  const lastServerReceivedAtRef = useRef<number>(0);
+  const rafRef = useRef<number>(0);
+  const lastDisplayedRef = useRef<string>('');
+  const isRunningRef = useRef<boolean>(false);
+
+  // When serverTime changes, update our reference point
+  useEffect(() => {
+    if (!serverTime) {
+      // Clock cleared (e.g. back to start list) - stop interpolation
+      isRunningRef.current = false;
+      lastServerMsRef.current = null;
+      if (displayRef.current) {
+        displayRef.current.textContent = '';
+      }
+      return;
+    }
+    
+    const parsed = parseTimeToMs(serverTime);
+    if (parsed !== null) {
+      lastServerMsRef.current = parsed;
+      lastServerReceivedAtRef.current = performance.now();
+      isRunningRef.current = true;
+    } else {
+      // Can't parse — just show raw text
+      if (displayRef.current) {
+        displayRef.current.textContent = serverTime;
+      }
+    }
+  }, [serverTime]);
+
+  // requestAnimationFrame loop for smooth interpolation
+  useEffect(() => {
+    const tick = () => {
+      if (isRunningRef.current && lastServerMsRef.current !== null && displayRef.current) {
+        // Calculate interpolated time: last server time + elapsed since we received it
+        const elapsed = performance.now() - lastServerReceivedAtRef.current;
+        const interpolatedMs = lastServerMsRef.current + elapsed;
+        const formatted = formatMsToTime(interpolatedMs);
+        // Only update DOM if text actually changed (avoid layout thrashing)
+        if (formatted !== lastDisplayedRef.current) {
+          displayRef.current.textContent = formatted;
+          lastDisplayedRef.current = formatted;
+        }
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, []);
+
   return (
     <div 
+      ref={displayRef}
       className="font-stadium-numbers font-[900]"
       style={{ 
         fontSize: fontSize || '48px',
@@ -44,9 +128,7 @@ const StaticRunningClock = memo(function StaticRunningClock({
         willChange: 'contents',
         contain: 'layout style paint',
       }}
-    >
-      {serverTime || ""}
-    </div>
+    />
   );
 });
 

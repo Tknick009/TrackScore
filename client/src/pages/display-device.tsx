@@ -739,8 +739,9 @@ export default function DisplayDevice() {
                   const totalSeconds = elapsed / 1000;
                   const minutes = Math.floor(totalSeconds / 60);
                   const seconds = totalSeconds % 60;
-                  // Format as M:SS.dd (matching FinishLynx format)
-                  const timeStr = `${minutes}:${seconds < 10 ? '0' : ''}${seconds.toFixed(2)}`;
+                  // Format as M:SS.d (tenths, matching FinishLynx format)
+                  const secStr = seconds < 10 ? '0' + seconds.toFixed(1) : seconds.toFixed(1);
+                  const timeStr = `${minutes}:${secStr}`;
                   clockTimeRef.current = timeStr;
                   setState(prev => ({ ...prev, liveClockTime: timeStr }));
                 }, 100);
