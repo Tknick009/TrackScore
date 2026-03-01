@@ -280,6 +280,12 @@ export default function DisplayDevice() {
   // clockTimeRef is written by WebSocket handler and read by ClockBridge via rAF
   const clockTimeRef = useRef<string>('');
   const lastClockCommandRef = useRef<string>('');
+  
+  // Local fallback timer for when FinishLynx clock port is not configured
+  // Starts counting when display enters running_time mode
+  const raceStartTimeRef = useRef<number | null>(null);
+  const localTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const hasExternalClockRef = useRef<boolean>(false);
 
   const { data: meets } = useQuery<Meet[]>({
     queryKey: ['/api/meets'],
@@ -614,6 +620,16 @@ export default function DisplayDevice() {
           if (message.type === 'clock_update') {
             const data = message.data;
             if (data) {
+              // Mark that we have an external clock source - stop local fallback timer
+              if (!hasExternalClockRef.current && data.time) {
+                hasExternalClockRef.current = true;
+                if (localTimerRef.current) {
+                  clearInterval(localTimerRef.current);
+                  localTimerRef.current = null;
+                  console.log(`[Display] External clock detected - stopping local fallback timer`);
+                }
+              }
+              
               // Reset layout mode debouncing when system is armed
               // This ensures each new heat gets fresh scene switching
               if (data.command === 'armed' && autoModeRef.current) {
@@ -711,10 +727,43 @@ export default function DisplayDevice() {
             let displayMode: string | null = null;
             if (layoutName.includes('running') || layoutName.includes('time')) {
               displayMode = 'running_time';
+              
+              // Start local fallback timer if no external clock port is sending data
+              // This handles FinishLynx setups without a dedicated clock TCP port
+              if (!hasExternalClockRef.current && !raceStartTimeRef.current) {
+                raceStartTimeRef.current = Date.now();
+                console.log(`[Display] Starting local fallback timer (no external clock)`);
+                // Update liveClockTime every 100ms using local timer
+                localTimerRef.current = setInterval(() => {
+                  const elapsed = Date.now() - (raceStartTimeRef.current || Date.now());
+                  const totalSeconds = elapsed / 1000;
+                  const minutes = Math.floor(totalSeconds / 60);
+                  const seconds = totalSeconds % 60;
+                  // Format as M:SS.dd (matching FinishLynx format)
+                  const timeStr = `${minutes}:${seconds < 10 ? '0' : ''}${seconds.toFixed(2)}`;
+                  clockTimeRef.current = timeStr;
+                  setState(prev => ({ ...prev, liveClockTime: timeStr }));
+                }, 100);
+              }
             } else if (layoutName.includes('result')) {
               displayMode = 'track_results';
+              // Stop local fallback timer when leaving running mode
+              if (localTimerRef.current) {
+                clearInterval(localTimerRef.current);
+                localTimerRef.current = null;
+                raceStartTimeRef.current = null;
+              }
             } else if (layoutName.includes('start') || layoutName.includes('draw')) {
               displayMode = 'start_list';
+              // Stop local fallback timer and clear clock when going back to start list
+              if (localTimerRef.current) {
+                clearInterval(localTimerRef.current);
+                localTimerRef.current = null;
+                raceStartTimeRef.current = null;
+              }
+              // Clear the clock time so timer objects show blank (not stale time)
+              clockTimeRef.current = '';
+              setState(prev => ({ ...prev, liveClockTime: null }));
             } else if (layoutName.includes('field') && layoutName.includes('standing')) {
               displayMode = 'field_standings';
             } else if (layoutName.includes('field')) {
@@ -723,6 +772,12 @@ export default function DisplayDevice() {
               displayMode = 'team_scores';
             } else if (layoutName.includes('idle') || layoutName.includes('meettitle') || layoutName.includes('logo')) {
               displayMode = 'idle';
+              // Stop local fallback timer on idle
+              if (localTimerRef.current) {
+                clearInterval(localTimerRef.current);
+                localTimerRef.current = null;
+                raceStartTimeRef.current = null;
+              }
             }
             
             // Debounce: Skip if same mode as current (FinishLynx sends commands every 2s)
