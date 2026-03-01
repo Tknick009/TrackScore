@@ -269,6 +269,13 @@ export default function DisplayDevice() {
   const wsRef = useRef<WebSocket | null>(null);
   const deviceNameRef = useRef<string>('');
   
+  // WebSocket health tracking — detect silently dead connections
+  // lastMessageAtRef tracks when ANY message was last received from the server.
+  // If no message arrives within HEALTH_TIMEOUT_MS after a ping, the connection
+  // is assumed dead and force-closed so onclose triggers a reconnect.
+  const lastMessageAtRef = useRef<number>(Date.now());
+  const healthCheckTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
   // Clock refs for smooth updates without full re-renders
   // clockTimeRef is written by WebSocket handler and read by ClockBridge via rAF
   const clockTimeRef = useRef<string>('');
@@ -404,6 +411,9 @@ export default function DisplayDevice() {
       };
 
       ws.onmessage = (event) => {
+        // Update health tracker on EVERY message (including pong)
+        lastMessageAtRef.current = Date.now();
+        
         try {
           const message = JSON.parse(event.data);
           // Reduce logging in production — only log important events, not every message
@@ -416,14 +426,29 @@ export default function DisplayDevice() {
               setRegisteredDeviceId(message.data.deviceId);
               console.log('Saved device ID for reconnection:', message.data.deviceId);
               const deviceData = message.data;
+              // CRITICAL: Sync refs IMMEDIATELY so the very next WebSocket message
+              // uses the correct values. setFieldPort/setIsFieldMode trigger async
+              // React state updates → useEffect ref sync, but a field_mode_change
+              // could arrive BEFORE that render. Without immediate ref updates,
+              // the port filter on line ~943 would use stale defaults (4560/false)
+              // and either accept wrong-port data or discard our own port's data.
               if (deviceData.fieldPort !== undefined) {
-                setFieldPort(deviceData.fieldPort ?? 4560);
+                const newPort = deviceData.fieldPort ?? 4560;
+                fieldPortRef.current = newPort;
+                setFieldPort(newPort);
               }
               if (deviceData.isBigBoard !== undefined) {
+                isBigBoardRef.current = !!deviceData.isBigBoard;
                 setIsBigBoard(!!deviceData.isBigBoard);
               }
               if (deviceData.displayMode !== undefined) {
-                setIsFieldMode(deviceData.displayMode === 'field');
+                const isField = deviceData.displayMode === 'field';
+                isFieldModeRef.current = isField;
+                setIsFieldMode(isField);
+                // Sync autoMode: field devices should not auto-switch on track data
+                if (isField) {
+                  autoModeRef.current = false;
+                }
               }
               if (deviceData.displayType) {
                 setState(prev => ({ ...prev, displayType: deviceData.displayType }));
@@ -1050,6 +1075,13 @@ export default function DisplayDevice() {
                 return;
               }
               
+              // STRICT PORT ISOLATION for standings too — discard other ports' data
+              // entirely so it never accumulates in liveEventDataByPort and triggers
+              // unnecessary re-renders on devices assigned to different ports.
+              if (data.fieldPort && myPort && data.fieldPort !== myPort) {
+                return;
+              }
+              
               // Store in liveEventDataByPort for multi-field-event scene support
               // Only store if we're in field mode (checked above)
               if (data.fieldPort) {
@@ -1287,22 +1319,43 @@ export default function DisplayDevice() {
 
     connectWebSocket();
 
-    // WebSocket keepalive — send ping every 25s to prevent connection going stale
-    // This fixes screen lock-ups caused by silent WebSocket disconnects on remote boards
+    // ROBUST WebSocket keepalive with dead-connection detection.
+    // Problem: A half-open TCP connection (client thinks OPEN, server has dropped it)
+    // will silently queue pings that never arrive. The display freezes indefinitely
+    // because onclose never fires. Fix: after each ping, check whether ANY message
+    // has been received within HEALTH_TIMEOUT_MS. If not, force-close the socket
+    // so onclose fires and triggers a reconnect.
+    const PING_INTERVAL_MS = 15000;  // Send ping every 15s (was 25s — more aggressive)
+    const HEALTH_TIMEOUT_MS = 10000; // If no message within 10s after ping, assume dead
+    
     const keepaliveInterval = setInterval(() => {
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         try {
           wsRef.current.send(JSON.stringify({ type: 'ping' }));
         } catch (e) {
-          // Connection failed — will be caught by onclose handler
+          // Send failed — force close to trigger reconnect
+          try { wsRef.current?.close(); } catch (_) { /* ignore */ }
+          return;
         }
+        
+        // Schedule a health check: if no message received within HEALTH_TIMEOUT_MS,
+        // the connection is dead. Force close it.
+        if (healthCheckTimerRef.current) clearTimeout(healthCheckTimerRef.current);
+        healthCheckTimerRef.current = setTimeout(() => {
+          const elapsed = Date.now() - lastMessageAtRef.current;
+          if (elapsed >= HEALTH_TIMEOUT_MS) {
+            console.warn(`[Display] No messages received for ${Math.round(elapsed / 1000)}s after ping — connection assumed dead, forcing reconnect`);
+            try { wsRef.current?.close(); } catch (_) { /* ignore */ }
+          }
+        }, HEALTH_TIMEOUT_MS);
       }
-    }, 25000);
+    }, PING_INTERVAL_MS);
 
     return () => {
       isCleaningUp = true;
       isConnectingRef.current = false;
       clearInterval(keepaliveInterval);
+      if (healthCheckTimerRef.current) clearTimeout(healthCheckTimerRef.current);
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }

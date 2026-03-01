@@ -54,6 +54,9 @@ export function FieldTransitionRenderer({
   const prevCalledBibRef = useRef<string>('');
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const versionRef = useRef(0);
+  // Ref that tracks current phase so async team-data fetch can check
+  // whether the curtain is still active before updating colors.
+  const phaseRef = useRef<CurtainPhase>('idle');
 
   const clearTimers = useCallback(() => {
     timersRef.current.forEach(clearTimeout);
@@ -70,25 +73,25 @@ export function FieldTransitionRenderer({
     setLogoSrc(newLogoSrc);
     setPrimaryColor(primary);
     setSecondaryColor(secondary);
-    setPhase('coverStart');
+    setPhase('coverStart'); phaseRef.current = 'coverStart';
 
     timersRef.current.push(setTimeout(() => {
       if (versionRef.current !== version) return;
-      setPhase('covering');
+      setPhase('covering'); phaseRef.current = 'covering';
 
       timersRef.current.push(setTimeout(() => {
         if (versionRef.current !== version) return;
-        setPhase('paused');
+        setPhase('paused'); phaseRef.current = 'paused';
 
         timersRef.current.push(setTimeout(() => {
           if (versionRef.current !== version) return;
-          setPhase('reveal');
+          setPhase('reveal'); phaseRef.current = 'reveal';
 
           timersRef.current.push(setTimeout(() => {
             if (versionRef.current !== version) return;
-            setPhase('idle');
+            setPhase('idle'); phaseRef.current = 'idle';
           }, 700));
-        }, 1400));
+        }, 1000));  // Was 1400ms — reduced to 1000ms for snappier feel
       }, 600));
     }, 30));
   }, [clearTimers]);
@@ -141,13 +144,16 @@ export function FieldTransitionRenderer({
     const school = calledUp.affiliation || calledUp.team || '';
     const name = calledUp.name || '';
 
-    // Fetch team colors and logo asynchronously, then trigger curtain
-    (async () => {
-      let logoUrl: string | null = null;
-      let primary = curtainColor;
-      let secondary = curtainColor;
-
-      if (school) {
+    // START CURTAIN IMMEDIATELY with default colors — don't wait for HTTP fetch.
+    // Previously the curtain waited for team color fetch (1-2s) BEFORE starting,
+    // which combined with the 2.7s animation created a perceived 4s delay.
+    // Now: curtain starts instantly, team data updates colors mid-animation.
+    runCurtain(null, curtainColor, curtainColor);
+    
+    // Fetch team colors/logo in parallel — update curtain colors if data arrives
+    // during the covering or paused phase (before reveal starts).
+    if (school) {
+      (async () => {
         try {
           const meetParam = meetId
             ? `&meetId=${encodeURIComponent(meetId)}`
@@ -157,19 +163,23 @@ export function FieldTransitionRenderer({
           );
           if (res.ok) {
             const teamData = await res.json();
-            if (teamData?.logoUrl) logoUrl = teamData.logoUrl;
-            if (teamData?.primaryColor) {
-              primary = teamData.primaryColor;
-              secondary = teamData.secondaryColor || teamData.primaryColor;
+            // Only update if curtain is still active (not yet revealing/idle)
+            const currentPhase = phaseRef.current;
+            if (currentPhase === 'coverStart' || currentPhase === 'covering' || currentPhase === 'paused') {
+              if (teamData?.primaryColor) {
+                setPrimaryColor(teamData.primaryColor);
+                setSecondaryColor(teamData.secondaryColor || teamData.primaryColor);
+              }
+              if (teamData?.logoUrl) {
+                setLogoSrc(teamData.logoUrl);
+              }
             }
           }
         } catch {
-          /* ignore */
+          /* ignore — curtain already running with default colors */
         }
-      }
-
-      runCurtain(logoUrl, primary, secondary);
-    })();
+      })();
+    }
   }, [mergedLiveData, curtainColor, meetId, runCurtain]);
 
   if (phase === 'idle') return null;
@@ -220,7 +230,7 @@ export function FieldTransitionRenderer({
     overflow: 'hidden',
     background: gradient,
     zIndex: 50,
-    transition: panelTransition,
+    transition: `${panelTransition}, background 0.3s ease`,
   };
 
   // Subtle diagonal stripe texture — scale stripe width with display size
