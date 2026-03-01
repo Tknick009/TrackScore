@@ -93,13 +93,14 @@ function useLayoutTransition(
       fadeStarted: false,
     });
     
-    // Defer fade start to next microtask with version binding
+    // Delay fade start by 250ms to let color extraction / new content render
+    // before the curtain transition reveals it (prevents brief flash of default color)
     const capturedVersion = newVersion;
-    queueMicrotask(() => {
+    setTimeout(() => {
       // Only start fade if this is still the current version
       if (versionRef.current !== capturedVersion) return;
       setState(prev => prev.version === capturedVersion ? { ...prev, fadeStarted: true } : prev);
-    });
+    }, 250);
   }, [currentLayoutKey]);
   
   // Callback for when transition completes (called from transitionend handler)
