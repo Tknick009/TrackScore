@@ -153,8 +153,9 @@ export default function FieldEventsControl() {
 
   if (configLoading) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      <div className="h-full flex flex-col items-center justify-center">
+        <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin mb-3" />
+        <span className="text-sm text-muted-foreground">Loading configuration...</span>
       </div>
     );
   }
@@ -163,8 +164,13 @@ export default function FieldEventsControl() {
     <div className="p-6 max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <Target className="h-6 w-6" />
-          <h1 className="text-2xl font-bold" data-testid="text-page-title">Field Events Configuration</h1>
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+            <Target className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold tracking-tight" data-testid="text-page-title">Field Events Configuration</h1>
+            <p className="text-sm text-muted-foreground">FinishLynx integration & event defaults</p>
+          </div>
         </div>
         <Button
           variant="outline"

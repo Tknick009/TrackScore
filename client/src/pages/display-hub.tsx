@@ -135,11 +135,18 @@ export default function DisplayHub() {
 
   return (
     <div className="container mx-auto p-6 max-w-6xl">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2" data-testid="text-display-hub-title">Display Hub</h1>
-        <p className="text-muted-foreground">
-          Manage displays for {currentMeet?.name || 'your meet'}.
-        </p>
+      <div className="mb-8">
+        <div className="flex items-center gap-3 mb-1">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+            <Monitor className="w-5 h-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold tracking-tight" data-testid="text-display-hub-title">Display Hub</h1>
+            <p className="text-sm text-muted-foreground">
+              Manage displays for {currentMeet?.name || 'your meet'}
+            </p>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -167,7 +174,7 @@ export default function DisplayHub() {
               ) : (
                 <div className="space-y-3">
                   {onlineDevices.map(device => (
-                    <div key={device.id} className="flex items-center gap-4 p-3 bg-muted/50 rounded-lg" data-testid={`device-row-${device.id}`}>
+                    <div key={device.id} className="flex items-center gap-4 p-4 bg-card border rounded-xl transition-all hover:shadow-sm" data-testid={`device-row-${device.id}`}>
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         <Badge variant="default" className="bg-green-500 shrink-0">
                           <Wifi className="w-3 h-3 mr-1" />
@@ -221,7 +228,7 @@ export default function DisplayHub() {
                       <Separator className="my-4" />
                       <p className="text-sm text-muted-foreground mb-2">Offline Devices</p>
                       {offlineDevices.map(device => (
-                        <div key={device.id} className="flex items-center gap-4 p-3 bg-muted/30 rounded-lg opacity-60" data-testid={`device-row-${device.id}`}>
+                        <div key={device.id} className="flex items-center gap-4 p-4 bg-muted/30 border border-dashed rounded-xl opacity-60" data-testid={`device-row-${device.id}`}>
                           <div className="flex items-center gap-2 flex-1">
                             <Badge variant="secondary" className="shrink-0">
                               <WifiOff className="w-3 h-3 mr-1" />

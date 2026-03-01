@@ -99,14 +99,14 @@ export default function Import() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between p-4 border-b">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-border/60 bg-background/95 backdrop-blur-sm">
         <div className="flex items-center gap-4">
           <MeetSelector />
-          <h1 className="text-xl font-semibold">Import HyTek Data</h1>
+          <h1 className="text-lg font-bold tracking-tight">Import HyTek Data</h1>
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto p-4">
+      <div className="flex-1 overflow-auto p-6">
         <div className="max-w-2xl mx-auto space-y-6">
           <Card>
             <CardHeader>
@@ -129,7 +129,7 @@ export default function Import() {
               />
 
               <div 
-                className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary transition-colors"
+                className="border-2 border-dashed rounded-xl p-8 text-center cursor-pointer hover:border-primary hover:bg-primary/5 transition-all"
                 onClick={() => fileInputRef.current?.click()}
               >
                 {selectedFile ? (
@@ -181,25 +181,25 @@ export default function Import() {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <div className="text-center p-4 bg-muted rounded-lg">
-                    <p className="text-2xl font-bold">{importStats.teams}</p>
-                    <p className="text-sm text-muted-foreground">Teams</p>
+                  <div className="text-center p-4 bg-green-500/5 border border-green-500/10 rounded-xl">
+                    <p className="text-2xl font-bold tracking-tight">{importStats.teams}</p>
+                    <p className="text-xs text-muted-foreground">Teams</p>
                   </div>
-                  <div className="text-center p-4 bg-muted rounded-lg">
-                    <p className="text-2xl font-bold">{importStats.athletes}</p>
-                    <p className="text-sm text-muted-foreground">Athletes</p>
+                  <div className="text-center p-4 bg-green-500/5 border border-green-500/10 rounded-xl">
+                    <p className="text-2xl font-bold tracking-tight">{importStats.athletes}</p>
+                    <p className="text-xs text-muted-foreground">Athletes</p>
                   </div>
-                  <div className="text-center p-4 bg-muted rounded-lg">
-                    <p className="text-2xl font-bold">{importStats.events}</p>
-                    <p className="text-sm text-muted-foreground">Events</p>
+                  <div className="text-center p-4 bg-green-500/5 border border-green-500/10 rounded-xl">
+                    <p className="text-2xl font-bold tracking-tight">{importStats.events}</p>
+                    <p className="text-xs text-muted-foreground">Events</p>
                   </div>
-                  <div className="text-center p-4 bg-muted rounded-lg">
-                    <p className="text-2xl font-bold">{importStats.entries}</p>
-                    <p className="text-sm text-muted-foreground">Entries</p>
+                  <div className="text-center p-4 bg-green-500/5 border border-green-500/10 rounded-xl">
+                    <p className="text-2xl font-bold tracking-tight">{importStats.entries}</p>
+                    <p className="text-xs text-muted-foreground">Entries</p>
                   </div>
-                  <div className="text-center p-4 bg-muted rounded-lg">
-                    <p className="text-2xl font-bold">{importStats.divisions}</p>
-                    <p className="text-sm text-muted-foreground">Divisions</p>
+                  <div className="text-center p-4 bg-green-500/5 border border-green-500/10 rounded-xl">
+                    <p className="text-2xl font-bold tracking-tight">{importStats.divisions}</p>
+                    <p className="text-xs text-muted-foreground">Divisions</p>
                   </div>
                 </div>
               </CardContent>

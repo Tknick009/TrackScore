@@ -69,11 +69,11 @@ export default function Athletes() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between p-4 border-b">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-border/60 bg-background/95 backdrop-blur-sm">
         <div className="flex items-center gap-4">
           <MeetSelector />
-          <h1 className="text-xl font-semibold">Athletes</h1>
-          <span className="text-sm text-muted-foreground">
+          <h1 className="text-lg font-bold tracking-tight">Athletes</h1>
+          <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
             {athletes.length} registered
           </span>
         </div>
@@ -96,10 +96,11 @@ export default function Athletes() {
         </Dialog>
       </div>
 
-      <div className="flex-1 overflow-auto p-4">
+      <div className="flex-1 overflow-auto p-6">
         {isLoading ? (
-          <div className="text-center text-muted-foreground p-8">
-            Loading athletes...
+          <div className="flex flex-col items-center justify-center p-12 text-muted-foreground">
+            <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin mb-3" />
+            <span className="text-sm">Loading athletes...</span>
           </div>
         ) : athletes.length === 0 ? (
           <Card className="max-w-md mx-auto">
