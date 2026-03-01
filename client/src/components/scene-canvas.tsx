@@ -48,7 +48,11 @@ function formatMsToTime(ms: number): string {
   const totalSeconds = ms / 1000;
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
-  // Format as M:SS.d (one decimal = tenths)
+  // Under 1 minute: show SS.d (no leading 0: prefix)
+  // 1 minute+: show M:SS.d
+  if (minutes === 0) {
+    return seconds.toFixed(1);
+  }
   const secStr = seconds < 10 ? '0' + seconds.toFixed(1) : seconds.toFixed(1);
   return `${minutes}:${secStr}`;
 }
