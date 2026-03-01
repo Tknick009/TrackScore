@@ -144,7 +144,8 @@ export function registerAthletesTeamsRoutes(app: Express, ctx: RouteContext) {
 
   // Look up team by affiliation name — returns logo URL + colors for curtain use.
   // Logo: exact-match against /public/logos/NCAA/{name}.png (no fuzzy matching).
-  // Colors: manually set team colors take priority; otherwise extracted from the logo.
+  // Colors: DB-cached colors (from import or manual edit) take priority.
+  // Only falls back to on-the-fly image extraction if no DB colors exist.
   app.get("/api/teams/by-affiliation", async (req, res) => {
     try {
       const { name, meetId } = req.query;
@@ -160,17 +161,9 @@ export function registerAthletesTeamsRoutes(app: Express, ctx: RouteContext) {
       const logoExists = await import('fs/promises').then(fs => fs.access(ncaaLogoPath).then(() => true).catch(() => false));
       if (logoExists) {
         logoUrl = `/logos/NCAA/${encodeURIComponent(nameStr)}.png`;
-        // Extract dominant colors from the logo
-        try {
-          const fs = await import('fs/promises');
-          const buf = await fs.readFile(ncaaLogoPath);
-          const colors = await fileStorage.extractColorsFromImage(buf);
-          primaryColor = colors.primaryColor;
-          secondaryColor = colors.secondaryColor;
-        } catch { /* use defaults if extraction fails */ }
       }
 
-      // 2. Look up team in DB for manually overridden colors
+      // 2. Look up team in DB — use cached colors (set during import or manually edited)
       try {
         const teamsToSearch = meetId
           ? await storage.getTeamsByMeetId(String(meetId))
@@ -181,7 +174,6 @@ export function registerAthletesTeamsRoutes(app: Express, ctx: RouteContext) {
           (t.abbreviation && t.abbreviation.trim() === nameStr)
         );
         if (match) {
-          // Manually set colors override extracted colors
           if (match.primaryColor) primaryColor = match.primaryColor;
           if (match.secondaryColor) secondaryColor = match.secondaryColor;
           // Uploaded logo overrides NCAA static logo
@@ -189,6 +181,17 @@ export function registerAthletesTeamsRoutes(app: Express, ctx: RouteContext) {
           if (uploadedLogo) logoUrl = fileStorage.publicUrlForKey(uploadedLogo.storageKey);
         }
       } catch { /* DB lookup is best-effort */ }
+
+      // 3. Fallback: extract colors on-the-fly only if no DB colors found
+      if (!primaryColor && !secondaryColor && logoExists) {
+        try {
+          const fs = await import('fs/promises');
+          const buf = await fs.readFile(ncaaLogoPath);
+          const colors = await fileStorage.extractColorsFromImage(buf);
+          primaryColor = colors.primaryColor;
+          secondaryColor = colors.secondaryColor;
+        } catch { /* use defaults if extraction fails */ }
+      }
 
       res.json({ name: nameStr, logoUrl, primaryColor, secondaryColor });
     } catch (error: any) {
@@ -903,12 +906,14 @@ export function registerAthletesTeamsRoutes(app: Express, ctx: RouteContext) {
         return {
           teamId: team.id,
           teamName,
-          affiliation: team.affiliation || '',
+          affiliation: team.abbreviation || '',
           expectedFilename: teamName,
           matchedFile,
           hasLogo: !!matchedFile,
           logoUrl: matchedFile ? `/logos/NCAA/${matchedFile}` : null,
           suggestedFile: null as string | null,
+          primaryColor: team.primaryColor || null,
+          secondaryColor: team.secondaryColor || null,
         };
       });
 

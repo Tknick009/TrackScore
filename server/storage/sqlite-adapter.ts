@@ -1707,6 +1707,8 @@ export class SQLiteStorage implements IStorage {
     if (data.abbreviation !== undefined) { sets.push('abbreviation = ?'); values.push(data.abbreviation); }
     if ('menScoreOverride' in data) { sets.push('men_score_override = ?'); values.push(data.menScoreOverride ?? null); }
     if ('womenScoreOverride' in data) { sets.push('women_score_override = ?'); values.push(data.womenScoreOverride ?? null); }
+    if ('primaryColor' in data) { sets.push('primary_color = ?'); values.push(data.primaryColor ?? null); }
+    if ('secondaryColor' in data) { sets.push('secondary_color = ?'); values.push(data.secondaryColor ?? null); }
 
     if (sets.length > 0) {
       values.push(id);

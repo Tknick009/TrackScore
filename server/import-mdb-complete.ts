@@ -324,6 +324,57 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
   }
   
   // ===========================
+  // 1b. EXTRACT TEAM COLORS FROM LOGO FILES
+  // ===========================
+  // After teams are imported, scan for matching NCAA logo files and extract
+  // primary/secondary colors. This pre-caches colors in the DB so the curtain
+  // can use them instantly without an HTTP fetch on every athlete call-up.
+  console.log("\n🎨 Extracting team colors from logos...");
+  try {
+    const path = await import('path');
+    const fs = await import('fs/promises');
+    const { fileStorage } = await import('./file-storage');
+    const logosDir = path.join(process.cwd(), 'public', 'logos', 'NCAA');
+    
+    let colorCount = 0;
+    for (const item of teamBatch) {
+      const teamName = item.name.trim();
+      const teamId = teamIdMap.get(item.teamNumber);
+      if (!teamId) continue;
+      
+      // Check if an NCAA logo file exists for this team
+      const logoPath = path.join(logosDir, `${teamName}.png`);
+      try {
+        await fs.access(logoPath);
+        const buf = await fs.readFile(logoPath);
+        const colors = await fileStorage.extractColorsFromImage(buf);
+        
+        // Store extracted colors in DB
+        if (isEdgeMode && sqliteDb) {
+          sqliteDb.prepare(
+            'UPDATE teams SET primary_color = ?, secondary_color = ? WHERE id = ? AND primary_color IS NULL'
+          ).run(colors.primaryColor, colors.secondaryColor, teamId);
+        } else {
+          // Only set colors if not already manually set (don't overwrite user edits)
+          await db!.update(teams)
+            .set({ primaryColor: sql`COALESCE(${teams.primaryColor}, ${colors.primaryColor})`, secondaryColor: sql`COALESCE(${teams.secondaryColor}, ${colors.secondaryColor})` })
+            .where(sql`${teams.id} = ${teamId} AND ${teams.primaryColor} IS NULL`);
+        }
+        colorCount++;
+      } catch {
+        // No logo file found for this team — skip
+      }
+    }
+    if (colorCount > 0) {
+      console.log(`   ✅ Extracted colors for ${colorCount} teams from logos`);
+    } else {
+      console.log("   ⚠️  No matching logo files found for color extraction");
+    }
+  } catch (error) {
+    console.log("   ⚠️  Color extraction skipped:", (error as Error).message);
+  }
+  
+  // ===========================
   // 2. IMPORT DIVISIONS
   // ===========================
   console.log("\n📊 Importing Divisions...");

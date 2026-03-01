@@ -1071,6 +1071,8 @@ export class DatabaseStorage implements IStorage {
     if (data.abbreviation !== undefined) updateData.abbreviation = data.abbreviation;
     if ('menScoreOverride' in data) updateData.menScoreOverride = data.menScoreOverride;
     if ('womenScoreOverride' in data) updateData.womenScoreOverride = data.womenScoreOverride;
+    if ('primaryColor' in data) updateData.primaryColor = data.primaryColor;
+    if ('secondaryColor' in data) updateData.secondaryColor = data.secondaryColor;
 
     const [updated] = await db.update(teams).set(updateData).where(eq(teams.id, id)).returning();
     return updated;
