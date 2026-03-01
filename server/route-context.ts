@@ -16,6 +16,7 @@ export interface ConnectedDisplayDevice {
   pagingInterval: number;
   fieldPort?: number;
   contentMode: ContentMode;
+  displayMode?: string; // 'track' | 'field' — used to filter layout commands server-side
 }
 
 export interface RouteContext {

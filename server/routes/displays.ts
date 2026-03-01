@@ -242,6 +242,13 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         return res.status(404).json({ error: "Display device not found" });
       }
 
+      // Update in-memory connected device tracking so server-side filtering
+      // takes effect immediately (no display refresh needed)
+      const connectedDevice = connectedDisplayDevices.get(req.params.id);
+      if (connectedDevice) {
+        connectedDevice.displayMode = displayMode;
+      }
+
       // Broadcast the mode change
       broadcastToDisplays({
         type: 'display_mode_change',
