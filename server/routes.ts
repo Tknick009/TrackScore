@@ -152,23 +152,16 @@ const LYNX_ONLY_MESSAGE_TYPES = new Set([
 
 // Broadcast function - Layout switching is now controlled by FinishLynx via layout-command events
 // Devices in non-lynx contentMode (hytek, team_scores, field) will NOT receive FinishLynx track messages
-// Field-mode devices also skip track messages so they persist field mode across reconnections
 function broadcastToDisplays(message: WSMessage) {
   const messageStr = JSON.stringify(message);
   const isLynxMessage = LYNX_ONLY_MESSAGE_TYPES.has(message.type);
 
-  // Build set of WS connections that should skip this message
+  // Build set of WS connections that should skip this message (non-lynx devices)
   let skipWs: Set<WebSocket> | null = null;
   if (isLynxMessage) {
     skipWs = new Set();
     connectedDisplayDevices.forEach((device) => {
-      // Skip non-lynx content mode devices
       if (device.contentMode !== 'lynx') {
-        skipWs!.add(device.ws);
-      }
-      // Skip field-mode devices — they should never receive track layout commands
-      // This prevents the race condition where track data arrives before device_registered
-      if (device.displayMode === 'field') {
         skipWs!.add(device.ws);
       }
     });
@@ -176,7 +169,7 @@ function broadcastToDisplays(message: WSMessage) {
 
   displayClients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN) {
-      if (skipWs && skipWs.has(client)) return; // Skip filtered devices for lynx messages
+      if (skipWs && skipWs.has(client)) return; // Skip non-lynx devices for lynx messages
       client.send(messageStr);
     }
   });
@@ -773,6 +766,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 type: 'devices_updated',
                 data: { meetId: device.meetId }
               } as WSMessage);
+              
+              // For field devices: re-send display_mode_change AFTER registration
+              // to override any track layout commands that arrived during the race
+              // window between WebSocket connect and registration completion.
+              // This is server-side only — no display refresh needed.
+              if (device.displayMode === 'field') {
+                ws.send(JSON.stringify({
+                  type: 'display_mode_change',
+                  data: {
+                    deviceId: device.id,
+                    deviceName: device.deviceName,
+                    displayMode: 'field',
+                  }
+                }));
+                console.log(`[Display] Field device "${device.deviceName}" — sent mode reset after registration`);
+              }
               
               console.log(`Display device registered: ${device.deviceName} (${device.id})`);
             } catch (error) {

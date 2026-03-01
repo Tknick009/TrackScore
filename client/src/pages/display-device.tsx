@@ -612,7 +612,13 @@ export default function DisplayDevice() {
             const myDeviceId = registeredDeviceIdRef.current;
             if (data && data.deviceId === myDeviceId && data.displayMode !== undefined) {
               const isField = data.displayMode === 'field';
+              // Update ref immediately so layout command filter works on the very next message
+              isFieldModeRef.current = isField;
               setIsFieldMode(isField);
+              // Field devices should not auto-switch on track data
+              if (isField) {
+                autoModeRef.current = false;
+              }
               console.log(`[Display] Display mode changed to: ${data.displayMode} (isFieldMode: ${isField})`);
             }
           }
