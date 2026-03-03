@@ -263,8 +263,13 @@ export default function DisplayDevice() {
   
   const autoModeRef = useRef<boolean>(true);
   
+  // Content mode ref: tracks what mode this display is in (lynx/hytek/team_scores/field).
+  // When NOT 'lynx', all FinishLynx messages (layout_command, board_update, track_mode_change,
+  // clock, wind, page) are blocked so the display stays locked on its assigned content.
+  const contentModeRef = useRef<string>('lynx');
+  
   // Gate: don't process layout/mode commands until device_registered confirms
-  // our displayMode. Prevents track data from overriding field mode during
+  // our displayMode + contentMode. Prevents track data from overriding during
   // the race window between WebSocket connect and registration response.
   const isDeviceRegisteredRef = useRef<boolean>(false);
   
@@ -431,6 +436,32 @@ export default function DisplayDevice() {
           const message = JSON.parse(event.data);
           // Reduce logging in production — only log important events, not every message
           
+          // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+          // CONTENT MODE GATE: Block ALL FinishLynx track messages when the
+          // display is NOT in 'lynx' mode. This is the single point of
+          // enforcement that prevents start lists, running times, results,
+          // clock updates, and layout commands from leaking into HyTek,
+          // Team Scores, or Field displays — both on reconnect AND during
+          // normal operation.
+          //
+          // Messages that ARE allowed through regardless of content mode:
+          //   device_registered, content_mode_change, display_mode_change,
+          //   display_command, auto_mode_update, device_config_update,
+          //   scene_mapping_changed, scene_update, pong,
+          //   field_mode_change*, field_standings_update*,
+          //   hytek_results, team_standings_update
+          // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+          const LYNX_ONLY_MESSAGES = [
+            'layout_command', 'layout_command_big',
+            'track_mode_change', 'track_mode_change_big',
+            'clock_update',
+            'board_update',
+          ];
+          if (contentModeRef.current !== 'lynx' && LYNX_ONLY_MESSAGES.includes(message.type)) {
+            // Non-lynx device — silently drop this track message
+            return;
+          }
+          
           if (message.type === 'device_registered') {
             console.log('Device successfully registered:', message.data);
             // Save the server-issued device ID for future reconnections (per display type)
@@ -468,6 +499,15 @@ export default function DisplayDevice() {
               }
               if (deviceData.autoMode !== undefined) {
                 autoModeRef.current = deviceData.autoMode !== false;
+              }
+              // Restore contentMode from server — persisted across reconnections
+              if (deviceData.contentMode) {
+                contentModeRef.current = deviceData.contentMode;
+                console.log(`[Display] Content mode restored from server: ${deviceData.contentMode}`);
+                // Non-lynx modes should disable autoMode so track data doesn't leak through
+                if (deviceData.contentMode !== 'lynx') {
+                  autoModeRef.current = false;
+                }
               }
               // Open the gate — device is now registered with correct mode settings
               isDeviceRegisteredRef.current = true;
@@ -593,22 +633,27 @@ export default function DisplayDevice() {
           // (lynx = live FinishLynx data, hytek = compiled results, team_scores, field)
           if (message.type === 'content_mode_change') {
             const newContentMode = message.contentMode;
+            // Update content mode ref IMMEDIATELY so the very next message is filtered correctly
+            contentModeRef.current = newContentMode;
             console.log(`[Display] Content mode changed to: ${newContentMode}`);
             
             if (newContentMode === 'field') {
               // Switch to field mode — set isFieldMode so field data is accepted
+              isFieldModeRef.current = true;
               setIsFieldMode(true);
               autoModeRef.current = false;
               currentLayoutModeRef.current = null; // Reset so next field data triggers scene switch
               console.log(`[Display] Switched to field content mode`);
             } else if (newContentMode === 'lynx') {
               // Switch back to FinishLynx — re-enable auto mode and reset layout
+              isFieldModeRef.current = false;
               setIsFieldMode(false);
               autoModeRef.current = true;
               currentLayoutModeRef.current = null; // Reset so next FinishLynx data triggers scene switch
               console.log(`[Display] Switched to FinishLynx content mode (auto-mode enabled)`);
             } else if (newContentMode === 'hytek' || newContentMode === 'team_scores') {
               // Switch to HyTek or Team Scores — disable auto mode so FinishLynx doesn't override
+              isFieldModeRef.current = false;
               setIsFieldMode(false);
               autoModeRef.current = false;
               console.log(`[Display] Switched to ${newContentMode} content mode (auto-mode disabled)`);

@@ -998,6 +998,8 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       if (connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {
         // Lock device to hytek mode so FinishLynx broadcasts don't override it
         connectedDevice.contentMode = 'hytek';
+        // Persist to DB so mode survives reconnection
+        storage.updateDisplayContentMode(deviceId, 'hytek').catch(err => console.error('[Hytek] Failed to persist contentMode:', err));
         // Update paging settings (lines = seconds)
         connectedDevice.pagingSize = lines;
         connectedDevice.pagingInterval = lines;
@@ -1192,6 +1194,8 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       if (connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {
         // Lock device to team_scores mode so FinishLynx broadcasts don't override it
         connectedDevice.contentMode = 'team_scores';
+        // Persist to DB so mode survives reconnection
+        storage.updateDisplayContentMode(deviceId, 'team_scores').catch(err => console.error('[Team Scores] Failed to persist contentMode:', err));
         // Update paging settings (lines = seconds)
         connectedDevice.pagingSize = lines;
         connectedDevice.pagingInterval = lines;
@@ -1274,7 +1278,9 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       const connectedDevice = connectedDisplayDevices.get(deviceId);
       if (connectedDevice) {
         connectedDevice.contentMode = contentMode;
-        console.log(`[Content Mode] Device ${connectedDevice.deviceName} switched to ${contentMode}`);
+        // Persist to DB so mode survives reconnection
+        await storage.updateDisplayContentMode(deviceId, contentMode);
+        console.log(`[Content Mode] Device ${connectedDevice.deviceName} switched to ${contentMode} (persisted)`);
         
         // Notify the display device of the content mode change so it updates immediately
         if (connectedDevice.ws.readyState === WebSocket.OPEN) {

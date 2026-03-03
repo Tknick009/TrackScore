@@ -175,6 +175,7 @@ export class SQLiteStorage implements IStorage {
     try { this.db.prepare('ALTER TABLE display_devices ADD COLUMN is_big_board INTEGER DEFAULT 0').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE display_devices ADD COLUMN display_width INTEGER').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE display_devices ADD COLUMN display_height INTEGER').run(); } catch(e) {}
+    try { this.db.prepare("ALTER TABLE display_devices ADD COLUMN content_mode TEXT DEFAULT 'lynx'").run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE meet_ingestion_settings ADD COLUMN headshot_directory TEXT').run(); } catch(e) {}
   }
 
@@ -1855,6 +1856,7 @@ export class SQLiteStorage implements IStorage {
       isBigBoard: this.toBoolean(row.is_big_board ?? false),
       displayWidth: row.display_width ?? null,
       displayHeight: row.display_height ?? null,
+      contentMode: row.content_mode || 'lynx',
       currentTemplate: row.current_template,
       lastIp: row.last_ip,
       lastSeenAt: row.last_seen_at ? new Date(row.last_seen_at) : null,
@@ -4669,6 +4671,11 @@ export class SQLiteStorage implements IStorage {
 
   async updateDisplayAutoMode(id: string, autoMode: boolean): Promise<DisplayDevice | undefined> {
     this.db.prepare('UPDATE display_devices SET auto_mode = ? WHERE id = ?').run(this.fromBoolean(autoMode), id);
+    return this.getDisplayDevice(id);
+  }
+
+  async updateDisplayContentMode(id: string, contentMode: string): Promise<DisplayDevice | undefined> {
+    this.db.prepare('UPDATE display_devices SET content_mode = ? WHERE id = ?').run(contentMode, id);
     return this.getDisplayDevice(id);
   }
 
