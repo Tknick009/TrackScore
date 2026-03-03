@@ -137,6 +137,7 @@ import {
   SingleAthleteTrack,
   SingleAthleteField,
   ProScoreboard,
+  WinnersBoard,
 } from "@/components/display/templates";
 import { BroadcastDisplay } from "@/components/display/templates/BroadcastDisplay";
 import { 
@@ -159,6 +160,13 @@ interface LiveEventData {
   mode?: string;
 }
 
+interface WinnersData {
+  eventName: string;
+  meetName: string;
+  meetLogoUrl: string | null;
+  entries: any[];
+}
+
 interface DisplayDeviceState {
   displayType: DisplayType | null;
   meetId: string | null;
@@ -176,6 +184,7 @@ interface DisplayDeviceState {
   pagingSize: number;
   pagingInterval: number;
   maxPages: number;
+  winnersData: WinnersData | null;
 }
 
 // Storage helpers for device identity - keyed by device name for persistence across type changes
@@ -242,6 +251,7 @@ export default function DisplayDevice() {
     pagingSize: 8,
     pagingInterval: 5,
     maxPages: 0,
+    winnersData: null,
   });
   const [selectedMeetId, setSelectedMeetId] = useState<string | null>(null);
   const [deviceName, setDeviceName] = useState<string>(getLastDeviceName());
@@ -565,6 +575,15 @@ export default function DisplayDevice() {
                 pagingSize: message.pagingSize ?? prev.pagingSize,
                 pagingInterval: message.pagingInterval ?? prev.pagingInterval,
                 maxPages: message.maxPages ?? prev.maxPages,
+                // Winners board data from display_command
+                winnersData: message.template === 'winners-board' && message.liveEventData
+                  ? {
+                      eventName: message.liveEventData.eventName || '',
+                      meetName: message.liveEventData.meetName || '',
+                      meetLogoUrl: message.liveEventData.meetLogoUrl || null,
+                      entries: message.liveEventData.entries || [],
+                    }
+                  : (message.template === 'winners-board' ? prev.winnersData : prev.winnersData),
               };
             });
           }
@@ -1692,6 +1711,7 @@ export default function DisplayDevice() {
       customHeight={state.displayType === 'Custom' ? customHeight : undefined}
       fieldPort={fieldPort}
       onReturnToLogo={returnToMeetLogo}
+      winnersData={state.winnersData}
     />
   );
 }
@@ -1716,13 +1736,14 @@ interface DisplayRendererProps {
   customHeight?: number;
   fieldPort?: number;
   onReturnToLogo?: () => void;
+  winnersData?: WinnersData | null;
 }
 
 interface EventWithEntries extends Event {
   entries: any[];
 }
 
-function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTime, clockTimeRef, liveEventData, liveEventDataByPort, pagingSize, pagingInterval, maxPages, customWidth, customHeight, fieldPort, onReturnToLogo }: DisplayRendererProps) {
+function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTime, clockTimeRef, liveEventData, liveEventDataByPort, pagingSize, pagingInterval, maxPages, customWidth, customHeight, fieldPort, onReturnToLogo, winnersData }: DisplayRendererProps) {
   const { data: meet } = useQuery<Meet>({
     queryKey: ['/api/meets', meetId],
     enabled: !!meetId,
@@ -1832,9 +1853,21 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     const isRunningTimeTemplate = templateId.includes('running-time');
     const isStartList = templateId.includes('start-list');
     const isTeamScores = templateId === 'team-scores' || templateId.includes('team-scores');
+    const isWinnersBoard = templateId === 'winners-board' || templateId.includes('winners-board');
     const isMeetLogo = templateId === 'meet-logo' || templateId.includes('meet-logo') || !effectiveTemplate;
     const isBigBoard = templateId.includes('live-results') || templateId.includes('BigBoard');
     const isBroadcast = displayType === 'Broadcast';
+
+    if (isWinnersBoard && winnersData) {
+      return (
+        <WinnersBoard
+          eventName={winnersData.eventName}
+          entries={winnersData.entries}
+          meetName={winnersData.meetName}
+          meetLogoUrl={winnersData.meetLogoUrl}
+        />
+      );
+    }
 
     if (isBroadcast) {
       return (

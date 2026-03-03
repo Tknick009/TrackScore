@@ -14,3 +14,4 @@ export * from './FieldSideBySide';
 export * from './SingleAthleteTrack';
 export * from './SingleAthleteField';
 export * from './ProScoreboard';
+export * from './WinnersBoard';

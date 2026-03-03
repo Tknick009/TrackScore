@@ -1070,6 +1070,198 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
     }
   });
 
+  // Send Winners Board to a display device
+  app.post("/api/display-devices/:id/winners-board", async (req, res) => {
+    try {
+      const { eventId } = req.body;
+      const deviceId = req.params.id;
+      
+      if (!eventId) {
+        return res.status(400).json({ error: "eventId is required" });
+      }
+      
+      const device = await storage.getDisplayDevice(deviceId);
+      if (!device) {
+        return res.status(404).json({ error: "Display device not found" });
+      }
+      
+      const event = await storage.getEvent(eventId);
+      if (!event) {
+        return res.status(404).json({ error: "Event not found" });
+      }
+      
+      const allEntries = await storage.getEntriesByEvent(eventId);
+      
+      if (allEntries.length === 0) {
+        return res.status(400).json({ error: "No entries found for this event", warning: true });
+      }
+      
+      // Get final results sorted by place
+      const entriesWithPlace = allEntries.filter(e => e.finalPlace && e.finalPlace > 0 && !e.isScratched && !e.isDisqualified);
+      entriesWithPlace.sort((a, b) => (a.finalPlace || 999) - (b.finalPlace || 999));
+      
+      // Take top 4
+      const top4 = entriesWithPlace.slice(0, 4);
+      
+      if (top4.length === 0) {
+        return res.status(400).json({ error: "No placed results found for this event", warning: true });
+      }
+      
+      // Fetch athletes and teams
+      const athleteIds = top4.map(e => e.athleteId).filter((id): id is string => !!id);
+      const uniqueAthleteIds = [...new Set(athleteIds)];
+      const athleteMap = new Map<string, any>();
+      const teamMap = new Map<string, any>();
+      
+      if (uniqueAthleteIds.length > 0) {
+        const athletes = await Promise.all(uniqueAthleteIds.map(id => storage.getAthlete(id)));
+        athletes.forEach(a => { if (a) athleteMap.set(a.id, a); });
+      }
+      
+      const teamIds = new Set<string>();
+      top4.forEach(e => { if (e.teamId) teamIds.add(e.teamId); });
+      athleteMap.forEach(a => { if (a.teamId) teamIds.add(a.teamId); });
+      
+      if (teamIds.size > 0) {
+        const teams = await Promise.all([...teamIds].map(id => storage.getTeam(id)));
+        teams.forEach(t => { if (t) teamMap.set(t.id, t); });
+      }
+      
+      // Fetch team logos and athlete photos
+      const meetId = device.meetId || event.meetId;
+      const teamLogoMap = new Map<string, string>();
+      const headshotMap = new Map<string, string>();
+      
+      if (meetId) {
+        try {
+          const teamLogos = await storage.getTeamLogosByMeet(meetId);
+          teamLogos.forEach(logo => {
+            teamLogoMap.set(logo.teamId, fileStorage.publicUrlForKey(logo.storageKey));
+          });
+        } catch (err) {
+          console.warn('[Winners] Failed to fetch team logos:', err);
+        }
+        
+        try {
+          const photos = await storage.getAthletePhotosByMeet(meetId);
+          photos.forEach(photo => {
+            headshotMap.set(photo.athleteId, fileStorage.publicUrlForKey(photo.storageKey));
+          });
+        } catch (err) {
+          console.warn('[Winners] Failed to fetch athlete photos:', err);
+        }
+      }
+      
+      // Detect event type for formatting
+      const isTrackEvent = event.eventType ? !['high_jump','pole_vault','long_jump','triple_jump','shot_put','discus','hammer','javelin','weight_throw'].some(ft => event.eventType!.toLowerCase().includes(ft.replace('_',''))) : true;
+      const isMultiEvent = /\b(decathlon|heptathlon|pentathlon)\b/i.test(event.name || '');
+      
+      const ceilToPrecision = (val: number, precision: number): number => {
+        const factor = Math.pow(10, precision);
+        return Math.ceil(val * factor - 1e-9) / factor;
+      };
+      const formatTimeSeconds = (seconds: number, precision: number = 2): string => {
+        const rounded = ceilToPrecision(seconds, precision);
+        if (rounded >= 3600) {
+          const hours = Math.floor(rounded / 3600);
+          const mins = Math.floor((rounded % 3600) / 60);
+          const secs = ceilToPrecision(rounded % 60, precision).toFixed(precision);
+          return `${hours}:${String(mins).padStart(2, '0')}:${secs.padStart(precision + 3, '0')}`;
+        }
+        if (rounded >= 60) {
+          const mins = Math.floor(rounded / 60);
+          const secs = ceilToPrecision(rounded % 60, precision).toFixed(precision);
+          return `${mins}:${secs.padStart(precision + 3, '0')}`;
+        }
+        return rounded.toFixed(precision);
+      };
+      
+      // Build enriched entries
+      const winnersEntries = top4.map((entry) => {
+        const athlete = entry.athleteId ? athleteMap.get(entry.athleteId) : null;
+        const teamId = entry.teamId || athlete?.teamId;
+        const team = teamId ? teamMap.get(teamId) : null;
+        const teamName = team?.name || team?.shortName || '';
+        const teamAbbrev = team?.abbreviation || team?.shortName || '';
+        
+        let markValue: string;
+        const rawMark = entry.finalMark;
+        if (typeof rawMark === 'number') {
+          if (isMultiEvent) {
+            markValue = Math.round(rawMark).toString();
+          } else if (isTrackEvent) {
+            markValue = formatTimeSeconds(rawMark);
+          } else {
+            markValue = rawMark.toFixed(2);
+          }
+        } else if (rawMark) {
+          markValue = String(rawMark);
+        } else {
+          markValue = '';
+        }
+        
+        const teamLogoUrl = teamId ? teamLogoMap.get(teamId) : null;
+        const headshotUrl = athlete ? headshotMap.get(athlete.id) : null;
+        
+        return {
+          position: entry.finalPlace || 0,
+          firstName: athlete?.firstName || '',
+          lastName: athlete?.lastName || '',
+          name: athlete ? `${athlete.firstName} ${athlete.lastName}`.trim() : 'Unknown',
+          team: teamAbbrev,
+          affiliation: teamName,
+          time: markValue,
+          mark: markValue,
+          teamLogoUrl: teamLogoUrl || null,
+          headshotUrl: headshotUrl || null,
+        };
+      });
+      
+      // Get meet info for logo
+      let meetLogoUrl: string | null = null;
+      if (meetId) {
+        try {
+          const meet = await storage.getMeet(meetId);
+          meetLogoUrl = meet?.logoUrl || null;
+        } catch (err) {
+          // Meet logo not available
+        }
+      }
+      
+      // Send display_command with winners-board template
+      const connectedDevice = connectedDisplayDevices.get(deviceId);
+      if (connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {
+        // Lock device to winners mode
+        connectedDevice.contentMode = 'winners';
+        storage.updateDisplayContentMode(deviceId, 'winners').catch(err => console.error('[Winners] Failed to persist contentMode:', err));
+        
+        connectedDevice.ws.send(JSON.stringify({
+          type: 'display_command',
+          template: 'winners-board',
+          liveEventData: {
+            eventName: event.name || '',
+            mode: 'winners',
+            entries: winnersEntries,
+          },
+          winnersData: {
+            eventName: event.name || '',
+            meetName: (meetId ? (await storage.getMeet(meetId))?.name : '') || '',
+            meetLogoUrl,
+            entries: winnersEntries,
+          },
+        }));
+        
+        console.log(`[Winners] Sent ${winnersEntries.length} winners for "${event.name}" to ${device.deviceName}`);
+        res.json({ success: true, delivered: true, entryCount: winnersEntries.length });
+      } else {
+        res.json({ success: false, delivered: false, message: "Device offline" });
+      }
+    } catch (error: any) {
+      console.error(`[Winners] Error:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Send Team Scores to a display device
   app.post("/api/display-devices/:id/team-scores", async (req, res) => {
     try {

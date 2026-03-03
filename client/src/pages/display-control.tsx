@@ -90,7 +90,7 @@ interface DisplayDevice {
 }
 
 // Display mode types
-type DisplayMode = 'finishlynx' | 'hytek' | 'teamscores' | 'field';
+type DisplayMode = 'finishlynx' | 'hytek' | 'teamscores' | 'field' | 'winners';
 
 export default function DisplayControlPage() {
   const { currentMeetId, currentMeet } = useMeet();
@@ -369,6 +369,27 @@ export default function DisplayControlPage() {
     onError: (error: Error) => {
       toast({
         title: 'Failed to send Team Scores',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Send Winners Board mutation
+  const sendWinnersBoardMutation = useMutation({
+    mutationFn: async ({ deviceId, eventId }: { deviceId: string; eventId: string }) => {
+      const response = await apiRequest('POST', `/api/display-devices/${deviceId}/winners-board`, { eventId });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: data.warning ? 'Winners sent with warning' : 'Winners Board sent',
+        description: data.warning || `Display is now showing ${data.entryCount || 0} winners.`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Failed to send Winners Board',
         description: error.message,
         variant: 'destructive',
       });
@@ -739,7 +760,7 @@ export default function DisplayControlPage() {
                         </button>
                       </div>
 
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                         <button
                           type="button"
                           onClick={() => {
@@ -841,6 +862,32 @@ export default function DisplayControlPage() {
                             Results from Athletic Field App
                           </p>
                           {displayMode[selectedDevice.id] === 'field' && !autoModeStatus?.autoMode && (
+                            <Badge variant="default" className="mt-2">Active</Badge>
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDisplayMode(prev => ({ ...prev, [selectedDevice.id]: 'winners' }));
+                            toggleAutoModeMutation.mutate({ deviceId: selectedDevice.id, enabled: false });
+                            apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}/content-mode`, { contentMode: 'winners' });
+                          }}
+                          className={`p-4 rounded-lg border-2 transition-all text-left ${
+                            displayMode[selectedDevice.id] === 'winners' && !autoModeStatus?.autoMode
+                              ? 'border-primary bg-primary/10'
+                              : 'border-border hover-elevate'
+                          }`}
+                          data-testid="tile-winners"
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <Trophy className="w-5 h-5 text-purple-500" />
+                            <span className="font-medium">Winners</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Champion + top 4 results
+                          </p>
+                          {displayMode[selectedDevice.id] === 'winners' && !autoModeStatus?.autoMode && (
                             <Badge variant="default" className="mt-2">Active</Badge>
                           )}
                         </button>
@@ -1048,6 +1095,63 @@ export default function DisplayControlPage() {
                           >
                             <Send className="w-4 h-4 mr-2" />
                             Send to Display
+                          </Button>
+                        </div>
+                      ) : displayMode[selectedDevice.id] === 'winners' ? (
+                        <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
+                          <div className="space-y-2">
+                            <Label>Select Event</Label>
+                            <div className="relative">
+                              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                              <Input
+                                placeholder="Search events..."
+                                value={eventSearch}
+                                onChange={(e) => setEventSearch(e.target.value)}
+                                className="pl-8"
+                                data-testid="input-winners-search"
+                              />
+                            </div>
+                            <ScrollArea className="h-48 rounded-md border">
+                              <div className="p-1">
+                                {sortedFilteredEvents.filter(e => !eventSearch || e.name?.toLowerCase().includes(eventSearch.toLowerCase())).length === 0 && (
+                                  <p className="text-sm text-muted-foreground p-2">No events found</p>
+                                )}
+                                {sortedFilteredEvents.filter(e => !eventSearch || e.name?.toLowerCase().includes(eventSearch.toLowerCase())).map(evt => {
+                                  const isSelected = selectedHytekItem[selectedDevice.id] === evt.id;
+                                  return (
+                                    <button
+                                      key={evt.id}
+                                      onClick={() => setSelectedHytekItem(prev => ({ ...prev, [selectedDevice.id]: evt.id }))}
+                                      className={`flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded-md cursor-pointer hover-elevate ${isSelected ? 'bg-accent' : ''}`}
+                                      data-testid={`button-winners-${evt.id}`}
+                                    >
+                                      {evt.eventTime && (
+                                        <span className="text-muted-foreground shrink-0 w-16 text-xs">{evt.eventTime}</span>
+                                      )}
+                                      <span className="truncate">{evt.name}</span>
+                                      <EventStatusBadge event={evt} />
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </ScrollArea>
+                          </div>
+
+                          <Button
+                            onClick={() => {
+                              const evtId = selectedHytekItem[selectedDevice.id];
+                              if (!evtId) return;
+                              sendWinnersBoardMutation.mutate({
+                                deviceId: selectedDevice.id,
+                                eventId: evtId,
+                              });
+                            }}
+                            disabled={!selectedHytekItem[selectedDevice.id] || sendWinnersBoardMutation.isPending}
+                            className="w-full"
+                            data-testid="button-send-winners"
+                          >
+                            <Send className="w-4 h-4 mr-2" />
+                            Send Winners Board
                           </Button>
                         </div>
                       ) : displayMode[selectedDevice.id] === 'field' ? (
