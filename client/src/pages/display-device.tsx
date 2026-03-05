@@ -1098,6 +1098,7 @@ export default function DisplayDevice() {
                     isMultiEvent: data.isMultiEvent,
                     eventType: data.eventType,
                     gender: data.gender,
+                    isRelay: data.isRelay,
                   },
                 };
               });
@@ -2227,11 +2228,14 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
         ? {
             ...currentEvent,
             name: liveEventData?.eventName || currentEvent.name || '',
+            // Pass server's relay flag so templates can detect relay events accurately
+            isRelay: (liveEventData as any)?.isRelay ?? undefined,
           }
         : {
             id: 0,
             name: liveEventData?.eventName || '',
-            eventType: 'track',
+            eventType: liveEventData?.eventType || 'track',
+            isRelay: (liveEventData as any)?.isRelay ?? false,
             status: liveEventData?.mode === 'results' ? 'completed' : 'in_progress',
             entries: (liveEventData?.entries || []).map((entry: any, idx: number) => {
               const firstName = entry.firstName || entry.name?.split(' ')[0] || '';

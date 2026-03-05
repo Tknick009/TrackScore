@@ -91,7 +91,10 @@ export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingInt
     (currentPage + 1) * pagingSize
   );
 
-  const isRelay = event.eventType?.toLowerCase().includes('relay');
+  // Detect relay events — check server flag, eventType, AND event name for comprehensive detection
+  const eventNameLower = (event.name || '').toLowerCase();
+  const eventTypeLower = (event.eventType || '').toLowerCase();
+  const isRelay = (event as any).isRelay === true || eventTypeLower.includes('relay') || eventTypeLower.startsWith('4x') || /^\d+x\d+/.test(eventTypeLower) || eventNameLower.includes('relay') || eventNameLower.includes('medley');
   const windReading = event.entries?.[0]?.finalWind;
   const windDisplay = windReading !== null && windReading !== undefined
     ? `${windReading > 0 ? '+' : ''}${windReading.toFixed(1)} m/s`

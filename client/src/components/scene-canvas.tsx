@@ -657,7 +657,7 @@ export function SceneObjectRenderer({
             // Detect relay/medley events — these don't have individual headshots
             const currentEventNameForPhoto = liveData.eventName || '';
             const eventLowerForPhoto = currentEventNameForPhoto.toLowerCase();
-            const isRelayOrMedleyPhoto = eventLowerForPhoto.includes('relay') || eventLowerForPhoto.includes('medley');
+            const isRelayOrMedleyPhoto = (liveData as any).isRelay === true || eventLowerForPhoto.includes('relay') || eventLowerForPhoto.includes('medley');
             
             if (isRelayOrMedleyPhoto) {
               // For relays/medleys, fall back directly to team/affiliation logo
@@ -886,7 +886,7 @@ export function SceneObjectRenderer({
           
           const isTeamScores = liveData.mode === 'team_scores';
           const eventNameLowerText = eventName.toLowerCase();
-          const isRelayOrMedleyText = eventNameLowerText.includes('relay') || eventNameLowerText.includes('medley');
+          const isRelayOrMedleyText = (liveData as any).isRelay === true || eventNameLowerText.includes('relay') || eventNameLowerText.includes('medley');
           const displayName = isTeamScores 
             ? (firstEntry?.name || '')
             : isRelayOrMedleyText
