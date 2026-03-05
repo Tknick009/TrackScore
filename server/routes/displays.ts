@@ -1046,9 +1046,278 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
     }
   });
 
-  // Send Winners Board from LIF/LFF files (FinishLynx output) — no MDB import needed
-  // Reads directly from the configured Lynx files directory, finds the latest round,
-  // merges heats, takes the top 4, and enriches with headshots/logos from the DB.
+  // ===== WINNERS BOARD (LIF/LFF) =====
+  // Shared helper: parse LIF/LFF files for a given event and return enriched winners data
+  async function parseWinnersFromLynxFiles(meetId: string, evtNum: number) {
+    const ingestionSettings = await storage.getIngestionSettings(meetId);
+    if (!ingestionSettings?.lynxFilesDirectory) {
+      throw Object.assign(new Error("No Lynx files directory configured. Set it in Ingestion Settings."), { status: 400 });
+    }
+    
+    const lynxDir = ingestionSettings.lynxFilesDirectory;
+    if (!fs.existsSync(lynxDir)) {
+      throw Object.assign(new Error(`Lynx files directory not found: ${lynxDir}`), { status: 400 });
+    }
+    
+    const allFiles = fs.readdirSync(lynxDir);
+    const eventPattern = new RegExp(`^0*${evtNum}-(\\d+)-(\\d+)\\.(lif|lff)$`, 'i');
+    
+    interface FileMatch { filePath: string; round: number; heat: number; ext: string; }
+    const matchingFiles: FileMatch[] = [];
+    for (const file of allFiles) {
+      const match = file.match(eventPattern);
+      if (match) {
+        matchingFiles.push({
+          filePath: pathModule.join(lynxDir, file),
+          round: parseInt(match[1]),
+          heat: parseInt(match[2]),
+          ext: match[3].toLowerCase(),
+        });
+      }
+    }
+    
+    if (matchingFiles.length === 0) {
+      throw Object.assign(new Error(`No LIF/LFF files found for event ${evtNum} in ${lynxDir}`), { status: 400, warning: true });
+    }
+    
+    const maxRound = Math.max(...matchingFiles.map(f => f.round));
+    const latestRoundFiles = matchingFiles.filter(f => f.round === maxRound);
+    const hasLIF = latestRoundFiles.some(f => f.ext === 'lif');
+    const hasLFF = latestRoundFiles.some(f => f.ext === 'lff');
+    
+    let eventName = '';
+    let isFieldEvent = false;
+    
+    interface WinnerCandidate {
+      place: number; mark: number | null; firstName: string; lastName: string;
+      team: string | null; bibNumber: number; isDNS: boolean; isDNF: boolean; isDQ: boolean;
+    }
+    const candidates: WinnerCandidate[] = [];
+    
+    if (hasLIF) {
+      const lifFiles = latestRoundFiles.filter(f => f.ext === 'lif').sort((a, b) => a.heat - b.heat);
+      for (const fileInfo of lifFiles) {
+        try {
+          const { header, results } = await parseLIFFile(fileInfo.filePath);
+          if (!eventName && header.eventName) eventName = header.eventName;
+          for (const result of results) {
+            if (result.isDNS || result.isDNF || result.isDQ) continue;
+            if (result.place === null || result.place <= 0) continue;
+            candidates.push({
+              place: result.place, mark: result.mark, firstName: result.firstName,
+              lastName: result.lastName, team: result.team, bibNumber: result.bibNumber,
+              isDNS: result.isDNS, isDNF: result.isDNF, isDQ: result.isDQ,
+            });
+          }
+        } catch (err) { console.warn(`[Winners-Lynx] Failed to parse LIF file ${fileInfo.filePath}:`, err); }
+      }
+    }
+    
+    if (hasLFF) {
+      isFieldEvent = true;
+      const lffFiles = latestRoundFiles.filter(f => f.ext === 'lff').sort((a, b) => a.heat - b.heat);
+      for (const fileInfo of lffFiles) {
+        try {
+          const { header, results } = await parseLFFFile(fileInfo.filePath);
+          if (!eventName && header.eventName) eventName = header.eventName;
+          for (const result of results) {
+            if (result.isDNS) continue;
+            if (result.place === null || result.place <= 0) continue;
+            candidates.push({
+              place: result.place, mark: result.bestMark, firstName: result.firstName,
+              lastName: result.lastName, team: result.team, bibNumber: result.bibNumber,
+              isDNS: result.isDNS, isDNF: false, isDQ: false,
+            });
+          }
+        } catch (err) { console.warn(`[Winners-Lynx] Failed to parse LFF file ${fileInfo.filePath}:`, err); }
+      }
+    }
+    
+    if (candidates.length === 0) {
+      throw Object.assign(new Error(`No placed results found for event ${evtNum} (round ${maxRound})`), { status: 400, warning: true });
+    }
+    
+    candidates.sort((a, b) => {
+      const placeDiff = a.place - b.place;
+      if (placeDiff !== 0) return placeDiff;
+      if (a.mark !== null && b.mark !== null) {
+        return isFieldEvent ? (b.mark - a.mark) : (a.mark - b.mark);
+      }
+      return 0;
+    });
+    const top4 = candidates.slice(0, 4);
+    
+    // Enrich with DB data
+    const athletes = await storage.getAthletesByMeetId(meetId);
+    const allEvents = await storage.getEventsByMeetId(meetId);
+    const dbEvent = allEvents.find(e => e.eventNumber === evtNum);
+    
+    const bibToAthlete = new Map<number, any>();
+    for (const a of athletes) {
+      if (a.bibNumber) bibToAthlete.set(parseInt(a.bibNumber), a);
+    }
+    
+    const teamIds: string[] = [];
+    for (const winner of top4) {
+      const athlete = bibToAthlete.get(winner.bibNumber);
+      if (athlete?.teamId && !teamIds.includes(athlete.teamId)) teamIds.push(athlete.teamId);
+    }
+    const teamMap = new Map<string, any>();
+    if (teamIds.length > 0) {
+      const teams = await Promise.all(teamIds.map(id => storage.getTeam(id)));
+      teams.forEach(t => { if (t) teamMap.set(t.id, t); });
+    }
+    
+    const teamLogoMap = new Map<string, string>();
+    const headshotMap = new Map<string, string>();
+    try {
+      const teamLogos = await storage.getTeamLogosByMeet(meetId);
+      teamLogos.forEach(logo => { teamLogoMap.set(logo.teamId, fileStorage.publicUrlForKey(logo.storageKey)); });
+    } catch (err) { console.warn('[Winners-Lynx] Failed to fetch team logos:', err); }
+    try {
+      const photos = await storage.getAthletePhotosByMeet(meetId);
+      photos.forEach(photo => { headshotMap.set(photo.athleteId, fileStorage.publicUrlForKey(photo.storageKey)); });
+    } catch (err) { console.warn('[Winners-Lynx] Failed to fetch athlete photos:', err); }
+    
+    const isMultiEvent = /\b(decathlon|heptathlon|pentathlon)\b/i.test(eventName || dbEvent?.name || '');
+    const ceilToPrecision = (val: number, precision: number): number => {
+      const factor = Math.pow(10, precision);
+      return Math.ceil(val * factor - 1e-9) / factor;
+    };
+    const formatTimeSeconds = (seconds: number, precision: number = 2): string => {
+      const rounded = ceilToPrecision(seconds, precision);
+      if (rounded >= 3600) {
+        const hours = Math.floor(rounded / 3600);
+        const mins = Math.floor((rounded % 3600) / 60);
+        const secs = ceilToPrecision(rounded % 60, precision).toFixed(precision);
+        return `${hours}:${String(mins).padStart(2, '0')}:${secs.padStart(precision + 3, '0')}`;
+      }
+      if (rounded >= 60) {
+        const mins = Math.floor(rounded / 60);
+        const secs = ceilToPrecision(rounded % 60, precision).toFixed(precision);
+        return `${mins}:${secs.padStart(precision + 3, '0')}`;
+      }
+      return rounded.toFixed(precision);
+    };
+    
+    const winnersEntries = top4.map((winner) => {
+      const dbAthlete = bibToAthlete.get(winner.bibNumber);
+      const teamId = dbAthlete?.teamId;
+      const team = teamId ? teamMap.get(teamId) : null;
+      const firstName = dbAthlete?.firstName || winner.firstName;
+      const lastName = dbAthlete?.lastName || winner.lastName;
+      const teamName = team?.name || team?.shortName || winner.team || '';
+      const teamAbbrev = team?.abbreviation || team?.shortName || winner.team || '';
+      
+      let markValue: string;
+      if (typeof winner.mark === 'number') {
+        if (isMultiEvent) markValue = Math.round(winner.mark).toString();
+        else if (!isFieldEvent) markValue = formatTimeSeconds(winner.mark);
+        else markValue = winner.mark.toFixed(2);
+      } else {
+        markValue = '';
+      }
+      
+      const teamLogoUrl = teamId ? teamLogoMap.get(teamId) : null;
+      const headshotUrl = dbAthlete ? headshotMap.get(dbAthlete.id) : null;
+      
+      return {
+        position: winner.place, firstName, lastName,
+        name: `${firstName} ${lastName}`.trim() || 'Unknown',
+        team: teamAbbrev, affiliation: teamName,
+        time: markValue, mark: markValue,
+        teamLogoUrl: teamLogoUrl || null, headshotUrl: headshotUrl || null,
+      };
+    });
+    
+    let meetLogoUrl: string | null = null;
+    try { const meet = await storage.getMeet(meetId); meetLogoUrl = meet?.logoUrl || null; } catch (err) { /* ok */ }
+    
+    const displayEventName = eventName || dbEvent?.name || `Event ${evtNum}`;
+    const meetName = (await storage.getMeet(meetId))?.name || '';
+    
+    return { winnersEntries, displayEventName, meetName, meetLogoUrl, maxRound, source: hasLIF ? 'lif' : 'lff', isFieldEvent };
+  }
+
+  // List events that have LIF/LFF files available in the Lynx directory
+  app.get("/api/meets/:meetId/winners-available-events", async (req, res) => {
+    try {
+      const meetId = req.params.meetId;
+      const ingestionSettings = await storage.getIngestionSettings(meetId);
+      if (!ingestionSettings?.lynxFilesDirectory) {
+        return res.json({ events: [] });
+      }
+      
+      const lynxDir = ingestionSettings.lynxFilesDirectory;
+      if (!fs.existsSync(lynxDir)) {
+        return res.json({ events: [] });
+      }
+      
+      const allFiles = fs.readdirSync(lynxDir);
+      const filePattern = /^0*(\d+)-(\d+)-(\d+)\.(lif|lff)$/i;
+      
+      // Collect unique event numbers that have result files
+      const eventNumbers = new Set<number>();
+      for (const file of allFiles) {
+        const match = file.match(filePattern);
+        if (match) {
+          eventNumbers.add(parseInt(match[1]));
+        }
+      }
+      
+      // Match with DB events for names
+      const allEvents = await storage.getEventsByMeetId(meetId);
+      const available = Array.from(eventNumbers).sort((a, b) => a - b).map(num => {
+        const dbEvent = allEvents.find(e => e.eventNumber === num);
+        return {
+          eventNumber: num,
+          eventId: dbEvent?.id || null,
+          name: dbEvent?.name || `Event ${num}`,
+          eventTime: dbEvent?.eventTime || null,
+        };
+      });
+      
+      res.json({ events: available });
+    } catch (error: any) {
+      console.error('[Winners-Available] Error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Preview Winners Board — parse and return data without sending to display
+  app.post("/api/meets/:meetId/winners-board-preview", async (req, res) => {
+    try {
+      const { eventNumber } = req.body;
+      const meetId = req.params.meetId;
+      
+      if (!eventNumber) {
+        return res.status(400).json({ error: "eventNumber is required" });
+      }
+      const evtNum = parseInt(eventNumber);
+      if (isNaN(evtNum) || evtNum <= 0) {
+        return res.status(400).json({ error: "eventNumber must be a positive integer" });
+      }
+      
+      const result = await parseWinnersFromLynxFiles(meetId, evtNum);
+      
+      res.json({
+        success: true,
+        eventName: result.displayEventName,
+        meetName: result.meetName,
+        meetLogoUrl: result.meetLogoUrl,
+        round: result.maxRound,
+        source: result.source,
+        entryCount: result.winnersEntries.length,
+        entries: result.winnersEntries,
+      });
+    } catch (error: any) {
+      console.error('[Winners-Preview] Error:', error);
+      const status = error.status || 500;
+      res.status(status).json({ error: error.message, warning: error.warning || false });
+    }
+  });
+
+  // Send Winners Board to display — parse LIF/LFF files and push to device via WebSocket
   app.post("/api/display-devices/:id/winners-board-lynx", async (req, res) => {
     try {
       const { eventNumber } = req.body;
@@ -1057,7 +1326,6 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       if (!eventNumber) {
         return res.status(400).json({ error: "eventNumber is required" });
       }
-      
       const evtNum = parseInt(eventNumber);
       if (isNaN(evtNum) || evtNum <= 0) {
         return res.status(400).json({ error: "eventNumber must be a positive integer" });
@@ -1067,318 +1335,42 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       if (!device) {
         return res.status(404).json({ error: "Display device not found" });
       }
-      
       const meetId = device.meetId;
       if (!meetId) {
         return res.status(400).json({ error: "Device has no assigned meet" });
       }
       
-      // Get the Lynx files directory from ingestion settings
-      const ingestionSettings = await storage.getIngestionSettings(meetId);
-      if (!ingestionSettings?.lynxFilesDirectory) {
-        return res.status(400).json({ error: "No Lynx files directory configured. Set it in Ingestion Settings." });
-      }
+      const result = await parseWinnersFromLynxFiles(meetId, evtNum);
       
-      const lynxDir = ingestionSettings.lynxFilesDirectory;
-      if (!fs.existsSync(lynxDir)) {
-        return res.status(400).json({ error: `Lynx files directory not found: ${lynxDir}` });
-      }
-      
-      // Scan directory for all LIF and LFF files matching this event number
-      const allFiles = fs.readdirSync(lynxDir);
-      const eventPattern = new RegExp(`^0*${evtNum}-(\\d+)-(\\d+)\\.(lif|lff)$`, 'i');
-      
-      interface FileMatch {
-        filePath: string;
-        round: number;
-        heat: number;
-        ext: string;
-      }
-      
-      const matchingFiles: FileMatch[] = [];
-      for (const file of allFiles) {
-        const match = file.match(eventPattern);
-        if (match) {
-          matchingFiles.push({
-            filePath: pathModule.join(lynxDir, file),
-            round: parseInt(match[1]),
-            heat: parseInt(match[2]),
-            ext: match[3].toLowerCase(),
-          });
-        }
-      }
-      
-      if (matchingFiles.length === 0) {
-        return res.status(400).json({ error: `No LIF/LFF files found for event ${evtNum} in ${lynxDir}`, warning: true });
-      }
-      
-      // Find the highest (latest) round number
-      const maxRound = Math.max(...matchingFiles.map(f => f.round));
-      const latestRoundFiles = matchingFiles.filter(f => f.round === maxRound);
-      
-      // Determine if this is a track (LIF) or field (LFF) event
-      const hasLIF = latestRoundFiles.some(f => f.ext === 'lif');
-      const hasLFF = latestRoundFiles.some(f => f.ext === 'lff');
-      
-      let eventName = '';
-      let isFieldEvent = false;
-      
-      interface WinnerCandidate {
-        place: number;
-        mark: number | null; // seconds for track, meters for field
-        firstName: string;
-        lastName: string;
-        team: string | null;
-        bibNumber: number;
-        isDNS: boolean;
-        isDNF: boolean;
-        isDQ: boolean;
-      }
-      
-      const candidates: WinnerCandidate[] = [];
-      
-      if (hasLIF) {
-        // Track event — parse all LIF files for the latest round
-        const lifFiles = latestRoundFiles.filter(f => f.ext === 'lif').sort((a, b) => a.heat - b.heat);
-        
-        for (const fileInfo of lifFiles) {
-          try {
-            const { header, results } = await parseLIFFile(fileInfo.filePath);
-            if (!eventName && header.eventName) {
-              eventName = header.eventName;
-            }
-            
-            for (const result of results) {
-              if (result.isDNS || result.isDNF || result.isDQ) continue;
-              if (result.place === null || result.place <= 0) continue;
-              
-              candidates.push({
-                place: result.place,
-                mark: result.mark,
-                firstName: result.firstName,
-                lastName: result.lastName,
-                team: result.team,
-                bibNumber: result.bibNumber,
-                isDNS: result.isDNS,
-                isDNF: result.isDNF,
-                isDQ: result.isDQ,
-              });
-            }
-          } catch (err) {
-            console.warn(`[Winners-Lynx] Failed to parse LIF file ${fileInfo.filePath}:`, err);
-          }
-        }
-      }
-      
-      if (hasLFF) {
-        // Field event — parse all LFF files for the latest round (flights)
-        isFieldEvent = true;
-        const lffFiles = latestRoundFiles.filter(f => f.ext === 'lff').sort((a, b) => a.heat - b.heat);
-        
-        for (const fileInfo of lffFiles) {
-          try {
-            const { header, results } = await parseLFFFile(fileInfo.filePath);
-            if (!eventName && header.eventName) {
-              eventName = header.eventName;
-            }
-            
-            for (const result of results) {
-              if (result.isDNS) continue;
-              if (result.place === null || result.place <= 0) continue;
-              
-              candidates.push({
-                place: result.place,
-                mark: result.bestMark,
-                firstName: result.firstName,
-                lastName: result.lastName,
-                team: result.team,
-                bibNumber: result.bibNumber,
-                isDNS: result.isDNS,
-                isDNF: false,
-                isDQ: false,
-              });
-            }
-          } catch (err) {
-            console.warn(`[Winners-Lynx] Failed to parse LFF file ${fileInfo.filePath}:`, err);
-          }
-        }
-      }
-      
-      if (candidates.length === 0) {
-        return res.status(400).json({ error: `No placed results found for event ${evtNum} (round ${maxRound})`, warning: true });
-      }
-      
-      // Sort by place, with mark as tiebreaker for multi-heat rounds
-      candidates.sort((a, b) => {
-        const placeDiff = a.place - b.place;
-        if (placeDiff !== 0) return placeDiff;
-        // Tiebreaker: for track events, lower time is better; for field events, higher mark is better
-        if (a.mark !== null && b.mark !== null) {
-          return isFieldEvent ? (b.mark - a.mark) : (a.mark - b.mark);
-        }
-        return 0;
-      });
-      const top4 = candidates.slice(0, 4);
-      
-      // Try to match athletes from DB for headshots/logos enrichment
-      const athletes = await storage.getAthletesByMeetId(meetId);
-      const allEvents = await storage.getEventsByMeetId(meetId);
-      const dbEvent = allEvents.find(e => e.eventNumber === evtNum);
-      
-      // Build bib-to-athlete map
-      const bibToAthlete = new Map<number, any>();
-      for (const a of athletes) {
-        if (a.bibNumber) {
-          bibToAthlete.set(parseInt(a.bibNumber), a);
-        }
-      }
-      
-      // Build team map from DB
-      const teamIds: string[] = [];
-      for (const winner of top4) {
-        const athlete = bibToAthlete.get(winner.bibNumber);
-        if (athlete?.teamId && !teamIds.includes(athlete.teamId)) teamIds.push(athlete.teamId);
-      }
-      
-      const teamMap = new Map<string, any>();
-      if (teamIds.length > 0) {
-        const teams = await Promise.all(teamIds.map(id => storage.getTeam(id)));
-        teams.forEach(t => { if (t) teamMap.set(t.id, t); });
-      }
-      
-      // Fetch team logos and athlete photos
-      const teamLogoMap = new Map<string, string>();
-      const headshotMap = new Map<string, string>();
-      
-      try {
-        const teamLogos = await storage.getTeamLogosByMeet(meetId);
-        teamLogos.forEach(logo => {
-          teamLogoMap.set(logo.teamId, fileStorage.publicUrlForKey(logo.storageKey));
-        });
-      } catch (err) {
-        console.warn('[Winners-Lynx] Failed to fetch team logos:', err);
-      }
-      
-      try {
-        const photos = await storage.getAthletePhotosByMeet(meetId);
-        photos.forEach(photo => {
-          headshotMap.set(photo.athleteId, fileStorage.publicUrlForKey(photo.storageKey));
-        });
-      } catch (err) {
-        console.warn('[Winners-Lynx] Failed to fetch athlete photos:', err);
-      }
-      
-      // Detect event type for mark formatting
-      const isMultiEvent = /\b(decathlon|heptathlon|pentathlon)\b/i.test(eventName || dbEvent?.name || '');
-      
-      const ceilToPrecision = (val: number, precision: number): number => {
-        const factor = Math.pow(10, precision);
-        return Math.ceil(val * factor - 1e-9) / factor;
-      };
-      const formatTimeSeconds = (seconds: number, precision: number = 2): string => {
-        const rounded = ceilToPrecision(seconds, precision);
-        if (rounded >= 3600) {
-          const hours = Math.floor(rounded / 3600);
-          const mins = Math.floor((rounded % 3600) / 60);
-          const secs = ceilToPrecision(rounded % 60, precision).toFixed(precision);
-          return `${hours}:${String(mins).padStart(2, '0')}:${secs.padStart(precision + 3, '0')}`;
-        }
-        if (rounded >= 60) {
-          const mins = Math.floor(rounded / 60);
-          const secs = ceilToPrecision(rounded % 60, precision).toFixed(precision);
-          return `${mins}:${secs.padStart(precision + 3, '0')}`;
-        }
-        return rounded.toFixed(precision);
-      };
-      
-      // Build enriched winners entries
-      const winnersEntries = top4.map((winner) => {
-        const dbAthlete = bibToAthlete.get(winner.bibNumber);
-        const teamId = dbAthlete?.teamId;
-        const team = teamId ? teamMap.get(teamId) : null;
-        // Use DB names if available (more complete), fall back to LIF/LFF names
-        const firstName = dbAthlete?.firstName || winner.firstName;
-        const lastName = dbAthlete?.lastName || winner.lastName;
-        const teamName = team?.name || team?.shortName || winner.team || '';
-        const teamAbbrev = team?.abbreviation || team?.shortName || winner.team || '';
-        
-        let markValue: string;
-        if (typeof winner.mark === 'number') {
-          if (isMultiEvent) {
-            markValue = Math.round(winner.mark).toString();
-          } else if (!isFieldEvent) {
-            // Track event — format as time
-            markValue = formatTimeSeconds(winner.mark);
-          } else {
-            // Field event — format as distance (2 decimal places)
-            markValue = winner.mark.toFixed(2);
-          }
-        } else {
-          markValue = '';
-        }
-        
-        const teamLogoUrl = teamId ? teamLogoMap.get(teamId) : null;
-        const headshotUrl = dbAthlete ? headshotMap.get(dbAthlete.id) : null;
-        
-        return {
-          position: winner.place,
-          firstName,
-          lastName,
-          name: `${firstName} ${lastName}`.trim() || 'Unknown',
-          team: teamAbbrev,
-          affiliation: teamName,
-          time: markValue,
-          mark: markValue,
-          teamLogoUrl: teamLogoUrl || null,
-          headshotUrl: headshotUrl || null,
-        };
-      });
-      
-      // Get meet info for logo
-      let meetLogoUrl: string | null = null;
-      try {
-        const meet = await storage.getMeet(meetId);
-        meetLogoUrl = meet?.logoUrl || null;
-      } catch (err) {
-        // Meet logo not available
-      }
-      
-      // Use event name from file, fall back to DB event name
-      const displayEventName = eventName || dbEvent?.name || `Event ${evtNum}`;
-      
-      // Send display_command with winners-board template
       const connectedDevice = connectedDisplayDevices.get(deviceId);
       if (connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {
-        // Lock device to winners mode
         connectedDevice.contentMode = 'winners';
-        // contentMode is stored in-memory on the connectedDevice object
-        
-        const meetName = (await storage.getMeet(meetId))?.name || '';
         
         connectedDevice.ws.send(JSON.stringify({
           type: 'display_command',
           template: 'winners-board',
           liveEventData: {
-            eventName: displayEventName,
+            eventName: result.displayEventName,
             mode: 'winners',
-            entries: winnersEntries,
+            entries: result.winnersEntries,
           },
           winnersData: {
-            eventName: displayEventName,
-            meetName,
-            meetLogoUrl,
-            entries: winnersEntries,
+            eventName: result.displayEventName,
+            meetName: result.meetName,
+            meetLogoUrl: result.meetLogoUrl,
+            entries: result.winnersEntries,
           },
         }));
         
-        console.log(`[Winners-Lynx] Sent ${winnersEntries.length} winners for "${displayEventName}" (event ${evtNum}, round ${maxRound}) to ${device.deviceName}`);
-        res.json({ success: true, delivered: true, entryCount: winnersEntries.length, round: maxRound, source: hasLIF ? 'lif' : 'lff' });
+        console.log(`[Winners-Lynx] Sent ${result.winnersEntries.length} winners for "${result.displayEventName}" (event ${evtNum}, round ${result.maxRound}) to ${device.deviceName}`);
+        res.json({ success: true, delivered: true, entryCount: result.winnersEntries.length, round: result.maxRound, source: result.source });
       } else {
         res.json({ success: false, delivered: false, message: "Device offline" });
       }
     } catch (error: any) {
       console.error(`[Winners-Lynx] Error:`, error);
-      res.status(500).json({ error: error.message });
+      const status = error.status || 500;
+      res.status(status).json({ error: error.message, warning: error.warning || false });
     }
   });
 

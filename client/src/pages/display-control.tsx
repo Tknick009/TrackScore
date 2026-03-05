@@ -104,7 +104,8 @@ export default function DisplayControlPage() {
   // New display mode state - tracks which mode is active per device
   const [displayMode, setDisplayMode] = useState<Record<string, DisplayMode>>({});
   const [selectedHytekItem, setSelectedHytekItem] = useState<Record<string, string>>({});
-  const [selectedWinnersEvent, setSelectedWinnersEvent] = useState<Record<string, string>>({});
+  const [selectedWinnersEvent, setSelectedWinnersEvent] = useState<Record<string, number>>({});
+  const [winnersPreview, setWinnersPreview] = useState<Record<string, any>>({}); // deviceId -> preview data
   const [pagingLines, setPagingLines] = useState<Record<string, number>>({});
   const [teamScoreGender, setTeamScoreGender] = useState<Record<string, 'M' | 'W'>>({});
   const [maxPages, setMaxPages] = useState<Record<string, number>>({});
@@ -377,7 +378,32 @@ export default function DisplayControlPage() {
     },
   });
 
-  // Send Winners Board mutation — reads from LIF/LFF files (FinishLynx output)
+  // Fetch available events that have LIF/LFF files
+  const { data: availableWinnersEvents = [] } = useQuery<{ eventNumber: number; eventId: string | null; name: string; eventTime: string | null }[]>({
+    queryKey: ['/api/meets', currentMeetId, 'winners-available-events'],
+    queryFn: () => fetch(`/api/meets/${currentMeetId}/winners-available-events`).then(r => r.json()).then(d => d.events || []),
+    enabled: !!currentMeetId,
+    refetchInterval: 10000, // Refresh every 10s to pick up new result files
+  });
+
+  // Preview Winners Board mutation — fetches data without sending to display
+  const previewWinnersMutation = useMutation({
+    mutationFn: async ({ deviceId, eventNumber }: { deviceId: string; eventNumber: number }) => {
+      const response = await apiRequest('POST', `/api/meets/${currentMeetId}/winners-board-preview`, { eventNumber });
+      return response.json();
+    },
+    onSuccess: (data, variables) => {
+      setWinnersPreview(prev => ({ ...prev, [variables.deviceId]: data }));
+      if (!data.success) {
+        toast({ title: 'Preview failed', description: data.error, variant: 'destructive' });
+      }
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Failed to preview Winners Board', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  // Send Winners Board mutation — pushes previewed data to the display
   const sendWinnersBoardMutation = useMutation({
     mutationFn: async ({ deviceId, eventNumber }: { deviceId: string; eventNumber: number }) => {
       const response = await apiRequest('POST', `/api/display-devices/${deviceId}/winners-board-lynx`, { eventNumber });
@@ -390,11 +416,7 @@ export default function DisplayControlPage() {
       });
     },
     onError: (error: Error) => {
-      toast({
-        title: 'Failed to send Winners Board',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast({ title: 'Failed to send Winners Board', description: error.message, variant: 'destructive' });
     },
   });
 
@@ -1101,8 +1123,9 @@ export default function DisplayControlPage() {
                         </div>
                       ) : displayMode[selectedDevice.id] === 'winners' ? (
                         <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
+                          {/* Step 1: Select event from available LIF/LFF files */}
                           <div className="space-y-2">
-                            <Label>Select Event</Label>
+                            <Label>Select Event (events with result files)</Label>
                             <div className="relative">
                               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                               <Input
@@ -1115,45 +1138,116 @@ export default function DisplayControlPage() {
                             </div>
                             <ScrollArea className="h-48 border rounded-md">
                               <div className="p-2 space-y-0.5">
-                                {sortedFilteredEvents.map(evt => {
-                                  const isSelected = selectedWinnersEvent[selectedDevice.id] === evt.id;
-                                  return (
-                                    <button
-                                      key={evt.id}
-                                      onClick={() => setSelectedWinnersEvent(prev => ({ ...prev, [selectedDevice.id]: evt.id }))}
-                                      className={`flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded-md cursor-pointer hover-elevate ${isSelected ? 'bg-accent' : ''}`}
-                                      data-testid={`button-winners-${evt.id}`}
-                                    >
-                                      {evt.eventTime && (
-                                        <span className="text-muted-foreground shrink-0 w-16 text-xs">{evt.eventTime}</span>
-                                      )}
-                                      <span className="truncate">{evt.name}</span>
-                                      <EventStatusBadge event={evt} />
-                                    </button>
-                                  );
-                                })}
+                                {availableWinnersEvents
+                                  .filter(evt => !eventSearch || evt.name.toLowerCase().includes(eventSearch.toLowerCase()) || String(evt.eventNumber).includes(eventSearch))
+                                  .map(evt => {
+                                    const isSelected = selectedWinnersEvent[selectedDevice.id] === evt.eventNumber;
+                                    return (
+                                      <button
+                                        key={evt.eventNumber}
+                                        onClick={() => {
+                                          setSelectedWinnersEvent(prev => ({ ...prev, [selectedDevice.id]: evt.eventNumber }));
+                                          // Clear any previous preview when selecting a new event
+                                          setWinnersPreview(prev => { const next = { ...prev }; delete next[selectedDevice.id]; return next; });
+                                        }}
+                                        className={`flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded-md cursor-pointer hover-elevate ${isSelected ? 'bg-accent' : ''}`}
+                                        data-testid={`button-winners-${evt.eventNumber}`}
+                                      >
+                                        <span className="text-muted-foreground shrink-0 w-8 text-xs font-mono">#{evt.eventNumber}</span>
+                                        {evt.eventTime && (
+                                          <span className="text-muted-foreground shrink-0 w-16 text-xs">{evt.eventTime}</span>
+                                        )}
+                                        <span className="truncate">{evt.name}</span>
+                                      </button>
+                                    );
+                                  })}
+                                {availableWinnersEvents.length === 0 && (
+                                  <p className="text-xs text-muted-foreground text-center py-4">No events with LIF/LFF result files found. Make sure your Lynx files directory is configured in Ingestion Settings.</p>
+                                )}
                               </div>
                             </ScrollArea>
                           </div>
 
+                          {/* Step 2: Preview button */}
                           <Button
                             onClick={() => {
-                              const evtId = selectedWinnersEvent[selectedDevice.id];
-                              if (!evtId) return;
-                              const evt = events.find(e => e.id === evtId);
-                              if (!evt?.eventNumber) return;
-                              sendWinnersBoardMutation.mutate({
+                              const evtNum = selectedWinnersEvent[selectedDevice.id];
+                              if (!evtNum) return;
+                              previewWinnersMutation.mutate({
                                 deviceId: selectedDevice.id,
-                                eventNumber: evt.eventNumber,
+                                eventNumber: evtNum,
                               });
                             }}
-                            disabled={!selectedWinnersEvent[selectedDevice.id] || sendWinnersBoardMutation.isPending}
+                            disabled={!selectedWinnersEvent[selectedDevice.id] || previewWinnersMutation.isPending}
+                            variant="outline"
                             className="w-full"
-                            data-testid="button-send-winners"
+                            data-testid="button-preview-winners"
                           >
-                            <Send className="w-4 h-4 mr-2" />
-                            Send Winners Board
+                            <Search className="w-4 h-4 mr-2" />
+                            {previewWinnersMutation.isPending ? 'Loading Preview...' : 'Preview Winners'}
                           </Button>
+
+                          {/* Step 3: Preview table */}
+                          {winnersPreview[selectedDevice.id] && winnersPreview[selectedDevice.id].entries && (
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <Label className="text-sm font-semibold">{winnersPreview[selectedDevice.id].eventName}</Label>
+                                <Badge variant="outline" className="text-xs">Round {winnersPreview[selectedDevice.id].round} • {winnersPreview[selectedDevice.id].source?.toUpperCase()}</Badge>
+                              </div>
+                              <div className="border rounded-md overflow-hidden">
+                                <table className="w-full text-sm">
+                                  <thead>
+                                    <tr className="bg-muted/50">
+                                      <th className="px-2 py-1 text-left w-8">#</th>
+                                      <th className="px-2 py-1 text-left">Athlete</th>
+                                      <th className="px-2 py-1 text-left">Team</th>
+                                      <th className="px-2 py-1 text-right">Mark</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {winnersPreview[selectedDevice.id].entries.map((entry: any, idx: number) => (
+                                      <tr key={idx} className={idx % 2 === 0 ? '' : 'bg-muted/20'}>
+                                        <td className="px-2 py-1.5 font-medium">{entry.position}</td>
+                                        <td className="px-2 py-1.5">
+                                          <div className="flex items-center gap-2">
+                                            {entry.headshotUrl && <img src={entry.headshotUrl} alt="" className="w-6 h-6 rounded-full object-cover" />}
+                                            <span>{entry.name}</span>
+                                          </div>
+                                        </td>
+                                        <td className="px-2 py-1.5 text-muted-foreground">
+                                          <div className="flex items-center gap-1">
+                                            {entry.teamLogoUrl && <img src={entry.teamLogoUrl} alt="" className="w-4 h-4 object-contain" />}
+                                            <span>{entry.team}</span>
+                                          </div>
+                                        </td>
+                                        <td className="px-2 py-1.5 text-right font-mono">{entry.mark}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Step 4: Send to Board button (only visible after preview) */}
+                          {winnersPreview[selectedDevice.id]?.entries && (
+                            <Button
+                              onClick={() => {
+                                const evtNum = selectedWinnersEvent[selectedDevice.id];
+                                if (!evtNum) return;
+                                sendWinnersBoardMutation.mutate({
+                                  deviceId: selectedDevice.id,
+                                  eventNumber: evtNum,
+                                });
+                              }}
+                              disabled={sendWinnersBoardMutation.isPending}
+                              className="w-full"
+                              data-testid="button-send-winners"
+                            >
+                              <Send className="w-4 h-4 mr-2" />
+                              {sendWinnersBoardMutation.isPending ? 'Sending...' : 'Send to Board'}
+                            </Button>
+                          )}
                         </div>
                       ) : displayMode[selectedDevice.id] === 'field' ? (
                         <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
