@@ -7,6 +7,7 @@ import {
   getPodiumColor,
   generateAttemptHeaders
 } from "../utils";
+import { getLogoEffectStyle } from "@/lib/logoEffects";
 
 interface LiveResultsBoardProps {
   event: EventWithEntries;
@@ -36,6 +37,7 @@ export function LiveResultsBoard({ event, meet, mode }: LiveResultsBoardProps) {
           src={meet.logoUrl}
           alt="Meet logo"
           className="absolute top-8 right-8 max-w-[120px] max-h-[80px] z-10"
+          style={getLogoEffectStyle(meet.logoEffect)}
           data-testid="img-meet-logo"
         />
       )}

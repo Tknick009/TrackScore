@@ -176,6 +176,7 @@ export class SQLiteStorage implements IStorage {
     try { this.db.prepare('ALTER TABLE display_devices ADD COLUMN display_width INTEGER').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE display_devices ADD COLUMN display_height INTEGER').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE meet_ingestion_settings ADD COLUMN headshot_directory TEXT').run(); } catch(e) {}
+    try { this.db.prepare("ALTER TABLE meets ADD COLUMN logo_effect TEXT DEFAULT 'none'").run(); } catch(e) {}
   }
 
   private createTables(): void {
@@ -208,7 +209,8 @@ export class SQLiteStorage implements IStorage {
         primary_color TEXT DEFAULT '#0066CC',
         secondary_color TEXT DEFAULT '#003366',
         accent_color TEXT DEFAULT '#FFD700',
-        text_color TEXT DEFAULT '#FFFFFF'
+        text_color TEXT DEFAULT '#FFFFFF',
+        logo_effect TEXT DEFAULT 'none'
       );
       CREATE INDEX IF NOT EXISTS meets_meet_code_idx ON meets(meet_code);
       CREATE INDEX IF NOT EXISTS meets_season_id_idx ON meets(season_id);
@@ -988,6 +990,7 @@ export class SQLiteStorage implements IStorage {
       secondaryColor: row.secondary_color,
       accentColor: row.accent_color,
       textColor: row.text_color,
+      logoEffect: row.logo_effect ?? 'none',
     };
   }
 
@@ -1525,8 +1528,8 @@ export class SQLiteStorage implements IStorage {
     const meetCode = meet.meetCode || this.generateMeetCode();
     
     this.db.prepare(`
-      INSERT INTO meets (id, season_id, name, location, start_date, end_date, status, track_length, logo_url, meet_code, mdb_path, auto_refresh, refresh_interval, primary_color, secondary_color, accent_color, text_color)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO meets (id, season_id, name, location, start_date, end_date, status, track_length, logo_url, meet_code, mdb_path, auto_refresh, refresh_interval, primary_color, secondary_color, accent_color, text_color, logo_effect)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       meet.seasonId ?? null,
@@ -1544,7 +1547,8 @@ export class SQLiteStorage implements IStorage {
       meet.primaryColor ?? '#0066CC',
       meet.secondaryColor ?? '#003366',
       meet.accentColor ?? '#FFD700',
-      meet.textColor ?? '#FFFFFF'
+      meet.textColor ?? '#FFFFFF',
+      meet.logoEffect ?? 'none'
     );
     const created = (await this.getMeet(id))!;
     this.logSyncEvent('meets', id, 'insert', created);
@@ -1580,6 +1584,7 @@ export class SQLiteStorage implements IStorage {
       secondaryColor: 'secondary_color',
       accentColor: 'accent_color',
       textColor: 'text_color',
+      logoEffect: 'logo_effect',
     };
 
     for (const [key, val] of Object.entries(data)) {

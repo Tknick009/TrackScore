@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import type { EventWithEntries, Meet, EntryWithDetails } from "@shared/schema";
+import { getLogoEffectStyle } from "@/lib/logoEffects";
 
 interface FieldSideBySideProps {
   event: EventWithEntries;
@@ -183,6 +184,7 @@ export function FieldSideBySide({ event, meet, leftAthlete, rightAthlete, liveTi
               src={meet.logoUrl} 
               alt={meet.name} 
               className="h-16 object-contain"
+              style={getLogoEffectStyle(meet.logoEffect)}
             />
           )}
           <h1 

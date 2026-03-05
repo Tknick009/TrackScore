@@ -15,6 +15,8 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { LOGO_EFFECTS, type LogoEffect, getLogoEffectStyle } from "@/lib/logoEffects";
 
 const DEFAULT_COLORS = {
   primaryColor: "#0066CC",
@@ -99,6 +101,7 @@ export default function MeetSetup() {
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [logoEffect, setLogoEffect] = useState<LogoEffect>("none");
   const [hasChanges, setHasChanges] = useState(false);
   
   // Color scheme state
@@ -146,6 +149,13 @@ export default function MeetSetup() {
       setSecondaryColor(meet.secondaryColor || DEFAULT_COLORS.secondaryColor);
       setAccentColor(meet.accentColor || DEFAULT_COLORS.accentColor);
       setTextColor(meet.textColor || DEFAULT_COLORS.textColor);
+
+      const effect = meet.logoEffect || "none";
+      setLogoEffect(
+        LOGO_EFFECTS.some((opt) => opt.value === effect)
+          ? (effect as LogoEffect)
+          : "none"
+      );
     }
   }, [meet]);
 
@@ -226,6 +236,24 @@ export default function MeetSetup() {
     onError: (error: Error) => {
       toast({
         title: "Failed to remove logo",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const saveLogoEffectMutation = useMutation({
+    mutationFn: async (effect: LogoEffect) => {
+      return await apiRequest("PATCH", `/api/meets/${meetId}`, { logoEffect: effect });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/meets", meetId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/meets"] });
+      toast({ title: "Logo effect updated" });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to update logo effect",
         description: error.message,
         variant: "destructive",
       });
@@ -637,6 +665,48 @@ export default function MeetSetup() {
                   <p className="text-sm text-muted-foreground mt-2">
                     Accepted formats: JPEG, PNG, GIF (max 1024px)
                   </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Logo Effect Selector – only visible when a logo is uploaded */}
+          {meet.logoUrl && (
+            <div className="space-y-2 pt-2 border-t">
+              <Label>Logo Effect</Label>
+              <div className="flex items-center gap-4">
+                <Select
+                  value={logoEffect}
+                  onValueChange={(val) => {
+                    const effect = val as LogoEffect;
+                    setLogoEffect(effect);
+                    saveLogoEffectMutation.mutate(effect);
+                  }}
+                >
+                  <SelectTrigger className="w-48" data-testid="select-logo-effect">
+                    <SelectValue placeholder="Select effect" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {LOGO_EFFECTS.map((eff) => (
+                      <SelectItem key={eff.value} value={eff.value}>
+                        {eff.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="text-sm text-muted-foreground">
+                  {LOGO_EFFECTS.find((e) => e.value === logoEffect)?.description}
+                </span>
+              </div>
+              {/* Live preview */}
+              {logoEffect !== "none" && (
+                <div className="mt-2 p-3 bg-muted rounded-md inline-block">
+                  <img
+                    src={meet.logoUrl}
+                    alt="Effect preview"
+                    className="h-16 object-contain"
+                    style={getLogoEffectStyle(logoEffect)}
+                  />
                 </div>
               )}
             </div>
