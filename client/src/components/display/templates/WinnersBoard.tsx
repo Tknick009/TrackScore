@@ -23,176 +23,206 @@ interface WinnersBoardProps {
   secondaryColor?: string;
 }
 
-const PODIUM_COLORS: Record<number, { bg: string; border: string; text: string }> = {
-  1: { bg: 'rgba(255,215,0,0.15)', border: '#FFD700', text: '#FFD700' },
-  2: { bg: 'rgba(192,192,192,0.12)', border: '#C0C0C0', text: '#C0C0C0' },
-  3: { bg: 'rgba(205,127,50,0.12)', border: '#CD7F32', text: '#CD7F32' },
-  4: { bg: 'rgba(255,255,255,0.05)', border: 'rgba(255,255,255,0.2)', text: 'rgba(255,255,255,0.6)' },
-};
-
 export function WinnersBoard({
   eventName,
   entries,
   meetName,
   meetLogoUrl,
   meetLogoEffect,
-  primaryColor = '#0066CC',
-  secondaryColor = '#003366',
+  primaryColor = '#0088FF',
 }: WinnersBoardProps) {
   if (!entries || entries.length === 0) return null;
 
-  const accentColor = primaryColor;
+  const winner = entries[0];
+  const topEntries = entries.slice(0, 4);
 
   return (
     <div
-      className="h-screen w-screen overflow-hidden flex flex-col items-center justify-center relative"
+      className="h-screen w-screen overflow-hidden flex flex-col"
       style={{
-        background: `radial-gradient(ellipse 90% 70% at center, ${secondaryColor} 0%, #0a0a0a 100%)`,
+        background: '#000',
         fontFamily: "'Barlow Semi Condensed', 'Inter', sans-serif",
       }}
     >
-      {/* Top decorative bar */}
-      <div
-        className="absolute top-0 left-0 right-0 h-1"
-        style={{
-          background: `linear-gradient(90deg, transparent 10%, ${accentColor} 50%, transparent 90%)`,
-        }}
-      />
-
-      <div className="relative z-10 flex flex-col items-center w-full max-w-[90%] gap-5">
-        {/* Meet logo */}
+      {/* ===== TOP HALF: Winner Hero Section (black bg) ===== */}
+      <div className="flex-1 relative flex" style={{ minHeight: '45%' }}>
+        {/* Meet logo — top-left corner */}
         {meetLogoUrl && (
-          <img
-            src={meetLogoUrl}
-            alt={meetName || ''}
-            className="h-16 object-contain mb-1"
-            style={getLogoEffectStyle(meetLogoEffect)}
-          />
+          <div
+            className="absolute top-2 left-2 z-10"
+            style={{ width: '18%', maxWidth: '200px' }}
+          >
+            <img
+              src={meetLogoUrl}
+              alt={meetName || ''}
+              className="w-full h-auto object-contain"
+              style={getLogoEffectStyle(meetLogoEffect)}
+            />
+          </div>
         )}
 
-        {/* Event name headline */}
-        <div className="text-center">
-          <div
-            className="font-black uppercase tracking-[0.15em] leading-none text-white"
-            style={{
-              fontSize: 'clamp(32px, 5vw, 64px)',
-            }}
-          >
-            {eventName}
+        {/* Hero content */}
+        <div className="flex-1 flex items-stretch">
+          {/* Left spacer for logo area */}
+          <div style={{ width: meetLogoUrl ? '20%' : '4%' }} />
+
+          {/* Center: Winner details */}
+          <div className="flex-1 flex flex-col justify-center py-3">
+            {/* Meet name as italic title */}
+            <div
+              className="text-white font-bold italic leading-tight"
+              style={{ fontSize: 'clamp(16px, 2.8vw, 38px)' }}
+            >
+              {meetName}
+            </div>
+
+            {/* Winner full name — very large */}
+            <div
+              className="text-white font-bold leading-none mt-1"
+              style={{ fontSize: 'clamp(36px, 7vw, 96px)' }}
+            >
+              {winner.firstName} {winner.lastName}
+            </div>
+
+            {/* Winner team / affiliation */}
+            <div
+              className="text-white font-bold leading-tight"
+              style={{ fontSize: 'clamp(24px, 5vw, 68px)' }}
+            >
+              {winner.affiliation || winner.team}
+            </div>
+
+            {/* Winner mark / time */}
+            <div
+              className="text-white font-bold leading-tight"
+              style={{ fontSize: 'clamp(24px, 5vw, 68px)' }}
+            >
+              {winner.mark || winner.time}
+            </div>
           </div>
-        </div>
 
-        {/* Divider */}
-        <div
-          className="w-full max-w-2xl h-[2px]"
-          style={{
-            background: `linear-gradient(90deg, transparent 0%, ${accentColor}88 50%, transparent 100%)`,
-          }}
-        />
-
-        {/* Winners list */}
-        <div className="w-full max-w-5xl space-y-3">
-          {entries.slice(0, 4).map((entry, index) => {
-            const place = entry.position || index + 1;
-            const colors = PODIUM_COLORS[place] || PODIUM_COLORS[4];
-
-            return (
+          {/* Right side: Team logo + headshot */}
+          <div className="flex items-end gap-2 pr-3 pb-2" style={{ width: '22%' }}>
+            {/* Team logo — small square */}
+            {winner.teamLogoUrl && (
               <div
-                key={index}
-                className="flex items-center gap-5 px-8 py-5 rounded-xl"
+                className="shrink-0 self-center"
                 style={{
-                  background: colors.bg,
-                  borderLeft: `4px solid ${colors.border}`,
+                  width: 'clamp(40px, 5vw, 70px)',
+                  height: 'clamp(40px, 5vw, 70px)',
                 }}
               >
-                {/* Place number */}
-                <div
-                  className="shrink-0 font-black w-16 text-center"
-                  style={{
-                    fontSize: 'clamp(36px, 4vw, 60px)',
-                    color: colors.text,
-                  }}
-                >
-                  {place}
-                </div>
-
-                {/* Headshot */}
-                {entry.headshotUrl && (
-                  <div
-                    className="shrink-0 rounded-lg overflow-hidden"
-                    style={{
-                      width: '70px',
-                      height: '85px',
-                      border: `2px solid ${colors.border}44`,
-                    }}
-                  >
-                    <img
-                      src={entry.headshotUrl}
-                      alt={entry.name}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                )}
-
-                {/* Athlete info */}
-                <div className="flex-1 min-w-0">
-                  <div
-                    className="text-white font-bold leading-tight truncate"
-                    style={{ fontSize: 'clamp(24px, 3.5vw, 44px)' }}
-                  >
-                    {entry.name}
-                  </div>
-                  <div className="flex items-center gap-2 mt-1">
-                    {entry.teamLogoUrl && (
-                      <img
-                        src={entry.teamLogoUrl}
-                        alt=""
-                        className="h-6 w-6 object-contain"
-                      />
-                    )}
-                    <span
-                      className="text-white/50 font-medium uppercase tracking-wider"
-                      style={{ fontSize: 'clamp(14px, 2vw, 22px)' }}
-                    >
-                      {entry.affiliation || entry.team}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Mark / Time */}
-                <div className="shrink-0 text-right">
-                  <div
-                    className="font-black tabular-nums"
-                    style={{
-                      fontSize: 'clamp(28px, 4vw, 52px)',
-                      fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-                      color: colors.text,
-                    }}
-                  >
-                    {entry.mark || entry.time}
-                  </div>
-                </div>
+                <img
+                  src={winner.teamLogoUrl}
+                  alt=""
+                  className="w-full h-full object-contain"
+                />
               </div>
-            );
-          })}
-        </div>
+            )}
 
-        {/* Meet name footer */}
-        <div
-          className="text-white/25 uppercase tracking-[0.1em] font-medium mt-3"
-          style={{ fontSize: 'clamp(12px, 1.5vw, 18px)' }}
-        >
-          {meetName}
+            {/* Winner headshot — bottom-right */}
+            {winner.headshotUrl && (
+              <div className="flex-1 h-full flex items-end justify-end">
+                <img
+                  src={winner.headshotUrl}
+                  alt={winner.name}
+                  className="object-contain object-bottom"
+                  style={{ maxHeight: '90%', maxWidth: '100%' }}
+                />
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Bottom decorative bar */}
-      <div
-        className="absolute bottom-0 left-0 right-0 h-1"
-        style={{
-          background: `linear-gradient(90deg, transparent 10%, ${accentColor} 50%, transparent 90%)`,
-        }}
-      />
+      {/* ===== BOTTOM HALF: Results Table ===== */}
+      <div style={{ minHeight: '50%' }} className="flex flex-col">
+        {/* Header bar — dark gray with event name (left) + "Final" (right) */}
+        <div
+          className="flex items-center justify-between px-6 py-2"
+          style={{ background: '#333' }}
+        >
+          <span
+            className="text-white font-bold"
+            style={{ fontSize: 'clamp(16px, 2.5vw, 34px)' }}
+          >
+            {eventName}
+          </span>
+          <span
+            className="text-white font-bold"
+            style={{ fontSize: 'clamp(16px, 2.5vw, 34px)' }}
+          >
+            Final
+          </span>
+        </div>
+
+        {/* Result rows — bright blue with white dividers */}
+        <div className="flex-1 flex flex-col">
+          {topEntries.map((entry, index) => (
+            <div
+              key={index}
+              className="flex-1 flex items-center px-4"
+              style={{
+                background: primaryColor,
+                borderBottom:
+                  index < topEntries.length - 1
+                    ? '2px solid rgba(255,255,255,0.4)'
+                    : 'none',
+              }}
+            >
+              {/* Team logo */}
+              <div
+                className="shrink-0 flex items-center justify-center"
+                style={{ width: 'clamp(40px, 5vw, 70px)' }}
+              >
+                {entry.teamLogoUrl && (
+                  <img
+                    src={entry.teamLogoUrl}
+                    alt=""
+                    className="object-contain"
+                    style={{
+                      height: 'clamp(28px, 4vh, 48px)',
+                      width: 'clamp(28px, 4vh, 48px)',
+                    }}
+                  />
+                )}
+              </div>
+
+              {/* Last name — bold, left-aligned */}
+              <div
+                className="text-white font-bold"
+                style={{
+                  fontSize: 'clamp(22px, 4.5vw, 60px)',
+                  width: '30%',
+                  paddingLeft: '0.5rem',
+                }}
+              >
+                {entry.lastName}
+              </div>
+
+              {/* Team / affiliation — centered */}
+              <div
+                className="text-white font-bold text-center flex-1"
+                style={{ fontSize: 'clamp(18px, 3.5vw, 48px)' }}
+              >
+                {entry.affiliation || entry.team}
+              </div>
+
+              {/* Mark — right-aligned */}
+              <div
+                className="text-white font-bold text-right shrink-0"
+                style={{
+                  fontSize: 'clamp(22px, 4.5vw, 60px)',
+                  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                  minWidth: '18%',
+                }}
+              >
+                {entry.mark || entry.time}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
