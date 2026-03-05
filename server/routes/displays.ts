@@ -1040,8 +1040,9 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
             mode: 'results',
             entries: enrichedEntries,
             // Only send advancement data for non-final rounds
-            advanceByPlace: isFinalRound ? null : (eventAdvanceByPlace || undefined),
-            advanceByTime: isFinalRound ? null : (eventAdvanceByTime || undefined),
+            // Always send explicit values (never undefined) so client doesn't carry over stale data
+            advanceByPlace: isFinalRound ? 0 : eventAdvanceByPlace,
+            advanceByTime: isFinalRound ? 0 : eventAdvanceByTime,
             // Additional metadata for better display rendering
             eventType: event.eventType || 'track',
             gender: event.gender || '',

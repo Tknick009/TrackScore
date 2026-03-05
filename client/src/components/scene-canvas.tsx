@@ -829,12 +829,14 @@ export function SceneObjectRenderer({
           const windDisplay = isValidWind ? windStr : '';
           
           // Compute qualifier status: Q = qualified by place, q = qualified by time
-          const advanceByPlace = liveData.advanceByPlace;
-          const advanceByTime = liveData.advanceByTime;
+          // Only show Big Q when advanceByPlace > 0 (explicit positive number check)
+          // If formula is "Top 0 + Next 8 Times", no Q badges should appear
+          const advanceByPlace = typeof liveData.advanceByPlace === 'number' ? liveData.advanceByPlace : 0;
+          const advanceByTime = typeof liveData.advanceByTime === 'number' ? liveData.advanceByTime : 0;
           let qualifierStatus = '';
           const entryPlace = parseInt(String(firstEntry?.place || '0'));
           const roundCheckStr = String(liveData.roundName || liveData.round || '').toLowerCase();
-          if (entryPlace > 0 && advanceByPlace && !roundCheckStr.includes('final')) {
+          if (entryPlace > 0 && advanceByPlace > 0 && !roundCheckStr.includes('final')) {
             if (entryPlace <= advanceByPlace) {
               qualifierStatus = 'Q'; // Qualified by place
             }
@@ -846,9 +848,9 @@ export function SceneObjectRenderer({
           const isFinalRound = roundNameStr.includes('final');
           
           let advancementFormula = '';
-          if (!isFinalRound && (advanceByPlace || advanceByTime)) {
-            const place = advanceByPlace || 0;
-            const time = advanceByTime || 0;
+          if (!isFinalRound && (advanceByPlace > 0 || advanceByTime > 0)) {
+            const place = advanceByPlace;
+            const time = advanceByTime;
             if (place > 0 && time > 0) {
               advancementFormula = `Top ${place} + Next ${time} Times`;
             } else if (place > 0) {
@@ -1100,10 +1102,11 @@ export function SceneObjectRenderer({
           if (entry?.qualifier) {
             qualifierBadge = entry.qualifier;
           } else {
-            const advanceByPlace = liveData.advanceByPlace;
+            const advByPlace = typeof liveData.advanceByPlace === 'number' ? liveData.advanceByPlace : 0;
             const entryPlace = parseInt(String(entry?.place || '0'));
             const roundStr = String(liveData.roundName || liveData.round || '').toLowerCase();
-            if (entryPlace > 0 && advanceByPlace && entryPlace <= advanceByPlace && !roundStr.includes('final')) {
+            // Only show Big Q when advanceByPlace > 0 and not a final round
+            if (entryPlace > 0 && advByPlace > 0 && entryPlace <= advByPlace && !roundStr.includes('final')) {
               qualifierBadge = 'Q';
             }
           }

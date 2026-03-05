@@ -1562,8 +1562,8 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
           totalHeats, // Include total heats for "Heat X of Y" display
           roundName, // Include round name for "Prelims", "Finals", etc.
           totalRounds, // Total rounds configured for event
-          advanceByPlace: isFinalRound ? null : advanceByPlace, // Suppress on finals
-          advanceByTime: isFinalRound ? null : advanceByTime, // Suppress on finals
+          advanceByPlace: isFinalRound ? 0 : (advanceByPlace || 0), // Suppress on finals, always send explicit value
+          advanceByTime: isFinalRound ? 0 : (advanceByTime || 0), // Suppress on finals, always send explicit value
           isMultiEvent, // For multi-event points display
           eventType, // For calculating multi-event points
           gender: eventGender, // For calculating multi-event points
@@ -1982,8 +1982,8 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
         totalHeats, // Include total heats for "Heat X of Y" display
         roundName, // Include round name for "Prelims", "Finals", etc.
         totalRounds, // Total rounds configured for event
-        advanceByPlace: isFinalRound ? null : advanceByPlace, // Suppress on finals
-        advanceByTime: isFinalRound ? null : advanceByTime, // Suppress on finals
+        advanceByPlace: isFinalRound ? 0 : (advanceByPlace || 0), // Suppress on finals, always send explicit value
+        advanceByTime: isFinalRound ? 0 : (advanceByTime || 0), // Suppress on finals, always send explicit value
         isMultiEvent, // For multi-event points display
         eventType, // For calculating multi-event points
         gender: eventGender, // For calculating multi-event points

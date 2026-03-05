@@ -1092,8 +1092,9 @@ export default function DisplayDevice() {
                     entries: entries.length > 0 ? entries : (prev.liveEventData?.entries || []),
                     // Always use the server's value for advancement data — never carry over from previous events
                     // This prevents Q badges from showing on events that don't have qualifiers
-                    advanceByPlace: eventChanged ? (data.advanceByPlace ?? null) : (data.advanceByPlace !== undefined ? data.advanceByPlace : prev.liveEventData?.advanceByPlace),
-                    advanceByTime: eventChanged ? (data.advanceByTime ?? null) : (data.advanceByTime !== undefined ? data.advanceByTime : prev.liveEventData?.advanceByTime),
+                    // Server now sends explicit 0 instead of null/undefined, so always prefer server value
+                    advanceByPlace: data.advanceByPlace ?? (eventChanged ? 0 : (prev.liveEventData?.advanceByPlace ?? 0)),
+                    advanceByTime: data.advanceByTime ?? (eventChanged ? 0 : (prev.liveEventData?.advanceByTime ?? 0)),
                     isMultiEvent: data.isMultiEvent,
                     eventType: data.eventType,
                     gender: data.gender,
@@ -1449,8 +1450,9 @@ export default function DisplayDevice() {
                     wind: prev.liveEventData?.wind,
                     distance: data.distance || prev.liveEventData?.distance,
                     // Always use the server's value for advancement data — never carry over from previous events
-                    advanceByPlace: eventChanged ? (data.advanceByPlace ?? null) : (data.advanceByPlace !== undefined ? data.advanceByPlace : prev.liveEventData?.advanceByPlace),
-                    advanceByTime: eventChanged ? (data.advanceByTime ?? null) : (data.advanceByTime !== undefined ? data.advanceByTime : prev.liveEventData?.advanceByTime),
+                    // Server now sends explicit 0 instead of null/undefined, so always prefer server value
+                    advanceByPlace: data.advanceByPlace ?? (eventChanged ? 0 : (prev.liveEventData?.advanceByPlace ?? 0)),
+                    advanceByTime: data.advanceByTime ?? (eventChanged ? 0 : (prev.liveEventData?.advanceByTime ?? 0)),
                     isMultiEvent: data.isMultiEvent ?? (eventChanged ? undefined : prev.liveEventData?.isMultiEvent),
                     eventType: data.eventType ?? (eventChanged ? undefined : prev.liveEventData?.eventType),
                     gender: data.gender ?? (eventChanged ? undefined : prev.liveEventData?.gender),
