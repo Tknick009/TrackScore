@@ -1233,10 +1233,10 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
     });
     
     let meetLogoUrl: string | null = null;
-    try { const meet = await storage.getMeet(meetId); meetLogoUrl = meet?.logoUrl || null; } catch (err) { /* ok */ }
+    let meetName = '';
+    try { const meet = await storage.getMeet(meetId); meetLogoUrl = meet?.logoUrl || null; meetName = meet?.name || ''; } catch (err) { /* ok */ }
     
     const displayEventName = eventName || dbEvent?.name || `Event ${evtNum}`;
-    const meetName = (await storage.getMeet(meetId))?.name || '';
     
     return { winnersEntries, displayEventName, meetName, meetLogoUrl, maxRound, source: hasLIF ? 'lif' : 'lff', isFieldEvent };
   }
