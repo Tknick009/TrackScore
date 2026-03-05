@@ -1113,7 +1113,9 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       }
     }
     
-    if (hasLFF) {
+    // Use LIF (track) if available; only fall back to LFF (field) when no LIF files exist.
+    // This prevents duplicate candidates and incorrect sort direction when both types exist.
+    if (!hasLIF && hasLFF) {
       isFieldEvent = true;
       const lffFiles = latestRoundFiles.filter(f => f.ext === 'lff').sort((a, b) => a.heat - b.heat);
       for (const fileInfo of lffFiles) {

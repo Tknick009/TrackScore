@@ -110,6 +110,7 @@ export default function DisplayControlPage() {
   const [teamScoreGender, setTeamScoreGender] = useState<Record<string, 'M' | 'W'>>({});
   const [maxPages, setMaxPages] = useState<Record<string, number>>({});
   const [eventSearch, setEventSearch] = useState('');
+  const [winnersEventSearch, setWinnersEventSearch] = useState('');
   const [pendingFieldPort, setPendingFieldPort] = useState<Record<string, number>>({});
 
   const baseUrl = typeof window !== 'undefined' 
@@ -1130,8 +1131,8 @@ export default function DisplayControlPage() {
                               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                               <Input
                                 placeholder="Search events..."
-                                value={eventSearch}
-                                onChange={(e) => setEventSearch(e.target.value)}
+                                value={winnersEventSearch}
+                                onChange={(e) => setWinnersEventSearch(e.target.value)}
                                 className="pl-8"
                                 data-testid="input-winners-event-search"
                               />
@@ -1139,7 +1140,7 @@ export default function DisplayControlPage() {
                             <ScrollArea className="h-48 border rounded-md">
                               <div className="p-2 space-y-0.5">
                                 {availableWinnersEvents
-                                  .filter(evt => !eventSearch || evt.name.toLowerCase().includes(eventSearch.toLowerCase()) || String(evt.eventNumber).includes(eventSearch))
+                                  .filter(evt => !winnersEventSearch || evt.name.toLowerCase().includes(winnersEventSearch.toLowerCase()) || String(evt.eventNumber).includes(winnersEventSearch))
                                   .map(evt => {
                                     const isSelected = selectedWinnersEvent[selectedDevice.id] === evt.eventNumber;
                                     return (
