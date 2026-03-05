@@ -1552,8 +1552,8 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
           meetName={liveEventData.meetName || meet?.name || ''}
           meetLogoUrl={liveEventData.meetLogoUrl || meet?.logoUrl || null}
           meetLogoEffect={liveEventData.meetLogoEffect || (meet as any)?.logoEffect}
-          primaryColor={liveEventData.primaryColor}
-          secondaryColor={liveEventData.secondaryColor}
+          primaryColor={liveEventData.primaryColor || undefined}
+          secondaryColor={liveEventData.secondaryColor || undefined}
         />
       );
     }
@@ -1567,8 +1567,8 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
           meetName={winnersData?.meetName || meet?.name || ''}
           meetLogoUrl={winnersData?.meetLogoUrl || meet?.logoUrl || null}
           meetLogoEffect={(meet as any)?.logoEffect}
-          primaryColor={meet?.primaryColor}
-          secondaryColor={meet?.secondaryColor}
+          primaryColor={meet?.primaryColor || undefined}
+          secondaryColor={meet?.secondaryColor || undefined}
         />
       );
     }
