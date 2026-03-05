@@ -375,10 +375,10 @@ export default function DisplayControlPage() {
     },
   });
 
-  // Send Winners Board mutation
+  // Send Winners Board mutation — reads from LIF/LFF files (FinishLynx output)
   const sendWinnersBoardMutation = useMutation({
-    mutationFn: async ({ deviceId, eventId }: { deviceId: string; eventId: string }) => {
-      const response = await apiRequest('POST', `/api/display-devices/${deviceId}/winners-board`, { eventId });
+    mutationFn: async ({ deviceId, eventNumber }: { deviceId: string; eventNumber: number }) => {
+      const response = await apiRequest('POST', `/api/display-devices/${deviceId}/winners-board-lynx`, { eventNumber });
       return response.json();
     },
     onSuccess: (data) => {
@@ -1141,9 +1141,11 @@ export default function DisplayControlPage() {
                             onClick={() => {
                               const evtId = selectedHytekItem[selectedDevice.id];
                               if (!evtId) return;
+                              const evt = events.find(e => e.id === evtId);
+                              if (!evt?.eventNumber) return;
                               sendWinnersBoardMutation.mutate({
                                 deviceId: selectedDevice.id,
-                                eventId: evtId,
+                                eventNumber: evt.eventNumber,
                               });
                             }}
                             disabled={!selectedHytekItem[selectedDevice.id] || sendWinnersBoardMutation.isPending}
