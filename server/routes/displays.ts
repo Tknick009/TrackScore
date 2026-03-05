@@ -1208,8 +1208,16 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         return res.status(400).json({ error: `No placed results found for event ${evtNum} (round ${maxRound})`, warning: true });
       }
       
-      // Sort by place, take top 4
-      candidates.sort((a, b) => a.place - b.place);
+      // Sort by place, with mark as tiebreaker for multi-heat rounds
+      candidates.sort((a, b) => {
+        const placeDiff = a.place - b.place;
+        if (placeDiff !== 0) return placeDiff;
+        // Tiebreaker: for track events, lower time is better; for field events, higher mark is better
+        if (a.mark !== null && b.mark !== null) {
+          return isFieldEvent ? (b.mark - a.mark) : (a.mark - b.mark);
+        }
+        return 0;
+      });
       const top4 = candidates.slice(0, 4);
       
       // Try to match athletes from DB for headshots/logos enrichment
@@ -1342,7 +1350,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       const connectedDevice = connectedDisplayDevices.get(deviceId);
       if (connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {
         // Lock device to winners mode
-        connectedDevice.contentMode = 'winners' as any;
+        connectedDevice.contentMode = 'winners';
         // contentMode is stored in-memory on the connectedDevice object
         
         const meetName = (await storage.getMeet(meetId))?.name || '';
