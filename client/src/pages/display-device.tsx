@@ -569,6 +569,12 @@ export default function DisplayDevice() {
               setIsFieldMode(false);
               autoModeRef.current = false;
               console.log(`[Display] Switched to ${newContentMode} content mode (auto-mode disabled)`);
+            } else if (newContentMode === 'winners' || newContentMode === 'record') {
+              // Switch to Winners Board or Record Board — disable auto mode so FinishLynx doesn't override
+              setIsFieldMode(false);
+              autoModeRef.current = false;
+              currentLayoutModeRef.current = null; // Reset so display_command triggers fresh render
+              console.log(`[Display] Switched to ${newContentMode} content mode (auto-mode disabled)`);
             }
           }
 
