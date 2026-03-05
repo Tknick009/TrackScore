@@ -1376,6 +1376,133 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
     }
   });
 
+  // ===== RECORD BOARD (LIF/LFF) =====
+  // Reuses parseWinnersFromLynxFiles but only takes the 1st-place finisher
+
+  // Preview Record Board — parse and return winner data without sending to display
+  app.post("/api/meets/:meetId/record-board-preview", async (req, res) => {
+    try {
+      const { eventNumber } = req.body;
+      const meetId = req.params.meetId;
+      
+      if (!eventNumber) {
+        return res.status(400).json({ error: "eventNumber is required" });
+      }
+      const evtNum = parseInt(eventNumber);
+      if (isNaN(evtNum) || evtNum <= 0) {
+        return res.status(400).json({ error: "eventNumber must be a positive integer" });
+      }
+      
+      const result = await parseWinnersFromLynxFiles(meetId, evtNum);
+      // Only the winner (1st place)
+      const winner = result.winnersEntries.find((e: any) => e.position === 1) || result.winnersEntries[0];
+      
+      // Get meet colors and logo effect for the display
+      let primaryColor = '#FFD700';
+      let secondaryColor = '#1a1a2e';
+      let logoEffect: string | null = null;
+      try {
+        const meet = await storage.getMeet(meetId);
+        if (meet) {
+          primaryColor = meet.primaryColor || primaryColor;
+          secondaryColor = meet.secondaryColor || secondaryColor;
+          logoEffect = (meet as any).logoEffect || null;
+        }
+      } catch (err) { /* ok */ }
+      
+      res.json({
+        success: true,
+        eventName: result.displayEventName,
+        meetName: result.meetName,
+        meetLogoUrl: result.meetLogoUrl,
+        meetLogoEffect: logoEffect,
+        primaryColor,
+        secondaryColor,
+        round: result.maxRound,
+        source: result.source,
+        entry: winner || null,
+      });
+    } catch (error: any) {
+      console.error('[Record-Preview] Error:', error);
+      const status = error.status || 500;
+      res.status(status).json({ error: error.message, warning: error.warning || false });
+    }
+  });
+
+  // Send Record Board to display — parse LIF/LFF files and push winner + record label to device
+  app.post("/api/display-devices/:id/record-board", async (req, res) => {
+    try {
+      const { eventNumber, recordLabel } = req.body;
+      const deviceId = req.params.id;
+      
+      if (!eventNumber) {
+        return res.status(400).json({ error: "eventNumber is required" });
+      }
+      if (!recordLabel || typeof recordLabel !== 'string' || !recordLabel.trim()) {
+        return res.status(400).json({ error: "recordLabel is required (e.g. 'Meet Record', 'Facility Record')" });
+      }
+      const evtNum = parseInt(eventNumber);
+      if (isNaN(evtNum) || evtNum <= 0) {
+        return res.status(400).json({ error: "eventNumber must be a positive integer" });
+      }
+      
+      const device = await storage.getDisplayDevice(deviceId);
+      if (!device) {
+        return res.status(404).json({ error: "Display device not found" });
+      }
+      const meetId = device.meetId;
+      if (!meetId) {
+        return res.status(400).json({ error: "Device has no assigned meet" });
+      }
+      
+      const result = await parseWinnersFromLynxFiles(meetId, evtNum);
+      const winner = result.winnersEntries.find((e: any) => e.position === 1) || result.winnersEntries[0];
+      
+      // Get meet colors and logo effect
+      let primaryColor = '#FFD700';
+      let secondaryColor = '#1a1a2e';
+      let logoEffect: string | null = null;
+      try {
+        const meet = await storage.getMeet(meetId);
+        if (meet) {
+          primaryColor = meet.primaryColor || primaryColor;
+          secondaryColor = meet.secondaryColor || secondaryColor;
+          logoEffect = (meet as any).logoEffect || null;
+        }
+      } catch (err) { /* ok */ }
+      
+      const connectedDevice = connectedDisplayDevices.get(deviceId);
+      if (connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {
+        connectedDevice.contentMode = 'record';
+        
+        connectedDevice.ws.send(JSON.stringify({
+          type: 'display_command',
+          template: 'record-board',
+          liveEventData: {
+            eventName: result.displayEventName,
+            mode: 'record',
+            entries: winner ? [winner] : [],
+            recordLabel: recordLabel.trim(),
+            meetName: result.meetName,
+            meetLogoUrl: result.meetLogoUrl,
+            meetLogoEffect: logoEffect,
+            primaryColor,
+            secondaryColor,
+          },
+        }));
+        
+        console.log(`[Record-Board] Sent record "${recordLabel}" for "${result.displayEventName}" (event ${evtNum}) to ${device.deviceName}`);
+        res.json({ success: true, delivered: true, round: result.maxRound, source: result.source });
+      } else {
+        res.json({ success: false, delivered: false, message: "Device offline" });
+      }
+    } catch (error: any) {
+      console.error(`[Record-Board] Error:`, error);
+      const status = error.status || 500;
+      res.status(status).json({ error: error.message, warning: error.warning || false });
+    }
+  });
+
   // Send Team Scores to a display device
   app.post("/api/display-devices/:id/team-scores", async (req, res) => {
     try {
@@ -1574,7 +1701,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       const { contentMode } = req.body;
       const deviceId = req.params.id;
       
-      const validModes = ['lynx', 'hytek', 'team_scores', 'field', 'winners'];
+      const validModes = ['lynx', 'hytek', 'team_scores', 'field', 'winners', 'record'];
       if (!contentMode || !validModes.includes(contentMode)) {
         return res.status(400).json({ error: `contentMode must be one of: ${validModes.join(', ')}` });
       }

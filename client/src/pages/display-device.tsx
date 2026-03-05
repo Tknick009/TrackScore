@@ -136,6 +136,7 @@ import {
   SingleAthleteTrack,
   SingleAthleteField,
   ProScoreboard,
+  RecordBoard,
 } from "@/components/display/templates";
 import { BroadcastDisplay } from "@/components/display/templates/BroadcastDisplay";
 import { 
@@ -156,6 +157,13 @@ interface LiveEventData {
   distance?: string;
   status?: string;
   mode?: string;
+  // Record Board fields (sent when mode === 'record')
+  recordLabel?: string;
+  meetName?: string;
+  meetLogoUrl?: string | null;
+  meetLogoEffect?: string | null;
+  primaryColor?: string;
+  secondaryColor?: string;
 }
 
 interface DisplayDeviceState {
@@ -1522,6 +1530,23 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     const isMeetLogo = templateId === 'meet-logo' || templateId.includes('meet-logo') || !effectiveTemplate;
     const isBigBoard = templateId.includes('live-results') || templateId.includes('BigBoard');
     const isBroadcast = displayType === 'Broadcast';
+
+    const isRecordBoard = templateId === 'record-board';
+
+    if (isRecordBoard && liveEventData?.mode === 'record') {
+      return (
+        <RecordBoard
+          eventName={liveEventData.eventName || ''}
+          recordLabel={liveEventData.recordLabel || ''}
+          entries={liveEventData.entries || []}
+          meetName={liveEventData.meetName || meet?.name || ''}
+          meetLogoUrl={liveEventData.meetLogoUrl || meet?.logoUrl || null}
+          meetLogoEffect={liveEventData.meetLogoEffect || (meet as any)?.logoEffect}
+          primaryColor={liveEventData.primaryColor}
+          secondaryColor={liveEventData.secondaryColor}
+        />
+      );
+    }
 
     if (isBroadcast) {
       return (

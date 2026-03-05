@@ -91,7 +91,7 @@ interface DisplayDevice {
 }
 
 // Display mode types
-type DisplayMode = 'finishlynx' | 'hytek' | 'teamscores' | 'field' | 'winners';
+type DisplayMode = 'finishlynx' | 'hytek' | 'teamscores' | 'field' | 'winners' | 'record';
 
 export default function DisplayControlPage() {
   const { currentMeetId, currentMeet } = useMeet();
@@ -106,6 +106,10 @@ export default function DisplayControlPage() {
   const [selectedHytekItem, setSelectedHytekItem] = useState<Record<string, string>>({});
   const [selectedWinnersEvent, setSelectedWinnersEvent] = useState<Record<string, number>>({});
   const [winnersPreview, setWinnersPreview] = useState<Record<string, any>>({}); // deviceId -> preview data
+  const [selectedRecordEvent, setSelectedRecordEvent] = useState<Record<string, number>>({});
+  const [recordPreview, setRecordPreview] = useState<Record<string, any>>({}); // deviceId -> record preview data
+  const [recordLabel, setRecordLabel] = useState<Record<string, string>>({}); // deviceId -> record name
+  const [recordEventSearch, setRecordEventSearch] = useState('');
   const [pagingLines, setPagingLines] = useState<Record<string, number>>({});
   const [teamScoreGender, setTeamScoreGender] = useState<Record<string, 'M' | 'W'>>({});
   const [maxPages, setMaxPages] = useState<Record<string, number>>({});
@@ -418,6 +422,40 @@ export default function DisplayControlPage() {
     },
     onError: (error: Error) => {
       toast({ title: 'Failed to send Winners Board', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  // Preview Record Board mutation — fetches winner data without sending to display
+  const previewRecordMutation = useMutation({
+    mutationFn: async ({ deviceId, eventNumber }: { deviceId: string; eventNumber: number }) => {
+      const response = await apiRequest('POST', `/api/meets/${currentMeetId}/record-board-preview`, { eventNumber });
+      return response.json();
+    },
+    onSuccess: (data, variables) => {
+      setRecordPreview(prev => ({ ...prev, [variables.deviceId]: data }));
+      if (!data.success) {
+        toast({ title: 'Preview failed', description: data.error, variant: 'destructive' });
+      }
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Failed to preview Record Board', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  // Send Record Board mutation — pushes winner + record label to the display
+  const sendRecordBoardMutation = useMutation({
+    mutationFn: async ({ deviceId, eventNumber, recordLabel: label }: { deviceId: string; eventNumber: number; recordLabel: string }) => {
+      const response = await apiRequest('POST', `/api/display-devices/${deviceId}/record-board`, { eventNumber, recordLabel: label });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: data.warning ? 'Record sent with warning' : 'Record Board sent',
+        description: data.warning || 'Display is now showing the record.',
+      });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Failed to send Record Board', description: error.message, variant: 'destructive' });
     },
   });
 
@@ -916,6 +954,32 @@ export default function DisplayControlPage() {
                             <Badge variant="default" className="mt-2">Active</Badge>
                           )}
                         </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDisplayMode(prev => ({ ...prev, [selectedDevice.id]: 'record' }));
+                            toggleAutoModeMutation.mutate({ deviceId: selectedDevice.id, enabled: false });
+                            apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}/content-mode`, { contentMode: 'record' });
+                          }}
+                          className={`p-4 rounded-lg border-2 transition-all text-left ${
+                            displayMode[selectedDevice.id] === 'record' && !autoModeStatus?.autoMode
+                              ? 'border-primary bg-primary/10'
+                              : 'border-border hover-elevate'
+                          }`}
+                          data-testid="tile-record"
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <Trophy className="w-5 h-5 text-yellow-500" />
+                            <span className="font-medium">Record Board</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Winner + record broken label
+                          </p>
+                          {displayMode[selectedDevice.id] === 'record' && !autoModeStatus?.autoMode && (
+                            <Badge variant="default" className="mt-2">Active</Badge>
+                          )}
+                        </button>
                       </div>
 
                       {displayMode[selectedDevice.id] === 'finishlynx' || autoModeStatus?.autoMode ? (
@@ -1248,6 +1312,131 @@ export default function DisplayControlPage() {
                               <Send className="w-4 h-4 mr-2" />
                               {sendWinnersBoardMutation.isPending ? 'Sending...' : 'Send to Board'}
                             </Button>
+                          )}
+                        </div>
+                      ) : displayMode[selectedDevice.id] === 'record' ? (
+                        <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
+                          {/* Step 1: Select event from available LIF/LFF files */}
+                          <div className="space-y-2">
+                            <Label>Select Event (events with result files)</Label>
+                            <div className="relative">
+                              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                              <Input
+                                placeholder="Search events..."
+                                value={recordEventSearch}
+                                onChange={(e) => setRecordEventSearch(e.target.value)}
+                                className="pl-8"
+                                data-testid="input-record-event-search"
+                              />
+                            </div>
+                            <ScrollArea className="h-48 border rounded-md">
+                              <div className="p-2 space-y-0.5">
+                                {availableWinnersEvents
+                                  .filter(evt => !recordEventSearch || evt.name.toLowerCase().includes(recordEventSearch.toLowerCase()) || String(evt.eventNumber).includes(recordEventSearch))
+                                  .map(evt => {
+                                    const isSelected = selectedRecordEvent[selectedDevice.id] === evt.eventNumber;
+                                    return (
+                                      <button
+                                        key={evt.eventNumber}
+                                        onClick={() => {
+                                          setSelectedRecordEvent(prev => ({ ...prev, [selectedDevice.id]: evt.eventNumber }));
+                                          // Clear any previous preview when selecting a new event
+                                          setRecordPreview(prev => { const next = { ...prev }; delete next[selectedDevice.id]; return next; });
+                                        }}
+                                        className={`flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded-md cursor-pointer hover-elevate ${isSelected ? 'bg-accent' : ''}`}
+                                        data-testid={`button-record-${evt.eventNumber}`}
+                                      >
+                                        <span className="text-muted-foreground shrink-0 w-8 text-xs font-mono">#{evt.eventNumber}</span>
+                                        {evt.eventTime && (
+                                          <span className="text-muted-foreground shrink-0 w-16 text-xs">{evt.eventTime}</span>
+                                        )}
+                                        <span className="truncate">{evt.name}</span>
+                                      </button>
+                                    );
+                                  })}
+                                {availableWinnersEvents.length === 0 && (
+                                  <p className="text-xs text-muted-foreground text-center py-4">No events with LIF/LFF result files found. Make sure your Lynx files directory is configured in Ingestion Settings.</p>
+                                )}
+                              </div>
+                            </ScrollArea>
+                          </div>
+
+                          {/* Step 2: Preview button */}
+                          <Button
+                            onClick={() => {
+                              const evtNum = selectedRecordEvent[selectedDevice.id];
+                              if (!evtNum) return;
+                              previewRecordMutation.mutate({
+                                deviceId: selectedDevice.id,
+                                eventNumber: evtNum,
+                              });
+                            }}
+                            disabled={!selectedRecordEvent[selectedDevice.id] || previewRecordMutation.isPending}
+                            variant="outline"
+                            className="w-full"
+                            data-testid="button-preview-record"
+                          >
+                            <Search className="w-4 h-4 mr-2" />
+                            {previewRecordMutation.isPending ? 'Loading Preview...' : 'Preview Winner'}
+                          </Button>
+
+                          {/* Step 3: Preview card — shows only the winner */}
+                          {recordPreview[selectedDevice.id]?.entry && (
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between">
+                                <Label className="text-sm font-semibold">{recordPreview[selectedDevice.id].eventName}</Label>
+                                <Badge variant="outline" className="text-xs">Round {recordPreview[selectedDevice.id].round} • {recordPreview[selectedDevice.id].source?.toUpperCase()}</Badge>
+                              </div>
+                              <div className="border rounded-md p-3 bg-background">
+                                {(() => {
+                                  const entry = recordPreview[selectedDevice.id].entry;
+                                  return (
+                                    <div className="flex items-center gap-3">
+                                      {entry.headshotUrl && <img src={entry.headshotUrl} alt="" className="w-10 h-10 rounded-full object-cover" />}
+                                      <div className="flex-1 min-w-0">
+                                        <div className="font-semibold truncate">{entry.name}</div>
+                                        <div className="text-sm text-muted-foreground flex items-center gap-1">
+                                          {entry.teamLogoUrl && <img src={entry.teamLogoUrl} alt="" className="w-4 h-4 object-contain" />}
+                                          <span>{entry.affiliation || entry.team}</span>
+                                        </div>
+                                      </div>
+                                      <div className="font-mono font-bold text-lg">{entry.mark || entry.time}</div>
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+
+                              {/* Step 4: Record label input */}
+                              <div className="space-y-1">
+                                <Label className="text-sm">Record Name</Label>
+                                <Input
+                                  placeholder="e.g. Meet Record, Facility Record, School Record..."
+                                  value={recordLabel[selectedDevice.id] || ''}
+                                  onChange={(e) => setRecordLabel(prev => ({ ...prev, [selectedDevice.id]: e.target.value }))}
+                                  data-testid="input-record-label"
+                                />
+                              </div>
+
+                              {/* Step 5: Send to Board */}
+                              <Button
+                                onClick={() => {
+                                  const evtNum = selectedRecordEvent[selectedDevice.id];
+                                  const label = recordLabel[selectedDevice.id];
+                                  if (!evtNum || !label?.trim()) return;
+                                  sendRecordBoardMutation.mutate({
+                                    deviceId: selectedDevice.id,
+                                    eventNumber: evtNum,
+                                    recordLabel: label.trim(),
+                                  });
+                                }}
+                                disabled={sendRecordBoardMutation.isPending || !recordLabel[selectedDevice.id]?.trim()}
+                                className="w-full"
+                                data-testid="button-send-record"
+                              >
+                                <Send className="w-4 h-4 mr-2" />
+                                {sendRecordBoardMutation.isPending ? 'Sending...' : 'Send to Board'}
+                              </Button>
+                            </div>
                           )}
                         </div>
                       ) : displayMode[selectedDevice.id] === 'field' ? (
