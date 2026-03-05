@@ -137,6 +137,7 @@ import {
   SingleAthleteField,
   ProScoreboard,
   RecordBoard,
+  WinnersBoard,
 } from "@/components/display/templates";
 import { BroadcastDisplay } from "@/components/display/templates/BroadcastDisplay";
 import { 
@@ -483,6 +484,8 @@ export default function DisplayDevice() {
                       entries: message.liveEventData.entries?.length > 0 
                         ? message.liveEventData.entries 
                         : prev.liveEventData?.entries || [],
+                      // Merge winnersData from top-level message into liveEventData
+                      ...(message.winnersData ? { winnersData: message.winnersData } : {}),
                     }
                   : prev.liveEventData,
                 pagingSize: message.pagingSize ?? prev.pagingSize,
@@ -1532,6 +1535,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     const isBroadcast = displayType === 'Broadcast';
 
     const isRecordBoard = templateId === 'record-board';
+    const isWinnersBoard = templateId === 'winners-board';
 
     if (isRecordBoard && liveEventData?.mode === 'record') {
       return (
@@ -1544,6 +1548,21 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
           meetLogoEffect={liveEventData.meetLogoEffect || (meet as any)?.logoEffect}
           primaryColor={liveEventData.primaryColor}
           secondaryColor={liveEventData.secondaryColor}
+        />
+      );
+    }
+
+    if (isWinnersBoard && liveEventData?.mode === 'winners') {
+      const winnersData = (liveEventData as any).winnersData;
+      return (
+        <WinnersBoard
+          eventName={liveEventData.eventName || winnersData?.eventName || ''}
+          entries={liveEventData.entries || []}
+          meetName={winnersData?.meetName || meet?.name || ''}
+          meetLogoUrl={winnersData?.meetLogoUrl || meet?.logoUrl || null}
+          meetLogoEffect={(meet as any)?.logoEffect}
+          primaryColor={meet?.primaryColor}
+          secondaryColor={meet?.secondaryColor}
         />
       );
     }
@@ -2070,9 +2089,11 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     </div>
   );
 
-  // Record Board always renders full-screen regardless of display type
-  const isRecordBoardActive = template === 'record-board' && liveEventData?.mode === 'record';
-  if (isRecordBoardActive) {
+  // Record Board and Winners Board always render full-screen regardless of display type
+  const isFullScreenBoard = 
+    (template === 'record-board' && liveEventData?.mode === 'record') ||
+    (template === 'winners-board' && liveEventData?.mode === 'winners');
+  if (isFullScreenBoard) {
     return (
       <div className="h-screen w-screen bg-black overflow-hidden" style={{ position: 'relative' }}>
         {wrapWithLogoButton(renderWithTransition())}

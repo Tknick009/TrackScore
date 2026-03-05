@@ -15,3 +15,4 @@ export * from './SingleAthleteTrack';
 export * from './SingleAthleteField';
 export * from './ProScoreboard';
 export * from './RecordBoard';
+export * from './WinnersBoard';
