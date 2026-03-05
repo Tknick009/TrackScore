@@ -104,6 +104,7 @@ export default function DisplayControlPage() {
   // New display mode state - tracks which mode is active per device
   const [displayMode, setDisplayMode] = useState<Record<string, DisplayMode>>({});
   const [selectedHytekItem, setSelectedHytekItem] = useState<Record<string, string>>({});
+  const [selectedWinnersEvent, setSelectedWinnersEvent] = useState<Record<string, string>>({});
   const [pagingLines, setPagingLines] = useState<Record<string, number>>({});
   const [teamScoreGender, setTeamScoreGender] = useState<Record<string, 'M' | 'W'>>({});
   const [maxPages, setMaxPages] = useState<Record<string, number>>({});
@@ -1115,11 +1116,11 @@ export default function DisplayControlPage() {
                             <ScrollArea className="h-48 border rounded-md">
                               <div className="p-2 space-y-0.5">
                                 {sortedFilteredEvents.map(evt => {
-                                  const isSelected = selectedHytekItem[selectedDevice.id] === evt.id;
+                                  const isSelected = selectedWinnersEvent[selectedDevice.id] === evt.id;
                                   return (
                                     <button
                                       key={evt.id}
-                                      onClick={() => setSelectedHytekItem(prev => ({ ...prev, [selectedDevice.id]: evt.id }))}
+                                      onClick={() => setSelectedWinnersEvent(prev => ({ ...prev, [selectedDevice.id]: evt.id }))}
                                       className={`flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded-md cursor-pointer hover-elevate ${isSelected ? 'bg-accent' : ''}`}
                                       data-testid={`button-winners-${evt.id}`}
                                     >
@@ -1137,7 +1138,7 @@ export default function DisplayControlPage() {
 
                           <Button
                             onClick={() => {
-                              const evtId = selectedHytekItem[selectedDevice.id];
+                              const evtId = selectedWinnersEvent[selectedDevice.id];
                               if (!evtId) return;
                               const evt = events.find(e => e.id === evtId);
                               if (!evt?.eventNumber) return;
@@ -1146,7 +1147,7 @@ export default function DisplayControlPage() {
                                 eventNumber: evt.eventNumber,
                               });
                             }}
-                            disabled={!selectedHytekItem[selectedDevice.id] || sendWinnersBoardMutation.isPending}
+                            disabled={!selectedWinnersEvent[selectedDevice.id] || sendWinnersBoardMutation.isPending}
                             className="w-full"
                             data-testid="button-send-winners"
                           >
