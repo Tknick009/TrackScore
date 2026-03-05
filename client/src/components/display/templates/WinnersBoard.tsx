@@ -44,90 +44,120 @@ export function WinnersBoard({
         fontFamily: "'Barlow Semi Condensed', 'Inter', sans-serif",
       }}
     >
-      {/* ===== TOP HALF: Winner Hero Section (black bg) ===== */}
-      <div className="flex-1 relative flex" style={{ minHeight: '45%' }}>
-        {/* Meet logo — top-left corner */}
+      {/* ===== TOP HALF: Winner Hero Section ===== */}
+      <div className="relative" style={{ height: '45%' }}>
+        {/* Meet name — large italic across the top */}
+        <div
+          className="absolute top-0 left-0 right-0 z-20 px-4 pt-3"
+          style={{ paddingLeft: meetLogoUrl ? '22%' : '3%' }}
+        >
+          <div
+            className="text-white italic leading-tight"
+            style={{
+              fontSize: 'clamp(20px, 3.2vw, 48px)',
+              fontWeight: 800,
+              textShadow: '2px 2px 8px rgba(0,0,0,0.6)',
+              letterSpacing: '0.02em',
+            }}
+          >
+            {meetName}
+          </div>
+        </div>
+
+        {/* Meet logo — top-left, overlapping */}
         {meetLogoUrl && (
           <div
-            className="absolute top-2 left-2 z-10"
-            style={{ width: '18%', maxWidth: '200px' }}
+            className="absolute top-1 left-2 z-10"
+            style={{ width: '20%', maxWidth: '240px' }}
           >
             <img
               src={meetLogoUrl}
               alt={meetName || ''}
-              className="w-full h-auto object-contain"
+              className="w-full h-auto object-contain drop-shadow-lg"
               style={getLogoEffectStyle(meetLogoEffect)}
             />
           </div>
         )}
 
-        {/* Hero content */}
-        <div className="flex-1 flex items-stretch">
-          {/* Left spacer for logo area */}
-          <div style={{ width: meetLogoUrl ? '20%' : '4%' }} />
+        {/* Winner headshot — far right, bottom-aligned, tall */}
+        {winner.headshotUrl && (
+          <div
+            className="absolute right-0 bottom-0 z-10"
+            style={{ height: '95%', width: '18%' }}
+          >
+            <img
+              src={winner.headshotUrl}
+              alt={winner.name}
+              className="h-full w-full object-contain object-bottom"
+              style={{
+                filter: 'drop-shadow(-4px 0 12px rgba(0,0,0,0.5))',
+              }}
+            />
+          </div>
+        )}
 
-          {/* Center: Winner details */}
-          <div className="flex-1 flex flex-col justify-center py-3">
-            {/* Meet name as italic title */}
-            <div
-              className="text-white font-bold italic leading-tight"
-              style={{ fontSize: 'clamp(16px, 2.8vw, 38px)' }}
-            >
-              {meetName}
-            </div>
+        {/* Center content: name, team, mark */}
+        <div
+          className="absolute bottom-0 left-0 right-0 flex flex-col justify-end pb-2"
+          style={{
+            top: 0,
+            paddingLeft: meetLogoUrl ? '22%' : '3%',
+            paddingRight: winner.headshotUrl ? '20%' : '3%',
+            paddingTop: 'clamp(40px, 6vh, 70px)',
+          }}
+        >
+          {/* Winner full name — very large, impactful */}
+          <div
+            className="text-white leading-none"
+            style={{
+              fontSize: 'clamp(42px, 8vw, 120px)',
+              fontWeight: 800,
+              letterSpacing: '-0.01em',
+              textShadow: '2px 3px 6px rgba(0,0,0,0.4)',
+              lineHeight: 0.95,
+            }}
+          >
+            {winner.firstName} {winner.lastName}
+          </div>
 
-            {/* Winner full name — very large */}
-            <div
-              className="text-white font-bold leading-none mt-1"
-              style={{ fontSize: 'clamp(36px, 7vw, 96px)' }}
-            >
-              {winner.firstName} {winner.lastName}
-            </div>
+          {/* Winner team / affiliation */}
+          <div
+            className="text-white leading-tight mt-1"
+            style={{
+              fontSize: 'clamp(28px, 5.5vw, 80px)',
+              fontWeight: 700,
+              textShadow: '1px 2px 4px rgba(0,0,0,0.3)',
+            }}
+          >
+            {winner.affiliation || winner.team}
+          </div>
 
-            {/* Winner team / affiliation */}
+          {/* Winner mark / time + team logo */}
+          <div className="flex items-center gap-4">
             <div
-              className="text-white font-bold leading-tight"
-              style={{ fontSize: 'clamp(24px, 5vw, 68px)' }}
-            >
-              {winner.affiliation || winner.team}
-            </div>
-
-            {/* Winner mark / time */}
-            <div
-              className="text-white font-bold leading-tight"
-              style={{ fontSize: 'clamp(24px, 5vw, 68px)' }}
+              className="text-white leading-tight"
+              style={{
+                fontSize: 'clamp(28px, 5.5vw, 80px)',
+                fontWeight: 700,
+                textShadow: '1px 2px 4px rgba(0,0,0,0.3)',
+              }}
             >
               {winner.mark || winner.time}
             </div>
-          </div>
 
-          {/* Right side: Team logo + headshot */}
-          <div className="flex items-end gap-2 pr-3 pb-2" style={{ width: '22%' }}>
-            {/* Team logo — small square */}
+            {/* Team logo — small square next to mark */}
             {winner.teamLogoUrl && (
               <div
-                className="shrink-0 self-center"
+                className="shrink-0"
                 style={{
-                  width: 'clamp(40px, 5vw, 70px)',
-                  height: 'clamp(40px, 5vw, 70px)',
+                  width: 'clamp(36px, 5vw, 80px)',
+                  height: 'clamp(36px, 5vw, 80px)',
                 }}
               >
                 <img
                   src={winner.teamLogoUrl}
                   alt=""
-                  className="w-full h-full object-contain"
-                />
-              </div>
-            )}
-
-            {/* Winner headshot — bottom-right */}
-            {winner.headshotUrl && (
-              <div className="flex-1 h-full flex items-end justify-end">
-                <img
-                  src={winner.headshotUrl}
-                  alt={winner.name}
-                  className="object-contain object-bottom"
-                  style={{ maxHeight: '90%', maxWidth: '100%' }}
+                  className="w-full h-full object-contain drop-shadow-md"
                 />
               </div>
             )}
@@ -136,21 +166,34 @@ export function WinnersBoard({
       </div>
 
       {/* ===== BOTTOM HALF: Results Table ===== */}
-      <div style={{ minHeight: '50%' }} className="flex flex-col">
-        {/* Header bar — dark gray with event name (left) + "Final" (right) */}
+      <div style={{ height: '55%' }} className="flex flex-col">
+        {/* Header bar — dark gradient with event name + "Final" */}
         <div
-          className="flex items-center justify-between px-6 py-2"
-          style={{ background: '#333' }}
+          className="flex items-center justify-between px-6"
+          style={{
+            background: 'linear-gradient(180deg, #4a4a4a 0%, #2a2a2a 100%)',
+            height: 'clamp(32px, 5vh, 56px)',
+            borderTop: '3px solid #555',
+            borderBottom: '2px solid #1a1a1a',
+          }}
         >
           <span
-            className="text-white font-bold"
-            style={{ fontSize: 'clamp(16px, 2.5vw, 34px)' }}
+            className="text-white"
+            style={{
+              fontSize: 'clamp(16px, 2.8vw, 40px)',
+              fontWeight: 700,
+              letterSpacing: '0.03em',
+            }}
           >
             {eventName}
           </span>
           <span
-            className="text-white font-bold"
-            style={{ fontSize: 'clamp(16px, 2.5vw, 34px)' }}
+            className="text-white"
+            style={{
+              fontSize: 'clamp(16px, 2.8vw, 40px)',
+              fontWeight: 700,
+              letterSpacing: '0.03em',
+            }}
           >
             Final
           </span>
@@ -161,19 +204,24 @@ export function WinnersBoard({
           {topEntries.map((entry, index) => (
             <div
               key={index}
-              className="flex-1 flex items-center px-4"
+              className="flex-1 flex items-center"
               style={{
                 background: primaryColor,
                 borderBottom:
                   index < topEntries.length - 1
-                    ? '2px solid rgba(255,255,255,0.4)'
+                    ? '3px solid rgba(255,255,255,0.5)'
                     : 'none',
+                paddingLeft: 'clamp(8px, 2vw, 24px)',
+                paddingRight: 'clamp(8px, 2vw, 24px)',
               }}
             >
               {/* Team logo */}
               <div
                 className="shrink-0 flex items-center justify-center"
-                style={{ width: 'clamp(40px, 5vw, 70px)' }}
+                style={{
+                  width: 'clamp(36px, 5vw, 80px)',
+                  marginRight: 'clamp(4px, 0.5vw, 12px)',
+                }}
               >
                 {entry.teamLogoUrl && (
                   <img
@@ -181,8 +229,8 @@ export function WinnersBoard({
                     alt=""
                     className="object-contain"
                     style={{
-                      height: 'clamp(28px, 4vh, 48px)',
-                      width: 'clamp(28px, 4vh, 48px)',
+                      height: 'clamp(30px, 5vh, 60px)',
+                      width: 'clamp(30px, 5vh, 60px)',
                     }}
                   />
                 )}
@@ -190,11 +238,12 @@ export function WinnersBoard({
 
               {/* Last name — bold, left-aligned */}
               <div
-                className="text-white font-bold"
+                className="text-white"
                 style={{
-                  fontSize: 'clamp(22px, 4.5vw, 60px)',
-                  width: '30%',
-                  paddingLeft: '0.5rem',
+                  fontSize: 'clamp(26px, 5vw, 72px)',
+                  fontWeight: 800,
+                  width: '28%',
+                  letterSpacing: '0.01em',
                 }}
               >
                 {entry.lastName}
@@ -202,19 +251,24 @@ export function WinnersBoard({
 
               {/* Team / affiliation — centered */}
               <div
-                className="text-white font-bold text-center flex-1"
-                style={{ fontSize: 'clamp(18px, 3.5vw, 48px)' }}
+                className="text-white text-center flex-1"
+                style={{
+                  fontSize: 'clamp(20px, 4vw, 58px)',
+                  fontWeight: 700,
+                }}
               >
                 {entry.affiliation || entry.team}
               </div>
 
-              {/* Mark — right-aligned */}
+              {/* Mark — right-aligned, bold */}
               <div
-                className="text-white font-bold text-right shrink-0"
+                className="text-white text-right shrink-0"
                 style={{
-                  fontSize: 'clamp(22px, 4.5vw, 60px)',
-                  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-                  minWidth: '18%',
+                  fontSize: 'clamp(26px, 5vw, 72px)',
+                  fontWeight: 800,
+                  fontFamily: "'Barlow Semi Condensed', sans-serif",
+                  minWidth: '16%',
+                  letterSpacing: '0.02em',
                 }}
               >
                 {entry.mark || entry.time}

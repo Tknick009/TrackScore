@@ -798,21 +798,21 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         teams.forEach(t => { if (t) teamMap.set(t.id, t); });
       }
       
-      const ceilToPrecision = (val: number, precision: number): number => {
+      const floorToPrecision = (val: number, precision: number): number => {
         const factor = Math.pow(10, precision);
-        return Math.ceil(val * factor - 1e-9) / factor;
+        return Math.floor(val * factor + 1e-9) / factor;
       };
       const formatTimeSeconds = (seconds: number, precision: number = 2): string => {
-        const rounded = ceilToPrecision(seconds, precision);
+        const rounded = floorToPrecision(seconds, precision);
         if (rounded >= 3600) {
           const hours = Math.floor(rounded / 3600);
           const mins = Math.floor((rounded % 3600) / 60);
-          const secs = ceilToPrecision(rounded % 60, precision).toFixed(precision);
+          const secs = floorToPrecision(rounded % 60, precision).toFixed(precision);
           return `${hours}:${String(mins).padStart(2, '0')}:${secs.padStart(precision + 3, '0')}`;
         }
         if (rounded >= 60) {
           const mins = Math.floor(rounded / 60);
-          const secs = ceilToPrecision(rounded % 60, precision).toFixed(precision);
+          const secs = floorToPrecision(rounded % 60, precision).toFixed(precision);
           return `${mins}:${secs.padStart(precision + 3, '0')}`;
         }
         return rounded.toFixed(precision);
@@ -1182,21 +1182,21 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
     } catch (err) { console.warn('[Winners-Lynx] Failed to fetch athlete photos:', err); }
     
     const isMultiEvent = /\b(decathlon|heptathlon|pentathlon)\b/i.test(eventName || dbEvent?.name || '');
-    const ceilToPrecision = (val: number, precision: number): number => {
+    const floorToPrecision = (val: number, precision: number): number => {
       const factor = Math.pow(10, precision);
-      return Math.ceil(val * factor - 1e-9) / factor;
+      return Math.floor(val * factor + 1e-9) / factor;
     };
     const formatTimeSeconds = (seconds: number, precision: number = 2): string => {
-      const rounded = ceilToPrecision(seconds, precision);
+      const rounded = floorToPrecision(seconds, precision);
       if (rounded >= 3600) {
         const hours = Math.floor(rounded / 3600);
         const mins = Math.floor((rounded % 3600) / 60);
-        const secs = ceilToPrecision(rounded % 60, precision).toFixed(precision);
+        const secs = floorToPrecision(rounded % 60, precision).toFixed(precision);
         return `${hours}:${String(mins).padStart(2, '0')}:${secs.padStart(precision + 3, '0')}`;
       }
       if (rounded >= 60) {
         const mins = Math.floor(rounded / 60);
-        const secs = ceilToPrecision(rounded % 60, precision).toFixed(precision);
+        const secs = floorToPrecision(rounded % 60, precision).toFixed(precision);
         return `${mins}:${secs.padStart(precision + 3, '0')}`;
       }
       return rounded.toFixed(precision);
