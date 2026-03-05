@@ -2070,6 +2070,16 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     </div>
   );
 
+  // Record Board always renders full-screen regardless of display type
+  const isRecordBoardActive = template === 'record-board' && liveEventData?.mode === 'record';
+  if (isRecordBoardActive) {
+    return (
+      <div className="h-screen w-screen bg-black overflow-hidden" style={{ position: 'relative' }}>
+        {wrapWithLogoButton(renderWithTransition())}
+      </div>
+    );
+  }
+
   if (isFixedSizeDisplay) {
     // P10, P6, and Custom use exact pixel dimensions at position 0,0
     const fixedWidth = displayType === 'Custom' && customWidth ? customWidth : resolution.width;
