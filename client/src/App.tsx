@@ -170,13 +170,15 @@ function AppContent() {
   }
 
   return (
-    <div className="flex h-screen w-full bg-muted/30">
+    <div className="flex h-screen w-full bg-background">
       <AppSidebar />
       <div className="flex flex-col flex-1 overflow-hidden">
-        <header className="flex items-center justify-between h-12 px-3 border-b bg-background/80 backdrop-blur-sm sticky top-0 z-20">
-          <SidebarTrigger data-testid="button-sidebar-toggle" />
+        <header className="flex items-center justify-between h-14 px-4 border-b border-border/60 bg-background/95 backdrop-blur-md sticky top-0 z-20">
+          <div className="flex items-center gap-3">
+            <SidebarTrigger data-testid="button-sidebar-toggle" />
+          </div>
         </header>
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-auto bg-muted/30">
           <UpdateNotification />
           <Router />
         </main>

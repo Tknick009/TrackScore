@@ -263,20 +263,21 @@ function MeetRow({ meet }: { meet: Meet }) {
 
   return (
     <div 
-      className="flex items-center gap-4 px-4 py-3 hover:bg-accent/50 transition-colors rounded-md border-b last:border-b-0" 
+      className="flex items-center gap-4 px-5 py-4 hover:bg-accent/50 transition-all rounded-lg border-b last:border-b-0 group" 
       data-testid={`row-meet-${meet.id}`}
     >
       {/* Date column */}
-      <div className="flex-shrink-0 w-16 text-center">
-        <div className="text-base font-semibold text-foreground">{format(meetDate, "MMM d")}</div>
-        <div className="text-xs text-muted-foreground">{format(meetDate, "yyyy")}</div>
+      <div className="flex-shrink-0 w-14 text-center">
+        <div className="text-sm font-bold text-foreground leading-tight">{format(meetDate, "MMM")}</div>
+        <div className="text-2xl font-bold text-foreground leading-tight">{format(meetDate, "d")}</div>
+        <div className="text-[10px] text-muted-foreground">{format(meetDate, "yyyy")}</div>
       </div>
       
       {/* Main info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <Link href={`/control/${meet.id}`}>
-            <span className="font-medium text-foreground hover:text-primary transition-colors cursor-pointer" data-testid={`text-meet-name-${meet.id}`}>
+            <span className="font-semibold text-foreground hover:text-primary transition-colors cursor-pointer group-hover:text-primary" data-testid={`text-meet-name-${meet.id}`}>
               {meet.name}
             </span>
           </Link>
@@ -468,17 +469,24 @@ export default function MeetsList() {
 
   return (
     <div className="min-h-screen w-full">
-      <div className="max-w-7xl mx-auto px-6 py-8 space-y-6">
+      <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
         {/* Hero Section */}
-        <div className="space-y-5">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight text-foreground" data-testid="heading-meets-list">
-                Track & Field Meets
-              </h1>
-              <p className="text-sm text-muted-foreground mt-1">
-                Manage competitions and scoreboard control
-              </p>
+        <div className="space-y-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div className="space-y-1">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-sm">
+                  <Calendar className="w-5 h-5 text-primary-foreground" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold tracking-tight text-foreground" data-testid="heading-meets-list">
+                    Track & Field Meets
+                  </h1>
+                  <p className="text-sm text-muted-foreground">
+                    Manage competitions and scoreboard control
+                  </p>
+                </div>
+              </div>
             </div>
             <div className="flex gap-3 flex-wrap">
               <CreateMeetDialog />
@@ -493,30 +501,30 @@ export default function MeetsList() {
 
           {/* Stats Cards */}
           {meets && meets.length > 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="rounded-lg border bg-background px-4 py-3">
-                <div className="text-2xl font-bold text-foreground" data-testid="stat-total-meets">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="rounded-xl border bg-card px-5 py-4 shadow-sm transition-all hover:shadow-md">
+                <div className="text-xs font-medium text-muted-foreground mb-1">Total Meets</div>
+                <div className="text-3xl font-bold text-foreground tracking-tight" data-testid="stat-total-meets">
                   {stats.total}
                 </div>
-                <div className="text-xs text-muted-foreground">Total Meets</div>
               </div>
-              <div className="rounded-lg border bg-background px-4 py-3">
-                <div className="text-2xl font-bold text-primary" data-testid="stat-active-meets">
+              <div className="rounded-xl border border-primary/20 bg-primary/5 px-5 py-4 shadow-sm transition-all hover:shadow-md">
+                <div className="text-xs font-medium text-primary mb-1">Active Today</div>
+                <div className="text-3xl font-bold text-primary tracking-tight" data-testid="stat-active-meets">
                   {stats.active}
                 </div>
-                <div className="text-xs text-muted-foreground">Active Today</div>
               </div>
-              <div className="rounded-lg border bg-background px-4 py-3">
-                <div className="text-2xl font-bold text-foreground" data-testid="stat-upcoming-meets">
+              <div className="rounded-xl border bg-card px-5 py-4 shadow-sm transition-all hover:shadow-md">
+                <div className="text-xs font-medium text-muted-foreground mb-1">Upcoming</div>
+                <div className="text-3xl font-bold text-foreground tracking-tight" data-testid="stat-upcoming-meets">
                   {stats.upcoming}
                 </div>
-                <div className="text-xs text-muted-foreground">Upcoming</div>
               </div>
-              <div className="rounded-lg border bg-background px-4 py-3">
-                <div className="text-2xl font-bold text-muted-foreground" data-testid="stat-past-meets">
+              <div className="rounded-xl border bg-card px-5 py-4 shadow-sm transition-all hover:shadow-md">
+                <div className="text-xs font-medium text-muted-foreground mb-1">Past</div>
+                <div className="text-3xl font-bold text-muted-foreground tracking-tight" data-testid="stat-past-meets">
                   {stats.past}
                 </div>
-                <div className="text-xs text-muted-foreground">Past</div>
               </div>
             </div>
           )}
