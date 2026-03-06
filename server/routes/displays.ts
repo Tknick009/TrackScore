@@ -1194,14 +1194,25 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       throw Object.assign(new Error(`No placed results found for event ${evtNum} (round ${maxRound})`), { status: 400, warning: true });
     }
     
+    // When multiple heats/sections exist in the same round, each LIF/LFF file
+    // has per-heat places (1st in heat 1, 1st in heat 2, etc.).
+    // We need to sort by actual mark across ALL heats, then reassign overall places.
+    const multipleHeats = (hasLIF ? latestRoundFiles.filter(f => f.ext === 'lif') : latestRoundFiles.filter(f => f.ext === 'lff')).length > 1;
+    
     candidates.sort((a, b) => {
-      const placeDiff = a.place - b.place;
-      if (placeDiff !== 0) return placeDiff;
       if (a.mark !== null && b.mark !== null) {
         return isFieldEvent ? (b.mark - a.mark) : (a.mark - b.mark);
       }
-      return 0;
+      if (a.mark !== null) return -1;
+      if (b.mark !== null) return 1;
+      return a.place - b.place;
     });
+    
+    // Reassign overall places when merging multiple heats
+    if (multipleHeats) {
+      candidates.forEach((c, i) => { c.place = i + 1; });
+    }
+    
     const top4 = candidates.slice(0, 4);
     
     // Enrich with DB data
