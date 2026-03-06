@@ -519,6 +519,18 @@
   }
 }
 
+/* ========== Winners Board Confetti Animations ========== */
+@keyframes wb-confetti-fall {
+  0%   { transform: translateY(-20px); opacity: 1; }
+  80%  { opacity: 0.9; }
+  100% { transform: translateY(50vh); opacity: 0; }
+}
+@keyframes wb-confetti-sway {
+  0%, 100% { transform: translateX(0) rotate(0deg); }
+  25%      { transform: translateX(18px) rotate(180deg); }
+  75%      { transform: translateX(-18px) rotate(360deg); }
+}
+
 /* ========== Display Scale: condense text & logos only, keep backgrounds full-size ========== */
 .display-scale-active span,
 .display-scale-active h1,

@@ -126,21 +126,7 @@ function generateConfettiPieces(count: number, colors: string[]) {
   return pieces;
 }
 
-/** CSS keyframes for confetti — uses nested divs to avoid transform conflicts.
- *  Outer div: vertical fall via translateY
- *  Inner div: horizontal sway + rotation via translateX / rotate */
-const confettiCSS = `
-@keyframes wb-confetti-fall {
-  0%   { transform: translateY(-20px); opacity: 1; }
-  80%  { opacity: 0.9; }
-  100% { transform: translateY(50vh); opacity: 0; }
-}
-@keyframes wb-confetti-sway {
-  0%, 100% { transform: translateX(0) rotate(0deg); }
-  25%      { transform: translateX(18px) rotate(180deg); }
-  75%      { transform: translateX(-18px) rotate(360deg); }
-}
-`;
+/* Confetti keyframes are defined in index.css (wb-confetti-fall, wb-confetti-sway) */
 
 export function WinnersBoard({
   eventName,
@@ -177,9 +163,6 @@ export function WinnersBoard({
         fontFamily: "'Barlow Semi Condensed', 'Inter', sans-serif",
       }}
     >
-      {/* Inject confetti keyframe CSS */}
-      <style>{confettiCSS}</style>
-
       {/* Background glow — matches BigBoard blue radial gradient from bottom */}
       <div
         className="absolute inset-0 pointer-events-none"
