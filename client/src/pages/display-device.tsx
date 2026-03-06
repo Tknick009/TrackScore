@@ -1492,6 +1492,38 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     const effectiveTemplate = overrideProps?.template !== undefined ? overrideProps.template : template;
     const effectiveSceneId = overrideProps?.sceneId !== undefined ? overrideProps.sceneId : sceneId;
     const effectiveSceneData = overrideProps?.currentSceneData !== undefined ? overrideProps.currentSceneData : currentSceneData;
+
+    // Winners Board and Record Board always render full-screen, even when a custom scene is assigned.
+    // These special boards bypass the scene canvas so their built-in layouts (confetti, etc.) work.
+    if (liveEventData?.mode === 'winners' && (effectiveTemplate === 'winners-board' || liveEventData.entries?.length)) {
+      const winnersData = (liveEventData as any).winnersData;
+      return (
+        <WinnersBoard
+          eventName={liveEventData.eventName || winnersData?.eventName || ''}
+          entries={liveEventData.entries || []}
+          meetName={winnersData?.meetName || meet?.name || ''}
+          meetLogoUrl={winnersData?.meetLogoUrl || meet?.logoUrl || null}
+          meetLogoEffect={(meet as any)?.logoEffect}
+          primaryColor={meet?.primaryColor || undefined}
+          secondaryColor={meet?.secondaryColor || undefined}
+        />
+      );
+    }
+    if (liveEventData?.mode === 'record' && (effectiveTemplate === 'record-board' || liveEventData.entries?.length)) {
+      return (
+        <RecordBoard
+          eventName={liveEventData.eventName || ''}
+          recordLabel={liveEventData.recordLabel || ''}
+          entries={liveEventData.entries || []}
+          meetName={liveEventData.meetName || meet?.name || ''}
+          meetLogoUrl={liveEventData.meetLogoUrl || meet?.logoUrl || null}
+          meetLogoEffect={liveEventData.meetLogoEffect || (meet as any)?.logoEffect}
+          primaryColor={liveEventData.primaryColor || undefined}
+          secondaryColor={liveEventData.secondaryColor || undefined}
+        />
+      );
+    }
+
     // If a custom scene is assigned, render it inline using SceneCanvas
     if (effectiveSceneId) {
       const capability = DISPLAY_CAPABILITIES[displayType];
