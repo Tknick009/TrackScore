@@ -546,11 +546,8 @@ export function SceneObjectRenderer({
             const isRelayOrMedleyPhoto = eventLowerForPhoto.includes('relay') || eventLowerForPhoto.includes('medley');
             
             if (isRelayOrMedleyPhoto) {
-              // For relays/medleys, fall back directly to team/affiliation logo
-              const teamNameForLogo = photoEntry.name || photoEntry.affiliation || photoEntry.team || '';
-              if (teamNameForLogo) {
-                logoUrl = `/logos/NCAA/${teamNameForLogo}.png`;
-              }
+              // For relays/medleys, hide the headshot — team logo is shown separately via school-logo binding
+              logoUrl = null;
             } else if (photoEntry.headshotUrl || photoEntry.athletePhotoUrl) {
               // Use server-provided headshot URL if available (e.g., from Winners Board)
               logoUrl = photoEntry.headshotUrl || photoEntry.athletePhotoUrl;
@@ -780,9 +777,7 @@ export function SceneObjectRenderer({
               ? (firstEntry?.name || firstEntry?.lastName || '')
               : formatName(firstEntry?.firstName, firstEntry?.lastName, firstEntry?.name);
           
-          const schoolDisplay = isRelayOrMedleyText
-            ? (firstEntry?.affiliation || firstEntry?.team || '').substring(4).trim()
-            : (firstEntry?.affiliation || firstEntry?.team);
+          const schoolDisplay = firstEntry?.affiliation || firstEntry?.team || '';
           
           const isVerticalEvent = (liveData.eventType && isHeightEvent(liveData.eventType))
             || eventName.toLowerCase().includes('high jump') || eventName.toLowerCase().includes('pole vault');

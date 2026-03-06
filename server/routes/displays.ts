@@ -1309,8 +1309,10 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       let displayLastName = lastName;
       let displayName = `${firstName} ${lastName}`.trim() || 'Unknown';
       if (isRelayEvent) {
-        // The LIF lastName field for relays contains the relay team name (e.g., "Navy 'A'")
-        const relayName = winner.lastName || teamName;
+        // Combine lastName + firstName for full relay name (e.g., "Navy" + "'A'" = "Navy 'A'")
+        const relayName = winner.firstName
+          ? `${winner.lastName} ${winner.firstName}`.trim()
+          : (winner.lastName || teamName);
         displayName = relayName || teamName;
         displayFirstName = '';
         displayLastName = relayName || teamName;
@@ -1320,7 +1322,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         position: winner.place, place: winner.place,
         firstName: displayFirstName, lastName: displayLastName,
         name: displayName,
-        team: teamAbbrev, affiliation: isRelayEvent ? (winner.lastName || teamName) : teamName,
+        team: teamAbbrev, affiliation: teamName, isRelay: isRelayEvent,
         time: markValue, mark: markValue,
         teamLogoUrl: teamLogoUrl || null, logoUrl: teamLogoUrl || null,
         headshotUrl: headshotUrl || null, athletePhotoUrl: headshotUrl || null,
