@@ -875,15 +875,26 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       });
       
       // Enrich entries with PB/SB/MR/FR record tags before building display objects.
-      // For non-final rounds, temporarily set finalMark to the round-specific mark
-      // so the enrichment function can compare against records/bests.
+      // enrichEntriesWithRecordTags expects finalMark in ms (track) or mm (field),
+      // but HyTek marks are already in seconds (track) or meters (field).
+      // We temporarily multiply by 1000 so the enrichment division works correctly.
       try {
-        if (selectedRound !== 'final') {
-          for (const entry of displayEntries) {
+        for (const entry of displayEntries) {
+          (entry as any)._origFinalMark = entry.finalMark;
+          if (selectedRound !== 'final') {
             const fields = getRoundFields(entry);
             if (typeof fields.mark === 'number') {
-              (entry as any)._origFinalMark = entry.finalMark;
-              (entry as any).finalMark = fields.mark;
+              (entry as any).finalMark = fields.mark * 1000;
+            } else {
+              // No round-specific mark; convert existing finalMark to ms/mm
+              if (typeof entry.finalMark === 'number') {
+                (entry as any).finalMark = entry.finalMark * 1000;
+              }
+            }
+          } else {
+            // Final round: finalMark is in seconds/meters, convert to ms/mm
+            if (typeof entry.finalMark === 'number') {
+              (entry as any).finalMark = entry.finalMark * 1000;
             }
           }
         }
@@ -892,13 +903,11 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           event.gender || '',
           displayEntries as any[]
         );
-        // Restore original finalMark if we changed it
-        if (selectedRound !== 'final') {
-          for (const entry of displayEntries) {
-            if ((entry as any)._origFinalMark !== undefined) {
-              (entry as any).finalMark = (entry as any)._origFinalMark;
-              delete (entry as any)._origFinalMark;
-            }
+        // Restore original finalMark values
+        for (const entry of displayEntries) {
+          if ((entry as any)._origFinalMark !== undefined) {
+            (entry as any).finalMark = (entry as any)._origFinalMark;
+            delete (entry as any)._origFinalMark;
           }
         }
       } catch (err) {
@@ -1382,9 +1391,31 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       if (connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {
         connectedDevice.contentMode = 'winners';
         
+        // Check if user has a custom scene mapped for 'winners' mode on this display type
+        const displayType = device.displayType || 'P10';
+        let sceneId: number | null = null;
+        let sceneData: { scene: any; objects: any[] } | null = null;
+        
+        try {
+          // Look for a scene mapping for 'winners' content mode, then fall back to 'track_results'
+          let mapping = await storage.getSceneTemplateMappingByTypeAndMode(meetId, displayType, 'winners');
+          if (!mapping) {
+            mapping = await storage.getSceneTemplateMappingByTypeAndMode(meetId, displayType, 'track_results');
+          }
+          if (mapping) {
+            sceneId = mapping.sceneId;
+            sceneData = await prefetchSceneData(sceneId);
+            console.log(`[Winners-Lynx] Using custom scene ${sceneId} for ${displayType} winners`);
+          }
+        } catch (err) {
+          console.error(`[Winners-Lynx] Error looking up scene mapping:`, err);
+        }
+        
         connectedDevice.ws.send(JSON.stringify({
           type: 'display_command',
-          template: 'winners-board',
+          template: sceneId ? null : 'winners-board',
+          sceneId,
+          sceneData,
           liveEventData: {
             eventName: result.displayEventName,
             mode: 'winners',
@@ -1398,7 +1429,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           },
         }));
         
-        console.log(`[Winners-Lynx] Sent ${result.winnersEntries.length} winners for "${result.displayEventName}" (event ${evtNum}, round ${result.maxRound}) to ${device.deviceName}`);
+        console.log(`[Winners-Lynx] Sent ${result.winnersEntries.length} winners for "${result.displayEventName}" (event ${evtNum}, round ${result.maxRound}) to ${device.deviceName} (scene: ${sceneId || 'built-in'})`);
         res.json({ success: true, delivered: true, entryCount: result.winnersEntries.length, round: result.maxRound, source: result.source });
       } else {
         res.json({ success: false, delivered: false, message: "Device offline" });
