@@ -58,25 +58,25 @@ function generateConfettiPieces(count: number) {
   return pieces;
 }
 
-/** CSS keyframes for confetti — injected once via <style> */
+/** CSS keyframes for confetti — falls within the hero section (45vh tall) */
 const confettiCSS = `
 @keyframes wb-confetti-fall {
   0% {
-    transform: translateY(-10vh) rotate(0deg);
+    transform: translateY(-5vh) rotate(0deg);
     opacity: 1;
   }
   80% {
-    opacity: 1;
+    opacity: 0.9;
   }
   100% {
-    transform: translateY(110vh) rotate(720deg);
+    transform: translateY(50vh) rotate(720deg);
     opacity: 0;
   }
 }
 @keyframes wb-confetti-sway {
   0%, 100% { transform: translateX(0px); }
-  25% { transform: translateX(15px); }
-  75% { transform: translateX(-15px); }
+  25% { transform: translateX(20px); }
+  75% { transform: translateX(-20px); }
 }
 `;
 
@@ -118,30 +118,29 @@ export function WinnersBoard({
         }}
       />
 
-      {/* ===== Confetti layer — behind all content (z-5), above background glow ===== */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 5 }}>
-        {confettiPieces.map((piece, i) => (
-          <div
-            key={i}
-            style={{
-              position: 'absolute',
-              left: piece.left,
-              top: '-20px',
-              width: piece.shape === 'circle' ? piece.size : piece.size * 0.6,
-              height: piece.size,
-              backgroundColor: piece.color,
-              borderRadius: piece.shape === 'circle' ? '50%' : '2px',
-              opacity: 0.85,
-              animation: `wb-confetti-fall ${piece.duration} ${piece.delay} linear infinite, wb-confetti-sway 2s ${piece.delay} ease-in-out infinite`,
-              transform: `rotate(${piece.rotation}deg)`,
-            }}
-          />
-        ))}
-      </div>
-
       <div className="relative flex-1 flex flex-col" style={{ zIndex: 10 }}>
         {/* ===== TOP HALF: Winner Hero Section ===== */}
-        <div className="relative" style={{ height: '45%' }}>
+        <div className="relative overflow-hidden" style={{ height: '45%' }}>
+          {/* Confetti — falls only in the hero section, behind text/images */}
+          <div className="absolute inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 1 }}>
+            {confettiPieces.map((piece, i) => (
+              <div
+                key={i}
+                style={{
+                  position: 'absolute',
+                  left: piece.left,
+                  top: '-20px',
+                  width: piece.shape === 'circle' ? piece.size : piece.size * 0.6,
+                  height: piece.size,
+                  backgroundColor: piece.color,
+                  borderRadius: piece.shape === 'circle' ? '50%' : '2px',
+                  opacity: 0.85,
+                  animation: `wb-confetti-fall ${piece.duration} ${piece.delay} linear infinite, wb-confetti-sway 2s ${piece.delay} ease-in-out infinite`,
+                  transform: `rotate(${piece.rotation}deg)`,
+                }}
+              />
+            ))}
+          </div>
           {/* Meet name — large italic across the top */}
           <div
             className="absolute top-0 left-0 right-0 z-20 px-4 pt-3"
