@@ -1427,7 +1427,11 @@ const DEFAULT_CONFETTI_COLORS = [
 function extractDominantColors(imageUrl: string, topN = 5): Promise<string[]> {
   return new Promise((resolve) => {
     const img = new Image();
-    img.crossOrigin = 'anonymous';
+    // Only set crossOrigin for external URLs; same-origin images don't need it
+    // and setting it can cause CORS issues if server doesn't send proper headers
+    if (imageUrl.startsWith('http') && !imageUrl.startsWith(window.location.origin)) {
+      img.crossOrigin = 'anonymous';
+    }
     img.onload = () => {
       try {
         const canvas = document.createElement('canvas');
@@ -1502,9 +1506,8 @@ function ConfettiOverlay({ children, teamLogoUrl }: { children: React.ReactNode;
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-      {children}
-      {/* Confetti overlay — z-index:1 renders behind scene content (text/images at higher z) */}
-      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden', zIndex: 1 }}>
+      {/* Confetti BEFORE children in DOM order = renders behind scene content */}
+      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden' }}>
         {confettiPieces.map((p, i) => (
           <div key={i} style={{
             position: 'absolute', left: p.left, top: p.top,
@@ -1521,6 +1524,7 @@ function ConfettiOverlay({ children, teamLogoUrl }: { children: React.ReactNode;
           </div>
         ))}
       </div>
+      {children}
     </div>
   );
 }
