@@ -1,5 +1,5 @@
 import { getLogoEffectStyle } from "@/lib/logoEffects";
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 
 interface WinnerEntry {
   position: number;
@@ -24,13 +24,81 @@ interface WinnersBoardProps {
   secondaryColor?: string;
 }
 
-/** Generate deterministic confetti pieces with varied colors, sizes, positions */
-function generateConfettiPieces(count: number) {
-  const colors = [
-    '#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4',
-    '#FFEAA7', '#DFE6E9', '#FF9FF3', '#54A0FF', '#5F27CD',
-    '#00D2D3', '#FF9F43', '#EE5A24', '#A3CB38', '#FDA7DF',
-  ];
+/** Default confetti palette used when no team logo colors are available */
+const DEFAULT_CONFETTI_COLORS = [
+  '#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4',
+  '#FFEAA7', '#DFE6E9', '#FF9FF3', '#54A0FF', '#5F27CD',
+  '#00D2D3', '#FF9F43', '#EE5A24', '#A3CB38', '#FDA7DF',
+];
+
+/**
+ * Extract dominant colors from an image URL using canvas pixel sampling.
+ * Skips near-black, near-white, and transparent pixels, then clusters
+ * similar colors together to find the top N distinct dominant colors.
+ */
+function extractDominantColors(imageUrl: string, topN: number = 5): Promise<string[]> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        const size = 64; // downsample for speed
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { resolve([]); return; }
+        ctx.drawImage(img, 0, 0, size, size);
+        const data = ctx.getImageData(0, 0, size, size).data;
+
+        // Collect non-trivial pixel colors
+        const colorCounts = new Map<string, { r: number; g: number; b: number; count: number }>();
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3];
+          if (a < 128) continue; // skip transparent
+          const brightness = r * 0.299 + g * 0.587 + b * 0.114;
+          if (brightness < 30 || brightness > 225) continue; // skip near-black / near-white
+          // Quantize to reduce noise (bucket by ~16)
+          const qr = (r >> 4) << 4;
+          const qg = (g >> 4) << 4;
+          const qb = (b >> 4) << 4;
+          const key = `${qr},${qg},${qb}`;
+          const existing = colorCounts.get(key);
+          if (existing) {
+            existing.count++;
+          } else {
+            colorCounts.set(key, { r: qr, g: qg, b: qb, count: 1 });
+          }
+        }
+
+        // Sort by frequency and pick top N
+        const sorted = Array.from(colorCounts.values()).sort((a, b) => b.count - a.count);
+        const result: string[] = [];
+        for (const c of sorted) {
+          if (result.length >= topN) break;
+          // Ensure this color is distinct enough from already-picked colors
+          const hex = `#${((1 << 24) + (c.r << 16) + (c.g << 8) + c.b).toString(16).slice(1)}`;
+          const tooSimilar = result.some(existing => {
+            const er = parseInt(existing.slice(1, 3), 16);
+            const eg = parseInt(existing.slice(3, 5), 16);
+            const eb = parseInt(existing.slice(5, 7), 16);
+            return Math.abs(c.r - er) + Math.abs(c.g - eg) + Math.abs(c.b - eb) < 60;
+          });
+          if (!tooSimilar) result.push(hex);
+        }
+        resolve(result);
+      } catch {
+        resolve([]);
+      }
+    };
+    img.onerror = () => resolve([]);
+    img.src = imageUrl;
+  });
+}
+
+/** Generate deterministic confetti pieces with given colors */
+function generateConfettiPieces(count: number, colors: string[]) {
+  const palette = colors.length > 0 ? colors : DEFAULT_CONFETTI_COLORS;
   const pieces: Array<{
     left: string; delay: string; duration: string; color: string;
     size: number; rotation: number; shape: 'rect' | 'circle';
@@ -40,7 +108,7 @@ function generateConfettiPieces(count: number) {
     const leftPct = ((i * 7.3 + 3.1) % 100);
     const delaySec = ((i * 0.37 + 0.1) % 5).toFixed(2);
     const durationSec = (3 + (i * 0.29 % 4)).toFixed(2);
-    const colorIdx = i % colors.length;
+    const colorIdx = i % palette.length;
     const size = 6 + (i * 1.3 % 10);
     const rotation = (i * 47) % 360;
     const shape = i % 3 === 0 ? 'circle' as const : 'rect' as const;
@@ -49,7 +117,7 @@ function generateConfettiPieces(count: number) {
       left: `${leftPct}%`,
       delay: `${delaySec}s`,
       duration: `${durationSec}s`,
-      color: colors[colorIdx],
+      color: palette[colorIdx],
       size,
       rotation,
       shape,
@@ -92,8 +160,20 @@ export function WinnersBoard({
   const winner = entries[0];
   const topEntries = entries.slice(0, 4);
 
-  // Memoize confetti pieces so they stay stable across re-renders
-  const confettiPieces = useMemo(() => generateConfettiPieces(60), []);
+  // Extract dominant colors from winner's team logo for confetti
+  const [logoColors, setLogoColors] = useState<string[]>([]);
+  const winnerLogoUrl = winner.teamLogoUrl;
+  useEffect(() => {
+    if (!winnerLogoUrl) { setLogoColors([]); return; }
+    let cancelled = false;
+    extractDominantColors(winnerLogoUrl, 5).then((colors) => {
+      if (!cancelled) setLogoColors(colors);
+    });
+    return () => { cancelled = true; };
+  }, [winnerLogoUrl]);
+
+  // Memoize confetti pieces — regenerate when logo colors change
+  const confettiPieces = useMemo(() => generateConfettiPieces(60, logoColors), [logoColors]);
 
   return (
     <div
