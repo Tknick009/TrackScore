@@ -1225,15 +1225,17 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       if (a.bibNumber) bibToAthlete.set(parseInt(a.bibNumber), a);
     }
     
-    const teamIds: string[] = [];
-    for (const winner of top4) {
-      const athlete = bibToAthlete.get(winner.bibNumber);
-      if (athlete?.teamId && !teamIds.includes(athlete.teamId)) teamIds.push(athlete.teamId);
-    }
+    // Fetch all teams for this meet and build lookup maps (by id, abbreviation, name)
+    // This is critical for relays where bib numbers don't map to individual athletes
+    const allMeetTeams = await storage.getTeamsByMeetId(meetId);
     const teamMap = new Map<string, any>();
-    if (teamIds.length > 0) {
-      const teams = await Promise.all(teamIds.map(id => storage.getTeam(id)));
-      teams.forEach(t => { if (t) teamMap.set(t.id, t); });
+    const teamByAbbrev = new Map<string, any>(); // abbreviation (upper) → team
+    const teamByName = new Map<string, any>();   // name (upper) → team
+    for (const t of allMeetTeams) {
+      teamMap.set(t.id, t);
+      if (t.abbreviation) teamByAbbrev.set(t.abbreviation.toUpperCase(), t);
+      if (t.shortName) teamByAbbrev.set(t.shortName.toUpperCase(), t);
+      if (t.name) teamByName.set(t.name.toUpperCase(), t);
     }
     
     const teamLogoMap = new Map<string, string>();
@@ -1272,8 +1274,18 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
     
     const winnersEntries = top4.map((winner) => {
       const dbAthlete = bibToAthlete.get(winner.bibNumber);
-      const teamId = dbAthlete?.teamId;
-      const team = teamId ? teamMap.get(teamId) : null;
+      let teamId = dbAthlete?.teamId;
+      let team = teamId ? teamMap.get(teamId) : null;
+      
+      // For relay events (or when bib doesn't match an individual athlete),
+      // fall back to matching team by the abbreviation from the LIF/LFF file
+      if (!team && winner.team) {
+        const abbrevMatch = teamByAbbrev.get(winner.team.toUpperCase());
+        const nameMatch = teamByName.get(winner.team.toUpperCase());
+        team = abbrevMatch || nameMatch || null;
+        if (team) teamId = team.id;
+      }
+      
       const firstName = dbAthlete?.firstName || winner.firstName;
       const lastName = dbAthlete?.lastName || winner.lastName;
       const teamName = team?.name || team?.shortName || winner.team || '';
@@ -1291,21 +1303,24 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       const teamLogoUrl = teamId ? teamLogoMap.get(teamId) : null;
       const headshotUrl = dbAthlete ? headshotMap.get(dbAthlete.id) : null;
       
-      // For relay events, use team name as the display name (matching the regular results path)
+      // For relay events, use the relay name from the LIF data (lastName field, e.g. "Navy 'A'")
+      // as the display name, and show the full team name as affiliation
       let displayFirstName = firstName;
       let displayLastName = lastName;
       let displayName = `${firstName} ${lastName}`.trim() || 'Unknown';
-      if (isRelayEvent && teamName) {
-        displayName = teamName;
+      if (isRelayEvent) {
+        // The LIF lastName field for relays contains the relay team name (e.g., "Navy 'A'")
+        const relayName = winner.lastName || teamName;
+        displayName = relayName || teamName;
         displayFirstName = '';
-        displayLastName = teamName;
+        displayLastName = relayName || teamName;
       }
       
       return {
         position: winner.place, place: winner.place,
         firstName: displayFirstName, lastName: displayLastName,
         name: displayName,
-        team: teamAbbrev, affiliation: teamName,
+        team: teamAbbrev, affiliation: isRelayEvent ? (winner.lastName || teamName) : teamName,
         time: markValue, mark: markValue,
         teamLogoUrl: teamLogoUrl || null, logoUrl: teamLogoUrl || null,
         headshotUrl: headshotUrl || null, athletePhotoUrl: headshotUrl || null,

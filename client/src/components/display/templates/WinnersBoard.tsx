@@ -1,4 +1,5 @@
 import { getLogoEffectStyle } from "@/lib/logoEffects";
+import { useMemo } from "react";
 
 interface WinnerEntry {
   position: number;
@@ -23,6 +24,62 @@ interface WinnersBoardProps {
   secondaryColor?: string;
 }
 
+/** Generate deterministic confetti pieces with varied colors, sizes, positions */
+function generateConfettiPieces(count: number) {
+  const colors = [
+    '#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4',
+    '#FFEAA7', '#DFE6E9', '#FF9FF3', '#54A0FF', '#5F27CD',
+    '#00D2D3', '#FF9F43', '#EE5A24', '#A3CB38', '#FDA7DF',
+  ];
+  const pieces: Array<{
+    left: string; delay: string; duration: string; color: string;
+    size: number; rotation: number; shape: 'rect' | 'circle';
+  }> = [];
+
+  for (let i = 0; i < count; i++) {
+    const leftPct = ((i * 7.3 + 3.1) % 100);
+    const delaySec = ((i * 0.37 + 0.1) % 5).toFixed(2);
+    const durationSec = (3 + (i * 0.29 % 4)).toFixed(2);
+    const colorIdx = i % colors.length;
+    const size = 6 + (i * 1.3 % 10);
+    const rotation = (i * 47) % 360;
+    const shape = i % 3 === 0 ? 'circle' as const : 'rect' as const;
+
+    pieces.push({
+      left: `${leftPct}%`,
+      delay: `${delaySec}s`,
+      duration: `${durationSec}s`,
+      color: colors[colorIdx],
+      size,
+      rotation,
+      shape,
+    });
+  }
+  return pieces;
+}
+
+/** CSS keyframes for confetti — injected once via <style> */
+const confettiCSS = `
+@keyframes wb-confetti-fall {
+  0% {
+    transform: translateY(-10vh) rotate(0deg);
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(110vh) rotate(720deg);
+    opacity: 0;
+  }
+}
+@keyframes wb-confetti-sway {
+  0%, 100% { transform: translateX(0px); }
+  25% { transform: translateX(15px); }
+  75% { transform: translateX(-15px); }
+}
+`;
+
 export function WinnersBoard({
   eventName,
   entries,
@@ -35,6 +92,9 @@ export function WinnersBoard({
   const winner = entries[0];
   const topEntries = entries.slice(0, 4);
 
+  // Memoize confetti pieces so they stay stable across re-renders
+  const confettiPieces = useMemo(() => generateConfettiPieces(60), []);
+
   return (
     <div
       className="h-screen w-screen overflow-hidden flex flex-col"
@@ -43,6 +103,9 @@ export function WinnersBoard({
         fontFamily: "'Barlow Semi Condensed', 'Inter', sans-serif",
       }}
     >
+      {/* Inject confetti keyframe CSS */}
+      <style>{confettiCSS}</style>
+
       {/* Background glow — matches BigBoard blue radial gradient from bottom */}
       <div
         className="absolute inset-0 pointer-events-none"
@@ -55,7 +118,28 @@ export function WinnersBoard({
         }}
       />
 
-      <div className="relative z-10 flex-1 flex flex-col">
+      {/* ===== Confetti layer — behind all content (z-5), above background glow ===== */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 5 }}>
+        {confettiPieces.map((piece, i) => (
+          <div
+            key={i}
+            style={{
+              position: 'absolute',
+              left: piece.left,
+              top: '-20px',
+              width: piece.shape === 'circle' ? piece.size : piece.size * 0.6,
+              height: piece.size,
+              backgroundColor: piece.color,
+              borderRadius: piece.shape === 'circle' ? '50%' : '2px',
+              opacity: 0.85,
+              animation: `wb-confetti-fall ${piece.duration} ${piece.delay} linear infinite, wb-confetti-sway 2s ${piece.delay} ease-in-out infinite`,
+              transform: `rotate(${piece.rotation}deg)`,
+            }}
+          />
+        ))}
+      </div>
+
+      <div className="relative flex-1 flex flex-col" style={{ zIndex: 10 }}>
         {/* ===== TOP HALF: Winner Hero Section ===== */}
         <div className="relative" style={{ height: '45%' }}>
           {/* Meet name — large italic across the top */}
