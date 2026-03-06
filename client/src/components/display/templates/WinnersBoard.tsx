@@ -126,25 +126,19 @@ function generateConfettiPieces(count: number, colors: string[]) {
   return pieces;
 }
 
-/** CSS keyframes for confetti — falls within the hero section (45vh tall) */
+/** CSS keyframes for confetti — uses nested divs to avoid transform conflicts.
+ *  Outer div: vertical fall via translateY
+ *  Inner div: horizontal sway + rotation via translateX / rotate */
 const confettiCSS = `
 @keyframes wb-confetti-fall {
-  0% {
-    transform: translateY(-5vh) rotate(0deg);
-    opacity: 1;
-  }
-  80% {
-    opacity: 0.9;
-  }
-  100% {
-    transform: translateY(50vh) rotate(720deg);
-    opacity: 0;
-  }
+  0%   { transform: translateY(-20px); opacity: 1; }
+  80%  { opacity: 0.9; }
+  100% { transform: translateY(50vh); opacity: 0; }
 }
 @keyframes wb-confetti-sway {
-  0%, 100% { transform: translateX(0px); }
-  25% { transform: translateX(20px); }
-  75% { transform: translateX(-20px); }
+  0%, 100% { transform: translateX(0) rotate(0deg); }
+  25%      { transform: translateX(18px) rotate(180deg); }
+  75%      { transform: translateX(-18px) rotate(360deg); }
 }
 `;
 
@@ -209,16 +203,21 @@ export function WinnersBoard({
                 style={{
                   position: 'absolute',
                   left: piece.left,
-                  top: '-20px',
-                  width: piece.shape === 'circle' ? piece.size : piece.size * 0.6,
-                  height: piece.size,
-                  backgroundColor: piece.color,
-                  borderRadius: piece.shape === 'circle' ? '50%' : '2px',
-                  opacity: 0.85,
-                  animation: `wb-confetti-fall ${piece.duration} ${piece.delay} linear infinite, wb-confetti-sway 2s ${piece.delay} ease-in-out infinite`,
-                  transform: `rotate(${piece.rotation}deg)`,
+                  top: 0,
+                  animation: `wb-confetti-fall ${piece.duration} ${piece.delay} linear infinite`,
                 }}
-              />
+              >
+                <div
+                  style={{
+                    width: piece.shape === 'circle' ? piece.size : piece.size * 0.6,
+                    height: piece.size,
+                    backgroundColor: piece.color,
+                    borderRadius: piece.shape === 'circle' ? '50%' : '2px',
+                    opacity: 0.85,
+                    animation: `wb-confetti-sway 2s ${piece.delay} ease-in-out infinite`,
+                  }}
+                />
+              </div>
             ))}
           </div>
           {/* Meet name — large italic across the top */}
