@@ -921,6 +921,9 @@ export function SceneObjectRenderer({
             // Name with record tag appended (for combined display)
             'name-record-tag': displayName,
             'last-name-record-tag': isTeamScores ? (firstEntry?.name || '') : isRelayOrMedleyText ? (firstEntry?.name || firstEntry?.lastName || '') : firstEntry?.lastName,
+            // Record Board fields (sent when mode === 'record')
+            'record-label': liveData.recordLabel || '',
+            'meet-name': liveData.meetName || '',
           };
           const resolvedValue = fieldMap[fieldKey];
           if (resolvedValue !== undefined && resolvedValue !== null && resolvedValue !== '') {

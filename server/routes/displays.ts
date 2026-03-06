@@ -1610,9 +1610,33 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       if (connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {
         connectedDevice.contentMode = 'record';
         
+        // Check if user has a custom scene mapped for 'record' or 'winners' mode on this display type
+        const displayType = device.displayType || 'P10';
+        let sceneId: number | null = null;
+        let sceneData: { scene: any; objects: any[] } | null = null;
+        
+        try {
+          let mapping = await storage.getSceneTemplateMappingByTypeAndMode(meetId, displayType, 'record');
+          if (!mapping) {
+            mapping = await storage.getSceneTemplateMappingByTypeAndMode(meetId, displayType, 'winners');
+          }
+          if (!mapping) {
+            mapping = await storage.getSceneTemplateMappingByTypeAndMode(meetId, displayType, 'track_results');
+          }
+          if (mapping) {
+            sceneId = mapping.sceneId;
+            sceneData = await prefetchSceneData(sceneId);
+            console.log(`[Record-Board] Using custom scene ${sceneId} for ${displayType} record board`);
+          }
+        } catch (err) {
+          console.error(`[Record-Board] Error looking up scene mapping:`, err);
+        }
+        
         connectedDevice.ws.send(JSON.stringify({
           type: 'display_command',
-          template: 'record-board',
+          template: sceneId ? null : 'record-board',
+          sceneId,
+          sceneData,
           liveEventData: {
             eventName: result.displayEventName,
             mode: 'record',
@@ -1626,7 +1650,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           },
         }));
         
-        console.log(`[Record-Board] Sent record "${recordLabel}" for "${result.displayEventName}" (event ${evtNum}) to ${device.deviceName}`);
+        console.log(`[Record-Board] Sent record "${recordLabel}" for "${result.displayEventName}" (event ${evtNum}) to ${device.deviceName} (scene: ${sceneId || 'built-in'})`);
         res.json({ success: true, delivered: true, round: result.maxRound, source: result.source });
       } else {
         res.json({ success: false, delivered: false, message: "Device offline" });
