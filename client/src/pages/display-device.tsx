@@ -1480,13 +1480,9 @@ function seededRandom(seed: number): () => number {
 function ConfettiOverlay({ children, teamLogoUrl }: { children: React.ReactNode; teamLogoUrl?: string | null }) {
   const [logoColors, setLogoColors] = useState<string[]>([]);
   useEffect(() => {
-    console.log('[ConfettiOverlay] teamLogoUrl:', teamLogoUrl);
-    if (!teamLogoUrl) { console.log('[ConfettiOverlay] No logo URL, using default colors'); setLogoColors([]); return; }
+    if (!teamLogoUrl) { setLogoColors([]); return; }
     let cancelled = false;
-    extractDominantColors(teamLogoUrl).then(c => {
-      console.log('[ConfettiOverlay] Extracted colors:', c);
-      if (!cancelled) setLogoColors(c);
-    });
+    extractDominantColors(teamLogoUrl).then(c => { if (!cancelled) setLogoColors(c); });
     return () => { cancelled = true; };
   }, [teamLogoUrl]);
 
@@ -1638,7 +1634,11 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
       // When winners mode is active, overlay confetti on top of the custom scene
       if (liveEventData?.mode === 'winners') {
         const winnerEntry = liveEventData.entries?.[0];
-        const winnerLogoUrl = winnerEntry?.teamLogoUrl || winnerEntry?.logoUrl || null;
+        // Try uploaded logo first, then fall back to NCAA logo path (same as scene-canvas.tsx)
+        const winnerLogoUrl = winnerEntry?.teamLogoUrl
+          || winnerEntry?.logoUrl
+          || (winnerEntry?.affiliation ? `/logos/NCAA/${winnerEntry.affiliation}.png` : null)
+          || (winnerEntry?.team ? `/logos/NCAA/${winnerEntry.team}.png` : null);
         return <ConfettiOverlay teamLogoUrl={winnerLogoUrl}>{sceneCanvasElement}</ConfettiOverlay>;
       }
 
