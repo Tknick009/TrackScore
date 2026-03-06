@@ -38,7 +38,8 @@ const overlayHideSchema = z.object({
 export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
   const {
     broadcastToDisplays, broadcastCurrentEvent, sendToDisplayDevice, connectedDisplayDevices,
-    prefetchSceneData, getDisplayModeFromTemplate, abbreviateEventName, fileStorage
+    prefetchSceneData, getDisplayModeFromTemplate, abbreviateEventName, fileStorage,
+    enrichEntriesWithRecordTags,
   } = ctx;
 
   // ===== DISPLAY REGISTRATION =====
@@ -873,6 +874,37 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         return !entry.isScratched && dqCode !== 'SCR' && dqCode !== 'DNS';
       });
       
+      // Enrich entries with PB/SB/MR/FR record tags before building display objects.
+      // For non-final rounds, temporarily set finalMark to the round-specific mark
+      // so the enrichment function can compare against records/bests.
+      try {
+        if (selectedRound !== 'final') {
+          for (const entry of displayEntries) {
+            const fields = getRoundFields(entry);
+            if (typeof fields.mark === 'number') {
+              (entry as any)._origFinalMark = entry.finalMark;
+              (entry as any).finalMark = fields.mark;
+            }
+          }
+        }
+        await enrichEntriesWithRecordTags(
+          event.eventType || 'track',
+          event.gender || '',
+          displayEntries as any[]
+        );
+        // Restore original finalMark if we changed it
+        if (selectedRound !== 'final') {
+          for (const entry of displayEntries) {
+            if ((entry as any)._origFinalMark !== undefined) {
+              (entry as any).finalMark = (entry as any)._origFinalMark;
+              delete (entry as any)._origFinalMark;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[Hytek Results] Failed to enrich with record tags:', err);
+      }
+      
       const enrichedEntries = displayEntries.map((entry, index) => {
         const athlete = entry.athleteId ? athleteMap.get(entry.athleteId) : null;
         const teamId = entry.teamId || athlete?.teamId;
@@ -956,6 +988,8 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
             totalPoints: markValue,
             eventPoints: markValue,
           } : {}),
+          // PB/SB/MR/FR record tags (enriched above)
+          recordTags: (entry as any).recordTags || [],
         };
       });
       

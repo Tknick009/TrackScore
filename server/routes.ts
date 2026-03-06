@@ -648,6 +648,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     abbreviateEventName,
     prefetchSceneData,
     getDisplayModeFromTemplate,
+    enrichEntriesWithRecordTags,
   };
 
   // Register all domain-specific route modules
