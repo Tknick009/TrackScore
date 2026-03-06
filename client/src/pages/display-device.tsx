@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Monitor, Tv, LayoutGrid, Calendar, Radio } from "lucide-react";
 import type { Meet, Event } from "@shared/schema";
+import { getLogoEffectStyle } from "@/lib/logoEffects";
 
 // Transition duration in milliseconds - crisp and fast for live stadium use
 const TRANSITION_DURATION_MS = 150;
@@ -1616,6 +1617,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
                   maxWidth: '85%',
                   maxHeight: '85%',
                   objectFit: 'contain',
+                  ...getLogoEffectStyle(meet?.logoEffect),
                 }}
               />
             </div>
@@ -1656,7 +1658,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
               <img 
                 src={meet.logoUrl!} 
                 alt={meet?.name || 'Meet Logo'} 
-                style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', ...getLogoEffectStyle(meet?.logoEffect) }}
               />
             </div>
           </div>
@@ -1804,6 +1806,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
               maxWidth: '85%',
               maxHeight: '85%',
               objectFit: 'contain',
+              ...getLogoEffectStyle(meet?.logoEffect),
             }}
           />
         </div>
@@ -1836,7 +1839,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             <img 
               src={meet!.logoUrl!} 
               alt={meet?.name || 'Meet Logo'} 
-              style={{ maxWidth: '100%', maxHeight: '70%', objectFit: 'contain' }}
+              style={{ maxWidth: '100%', maxHeight: '70%', objectFit: 'contain', ...getLogoEffectStyle(meet?.logoEffect) }}
             />
             <div className="mt-8">
               <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full ${isConnected ? 'bg-blue-900/50 text-blue-400' : 'bg-yellow-900/50 text-yellow-400'}`}>
@@ -1999,7 +2002,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             <img 
               src={meet!.logoUrl!} 
               alt={meet?.name || 'Meet Logo'} 
-              style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+              style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', ...getLogoEffectStyle(meet?.logoEffect) }}
             />
           </div>
         </div>
