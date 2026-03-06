@@ -1416,6 +1416,107 @@ export default function DisplayDevice() {
   );
 }
 
+/** Confetti overlay — renders falling confetti on top of any child content.
+ *  Used when winners mode is active with a custom scene layout. */
+const DEFAULT_CONFETTI_COLORS = [
+  '#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4',
+  '#FFEAA7', '#DFE6E9', '#FF9FF3', '#54A0FF', '#5F27CD',
+  '#00D2D3', '#FF9F43', '#EE5A24', '#A3CB38', '#FDA7DF',
+];
+
+function extractDominantColors(imageUrl: string, topN = 5): Promise<string[]> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        const sz = 64;
+        canvas.width = sz; canvas.height = sz;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { resolve([]); return; }
+        ctx.drawImage(img, 0, 0, sz, sz);
+        const data = ctx.getImageData(0, 0, sz, sz).data;
+        const counts = new Map<string, { r: number; g: number; b: number; count: number }>();
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
+          if (a < 128) continue;
+          const brightness = r * 0.299 + g * 0.587 + b * 0.114;
+          if (brightness < 30 || brightness > 225) continue;
+          const qr = (r >> 4) << 4, qg = (g >> 4) << 4, qb = (b >> 4) << 4;
+          const key = `${qr},${qg},${qb}`;
+          const ex = counts.get(key);
+          if (ex) ex.count++; else counts.set(key, { r: qr, g: qg, b: qb, count: 1 });
+        }
+        const sorted = Array.from(counts.values()).sort((a, b) => b.count - a.count);
+        const result: string[] = [];
+        for (const c of sorted) {
+          if (result.length >= topN) break;
+          const hex = `#${((1 << 24) + (c.r << 16) + (c.g << 8) + c.b).toString(16).slice(1)}`;
+          const tooClose = result.some(e => {
+            const er = parseInt(e.slice(1,3),16), eg = parseInt(e.slice(3,5),16), eb = parseInt(e.slice(5,7),16);
+            return Math.abs(c.r-er) + Math.abs(c.g-eg) + Math.abs(c.b-eb) < 60;
+          });
+          if (!tooClose) result.push(hex);
+        }
+        resolve(result);
+      } catch { resolve([]); }
+    };
+    img.onerror = () => resolve([]);
+    img.src = imageUrl;
+  });
+}
+
+function ConfettiOverlay({ children, teamLogoUrl }: { children: React.ReactNode; teamLogoUrl?: string | null }) {
+  const [logoColors, setLogoColors] = useState<string[]>([]);
+  useEffect(() => {
+    if (!teamLogoUrl) { setLogoColors([]); return; }
+    let cancelled = false;
+    extractDominantColors(teamLogoUrl).then(c => { if (!cancelled) setLogoColors(c); });
+    return () => { cancelled = true; };
+  }, [teamLogoUrl]);
+
+  const confettiPieces = useMemo(() => {
+    const palette = logoColors.length > 0 ? logoColors : DEFAULT_CONFETTI_COLORS;
+    const pieces: Array<{ left: string; delay: string; duration: string; color: string; size: number; shape: 'rect'|'circle' }> = [];
+    for (let i = 0; i < 60; i++) {
+      pieces.push({
+        left: `${((i * 7.3 + 3.1) % 100)}%`,
+        delay: `${((i * 0.37 + 0.1) % 5).toFixed(2)}s`,
+        duration: `${(3 + (i * 0.29 % 4)).toFixed(2)}s`,
+        color: palette[i % palette.length],
+        size: 6 + (i * 1.3 % 10),
+        shape: i % 3 === 0 ? 'circle' : 'rect',
+      });
+    }
+    return pieces;
+  }, [logoColors]);
+
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      {children}
+      {/* Confetti overlay — pointer-events-none so it doesn't block interaction */}
+      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden', zIndex: 9998 }}>
+        {confettiPieces.map((p, i) => (
+          <div key={i} style={{
+            position: 'absolute', left: p.left, top: 0,
+            animation: `wb-confetti-fall ${p.duration} ${p.delay} linear infinite`,
+          }}>
+            <div style={{
+              width: p.shape === 'circle' ? p.size : p.size * 0.6,
+              height: p.size,
+              backgroundColor: p.color,
+              borderRadius: p.shape === 'circle' ? '50%' : '2px',
+              opacity: 0.85,
+              animation: `wb-confetti-sway 2s ${p.delay} ease-in-out infinite`,
+            }} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 interface DisplayRendererProps {
   displayType: DisplayType;
   meetId: string | null;
@@ -1493,37 +1594,6 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     const effectiveSceneId = overrideProps?.sceneId !== undefined ? overrideProps.sceneId : sceneId;
     const effectiveSceneData = overrideProps?.currentSceneData !== undefined ? overrideProps.currentSceneData : currentSceneData;
 
-    // Winners Board and Record Board always render full-screen, even when a custom scene is assigned.
-    // These special boards bypass the scene canvas so their built-in layouts (confetti, etc.) work.
-    if (liveEventData?.mode === 'winners' && (effectiveTemplate === 'winners-board' || liveEventData.entries?.length)) {
-      const winnersData = (liveEventData as any).winnersData;
-      return (
-        <WinnersBoard
-          eventName={liveEventData.eventName || winnersData?.eventName || ''}
-          entries={liveEventData.entries || []}
-          meetName={winnersData?.meetName || meet?.name || ''}
-          meetLogoUrl={winnersData?.meetLogoUrl || meet?.logoUrl || null}
-          meetLogoEffect={(meet as any)?.logoEffect}
-          primaryColor={meet?.primaryColor || undefined}
-          secondaryColor={meet?.secondaryColor || undefined}
-        />
-      );
-    }
-    if (liveEventData?.mode === 'record' && (effectiveTemplate === 'record-board' || liveEventData.entries?.length)) {
-      return (
-        <RecordBoard
-          eventName={liveEventData.eventName || ''}
-          recordLabel={liveEventData.recordLabel || ''}
-          entries={liveEventData.entries || []}
-          meetName={liveEventData.meetName || meet?.name || ''}
-          meetLogoUrl={liveEventData.meetLogoUrl || meet?.logoUrl || null}
-          meetLogoEffect={liveEventData.meetLogoEffect || (meet as any)?.logoEffect}
-          primaryColor={liveEventData.primaryColor || undefined}
-          secondaryColor={liveEventData.secondaryColor || undefined}
-        />
-      );
-    }
-
     // If a custom scene is assigned, render it inline using SceneCanvas
     if (effectiveSceneId) {
       const capability = DISPLAY_CAPABILITIES[displayType];
@@ -1531,30 +1601,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
       const effectiveWidth = effectiveResWidth;
       const effectiveHeight = effectiveResHeight;
       
-      // P10/P6: Fixed-size rendering at exact native resolution at position 0,0
-      // BigBoard/Custom: Full viewport rendering with scaling
-      if (isSingleAthleteDisplay) {
-        return (
-          <SceneCanvas
-            sceneId={effectiveSceneId}
-            scene={effectiveSceneData?.scene}
-            objects={effectiveSceneData?.objects}
-            meetId={meetId || undefined}
-            liveEventData={liveEventData}
-            liveEventDataByPort={liveEventDataByPort}
-            liveClockTime={liveClockTime}
-            pagingSize={pagingSize}
-            pagingInterval={pagingInterval}
-            maxPages={maxPages}
-            displayWidth={effectiveWidth}
-            displayHeight={effectiveHeight}
-            deviceFieldPort={fieldPort}
-          />
-        );
-      }
-      
-      // BigBoard/Custom uses full viewport with scaling
-      return (
+      const sceneCanvasElement = (
         <SceneCanvas
           sceneId={effectiveSceneId}
           scene={effectiveSceneData?.scene}
@@ -1571,6 +1618,13 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
           deviceFieldPort={fieldPort}
         />
       );
+
+      // When winners mode is active, overlay confetti on top of the custom scene
+      if (liveEventData?.mode === 'winners') {
+        return <ConfettiOverlay teamLogoUrl={liveEventData.entries?.[0]?.teamLogoUrl}>{sceneCanvasElement}</ConfettiOverlay>;
+      }
+
+      return sceneCanvasElement;
     }
     
     const templateId = effectiveTemplate || '';
