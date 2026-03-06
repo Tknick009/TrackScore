@@ -1236,6 +1236,8 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
     } catch (err) { console.warn('[Winners-Lynx] Failed to fetch athlete photos:', err); }
     
     const isMultiEvent = /\b(decathlon|heptathlon|pentathlon)\b/i.test(eventName || dbEvent?.name || '');
+    const displayEventNameLower = (eventName || dbEvent?.name || '').toLowerCase();
+    const isRelayEvent = displayEventNameLower.includes('relay') || displayEventNameLower.includes('medley') || /\d+x\d+/.test(displayEventNameLower);
     const floorToPrecision = (val: number, precision: number): number => {
       const factor = Math.pow(10, precision);
       return Math.floor(val * factor + 1e-9) / factor;
@@ -1277,12 +1279,24 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       const teamLogoUrl = teamId ? teamLogoMap.get(teamId) : null;
       const headshotUrl = dbAthlete ? headshotMap.get(dbAthlete.id) : null;
       
+      // For relay events, use team name as the display name (matching the regular results path)
+      let displayFirstName = firstName;
+      let displayLastName = lastName;
+      let displayName = `${firstName} ${lastName}`.trim() || 'Unknown';
+      if (isRelayEvent && teamName) {
+        displayName = teamName;
+        displayFirstName = '';
+        displayLastName = teamName;
+      }
+      
       return {
-        position: winner.place, firstName, lastName,
-        name: `${firstName} ${lastName}`.trim() || 'Unknown',
+        position: winner.place, place: winner.place,
+        firstName: displayFirstName, lastName: displayLastName,
+        name: displayName,
         team: teamAbbrev, affiliation: teamName,
         time: markValue, mark: markValue,
-        teamLogoUrl: teamLogoUrl || null, headshotUrl: headshotUrl || null,
+        teamLogoUrl: teamLogoUrl || null, logoUrl: teamLogoUrl || null,
+        headshotUrl: headshotUrl || null, athletePhotoUrl: headshotUrl || null,
       };
     });
     
@@ -1445,6 +1459,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           liveEventData: {
             eventName: result.displayEventName,
             mode: 'winners',
+            meetLogoUrl: result.meetLogoUrl,
             entries: result.winnersEntries,
           },
           winnersData: {

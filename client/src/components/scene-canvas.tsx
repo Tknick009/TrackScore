@@ -513,6 +513,9 @@ export function SceneObjectRenderer({
         
         if (componentConfig.logoType === "meet") {
           logoUrl = meet?.logoUrl;
+        } else if (logoFieldKey === "meet-logo") {
+          // Meet logo binding — use meet data from React Query cache
+          logoUrl = meet?.logoUrl || null;
         } else if (logoFieldKey === "athlete-photo" && liveData) {
           // Athlete headshot from directory: School_FirstName_LastName.png
           const photoAthleteIndex = (dataBinding.athleteIndex || 0) + pageOffset;
@@ -548,6 +551,9 @@ export function SceneObjectRenderer({
               if (teamNameForLogo) {
                 logoUrl = `/logos/NCAA/${teamNameForLogo}.png`;
               }
+            } else if (photoEntry.headshotUrl || photoEntry.athletePhotoUrl) {
+              // Use server-provided headshot URL if available (e.g., from Winners Board)
+              logoUrl = photoEntry.headshotUrl || photoEntry.athletePhotoUrl;
             } else if (school && firstName && lastName) {
               // Individual event — try headshot first
               logoUrl = `/api/meets/${meetId}/headshot?school=${encodeURIComponent(school)}&firstName=${encodeURIComponent(firstName)}&lastName=${encodeURIComponent(lastName)}`;
