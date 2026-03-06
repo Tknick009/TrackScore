@@ -1480,9 +1480,13 @@ function seededRandom(seed: number): () => number {
 function ConfettiOverlay({ children, teamLogoUrl }: { children: React.ReactNode; teamLogoUrl?: string | null }) {
   const [logoColors, setLogoColors] = useState<string[]>([]);
   useEffect(() => {
-    if (!teamLogoUrl) { setLogoColors([]); return; }
+    console.log('[ConfettiOverlay] teamLogoUrl:', teamLogoUrl);
+    if (!teamLogoUrl) { console.log('[ConfettiOverlay] No logo URL, using default colors'); setLogoColors([]); return; }
     let cancelled = false;
-    extractDominantColors(teamLogoUrl).then(c => { if (!cancelled) setLogoColors(c); });
+    extractDominantColors(teamLogoUrl).then(c => {
+      console.log('[ConfettiOverlay] Extracted colors:', c);
+      if (!cancelled) setLogoColors(c);
+    });
     return () => { cancelled = true; };
   }, [teamLogoUrl]);
 
