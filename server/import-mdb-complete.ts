@@ -248,6 +248,9 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
   const multiEventPtrs = new Set<number>(); // Track which Event_ptrs are multi-events (heptathlon, pentathlon, etc.)
   const multiEventMetaMap = new Map<number, { name: string; gender: string; eventNum: number }>(); // Event_ptr → parent event metadata
   const subEventIdMap = new Map<string, string>(); // "eventPtr_multPtr" → child event ID (for Entrymulti import)
+  // Track events that have an explicit Event_stat — these should NOT be overridden by Ev_score inference
+  // "Done" (Event_stat='D') does NOT mean "Scored" — only 'S' or 'C' should be marked as scored
+  const eventsWithExplicitStatus = new Set<number>();
   
   // Statistics tracking
   const stats: ImportStatistics = {
@@ -700,10 +703,12 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           case 'u':
           case 'unseeded':
             hytekStatus = 'unseeded';
+            eventsWithExplicitStatus.add(eventPtr);
             break;
           case '1':
           case 'seeded':
             hytekStatus = 'seeded';
+            eventsWithExplicitStatus.add(eventPtr);
             break;
           case 'A':
           case 'a':
@@ -711,6 +716,8 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           case 'd':
           case 'done':
             hytekStatus = 'done';
+            // "Done" does NOT mean "Scored" — do NOT set isScored here
+            eventsWithExplicitStatus.add(eventPtr);
             break;
           case 'S':
           case 's':
@@ -719,6 +726,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           case 'scored':
             hytekStatus = 'scored';
             isScored = true;
+            eventsWithExplicitStatus.add(eventPtr);
             break;
           default:
             hytekStatus = statusStr;
@@ -1772,7 +1780,11 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
     }
     
     // Post-import: Infer is_scored from Ev_score values (both individual AND relay entries)
-    // If any entry in an event has Ev_score > 0, mark that event as scored
+    // IMPORTANT: Only infer scoring for events that do NOT have an explicit Event_stat.
+    // "Done" (Event_stat='D') does NOT mean "Scored" — HyTek distinguishes these states.
+    // Events with Event_stat='D' have finished running but are NOT yet officially scored.
+    // Only events with Event_stat='S' or 'C' should be marked as scored.
+    // The Ev_score inference is a fallback for events where Event_stat is missing entirely.
     const eventsWithScores = new Set<number>();
     const withEvScore = entryData.filter(r => r.Ev_score != null && Number(r.Ev_score) > 0);
     // Also check relay data for Ev_score
@@ -1781,19 +1793,21 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       const relayWithScore = relayData2.filter((r: any) => r.Ev_score != null && Number(r.Ev_score) > 0);
       for (const row of relayWithScore) {
         const eventPtr = typeof row.Event_ptr === 'number' ? row.Event_ptr : Number(row.Event_ptr || 0);
-        if (eventPtr > 0) eventsWithScores.add(eventPtr);
+        // Only add if the event does NOT have an explicit Event_stat
+        if (eventPtr > 0 && !eventsWithExplicitStatus.has(eventPtr)) eventsWithScores.add(eventPtr);
       }
     } catch (e) { /* relay table already processed above */ }
     console.log(`   🔍 Entries with Ev_score > 0: ${withEvScore.length} individual + relay`);
     for (const row of withEvScore) {
       const eventPtr = typeof row.Event_ptr === 'number' ? row.Event_ptr : Number(row.Event_ptr || 0);
-      if (eventPtr > 0) eventsWithScores.add(eventPtr);
+      // Only add if the event does NOT have an explicit Event_stat
+      if (eventPtr > 0 && !eventsWithExplicitStatus.has(eventPtr)) eventsWithScores.add(eventPtr);
     }
     
     if (eventsWithScores.size > 0) {
       const scoredPtrs = Array.from(eventsWithScores);
       const eventNums = scoredPtrs.map(ptr => ptrToNumMap.get(ptr)).filter(n => n != null);
-      console.log(`   🏆 Events with Ev_score data (inferred scored): ${eventsWithScores.size} events (Event_no: ${eventNums.join(', ')})`);
+      console.log(`   🏆 Events WITHOUT explicit Event_stat but with Ev_score data (inferred scored): ${eventsWithScores.size} events (Event_no: ${eventNums.join(', ')})`);
       
       // Build list of event IDs to mark as scored
       // eventIdMap is keyed by Event_ptr (not Event_no)
@@ -1807,13 +1821,18 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         if (isEdgeMode && sqliteDb) {
           const placeholders = eventIdsToMark.map(() => '?').join(',');
           const updateResult = sqliteDb.prepare(`UPDATE events SET is_scored = 1 WHERE id IN (${placeholders}) AND (is_scored IS NULL OR is_scored = 0)`).run(...eventIdsToMark);
-          console.log(`   ✅ Marked ${updateResult.changes} additional events as scored (from Ev_score inference)`);
+          console.log(`   ✅ Marked ${updateResult.changes} additional events as scored (from Ev_score inference, only for events without explicit status)`);
         } else if (db) {
           for (const eid of eventIdsToMark) {
             await db.execute(sql`UPDATE events SET is_scored = true WHERE id = ${eid} AND (is_scored IS NULL OR is_scored = false)`);
           }
-          console.log(`   ✅ Marked up to ${eventIdsToMark.length} additional events as scored (from Ev_score inference)`);
+          console.log(`   ✅ Marked up to ${eventIdsToMark.length} additional events as scored (from Ev_score inference, only for events without explicit status)`);
         }
+      }
+    } else {
+      const skippedCount = withEvScore.length > 0 ? eventsWithExplicitStatus.size : 0;
+      if (skippedCount > 0) {
+        console.log(`   ℹ️  Skipped Ev_score inference for ${skippedCount} events that have explicit Event_stat (respecting Done vs Scored distinction)`);
       }
     }
   } catch (error) {

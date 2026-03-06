@@ -3025,13 +3025,25 @@ export class SQLiteStorage implements IStorage {
       const eventEntries = entriesByEvent.get(evt.id) || [];
       const teamScorerCount = new Map<string, number>();
 
+      // Check if this event has any entries with scored_points from HyTek.
+      // If so, ONLY use scored_points for this event (don't fall back to place-based scoring).
+      // This prevents double-counting when HyTek has already assigned team scoring points.
+      // The place-based fallback is only used for events scored manually in TrackScore
+      // (where entries have final_place but no scored_points).
+      const eventHasScoredPoints = eventEntries.some(
+        (e: any) => e.scored_points != null && e.scored_points > 0
+      );
+
       for (const entry of eventEntries) {
         if (!entry.team_id || !entry.team_name) continue;
 
         let pts = 0;
         if (entry.scored_points != null && entry.scored_points > 0) {
+          // Use HyTek's scored_points directly (handles ties, split points, etc.)
           pts = entry.scored_points;
-        } else if (entry.final_place && ptsMap && ptsMap.size > 0) {
+        } else if (!eventHasScoredPoints && entry.final_place && ptsMap && ptsMap.size > 0) {
+          // Place-based fallback: only used when NO entries in this event have scored_points
+          // (i.e., event was scored manually in TrackScore, not imported from HyTek)
           if (maxScorers > 0) {
             const count = teamScorerCount.get(entry.team_id) || 0;
             if (count >= maxScorers) continue;
