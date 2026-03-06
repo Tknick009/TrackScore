@@ -1506,8 +1506,9 @@ function ConfettiOverlay({ children, teamLogoUrl }: { children: React.ReactNode;
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-      {/* Confetti BEFORE children in DOM order = renders behind scene content */}
-      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+      {children}
+      {/* Confetti overlay after children — visible on top, pointer-events:none so it doesn't block */}
+      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden', zIndex: 9999 }}>
         {confettiPieces.map((p, i) => (
           <div key={i} style={{
             position: 'absolute', left: p.left, top: p.top,
@@ -1518,13 +1519,12 @@ function ConfettiOverlay({ children, teamLogoUrl }: { children: React.ReactNode;
               height: p.size,
               backgroundColor: p.color,
               borderRadius: p.shape === 'circle' ? '50%' : '2px',
-              opacity: 0.85,
+              opacity: 0.7,
               animation: `wb-confetti-sway 2s ${p.delay} ease-in-out infinite`,
             }} />
           </div>
         ))}
       </div>
-      {children}
     </div>
   );
 }
