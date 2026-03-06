@@ -1467,6 +1467,12 @@ function extractDominantColors(imageUrl: string, topN = 5): Promise<string[]> {
   });
 }
 
+/** Simple seeded pseudo-random for deterministic but scattered confetti layout */
+function seededRandom(seed: number): () => number {
+  let s = seed;
+  return () => { s = (s * 16807 + 0) % 2147483647; return (s - 1) / 2147483646; };
+}
+
 function ConfettiOverlay({ children, teamLogoUrl }: { children: React.ReactNode; teamLogoUrl?: string | null }) {
   const [logoColors, setLogoColors] = useState<string[]>([]);
   useEffect(() => {
@@ -1478,15 +1484,17 @@ function ConfettiOverlay({ children, teamLogoUrl }: { children: React.ReactNode;
 
   const confettiPieces = useMemo(() => {
     const palette = logoColors.length > 0 ? logoColors : DEFAULT_CONFETTI_COLORS;
-    const pieces: Array<{ left: string; delay: string; duration: string; color: string; size: number; shape: 'rect'|'circle' }> = [];
+    const rand = seededRandom(42);
+    const pieces: Array<{ left: string; top: string; delay: string; duration: string; color: string; size: number; shape: 'rect'|'circle' }> = [];
     for (let i = 0; i < 60; i++) {
       pieces.push({
-        left: `${((i * 7.3 + 3.1) % 100)}%`,
-        delay: `${((i * 0.37 + 0.1) % 5).toFixed(2)}s`,
-        duration: `${(3 + (i * 0.29 % 4)).toFixed(2)}s`,
+        left: `${(rand() * 100).toFixed(1)}%`,
+        top: `${(-rand() * 30).toFixed(0)}%`,  // Scatter start positions above viewport (-30% to 0%)
+        delay: `${(rand() * 6).toFixed(2)}s`,   // Spread delays widely for staggered appearance
+        duration: `${(3 + rand() * 5).toFixed(2)}s`,  // Varied fall speeds
         color: palette[i % palette.length],
-        size: 6 + (i * 1.3 % 10),
-        shape: i % 3 === 0 ? 'circle' : 'rect',
+        size: 6 + Math.floor(rand() * 12),
+        shape: rand() > 0.65 ? 'circle' : 'rect',
       });
     }
     return pieces;
@@ -1495,11 +1503,11 @@ function ConfettiOverlay({ children, teamLogoUrl }: { children: React.ReactNode;
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       {children}
-      {/* Confetti overlay — pointer-events-none so it doesn't block interaction */}
-      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden', zIndex: 9998 }}>
+      {/* Confetti overlay — z-index:1 renders behind scene content (text/images at higher z) */}
+      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden', zIndex: 1 }}>
         {confettiPieces.map((p, i) => (
           <div key={i} style={{
-            position: 'absolute', left: p.left, top: 0,
+            position: 'absolute', left: p.left, top: p.top,
             animation: `wb-confetti-fall ${p.duration} ${p.delay} linear infinite`,
           }}>
             <div style={{
@@ -1621,7 +1629,9 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
 
       // When winners mode is active, overlay confetti on top of the custom scene
       if (liveEventData?.mode === 'winners') {
-        return <ConfettiOverlay teamLogoUrl={liveEventData.entries?.[0]?.teamLogoUrl}>{sceneCanvasElement}</ConfettiOverlay>;
+        const winnerEntry = liveEventData.entries?.[0];
+        const winnerLogoUrl = winnerEntry?.teamLogoUrl || winnerEntry?.logoUrl || null;
+        return <ConfettiOverlay teamLogoUrl={winnerLogoUrl}>{sceneCanvasElement}</ConfettiOverlay>;
       }
 
       return sceneCanvasElement;
