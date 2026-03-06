@@ -518,3 +518,18 @@
     }
   }
 }
+
+/* ========== Display Scale: condense text & logos only, keep backgrounds full-size ========== */
+.display-scale-active span,
+.display-scale-active h1,
+.display-scale-active h2,
+.display-scale-active h3,
+.display-scale-active p,
+.display-scale-active label {
+  transform: scaleX(var(--display-scale, 1));
+  transform-origin: left center;
+}
+.display-scale-active img {
+  transform: scale(var(--display-scale, 1));
+  transform-origin: center center;
+}

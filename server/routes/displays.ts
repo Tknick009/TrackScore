@@ -914,15 +914,16 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           event.gender || '',
           displayEntries as any[]
         );
-        // Restore original finalMark values
+      } catch (err) {
+        console.warn('[Hytek Results] Failed to enrich with record tags:', err);
+      } finally {
+        // Always restore original finalMark values, even if enrichment throws
         for (const entry of displayEntries) {
           if ((entry as any)._origFinalMark !== undefined) {
             (entry as any).finalMark = (entry as any)._origFinalMark;
             delete (entry as any)._origFinalMark;
           }
         }
-      } catch (err) {
-        console.warn('[Hytek Results] Failed to enrich with record tags:', err);
       }
       
       const enrichedEntries = displayEntries.map((entry, index) => {

@@ -2118,15 +2118,15 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     (template === 'record-board' && liveEventData?.mode === 'record') ||
     (template === 'winners-board' && liveEventData?.mode === 'winners');
 
-  // Display scale CSS transform - condenses content horizontally
-  const scaleStyle: React.CSSProperties = displayScale !== 100 ? {
-    transform: `scaleX(${displayScale / 100})`,
-    transformOrigin: 'center top',
-  } : {};
+  // Display scale: set CSS custom property for text/logo condensing only (backgrounds stay full-size)
+  const scaleClass = displayScale !== 100 ? 'display-scale-active' : '';
+  const scaleVarStyle: React.CSSProperties = displayScale !== 100 ? {
+    '--display-scale': `${displayScale / 100}`,
+  } as React.CSSProperties : {};
 
   if (isFullScreenBoard) {
     return (
-      <div className="h-screen w-screen bg-black overflow-hidden" style={{ position: 'relative', ...scaleStyle }}>
+      <div className={`h-screen w-screen bg-black overflow-hidden ${scaleClass}`} style={{ position: 'relative', ...scaleVarStyle }}>
         {wrapWithLogoButton(renderWithTransition())}
       </div>
     );
@@ -2139,6 +2139,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     return (
       <div className="bg-black min-h-screen">
         <div 
+          className={scaleClass}
           style={{
             position: 'absolute',
             top: 0,
@@ -2147,7 +2148,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             height: `${fixedHeight}px`,
             overflow: 'hidden',
             backgroundColor: '#000',
-            ...scaleStyle,
+            ...scaleVarStyle,
           }}
         >
           {wrapWithLogoButton(renderWithTransition())}
@@ -2158,7 +2159,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
 
   // BigBoard uses full screen
   return (
-    <div className="h-screen w-screen bg-black overflow-hidden" style={{ position: 'relative', ...scaleStyle }}>
+    <div className={`h-screen w-screen bg-black overflow-hidden ${scaleClass}`} style={{ position: 'relative', ...scaleVarStyle }}>
       {wrapWithLogoButton(renderWithTransition())}
     </div>
   );
