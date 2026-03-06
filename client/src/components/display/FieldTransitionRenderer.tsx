@@ -57,6 +57,9 @@ export function FieldTransitionRenderer({
   // Track all bibs/names we've seen so far to detect newly appeared athletes
   // (needed for vertical events where ALL entries have marks)
   const seenBibsRef = useRef<Set<string>>(new Set());
+  // Skip Strategy 2 on the very first data load — seenBibsRef is empty so every
+  // entry looks "new", which would cause a spurious curtain animation.
+  const initialLoadRef = useRef(true);
 
   const clearTimers = useCallback(() => {
     timersRef.current.forEach(clearTimeout);
@@ -138,7 +141,8 @@ export function FieldTransitionRenderer({
 
       // Strategy 2: Vertical events — find a newly appeared bib/name
       // (FieldLynx adds the "up" athlete to the list when their turn starts)
-      if (!calledUp) {
+      // Skip on initial load: seenBibsRef is empty so ALL entries look new.
+      if (!calledUp && !initialLoadRef.current) {
         for (const r of entries) {
           const id = r.bib ? String(r.bib) : r.name ? String(r.name) : '';
           if (id && !seenBibsRef.current.has(id)) {
@@ -151,6 +155,8 @@ export function FieldTransitionRenderer({
 
     // Update the seen set for next comparison
     seenBibsRef.current = currentBibs;
+    // After first pass, allow Strategy 2 to detect genuinely new bibs
+    initialLoadRef.current = false;
 
     if (!calledUp) return;
 

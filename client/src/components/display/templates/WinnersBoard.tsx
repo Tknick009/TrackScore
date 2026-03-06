@@ -225,7 +225,7 @@ export function WinnersBoard({
                 2: '#C0C0C0',
                 3: '#CD7F32',
               };
-              const placeColor = podiumColors[index + 1] || '#FFFFFF';
+              const placeColor = podiumColors[entry.position] || '#FFFFFF';
 
               return (
                 <div
@@ -253,10 +253,10 @@ export function WinnersBoard({
                       color: placeColor,
                       width: 'clamp(40px, 4vw, 70px)',
                       textAlign: 'center',
-                      textShadow: index < 3 ? `0 0 12px ${placeColor}44` : 'none',
+                      textShadow: entry.position <= 3 ? `0 0 12px ${placeColor}44` : 'none',
                     }}
                   >
-                    {index + 1}
+                    {entry.position}
                   </span>
 
                   {/* Team logo */}
