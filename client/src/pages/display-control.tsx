@@ -1569,6 +1569,37 @@ export default function DisplayControlPage() {
                       data-testid="switch-big-board"
                     />
                   </div>
+                  <Separator className="my-4" />
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-sm font-medium">Display Scale</div>
+                        <p className="text-xs text-muted-foreground">Condense content horizontally for stretched displays</p>
+                      </div>
+                      <span className="text-sm font-mono font-medium tabular-nums">{(selectedDevice as any).displayScale ?? 100}%</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-muted-foreground w-6">50</span>
+                      <input
+                        type="range"
+                        min="50"
+                        max="100"
+                        step="1"
+                        value={(selectedDevice as any).displayScale ?? 100}
+                        onChange={async (e) => {
+                          const val = parseInt(e.target.value);
+                          await apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}`, { displayScale: val });
+                          queryClient.invalidateQueries({ queryKey: ['/api/display-devices/meet', currentMeetId] });
+                        }}
+                        className="flex-1 accent-primary cursor-pointer"
+                        data-testid="slider-display-scale"
+                      />
+                      <span className="text-xs text-muted-foreground w-8">100</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      100% = normal. Lower values squeeze content horizontally. Persists across layout changes &amp; reconnects.
+                    </p>
+                  </div>
                 </CardContent>
               </Card>
 

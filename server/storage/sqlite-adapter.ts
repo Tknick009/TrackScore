@@ -175,6 +175,7 @@ export class SQLiteStorage implements IStorage {
     try { this.db.prepare('ALTER TABLE display_devices ADD COLUMN is_big_board INTEGER DEFAULT 0').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE display_devices ADD COLUMN display_width INTEGER').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE display_devices ADD COLUMN display_height INTEGER').run(); } catch(e) {}
+    try { this.db.prepare('ALTER TABLE display_devices ADD COLUMN display_scale INTEGER DEFAULT 100').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE meet_ingestion_settings ADD COLUMN headshot_directory TEXT').run(); } catch(e) {}
     try { this.db.prepare("ALTER TABLE meets ADD COLUMN logo_effect TEXT DEFAULT 'none'").run(); } catch(e) {}
   }
@@ -405,6 +406,7 @@ export class SQLiteStorage implements IStorage {
         is_big_board INTEGER DEFAULT 0,
         display_width INTEGER,
         display_height INTEGER,
+        display_scale INTEGER DEFAULT 100,
         current_template TEXT,
         last_ip TEXT,
         last_seen_at TEXT,
@@ -1858,6 +1860,7 @@ export class SQLiteStorage implements IStorage {
       isBigBoard: this.toBoolean(row.is_big_board ?? false),
       displayWidth: row.display_width ?? null,
       displayHeight: row.display_height ?? null,
+      displayScale: row.display_scale ?? 100,
       currentTemplate: row.current_template,
       lastIp: row.last_ip,
       lastSeenAt: row.last_seen_at ? new Date(row.last_seen_at) : null,
@@ -4675,7 +4678,7 @@ export class SQLiteStorage implements IStorage {
     return this.getDisplayDevice(id);
   }
 
-  async updateDisplayDevice(id: string, updates: Partial<{ pagingSize: number; pagingInterval: number; fieldPort: number | null; isBigBoard: boolean }>): Promise<DisplayDevice | undefined> {
+  async updateDisplayDevice(id: string, updates: Partial<{ pagingSize: number; pagingInterval: number; fieldPort: number | null; isBigBoard: boolean; displayScale: number }>): Promise<DisplayDevice | undefined> {
     const setClause: string[] = [];
     const values: any[] = [];
     
@@ -4683,6 +4686,7 @@ export class SQLiteStorage implements IStorage {
     if (updates.pagingInterval !== undefined) { setClause.push('paging_interval = ?'); values.push(updates.pagingInterval); }
     if (updates.fieldPort !== undefined) { setClause.push('field_port = ?'); values.push(updates.fieldPort); }
     if (updates.isBigBoard !== undefined) { setClause.push('is_big_board = ?'); values.push(this.fromBoolean(updates.isBigBoard)); }
+    if (updates.displayScale !== undefined) { setClause.push('display_scale = ?'); values.push(updates.displayScale); }
     
     if (setClause.length > 0) {
       values.push(id);

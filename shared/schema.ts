@@ -861,6 +861,7 @@ export const displayDevices = pgTable("display_devices", {
   isBigBoard: boolean("is_big_board").default(false),
   displayWidth: integer("display_width"),
   displayHeight: integer("display_height"),
+  displayScale: integer("display_scale").default(100), // Horizontal scale percentage (1-100). 100 = no scaling, 80 = 80% width (condensed)
   status: text("status").default("offline"), // online, offline, idle
   lastSeenAt: timestamp("last_seen_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),

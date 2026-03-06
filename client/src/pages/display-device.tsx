@@ -259,6 +259,7 @@ export default function DisplayDevice() {
   const [customHeight, setCustomHeight] = useState<number>(1080);
   const [registeredDeviceId, setRegisteredDeviceId] = useState<string | null>(null);
   const registeredDeviceIdRef = useRef<string | null>(null);
+  const [displayScale, setDisplayScale] = useState<number>(100);
   // Big board toggle - when true, subscribes to 'track_mode_change_big' channel
   const [isBigBoard, setIsBigBoard] = useState<boolean>(false);
   const isBigBoardRef = useRef<boolean>(false);
@@ -435,6 +436,9 @@ export default function DisplayDevice() {
               }
               if (deviceData.autoMode !== undefined) {
                 autoModeRef.current = deviceData.autoMode !== false;
+              }
+              if (deviceData.displayScale !== undefined) {
+                setDisplayScale(deviceData.displayScale);
               }
             }
           }
@@ -1139,6 +1143,15 @@ export default function DisplayDevice() {
             return;
           }
 
+          // Handle live display scale updates from Display Control
+          if (message.type === 'update_display_scale' && message.deviceId === registeredDeviceIdRef.current) {
+            const newScale = message.displayScale;
+            if (typeof newScale === 'number' && newScale >= 1 && newScale <= 200) {
+              console.log(`[Display] Scale updated to ${newScale}%`);
+              setDisplayScale(newScale);
+            }
+          }
+
           // Handle HyTek MDB import completion — invalidate React Query cache so display refetches
           if (message.type === 'hytek_import_complete') {
             console.log(`[Display] HyTek import complete for meet ${message.meetId}, invalidating cache`);
@@ -1397,6 +1410,7 @@ export default function DisplayDevice() {
       customWidth={state.displayType === 'Custom' ? customWidth : undefined}
       customHeight={state.displayType === 'Custom' ? customHeight : undefined}
       fieldPort={fieldPort}
+      displayScale={displayScale}
       onReturnToLogo={returnToMeetLogo}
     />
   );
@@ -1420,6 +1434,7 @@ interface DisplayRendererProps {
   customWidth?: number;
   customHeight?: number;
   fieldPort?: number;
+  displayScale?: number;
   onReturnToLogo?: () => void;
 }
 
@@ -1427,7 +1442,7 @@ interface EventWithEntries extends Event {
   entries: any[];
 }
 
-function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTime, liveEventData, liveEventDataByPort, pagingSize, pagingInterval, maxPages, customWidth, customHeight, fieldPort, onReturnToLogo }: DisplayRendererProps) {
+function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTime, liveEventData, liveEventDataByPort, pagingSize, pagingInterval, maxPages, customWidth, customHeight, fieldPort, displayScale = 100, onReturnToLogo }: DisplayRendererProps) {
   const { data: meet } = useQuery<Meet>({
     queryKey: ['/api/meets', meetId],
     enabled: !!meetId,
@@ -2102,9 +2117,16 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
   const isFullScreenBoard = 
     (template === 'record-board' && liveEventData?.mode === 'record') ||
     (template === 'winners-board' && liveEventData?.mode === 'winners');
+
+  // Display scale CSS transform - condenses content horizontally
+  const scaleStyle: React.CSSProperties = displayScale !== 100 ? {
+    transform: `scaleX(${displayScale / 100})`,
+    transformOrigin: 'center top',
+  } : {};
+
   if (isFullScreenBoard) {
     return (
-      <div className="h-screen w-screen bg-black overflow-hidden" style={{ position: 'relative' }}>
+      <div className="h-screen w-screen bg-black overflow-hidden" style={{ position: 'relative', ...scaleStyle }}>
         {wrapWithLogoButton(renderWithTransition())}
       </div>
     );
@@ -2125,6 +2147,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             height: `${fixedHeight}px`,
             overflow: 'hidden',
             backgroundColor: '#000',
+            ...scaleStyle,
           }}
         >
           {wrapWithLogoButton(renderWithTransition())}
@@ -2135,7 +2158,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
 
   // BigBoard uses full screen
   return (
-    <div className="h-screen w-screen bg-black overflow-hidden" style={{ position: 'relative' }}>
+    <div className="h-screen w-screen bg-black overflow-hidden" style={{ position: 'relative', ...scaleStyle }}>
       {wrapWithLogoButton(renderWithTransition())}
     </div>
   );

@@ -607,7 +607,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
   // Update display device config (fieldPort, isBigBoard, pagingSize, pagingInterval, displayType)
   app.patch("/api/display-devices/:id", async (req, res) => {
     try {
-      const { fieldPort, isBigBoard, pagingSize, pagingInterval, displayType, displayWidth, displayHeight } = req.body;
+      const { fieldPort, isBigBoard, pagingSize, pagingInterval, displayType, displayWidth, displayHeight, displayScale } = req.body;
       const id = req.params.id;
 
       const device = await storage.getDisplayDevice(id);
@@ -623,11 +623,12 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         await storage.updateDisplayDeviceType(id, displayType, undefined, displayWidth, displayHeight);
       }
 
-      const updates: Partial<{ pagingSize: number; pagingInterval: number; fieldPort: number | null; isBigBoard: boolean }> = {};
+      const updates: Partial<{ pagingSize: number; pagingInterval: number; fieldPort: number | null; isBigBoard: boolean; displayScale: number }> = {};
       if (fieldPort !== undefined) updates.fieldPort = fieldPort;
       if (isBigBoard !== undefined) updates.isBigBoard = isBigBoard;
       if (pagingSize !== undefined) updates.pagingSize = Math.max(1, Math.min(20, parseInt(pagingSize) || 8));
       if (pagingInterval !== undefined) updates.pagingInterval = Math.max(1, Math.min(60, parseInt(pagingInterval) || 5));
+      if (displayScale !== undefined) updates.displayScale = Math.max(1, Math.min(200, parseInt(displayScale) || 100));
 
       if (Object.keys(updates).length > 0) {
         await storage.updateDisplayDevice(id, updates);
@@ -645,6 +646,15 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         if (finalDevice.pagingInterval !== undefined) connectedDevice.pagingInterval = finalDevice.pagingInterval ?? 5;
       }
 
+      // Push display scale update directly to the connected device for instant effect
+      if (displayScale !== undefined && connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {
+        connectedDevice.ws.send(JSON.stringify({
+          type: 'update_display_scale',
+          deviceId: id,
+          displayScale: updates.displayScale ?? 100,
+        }));
+      }
+
       broadcastToDisplays({
         type: 'device_config_update',
         data: {
@@ -655,6 +665,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           pagingSize: finalDevice?.pagingSize,
           pagingInterval: finalDevice?.pagingInterval,
           displayMode: finalDevice?.displayMode,
+          displayScale: finalDevice?.displayScale,
         }
       } as WSMessage);
 
