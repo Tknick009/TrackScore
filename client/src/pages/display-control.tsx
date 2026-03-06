@@ -527,6 +527,8 @@ export default function DisplayControlPage() {
     'multi_field',
     'hytek_results',
     'team_scores',
+    'winners',
+    'record',
   ] as const;
   
   const displayModeLabels: Record<string, string> = {
@@ -539,6 +541,8 @@ export default function DisplayControlPage() {
     multi_field: 'Multi-Event Field',
     hytek_results: 'HyTek Results',
     team_scores: 'Team Scores',
+    winners: 'Winners Board',
+    record: 'Record Board',
   };
 
   // Helper to find mapping for a specific cell
