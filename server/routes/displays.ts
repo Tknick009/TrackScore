@@ -1301,26 +1301,41 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       const allFiles = fs.readdirSync(lynxDir);
       const filePattern = /^0*(\d+)-(\d+)-(\d+)\.(lif|lff)$/i;
       
-      // Collect unique event numbers that have result files
-      const eventNumbers = new Set<number>();
+      // Collect unique event numbers and track latest file modification time per event
+      const eventLatestMtime = new Map<number, number>();
       for (const file of allFiles) {
         const match = file.match(filePattern);
         if (match) {
-          eventNumbers.add(parseInt(match[1]));
+          const evtNum = parseInt(match[1]);
+          try {
+            const stat = fs.statSync(pathModule.join(lynxDir, file));
+            const mtime = stat.mtimeMs;
+            const existing = eventLatestMtime.get(evtNum);
+            if (existing === undefined || mtime > existing) {
+              eventLatestMtime.set(evtNum, mtime);
+            }
+          } catch {
+            // If stat fails, just record the event with epoch 0
+            if (!eventLatestMtime.has(evtNum)) {
+              eventLatestMtime.set(evtNum, 0);
+            }
+          }
         }
       }
       
-      // Match with DB events for names
+      // Match with DB events for names, sort by latest LIF/LFF modification time (newest first)
       const allEvents = await storage.getEventsByMeetId(meetId);
-      const available = Array.from(eventNumbers).sort((a, b) => a - b).map(num => {
-        const dbEvent = allEvents.find(e => e.eventNumber === num);
-        return {
-          eventNumber: num,
-          eventId: dbEvent?.id || null,
-          name: dbEvent?.name || `Event ${num}`,
-          eventTime: dbEvent?.eventTime || null,
-        };
-      });
+      const available = Array.from(eventLatestMtime.entries())
+        .sort((a, b) => b[1] - a[1])  // Sort by mtime descending (most recent first)
+        .map(([num, _mtime]) => {
+          const dbEvent = allEvents.find(e => e.eventNumber === num);
+          return {
+            eventNumber: num,
+            eventId: dbEvent?.id || null,
+            name: dbEvent?.name || `Event ${num}`,
+            eventTime: dbEvent?.eventTime || null,
+          };
+        });
       
       res.json({ events: available });
     } catch (error: any) {
