@@ -3,6 +3,7 @@ import type { EventWithEntries, Meet, EntryWithDetails } from "@shared/schema";
 import { isTrackEvent as checkIsTrackEvent } from "@shared/event-catalog";
 import { formatResult, formatTimeValue } from "../utils";
 import { getTeamColor, getPodiumColor } from "../utils";
+import { getLogoEffectStyle } from "@/lib/logoEffects";
 
 interface ProScoreboardProps {
   event: EventWithEntries;
@@ -127,6 +128,7 @@ export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingInt
                 src={meet.logoUrl}
                 alt={meet.name || ''}
                 className="h-14 object-contain"
+                style={getLogoEffectStyle(meet.logoEffect)}
               />
             )}
             <div>

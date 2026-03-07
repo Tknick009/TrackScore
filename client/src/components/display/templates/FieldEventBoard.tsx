@@ -3,6 +3,7 @@ import { EventWithEntries, Meet, AthleteBest, FieldEventAthlete, FieldEventMark,
 import { EventHeader, FieldAthleteCard, FieldAttemptGrid } from "../shared";
 import { generateAttemptHeaders } from "../utils";
 import type { HorizontalStanding, VerticalStanding } from "@/lib/fieldStandings";
+import { getLogoEffectStyle } from "@/lib/logoEffects";
 import { liveDataToEntries, type LiveFieldEventData } from "@/lib/fieldEventAdapter";
 
 interface FieldEventBoardProps {
@@ -84,6 +85,7 @@ export function FieldEventBoard({ event, meet, mode, fieldEventData }: FieldEven
           src={meet.logoUrl}
           alt="Meet logo"
           className="absolute top-8 right-8 max-w-[120px] max-h-[80px] z-10"
+          style={getLogoEffectStyle(meet.logoEffect)}
           data-testid="img-meet-logo"
         />
       )}

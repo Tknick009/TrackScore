@@ -648,6 +648,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     abbreviateEventName,
     prefetchSceneData,
     getDisplayModeFromTemplate,
+    enrichEntriesWithRecordTags,
   };
 
   // Register all domain-specific route modules
@@ -757,6 +758,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   isBigBoard: device.isBigBoard,
                   displayMode: device.displayMode,
                   autoMode: deviceAutoMode,
+                  displayScale: device.displayScale ?? 100,
                 }
               }));
               

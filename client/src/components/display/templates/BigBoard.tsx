@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import type { EventWithEntries, Meet } from "@shared/schema";
+import { getLogoEffectStyle } from "@/lib/logoEffects";
 
 interface BigBoardProps {
   event: EventWithEntries;
@@ -160,6 +161,7 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
                 src={meet.logoUrl} 
                 alt={meet.name} 
                 className="h-16 object-contain"
+                style={getLogoEffectStyle(meet.logoEffect)}
               />
             )}
             <h1 

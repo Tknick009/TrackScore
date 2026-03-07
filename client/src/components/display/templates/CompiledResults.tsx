@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import type { EventWithEntries, Meet } from "@shared/schema";
+import { getLogoEffectStyle } from "@/lib/logoEffects";
 
 interface CompiledResultsProps {
   event: EventWithEntries;
@@ -74,6 +75,7 @@ export function CompiledResults({ event, meet }: CompiledResultsProps) {
                 src={meet.logoUrl} 
                 alt={meet.name} 
                 className="h-16 object-contain"
+                style={getLogoEffectStyle(meet.logoEffect)}
               />
             )}
             <h1 

@@ -513,6 +513,9 @@ export function SceneObjectRenderer({
         
         if (componentConfig.logoType === "meet") {
           logoUrl = meet?.logoUrl;
+        } else if (logoFieldKey === "meet-logo") {
+          // Meet logo binding — use meet data from React Query cache
+          logoUrl = meet?.logoUrl || null;
         } else if (logoFieldKey === "athlete-photo" && liveData) {
           // Athlete headshot from directory: School_FirstName_LastName.png
           const photoAthleteIndex = (dataBinding.athleteIndex || 0) + pageOffset;
@@ -543,11 +546,11 @@ export function SceneObjectRenderer({
             const isRelayOrMedleyPhoto = eventLowerForPhoto.includes('relay') || eventLowerForPhoto.includes('medley');
             
             if (isRelayOrMedleyPhoto) {
-              // For relays/medleys, fall back directly to team/affiliation logo
-              const teamNameForLogo = photoEntry.name || photoEntry.affiliation || photoEntry.team || '';
-              if (teamNameForLogo) {
-                logoUrl = `/logos/NCAA/${teamNameForLogo}.png`;
-              }
+              // For relays/medleys, hide the headshot — team logo is shown separately via school-logo binding
+              logoUrl = null;
+            } else if (photoEntry.headshotUrl || photoEntry.athletePhotoUrl) {
+              // Use server-provided headshot URL if available (e.g., from Winners Board)
+              logoUrl = photoEntry.headshotUrl || photoEntry.athletePhotoUrl;
             } else if (school && firstName && lastName) {
               // Individual event — try headshot first
               logoUrl = `/api/meets/${meetId}/headshot?school=${encodeURIComponent(school)}&firstName=${encodeURIComponent(firstName)}&lastName=${encodeURIComponent(lastName)}`;
@@ -774,9 +777,7 @@ export function SceneObjectRenderer({
               ? (firstEntry?.name || firstEntry?.lastName || '')
               : formatName(firstEntry?.firstName, firstEntry?.lastName, firstEntry?.name);
           
-          const schoolDisplay = isRelayOrMedleyText
-            ? (firstEntry?.affiliation || firstEntry?.team || '').substring(4).trim()
-            : (firstEntry?.affiliation || firstEntry?.team);
+          const schoolDisplay = firstEntry?.affiliation || firstEntry?.team || '';
           
           const isVerticalEvent = (liveData.eventType && isHeightEvent(liveData.eventType))
             || eventName.toLowerCase().includes('high jump') || eventName.toLowerCase().includes('pole vault');
@@ -920,6 +921,9 @@ export function SceneObjectRenderer({
             // Name with record tag appended (for combined display)
             'name-record-tag': displayName,
             'last-name-record-tag': isTeamScores ? (firstEntry?.name || '') : isRelayOrMedleyText ? (firstEntry?.name || firstEntry?.lastName || '') : firstEntry?.lastName,
+            // Record Board fields (sent when mode === 'record')
+            'record-label': liveData.recordLabel || '',
+            'meet-name': liveData.meetName || '',
           };
           const resolvedValue = fieldMap[fieldKey];
           if (resolvedValue !== undefined && resolvedValue !== null && resolvedValue !== '') {

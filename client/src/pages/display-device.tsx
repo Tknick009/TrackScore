@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Monitor, Tv, LayoutGrid, Calendar, Radio } from "lucide-react";
 import type { Meet, Event } from "@shared/schema";
+import { getLogoEffectStyle } from "@/lib/logoEffects";
 
 // Transition duration in milliseconds - crisp and fast for live stadium use
 const TRANSITION_DURATION_MS = 150;
@@ -136,6 +137,8 @@ import {
   SingleAthleteTrack,
   SingleAthleteField,
   ProScoreboard,
+  RecordBoard,
+  WinnersBoard,
 } from "@/components/display/templates";
 import { BroadcastDisplay } from "@/components/display/templates/BroadcastDisplay";
 import { 
@@ -156,6 +159,13 @@ interface LiveEventData {
   distance?: string;
   status?: string;
   mode?: string;
+  // Record Board fields (sent when mode === 'record')
+  recordLabel?: string;
+  meetName?: string;
+  meetLogoUrl?: string | null;
+  meetLogoEffect?: string | null;
+  primaryColor?: string;
+  secondaryColor?: string;
 }
 
 interface DisplayDeviceState {
@@ -249,6 +259,7 @@ export default function DisplayDevice() {
   const [customHeight, setCustomHeight] = useState<number>(1080);
   const [registeredDeviceId, setRegisteredDeviceId] = useState<string | null>(null);
   const registeredDeviceIdRef = useRef<string | null>(null);
+  const [displayScale, setDisplayScale] = useState<number>(100);
   // Big board toggle - when true, subscribes to 'track_mode_change_big' channel
   const [isBigBoard, setIsBigBoard] = useState<boolean>(false);
   const isBigBoardRef = useRef<boolean>(false);
@@ -426,6 +437,9 @@ export default function DisplayDevice() {
               if (deviceData.autoMode !== undefined) {
                 autoModeRef.current = deviceData.autoMode !== false;
               }
+              if (deviceData.displayScale !== undefined) {
+                setDisplayScale(deviceData.displayScale);
+              }
             }
           }
           
@@ -475,6 +489,8 @@ export default function DisplayDevice() {
                       entries: message.liveEventData.entries?.length > 0 
                         ? message.liveEventData.entries 
                         : prev.liveEventData?.entries || [],
+                      // Merge winnersData from top-level message into liveEventData
+                      ...(message.winnersData ? { winnersData: message.winnersData } : {}),
                     }
                   : prev.liveEventData,
                 pagingSize: message.pagingSize ?? prev.pagingSize,
@@ -557,6 +573,12 @@ export default function DisplayDevice() {
               // Switch to HyTek or Team Scores — disable auto mode so FinishLynx doesn't override
               setIsFieldMode(false);
               autoModeRef.current = false;
+              console.log(`[Display] Switched to ${newContentMode} content mode (auto-mode disabled)`);
+            } else if (newContentMode === 'winners' || newContentMode === 'record') {
+              // Switch to Winners Board or Record Board — disable auto mode so FinishLynx doesn't override
+              setIsFieldMode(false);
+              autoModeRef.current = false;
+              currentLayoutModeRef.current = null; // Reset so display_command triggers fresh render
               console.log(`[Display] Switched to ${newContentMode} content mode (auto-mode disabled)`);
             }
           }
@@ -1121,6 +1143,15 @@ export default function DisplayDevice() {
             return;
           }
 
+          // Handle live display scale updates from Display Control
+          if (message.type === 'update_display_scale' && message.deviceId === registeredDeviceIdRef.current) {
+            const newScale = message.displayScale;
+            if (typeof newScale === 'number' && newScale >= 1 && newScale <= 200) {
+              console.log(`[Display] Scale updated to ${newScale}%`);
+              setDisplayScale(newScale);
+            }
+          }
+
           // Handle HyTek MDB import completion — invalidate React Query cache so display refetches
           if (message.type === 'hytek_import_complete') {
             console.log(`[Display] HyTek import complete for meet ${message.meetId}, invalidating cache`);
@@ -1379,8 +1410,122 @@ export default function DisplayDevice() {
       customWidth={state.displayType === 'Custom' ? customWidth : undefined}
       customHeight={state.displayType === 'Custom' ? customHeight : undefined}
       fieldPort={fieldPort}
+      displayScale={displayScale}
       onReturnToLogo={returnToMeetLogo}
     />
+  );
+}
+
+/** Confetti overlay — renders falling confetti on top of any child content.
+ *  Used when winners mode is active with a custom scene layout. */
+const DEFAULT_CONFETTI_COLORS = [
+  '#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4',
+  '#FFEAA7', '#DFE6E9', '#FF9FF3', '#54A0FF', '#5F27CD',
+  '#00D2D3', '#FF9F43', '#EE5A24', '#A3CB38', '#FDA7DF',
+];
+
+function extractDominantColors(imageUrl: string, topN = 5): Promise<string[]> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    // Only set crossOrigin for external URLs; same-origin images don't need it
+    // and setting it can cause CORS issues if server doesn't send proper headers
+    if (imageUrl.startsWith('http') && !imageUrl.startsWith(window.location.origin)) {
+      img.crossOrigin = 'anonymous';
+    }
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        const sz = 64;
+        canvas.width = sz; canvas.height = sz;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { resolve([]); return; }
+        ctx.drawImage(img, 0, 0, sz, sz);
+        const data = ctx.getImageData(0, 0, sz, sz).data;
+        const counts = new Map<string, { r: number; g: number; b: number; count: number }>();
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
+          if (a < 128) continue;
+          const brightness = r * 0.299 + g * 0.587 + b * 0.114;
+          if (brightness < 30 || brightness > 225) continue;
+          const qr = (r >> 4) << 4, qg = (g >> 4) << 4, qb = (b >> 4) << 4;
+          const key = `${qr},${qg},${qb}`;
+          const ex = counts.get(key);
+          if (ex) ex.count++; else counts.set(key, { r: qr, g: qg, b: qb, count: 1 });
+        }
+        const sorted = Array.from(counts.values()).sort((a, b) => b.count - a.count);
+        const result: string[] = [];
+        for (const c of sorted) {
+          if (result.length >= topN) break;
+          const hex = `#${((1 << 24) + (c.r << 16) + (c.g << 8) + c.b).toString(16).slice(1)}`;
+          const tooClose = result.some(e => {
+            const er = parseInt(e.slice(1,3),16), eg = parseInt(e.slice(3,5),16), eb = parseInt(e.slice(5,7),16);
+            return Math.abs(c.r-er) + Math.abs(c.g-eg) + Math.abs(c.b-eb) < 60;
+          });
+          if (!tooClose) result.push(hex);
+        }
+        resolve(result);
+      } catch { resolve([]); }
+    };
+    img.onerror = () => resolve([]);
+    img.src = imageUrl;
+  });
+}
+
+/** Simple seeded pseudo-random for deterministic but scattered confetti layout */
+function seededRandom(seed: number): () => number {
+  let s = seed;
+  return () => { s = (s * 16807 + 0) % 2147483647; return (s - 1) / 2147483646; };
+}
+
+function ConfettiOverlay({ children, teamLogoUrl }: { children: React.ReactNode; teamLogoUrl?: string | null }) {
+  const [logoColors, setLogoColors] = useState<string[]>([]);
+  useEffect(() => {
+    if (!teamLogoUrl) { setLogoColors([]); return; }
+    let cancelled = false;
+    extractDominantColors(teamLogoUrl).then(c => { if (!cancelled) setLogoColors(c); });
+    return () => { cancelled = true; };
+  }, [teamLogoUrl]);
+
+  const confettiPieces = useMemo(() => {
+    const palette = logoColors.length > 0 ? logoColors : DEFAULT_CONFETTI_COLORS;
+    const rand = seededRandom(42);
+    const pieces: Array<{ left: string; top: string; delay: string; duration: string; color: string; size: number; shape: 'rect'|'circle' }> = [];
+    for (let i = 0; i < 60; i++) {
+      pieces.push({
+        left: `${(rand() * 100).toFixed(1)}%`,
+        top: `${(-rand() * 30).toFixed(0)}%`,  // Scatter start positions above viewport (-30% to 0%)
+        delay: `${(rand() * 6).toFixed(2)}s`,   // Spread delays widely for staggered appearance
+        duration: `${(3 + rand() * 5).toFixed(2)}s`,  // Varied fall speeds
+        color: palette[i % palette.length],
+        size: 6 + Math.floor(rand() * 12),
+        shape: rand() > 0.65 ? 'circle' : 'rect',
+      });
+    }
+    return pieces;
+  }, [logoColors]);
+
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      {children}
+      {/* Confetti overlay after children — visible on top, pointer-events:none so it doesn't block */}
+      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden', zIndex: 9999 }}>
+        {confettiPieces.map((p, i) => (
+          <div key={i} style={{
+            position: 'absolute', left: p.left, top: p.top,
+            animation: `wb-confetti-fall ${p.duration} ${p.delay} linear infinite`,
+          }}>
+            <div style={{
+              width: p.shape === 'circle' ? p.size : p.size * 0.6,
+              height: p.size,
+              backgroundColor: p.color,
+              borderRadius: p.shape === 'circle' ? '50%' : '2px',
+              opacity: 0.7,
+              animation: `wb-confetti-sway 2s ${p.delay} ease-in-out infinite`,
+            }} />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -1402,6 +1547,7 @@ interface DisplayRendererProps {
   customWidth?: number;
   customHeight?: number;
   fieldPort?: number;
+  displayScale?: number;
   onReturnToLogo?: () => void;
 }
 
@@ -1409,7 +1555,7 @@ interface EventWithEntries extends Event {
   entries: any[];
 }
 
-function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTime, liveEventData, liveEventDataByPort, pagingSize, pagingInterval, maxPages, customWidth, customHeight, fieldPort, onReturnToLogo }: DisplayRendererProps) {
+function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTime, liveEventData, liveEventDataByPort, pagingSize, pagingInterval, maxPages, customWidth, customHeight, fieldPort, displayScale = 100, onReturnToLogo }: DisplayRendererProps) {
   const { data: meet } = useQuery<Meet>({
     queryKey: ['/api/meets', meetId],
     enabled: !!meetId,
@@ -1459,6 +1605,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     const effectiveTemplate = overrideProps?.template !== undefined ? overrideProps.template : template;
     const effectiveSceneId = overrideProps?.sceneId !== undefined ? overrideProps.sceneId : sceneId;
     const effectiveSceneData = overrideProps?.currentSceneData !== undefined ? overrideProps.currentSceneData : currentSceneData;
+
     // If a custom scene is assigned, render it inline using SceneCanvas
     if (effectiveSceneId) {
       const capability = DISPLAY_CAPABILITIES[displayType];
@@ -1466,30 +1613,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
       const effectiveWidth = effectiveResWidth;
       const effectiveHeight = effectiveResHeight;
       
-      // P10/P6: Fixed-size rendering at exact native resolution at position 0,0
-      // BigBoard/Custom: Full viewport rendering with scaling
-      if (isSingleAthleteDisplay) {
-        return (
-          <SceneCanvas
-            sceneId={effectiveSceneId}
-            scene={effectiveSceneData?.scene}
-            objects={effectiveSceneData?.objects}
-            meetId={meetId || undefined}
-            liveEventData={liveEventData}
-            liveEventDataByPort={liveEventDataByPort}
-            liveClockTime={liveClockTime}
-            pagingSize={pagingSize}
-            pagingInterval={pagingInterval}
-            maxPages={maxPages}
-            displayWidth={effectiveWidth}
-            displayHeight={effectiveHeight}
-            deviceFieldPort={fieldPort}
-          />
-        );
-      }
-      
-      // BigBoard/Custom uses full viewport with scaling
-      return (
+      const sceneCanvasElement = (
         <SceneCanvas
           sceneId={effectiveSceneId}
           scene={effectiveSceneData?.scene}
@@ -1506,6 +1630,19 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
           deviceFieldPort={fieldPort}
         />
       );
+
+      // When winners mode is active, overlay confetti on top of the custom scene
+      if (liveEventData?.mode === 'winners') {
+        const winnerEntry = liveEventData.entries?.[0];
+        // Try uploaded logo first, then fall back to NCAA logo path (same as scene-canvas.tsx)
+        const winnerLogoUrl = winnerEntry?.teamLogoUrl
+          || winnerEntry?.logoUrl
+          || (winnerEntry?.affiliation ? `/logos/NCAA/${winnerEntry.affiliation}.png` : null)
+          || (winnerEntry?.team ? `/logos/NCAA/${winnerEntry.team}.png` : null);
+        return <ConfettiOverlay teamLogoUrl={winnerLogoUrl}>{sceneCanvasElement}</ConfettiOverlay>;
+      }
+
+      return sceneCanvasElement;
     }
     
     const templateId = effectiveTemplate || '';
@@ -1522,6 +1659,39 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     const isMeetLogo = templateId === 'meet-logo' || templateId.includes('meet-logo') || !effectiveTemplate;
     const isBigBoard = templateId.includes('live-results') || templateId.includes('BigBoard');
     const isBroadcast = displayType === 'Broadcast';
+
+    const isRecordBoard = templateId === 'record-board';
+    const isWinnersBoard = templateId === 'winners-board';
+
+    if (isRecordBoard && liveEventData?.mode === 'record') {
+      return (
+        <RecordBoard
+          eventName={liveEventData.eventName || ''}
+          recordLabel={liveEventData.recordLabel || ''}
+          entries={liveEventData.entries || []}
+          meetName={liveEventData.meetName || meet?.name || ''}
+          meetLogoUrl={liveEventData.meetLogoUrl || meet?.logoUrl || null}
+          meetLogoEffect={liveEventData.meetLogoEffect || (meet as any)?.logoEffect}
+          primaryColor={liveEventData.primaryColor || undefined}
+          secondaryColor={liveEventData.secondaryColor || undefined}
+        />
+      );
+    }
+
+    if (isWinnersBoard && liveEventData?.mode === 'winners') {
+      const winnersData = (liveEventData as any).winnersData;
+      return (
+        <WinnersBoard
+          eventName={liveEventData.eventName || winnersData?.eventName || ''}
+          entries={liveEventData.entries || []}
+          meetName={winnersData?.meetName || meet?.name || ''}
+          meetLogoUrl={winnersData?.meetLogoUrl || meet?.logoUrl || null}
+          meetLogoEffect={(meet as any)?.logoEffect}
+          primaryColor={meet?.primaryColor || undefined}
+          secondaryColor={meet?.secondaryColor || undefined}
+        />
+      );
+    }
 
     if (isBroadcast) {
       return (
@@ -1566,6 +1736,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
                   maxWidth: '85%',
                   maxHeight: '85%',
                   objectFit: 'contain',
+                  ...getLogoEffectStyle(meet?.logoEffect),
                 }}
               />
             </div>
@@ -1606,7 +1777,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
               <img 
                 src={meet.logoUrl!} 
                 alt={meet?.name || 'Meet Logo'} 
-                style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', ...getLogoEffectStyle(meet?.logoEffect) }}
               />
             </div>
           </div>
@@ -1754,6 +1925,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
               maxWidth: '85%',
               maxHeight: '85%',
               objectFit: 'contain',
+              ...getLogoEffectStyle(meet?.logoEffect),
             }}
           />
         </div>
@@ -1786,7 +1958,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             <img 
               src={meet!.logoUrl!} 
               alt={meet?.name || 'Meet Logo'} 
-              style={{ maxWidth: '100%', maxHeight: '70%', objectFit: 'contain' }}
+              style={{ maxWidth: '100%', maxHeight: '70%', objectFit: 'contain', ...getLogoEffectStyle(meet?.logoEffect) }}
             />
             <div className="mt-8">
               <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full ${isConnected ? 'bg-blue-900/50 text-blue-400' : 'bg-yellow-900/50 text-yellow-400'}`}>
@@ -1949,7 +2121,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             <img 
               src={meet!.logoUrl!} 
               alt={meet?.name || 'Meet Logo'} 
-              style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+              style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', ...getLogoEffectStyle(meet?.logoEffect) }}
             />
           </div>
         </div>
@@ -2045,6 +2217,25 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     </div>
   );
 
+  // Record Board and Winners Board always render full-screen regardless of display type
+  const isFullScreenBoard = 
+    (template === 'record-board' && liveEventData?.mode === 'record') ||
+    (template === 'winners-board' && liveEventData?.mode === 'winners');
+
+  // Display scale: set CSS custom property for text/logo condensing only (backgrounds stay full-size)
+  const scaleClass = displayScale !== 100 ? 'display-scale-active' : '';
+  const scaleVarStyle: React.CSSProperties = displayScale !== 100 ? {
+    '--display-scale': `${displayScale / 100}`,
+  } as React.CSSProperties : {};
+
+  if (isFullScreenBoard) {
+    return (
+      <div className={`h-screen w-screen bg-black overflow-hidden ${scaleClass}`} style={{ position: 'relative', ...scaleVarStyle }}>
+        {wrapWithLogoButton(renderWithTransition())}
+      </div>
+    );
+  }
+
   if (isFixedSizeDisplay) {
     // P10, P6, and Custom use exact pixel dimensions at position 0,0
     const fixedWidth = displayType === 'Custom' && customWidth ? customWidth : resolution.width;
@@ -2052,6 +2243,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     return (
       <div className="bg-black min-h-screen">
         <div 
+          className={scaleClass}
           style={{
             position: 'absolute',
             top: 0,
@@ -2060,6 +2252,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             height: `${fixedHeight}px`,
             overflow: 'hidden',
             backgroundColor: '#000',
+            ...scaleVarStyle,
           }}
         >
           {wrapWithLogoButton(renderWithTransition())}
@@ -2070,7 +2263,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
 
   // BigBoard uses full screen
   return (
-    <div className="h-screen w-screen bg-black overflow-hidden" style={{ position: 'relative' }}>
+    <div className={`h-screen w-screen bg-black overflow-hidden ${scaleClass}`} style={{ position: 'relative', ...scaleVarStyle }}>
       {wrapWithLogoButton(renderWithTransition())}
     </div>
   );

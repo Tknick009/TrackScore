@@ -175,7 +175,9 @@ export class SQLiteStorage implements IStorage {
     try { this.db.prepare('ALTER TABLE display_devices ADD COLUMN is_big_board INTEGER DEFAULT 0').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE display_devices ADD COLUMN display_width INTEGER').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE display_devices ADD COLUMN display_height INTEGER').run(); } catch(e) {}
+    try { this.db.prepare('ALTER TABLE display_devices ADD COLUMN display_scale INTEGER DEFAULT 100').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE meet_ingestion_settings ADD COLUMN headshot_directory TEXT').run(); } catch(e) {}
+    try { this.db.prepare("ALTER TABLE meets ADD COLUMN logo_effect TEXT DEFAULT 'none'").run(); } catch(e) {}
   }
 
   private createTables(): void {
@@ -208,7 +210,8 @@ export class SQLiteStorage implements IStorage {
         primary_color TEXT DEFAULT '#0066CC',
         secondary_color TEXT DEFAULT '#003366',
         accent_color TEXT DEFAULT '#FFD700',
-        text_color TEXT DEFAULT '#FFFFFF'
+        text_color TEXT DEFAULT '#FFFFFF',
+        logo_effect TEXT DEFAULT 'none'
       );
       CREATE INDEX IF NOT EXISTS meets_meet_code_idx ON meets(meet_code);
       CREATE INDEX IF NOT EXISTS meets_season_id_idx ON meets(season_id);
@@ -403,6 +406,7 @@ export class SQLiteStorage implements IStorage {
         is_big_board INTEGER DEFAULT 0,
         display_width INTEGER,
         display_height INTEGER,
+        display_scale INTEGER DEFAULT 100,
         current_template TEXT,
         last_ip TEXT,
         last_seen_at TEXT,
@@ -988,6 +992,7 @@ export class SQLiteStorage implements IStorage {
       secondaryColor: row.secondary_color,
       accentColor: row.accent_color,
       textColor: row.text_color,
+      logoEffect: row.logo_effect ?? 'none',
     };
   }
 
@@ -1525,8 +1530,8 @@ export class SQLiteStorage implements IStorage {
     const meetCode = meet.meetCode || this.generateMeetCode();
     
     this.db.prepare(`
-      INSERT INTO meets (id, season_id, name, location, start_date, end_date, status, track_length, logo_url, meet_code, mdb_path, auto_refresh, refresh_interval, primary_color, secondary_color, accent_color, text_color)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO meets (id, season_id, name, location, start_date, end_date, status, track_length, logo_url, meet_code, mdb_path, auto_refresh, refresh_interval, primary_color, secondary_color, accent_color, text_color, logo_effect)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       meet.seasonId ?? null,
@@ -1544,7 +1549,8 @@ export class SQLiteStorage implements IStorage {
       meet.primaryColor ?? '#0066CC',
       meet.secondaryColor ?? '#003366',
       meet.accentColor ?? '#FFD700',
-      meet.textColor ?? '#FFFFFF'
+      meet.textColor ?? '#FFFFFF',
+      meet.logoEffect ?? 'none'
     );
     const created = (await this.getMeet(id))!;
     this.logSyncEvent('meets', id, 'insert', created);
@@ -1580,6 +1586,7 @@ export class SQLiteStorage implements IStorage {
       secondaryColor: 'secondary_color',
       accentColor: 'accent_color',
       textColor: 'text_color',
+      logoEffect: 'logo_effect',
     };
 
     for (const [key, val] of Object.entries(data)) {
@@ -1853,6 +1860,7 @@ export class SQLiteStorage implements IStorage {
       isBigBoard: this.toBoolean(row.is_big_board ?? false),
       displayWidth: row.display_width ?? null,
       displayHeight: row.display_height ?? null,
+      displayScale: row.display_scale ?? 100,
       currentTemplate: row.current_template,
       lastIp: row.last_ip,
       lastSeenAt: row.last_seen_at ? new Date(row.last_seen_at) : null,
@@ -3017,13 +3025,25 @@ export class SQLiteStorage implements IStorage {
       const eventEntries = entriesByEvent.get(evt.id) || [];
       const teamScorerCount = new Map<string, number>();
 
+      // Check if this event has any entries with scored_points from HyTek.
+      // If so, ONLY use scored_points for this event (don't fall back to place-based scoring).
+      // This prevents double-counting when HyTek has already assigned team scoring points.
+      // The place-based fallback is only used for events scored manually in TrackScore
+      // (where entries have final_place but no scored_points).
+      const eventHasScoredPoints = eventEntries.some(
+        (e: any) => e.scored_points != null && e.scored_points > 0
+      );
+
       for (const entry of eventEntries) {
         if (!entry.team_id || !entry.team_name) continue;
 
         let pts = 0;
         if (entry.scored_points != null && entry.scored_points > 0) {
+          // Use HyTek's scored_points directly (handles ties, split points, etc.)
           pts = entry.scored_points;
-        } else if (entry.final_place && ptsMap && ptsMap.size > 0) {
+        } else if (!eventHasScoredPoints && entry.final_place && ptsMap && ptsMap.size > 0) {
+          // Place-based fallback: only used when NO entries in this event have scored_points
+          // (i.e., event was scored manually in TrackScore, not imported from HyTek)
           if (maxScorers > 0) {
             const count = teamScorerCount.get(entry.team_id) || 0;
             if (count >= maxScorers) continue;
@@ -4670,7 +4690,7 @@ export class SQLiteStorage implements IStorage {
     return this.getDisplayDevice(id);
   }
 
-  async updateDisplayDevice(id: string, updates: Partial<{ pagingSize: number; pagingInterval: number; fieldPort: number | null; isBigBoard: boolean }>): Promise<DisplayDevice | undefined> {
+  async updateDisplayDevice(id: string, updates: Partial<{ pagingSize: number; pagingInterval: number; fieldPort: number | null; isBigBoard: boolean; displayScale: number }>): Promise<DisplayDevice | undefined> {
     const setClause: string[] = [];
     const values: any[] = [];
     
@@ -4678,6 +4698,7 @@ export class SQLiteStorage implements IStorage {
     if (updates.pagingInterval !== undefined) { setClause.push('paging_interval = ?'); values.push(updates.pagingInterval); }
     if (updates.fieldPort !== undefined) { setClause.push('field_port = ?'); values.push(updates.fieldPort); }
     if (updates.isBigBoard !== undefined) { setClause.push('is_big_board = ?'); values.push(this.fromBoolean(updates.isBigBoard)); }
+    if (updates.displayScale !== undefined) { setClause.push('display_scale = ?'); values.push(updates.displayScale); }
     
     if (setClause.length > 0) {
       values.push(id);

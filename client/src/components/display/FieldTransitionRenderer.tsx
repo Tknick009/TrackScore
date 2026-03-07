@@ -51,6 +51,15 @@ export function FieldTransitionRenderer({
   const prevCalledBibRef = useRef<string>('');
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const versionRef = useRef(0);
+  // Ref that tracks current phase so async team-data fetch can check
+  // whether the curtain is still active before updating colors.
+  const phaseRef = useRef<CurtainPhase>('idle');
+  // Track all bibs/names we've seen so far to detect newly appeared athletes
+  // (needed for vertical events where ALL entries have marks)
+  const seenBibsRef = useRef<Set<string>>(new Set());
+  // Skip Strategy 2 on the very first data load — seenBibsRef is empty so every
+  // entry looks "new", which would cause a spurious curtain animation.
+  const initialLoadRef = useRef(true);
 
   const clearTimers = useCallback(() => {
     timersRef.current.forEach(clearTimeout);
@@ -67,25 +76,25 @@ export function FieldTransitionRenderer({
     setLogoSrc(newLogoSrc);
     setPrimaryColor(primary);
     setSecondaryColor(secondary);
-    setPhase('coverStart');
+    setPhase('coverStart'); phaseRef.current = 'coverStart';
 
     timersRef.current.push(setTimeout(() => {
       if (versionRef.current !== version) return;
-      setPhase('covering');
+      setPhase('covering'); phaseRef.current = 'covering';
 
       timersRef.current.push(setTimeout(() => {
         if (versionRef.current !== version) return;
-        setPhase('paused');
+        setPhase('paused'); phaseRef.current = 'paused';
 
         timersRef.current.push(setTimeout(() => {
           if (versionRef.current !== version) return;
-          setPhase('reveal');
+          setPhase('reveal'); phaseRef.current = 'reveal';
 
           timersRef.current.push(setTimeout(() => {
             if (versionRef.current !== version) return;
-            setPhase('idle');
+            setPhase('idle'); phaseRef.current = 'idle';
           }, 700));
-        }, 1400));
+        }, 1000));  // 1000ms pause — snappy feel
       }, 600));
     }, 30));
   }, [clearTimers]);
@@ -105,21 +114,50 @@ export function FieldTransitionRenderer({
     return allSources;
   }, [liveData, liveEventDataByPort]);
 
-  // React to live data changes — detect when a new athlete is "called up" (entry with no mark).
-  // Scans ALL field port data so the curtain fires for any field event, not just the primary port.
+  // React to live data changes — detect when a new athlete is "called up".
+  // For horizontal events (long jump, shot put): the called-up athlete has no mark yet.
+  // For vertical events (high jump, pole vault): ALL entries have marks (the bar height),
+  // so we also detect newly appeared bibs/names that weren't in the previous data set.
   useEffect(() => {
     if (mergedLiveData.length === 0) return;
 
-    // Search all data sources for a called-up athlete
+    // Collect all current bibs/names from every data source
+    const currentBibs = new Set<string>();
     let calledUp: any = null;
+
     for (const source of mergedLiveData) {
-      const entries: any[] = source.entries || source.results || [];
-      const found = entries.find((r: any) => !r.mark || String(r.mark).trim() === '');
-      if (found) {
-        calledUp = found;
-        break;
+      const entries: any[] = (source as any).entries || (source as any).results || [];
+
+      for (const r of entries) {
+        const id = r.bib ? String(r.bib) : r.name ? String(r.name) : '';
+        if (id) currentBibs.add(id);
+      }
+
+      // Strategy 1: Horizontal events — find entry with no mark (athlete is "up")
+      if (!calledUp) {
+        const found = entries.find((r: any) => !r.mark || String(r.mark).trim() === '');
+        if (found) calledUp = found;
+      }
+
+      // Strategy 2: Vertical events — find a newly appeared bib/name
+      // (FieldLynx adds the "up" athlete to the list when their turn starts)
+      // Skip on initial load: seenBibsRef is empty so ALL entries look new.
+      if (!calledUp && !initialLoadRef.current) {
+        for (const r of entries) {
+          const id = r.bib ? String(r.bib) : r.name ? String(r.name) : '';
+          if (id && !seenBibsRef.current.has(id)) {
+            calledUp = r;
+            break;
+          }
+        }
       }
     }
+
+    // Update the seen set for next comparison
+    seenBibsRef.current = currentBibs;
+    // After first pass, allow Strategy 2 to detect genuinely new bibs
+    initialLoadRef.current = false;
+
     if (!calledUp) return;
 
     const calledId = calledUp.bib
@@ -131,15 +169,16 @@ export function FieldTransitionRenderer({
     prevCalledBibRef.current = calledId;
 
     const school = calledUp.affiliation || calledUp.team || '';
-    const name = calledUp.name || '';
 
-    // Fetch team colors and logo asynchronously, then trigger curtain
-    (async () => {
-      let logoUrl: string | null = null;
-      let primary = curtainColor;
-      let secondary = curtainColor;
+    // START CURTAIN IMMEDIATELY with default colors — don't wait for HTTP fetch.
+    // This eliminates the blue flash: the curtain begins instantly, and team
+    // colors update mid-animation once the fetch completes.
+    runCurtain(null, curtainColor, curtainColor);
 
-      if (school) {
+    // Fetch team colors/logo in parallel — update curtain colors if data arrives
+    // during the covering or paused phase (before reveal starts).
+    if (school) {
+      (async () => {
         try {
           const meetParam = meetId
             ? `&meetId=${encodeURIComponent(meetId)}`
@@ -149,19 +188,23 @@ export function FieldTransitionRenderer({
           );
           if (res.ok) {
             const teamData = await res.json();
-            if (teamData?.logoUrl) logoUrl = teamData.logoUrl;
-            if (teamData?.primaryColor) {
-              primary = teamData.primaryColor;
-              secondary = teamData.secondaryColor || teamData.primaryColor;
+            // Only update if curtain is still active (not yet revealing/idle)
+            const currentPhase = phaseRef.current;
+            if (currentPhase === 'coverStart' || currentPhase === 'covering' || currentPhase === 'paused') {
+              if (teamData?.primaryColor) {
+                setPrimaryColor(teamData.primaryColor);
+                setSecondaryColor(teamData.secondaryColor || teamData.primaryColor);
+              }
+              if (teamData?.logoUrl) {
+                setLogoSrc(teamData.logoUrl);
+              }
             }
           }
         } catch {
-          /* ignore */
+          /* ignore — curtain already running with default colors */
         }
-      }
-
-      runCurtain(logoUrl, primary, secondary);
-    })();
+      })();
+    }
   }, [mergedLiveData, curtainColor, meetId, runCurtain]);
 
   if (phase === 'idle') return null;
@@ -212,7 +255,7 @@ export function FieldTransitionRenderer({
     overflow: 'hidden',
     background: gradient,
     zIndex: 50,
-    transition: panelTransition,
+    transition: `${panelTransition}, background 0.3s ease`,
   };
 
   // Subtle diagonal stripe texture — scale stripe width with display size

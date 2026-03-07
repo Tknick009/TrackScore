@@ -1277,10 +1277,18 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
   app.patch("/api/meets/:meetId/ingestion-settings", async (req, res) => {
     try {
       const { meetId } = req.params;
-      const settings = await storage.upsertIngestionSettings({
-        meetId,
-        ...req.body,
-      });
+      // Use partial update if settings already exist, so saving one field
+      // (e.g. lynxFilesDirectory) doesn't clear another (e.g. headshotDirectory)
+      const existing = await storage.getIngestionSettings(meetId);
+      let settings;
+      if (existing) {
+        settings = await storage.updateIngestionSettings(meetId, req.body);
+      } else {
+        settings = await storage.upsertIngestionSettings({
+          meetId,
+          ...req.body,
+        });
+      }
       
       // Restart watchers if enabled
       const { ingestionManager } = await import('../ingestion-manager');

@@ -3,7 +3,7 @@ import type { WSMessage } from "@shared/schema";
 import type multer from "multer";
 import type { FileStorage } from "./file-storage";
 
-export type ContentMode = 'lynx' | 'hytek' | 'team_scores' | 'field';
+export type ContentMode = 'lynx' | 'hytek' | 'team_scores' | 'field' | 'winners' | 'record';
 
 export interface ConnectedDisplayDevice {
   ws: WebSocket;
@@ -36,4 +36,5 @@ export interface RouteContext {
   abbreviateEventName: (name: string) => string;
   prefetchSceneData: (sceneId: number) => Promise<{ scene: any; objects: any[] } | null>;
   getDisplayModeFromTemplate: (template: string) => string | null;
+  enrichEntriesWithRecordTags: (eventType: string, gender: string, entries: any[]) => Promise<void>;
 }

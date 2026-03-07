@@ -278,6 +278,7 @@ export const meets = pgTable("meets", {
   status: text("status").default("upcoming"), // upcoming, in_progress, completed
   trackLength: integer("track_length").default(400), // Track length in meters
   logoUrl: text("logo_url"),
+  logoEffect: text("logo_effect").default("none"), // none, pulse, glow, shimmer, bounce, spin, fade-in-out
   meetCode: varchar("meet_code", { length: 6 }).notNull().unique().default(sql`upper(substring(md5(random()::text) from 1 for 6))`), // 6-character code for displays to join
   mdbPath: text("mdb_path"), // Path to .mdb file for auto-refresh
   autoRefresh: boolean("auto_refresh").default(false), // Whether to poll .mdb file
@@ -860,6 +861,7 @@ export const displayDevices = pgTable("display_devices", {
   isBigBoard: boolean("is_big_board").default(false),
   displayWidth: integer("display_width"),
   displayHeight: integer("display_height"),
+  displayScale: integer("display_scale").default(100), // Horizontal scale percentage (1-100). 100 = no scaling, 80 = 80% width (condensed)
   status: text("status").default("offline"), // online, offline, idle
   lastSeenAt: timestamp("last_seen_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import type { Meet } from "@shared/schema";
 import { formatHeatDisplay } from "@/lib/fieldBindings";
+import { getLogoEffectStyle } from "@/lib/logoEffects";
 
 interface ResultEntry {
   place?: string;
@@ -276,6 +277,7 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
                   src={meet.logoUrl} 
                   alt={meet.name || 'Meet Logo'}
                   className="max-h-full max-w-full object-contain"
+                  style={getLogoEffectStyle(meet.logoEffect)}
                 />
               </div>
             )}
