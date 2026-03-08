@@ -12,6 +12,7 @@ export const LOGO_EFFECTS = [
   { value: 'shimmer', label: 'Shimmer', description: 'Shimmering highlight sweep' },
   { value: 'bounce', label: 'Bounce', description: 'Soft vertical bounce' },
   { value: 'spin', label: 'Spin', description: 'Slow continuous rotation' },
+  { value: '3d-spin', label: '3D Spin', description: 'Horizontal medal-like spin' },
   { value: 'fade-in-out', label: 'Fade In/Out', description: 'Opacity fade cycle' },
 ] as const;
 
@@ -40,6 +41,10 @@ const KEYFRAMES_CSS = `
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+@keyframes logo-3d-spin {
+  0% { transform: perspective(800px) rotateY(0deg); }
+  100% { transform: perspective(800px) rotateY(360deg); }
+}
 @keyframes logo-fade-in-out {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
@@ -63,6 +68,7 @@ const ANIMATION_MAP: Record<string, string> = {
   shimmer: 'logo-shimmer 3s ease-in-out infinite',
   bounce: 'logo-bounce 2s ease-in-out infinite',
   spin: 'logo-spin 8s linear infinite',
+  '3d-spin': 'logo-3d-spin 4s ease-in-out infinite',
   'fade-in-out': 'logo-fade-in-out 3s ease-in-out infinite',
 };
 

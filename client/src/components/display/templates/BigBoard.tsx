@@ -313,6 +313,7 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
                     )}
 
                     {/* For multi-events, show calculated points (server computes from WA scoring tables) */}
+                    {/* Fallback: if multi-event but points not calculated, still show the split */}
                     {isMultiEvent && (entry as any).eventPoints ? (
                       <span 
                         className="text-cyan-300 font-bold tabular-nums shrink-0"
@@ -320,7 +321,7 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
                       >
                         {(entry as any).eventPoints} pts
                       </span>
-                    ) : splitTime && !isMultiEvent ? (
+                    ) : splitTime ? (
                       <span 
                         className="text-yellow-400 font-bold tabular-nums shrink-0"
                         style={{ fontSize: '48px', fontFamily: "'Bebas Neue', sans-serif" }}

@@ -54,7 +54,7 @@ import { mergeFlightsForEvent, type MergedFieldStandings } from '../parsers/lff-
 import { getResulTVParser } from '../parsers/resultv-parser';
 import { importCompleteMDB } from '../import-mdb-complete';
 import { insertExternalScoreboardSchema } from '@shared/schema';
-import { calculateEventPoints, parseMultiEventName } from '../combined-events-scoring';
+import { calculateEventPoints, parseMultiEventName, parsePerformance } from '../combined-events-scoring';
 import type { RouteContext } from "../route-context";
 
 export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
@@ -63,6 +63,7 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     sendToDisplayDevice, getActiveMeetId, connectedDisplayDevices,
     getConnectedDevicesForMeet, prefetchSceneData, getDisplayModeFromTemplate,
     abbreviateEventName, upload, fileStorage, displayClients,
+    enrichEntriesWithRecordTags,
   } = ctx;
 
   // ===== SCORING / RECORDS / MEDALS =====
@@ -1591,6 +1592,37 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
             }
           }
           console.log(`[Lynx] Calculated multi-event points for "${data.eventName}" → ${parsed.scoringKey} (${parsed.gender})`);
+        } else {
+          console.log(`[Lynx] Could not parse multi-event name: "${data.eventName}"`);
+        }
+      }
+      
+      // Enrich entries with MR/FR record tags for live FinishLynx data
+      // The enrichment function expects finalMark in ms, so convert time strings
+      if (mode === 'results' && data.entries && data.entries.length > 0 && (eventType || data.eventName)) {
+        try {
+          const resolvedEventType = eventType || 'track';
+          const resolvedGender = eventGender || '';
+          // Temporarily set finalMark (in ms) for the enrichment function
+          for (const entry of data.entries) {
+            if (entry.time) {
+              const seconds = parsePerformance(entry.time);
+              if (seconds !== null) {
+                entry.finalMark = seconds * 1000;
+              }
+            }
+          }
+          await enrichEntriesWithRecordTags(resolvedEventType, resolvedGender, data.entries);
+          // Clean up temporary finalMark (entries use 'time' field for display)
+          for (const entry of data.entries) {
+            delete entry.finalMark;
+          }
+          const tagged = data.entries.filter((e: any) => e.recordTags?.length > 0);
+          if (tagged.length > 0) {
+            console.log(`[Lynx] Record tags: ${tagged.map((e: any) => `${e.name}: [${e.recordTags.join(',')}]`).join(', ')}`);
+          }
+        } catch (err) {
+          console.warn('[Lynx] Failed to enrich with record tags:', err);
         }
       }
       
@@ -2030,6 +2062,44 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     
     // Suppress advancement data on finals — no Q badges or advancement formula on final rounds
     const isFinalRound = roundName === 'Finals';
+    
+    // Calculate multi-event points for accumulated entries (BigBoard path)
+    if (isMultiEvent && acc.eventName && acc.entries.length > 0) {
+      const parsed = parseMultiEventName(acc.eventName);
+      if (parsed) {
+        for (const entry of acc.entries) {
+          if (entry.time) {
+            const points = calculateEventPoints(parsed.scoringKey, entry.time, parsed.gender);
+            if (points > 0) {
+              entry.eventPoints = points;
+            }
+          }
+        }
+        console.log(`[Lynx StartList] Calculated multi-event points for "${acc.eventName}" → ${parsed.scoringKey} (${parsed.gender})`);
+      }
+    }
+    
+    // Enrich accumulated entries with record tags
+    if (acc.entries.length > 0 && acc.entries.some((e: any) => e.time)) {
+      try {
+        const resolvedEventType = eventType || 'track';
+        const resolvedGender = eventGender || '';
+        for (const entry of acc.entries) {
+          if (entry.time) {
+            const seconds = parsePerformance(entry.time);
+            if (seconds !== null) {
+              entry.finalMark = seconds * 1000;
+            }
+          }
+        }
+        await enrichEntriesWithRecordTags(resolvedEventType, resolvedGender, acc.entries);
+        for (const entry of acc.entries) {
+          delete entry.finalMark;
+        }
+      } catch (err) {
+        console.warn('[Lynx StartList] Failed to enrich with record tags:', err);
+      }
+    }
     
     // Broadcast entries in arrival order (FinishLynx controls display order)
     // Display maps by array position: Line 1 = entries[0], Line 2 = entries[1], etc.

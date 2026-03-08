@@ -2055,46 +2055,63 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
 
     // For track results, start lists, and BigBoard - use live name if available, DB name as fallback
     if ((isTrackResults || isStartList || isBigBoard) && (currentEvent || liveEventData)) {
-      // Use live FinishLynx name if available, otherwise keep DB event name
+      // Helper to map live FinishLynx entries to the display format used by BigBoard/ProScoreboard
+      const mapLiveEntries = (entries: any[]) => entries.map((entry: any, idx: number) => {
+        const firstName = entry.firstName || entry.name?.split(' ')[0] || '';
+        const lastName = entry.lastName || entry.name?.split(' ').slice(1).join(' ') || entry.name || '';
+        const teamName = entry.affiliation || entry.team || '';
+        const rawPlace = entry.place;
+        const placeNum = rawPlace ? parseInt(String(rawPlace)) : undefined;
+        const finalPlace = !isNaN(placeNum as number) && placeNum! > 0 ? placeNum : rawPlace;
+        return {
+          id: idx,
+          finalLane: entry.lane || idx + 1,
+          finalPlace,
+          finalMark: entry.time || entry.mark || entry.result || '',
+          lastSplit: entry.lastSplit || entry.cumulativeSplit || '',
+          reactionTime: entry.reactionTime || '',
+          qualifier: entry.qualifier || '',
+          recordTags: entry.recordTags || [],
+          eventPoints: entry.eventPoints || '',
+          totalPoints: entry.totalPoints || '',
+          athlete: {
+            firstName,
+            lastName,
+            team: teamName,
+          },
+          team: {
+            name: teamName,
+            logoUrl: teamName ? `/logos/NCAA/${teamName}.png` : null,
+          },
+        };
+      });
+
+      // When live FinishLynx entries are available, ALWAYS use them over DB entries.
+      // Live entries have server-calculated eventPoints for multi-events and are more current.
+      // DB entries (from currentEvent) won't have eventPoints, recordTags, or live split data.
+      const hasLiveEntries = liveEventData?.entries && liveEventData.entries.length > 0;
       const eventWithLiveName = currentEvent 
         ? {
             ...currentEvent,
             name: liveEventData?.eventName || currentEvent.name || '',
+            // Override DB entries with live entries when available
+            ...(hasLiveEntries ? {
+              entries: mapLiveEntries(liveEventData!.entries),
+              status: liveEventData!.mode === 'results' ? 'completed' : 
+                      liveEventData!.mode === 'running' ? 'in_progress' : currentEvent.status,
+              isMultiEvent: liveEventData!.isMultiEvent ?? (currentEvent as any).isMultiEvent ?? false,
+              roundName: liveEventData!.roundName ?? (currentEvent as any).roundName,
+              wind: liveEventData!.wind ?? (currentEvent as any).wind,
+              heat: liveEventData!.heat ?? (currentEvent as any).heat,
+              round: liveEventData!.round ?? (currentEvent as any).round,
+            } : {}),
           }
         : {
             id: 0,
             name: liveEventData?.eventName || '',
             eventType: 'track',
             status: liveEventData?.mode === 'results' ? 'completed' : 'in_progress',
-            entries: (liveEventData?.entries || []).map((entry: any, idx: number) => {
-              const firstName = entry.firstName || entry.name?.split(' ')[0] || '';
-              const lastName = entry.lastName || entry.name?.split(' ').slice(1).join(' ') || entry.name || '';
-              const teamName = entry.affiliation || entry.team || '';
-              const rawPlace = entry.place;
-              const placeNum = rawPlace ? parseInt(String(rawPlace)) : undefined;
-              const finalPlace = !isNaN(placeNum as number) && placeNum! > 0 ? placeNum : rawPlace;
-              return {
-                id: idx,
-                finalLane: entry.lane || idx + 1,
-                finalPlace,
-                finalMark: entry.time || entry.mark || entry.result || '',
-                lastSplit: entry.lastSplit || entry.cumulativeSplit || '',
-                reactionTime: entry.reactionTime || '',
-                qualifier: entry.qualifier || '',
-                recordTags: entry.recordTags || [],
-                eventPoints: entry.eventPoints || '',
-                totalPoints: entry.totalPoints || '',
-                athlete: {
-                  firstName,
-                  lastName,
-                  team: teamName,
-                },
-                team: {
-                  name: teamName,
-                  logoUrl: teamName ? `/logos/NCAA/${teamName}.png` : null,
-                },
-              };
-            }),
+            entries: mapLiveEntries(liveEventData?.entries || []),
             wind: liveEventData?.wind,
             heat: liveEventData?.heat,
             round: liveEventData?.round,

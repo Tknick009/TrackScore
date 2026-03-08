@@ -928,7 +928,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       } finally {
         // Always restore original finalMark values, even if enrichment throws
         for (const entry of displayEntries) {
-          if ((entry as any)._origFinalMark !== undefined) {
+          if ('_origFinalMark' in (entry as any)) {
             (entry as any).finalMark = (entry as any)._origFinalMark;
             delete (entry as any)._origFinalMark;
           }
