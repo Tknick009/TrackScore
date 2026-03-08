@@ -175,6 +175,10 @@ export function FieldTransitionRenderer({
     // colors update mid-animation once the fetch completes.
     runCurtain(null, curtainColor, curtainColor);
 
+    // Capture current version BEFORE async fetch — used to discard stale responses
+    // if a new athlete triggers a curtain before this fetch completes.
+    const fetchVersion = versionRef.current;
+
     // Fetch team colors/logo in parallel — update curtain colors if data arrives
     // during the covering or paused phase (before reveal starts).
     if (school) {
@@ -188,6 +192,8 @@ export function FieldTransitionRenderer({
           );
           if (res.ok) {
             const teamData = await res.json();
+            // Discard stale response if a newer curtain has started
+            if (versionRef.current !== fetchVersion) return;
             // Only update if curtain is still active (not yet revealing/idle)
             const currentPhase = phaseRef.current;
             if (currentPhase === 'coverStart' || currentPhase === 'covering' || currentPhase === 'paused') {
