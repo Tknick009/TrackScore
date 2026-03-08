@@ -319,7 +319,7 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
                         className="text-cyan-300 font-bold tabular-nums shrink-0"
                         style={{ fontSize: '48px', fontFamily: "'Bebas Neue', sans-serif" }}
                       >
-                        {(entry as any).eventPoints} pts
+                        {(entry as any).eventPoints}
                       </span>
                     ) : splitTime ? (
                       <span 

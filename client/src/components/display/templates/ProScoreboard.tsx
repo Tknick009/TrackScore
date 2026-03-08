@@ -414,7 +414,7 @@ export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingInt
                           fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
                         }}
                       >
-                        {resultText ? (isMultiEvent && (entry as any).eventPoints ? `${(entry as any).eventPoints} pts` : resultText) : '--'}
+                        {resultText ? (isMultiEvent && (entry as any).eventPoints ? `${(entry as any).eventPoints}` : resultText) : '--'}
                       </span>
                       {/* Q/q Qualifier Badge */}
                       {(entry as any).qualifier && (
