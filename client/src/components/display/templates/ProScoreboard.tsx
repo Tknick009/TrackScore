@@ -30,7 +30,8 @@ export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingInt
   const isCompleted = event.status === 'completed';
   const isLive = event.status === 'in_progress';
   // Detect multi-events (Pentathlon, Heptathlon, Decathlon) - show points instead of time on results
-  const isMultiEvent = (event as any).isMultiEvent === true || /\b(decathlon|heptathlon|pentathlon)\b/i.test(event.name || '');
+  // Supports abbreviations: "Hept", "Pent", "Dec" as used in FinishLynx
+  const isMultiEvent = (event as any).isMultiEvent === true || /\b(dec(athlon)?|hept(athlon)?|pent(athlon)?)\b/i.test(event.name || '');
 
   // Clock
   useEffect(() => {

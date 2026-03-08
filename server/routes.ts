@@ -87,9 +87,9 @@ function abbreviateEventName(name: string): string {
   if (/Hammer/i.test(n)) return 'HT';
   if (/Weight\s+Throw|^WT$/i.test(n)) return 'WT';
 
-  if (/Decathlon/i.test(n)) return 'DEC';
-  if (/Heptathlon/i.test(n)) return 'HEP';
-  if (/Pentathlon/i.test(n)) return 'PEN';
+  if (/\bDec(athlon)?\b/i.test(n)) return 'DEC';
+  if (/\bHept(athlon)?\b/i.test(n)) return 'HEP';
+  if (/\bPent(athlon)?\b/i.test(n)) return 'PEN';
 
   const rwMatch = n.match(/^(\d+[,.]?\d*)\s*(km|k|m)?\s*Race\s+Walk$/i);
   if (rwMatch) {
@@ -742,6 +742,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               // Track this WebSocket connection with the device (including displayType)
               // Load persisted autoMode from database, default to true for track displays
               const deviceAutoMode = device.autoMode ?? (device.displayMode === 'track');
+              // Load persisted contentMode from database, default to 'lynx'
+              const deviceContentMode = (device as any).contentMode || 'lynx';
               connectedDisplayDevices.set(device.id, {
                 ws,
                 deviceId: device.id,
@@ -752,7 +754,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 pagingSize: device.pagingSize ?? 8,
                 pagingInterval: device.pagingInterval ?? 5,
                 fieldPort: device.fieldPort ?? undefined,
-                contentMode: 'lynx',
+                contentMode: deviceContentMode,
               });
               
               // Send registration confirmation with assigned event
@@ -770,6 +772,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   displayMode: device.displayMode,
                   autoMode: deviceAutoMode,
                   displayScale: device.displayScale ?? 100,
+                  contentMode: deviceContentMode,
                 }
               }));
               

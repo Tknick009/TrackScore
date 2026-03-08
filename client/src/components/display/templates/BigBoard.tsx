@@ -83,7 +83,8 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
   const isCompleted = event.status === 'completed';
   const isStartList = event.status === 'scheduled' || event.status === 'upcoming';
   // Detect multi-events (Pentathlon, Heptathlon, Decathlon) - show points instead of splits on results
-  const isMultiEvent = (event as any).isMultiEvent === true || /\b(decathlon|heptathlon|pentathlon)\b/i.test(event.name || '');
+  // Supports abbreviations: "Hept", "Pent", "Dec" as used in FinishLynx
+  const isMultiEvent = (event as any).isMultiEvent === true || /\b(dec(athlon)?|hept(athlon)?|pent(athlon)?)\b/i.test(event.name || '');
   // Use roundName from liveEventData if available (e.g., "Prelims", "Semis", "Finals")
   const roundName = (event as any).roundName;
   const status = roundName 
@@ -311,13 +312,14 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
                       </div>
                     )}
 
-                    {/* For multi-events on results screen, show points instead of last split */}
-                    {isMultiEvent && isCompleted && (entry as any).totalPoints ? (
+                    {/* For multi-events, show points (from totalPoints or lastSplit/cumulativeSplit field) */}
+                    {/* FinishLynx sends cumulative points in the split field for multi-events */}
+                    {isMultiEvent && ((entry as any).totalPoints || splitTime) ? (
                       <span 
                         className="text-cyan-300 font-bold tabular-nums shrink-0"
                         style={{ fontSize: '48px', fontFamily: "'Bebas Neue', sans-serif" }}
                       >
-                        {(entry as any).totalPoints} pts
+                        {(entry as any).totalPoints || splitTime} pts
                       </span>
                     ) : splitTime && !isMultiEvent ? (
                       <span 

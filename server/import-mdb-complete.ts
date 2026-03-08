@@ -922,7 +922,8 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       }
       
       // Auto-detect multi-event (Decathlon, Heptathlon, Pentathlon) from event name
-      const isMultiEvent = /\b(decathlon|heptathlon|pentathlon)\b/i.test(eventName);
+      // Supports abbreviations: "Hept", "Pent", "Dec" as used in FinishLynx
+      const isMultiEvent = /\b(dec(athlon)?|hept(athlon)?|pent(athlon)?)\b/i.test(eventName);
       
       // Track which Event_ptrs are multi-events so we can set resultType='points' during entry import
       if (isMultiEvent) {

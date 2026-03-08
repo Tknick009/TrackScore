@@ -261,6 +261,7 @@ export interface IStorage {
   updateDisplayDeviceMode(id: string, displayMode: 'track' | 'field'): Promise<DisplayDevice | undefined>;
   updateDisplayDeviceType(id: string, displayType: string, deviceName?: string, displayWidth?: number, displayHeight?: number): Promise<DisplayDevice | undefined>;
   updateDisplayAutoMode(id: string, autoMode: boolean): Promise<DisplayDevice | undefined>;
+  updateDisplayContentMode(id: string, contentMode: string): Promise<DisplayDevice | undefined>;
   updateDisplayDevice(id: string, updates: Partial<{ pagingSize: number; pagingInterval: number; fieldPort: number | null; isBigBoard: boolean; displayScale: number }>): Promise<DisplayDevice | undefined>;
   assignEventToDisplay(displayId: string, eventId: string | null): Promise<DisplayDevice | undefined>;
   updateDisplayTemplate(displayId: string, template: string | null): Promise<DisplayDevice | undefined>;
@@ -1350,6 +1351,15 @@ export class DatabaseStorage implements IStorage {
     const [updated] = await db
       .update(displayDevices)
       .set({ autoMode })
+      .where(eq(displayDevices.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async updateDisplayContentMode(id: string, contentMode: string): Promise<DisplayDevice | undefined> {
+    const [updated] = await db
+      .update(displayDevices)
+      .set({ contentMode })
       .where(eq(displayDevices.id, id))
       .returning();
     return updated || undefined;

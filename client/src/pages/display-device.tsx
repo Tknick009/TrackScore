@@ -440,6 +440,13 @@ export default function DisplayDevice() {
               if (deviceData.displayScale !== undefined) {
                 setDisplayScale(deviceData.displayScale);
               }
+              // Restore persisted content mode on reconnection
+              // This prevents defaulting to track mode when device reconnects or server restarts
+              if (deviceData.contentMode && deviceData.contentMode !== 'lynx') {
+                console.log(`[Display] Restoring persisted contentMode: ${deviceData.contentMode}`);
+                // Disable auto mode for non-lynx content modes (winners, record, hytek, team_scores)
+                autoModeRef.current = false;
+              }
             }
           }
           

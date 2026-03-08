@@ -1525,6 +1525,18 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
         eventType = event.eventType ?? null;
         eventGender = event.gender ?? null;
         
+        // Also detect multi-event from event name if not set in DB
+        // Supports abbreviations like "Hept", "Pent", "Dec" used in FinishLynx
+        if (!isMultiEvent) {
+          const nameToCheck = (event.name || '').toLowerCase();
+          const lynxName = (data.eventName || '').toLowerCase();
+          if (/\b(hept|pent|dec(athlon)?|heptathlon|pentathlon)\b/i.test(nameToCheck) ||
+              /\b(hept|pent|dec(athlon)?|heptathlon|pentathlon)\b/i.test(lynxName)) {
+            isMultiEvent = true;
+            console.log(`[Lynx] Auto-detected multi-event from name: "${event.name}" / "${data.eventName}"`);
+          }
+        }
+        
         // Determine round name based on event configuration
         if (totalRounds === 1) {
           roundName = 'Finals';
@@ -1543,6 +1555,14 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
           if (roundNum === totalRounds) roundName = 'Finals';
           else if (roundNum === totalRounds - 1) roundName = 'Semis';
           else roundName = `Round ${roundNum}`;
+        }
+      }
+
+      // Fallback: detect multi-event from FinishLynx event name when no DB event matched
+      if (!isMultiEvent && data.eventName) {
+        if (/\b(dec(athlon)?|hept(athlon)?|pent(athlon)?)\b/i.test(data.eventName)) {
+          isMultiEvent = true;
+          console.log(`[Lynx] Auto-detected multi-event from Lynx event name (no DB match): "${data.eventName}"`);
         }
       }
 
@@ -1948,6 +1968,16 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
         eventType = event.eventType ?? null;
         eventGender = event.gender ?? null;
         
+        // Also detect multi-event from event name if not set in DB
+        if (!isMultiEvent) {
+          const nameToCheck = (event.name || '').toLowerCase();
+          const lynxName = (acc.eventName || '').toLowerCase();
+          if (/\b(dec(athlon)?|hept(athlon)?|pent(athlon)?)\b/i.test(nameToCheck) ||
+              /\b(dec(athlon)?|hept(athlon)?|pent(athlon)?)\b/i.test(lynxName)) {
+            isMultiEvent = true;
+          }
+        }
+        
         // Determine round name based on event configuration
         if (totalRounds === 1) {
           roundName = 'Finals';
@@ -1966,6 +1996,13 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
           if (roundNum === totalRounds) roundName = 'Finals';
           else if (roundNum === totalRounds - 1) roundName = 'Semis';
           else roundName = `Round ${roundNum}`;
+        }
+      }
+      
+      // Fallback: detect multi-event from FinishLynx event name when no DB event matched
+      if (!isMultiEvent && acc.eventName) {
+        if (/\b(dec(athlon)?|hept(athlon)?|pent(athlon)?)\b/i.test(acc.eventName)) {
+          isMultiEvent = true;
         }
       }
     } catch (error) {
