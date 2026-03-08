@@ -2002,6 +2002,8 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
                 finalMark: entry.time || entry.mark || entry.result || '',
                 lastSplit: entry.lastSplit || entry.cumulativeSplit || '',
                 reactionTime: entry.reactionTime || '',
+                qualifier: entry.qualifier || '',
+                recordTags: entry.recordTags || [],
                 athlete: {
                   firstName,
                   lastName,
@@ -2071,6 +2073,8 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
                 finalMark: entry.time || entry.mark || entry.result || '',
                 lastSplit: entry.lastSplit || entry.cumulativeSplit || '',
                 reactionTime: entry.reactionTime || '',
+                qualifier: entry.qualifier || '',
+                recordTags: entry.recordTags || [],
                 athlete: {
                   firstName,
                   lastName,
@@ -2085,6 +2089,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             wind: liveEventData?.wind,
             heat: liveEventData?.heat,
             round: liveEventData?.round,
+            roundName: liveEventData?.roundName,
           };
       // Check if ProScoreboard template is selected
       if (templateId === 'ProScoreboard' || templateId === 'pro-scoreboard') {

@@ -82,7 +82,11 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
   const isRelay = event.eventType?.toLowerCase().includes('relay');
   const isCompleted = event.status === 'completed';
   const isStartList = event.status === 'scheduled' || event.status === 'upcoming';
-  const status = isCompleted ? 'FINAL' : event.status === 'in_progress' ? 'IN PROGRESS' : 'SCHEDULED';
+  // Use roundName from liveEventData if available (e.g., "Prelims", "Semis", "Finals")
+  const roundName = (event as any).roundName;
+  const status = roundName 
+    ? roundName.toUpperCase() 
+    : (isCompleted ? 'FINAL' : event.status === 'in_progress' ? 'IN PROGRESS' : 'SCHEDULED');
   
   // Wind display - handle both numeric and string wind values
   const windReading = (event as any).wind ?? event.entries?.[0]?.finalWind;
@@ -295,6 +299,24 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
                     >
                       {finalTime}
                     </span>
+
+                    {/* Q/q Qualifier Badge */}
+                    {(entry as any).qualifier && (
+                      <span
+                        className="font-bold shrink-0 rounded"
+                        style={{
+                          fontSize: '36px',
+                          padding: '2px 10px',
+                          backgroundColor: (entry as any).qualifier === 'Q' ? 'rgba(21, 128, 61, 0.35)' : 'rgba(30, 64, 175, 0.35)',
+                          color: (entry as any).qualifier === 'Q' ? '#4ade80' : '#60a5fa',
+                          border: `1px solid ${(entry as any).qualifier === 'Q' ? 'rgba(74, 222, 128, 0.5)' : 'rgba(96, 165, 250, 0.5)'}`,
+                          minWidth: '44px',
+                          textAlign: 'center' as const,
+                        }}
+                      >
+                        {(entry as any).qualifier}
+                      </span>
+                    )}
 
                     {/* Record/Best Tags */}
                     {((entry as any).recordTags || []).length > 0 && (

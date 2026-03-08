@@ -98,7 +98,11 @@ export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingInt
     ? `${windReading > 0 ? '+' : ''}${windReading.toFixed(1)} m/s`
     : null;
 
-  const statusLabel = isCompleted ? 'OFFICIAL RESULTS' : isLive ? 'LIVE' : 'SCHEDULED';
+  // Use roundName from liveEventData if available (e.g., "Prelims", "Semis", "Finals")
+  const roundName = (event as any).roundName;
+  const statusLabel = roundName 
+    ? roundName.toUpperCase()
+    : (isCompleted ? 'OFFICIAL RESULTS' : isLive ? 'LIVE' : 'SCHEDULED');
 
   return (
     <div
@@ -386,6 +390,23 @@ export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingInt
                       >
                         {resultText || '--'}
                       </span>
+                      {/* Q/q Qualifier Badge */}
+                      {(entry as any).qualifier && (
+                        <span
+                          className="font-bold rounded"
+                          style={{
+                            fontSize: '20px',
+                            padding: '2px 8px',
+                            backgroundColor: (entry as any).qualifier === 'Q' ? 'rgba(21, 128, 61, 0.3)' : 'rgba(30, 64, 175, 0.3)',
+                            color: (entry as any).qualifier === 'Q' ? '#4ade80' : '#60a5fa',
+                            border: `1px solid ${(entry as any).qualifier === 'Q' ? 'rgba(74, 222, 128, 0.4)' : 'rgba(96, 165, 250, 0.4)'}`,
+                            minWidth: '32px',
+                            textAlign: 'center' as const,
+                          }}
+                        >
+                          {(entry as any).qualifier}
+                        </span>
+                      )}
                       {((entry as any).recordTags || []).length > 0 && (
                         <div className="flex gap-0.5">
                           {((entry as any).recordTags as string[]).map((tag: string) => (
