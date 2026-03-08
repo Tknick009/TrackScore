@@ -292,7 +292,7 @@ export function registerMeetsRoutes(app: Express, ctx: RouteContext) {
         secondaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
         accentColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
         textColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
-        logoEffect: z.enum(['none', 'pulse', 'glow', 'shimmer', 'bounce', 'spin', 'fade-in-out']).optional(),
+        logoEffect: z.enum(['none', 'pulse', 'glow', 'shimmer', 'bounce', 'spin', '3d-spin', 'fade-in-out']).optional(),
       });
 
       const data = updateSchema.parse(req.body);
