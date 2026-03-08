@@ -29,6 +29,8 @@ export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingInt
   const displayMode = determineDisplayMode(event);
   const isCompleted = event.status === 'completed';
   const isLive = event.status === 'in_progress';
+  // Detect multi-events (Pentathlon, Heptathlon, Decathlon) - show points instead of time on results
+  const isMultiEvent = (event as any).isMultiEvent === true || /\b(decathlon|heptathlon|pentathlon)\b/i.test(event.name || '');
 
   // Clock
   useEffect(() => {
@@ -411,7 +413,7 @@ export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingInt
                           fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
                         }}
                       >
-                        {resultText || '--'}
+                        {resultText ? (isMultiEvent && isCompleted ? `${resultText} pts` : resultText) : '--'}
                       </span>
                       {/* Q/q Qualifier Badge */}
                       {(entry as any).qualifier && (

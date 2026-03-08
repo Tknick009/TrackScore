@@ -2075,6 +2075,8 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
                 reactionTime: entry.reactionTime || '',
                 qualifier: entry.qualifier || '',
                 recordTags: entry.recordTags || [],
+                eventPoints: entry.eventPoints || '',
+                totalPoints: entry.totalPoints || '',
                 athlete: {
                   firstName,
                   lastName,
@@ -2090,6 +2092,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             heat: liveEventData?.heat,
             round: liveEventData?.round,
             roundName: liveEventData?.roundName,
+            isMultiEvent: liveEventData?.isMultiEvent || false,
           };
       // Check if ProScoreboard template is selected
       if (templateId === 'ProScoreboard' || templateId === 'pro-scoreboard') {

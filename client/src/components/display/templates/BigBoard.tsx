@@ -82,6 +82,8 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
   const isRelay = event.eventType?.toLowerCase().includes('relay');
   const isCompleted = event.status === 'completed';
   const isStartList = event.status === 'scheduled' || event.status === 'upcoming';
+  // Detect multi-events (Pentathlon, Heptathlon, Decathlon) - show points instead of splits on results
+  const isMultiEvent = (event as any).isMultiEvent === true || /\b(decathlon|heptathlon|pentathlon)\b/i.test(event.name || '');
   // Use roundName from liveEventData if available (e.g., "Prelims", "Semis", "Finals")
   const roundName = (event as any).roundName;
   const status = roundName 
@@ -309,14 +311,22 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
                       </div>
                     )}
 
-                    {splitTime && (
+                    {/* For multi-events on results screen, show points instead of last split */}
+                    {isMultiEvent && isCompleted && (entry as any).totalPoints ? (
+                      <span 
+                        className="text-cyan-300 font-bold tabular-nums shrink-0"
+                        style={{ fontSize: '48px', fontFamily: "'Bebas Neue', sans-serif" }}
+                      >
+                        {(entry as any).totalPoints} pts
+                      </span>
+                    ) : splitTime && !isMultiEvent ? (
                       <span 
                         className="text-yellow-400 font-bold tabular-nums shrink-0"
                         style={{ fontSize: '48px', fontFamily: "'Bebas Neue', sans-serif" }}
                       >
                         {splitTime}
                       </span>
-                    )}
+                    ) : null}
 
                     <span 
                       className="text-white font-bold tabular-nums shrink-0 min-w-[200px] text-right"
