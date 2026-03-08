@@ -535,6 +535,9 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
     console.log("   ⚠️  Meet table not found or could not be read, using fallback date");
   }
   
+  // Declare eventBatch at function scope so it's accessible from the records import section (section 7)
+  const eventBatch: any[] = [];
+  
   try {
     const eventTable = reader.getTable("Event");
     const eventData = eventTable.getData();
@@ -547,8 +550,6 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       console.log(`   📝 Available columns in Event table: ${columnNames.join(', ')}`);
       console.log(`   📝 Sample first event row:`, JSON.stringify(firstRow, null, 2));
     }
-    
-    const eventBatch = [];
     let datesFound = 0;
     let timesFound = 0;
     let namesFound = 0;
