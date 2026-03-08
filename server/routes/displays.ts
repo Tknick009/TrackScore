@@ -810,21 +810,22 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         teams.forEach(t => { if (t) teamMap.set(t.id, t); });
       }
       
-      const floorToPrecision = (val: number, precision: number): number => {
+      const ceilToPrecision = (val: number, precision: number): number => {
         const factor = Math.pow(10, precision);
-        return Math.floor(val * factor + 1e-9) / factor;
+        // Round UP to nearest hundredth (track & field rule: 8.315 → 8.32)
+        return Math.ceil(val * factor - 1e-9) / factor;
       };
       const formatTimeSeconds = (seconds: number, precision: number = 2): string => {
-        const rounded = floorToPrecision(seconds, precision);
+        const rounded = ceilToPrecision(seconds, precision);
         if (rounded >= 3600) {
           const hours = Math.floor(rounded / 3600);
           const mins = Math.floor((rounded % 3600) / 60);
-          const secs = floorToPrecision(rounded % 60, precision).toFixed(precision);
+          const secs = ceilToPrecision(rounded % 60, precision).toFixed(precision);
           return `${hours}:${String(mins).padStart(2, '0')}:${secs.padStart(precision + 3, '0')}`;
         }
         if (rounded >= 60) {
           const mins = Math.floor(rounded / 60);
-          const secs = floorToPrecision(rounded % 60, precision).toFixed(precision);
+          const secs = ceilToPrecision(rounded % 60, precision).toFixed(precision);
           return `${mins}:${secs.padStart(precision + 3, '0')}`;
         }
         return rounded.toFixed(precision);
@@ -1252,21 +1253,22 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
     const isMultiEvent = /\b(decathlon|heptathlon|pentathlon)\b/i.test(eventName || dbEvent?.name || '');
     const displayEventNameLower = (eventName || dbEvent?.name || '').toLowerCase();
     const isRelayEvent = displayEventNameLower.includes('relay') || displayEventNameLower.includes('medley') || /\d+x\d+/.test(displayEventNameLower);
-    const floorToPrecision = (val: number, precision: number): number => {
+    const ceilToPrecision = (val: number, precision: number): number => {
       const factor = Math.pow(10, precision);
-      return Math.floor(val * factor + 1e-9) / factor;
+      // Round UP to nearest hundredth (track & field rule: 8.315 → 8.32)
+      return Math.ceil(val * factor - 1e-9) / factor;
     };
     const formatTimeSeconds = (seconds: number, precision: number = 2): string => {
-      const rounded = floorToPrecision(seconds, precision);
+      const rounded = ceilToPrecision(seconds, precision);
       if (rounded >= 3600) {
         const hours = Math.floor(rounded / 3600);
         const mins = Math.floor((rounded % 3600) / 60);
-        const secs = floorToPrecision(rounded % 60, precision).toFixed(precision);
+        const secs = ceilToPrecision(rounded % 60, precision).toFixed(precision);
         return `${hours}:${String(mins).padStart(2, '0')}:${secs.padStart(precision + 3, '0')}`;
       }
       if (rounded >= 60) {
         const mins = Math.floor(rounded / 60);
-        const secs = floorToPrecision(rounded % 60, precision).toFixed(precision);
+        const secs = ceilToPrecision(rounded % 60, precision).toFixed(precision);
         return `${mins}:${secs.padStart(precision + 3, '0')}`;
       }
       return rounded.toFixed(precision);

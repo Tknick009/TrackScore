@@ -101,6 +101,9 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
 
   // Format time - handles both string times from live data ("10.23", "1:45.67") 
   // and numeric times from database (seconds — HyTek MDB stores as seconds)
+  // Round UP to nearest hundredth (track & field rule: 8.315 → 8.32)
+  const ceilHundredths = (val: number): number => Math.ceil(val * 100 - 1e-9) / 100;
+
   const formatTime = (mark: any): string => {
     if (mark === null || mark === undefined || mark === '') return '';
     // If it's already a string (from live FinishLynx data), return as-is
@@ -112,10 +115,10 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
     if (typeof mark === 'number') {
       if (mark >= 60) {
         const minutes = Math.floor(mark / 60);
-        const seconds = (mark % 60).toFixed(2);
+        const seconds = ceilHundredths(mark % 60).toFixed(2);
         return `${minutes}:${seconds.padStart(5, '0')}`;
       }
-      return mark.toFixed(2);
+      return ceilHundredths(mark).toFixed(2);
     }
     return String(mark);
   };

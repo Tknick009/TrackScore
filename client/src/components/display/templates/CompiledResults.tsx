@@ -30,15 +30,18 @@ export function CompiledResults({ event, meet }: CompiledResultsProps) {
     return 0;
   });
 
+  // Round UP to nearest hundredth (track & field rule: 8.315 → 8.32)
+  const ceilHundredths = (val: number): number => Math.ceil(val * 100 - 1e-9) / 100;
+
   const formatTime = (mark: number | null | undefined): string => {
     if (mark === null || mark === undefined) return '';
     const totalSeconds = mark / 1000;
     if (totalSeconds >= 60) {
       const minutes = Math.floor(totalSeconds / 60);
-      const seconds = (totalSeconds % 60).toFixed(2);
+      const seconds = ceilHundredths(totalSeconds % 60).toFixed(2);
       return `${minutes}:${seconds.padStart(5, '0')}`;
     }
-    return totalSeconds.toFixed(2);
+    return ceilHundredths(totalSeconds).toFixed(2);
   };
 
   const getTeamCode = (teamName: string | undefined): string => {

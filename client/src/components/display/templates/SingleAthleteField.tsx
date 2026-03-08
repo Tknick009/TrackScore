@@ -78,10 +78,13 @@ function SingleAthleteFieldContent({ event, meet, athlete, isRevealed }: SingleA
     return () => clearInterval(interval);
   }, []);
 
+  // Round UP to nearest hundredth (track & field rule)
+  const ceilH = (v: number) => Math.ceil(v * 100 - 1e-9) / 100;
+
   const formatMark = (mark: number | null | undefined): string => {
     if (mark === null || mark === undefined) return '--';
     const meters = mark / 1000;
-    return meters.toFixed(2) + 'm';
+    return ceilH(meters).toFixed(2) + 'm';
   };
 
   const formatAttempt = (attempt: any): string => {

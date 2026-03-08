@@ -54,19 +54,26 @@ export function getUnitSuffix(resultType: string | null | undefined): string {
   }
 }
 
+// Round UP to nearest hundredth (track & field rule: 8.315 → 8.32)
+function ceilToPrecision(val: number, precision: number): number {
+  const factor = Math.pow(10, precision);
+  return Math.ceil(val * factor - 1e-9) / factor;
+}
+
 export function formatTimeValue(seconds: number, precision: number = 2): string {
-  if (seconds >= 3600) {
-    const hours = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = (seconds % 60).toFixed(precision);
+  const rounded = ceilToPrecision(seconds, precision);
+  if (rounded >= 3600) {
+    const hours = Math.floor(rounded / 3600);
+    const mins = Math.floor((rounded % 3600) / 60);
+    const secs = ceilToPrecision(rounded % 60, precision).toFixed(precision);
     return `${hours}:${String(mins).padStart(2, '0')}:${secs.padStart(precision + 3, '0')}`;
   }
-  if (seconds >= 60) {
-    const mins = Math.floor(seconds / 60);
-    const secs = (seconds % 60).toFixed(precision);
+  if (rounded >= 60) {
+    const mins = Math.floor(rounded / 60);
+    const secs = ceilToPrecision(rounded % 60, precision).toFixed(precision);
     return `${mins}:${secs.padStart(precision + 3, '0')}`;
   }
-  return seconds.toFixed(precision);
+  return rounded.toFixed(precision);
 }
 
 export function formatResult(entry: EntryWithDetails): string {
@@ -111,8 +118,9 @@ export function generateAttemptHeaders(entries: EntryWithDetails[]): string[] {
 export function formatSplitTime(seconds: number | null | undefined): string {
   if (seconds === null || seconds === undefined) return '–';
   
+  const ceilH = (v: number) => Math.ceil(v * 100 - 1e-9) / 100;
   const mins = Math.floor(seconds / 60);
-  const secs = (seconds % 60).toFixed(2);
+  const secs = ceilH(seconds % 60).toFixed(2);
   
   if (mins > 0) {
     return `${mins}:${secs.padStart(5, '0')}`;

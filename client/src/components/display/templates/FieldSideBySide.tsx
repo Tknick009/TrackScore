@@ -29,10 +29,13 @@ export function FieldSideBySide({ event, meet, leftAthlete, rightAthlete, liveTi
     return () => clearInterval(interval);
   }, []);
 
+  // Round UP to nearest hundredth (track & field rule)
+  const ceilH = (v: number) => Math.ceil(v * 100 - 1e-9) / 100;
+
   const formatMark = (mark: number | null | undefined): string => {
     if (mark === null || mark === undefined) return '--';
     const meters = mark / 100;
-    return `${meters.toFixed(2)}m`;
+    return `${ceilH(meters).toFixed(2)}m`;
   };
 
   const getAttemptNumber = (entry: EntryWithDetails | undefined): number => {

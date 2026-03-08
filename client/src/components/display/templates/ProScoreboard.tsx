@@ -254,15 +254,17 @@ export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingInt
               }
               // Numeric times from database
               if (typeof mark === 'number') {
+                // Round UP to nearest hundredth (track & field rule: 8.315 → 8.32)
+                const ceilH = (v: number) => Math.ceil(v * 100 - 1e-9) / 100;
                 if (displayMode === 'track') {
                   if (mark >= 60) {
                     const mins = Math.floor(mark / 60);
-                    const secs = (mark % 60).toFixed(2);
+                    const secs = ceilH(mark % 60).toFixed(2);
                     return `${mins}:${secs.padStart(5, '0')}`;
                   }
-                  return mark.toFixed(2);
+                  return ceilH(mark).toFixed(2);
                 }
-                return `${mark.toFixed(2)}m`;
+                return `${ceilH(mark).toFixed(2)}m`;
               }
               return String(mark);
             })();
