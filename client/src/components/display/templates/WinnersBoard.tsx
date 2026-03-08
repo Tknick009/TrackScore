@@ -139,14 +139,12 @@ export function WinnersBoard({
   meetLogoUrl,
   meetLogoEffect,
 }: WinnersBoardProps) {
-  if (!entries || entries.length === 0) return null;
-
-  const winner = entries[0];
-  const topEntries = entries.slice(0, 4);
+  const winner = entries?.[0];
+  const topEntries = (entries || []).slice(0, 4);
 
   // Extract dominant colors from winner's team logo for confetti
   const [logoColors, setLogoColors] = useState<string[]>([]);
-  const winnerLogoUrl = winner.teamLogoUrl;
+  const winnerLogoUrl = winner?.teamLogoUrl;
   useEffect(() => {
     if (!winnerLogoUrl) { setLogoColors([]); return; }
     let cancelled = false;
@@ -158,6 +156,9 @@ export function WinnersBoard({
 
   // Memoize confetti pieces — regenerate when logo colors change
   const confettiPieces = useMemo(() => generateConfettiPieces(60, logoColors), [logoColors]);
+
+  // Early return AFTER all hooks to comply with React Rules of Hooks
+  if (!entries || entries.length === 0) return null;
 
   return (
     <div
