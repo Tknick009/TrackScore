@@ -312,14 +312,13 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
                       </div>
                     )}
 
-                    {/* For multi-events, show points (from totalPoints or lastSplit/cumulativeSplit field) */}
-                    {/* FinishLynx sends cumulative points in the split field for multi-events */}
-                    {isMultiEvent && ((entry as any).totalPoints || splitTime) ? (
+                    {/* For multi-events, show calculated points (server computes from WA scoring tables) */}
+                    {isMultiEvent && (entry as any).eventPoints ? (
                       <span 
                         className="text-cyan-300 font-bold tabular-nums shrink-0"
                         style={{ fontSize: '48px', fontFamily: "'Bebas Neue', sans-serif" }}
                       >
-                        {(entry as any).totalPoints || splitTime} pts
+                        {(entry as any).eventPoints} pts
                       </span>
                     ) : splitTime && !isMultiEvent ? (
                       <span 

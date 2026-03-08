@@ -54,6 +54,7 @@ import { mergeFlightsForEvent, type MergedFieldStandings } from '../parsers/lff-
 import { getResulTVParser } from '../parsers/resultv-parser';
 import { importCompleteMDB } from '../import-mdb-complete';
 import { insertExternalScoreboardSchema } from '@shared/schema';
+import { calculateEventPoints, parseMultiEventName } from '../combined-events-scoring';
 import type { RouteContext } from "../route-context";
 
 export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
@@ -1573,6 +1574,24 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
                         mode === 'start_list' ? 'start_list' : mode;
       if (isMultiEvent && mode === 'results') {
         displayMode = 'multi_track';
+      }
+      
+      // Calculate multi-event points for each entry when showing results
+      // FinishLynx does NOT send points — we calculate them from the athlete's time
+      // using the WA scoring tables based on the sub-event and gender
+      if (isMultiEvent && mode === 'results' && data.entries && data.eventName) {
+        const parsed = parseMultiEventName(data.eventName);
+        if (parsed) {
+          for (const entry of data.entries) {
+            if (entry.time) {
+              const points = calculateEventPoints(parsed.scoringKey, entry.time, parsed.gender);
+              if (points > 0) {
+                entry.eventPoints = points;
+              }
+            }
+          }
+          console.log(`[Lynx] Calculated multi-event points for "${data.eventName}" → ${parsed.scoringKey} (${parsed.gender})`);
+        }
       }
       
       // Suppress advancement data on finals — no Q badges or advancement formula on final rounds
