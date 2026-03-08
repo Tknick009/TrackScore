@@ -2912,8 +2912,9 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
         fileMap.set(nameWithoutExt, f);
       }
 
-      // Get all athletes for this meet
-      const athletes = await storage.getAthletesByMeetId(meetId);
+      // Get all athletes for this meet, filtered to only those with competitor numbers
+      const allAthletes = await storage.getAthletesByMeetId(meetId);
+      const athletes = allAthletes.filter(a => !!a.bibNumber);
       const teams = await storage.getTeamsByMeetId(meetId);
       const teamMap = new Map(teams.map(t => [t.id, t]));
 
