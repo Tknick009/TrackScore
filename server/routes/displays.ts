@@ -910,11 +910,19 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
             }
           }
         }
+        console.log(`[Hytek Results] Enriching ${displayEntries.length} entries for record tags (eventType=${event.eventType}, gender=${event.gender})`);
         await enrichEntriesWithRecordTags(
           event.eventType || 'track',
           event.gender || '',
           displayEntries as any[]
         );
+        // Log the record tags that were computed
+        const taggedEntries = displayEntries.filter(e => ((e as any).recordTags || []).length > 0);
+        if (taggedEntries.length > 0) {
+          console.log(`[Hytek Results] Record tags found: ${taggedEntries.map(e => `${e.athleteId}: [${(e as any).recordTags.join(',')}]`).join(', ')}`);
+        } else {
+          console.log(`[Hytek Results] No record tags found for any entries`);
+        }
       } catch (err) {
         console.warn('[Hytek Results] Failed to enrich with record tags:', err);
       } finally {

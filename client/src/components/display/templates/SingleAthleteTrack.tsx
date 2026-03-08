@@ -38,12 +38,13 @@ export function SingleAthleteTrack({ event, meet, liveTime, focusIndex = 0 }: Si
   const formatTime = (mark: number | null | undefined): string => {
     if (mark === null || mark === undefined) return '--:--';
     const totalSeconds = mark / 1000;
-    if (totalSeconds >= 60) {
-      const minutes = Math.floor(totalSeconds / 60);
-      const seconds = ceilHundredths(totalSeconds % 60).toFixed(2);
+    const rounded = ceilHundredths(totalSeconds);
+    if (rounded >= 60) {
+      const minutes = Math.floor(rounded / 60);
+      const seconds = ceilHundredths(rounded % 60).toFixed(2);
       return `${minutes}:${seconds.padStart(5, '0')}`;
     }
-    return ceilHundredths(totalSeconds).toFixed(2);
+    return rounded.toFixed(2);
   };
 
   const displayClock = liveTime || clock;
@@ -167,11 +168,11 @@ export function SingleAthleteTrack({ event, meet, liveTime, focusIndex = 0 }: Si
                     key={tag}
                     className="font-bold uppercase rounded"
                     style={{
-                      fontSize: '0.3em',
-                      padding: '0.15em 0.4em',
+                      fontSize: '20px',
+                      padding: '2px 8px',
                       backgroundColor: tag.includes('MR') || tag.includes('FR') ? 'rgba(255, 215, 0, 0.25)' : 'rgba(0, 200, 255, 0.2)',
                       color: tag.includes('MR') || tag.includes('FR') ? '#ffd700' : '#00e5ff',
-                      border: `1px solid ${tag.includes('MR') || tag.includes('FR') ? 'rgba(255, 215, 0, 0.5)' : 'rgba(0, 200, 255, 0.4)'}`,
+                      border: `2px solid ${tag.includes('MR') || tag.includes('FR') ? 'rgba(255, 215, 0, 0.5)' : 'rgba(0, 200, 255, 0.4)'}`,
                     }}
                   >
                     {tag}

@@ -257,12 +257,13 @@ export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingInt
                 // Round UP to nearest hundredth (track & field rule: 8.315 → 8.32)
                 const ceilH = (v: number) => Math.ceil(v * 100 - 1e-9) / 100;
                 if (displayMode === 'track') {
-                  if (mark >= 60) {
-                    const mins = Math.floor(mark / 60);
-                    const secs = ceilH(mark % 60).toFixed(2);
+                  const rounded = ceilH(mark);
+                  if (rounded >= 60) {
+                    const mins = Math.floor(rounded / 60);
+                    const secs = ceilH(rounded % 60).toFixed(2);
                     return `${mins}:${secs.padStart(5, '0')}`;
                   }
-                  return ceilH(mark).toFixed(2);
+                  return rounded.toFixed(2);
                 }
                 return `${ceilH(mark).toFixed(2)}m`;
               }
@@ -356,10 +357,30 @@ export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingInt
                   )}
                   <div className="min-w-0">
                     <div
-                      className="text-white font-semibold truncate leading-tight"
+                      className="text-white font-semibold truncate leading-tight flex items-center gap-2"
                       style={{ fontSize: '30px' }}
                     >
                       {athleteName}
+                      {/* Record/Best Tags - next to athlete name */}
+                      {((entry as any).recordTags || []).length > 0 && (
+                        <div className="flex gap-1 shrink-0">
+                          {((entry as any).recordTags as string[]).map((tag: string) => (
+                            <span
+                              key={tag}
+                              className="font-bold uppercase rounded"
+                              style={{
+                                fontSize: '18px',
+                                padding: '2px 6px',
+                                backgroundColor: tag.includes('MR') || tag.includes('FR') ? 'rgba(255, 215, 0, 0.25)' : 'rgba(0, 200, 255, 0.2)',
+                                color: tag.includes('MR') || tag.includes('FR') ? '#ffd700' : '#00e5ff',
+                                border: `2px solid ${tag.includes('MR') || tag.includes('FR') ? 'rgba(255, 215, 0, 0.5)' : 'rgba(0, 200, 255, 0.4)'}`,
+                              }}
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     {teamDisplay && (
                       <div
@@ -408,25 +429,6 @@ export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingInt
                         >
                           {(entry as any).qualifier}
                         </span>
-                      )}
-                      {((entry as any).recordTags || []).length > 0 && (
-                        <div className="flex gap-0.5">
-                          {((entry as any).recordTags as string[]).map((tag: string) => (
-                            <span
-                              key={tag}
-                              className="font-bold uppercase rounded"
-                              style={{
-                                fontSize: '0.35em',
-                                padding: '0.1em 0.35em',
-                                backgroundColor: tag.includes('MR') || tag.includes('FR') ? 'rgba(255, 215, 0, 0.25)' : 'rgba(0, 200, 255, 0.2)',
-                                color: tag.includes('MR') || tag.includes('FR') ? '#ffd700' : '#00e5ff',
-                                border: `1px solid ${tag.includes('MR') || tag.includes('FR') ? 'rgba(255, 215, 0, 0.5)' : 'rgba(0, 200, 255, 0.4)'}`,
-                              }}
-                            >
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
                       )}
                     </>
                   )}

@@ -36,12 +36,13 @@ export function CompiledResults({ event, meet }: CompiledResultsProps) {
   const formatTime = (mark: number | null | undefined): string => {
     if (mark === null || mark === undefined) return '';
     const totalSeconds = mark / 1000;
-    if (totalSeconds >= 60) {
-      const minutes = Math.floor(totalSeconds / 60);
-      const seconds = ceilHundredths(totalSeconds % 60).toFixed(2);
+    const rounded = ceilHundredths(totalSeconds);
+    if (rounded >= 60) {
+      const minutes = Math.floor(rounded / 60);
+      const seconds = ceilHundredths(rounded % 60).toFixed(2);
       return `${minutes}:${seconds.padStart(5, '0')}`;
     }
-    return ceilHundredths(totalSeconds).toFixed(2);
+    return rounded.toFixed(2);
   };
 
   const getTeamCode = (teamName: string | undefined): string => {

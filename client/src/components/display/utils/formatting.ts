@@ -119,8 +119,9 @@ export function formatSplitTime(seconds: number | null | undefined): string {
   if (seconds === null || seconds === undefined) return '–';
   
   const ceilH = (v: number) => Math.ceil(v * 100 - 1e-9) / 100;
-  const mins = Math.floor(seconds / 60);
-  const secs = ceilH(seconds % 60).toFixed(2);
+  const rounded = ceilH(seconds);
+  const mins = Math.floor(rounded / 60);
+  const secs = ceilH(rounded % 60).toFixed(2);
   
   if (mins > 0) {
     return `${mins}:${secs.padStart(5, '0')}`;

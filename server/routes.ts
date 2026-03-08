@@ -252,8 +252,10 @@ async function getActiveMeetId(): Promise<string | null> {
 // Compute PB/SB/MR/FR tags for each entry in an event
 async function enrichEntriesWithRecordTags(eventType: string, gender: string, entries: EntryWithDetails[]): Promise<void> {
   try {
+    console.log(`[RecordTags] Enriching ${entries.length} entries (eventType=${eventType}, gender=${gender})`);
     // Fetch all record books for this event type and gender
     const matchingRecords = await storage.getRecordsByEvent(eventType, gender);
+    console.log(`[RecordTags] Found ${matchingRecords.length} matching records for ${eventType}/${gender}`);
     // Build a map of record book scope -> best performance (in base units)
     const recordsByScope: Map<string, number> = new Map();
     for (const record of matchingRecords) {
@@ -305,6 +307,12 @@ async function enrichEntriesWithRecordTags(eventType: string, gender: string, en
       }
     }
 
+    // Log what we found
+    for (const [scope, perf] of recordsByScope) {
+      console.log(`[RecordTags] Record scope=${scope}, performance=${perf}`);
+    }
+    console.log(`[RecordTags] Athlete bests found for ${bestsByAthlete.size} athletes`);
+
     // Now enrich each entry with tags
     for (const entry of entries) {
       const tags: string[] = [];
@@ -355,6 +363,9 @@ async function enrichEntriesWithRecordTags(eventType: string, gender: string, en
         }
       }
 
+      if (tags.length > 0) {
+        console.log(`[RecordTags] Athlete ${entry.athleteId}: mark=${markInBaseUnits}, tags=[${tags.join(',')}]`);
+      }
       (entry as any).recordTags = tags;
     }
   } catch (error) {
