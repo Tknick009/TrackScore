@@ -39,7 +39,11 @@ const DEFAULT_CONFETTI_COLORS = [
 function extractDominantColors(imageUrl: string, topN: number = 5): Promise<string[]> {
   return new Promise((resolve) => {
     const img = new Image();
-    img.crossOrigin = 'anonymous';
+    // Only set crossOrigin for external URLs; same-origin images don't need it
+    // and setting it can cause CORS issues if server doesn't send proper headers
+    if (imageUrl.startsWith('http') && !imageUrl.startsWith(window.location.origin)) {
+      img.crossOrigin = 'anonymous';
+    }
     img.onload = () => {
       try {
         const canvas = document.createElement('canvas');
