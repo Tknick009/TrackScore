@@ -36,7 +36,8 @@ import {
   Target,
   Settings,
   Image,
-  Award
+  Award,
+  Download
 } from 'lucide-react';
 import { DISPLAY_CONTENT_TYPES } from '@shared/layout-templates';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -644,6 +645,20 @@ export default function DisplayControlPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => {
+                const a = document.createElement('a');
+                a.href = '/api/logs/export';
+                a.download = '';
+                a.click();
+              }}
+              data-testid="button-export-logs"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Export Logs
+            </Button>
             <Button 
               variant="outline" 
               size="sm" 

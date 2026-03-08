@@ -5,6 +5,10 @@ import { setupVite, serveStatic, log } from "./vite";
 import { startAutoRefresh } from "./auto-refresh";
 import { storage } from "./storage";
 import { initEVTWatchers } from "./evt-watcher";
+import { installLogCapture, exportLogs, clearLogs, logCount } from "./log-capture";
+
+// Install log capture BEFORE anything else so all console output is recorded
+installLogCapture();
 
 const app = express();
 
@@ -76,6 +80,24 @@ app.use((req, res, next) => {
     throw error;
   }
   
+  // ===== Log export endpoints =====
+  app.get('/api/logs/export', (_req, res) => {
+    const text = exportLogs();
+    const filename = `trackscore-logs-${new Date().toISOString().replace(/[:.]/g, '-')}.txt`;
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(text);
+  });
+
+  app.post('/api/logs/clear', (_req, res) => {
+    clearLogs();
+    res.json({ ok: true });
+  });
+
+  app.get('/api/logs/count', (_req, res) => {
+    res.json({ count: logCount() });
+  });
+
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
