@@ -692,7 +692,46 @@ export function registerLayoutsScenesRoutes(app: Express, ctx: RouteContext) {
     }
   });
 
-  // ARCHIVED: Record books feature (first set)
+  // Get all active records with book info (for schedule display)
+  app.get('/api/records/all', async (req, res) => {
+    try {
+      const books = await storage.getRecordBooks(); // only active books
+      const allRecords: Array<{
+        id: number;
+        eventType: string;
+        gender: string;
+        performance: string;
+        athleteName: string;
+        team: string | null;
+        date: Date | null;
+        bookName: string;
+        bookScope: string;
+      }> = [];
+
+      for (const book of books) {
+        const bookWithRecords = await storage.getRecordBook(book.id);
+        if (bookWithRecords) {
+          for (const rec of bookWithRecords.records) {
+            allRecords.push({
+              id: rec.id,
+              eventType: rec.eventType,
+              gender: rec.gender,
+              performance: rec.performance,
+              athleteName: rec.athleteName,
+              team: rec.team,
+              date: rec.date,
+              bookName: book.name,
+              bookScope: book.scope,
+            });
+          }
+        }
+      }
+
+      res.json(allRecords);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
 
   app.get('/api/records/check', async (req, res) => {
     try {

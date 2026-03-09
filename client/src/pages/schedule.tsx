@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Calendar, Clock, Timer, Target, ArrowUpDown, Edit2, Check, X, Trophy, RefreshCw, Search } from "lucide-react";
+import { Calendar, Clock, Timer, Target, ArrowUpDown, Edit2, Check, X, Trophy, RefreshCw, Search, Medal } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Link } from "wouter";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -370,6 +371,34 @@ export default function Schedule() {
     queryFn: () => fetch(`/api/public/meets/${currentMeetId}/team-standings`).then(r => r.json()),
     enabled: !!currentMeetId,
   });
+
+  // Fetch all active records for display on schedule
+  type RecordEntry = {
+    id: number;
+    eventType: string;
+    gender: string;
+    performance: string;
+    athleteName: string;
+    team: string | null;
+    date: string | null;
+    bookName: string;
+    bookScope: string;
+  };
+  const { data: allRecords = [] } = useQuery<RecordEntry[]>({
+    queryKey: ["/api/records/all"],
+    queryFn: () => fetch('/api/records/all').then(r => r.json()),
+  });
+
+  // Build a lookup map: eventType+gender -> records[]
+  const recordsByEvent = useMemo(() => {
+    const map = new Map<string, RecordEntry[]>();
+    for (const rec of allRecords) {
+      const key = `${rec.eventType}|${rec.gender}`;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(rec);
+    }
+    return map;
+  }, [allRecords]);
   const menStandings = teamStandingsData?.men ?? [];
   const womenStandings = teamStandingsData?.women ?? [];
 
@@ -630,6 +659,42 @@ export default function Schedule() {
                                   )}
                                   <span className="capitalize">{event.gender}</span>
                                 </div>
+                                {/* Records for this event */}
+                                {(() => {
+                                  const eventRecords = recordsByEvent.get(`${event.eventType}|${event.gender}`) || [];
+                                  if (eventRecords.length === 0) return null;
+                                  return (
+                                    <div className="mt-1 flex flex-wrap gap-1.5">
+                                      {eventRecords.map((rec) => {
+                                        const scopeColors: Record<string, string> = {
+                                          meet: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
+                                          facility: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+                                          national: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
+                                          international: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+                                          custom: 'bg-gray-100 text-gray-800 dark:bg-gray-700/30 dark:text-gray-300',
+                                        };
+                                        const colorClass = scopeColors[rec.bookScope] || scopeColors.custom;
+                                        return (
+                                          <TooltipProvider key={rec.id}>
+                                            <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${colorClass}`}>
+                                                  <Medal className="w-2.5 h-2.5" />
+                                                  {rec.bookName}: {rec.performance}
+                                                </span>
+                                              </TooltipTrigger>
+                                              <TooltipContent side="top" className="text-xs">
+                                                <div className="font-semibold">{rec.bookName}</div>
+                                                <div>{rec.athleteName}{rec.team ? ` (${rec.team})` : ''}</div>
+                                                <div>{rec.performance}{rec.date ? ` - ${new Date(rec.date).toLocaleDateString()}` : ''}</div>
+                                              </TooltipContent>
+                                            </Tooltip>
+                                          </TooltipProvider>
+                                        );
+                                      })}
+                                    </div>
+                                  );
+                                })()}
                                 {isPrelim && currentMeetId && (
                                   <AdvancementFormulaEditor event={event} meetId={currentMeetId} />
                                 )}
