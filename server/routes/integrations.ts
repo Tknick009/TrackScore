@@ -1597,12 +1597,27 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
         }
       }
       
-      // Enrich entries with MR/FR record tags for live FinishLynx data
-      // The enrichment function expects finalMark in ms, so convert time strings
+      // Enrich entries with MR/FR/PB/SB record tags for live FinishLynx data
+      // The enrichment function expects finalMark in ms and athleteId for PB/SB lookup
       if (mode === 'results' && data.entries && data.entries.length > 0 && (eventType || data.eventName)) {
         try {
           const resolvedEventType = eventType || 'track';
           const resolvedGender = eventGender || '';
+          // Resolve athleteId from bib number so PB/SB tags can be computed
+          // FinishLynx entries have bib but not athleteId
+          const enrichMeetId = await getActiveMeetId();
+          if (enrichMeetId) {
+            const meetAthletes = await storage.getAthletesByMeetId(enrichMeetId);
+            const bibToAthlete = new Map(meetAthletes.map(a => [a.bibNumber, a.id]));
+            for (const entry of data.entries) {
+              if (entry.bib && !entry.athleteId) {
+                const athleteId = bibToAthlete.get(entry.bib) || bibToAthlete.get(String(entry.bib));
+                if (athleteId) {
+                  entry.athleteId = athleteId;
+                }
+              }
+            }
+          }
           // Temporarily set finalMark (in ms) for the enrichment function
           for (const entry of data.entries) {
             if (entry.time) {
@@ -2080,11 +2095,25 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
       }
     }
     
-    // Enrich accumulated entries with record tags
+    // Enrich accumulated entries with record tags (including PB/SB via athleteId)
     if (acc.entries.length > 0 && acc.entries.some((e: any) => e.time)) {
       try {
         const resolvedEventType = eventType || 'track';
         const resolvedGender = eventGender || '';
+        // Resolve athleteId from bib number so PB/SB tags can be computed
+        const slEnrichMeetId = await getActiveMeetId();
+        if (slEnrichMeetId) {
+          const slMeetAthletes = await storage.getAthletesByMeetId(slEnrichMeetId);
+          const slBibToAthlete = new Map(slMeetAthletes.map(a => [a.bibNumber, a.id]));
+          for (const entry of acc.entries) {
+            if (entry.bib && !entry.athleteId) {
+              const athleteId = slBibToAthlete.get(entry.bib) || slBibToAthlete.get(String(entry.bib));
+              if (athleteId) {
+                entry.athleteId = athleteId;
+              }
+            }
+          }
+        }
         for (const entry of acc.entries) {
           if (entry.time) {
             const seconds = parsePerformance(entry.time);
