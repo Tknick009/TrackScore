@@ -955,10 +955,9 @@ export default function DisplayDevice() {
                 }));
               }
               
-              // When auto-mode is enabled, accept field data even if display is in track mode
-              // This allows the display to auto-switch to show field events from FieldLynx
-              if (!isFieldModeRef.current && !autoModeRef.current) {
-                console.log(`[Display] Ignoring field data - display is in track mode and auto-mode disabled`);
+              // Track mode displays ignore field data entirely
+              if (!isFieldModeRef.current) {
+                console.log(`[Display] Ignoring field data - display is in track mode`);
                 return;
               }
               
