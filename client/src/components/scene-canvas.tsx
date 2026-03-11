@@ -919,7 +919,13 @@ export function SceneObjectRenderer({
             'name-qualifier-badge': qualifierStatus,
             'last-name-qualifier-badge': qualifierStatus,
             'school': schoolDisplay,
-            'time': firstEntry?.time || firstEntry?.mark,
+            'time': (() => {
+              const rawTime = firstEntry?.time || firstEntry?.mark;
+              // Append record tag (MR, FR, PB, SB) directly to time/mark display
+              // This is the standard way record tags appear in track & field
+              if (rawTime && recordTag) return `${rawTime} ${recordTag}`;
+              return rawTime;
+            })(),
             'mark-converted': firstEntry?.markConverted || '',
             'last-split': isMultiEvent && eventPoints > 0 ? `${eventPoints}` : firstEntry?.lastSplit,
             'cumulative-split': firstEntry?.cumulativeSplit,
@@ -943,8 +949,11 @@ export function SceneObjectRenderer({
             // Single priority record tag (MR > FR > PB > SB)
             'record-tag': recordTag,
             // Name with record tag appended (for combined display)
-            'name-record-tag': displayName,
-            'last-name-record-tag': isTeamScores ? (firstEntry?.name || '') : isRelayOrMedleyText ? (firstEntry?.name || firstEntry?.lastName || '') : firstEntry?.lastName,
+            'name-record-tag': recordTag ? `${displayName} ${recordTag}` : displayName,
+            'last-name-record-tag': (() => {
+              const baseName = isTeamScores ? (firstEntry?.name || '') : isRelayOrMedleyText ? (firstEntry?.name || firstEntry?.lastName || '') : firstEntry?.lastName;
+              return recordTag ? `${baseName} ${recordTag}` : baseName;
+            })(),
             // Record Board fields (sent when mode === 'record')
             'record-label': liveData.recordLabel || '',
             'meet-name': liveData.meetName || '',

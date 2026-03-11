@@ -2106,8 +2106,9 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
               performance = '0.00';
             }
             
-            // Use short gender codes (M/W) to match events table format
-            const recordGender = gender === 'M' ? 'M' : (gender === 'F' || gender === 'W') ? 'W' : gender;
+            // Use short gender codes (M/F) to match events table format
+            // Events table stores gender as 'M'/'F' from HyTek Event_sex field
+            const recordGender = gender === 'M' ? 'M' : (gender === 'F' || gender === 'W') ? 'F' : gender;
             
             // Build date
             const recordDate = new Date(year > 0 ? year : 2000, month > 0 ? month - 1 : 0, day > 0 ? day : 1);

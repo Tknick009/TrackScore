@@ -2637,11 +2637,23 @@ export class SQLiteStorage implements IStorage {
   }
 
   async getRecordsByEvent(eventType: string, gender: string): Promise<SelectRecord[]> {
+    // Normalize gender for matching: events use 'M'/'F', records may have 'M'/'F'/'W'/'male'/'female'
+    // Query with all possible variants to handle legacy data
+    const genderVariants = [gender];
+    if (gender === 'F' || gender === 'female') {
+      genderVariants.push('F', 'W', 'female');
+    } else if (gender === 'W') {
+      genderVariants.push('F', 'W', 'female');
+    } else if (gender === 'M' || gender === 'male') {
+      genderVariants.push('M', 'male');
+    }
+    const uniqueVariants = [...new Set(genderVariants)];
+    const placeholders = uniqueVariants.map(() => '?').join(',');
     const rows = this.db.prepare(`
       SELECT r.* FROM records r
       JOIN record_books rb ON r.record_book_id = rb.id
-      WHERE r.event_type = ? AND r.gender = ? AND rb.is_active = 1
-    `).all(eventType, gender);
+      WHERE r.event_type = ? AND r.gender IN (${placeholders}) AND rb.is_active = 1
+    `).all(eventType, ...uniqueVariants);
     return rows.map((row: any) => this.mapRecordRow(row));
   }
 
