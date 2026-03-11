@@ -827,6 +827,37 @@ export function registerLayoutsScenesRoutes(app: Express, ctx: RouteContext) {
     }
   });
 
+  // Get records for a specific event type and gender (for display pipeline)
+  // IMPORTANT: This route MUST be registered before /api/records/:id to avoid
+  // Express matching "by-event" as the :id parameter
+  app.get('/api/records/by-event', async (req, res) => {
+    try {
+      const { eventType, gender } = req.query;
+      if (!eventType) {
+        return res.status(400).json({ error: 'eventType parameter is required' });
+      }
+      const recs = await storage.getRecordsByEvent(
+        eventType as string,
+        (gender as string) || 'male'
+      );
+      
+      // Enrich with record book names
+      const bookIds = [...new Set(recs.map(r => r.recordBookId))];
+      const books = await Promise.all(bookIds.map(id => storage.getRecordBook(id)));
+      const bookMap = new Map(books.filter(Boolean).map(b => [b!.id, b!]));
+      
+      const enriched = recs.map(r => ({
+        ...r,
+        bookName: bookMap.get(r.recordBookId)?.name || 'Unknown',
+        bookScope: bookMap.get(r.recordBookId)?.scope || 'custom',
+      }));
+      
+      res.json(enriched);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.get('/api/records/:id', async (req, res) => {
     try {
       const record = await storage.getRecord(parseInt(req.params.id));
