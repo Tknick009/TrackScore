@@ -860,9 +860,37 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       }
       
       const isFinalRound = selectedRound === 'final';
-      const eventAdvanceByPlace = isFinalRound ? 0 : ((event as any).advanceByPlace || 0);
-      const eventAdvanceByTime = isFinalRound ? 0 : ((event as any).advanceByTime || 0);
       const isPrelimRound = !isFinalRound;
+      
+      // Determine per-round advancement values (Q/q qualifiers)
+      // The advancement_json column stores per-round data: {"preliminary":{"place":N,"time":N},"quarterfinal":...,"semifinal":...}
+      // Fall back to legacy advanceByPlace/advanceByTime columns (which only store prelims data)
+      let eventAdvanceByPlace = 0;
+      let eventAdvanceByTime = 0;
+      if (!isFinalRound) {
+        const advJsonStr = (event as any).advancementJson || (event as any).advancement_json;
+        if (advJsonStr) {
+          try {
+            const advData = JSON.parse(advJsonStr);
+            // Map selectedRound to advancement key
+            const roundKey = selectedRound; // 'preliminary', 'quarterfinal', 'semifinal'
+            if (advData[roundKey]) {
+              eventAdvanceByPlace = advData[roundKey].place || 0;
+              eventAdvanceByTime = advData[roundKey].time || 0;
+            }
+            console.log(`[Hytek Q/q] advancement_json parsed for round=${roundKey}: place=${eventAdvanceByPlace}, time=${eventAdvanceByTime}, raw=${advJsonStr}`);
+          } catch (e) {
+            console.log(`[Hytek Q/q] Failed to parse advancement_json: ${advJsonStr}`);
+          }
+        }
+        // Fall back to legacy columns if JSON didn't provide values
+        if (eventAdvanceByPlace === 0 && eventAdvanceByTime === 0) {
+          eventAdvanceByPlace = (event as any).advanceByPlace || 0;
+          eventAdvanceByTime = (event as any).advanceByTime || 0;
+          console.log(`[Hytek Q/q] Using legacy advancement: advanceByPlace=${eventAdvanceByPlace}, advanceByTime=${eventAdvanceByTime}`);
+        }
+      }
+      console.log(`[Hytek Q/q DEBUG] selectedRound=${selectedRound}, isFinalRound=${isFinalRound}, isPrelimRound=${isPrelimRound}, advanceByPlace=${eventAdvanceByPlace}, advanceByTime=${eventAdvanceByTime}, isTrackEvent=${isTrackEvent}, eventName=${event.name}`);
       
       // === Q/q QUALIFIER ASSIGNMENT (prelim rounds only, track events) ===
       // Big Q = top advanceByPlace finishers from EACH heat (by within-heat place)

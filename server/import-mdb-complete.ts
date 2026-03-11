@@ -231,6 +231,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       try { sqliteDb.exec('ALTER TABLE meets ADD COLUMN rel_max_scorers_per_team INTEGER DEFAULT 0'); } catch(e) {}
       try { sqliteDb.exec('ALTER TABLE events ADD COLUMN advance_by_place INTEGER'); } catch(e) {}
       try { sqliteDb.exec('ALTER TABLE events ADD COLUMN advance_by_time INTEGER'); } catch(e) {}
+      try { sqliteDb.exec('ALTER TABLE events ADD COLUMN advancement_json TEXT'); } catch(e) {}
       try { sqliteDb.exec('ALTER TABLE events ADD COLUMN is_multi_event INTEGER DEFAULT 0'); } catch(e) {}
       try { sqliteDb.exec('ALTER TABLE entries ADD COLUMN preliminary_points REAL'); } catch(e) {}
       try { sqliteDb.exec('ALTER TABLE entries ADD COLUMN quarterfinal_points REAL'); } catch(e) {}
@@ -913,19 +914,33 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       const numRounds = row.Event_rounds ? Number(row.Event_rounds) : 1;
       const numLanes = row.Num_finlanes ? Number(row.Num_finlanes) : 8;
       
-      // Extract advancement formula from HyTek
-      // Top_no1/Next_Best1 = prelims advancement, Top_no2/Next_Best2 = quarters, Top_no3/Next_Best3 = semis
-      // Use the first round's advancement data (prelims → next round)
+      // Extract advancement formula from HyTek (per-round)
+      // Top_no1/Next_Best1 = prelims→next, Top_no2/Next_Best2 = quarters→next, Top_no3/Next_Best3 = semis→finals
       let advanceByPlace: number | null = null;
       let advanceByTime: number | null = null;
+      let advancementJson: string | null = null;
       
       if (numRounds > 1) {
-        // Extract advancement from first round (prelims to next round)
+        // Extract advancement from first round (prelims to next round) — stored in legacy columns
         if (row.Top_no1 !== null && row.Top_no1 !== undefined) {
           advanceByPlace = Number(row.Top_no1) || null;
         }
         if (row.Next_Best1 !== null && row.Next_Best1 !== undefined) {
           advanceByTime = Number(row.Next_Best1) || null;
+        }
+        // Build per-round advancement JSON for all rounds
+        const advancement: Record<string, { place: number; time: number }> = {};
+        if (row.Top_no1 || row.Next_Best1) {
+          advancement.preliminary = { place: Number(row.Top_no1) || 0, time: Number(row.Next_Best1) || 0 };
+        }
+        if (row.Top_no2 || row.Next_Best2) {
+          advancement.quarterfinal = { place: Number(row.Top_no2) || 0, time: Number(row.Next_Best2) || 0 };
+        }
+        if (row.Top_no3 || row.Next_Best3) {
+          advancement.semifinal = { place: Number(row.Top_no3) || 0, time: Number(row.Next_Best3) || 0 };
+        }
+        if (Object.keys(advancement).length > 0) {
+          advancementJson = JSON.stringify(advancement);
         }
       }
       
@@ -957,6 +972,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         isScored,    // NEW: Derived lock flag
         advanceByPlace, // Advancement by place (Q qualifiers)
         advanceByTime,  // Advancement by time (q qualifiers)
+        advancementJson, // Per-round advancement JSON
         isMultiEvent,   // Auto-detected from event name
       });
     }
@@ -965,14 +981,14 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       let insertedEvents: any[];
       if (isEdgeMode && sqliteDb) {
         const upsertStmt = sqliteDb.prepare(`
-          INSERT INTO events (id, meet_id, event_number, name, event_type, gender, distance, status, num_rounds, num_lanes, event_date, event_time, session_name, hytek_status, is_scored, advance_by_place, advance_by_time, is_multi_event)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO events (id, meet_id, event_number, name, event_type, gender, distance, status, num_rounds, num_lanes, event_date, event_time, session_name, hytek_status, is_scored, advance_by_place, advance_by_time, advancement_json, is_multi_event)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(meet_id, event_number) DO UPDATE SET
             name=excluded.name, event_type=excluded.event_type, gender=excluded.gender, distance=excluded.distance,
             status=excluded.status, num_rounds=excluded.num_rounds, num_lanes=excluded.num_lanes, event_date=excluded.event_date,
             event_time=excluded.event_time, session_name=excluded.session_name, hytek_status=excluded.hytek_status,
             is_scored=excluded.is_scored, advance_by_place=excluded.advance_by_place, advance_by_time=excluded.advance_by_time,
-            is_multi_event=excluded.is_multi_event
+            advancement_json=excluded.advancement_json, is_multi_event=excluded.is_multi_event
         `);
         const insertMany = sqliteDb.transaction((items: any[]) => {
           for (const item of items) {
@@ -981,7 +997,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
               item.distance, item.status, item.numRounds, item.numLanes,
               item.eventDate instanceof Date ? item.eventDate.toISOString().split('T')[0] : item.eventDate,
               item.eventTime, item.sessionName, item.hytekStatus, item.isScored ? 1 : 0,
-              item.advanceByPlace, item.advanceByTime, item.isMultiEvent ? 1 : 0
+              item.advanceByPlace, item.advanceByTime, item.advancementJson, item.isMultiEvent ? 1 : 0
             );
           }
         });
@@ -1043,6 +1059,10 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       console.log(`   📝 Events with HyTek status: ${eventBatch.filter(e => e.hytekStatus).length}`);
       console.log(`   🏃 Multi-round events: ${eventBatch.filter(e => e.numRounds > 1).length}`);
       console.log(`   🎯 Events with advancement formula: ${eventBatch.filter(e => e.advanceByPlace || e.advanceByTime).length}`);
+      console.log(`   🎯 Events with per-round advancement JSON: ${eventBatch.filter(e => e.advancementJson).length}`);
+      eventBatch.filter(e => e.advancementJson).forEach(e => {
+        console.log(`      📋 Event #${e.eventNumber} (${e.name}): ${e.advancementJson}`);
+      });
     }
   } catch (error) {
     console.error("   ❌ Error importing events:", error);
