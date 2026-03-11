@@ -623,6 +623,8 @@ export function SceneObjectRenderer({
       case "text":
         const fieldKey = dataBinding.fieldKey as string | undefined;
         let textContent = componentConfig.text || componentConfig.textContent || componentConfig.dynamicText;
+        // Hoist recordTag so it's available for badge rendering outside the fieldMap block
+        let hoistedRecordTag = '';
         
         // Check hideWhenFieldNonNumeric - hide this element if a related field has non-numeric data
         // Useful for hiding "PL:" label when place shows DNF, DNS, DQ, etc.
@@ -892,6 +894,8 @@ export function SceneObjectRenderer({
           } else if (athleteSB) {
             recordTag = 'SB';
           }
+          // Hoist so badge rendering can use it outside this block
+          hoistedRecordTag = recordTag;
           
           const fieldMap: Record<string, any> = {
             'event-name': eventName,
@@ -1023,60 +1027,9 @@ export function SceneObjectRenderer({
           }
         }
         
-        // Check if this is a field that should show the record tag badge (MR > FR > PB > SB)
-        // Show badge on: name, last-name, name-record-tag, last-name-record-tag, record-tag
-        const isRecordTagField = fieldKey === 'name' || fieldKey === 'last-name' || fieldKey === 'name-record-tag' || fieldKey === 'last-name-record-tag' || fieldKey === 'record-tag';
-        let recordTagBadge: string | null = null;
-        if (isRecordTagField && liveData) {
-          const entries = Array.isArray(liveData.entries) ? liveData.entries : [];
-          const rtIdx = (dataBinding.athleteIndex || 0) + pageOffset;
-          const rtEntry = entries[rtIdx];
-          
-          // Use server-enriched recordTags first (most reliable), fall back to name-matching
-          const serverTags = rtEntry?.recordTags as string[] | undefined;
-          if (serverTags && serverTags.length > 0) {
-            // Server already computed priority: first tag is highest priority
-            recordTagBadge = serverTags[0];
-          } else {
-            // Fallback: determine the tag from eventRecords + athleteBests
-            // Priority: MR > FR > PB > SB
-            let thisMR = false;
-            let thisFR = false;
-            let thisPB = false;
-            let thisSB = false;
-            
-            if (eventRecords.length > 0 && rtEntry) {
-              const meetRec = eventRecords.find((r: any) => r.bookScope === 'meet');
-              const facRec = eventRecords.find((r: any) => r.bookScope === 'facility');
-              const eLast = (rtEntry.lastName || '').toLowerCase();
-              const eName = (rtEntry.name || '').toLowerCase();
-              if (meetRec) {
-                const h = (meetRec.athleteName || '').toLowerCase();
-                if ((eLast && h.includes(eLast)) || (eName && h.includes(eName))) thisMR = true;
-              }
-              if (facRec) {
-                const h = (facRec.athleteName || '').toLowerCase();
-                if ((eLast && h.includes(eLast)) || (eName && h.includes(eName))) thisFR = true;
-              }
-            }
-            
-            if (rtEntry && athleteBests.length > 0) {
-              const aid = rtEntry.athleteId;
-              if (aid) {
-                const bests = athleteBests.filter((b: any) => b.athleteId === aid);
-                for (const b of bests) {
-                  if (b.bestType === 'college' && b.mark) thisPB = true;
-                  if (b.bestType === 'season' && b.mark) thisSB = true;
-                }
-              }
-            }
-            
-            if (thisMR) recordTagBadge = 'MR';
-            else if (thisFR) recordTagBadge = 'FR';
-            else if (thisPB) recordTagBadge = 'PB';
-            else if (thisSB) recordTagBadge = 'SB';
-          }
-        }
+        // Use the hoisted recordTag for badge display on name fields
+        const isNameField = fieldKey === 'name' || fieldKey === 'last-name' || fieldKey === 'name-record-tag' || fieldKey === 'last-name-record-tag' || fieldKey === 'record-tag';
+        const recordTagBadge = (isNameField && hoistedRecordTag) ? hoistedRecordTag : null;
         
         return (
           <div 
@@ -1127,15 +1080,19 @@ export function SceneObjectRenderer({
             )}
             {recordTagBadge && (
               <span 
-                className="ml-4 px-3 py-1 rounded font-bold"
+                className="ml-4 px-3 py-1 rounded-md font-bold"
                 style={{
-                  backgroundColor: recordTagBadge === 'MR' ? '#b91c1c' 
+                  backgroundColor: recordTagBadge === 'MR' ? '#dc2626' 
                     : recordTagBadge === 'FR' ? '#7c3aed' 
                     : recordTagBadge === 'PB' ? '#0369a1' 
                     : '#ca8a04',
                   color: '#ffffff',
-                  fontSize: `calc(${resolvedFontSize} * 0.65)`,
+                  fontSize: `calc(${resolvedFontSize} * 0.55)`,
                   letterSpacing: '0.05em',
+                  padding: '2px 8px',
+                  verticalAlign: 'middle',
+                  display: 'inline-flex',
+                  alignItems: 'center',
                 }}
               >
                 {recordTagBadge}
