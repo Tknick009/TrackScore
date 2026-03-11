@@ -39,7 +39,6 @@ export const EVENT_TYPE_CATEGORIES = {
     '4x100m', '4x400m',
     // Non-standard but common event types from MDB imports
     '1m', 'mile', '1mile', '4x800m', '4000m',
-    'heptathlon', 'decathlon', 'pentathlon', 'ipentathlon', 'combined_event',
     '300m', '500m', '600m',
   ] as const,
   DISTANCE_EVENTS: [
@@ -49,9 +48,23 @@ export const EVENT_TYPE_CATEGORIES = {
   HEIGHT_EVENTS: [
     'high_jump', 'pole_vault',
   ] as const,
+  // Multi-event / combined events use point totals where HIGHER is better
+  POINTS_EVENTS: [
+    'heptathlon', 'decathlon', 'pentathlon', 'ipentathlon', 'combined_event',
+  ] as const,
 } as const;
 
+export function isPointsEvent(eventType: string): boolean {
+  if (EVENT_TYPE_CATEGORIES.POINTS_EVENTS.includes(eventType as any)) return true;
+  // Fallback: check for common multi-event patterns
+  const lower = eventType.toLowerCase();
+  const pointsPatterns = ['heptathlon', 'decathlon', 'pentathlon', 'combined'];
+  return pointsPatterns.some(p => lower.includes(p));
+}
+
 export function isTimeEvent(eventType: string): boolean {
+  // Points events (multi-events) use "higher is better" — not time events
+  if (isPointsEvent(eventType)) return false;
   if (EVENT_TYPE_CATEGORIES.TIME_EVENTS.includes(eventType as any)) return true;
   // Fallback: if it's not a known field event, assume it's a time event
   // This handles non-standard event types like '1m' (mile), relay variants, etc.
@@ -61,7 +74,7 @@ export function isTimeEvent(eventType: string): boolean {
   // Check for common field event patterns
   const fieldPatterns = ['jump', 'vault', 'put', 'throw', 'discus', 'javelin', 'hammer'];
   if (fieldPatterns.some(p => lower.includes(p))) return false;
-  // Default: assume time event (tracks/runs/dashes/hurdles/relays/combined)
+  // Default: assume time event (tracks/runs/dashes/hurdles/relays)
   return true;
 }
 

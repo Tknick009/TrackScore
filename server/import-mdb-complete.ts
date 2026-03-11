@@ -928,16 +928,38 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         if (row.Next_Best1 !== null && row.Next_Best1 !== undefined) {
           advanceByTime = Number(row.Next_Best1) || null;
         }
-        // Build per-round advancement JSON for all rounds
+        // Build per-round advancement JSON — keys must match the dataRounds mapping
+        // in displays.ts so that the correct advancement data is found for each round.
+        // HyTek stores: Top_no1/Next_Best1 = round 1→2, Top_no2/Next_Best2 = round 2→3, Top_no3/Next_Best3 = round 3→4
+        // displays.ts dataRounds mapping:
+        //   2 rounds: ['preliminary', 'final']
+        //   3 rounds: ['preliminary', 'semifinal', 'final']  (skips quarterfinal)
+        //   4 rounds: ['preliminary', 'quarterfinal', 'semifinal', 'final']
         const advancement: Record<string, { place: number; time: number }> = {};
-        if (row.Top_no1 || row.Next_Best1) {
-          advancement.preliminary = { place: Number(row.Top_no1) || 0, time: Number(row.Next_Best1) || 0 };
-        }
-        if (row.Top_no2 || row.Next_Best2) {
-          advancement.quarterfinal = { place: Number(row.Top_no2) || 0, time: Number(row.Next_Best2) || 0 };
-        }
-        if (row.Top_no3 || row.Next_Best3) {
-          advancement.semifinal = { place: Number(row.Top_no3) || 0, time: Number(row.Next_Best3) || 0 };
+        if (numRounds === 2) {
+          // 2 rounds: Top_no1 = prelims→final
+          if (row.Top_no1 || row.Next_Best1) {
+            advancement.preliminary = { place: Number(row.Top_no1) || 0, time: Number(row.Next_Best1) || 0 };
+          }
+        } else if (numRounds === 3) {
+          // 3 rounds: Top_no1 = prelims→semis, Top_no2 = semis→finals
+          if (row.Top_no1 || row.Next_Best1) {
+            advancement.preliminary = { place: Number(row.Top_no1) || 0, time: Number(row.Next_Best1) || 0 };
+          }
+          if (row.Top_no2 || row.Next_Best2) {
+            advancement.semifinal = { place: Number(row.Top_no2) || 0, time: Number(row.Next_Best2) || 0 };
+          }
+        } else {
+          // 4 rounds: Top_no1 = prelims→quarters, Top_no2 = quarters→semis, Top_no3 = semis→finals
+          if (row.Top_no1 || row.Next_Best1) {
+            advancement.preliminary = { place: Number(row.Top_no1) || 0, time: Number(row.Next_Best1) || 0 };
+          }
+          if (row.Top_no2 || row.Next_Best2) {
+            advancement.quarterfinal = { place: Number(row.Top_no2) || 0, time: Number(row.Next_Best2) || 0 };
+          }
+          if (row.Top_no3 || row.Next_Best3) {
+            advancement.semifinal = { place: Number(row.Top_no3) || 0, time: Number(row.Next_Best3) || 0 };
+          }
         }
         if (Object.keys(advancement).length > 0) {
           advancementJson = JSON.stringify(advancement);
