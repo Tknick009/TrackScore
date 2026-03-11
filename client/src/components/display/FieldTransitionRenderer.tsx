@@ -111,23 +111,19 @@ export function FieldTransitionRenderer({
 
   // Merge all data sources: primary liveData + all port-specific data
   // This ensures the curtain triggers for ANY field port, not just the device's primary port.
-  // IMPORTANT: Skip data sources that are in "standings" or "field_standings" mode —
-  // those cycle through athletes automatically and should NOT trigger curtain animations.
+  // Skip auto-standings data (isStandings=true / mode="field_standings") — those are from
+  // the server-side LFF parser, not live FieldLynx call-ups.
   const mergedLiveData = useMemo(() => {
     const allSources: Array<{ entries?: any[]; results?: any[] }> = [];
     if (liveData) {
       const ld = liveData as any;
-      // Skip standings-mode data: FieldLynx sends mode="standings" when cycling through
-      // athletes in standings display, and auto-standings sends isStandings=true / mode="field_standings"
-      const isStandingsData = ld.isStandings || ld.mode === 'standings' || ld.mode === 'field_standings';
-      if (!isStandingsData) allSources.push(liveData);
+      if (!ld.isStandings && ld.mode !== 'field_standings') allSources.push(liveData);
     }
     if (liveEventDataByPort) {
       for (const portData of Object.values(liveEventDataByPort)) {
         if (portData) {
           const pd = portData as any;
-          const isStandingsData = pd.isStandings || pd.mode === 'standings' || pd.mode === 'field_standings';
-          if (!isStandingsData) allSources.push(portData);
+          if (!pd.isStandings && pd.mode !== 'field_standings') allSources.push(portData);
         }
       }
     }
@@ -154,16 +150,23 @@ export function FieldTransitionRenderer({
       }
 
       // Strategy 1: Horizontal events — find entry with no mark (athlete is "up")
+      // Skip entries that have orderOfDraw/orderOfDrawName — those come from FieldLynx's
+      // cycling standings display (port 4561) which rotates through athletes every ~10s.
+      // Real call-up entries (port 4560) don't have these fields.
       if (!calledUp) {
-        const found = entries.find((r: any) => !r.mark || String(r.mark).trim() === '');
+        const found = entries.find((r: any) =>
+          (!r.mark || String(r.mark).trim() === '') && !r.orderOfDraw && !r.orderOfDrawName
+        );
         if (found) calledUp = found;
       }
 
       // Strategy 2: Vertical events — find a newly appeared bib/name
       // (FieldLynx adds the "up" athlete to the list when their turn starts)
       // Skip on initial load: seenBibsRef is empty so ALL entries look new.
+      // Also skip entries with orderOfDraw (cycling standings data from port 4561).
       if (!calledUp && !initialLoadRef.current) {
         for (const r of entries) {
+          if (r.orderOfDraw || r.orderOfDrawName) continue;
           const id = r.bib ? String(r.bib) : r.name ? String(r.name) : '';
           if (id && !seenBibsRef.current.has(id)) {
             calledUp = r;
