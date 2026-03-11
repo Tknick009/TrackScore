@@ -63,6 +63,11 @@ export function FieldTransitionRenderer({
   // Cache fetched team colors/logos by school name so subsequent curtain animations
   // for the same school start with the correct color instead of the default blue.
   const teamCacheRef = useRef<Map<string, { primary: string; secondary: string; logo: string | null }>>(new Map());
+  // Cooldown: prevent curtain from firing more than once every 5 seconds.
+  // The full animation cycle takes ~2.3s; this adds buffer to prevent rapid re-triggers
+  // from data fluctuations even if standings filtering misses an edge case.
+  const lastCurtainTimeRef = useRef<number>(0);
+  const CURTAIN_COOLDOWN_MS = 5000;
 
   const clearTimers = useCallback(() => {
     timersRef.current.forEach(clearTimeout);
@@ -105,13 +110,25 @@ export function FieldTransitionRenderer({
   useEffect(() => () => clearTimers(), [clearTimers]);
 
   // Merge all data sources: primary liveData + all port-specific data
-  // This ensures the curtain triggers for ANY field port, not just the device's primary port
+  // This ensures the curtain triggers for ANY field port, not just the device's primary port.
+  // IMPORTANT: Skip data sources that are in "standings" or "field_standings" mode —
+  // those cycle through athletes automatically and should NOT trigger curtain animations.
   const mergedLiveData = useMemo(() => {
     const allSources: Array<{ entries?: any[]; results?: any[] }> = [];
-    if (liveData) allSources.push(liveData);
+    if (liveData) {
+      const ld = liveData as any;
+      // Skip standings-mode data: FieldLynx sends mode="standings" when cycling through
+      // athletes in standings display, and auto-standings sends isStandings=true / mode="field_standings"
+      const isStandingsData = ld.isStandings || ld.mode === 'standings' || ld.mode === 'field_standings';
+      if (!isStandingsData) allSources.push(liveData);
+    }
     if (liveEventDataByPort) {
       for (const portData of Object.values(liveEventDataByPort)) {
-        if (portData) allSources.push(portData);
+        if (portData) {
+          const pd = portData as any;
+          const isStandingsData = pd.isStandings || pd.mode === 'standings' || pd.mode === 'field_standings';
+          if (!isStandingsData) allSources.push(portData);
+        }
       }
     }
     return allSources;
@@ -169,7 +186,13 @@ export function FieldTransitionRenderer({
       ? String(calledUp.name)
       : '';
     if (!calledId || calledId === prevCalledBibRef.current) return;
+
+    // Cooldown guard: prevent rapid re-triggering even if a new athlete is detected
+    const now = Date.now();
+    if (now - lastCurtainTimeRef.current < CURTAIN_COOLDOWN_MS) return;
+
     prevCalledBibRef.current = calledId;
+    lastCurtainTimeRef.current = now;
 
     const school = calledUp.affiliation || calledUp.team || '';
 
