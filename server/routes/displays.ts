@@ -1266,7 +1266,14 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
     const hasLFF = latestRoundFiles.some(f => f.ext === 'lff');
     
     let eventName = '';
-    let isFieldEvent = false;
+    
+    // Determine if this is a field event from the DB event data, not just file extension.
+    // Field events can have LIF files with certain FinishLynx configs, so relying on
+    // !hasLIF && hasLFF would sort field results ascending (wrong — higher is better).
+    const allEvents = await storage.getEventsByMeetId(meetId);
+    const dbEvent = allEvents.find(e => e.eventNumber === evtNum);
+    const FIELD_EVENT_TYPES = ['high_jump', 'pole_vault', 'long_jump', 'triple_jump', 'shot_put', 'discus', 'javelin', 'hammer', 'weight_throw'];
+    let isFieldEvent = (dbEvent && FIELD_EVENT_TYPES.includes(dbEvent.eventType || '')) || false;
     
     interface WinnerCandidate {
       place: number; mark: number | null; firstName: string; lastName: string;
@@ -1296,7 +1303,8 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
     // Use LIF (track) if available; only fall back to LFF (field) when no LIF files exist.
     // This prevents duplicate candidates and incorrect sort direction when both types exist.
     if (!hasLIF && hasLFF) {
-      isFieldEvent = true;
+      // If we couldn't determine from DB, at least mark as field when only LFF files exist
+      if (!isFieldEvent) isFieldEvent = true;
       const lffFiles = latestRoundFiles.filter(f => f.ext === 'lff').sort((a, b) => a.heat - b.heat);
       for (const fileInfo of lffFiles) {
         try {
@@ -1342,8 +1350,6 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
     
     // Enrich with DB data
     const athletes = await storage.getAthletesByMeetId(meetId);
-    const allEvents = await storage.getEventsByMeetId(meetId);
-    const dbEvent = allEvents.find(e => e.eventNumber === evtNum);
     
     const bibToAthlete = new Map<number, any>();
     for (const a of athletes) {
