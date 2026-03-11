@@ -398,16 +398,20 @@ async function enrichEntriesWithRecordTags(eventType: string, gender: string, en
         }
       }
 
-      // Check PB (Personal Best / College Best)
+      // Check PB (Personal Best / College Best) and SB (Season Best)
+      // PB takes priority: if athlete beats their college best, show PB only (not SB)
+      // If athlete only beats their season best, show SB
       const athleteBests = bestsByAthlete.get(entry.athleteId);
       if (athleteBests) {
+        let isPB = false;
         if (athleteBests.college !== null) {
           if (isTime ? markInBaseUnits < athleteBests.college : markInBaseUnits > athleteBests.college) {
             tags.push('PB');
+            isPB = true;
           }
         }
-        // Check SB (Season Best)
-        if (athleteBests.season !== null) {
+        // Only show SB if not already a PB
+        if (!isPB && athleteBests.season !== null) {
           if (isTime ? markInBaseUnits < athleteBests.season : markInBaseUnits > athleteBests.season) {
             tags.push('SB');
           }
