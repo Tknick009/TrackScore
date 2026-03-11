@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, useLocation } from "wouter";
-import { Settings, Image, X, Save, MapPin, Calendar as CalendarIcon, Palette, RotateCcw, FileText, Check, AlertCircle, Database, Trash2, AlertTriangle, FolderOpen, Upload, Trophy, User, ExternalLink } from "lucide-react";
+import { Settings, Image, X, Save, MapPin, Calendar as CalendarIcon, Palette, RotateCcw, FileText, Check, AlertCircle, Database, Trash2, AlertTriangle, FolderOpen, Upload, Trophy, User, ExternalLink, Medal, Edit2, Eye, EyeOff, ChevronDown, ChevronRight } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import type { Meet } from "@shared/schema";
@@ -16,6 +16,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { LOGO_EFFECTS, type LogoEffect, getLogoEffectStyle } from "@/lib/logoEffects";
 
 const DEFAULT_COLORS = {
@@ -1299,6 +1302,8 @@ export default function MeetSetup() {
         </CardContent>
       </Card>
 
+      <RecordBooksSection />
+
       <ResetMeetSection meetId={meetId!} />
 
       <Card data-testid="card-meet-code">
@@ -1317,6 +1322,318 @@ export default function MeetSetup() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+// ============= RECORD BOOKS MANAGEMENT =============
+
+type RecordBookRecord = {
+  id: number;
+  eventType: string;
+  gender: string;
+  performance: string;
+  athleteName: string;
+  team: string | null;
+  date: string | null;
+  notes: string | null;
+};
+
+type RecordBookWithRecords = {
+  id: number;
+  name: string;
+  description: string | null;
+  scope: string;
+  isActive: boolean;
+  records: RecordBookRecord[];
+};
+
+const SCOPE_OPTIONS = [
+  { value: 'meet', label: 'Meet Record', color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' },
+  { value: 'facility', label: 'Facility Record', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' },
+  { value: 'national', label: 'National Record', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' },
+  { value: 'international', label: 'International Record', color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' },
+  { value: 'custom', label: 'Custom', color: 'bg-gray-100 text-gray-800 dark:bg-gray-700/30 dark:text-gray-300' },
+];
+
+function RecordBooksSection() {
+  const { toast } = useToast();
+  const [expandedBooks, setExpandedBooks] = useState<Set<number>>(new Set());
+  const [editingBook, setEditingBook] = useState<number | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editScope, setEditScope] = useState('');
+
+  const { data: recordBooks = [], isLoading } = useQuery<RecordBookWithRecords[]>({
+    queryKey: ['/api/record-books', 'all'],
+    queryFn: () => fetch('/api/record-books?all=true').then(r => r.json()),
+  });
+
+  const updateBookMutation = useMutation({
+    mutationFn: async ({ id, updates }: { id: number; updates: { name?: string; scope?: string; isActive?: boolean } }) => {
+      const res = await fetch(`/api/record-books/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/record-books'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/records/all'] });
+      toast({ title: 'Record book updated' });
+      setEditingBook(null);
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Failed to update record book', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  const deleteBookMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/record-books/${id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Failed to delete');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/record-books'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/records/all'] });
+      toast({ title: 'Record book deleted' });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Failed to delete record book', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  const toggleExpand = (bookId: number) => {
+    setExpandedBooks(prev => {
+      const next = new Set(prev);
+      if (next.has(bookId)) next.delete(bookId);
+      else next.add(bookId);
+      return next;
+    });
+  };
+
+  const startEdit = (book: RecordBookWithRecords) => {
+    setEditingBook(book.id);
+    setEditName(book.name);
+    setEditScope(book.scope);
+  };
+
+  const saveEdit = (bookId: number) => {
+    updateBookMutation.mutate({ id: bookId, updates: { name: editName, scope: editScope } });
+  };
+
+  const getScopeInfo = (scope: string) => {
+    return SCOPE_OPTIONS.find(s => s.value === scope) || SCOPE_OPTIONS[4]; // default to custom
+  };
+
+  const totalRecords = recordBooks.reduce((sum, book) => sum + book.records.length, 0);
+
+  return (
+    <Card data-testid="card-record-books">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Medal className="w-5 h-5" />
+          Record Books
+        </CardTitle>
+        <CardDescription>
+          Records imported from HyTek MDB. Edit names and types for unknown tags, toggle visibility on schedule.
+          {totalRecords > 0 && (
+            <span className="ml-1 font-medium">
+              ({recordBooks.length} book{recordBooks.length !== 1 ? 's' : ''}, {totalRecords} record{totalRecords !== 1 ? 's' : ''})
+            </span>
+          )}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {isLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+          </div>
+        ) : recordBooks.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-4 text-center">
+            No record books found. Records will appear here after importing a HyTek MDB database that contains records.
+          </p>
+        ) : (
+          recordBooks.map((book) => {
+            const scopeInfo = getScopeInfo(book.scope);
+            const isExpanded = expandedBooks.has(book.id);
+            const isEditing = editingBook === book.id;
+            const isUnknown = book.scope === 'custom' && book.name.startsWith('Record Book (Tag');
+
+            return (
+              <div
+                key={book.id}
+                className={cn(
+                  'rounded-lg border',
+                  !book.isActive && 'opacity-60',
+                  isUnknown && 'border-yellow-400/50 bg-yellow-50/50 dark:bg-yellow-900/10',
+                )}
+              >
+                {/* Book header */}
+                <div className="flex items-center gap-2 p-3">
+                  <button
+                    onClick={() => toggleExpand(book.id)}
+                    className="flex items-center gap-1 text-muted-foreground hover:text-foreground"
+                  >
+                    {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                  </button>
+
+                  {isEditing ? (
+                    <div className="flex-1 flex items-center gap-2 flex-wrap">
+                      <Input
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        className="w-48 h-8 text-sm"
+                        placeholder="Book name"
+                      />
+                      <Select value={editScope} onValueChange={setEditScope}>
+                        <SelectTrigger className="w-44 h-8 text-sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {SCOPE_OPTIONS.map((opt) => (
+                            <SelectItem key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => saveEdit(book.id)} disabled={updateBookMutation.isPending}>
+                        <Save className="w-3 h-3 mr-1" />
+                        Save
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingBook(null)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex-1 flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-sm">{book.name}</span>
+                      <Badge variant="outline" className={cn('text-[10px] px-1.5 py-0', scopeInfo.color)}>
+                        {scopeInfo.label}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        ({book.records.length} record{book.records.length !== 1 ? 's' : ''})
+                      </span>
+                      {isUnknown && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300 border-yellow-400/50">
+                          Unknown Tag — Click Edit to Map
+                        </Badge>
+                      )}
+                    </div>
+                  )}
+
+                  {!isEditing && (
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0"
+                              onClick={() => startEdit(book)}
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Edit name & type</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center gap-1.5">
+                              <Switch
+                                checked={book.isActive}
+                                onCheckedChange={(checked) => {
+                                  updateBookMutation.mutate({ id: book.id, updates: { isActive: checked } });
+                                }}
+                                className="scale-75"
+                              />
+                              {book.isActive ? <Eye className="w-3.5 h-3.5 text-green-600" /> : <EyeOff className="w-3.5 h-3.5 text-muted-foreground" />}
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>{book.isActive ? 'Visible on schedule' : 'Hidden from schedule'}</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete "{book.name}"?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will permanently delete this record book and all {book.records.length} record{book.records.length !== 1 ? 's' : ''} in it.
+                              Records will be re-imported on the next MDB update.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => deleteBookMutation.mutate(book.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  )}
+                </div>
+
+                {/* Expanded records table */}
+                {isExpanded && book.records.length > 0 && (
+                  <div className="border-t px-3 pb-3">
+                    <table className="w-full text-xs mt-2">
+                      <thead>
+                        <tr className="text-muted-foreground border-b">
+                          <th className="text-left py-1 pr-2 font-medium">Event</th>
+                          <th className="text-left py-1 pr-2 font-medium">Gender</th>
+                          <th className="text-left py-1 pr-2 font-medium">Performance</th>
+                          <th className="text-left py-1 pr-2 font-medium">Athlete</th>
+                          <th className="text-left py-1 pr-2 font-medium">Team</th>
+                          <th className="text-left py-1 font-medium">Date</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {book.records.map((rec) => (
+                          <tr key={rec.id} className="border-b border-muted/50 last:border-0">
+                            <td className="py-1.5 pr-2 font-mono">{rec.eventType}</td>
+                            <td className="py-1.5 pr-2">{rec.gender}</td>
+                            <td className="py-1.5 pr-2 font-mono font-medium">{rec.performance}</td>
+                            <td className="py-1.5 pr-2">{rec.athleteName}</td>
+                            <td className="py-1.5 pr-2 text-muted-foreground">{rec.team || '—'}</td>
+                            <td className="py-1.5 text-muted-foreground">
+                              {rec.date ? new Date(rec.date).toLocaleDateString() : '—'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {isExpanded && book.records.length === 0 && (
+                  <div className="border-t px-3 py-3 text-xs text-muted-foreground text-center">
+                    No records in this book
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

@@ -692,6 +692,73 @@ export function registerLayoutsScenesRoutes(app: Express, ctx: RouteContext) {
     }
   });
 
+  // ============= RECORD BOOKS MANAGEMENT =============
+  
+  // Get all record books (including inactive) with their records
+  app.get('/api/record-books', async (req, res) => {
+    try {
+      const includeInactive = req.query.all === 'true';
+      const books = includeInactive 
+        ? await storage.getAllRecordBooks()
+        : await storage.getRecordBooks();
+      
+      // Fetch records for each book
+      const booksWithRecords = [];
+      for (const book of books) {
+        const bookWithRecords = await storage.getRecordBook(book.id);
+        if (bookWithRecords) {
+          // Normalize gender in records for display
+          const normalizedRecords = bookWithRecords.records.map(rec => ({
+            ...rec,
+            gender: rec.gender === 'male' ? 'M' : rec.gender === 'female' ? 'W' : rec.gender,
+          }));
+          booksWithRecords.push({ ...bookWithRecords, records: normalizedRecords });
+        }
+      }
+      
+      res.json(booksWithRecords);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Update a record book (name, scope, active status)
+  app.patch('/api/record-books/:id', async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { name, scope, isActive } = req.body;
+      
+      const updates: any = {};
+      if (name !== undefined) updates.name = name;
+      if (scope !== undefined) {
+        const validScopes = ['facility', 'meet', 'national', 'international', 'custom'];
+        if (!validScopes.includes(scope)) {
+          return res.status(400).json({ error: `Invalid scope. Must be one of: ${validScopes.join(', ')}` });
+        }
+        updates.scope = scope;
+      }
+      if (isActive !== undefined) updates.isActive = isActive;
+      
+      const updated = await storage.updateRecordBook(id, updates);
+      if (!updated) {
+        return res.status(404).json({ error: 'Record book not found' });
+      }
+      res.json(updated);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Delete a record book and all its records
+  app.delete('/api/record-books/:id', async (req, res) => {
+    try {
+      await storage.deleteRecordBook(parseInt(req.params.id));
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Get all active records with book info (for schedule display)
   app.get('/api/records/all', async (req, res) => {
     try {

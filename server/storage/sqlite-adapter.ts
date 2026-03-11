@@ -2556,6 +2556,11 @@ export class SQLiteStorage implements IStorage {
     return rows.map((row: any) => this.mapRecordBookRow(row));
   }
 
+  async getAllRecordBooks(): Promise<SelectRecordBook[]> {
+    const rows = this.db.prepare('SELECT * FROM record_books').all();
+    return rows.map((row: any) => this.mapRecordBookRow(row));
+  }
+
   async getRecordBook(id: number): Promise<RecordBookWithRecords | null> {
     const row = this.db.prepare('SELECT * FROM record_books WHERE id = ?').get(id);
     if (!row) return null;

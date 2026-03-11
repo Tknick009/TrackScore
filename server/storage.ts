@@ -322,6 +322,7 @@ export interface IStorage {
 
   // Record Books
   getRecordBooks(): Promise<SelectRecordBook[]>;
+  getAllRecordBooks(): Promise<SelectRecordBook[]>;
   getRecordBook(id: number): Promise<RecordBookWithRecords | null>;
   createRecordBook(book: InsertRecordBook): Promise<SelectRecordBook>;
   updateRecordBook(id: number, updates: Partial<InsertRecordBook>): Promise<SelectRecordBook | undefined>;
@@ -1824,6 +1825,10 @@ export class DatabaseStorage implements IStorage {
   // Record Books
   async getRecordBooks(): Promise<SelectRecordBook[]> {
     return db.select().from(recordBooks).where(eq(recordBooks.isActive, true));
+  }
+
+  async getAllRecordBooks(): Promise<SelectRecordBook[]> {
+    return db.select().from(recordBooks);
   }
 
   async getRecordBook(id: number): Promise<RecordBookWithRecords | null> {
