@@ -1964,40 +1964,65 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       
       console.log(`   📝 Found ${tagGroups.size} record type(s): tag_ptrs = [${Array.from(tagGroups.keys()).join(', ')}]`);
       
-      // Try to read the HyTek RecTag table for tag abbreviations/names
-      // This maps tag_ptr -> abbreviation (e.g. "F"=Facility, "M"=Meet)
+      // Try to read the HyTek RecordTags table for tag abbreviations/names
+      // HyTek uses "RecordTags" (some older versions may use "RecTag")
+      // Fields: tag_ptr, tag_order, tag_name, tag_flag (abbreviation: F=Facility, M=Meet, C=Collegiate, etc.)
       const tagNameMap: Record<number, { name: string; scope: 'meet' | 'facility' | 'national' | 'international' | 'custom' }> = {};
-      try {
-        const recTagTable = reader.getTable('RecTag');
-        const recTagData = recTagTable.getData();
-        console.log(`   📋 RecTag table has ${recTagData.length} rows`);
-        for (const tagRow of recTagData) {
-          const ptr = Number(tagRow.tag_ptr || tagRow.Tag_ptr || 0);
-          const abbr = String(tagRow.tag_abbr || tagRow.Tag_abbr || tagRow.Abbr || tagRow.abbr || '').trim().toUpperCase();
-          const tagName = String(tagRow.tag_name || tagRow.Tag_name || tagRow.Name || tagRow.name || '').trim();
-          console.log(`   📋 RecTag: ptr=${ptr}, abbr="${abbr}", name="${tagName}"`);
-          
-          // Auto-map by abbreviation: F=Facility, M=Meet
-          if (abbr === 'F' || abbr === 'FR' || abbr.includes('FAC')) {
-            tagNameMap[ptr] = { name: tagName || 'Facility Record', scope: 'facility' };
-          } else if (abbr === 'M' || abbr === 'MR' || abbr.includes('MEET')) {
-            tagNameMap[ptr] = { name: tagName || 'Meet Record', scope: 'meet' };
-          } else if (abbr === 'N' || abbr === 'NR' || abbr.includes('NAT')) {
-            tagNameMap[ptr] = { name: tagName || 'National Record', scope: 'national' };
-          } else if (abbr === 'I' || abbr === 'IR' || abbr === 'WR' || abbr.includes('INT') || abbr.includes('WORLD')) {
-            tagNameMap[ptr] = { name: tagName || 'International Record', scope: 'international' };
-          } else if (tagName) {
-            // Has a name but unrecognized abbreviation — use the name, mark as custom
-            tagNameMap[ptr] = { name: tagName, scope: 'custom' };
+      let recTagFound = false;
+      for (const tableName of ['RecordTags', 'RecTag']) {
+        try {
+          const recTagTable = reader.getTable(tableName);
+          const recTagData = recTagTable.getData();
+          console.log(`   📋 ${tableName} table has ${recTagData.length} rows`);
+          recTagFound = true;
+          for (const tagRow of recTagData) {
+            const ptr = Number(tagRow.tag_ptr || tagRow.Tag_ptr || 0);
+            // tag_flag is the abbreviation in HyTek RecordTags (F, M, C, etc.)
+            // Also try tag_abbr for older formats
+            const abbr = String(tagRow.tag_flag || tagRow.Tag_flag || tagRow.tag_abbr || tagRow.Tag_abbr || tagRow.Abbr || tagRow.abbr || '').trim().toUpperCase();
+            const tagName = String(tagRow.tag_name || tagRow.Tag_name || tagRow.Name || tagRow.name || '').trim();
+            const tagNameUpper = tagName.toUpperCase();
+            console.log(`   📋 ${tableName}: ptr=${ptr}, flag/abbr="${abbr}", name="${tagName}"`);
+            
+            // Auto-map by flag/abbreviation first, then by tag_name string
+            if (abbr === 'F' || abbr === 'FR' || abbr.includes('FAC')) {
+              tagNameMap[ptr] = { name: tagName || 'Facility Record', scope: 'facility' };
+            } else if (abbr === 'M' || abbr === 'MR' || abbr.includes('MEET')) {
+              tagNameMap[ptr] = { name: tagName || 'Meet Record', scope: 'meet' };
+            } else if (abbr === 'N' || abbr === 'NR' || abbr.includes('NAT')) {
+              tagNameMap[ptr] = { name: tagName || 'National Record', scope: 'national' };
+            } else if (abbr === 'C' || abbr === 'CR' || abbr.includes('COL') || abbr.includes('CONF')) {
+              // Collegiate/Conference records — map to national scope (closest category)
+              tagNameMap[ptr] = { name: tagName || 'Collegiate Record', scope: 'national' };
+            } else if (abbr === 'I' || abbr === 'IR' || abbr === 'WR' || abbr.includes('INT') || abbr.includes('WORLD')) {
+              tagNameMap[ptr] = { name: tagName || 'International Record', scope: 'international' };
+            } else if (tagNameUpper.includes('FACILITY') || tagNameUpper.includes('VENUE') || tagNameUpper.includes('ARENA')) {
+              tagNameMap[ptr] = { name: tagName, scope: 'facility' };
+            } else if (tagNameUpper.includes('MEET')) {
+              tagNameMap[ptr] = { name: tagName, scope: 'meet' };
+            } else if (tagNameUpper.includes('COLLEGIATE') || tagNameUpper.includes('CONFERENCE') || tagNameUpper.includes('NCAA')) {
+              tagNameMap[ptr] = { name: tagName, scope: 'national' };
+            } else if (tagNameUpper.includes('NATIONAL') || tagNameUpper.includes('AMERICAN')) {
+              tagNameMap[ptr] = { name: tagName, scope: 'national' };
+            } else if (tagNameUpper.includes('WORLD') || tagNameUpper.includes('INTERNATIONAL') || tagNameUpper.includes('OLYMPIC')) {
+              tagNameMap[ptr] = { name: tagName, scope: 'international' };
+            } else if (tagName) {
+              // Has a name but unrecognized abbreviation — use the name, mark as custom
+              tagNameMap[ptr] = { name: tagName, scope: 'custom' };
+            }
           }
+          break; // Found and processed the table, no need to try other names
+        } catch (e) {
+          // Table not found with this name, try next
         }
-      } catch (e) {
-        console.log('   ⚠️  RecTag table not found — falling back to tag_ptr-based mapping');
       }
-      
-      // Fallback: hardcoded HyTek tag_ptr conventions if not already mapped from RecTag
-      if (!tagNameMap[6]) tagNameMap[6] = { name: 'Meet Record', scope: 'meet' };
-      if (!tagNameMap[14]) tagNameMap[14] = { name: 'Facility Record', scope: 'facility' };
+      if (!recTagFound) {
+        console.log('   ⚠️  RecordTags/RecTag table not found — falling back to tag_ptr-based mapping');
+        // Only use hardcoded fallbacks when no RecordTags table exists at all
+        // These are default HyTek conventions but can be wrong for specific meets
+        if (!tagNameMap[6]) tagNameMap[6] = { name: 'Meet Record', scope: 'meet' };
+        if (!tagNameMap[14]) tagNameMap[14] = { name: 'Facility Record', scope: 'facility' };
+      }
       
       // Default display order by scope (lower = higher priority)
       const scopeDisplayOrder: Record<string, number> = { meet: 1, facility: 2, national: 3, international: 4, custom: 5 };
