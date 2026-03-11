@@ -1028,7 +1028,10 @@ export function SceneObjectRenderer({
         }
         
         // Use the hoisted recordTag for badge display on name fields
-        const isNameField = fieldKey === 'name' || fieldKey === 'last-name' || fieldKey === 'name-record-tag' || fieldKey === 'last-name-record-tag' || fieldKey === 'record-tag';
+        // Includes qualifier fields so Q/q badge shows first, then record tag badge
+        const isNameField = fieldKey === 'name' || fieldKey === 'last-name' 
+          || fieldKey === 'name-qualifier' || fieldKey === 'last-name-qualifier'
+          || fieldKey === 'name-record-tag' || fieldKey === 'last-name-record-tag' || fieldKey === 'record-tag';
         const recordTagBadge = (isNameField && hoistedRecordTag) ? hoistedRecordTag : null;
         
         return (
