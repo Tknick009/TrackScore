@@ -286,16 +286,49 @@ async function enrichEntriesWithRecordTags(eventType: string, gender: string, en
 
     // Batch fetch athlete bests
     const bestsByAthlete: Map<string, { season: number | null; college: number | null }> = new Map();
-    // Normalize event type for matching: strip spaces, lowercase
-    const normalizeEventType = (et: string) => et.replace(/[\s_-]+/g, '').toLowerCase();
-    const normalizedEventType = normalizeEventType(eventType);
+    
+    // Canonical event type key: maps various abbreviations to a single key
+    // CSV uses short codes (800, 60H, pv, hj), DB uses full types (800m, 60m_hurdles, pole_vault, high_jump)
+    const canonicalizeEventType = (et: string): string => {
+      const lower = et.toLowerCase().replace(/[\s_-]+/g, '');
+      // Alias map: common abbreviations → canonical form
+      const aliases: Record<string, string> = {
+        // Track events - strip trailing 'm' so "800m" and "800" both become the distance
+        '60h': '60hurdles', '60mh': '60hurdles', '60hurdles': '60hurdles', '60mhurdles': '60hurdles',
+        '100h': '100hurdles', '100mh': '100hurdles', '100hurdles': '100hurdles', '100mhurdles': '100hurdles',
+        '110h': '110hurdles', '110mh': '110hurdles', '110hurdles': '110hurdles', '110mhurdles': '110hurdles',
+        '400h': '400hurdles', '400mh': '400hurdles', '400hurdles': '400hurdles', '400mhurdles': '400hurdles',
+        // Field events
+        'hj': 'highjump', 'highjump': 'highjump',
+        'pv': 'polevault', 'polevault': 'polevault',
+        'lj': 'longjump', 'longjump': 'longjump',
+        'tj': 'triplejump', 'triplejump': 'triplejump',
+        'sp': 'shotput', 'shotput': 'shotput',
+        'wt': 'weightthrow', 'weightthrow': 'weightthrow',
+        'dt': 'discus', 'discus': 'discus', 'discusthrow': 'discus',
+        'jt': 'javelin', 'javelin': 'javelin', 'javelinthrow': 'javelin',
+        'ht': 'hammer', 'hammer': 'hammer', 'hammerthrow': 'hammer',
+        // Distance aliases
+        '1mile': 'mile', 'mile': 'mile', 'onemile': 'mile',
+        '3000sc': '3000steeplechase', 'steeplechase': '3000steeplechase', '3000steeple': '3000steeplechase',
+        // Multi-events
+        'ipentathlon': 'pentathlon',
+      };
+      if (aliases[lower]) return aliases[lower];
+      // Strip trailing 'm' for numeric distances: "800m" → "800", "800" → "800"
+      const stripped = lower.replace(/m$/, '');
+      if (/^\d+$/.test(stripped)) return stripped;
+      return lower;
+    };
+    
+    const canonicalEventType = canonicalizeEventType(eventType);
     
     for (const athleteId of athleteIds) {
       try {
         const bests = await storage.getAthleteBests(athleteId);
-        // Match event type flexibly: exact match OR normalized match
+        // Match event type flexibly using canonical form
         const eventBests = bests.filter(b => 
-          b.eventType === eventType || normalizeEventType(b.eventType) === normalizedEventType
+          b.eventType === eventType || canonicalizeEventType(b.eventType) === canonicalEventType
         );
         let seasonBest: number | null = null;
         let collegeBest: number | null = null;
@@ -312,7 +345,7 @@ async function enrichEntriesWithRecordTags(eventType: string, gender: string, en
         // Log first few athletes for debugging
         if (bestsByAthlete.size < 3) {
           const allEventTypes = bests.map(b => b.eventType);
-          console.log(`[RecordTags] Athlete ${athleteId}: has ${bests.length} total bests (eventTypes: [${[...new Set(allEventTypes)].join(',')}]), filtered to ${eventBests.length} for "${eventType}", college=${collegeBest}, season=${seasonBest}`);
+          console.log(`[RecordTags] Athlete ${athleteId}: has ${bests.length} total bests (eventTypes: [${[...new Set(allEventTypes)].join(',')}]), filtered to ${eventBests.length} for "${eventType}" (canonical: "${canonicalEventType}"), college=${collegeBest}, season=${seasonBest}`);
         }
         bestsByAthlete.set(athleteId, { season: seasonBest, college: collegeBest });
       } catch {
