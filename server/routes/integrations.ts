@@ -1284,7 +1284,13 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
       const existing = await storage.getIngestionSettings(meetId);
       let settings;
       if (existing) {
-        settings = await storage.updateIngestionSettings(meetId, req.body);
+        // upsertIngestionSettings handles both insert and update — merge with existing
+        // to preserve fields not included in the request body
+        settings = await storage.upsertIngestionSettings({
+          ...existing,
+          meetId,
+          ...req.body,
+        });
       } else {
         settings = await storage.upsertIngestionSettings({
           meetId,
