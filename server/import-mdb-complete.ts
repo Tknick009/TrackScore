@@ -745,7 +745,14 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       // Determine event type from distance and track/field indicator
       let eventType = "100m"; // default
       
-      if (trkField === "F") {
+      if (trkField === "M") {
+        // Multi-events (Decathlon, Heptathlon, Pentathlon) — trkField="M" in HyTek
+        const stroke = (row.Event_stroke || "").toString().trim();
+        if (stroke === '1') eventType = 'decathlon';
+        else if (stroke === '2') eventType = 'heptathlon';
+        else if (stroke === '3') eventType = 'pentathlon';
+        else eventType = 'combined_event';
+      } else if (trkField === "F") {
         const stroke = (row.Event_stroke || "").toString().trim();
         eventType = getFieldEventType(stroke, isIndoorMeet);
       } else if (distance) {
@@ -2069,6 +2076,11 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
             const eventInfo = eventNameByPtr.get(eventPtr);
             if (!eventInfo) continue;
             
+            // Skip multi-event records — their performance values are point totals
+            // (e.g. 6639 for heptathlon), not times, and would corrupt enrichment
+            const multiEventTypes = ['decathlon', 'heptathlon', 'pentathlon', 'combined_event'];
+            if (multiEventTypes.includes(eventInfo.eventType)) continue;
+            
             const holder = String(row.Record_Holder || '').trim();
             if (!holder) continue;
             
@@ -2171,6 +2183,11 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
               const eventPtr = Number(row.event_ptr || 0);
               const eventInfo = eventNameByPtr.get(eventPtr);
               if (!eventInfo) continue;
+              
+              // Skip multi-event records — their performance values are point totals
+              // (e.g. 6639 for heptathlon), not times, and would corrupt enrichment
+              const multiEventTypes = ['decathlon', 'heptathlon', 'pentathlon', 'combined_event'];
+              if (multiEventTypes.includes(eventInfo.eventType)) continue;
               
               const holder = String(row.Record_Holder || '').trim();
               if (!holder) continue;
