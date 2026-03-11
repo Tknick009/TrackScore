@@ -60,6 +60,8 @@ export function FieldTransitionRenderer({
   // Skip Strategy 2 on the very first data load — seenBibsRef is empty so every
   // entry looks "new", which would cause a spurious curtain animation.
   const initialLoadRef = useRef(true);
+  // Track the event identifier to reset state when switching events
+  const prevEventIdRef = useRef<string>('');
   // Cache fetched team colors/logos by school name so subsequent curtain animations
   // for the same school start with the correct color instead of the default blue.
   const teamCacheRef = useRef<Map<string, { primary: string; secondary: string; logo: string | null }>>(new Map());
@@ -137,17 +139,35 @@ export function FieldTransitionRenderer({
   useEffect(() => {
     if (mergedLiveData.length === 0) return;
 
-    // Collect all current bibs/names from every data source
+    // Detect event switch: if the set of entries changes drastically (< 30% overlap),
+    // treat it as a new event and reset state to avoid spurious curtain animations.
     const currentBibs = new Set<string>();
-    let calledUp: any = null;
-
     for (const source of mergedLiveData) {
       const entries: any[] = (source as any).entries || (source as any).results || [];
-
       for (const r of entries) {
         const id = r.bib ? String(r.bib) : r.name ? String(r.name) : '';
         if (id) currentBibs.add(id);
       }
+    }
+    if (seenBibsRef.current.size > 0 && currentBibs.size > 0) {
+      let overlap = 0;
+      for (const id of currentBibs) {
+        if (seenBibsRef.current.has(id)) overlap++;
+      }
+      const overlapRatio = overlap / Math.max(seenBibsRef.current.size, currentBibs.size);
+      if (overlapRatio < 0.3) {
+        // Looks like a different event — reset tracking to avoid spurious curtain
+        seenBibsRef.current = currentBibs;
+        initialLoadRef.current = false;
+        prevCalledBibRef.current = '';
+        return;
+      }
+    }
+
+    let calledUp: any = null;
+
+    for (const source of mergedLiveData) {
+      const entries: any[] = (source as any).entries || (source as any).results || [];
 
       // Strategy 1: Horizontal events — find entry with no mark (athlete is "up")
       // Skip entries that have orderOfDraw/orderOfDrawName — those come from FieldLynx's
@@ -176,12 +196,12 @@ export function FieldTransitionRenderer({
       }
     }
 
-    // Update the seen set for next comparison
-    seenBibsRef.current = currentBibs;
-    // After first pass, allow Strategy 2 to detect genuinely new bibs
-    initialLoadRef.current = false;
-
-    if (!calledUp) return;
+    if (!calledUp) {
+      // No athlete called up — still update seen bibs for next comparison
+      seenBibsRef.current = currentBibs;
+      initialLoadRef.current = false;
+      return;
+    }
 
     const calledId = calledUp.bib
       ? String(calledUp.bib)
@@ -194,6 +214,11 @@ export function FieldTransitionRenderer({
     const now = Date.now();
     if (now - lastCurtainTimeRef.current < CURTAIN_COOLDOWN_MS) return;
 
+    // Update seen bibs and refs ONLY when we actually fire the curtain.
+    // This ensures athletes appearing during cooldown aren't permanently
+    // marked as "seen" — they'll be detected again after cooldown expires.
+    seenBibsRef.current = currentBibs;
+    initialLoadRef.current = false;
     prevCalledBibRef.current = calledId;
     lastCurtainTimeRef.current = now;
 
