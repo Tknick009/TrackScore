@@ -104,8 +104,8 @@ function cleanEventName(name: string | undefined): string | undefined {
   // Remove trailing "Run" or "Dash" (case-insensitive, with optional leading space)
   cleaned = cleaned.replace(/\s*(Run|Dash)\s*$/i, '').trim();
   // Strip "Men " / "Women " / "Men's " / "Women's " from multi-event names
-  // (Pentathlon, Heptathlon, Decathlon, etc.) — the gender is redundant for these
-  if (/pentathlon|heptathlon|decathlon|combined/i.test(cleaned)) {
+  // FinishLynx often abbreviates: "Pent", "Hept", "Dec" instead of full words
+  if (/\b(pent|hept|dec(athlon)?|combined)/i.test(cleaned)) {
     cleaned = cleaned.replace(/^(Men'?s?|Women'?s?)\s+/i, '').trim();
   }
   return cleaned;
