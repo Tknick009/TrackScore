@@ -309,7 +309,7 @@ async function enrichEntriesWithRecordTags(eventType: string, gender: string, en
         'jt': 'javelin', 'javelin': 'javelin', 'javelinthrow': 'javelin',
         'ht': 'hammer', 'hammer': 'hammer', 'hammerthrow': 'hammer',
         // Distance aliases
-        '1mile': 'mile', 'mile': 'mile', 'onemile': 'mile',
+        '1m': 'mile', '1mile': 'mile', 'mile': 'mile', 'onemile': 'mile',
         '3000sc': '3000steeplechase', 'steeplechase': '3000steeplechase', '3000steeple': '3000steeplechase',
         // Multi-events
         'ipentathlon': 'pentathlon',

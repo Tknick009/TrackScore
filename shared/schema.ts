@@ -37,6 +37,10 @@ export const EVENT_TYPE_CATEGORIES = {
     '60m', '100m', '200m', '400m', '800m', '1000m', '1500m', '3000m', '5000m', '10000m',
     '60m_hurdles', '100m_hurdles', '110m_hurdles', '400m_hurdles',
     '4x100m', '4x400m',
+    // Non-standard but common event types from MDB imports
+    '1m', 'mile', '1mile', '4x800m', '4000m',
+    'heptathlon', 'decathlon', 'pentathlon', 'ipentathlon', 'combined_event',
+    '300m', '500m', '600m',
   ] as const,
   DISTANCE_EVENTS: [
     'long_jump', 'triple_jump',
@@ -48,7 +52,17 @@ export const EVENT_TYPE_CATEGORIES = {
 } as const;
 
 export function isTimeEvent(eventType: string): boolean {
-  return EVENT_TYPE_CATEGORIES.TIME_EVENTS.includes(eventType as any);
+  if (EVENT_TYPE_CATEGORIES.TIME_EVENTS.includes(eventType as any)) return true;
+  // Fallback: if it's not a known field event, assume it's a time event
+  // This handles non-standard event types like '1m' (mile), relay variants, etc.
+  const lower = eventType.toLowerCase();
+  if (EVENT_TYPE_CATEGORIES.DISTANCE_EVENTS.includes(eventType as any)) return false;
+  if (EVENT_TYPE_CATEGORIES.HEIGHT_EVENTS.includes(eventType as any)) return false;
+  // Check for common field event patterns
+  const fieldPatterns = ['jump', 'vault', 'put', 'throw', 'discus', 'javelin', 'hammer'];
+  if (fieldPatterns.some(p => lower.includes(p))) return false;
+  // Default: assume time event (tracks/runs/dashes/hurdles/relays/combined)
+  return true;
 }
 
 export function isDistanceEvent(eventType: string): boolean {
