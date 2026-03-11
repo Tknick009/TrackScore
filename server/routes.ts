@@ -256,24 +256,25 @@ async function enrichEntriesWithRecordTags(eventType: string, gender: string, en
     // Fetch all record books for this event type and gender
     const matchingRecords = await storage.getRecordsByEvent(eventType, gender);
     console.log(`[RecordTags] Found ${matchingRecords.length} matching records for ${eventType}/${gender}`);
-    // Build a map of record book scope -> best performance (in base units)
-    const recordsByScope: Map<string, number> = new Map();
+    // Build a map of record book scope -> { performance, allowMultiple }
+    const recordsByScope: Map<string, { perf: number; allowMultiple: boolean }> = new Map();
     for (const record of matchingRecords) {
       const perf = parsePerformanceToSeconds(record.performance);
       if (perf === null) continue;
-      // Get the record book to know its scope
+      // Get the record book to know its scope and allowMultiple setting
       const book = await storage.getRecordBook(record.recordBookId);
       if (!book) continue;
       const scope = book.scope;
+      const allowMultiple = (book as any).allowMultiple ?? false;
       const existing = recordsByScope.get(scope);
       if (existing === undefined) {
-        recordsByScope.set(scope, perf);
+        recordsByScope.set(scope, { perf, allowMultiple });
       } else {
         // Keep the best record (lowest for time, highest for distance/height)
         if (isTimeEvent(eventType)) {
-          if (perf < existing) recordsByScope.set(scope, perf);
+          if (perf < existing.perf) recordsByScope.set(scope, { perf, allowMultiple });
         } else {
-          if (perf > existing) recordsByScope.set(scope, perf);
+          if (perf > existing.perf) recordsByScope.set(scope, { perf, allowMultiple });
         }
       }
     }
@@ -308,12 +309,18 @@ async function enrichEntriesWithRecordTags(eventType: string, gender: string, en
     }
 
     // Log what we found
-    for (const [scope, perf] of recordsByScope) {
-      console.log(`[RecordTags] Record scope=${scope}, performance=${perf}`);
+    for (const [scope, info] of recordsByScope) {
+      console.log(`[RecordTags] Record scope=${scope}, performance=${info.perf}, allowMultiple=${info.allowMultiple}`);
     }
     console.log(`[RecordTags] Athlete bests found for ${bestsByAthlete.size} athletes`);
 
-    // Now enrich each entry with tags
+    const isTime = isTimeEvent(eventType);
+
+    // First pass: compute all tags for each entry
+    // Then enforce allowMultiple constraints (only best breaker gets tag when false)
+    type EntryTagInfo = { entry: EntryWithDetails; mark: number; tags: string[] };
+    const entryTagInfos: EntryTagInfo[] = [];
+
     for (const entry of entries) {
       const tags: string[] = [];
       if (entry.finalMark === null || entry.finalMark === undefined) {
@@ -325,14 +332,13 @@ async function enrichEntriesWithRecordTags(eventType: string, gender: string, en
       // athlete_bests.mark is in seconds for track, meters for field
       // records.performance is parsed by parsePerformanceToSeconds (returns seconds for track, meters for field)
       const markInBaseUnits = entry.finalMark / 1000;
-      const isTime = isTimeEvent(eventType);
 
       // Check MR (Meet Record)
       const meetRecord = recordsByScope.get('meet');
       if (meetRecord !== undefined) {
-        if (isTime ? markInBaseUnits < meetRecord : markInBaseUnits > meetRecord) {
+        if (isTime ? markInBaseUnits < meetRecord.perf : markInBaseUnits > meetRecord.perf) {
           tags.push('MR');
-        } else if (Math.abs(markInBaseUnits - meetRecord) < 0.005) {
+        } else if (Math.abs(markInBaseUnits - meetRecord.perf) < 0.005) {
           tags.push('=MR');
         }
       }
@@ -340,9 +346,9 @@ async function enrichEntriesWithRecordTags(eventType: string, gender: string, en
       // Check FR (Facility Record)
       const facilityRecord = recordsByScope.get('facility');
       if (facilityRecord !== undefined) {
-        if (isTime ? markInBaseUnits < facilityRecord : markInBaseUnits > facilityRecord) {
+        if (isTime ? markInBaseUnits < facilityRecord.perf : markInBaseUnits > facilityRecord.perf) {
           tags.push('FR');
-        } else if (Math.abs(markInBaseUnits - facilityRecord) < 0.005) {
+        } else if (Math.abs(markInBaseUnits - facilityRecord.perf) < 0.005) {
           tags.push('=FR');
         }
       }
@@ -363,10 +369,48 @@ async function enrichEntriesWithRecordTags(eventType: string, gender: string, en
         }
       }
 
-      if (tags.length > 0) {
-        console.log(`[RecordTags] Athlete ${entry.athleteId}: mark=${markInBaseUnits}, tags=[${tags.join(',')}]`);
+      entryTagInfos.push({ entry, mark: markInBaseUnits, tags });
+    }
+
+    // Second pass: enforce allowMultiple constraints
+    // For scopes where allowMultiple=false, only the BEST breaker gets that tag
+    const scopeTagMap: Record<string, string[]> = {
+      'meet': ['MR', '=MR'],
+      'facility': ['FR', '=FR'],
+    };
+
+    for (const [scope, info] of recordsByScope) {
+      if (info.allowMultiple) continue; // all breakers keep their tag
+      
+      const tagsForScope = scopeTagMap[scope] || [];
+      if (tagsForScope.length === 0) continue;
+      
+      // Find the best breaker among entries that have this scope's tag
+      let bestBreaker: EntryTagInfo | null = null;
+      for (const eti of entryTagInfos) {
+        if (eti.tags.some(t => tagsForScope.includes(t))) {
+          if (!bestBreaker || (isTime ? eti.mark < bestBreaker.mark : eti.mark > bestBreaker.mark)) {
+            bestBreaker = eti;
+          }
+        }
       }
-      (entry as any).recordTags = tags;
+      
+      // Remove the tag from everyone except the best breaker
+      if (bestBreaker) {
+        for (const eti of entryTagInfos) {
+          if (eti !== bestBreaker) {
+            eti.tags = eti.tags.filter(t => !tagsForScope.includes(t));
+          }
+        }
+      }
+    }
+
+    // Assign final tags to entries
+    for (const eti of entryTagInfos) {
+      if (eti.tags.length > 0) {
+        console.log(`[RecordTags] Athlete ${eti.entry.athleteId}: mark=${eti.mark}, tags=[${eti.tags.join(',')}]`);
+      }
+      (eti.entry as any).recordTags = eti.tags;
     }
   } catch (error) {
     console.error('[RecordTags] Error enriching entries with record tags:', error);

@@ -1345,6 +1345,7 @@ type RecordBookWithRecords = {
   scope: string;
   isActive: boolean;
   displayOrder: number;
+  allowMultiple: boolean;
   records: RecordBookRecord[];
 };
 
@@ -1363,6 +1364,7 @@ function RecordBooksSection() {
   const [editName, setEditName] = useState('');
   const [editScope, setEditScope] = useState('');
   const [editPriority, setEditPriority] = useState(99);
+  const [editAllowMultiple, setEditAllowMultiple] = useState(false);
 
   const { data: recordBooks = [], isLoading } = useQuery<RecordBookWithRecords[]>({
     queryKey: ['/api/record-books', 'all'],
@@ -1370,7 +1372,7 @@ function RecordBooksSection() {
   });
 
   const updateBookMutation = useMutation({
-    mutationFn: async ({ id, updates }: { id: number; updates: { name?: string; scope?: string; isActive?: boolean; displayOrder?: number } }) => {
+    mutationFn: async ({ id, updates }: { id: number; updates: { name?: string; scope?: string; isActive?: boolean; displayOrder?: number; allowMultiple?: boolean } }) => {
       const res = await fetch(`/api/record-books/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -1423,10 +1425,11 @@ function RecordBooksSection() {
     setEditName(book.name);
     setEditScope(book.scope);
     setEditPriority(book.displayOrder ?? 99);
+    setEditAllowMultiple((book as any).allowMultiple ?? false);
   };
 
   const saveEdit = (bookId: number) => {
-    updateBookMutation.mutate({ id: bookId, updates: { name: editName, scope: editScope, displayOrder: editPriority } });
+    updateBookMutation.mutate({ id: bookId, updates: { name: editName, scope: editScope, displayOrder: editPriority, allowMultiple: editAllowMultiple } });
   };
 
   const getScopeInfo = (scope: string) => {
@@ -1517,6 +1520,16 @@ function RecordBooksSection() {
                           className="w-16 h-8 text-sm text-center"
                         />
                       </div>
+                      <div className="flex items-center gap-1.5">
+                        <Switch
+                          checked={editAllowMultiple}
+                          onCheckedChange={setEditAllowMultiple}
+                          className="scale-75"
+                        />
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">
+                          {editAllowMultiple ? 'All breakers tagged' : 'Only winner tagged'}
+                        </span>
+                      </div>
                       <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => saveEdit(book.id)} disabled={updateBookMutation.isPending}>
                         <Save className="w-3 h-3 mr-1" />
                         Save
@@ -1533,6 +1546,9 @@ function RecordBooksSection() {
                       </Badge>
                       <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-mono">
                         Priority: {book.displayOrder ?? 99}
+                      </Badge>
+                      <Badge variant="outline" className={cn('text-[10px] px-1.5 py-0', (book as any).allowMultiple ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' : '')}>
+                        {(book as any).allowMultiple ? 'All breakers' : 'Winner only'}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
                         ({book.records.length} record{book.records.length !== 1 ? 's' : ''})

@@ -180,6 +180,7 @@ export class SQLiteStorage implements IStorage {
     try { this.db.prepare('ALTER TABLE meet_ingestion_settings ADD COLUMN headshot_directory TEXT').run(); } catch(e) {}
     try { this.db.prepare("ALTER TABLE meets ADD COLUMN logo_effect TEXT DEFAULT 'none'").run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE record_books ADD COLUMN display_order INTEGER DEFAULT 99').run(); } catch(e) {}
+    try { this.db.prepare('ALTER TABLE record_books ADD COLUMN allow_multiple INTEGER DEFAULT 0').run(); } catch(e) {}
   }
 
   private createTables(): void {
@@ -546,6 +547,7 @@ export class SQLiteStorage implements IStorage {
         scope TEXT NOT NULL,
         is_active INTEGER DEFAULT 1,
         display_order INTEGER DEFAULT 99,
+        allow_multiple INTEGER DEFAULT 0,
         created_at TEXT DEFAULT (datetime('now'))
       );
 
@@ -2550,6 +2552,7 @@ export class SQLiteStorage implements IStorage {
       scope: row.scope,
       isActive: this.toBoolean(row.is_active),
       displayOrder: row.display_order ?? 99,
+      allowMultiple: this.toBoolean(row.allow_multiple),
       createdAt: row.created_at ? new Date(row.created_at) : new Date(),
     };
   }
@@ -2575,10 +2578,11 @@ export class SQLiteStorage implements IStorage {
 
   async createRecordBook(book: InsertRecordBook): Promise<SelectRecordBook> {
     const displayOrder = (book as any).displayOrder ?? this.getDefaultDisplayOrder(book.scope);
+    const allowMultiple = (book as any).allowMultiple ?? false;
     const result = this.db.prepare(`
-      INSERT INTO record_books (name, description, scope, is_active, display_order)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(book.name, book.description ?? null, book.scope, this.fromBoolean(book.isActive ?? true), displayOrder);
+      INSERT INTO record_books (name, description, scope, is_active, display_order, allow_multiple)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(book.name, book.description ?? null, book.scope, this.fromBoolean(book.isActive ?? true), displayOrder, this.fromBoolean(allowMultiple));
     
     const row = this.db.prepare('SELECT * FROM record_books WHERE id = ?').get(result.lastInsertRowid);
     return this.mapRecordBookRow(row);
@@ -2593,6 +2597,7 @@ export class SQLiteStorage implements IStorage {
     if (updates.scope !== undefined) { setClause.push('scope = ?'); values.push(updates.scope); }
     if (updates.isActive !== undefined) { setClause.push('is_active = ?'); values.push(this.fromBoolean(updates.isActive)); }
     if ((updates as any).displayOrder !== undefined) { setClause.push('display_order = ?'); values.push((updates as any).displayOrder); }
+    if ((updates as any).allowMultiple !== undefined) { setClause.push('allow_multiple = ?'); values.push(this.fromBoolean((updates as any).allowMultiple)); }
 
     if (setClause.length > 0) {
       values.push(id);

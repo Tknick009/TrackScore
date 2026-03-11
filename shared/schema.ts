@@ -1296,6 +1296,9 @@ export const recordBooks = pgTable('record_books', {
   scope: text('scope', { enum: ['facility', 'meet', 'national', 'international', 'custom'] }).notNull(),
   isActive: boolean('is_active').default(true),
   displayOrder: integer('display_order').default(99),
+  // When false (default for meet/facility), only the best performer in the event gets the tag.
+  // When true (useful for qualifying standards), all athletes who beat the standard get the tag.
+  allowMultiple: boolean('allow_multiple').default(false),
   createdAt: timestamp('created_at').defaultNow(),
 });
 
