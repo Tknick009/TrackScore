@@ -344,9 +344,9 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
                         style={{
                           fontSize: '36px',
                           padding: '2px 10px',
-                          backgroundColor: (entry as any).qualifier === 'Q' ? 'rgba(21, 128, 61, 0.35)' : 'rgba(30, 64, 175, 0.35)',
-                          color: (entry as any).qualifier === 'Q' ? '#4ade80' : '#60a5fa',
-                          border: `1px solid ${(entry as any).qualifier === 'Q' ? 'rgba(74, 222, 128, 0.5)' : 'rgba(96, 165, 250, 0.5)'}`,
+                          backgroundColor: 'rgba(21, 128, 61, 0.35)',
+                          color: '#4ade80',
+                          border: '1px solid rgba(74, 222, 128, 0.5)',
                           minWidth: '44px',
                           textAlign: 'center' as const,
                         }}
