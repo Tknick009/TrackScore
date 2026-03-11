@@ -919,13 +919,7 @@ export function SceneObjectRenderer({
             'name-qualifier-badge': qualifierStatus,
             'last-name-qualifier-badge': qualifierStatus,
             'school': schoolDisplay,
-            'time': (() => {
-              const rawTime = firstEntry?.time || firstEntry?.mark;
-              // Append record tag (MR, FR, PB, SB) directly to time/mark display
-              // This is the standard way record tags appear in track & field
-              if (rawTime && recordTag) return `${rawTime} ${recordTag}`;
-              return rawTime;
-            })(),
+            'time': firstEntry?.time || firstEntry?.mark,
             'mark-converted': firstEntry?.markConverted || '',
             'last-split': isMultiEvent && eventPoints > 0 ? `${eventPoints}` : firstEntry?.lastSplit,
             'cumulative-split': firstEntry?.cumulativeSplit,
@@ -1029,53 +1023,59 @@ export function SceneObjectRenderer({
           }
         }
         
-        // Check if this is a record-tag field to show the single priority badge (MR > FR > PB > SB)
-        const isRecordTagField = fieldKey === 'name-record-tag' || fieldKey === 'last-name-record-tag' || fieldKey === 'record-tag';
+        // Check if this is a field that should show the record tag badge (MR > FR > PB > SB)
+        // Show badge on: name, last-name, name-record-tag, last-name-record-tag, record-tag
+        const isRecordTagField = fieldKey === 'name' || fieldKey === 'last-name' || fieldKey === 'name-record-tag' || fieldKey === 'last-name-record-tag' || fieldKey === 'record-tag';
         let recordTagBadge: string | null = null;
         if (isRecordTagField && liveData) {
           const entries = Array.isArray(liveData.entries) ? liveData.entries : [];
           const rtIdx = (dataBinding.athleteIndex || 0) + pageOffset;
           const rtEntry = entries[rtIdx];
           
-          // Determine the tag for this specific athlete
-          // Priority: MR > FR > PB > SB
-          let thisMR = false;
-          let thisFR = false;
-          let thisPB = false;
-          let thisSB = false;
-          
-          // Check MR/FR: does this athlete hold the record?
-          if (eventRecords.length > 0 && rtEntry) {
-            const meetRec = eventRecords.find((r: any) => r.bookScope === 'meet');
-            const facRec = eventRecords.find((r: any) => r.bookScope === 'facility');
-            const eLast = (rtEntry.lastName || '').toLowerCase();
-            const eName = (rtEntry.name || '').toLowerCase();
-            if (meetRec) {
-              const h = (meetRec.athleteName || '').toLowerCase();
-              if ((eLast && h.includes(eLast)) || (eName && h.includes(eName))) thisMR = true;
-            }
-            if (facRec) {
-              const h = (facRec.athleteName || '').toLowerCase();
-              if ((eLast && h.includes(eLast)) || (eName && h.includes(eName))) thisFR = true;
-            }
-          }
-          
-          // Check PB/SB from imported bests
-          if (rtEntry && athleteBests.length > 0) {
-            const aid = rtEntry.athleteId;
-            if (aid) {
-              const bests = athleteBests.filter((b: any) => b.athleteId === aid);
-              for (const b of bests) {
-                if (b.bestType === 'college' && b.mark) thisPB = true;
-                if (b.bestType === 'season' && b.mark) thisSB = true;
+          // Use server-enriched recordTags first (most reliable), fall back to name-matching
+          const serverTags = rtEntry?.recordTags as string[] | undefined;
+          if (serverTags && serverTags.length > 0) {
+            // Server already computed priority: first tag is highest priority
+            recordTagBadge = serverTags[0];
+          } else {
+            // Fallback: determine the tag from eventRecords + athleteBests
+            // Priority: MR > FR > PB > SB
+            let thisMR = false;
+            let thisFR = false;
+            let thisPB = false;
+            let thisSB = false;
+            
+            if (eventRecords.length > 0 && rtEntry) {
+              const meetRec = eventRecords.find((r: any) => r.bookScope === 'meet');
+              const facRec = eventRecords.find((r: any) => r.bookScope === 'facility');
+              const eLast = (rtEntry.lastName || '').toLowerCase();
+              const eName = (rtEntry.name || '').toLowerCase();
+              if (meetRec) {
+                const h = (meetRec.athleteName || '').toLowerCase();
+                if ((eLast && h.includes(eLast)) || (eName && h.includes(eName))) thisMR = true;
+              }
+              if (facRec) {
+                const h = (facRec.athleteName || '').toLowerCase();
+                if ((eLast && h.includes(eLast)) || (eName && h.includes(eName))) thisFR = true;
               }
             }
+            
+            if (rtEntry && athleteBests.length > 0) {
+              const aid = rtEntry.athleteId;
+              if (aid) {
+                const bests = athleteBests.filter((b: any) => b.athleteId === aid);
+                for (const b of bests) {
+                  if (b.bestType === 'college' && b.mark) thisPB = true;
+                  if (b.bestType === 'season' && b.mark) thisSB = true;
+                }
+              }
+            }
+            
+            if (thisMR) recordTagBadge = 'MR';
+            else if (thisFR) recordTagBadge = 'FR';
+            else if (thisPB) recordTagBadge = 'PB';
+            else if (thisSB) recordTagBadge = 'SB';
           }
-          
-          if (thisMR) recordTagBadge = 'MR';
-          else if (thisFR) recordTagBadge = 'FR';
-          else if (thisPB) recordTagBadge = 'PB';
-          else if (thisSB) recordTagBadge = 'SB';
         }
         
         return (
