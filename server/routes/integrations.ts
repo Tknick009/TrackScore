@@ -886,8 +886,9 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     }
   };
   
-  // Check every 10 seconds for idle ports
-  setInterval(checkFieldPortsForStandings, 10000);
+  // Auto-standings disabled — feature not yet fully working.
+  // To re-enable, uncomment the line below:
+  // setInterval(checkFieldPortsForStandings, 10000);
   
   // Trigger standings mode for a port - find LFF files and start paging
   async function triggerFieldStandingsMode(port: number, state: FieldPortState) {
