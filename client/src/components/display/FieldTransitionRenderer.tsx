@@ -60,6 +60,9 @@ export function FieldTransitionRenderer({
   // Skip Strategy 2 on the very first data load — seenBibsRef is empty so every
   // entry looks "new", which would cause a spurious curtain animation.
   const initialLoadRef = useRef(true);
+  // Cache fetched team colors/logos by school name so subsequent curtain animations
+  // for the same school start with the correct color instead of the default blue.
+  const teamCacheRef = useRef<Map<string, { primary: string; secondary: string; logo: string | null }>>(new Map());
 
   const clearTimers = useCallback(() => {
     timersRef.current.forEach(clearTimeout);
@@ -170,10 +173,13 @@ export function FieldTransitionRenderer({
 
     const school = calledUp.affiliation || calledUp.team || '';
 
-    // START CURTAIN IMMEDIATELY with default colors — don't wait for HTTP fetch.
-    // This eliminates the blue flash: the curtain begins instantly, and team
-    // colors update mid-animation once the fetch completes.
-    runCurtain(null, curtainColor, curtainColor);
+    // Use cached team colors if available — eliminates the blue flash on repeat visits.
+    // Falls back to default curtainColor only on first appearance of a school.
+    const cached = school ? teamCacheRef.current.get(school) : undefined;
+    const startPrimary = cached?.primary || curtainColor;
+    const startSecondary = cached?.secondary || curtainColor;
+    const startLogo = cached?.logo || null;
+    runCurtain(startLogo, startPrimary, startSecondary);
 
     // Capture current version BEFORE async fetch — used to discard stale responses
     // if a new athlete triggers a curtain before this fetch completes.
@@ -197,13 +203,20 @@ export function FieldTransitionRenderer({
             // Only update if curtain is still active (not yet revealing/idle)
             const currentPhase = phaseRef.current;
             if (currentPhase === 'coverStart' || currentPhase === 'covering' || currentPhase === 'paused') {
-              if (teamData?.primaryColor) {
-                setPrimaryColor(teamData.primaryColor);
-                setSecondaryColor(teamData.secondaryColor || teamData.primaryColor);
-              }
-              if (teamData?.logoUrl) {
-                setLogoSrc(teamData.logoUrl);
-              }
+                const fetchedPrimary = teamData?.primaryColor || '';
+                const fetchedSecondary = teamData?.secondaryColor || fetchedPrimary;
+                const fetchedLogo = teamData?.logoUrl || null;
+                // Cache for future curtain animations
+                if (fetchedPrimary && school) {
+                  teamCacheRef.current.set(school, { primary: fetchedPrimary, secondary: fetchedSecondary, logo: fetchedLogo });
+                }
+                if (fetchedPrimary) {
+                  setPrimaryColor(fetchedPrimary);
+                  setSecondaryColor(fetchedSecondary);
+                }
+                if (fetchedLogo) {
+                  setLogoSrc(fetchedLogo);
+                }
             }
           }
         } catch {
