@@ -709,7 +709,11 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       // We need to map the UI's round name to the correct DB column based on the event's actual round count.
       const totalRoundsForMapping = event.numRounds || 1;
       const fullRoundOrder = ['preliminary', 'quarterfinal', 'semifinal', 'final'];
-      const uiRounds = fullRoundOrder.slice(-totalRoundsForMapping); // What the UI shows
+      // Use the same round naming as dataRounds so labels match data
+      const uiRounds = totalRoundsForMapping === 4 ? ['preliminary', 'quarterfinal', 'semifinal', 'final']
+        : totalRoundsForMapping === 3 ? ['preliminary', 'semifinal', 'final']
+        : totalRoundsForMapping === 2 ? ['preliminary', 'final']
+        : ['final'];
       // Map: data columns always go preliminary → quarterfinal → semifinal → final in order
       const dataRounds = totalRoundsForMapping === 4 ? ['preliminary', 'quarterfinal', 'semifinal', 'final']
         : totalRoundsForMapping === 3 ? ['preliminary', 'semifinal', 'final']  // skip quarterfinal column — HyTek uses Pre→Sem→Fin for 3 rounds

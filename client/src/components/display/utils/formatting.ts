@@ -54,23 +54,22 @@ export function getUnitSuffix(resultType: string | null | undefined): string {
   }
 }
 
-// Round UP to nearest hundredth (track & field rule: 8.315 → 8.32)
-function ceilToPrecision(val: number, precision: number): number {
+function roundToPrecision(val: number, precision: number): number {
   const factor = Math.pow(10, precision);
-  return Math.ceil(val * factor - 1e-9) / factor;
+  return Math.round(val * factor) / factor;
 }
 
 export function formatTimeValue(seconds: number, precision: number = 2): string {
-  const rounded = ceilToPrecision(seconds, precision);
+  const rounded = roundToPrecision(seconds, precision);
   if (rounded >= 3600) {
     const hours = Math.floor(rounded / 3600);
     const mins = Math.floor((rounded % 3600) / 60);
-    const secs = ceilToPrecision(rounded % 60, precision).toFixed(precision);
+    const secs = roundToPrecision(rounded % 60, precision).toFixed(precision);
     return `${hours}:${String(mins).padStart(2, '0')}:${secs.padStart(precision + 3, '0')}`;
   }
   if (rounded >= 60) {
     const mins = Math.floor(rounded / 60);
-    const secs = ceilToPrecision(rounded % 60, precision).toFixed(precision);
+    const secs = roundToPrecision(rounded % 60, precision).toFixed(precision);
     return `${mins}:${secs.padStart(precision + 3, '0')}`;
   }
   return rounded.toFixed(precision);
@@ -118,10 +117,10 @@ export function generateAttemptHeaders(entries: EntryWithDetails[]): string[] {
 export function formatSplitTime(seconds: number | null | undefined): string {
   if (seconds === null || seconds === undefined) return '–';
   
-  const ceilH = (v: number) => Math.ceil(v * 100 - 1e-9) / 100;
-  const rounded = ceilH(seconds);
+  const roundH = (v: number) => Math.round(v * 100) / 100;
+  const rounded = roundH(seconds);
   const mins = Math.floor(rounded / 60);
-  const secs = ceilH(rounded % 60).toFixed(2);
+  const secs = roundH(rounded % 60).toFixed(2);
   
   if (mins > 0) {
     return `${mins}:${secs.padStart(5, '0')}`;
