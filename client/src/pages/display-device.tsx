@@ -955,10 +955,18 @@ export default function DisplayDevice() {
                 }));
               }
               
-              // Track mode displays ignore field data entirely
+              // If not in field mode but data arrives on our assigned port, auto-switch to field mode
+              // This allows the field board to take over when an athlete is brought up in FieldLynx
               if (!isFieldModeRef.current) {
-                console.log(`[Display] Ignoring field data - display is in track mode`);
-                return;
+                if (dataPort && dataPort === myPort) {
+                  console.log(`[Display] Auto-switching to field mode - data received on assigned port ${myPort}`);
+                  setIsFieldMode(true);
+                  isFieldModeRef.current = true;
+                  currentLayoutModeRef.current = null; // Reset for fresh scene switch
+                } else {
+                  console.log(`[Display] Ignoring field data - display is in track mode`);
+                  return;
+                }
               }
               
               // Mark that we've received data on our assigned port
@@ -1066,10 +1074,17 @@ export default function DisplayDevice() {
                 return;
               }
               
-              // For liveEventData (single): only update when in field mode
+              // For liveEventData (single): auto-switch to field mode if data is for our port
               if (!isFieldModeRef.current) {
-                console.log(`[Display] Field standings stored in port map, skipping liveEventData - display is in track mode`);
-                return;
+                if (data.fieldPort && data.fieldPort === myPort) {
+                  console.log(`[Display] Auto-switching to field mode for standings - data received on assigned port ${myPort}`);
+                  setIsFieldMode(true);
+                  isFieldModeRef.current = true;
+                  currentLayoutModeRef.current = null;
+                } else {
+                  console.log(`[Display] Field standings stored in port map, skipping liveEventData - display is in track mode`);
+                  return;
+                }
               }
               
               console.log(`[Display] Field standings received: Event ${data.eventNumber}, Page ${data.currentPage}/${data.totalPages}, ${data.entries?.length} athletes`);
