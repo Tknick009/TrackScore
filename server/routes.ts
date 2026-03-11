@@ -286,10 +286,17 @@ async function enrichEntriesWithRecordTags(eventType: string, gender: string, en
 
     // Batch fetch athlete bests
     const bestsByAthlete: Map<string, { season: number | null; college: number | null }> = new Map();
+    // Normalize event type for matching: strip spaces, lowercase
+    const normalizeEventType = (et: string) => et.replace(/[\s_-]+/g, '').toLowerCase();
+    const normalizedEventType = normalizeEventType(eventType);
+    
     for (const athleteId of athleteIds) {
       try {
         const bests = await storage.getAthleteBests(athleteId);
-        const eventBests = bests.filter(b => b.eventType === eventType);
+        // Match event type flexibly: exact match OR normalized match
+        const eventBests = bests.filter(b => 
+          b.eventType === eventType || normalizeEventType(b.eventType) === normalizedEventType
+        );
         let seasonBest: number | null = null;
         let collegeBest: number | null = null;
         for (const b of eventBests) {
@@ -301,6 +308,11 @@ async function enrichEntriesWithRecordTags(eventType: string, gender: string, en
             if (collegeBest === null) collegeBest = b.mark;
             else if (isTimeEvent(eventType) ? b.mark < collegeBest : b.mark > collegeBest) collegeBest = b.mark;
           }
+        }
+        // Log first few athletes for debugging
+        if (bestsByAthlete.size < 3) {
+          const allEventTypes = bests.map(b => b.eventType);
+          console.log(`[RecordTags] Athlete ${athleteId}: has ${bests.length} total bests (eventTypes: [${[...new Set(allEventTypes)].join(',')}]), filtered to ${eventBests.length} for "${eventType}", college=${collegeBest}, season=${seasonBest}`);
         }
         bestsByAthlete.set(athleteId, { season: seasonBest, college: collegeBest });
       } catch {
