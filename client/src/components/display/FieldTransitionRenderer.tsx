@@ -208,7 +208,11 @@ export function FieldTransitionRenderer({
       : calledUp.name
       ? String(calledUp.name)
       : '';
-    if (!calledId || calledId === prevCalledBibRef.current) return;
+    if (!calledId || calledId === prevCalledBibRef.current) {
+      // Still update seen bibs so late-arriving athletes don't trigger spurious curtains
+      seenBibsRef.current = currentBibs;
+      return;
+    }
 
     // Cooldown guard: prevent rapid re-triggering even if a new athlete is detected
     const now = Date.now();

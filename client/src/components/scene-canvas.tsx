@@ -438,10 +438,15 @@ export function SceneObjectRenderer({
           ...event,
           name: liveData?.eventName || '', // Event name MUST come from FinishLynx only
           entries: event.entries.map((dbEntry: any) => {
-            // Match liveData entry by athlete last name to merge recordTags
+            // Match liveData entry to merge recordTags — prefer bib number, fall back to name
+            const dbBib = dbEntry.athlete?.bibNumber || '';
             const dbLast = (dbEntry.athlete?.lastName || '').toLowerCase();
             const dbFirst = (dbEntry.athlete?.firstName || '').toLowerCase();
             const liveMatch = liveEntries.find((le: any) => {
+              // Prefer bib match (most reliable)
+              if (dbBib && le.bib && String(dbBib) === String(le.bib)) return true;
+              // Fall back to name match only when bib unavailable
+              if (dbBib || le.bib) return false;
               const liveLast = (le.lastName || '').toLowerCase();
               const liveFirst = (le.firstName || '').toLowerCase();
               return dbLast && liveLast && dbLast === liveLast && (!liveFirst || !dbFirst || dbFirst.charAt(0) === liveFirst.charAt(0));
