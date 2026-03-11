@@ -179,6 +179,7 @@ export class SQLiteStorage implements IStorage {
     try { this.db.prepare("ALTER TABLE display_devices ADD COLUMN content_mode TEXT DEFAULT 'lynx'").run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE meet_ingestion_settings ADD COLUMN headshot_directory TEXT').run(); } catch(e) {}
     try { this.db.prepare("ALTER TABLE meets ADD COLUMN logo_effect TEXT DEFAULT 'none'").run(); } catch(e) {}
+    try { this.db.prepare('ALTER TABLE record_books ADD COLUMN display_order INTEGER DEFAULT 99').run(); } catch(e) {}
   }
 
   private createTables(): void {
@@ -544,6 +545,7 @@ export class SQLiteStorage implements IStorage {
         description TEXT,
         scope TEXT NOT NULL,
         is_active INTEGER DEFAULT 1,
+        display_order INTEGER DEFAULT 99,
         created_at TEXT DEFAULT (datetime('now'))
       );
 
@@ -2547,6 +2549,7 @@ export class SQLiteStorage implements IStorage {
       description: row.description,
       scope: row.scope,
       isActive: this.toBoolean(row.is_active),
+      displayOrder: row.display_order ?? 99,
       createdAt: row.created_at ? new Date(row.created_at) : new Date(),
     };
   }
@@ -2571,10 +2574,11 @@ export class SQLiteStorage implements IStorage {
   }
 
   async createRecordBook(book: InsertRecordBook): Promise<SelectRecordBook> {
+    const displayOrder = (book as any).displayOrder ?? this.getDefaultDisplayOrder(book.scope);
     const result = this.db.prepare(`
-      INSERT INTO record_books (name, description, scope, is_active)
-      VALUES (?, ?, ?, ?)
-    `).run(book.name, book.description ?? null, book.scope, this.fromBoolean(book.isActive ?? true));
+      INSERT INTO record_books (name, description, scope, is_active, display_order)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(book.name, book.description ?? null, book.scope, this.fromBoolean(book.isActive ?? true), displayOrder);
     
     const row = this.db.prepare('SELECT * FROM record_books WHERE id = ?').get(result.lastInsertRowid);
     return this.mapRecordBookRow(row);
@@ -2588,6 +2592,7 @@ export class SQLiteStorage implements IStorage {
     if (updates.description !== undefined) { setClause.push('description = ?'); values.push(updates.description); }
     if (updates.scope !== undefined) { setClause.push('scope = ?'); values.push(updates.scope); }
     if (updates.isActive !== undefined) { setClause.push('is_active = ?'); values.push(this.fromBoolean(updates.isActive)); }
+    if ((updates as any).displayOrder !== undefined) { setClause.push('display_order = ?'); values.push((updates as any).displayOrder); }
 
     if (setClause.length > 0) {
       values.push(id);
@@ -2596,6 +2601,11 @@ export class SQLiteStorage implements IStorage {
 
     const row = this.db.prepare('SELECT * FROM record_books WHERE id = ?').get(id);
     return row ? this.mapRecordBookRow(row) : undefined;
+  }
+
+  private getDefaultDisplayOrder(scope: string): number {
+    const defaults: Record<string, number> = { meet: 1, facility: 2, national: 3, international: 4, custom: 5 };
+    return defaults[scope] ?? 99;
   }
 
   async deleteRecordBook(id: number): Promise<void> {

@@ -726,7 +726,7 @@ export function registerLayoutsScenesRoutes(app: Express, ctx: RouteContext) {
   app.patch('/api/record-books/:id', async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const { name, scope, isActive } = req.body;
+      const { name, scope, isActive, displayOrder } = req.body;
       
       const updates: any = {};
       if (name !== undefined) updates.name = name;
@@ -738,6 +738,7 @@ export function registerLayoutsScenesRoutes(app: Express, ctx: RouteContext) {
         updates.scope = scope;
       }
       if (isActive !== undefined) updates.isActive = isActive;
+      if (displayOrder !== undefined) updates.displayOrder = Number(displayOrder);
       
       const updated = await storage.updateRecordBook(id, updates);
       if (!updated) {
@@ -773,6 +774,7 @@ export function registerLayoutsScenesRoutes(app: Express, ctx: RouteContext) {
         date: Date | null;
         bookName: string;
         bookScope: string;
+        bookDisplayOrder: number;
       }> = [];
 
       for (const book of books) {
@@ -791,6 +793,7 @@ export function registerLayoutsScenesRoutes(app: Express, ctx: RouteContext) {
               date: rec.date,
               bookName: book.name,
               bookScope: book.scope,
+              bookDisplayOrder: (book as any).displayOrder ?? 99,
             });
           }
         }

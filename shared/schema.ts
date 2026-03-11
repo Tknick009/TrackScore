@@ -1295,6 +1295,7 @@ export const recordBooks = pgTable('record_books', {
   description: text('description'),
   scope: text('scope', { enum: ['facility', 'meet', 'national', 'international', 'custom'] }).notNull(),
   isActive: boolean('is_active').default(true),
+  displayOrder: integer('display_order').default(99),
   createdAt: timestamp('created_at').defaultNow(),
 });
 

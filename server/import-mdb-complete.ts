@@ -1964,12 +1964,43 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       
       console.log(`   📝 Found ${tagGroups.size} record type(s): tag_ptrs = [${Array.from(tagGroups.keys()).join(', ')}]`);
       
-      // HyTek standard tag_ptr naming: We'll name them based on the tag_ptr value
-      // Common HyTek conventions: 6=Meet Record, 14=Facility Record, 16=Conference Record
-      const tagNameMap: Record<number, { name: string; scope: 'meet' | 'facility' | 'custom' }> = {
-        6: { name: 'Meet Record', scope: 'meet' },
-        14: { name: 'Facility Record', scope: 'facility' },
-      };
+      // Try to read the HyTek RecTag table for tag abbreviations/names
+      // This maps tag_ptr -> abbreviation (e.g. "F"=Facility, "M"=Meet)
+      const tagNameMap: Record<number, { name: string; scope: 'meet' | 'facility' | 'national' | 'international' | 'custom' }> = {};
+      try {
+        const recTagTable = reader.getTable('RecTag');
+        const recTagData = recTagTable.getData();
+        console.log(`   📋 RecTag table has ${recTagData.length} rows`);
+        for (const tagRow of recTagData) {
+          const ptr = Number(tagRow.tag_ptr || tagRow.Tag_ptr || 0);
+          const abbr = String(tagRow.tag_abbr || tagRow.Tag_abbr || tagRow.Abbr || tagRow.abbr || '').trim().toUpperCase();
+          const tagName = String(tagRow.tag_name || tagRow.Tag_name || tagRow.Name || tagRow.name || '').trim();
+          console.log(`   📋 RecTag: ptr=${ptr}, abbr="${abbr}", name="${tagName}"`);
+          
+          // Auto-map by abbreviation: F=Facility, M=Meet
+          if (abbr === 'F' || abbr === 'FR' || abbr.includes('FAC')) {
+            tagNameMap[ptr] = { name: tagName || 'Facility Record', scope: 'facility' };
+          } else if (abbr === 'M' || abbr === 'MR' || abbr.includes('MEET')) {
+            tagNameMap[ptr] = { name: tagName || 'Meet Record', scope: 'meet' };
+          } else if (abbr === 'N' || abbr === 'NR' || abbr.includes('NAT')) {
+            tagNameMap[ptr] = { name: tagName || 'National Record', scope: 'national' };
+          } else if (abbr === 'I' || abbr === 'IR' || abbr === 'WR' || abbr.includes('INT') || abbr.includes('WORLD')) {
+            tagNameMap[ptr] = { name: tagName || 'International Record', scope: 'international' };
+          } else if (tagName) {
+            // Has a name but unrecognized abbreviation — use the name, mark as custom
+            tagNameMap[ptr] = { name: tagName, scope: 'custom' };
+          }
+        }
+      } catch (e) {
+        console.log('   ⚠️  RecTag table not found — falling back to tag_ptr-based mapping');
+      }
+      
+      // Fallback: hardcoded HyTek tag_ptr conventions if not already mapped from RecTag
+      if (!tagNameMap[6]) tagNameMap[6] = { name: 'Meet Record', scope: 'meet' };
+      if (!tagNameMap[14]) tagNameMap[14] = { name: 'Facility Record', scope: 'facility' };
+      
+      // Default display order by scope (lower = higher priority)
+      const scopeDisplayOrder: Record<string, number> = { meet: 1, facility: 2, national: 3, international: 4, custom: 5 };
       
       // Build event name lookup from eventIdMap (Event_ptr -> event name/type)
       // We already have ptrToNumMap (Event_ptr -> eventNumber) and eventBatch has names
@@ -2001,6 +2032,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
               description: `Imported from HyTek MDB (tag_ptr=${tagPtr})`,
               scope: tagInfo.scope,
               isActive: true,
+              displayOrder: scopeDisplayOrder[tagInfo.scope] ?? 99,
             }).returning();
             bookId = newBook.id;
           }
@@ -2037,8 +2069,8 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
               performance = '0.00';
             }
             
-            // Map gender
-            const recordGender = gender === 'M' ? 'male' : gender === 'F' ? 'female' : 'unknown';
+            // Use short gender codes (M/W) to match events table format
+            const recordGender = gender === 'M' ? 'M' : (gender === 'F' || gender === 'W') ? 'W' : gender;
             
             // Build date
             const recordDate = new Date(year > 0 ? year : 2000, month > 0 ? month - 1 : 0, day > 0 ? day : 1);
@@ -2072,6 +2104,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
               description TEXT,
               scope TEXT NOT NULL DEFAULT 'custom',
               is_active INTEGER DEFAULT 1,
+              display_order INTEGER DEFAULT 99,
               created_at TEXT DEFAULT CURRENT_TIMESTAMP
             );
             CREATE TABLE IF NOT EXISTS records (
@@ -2097,8 +2130,8 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
             bookId = existingBook.id;
             sqliteDb.prepare('DELETE FROM records WHERE record_book_id = ?').run(bookId);
           } else {
-            const result = sqliteDb.prepare('INSERT INTO record_books (name, description, scope, is_active) VALUES (?, ?, ?, 1)').run(
-              tagInfo.name, `Imported from HyTek MDB (tag_ptr=${tagPtr})`, tagInfo.scope
+            const result = sqliteDb.prepare('INSERT INTO record_books (name, description, scope, is_active, display_order) VALUES (?, ?, ?, 1, ?)').run(
+              tagInfo.name, `Imported from HyTek MDB (tag_ptr=${tagPtr})`, tagInfo.scope, scopeDisplayOrder[tagInfo.scope] ?? 99
             );
             bookId = result.lastInsertRowid as number;
           }

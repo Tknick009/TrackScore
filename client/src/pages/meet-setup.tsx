@@ -1344,6 +1344,7 @@ type RecordBookWithRecords = {
   description: string | null;
   scope: string;
   isActive: boolean;
+  displayOrder: number;
   records: RecordBookRecord[];
 };
 
@@ -1361,6 +1362,7 @@ function RecordBooksSection() {
   const [editingBook, setEditingBook] = useState<number | null>(null);
   const [editName, setEditName] = useState('');
   const [editScope, setEditScope] = useState('');
+  const [editPriority, setEditPriority] = useState(99);
 
   const { data: recordBooks = [], isLoading } = useQuery<RecordBookWithRecords[]>({
     queryKey: ['/api/record-books', 'all'],
@@ -1368,7 +1370,7 @@ function RecordBooksSection() {
   });
 
   const updateBookMutation = useMutation({
-    mutationFn: async ({ id, updates }: { id: number; updates: { name?: string; scope?: string; isActive?: boolean } }) => {
+    mutationFn: async ({ id, updates }: { id: number; updates: { name?: string; scope?: string; isActive?: boolean; displayOrder?: number } }) => {
       const res = await fetch(`/api/record-books/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -1420,10 +1422,11 @@ function RecordBooksSection() {
     setEditingBook(book.id);
     setEditName(book.name);
     setEditScope(book.scope);
+    setEditPriority(book.displayOrder ?? 99);
   };
 
   const saveEdit = (bookId: number) => {
-    updateBookMutation.mutate({ id: bookId, updates: { name: editName, scope: editScope } });
+    updateBookMutation.mutate({ id: bookId, updates: { name: editName, scope: editScope, displayOrder: editPriority } });
   };
 
   const getScopeInfo = (scope: string) => {
@@ -1503,6 +1506,17 @@ function RecordBooksSection() {
                           ))}
                         </SelectContent>
                       </Select>
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-muted-foreground">Priority:</span>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={99}
+                          value={editPriority}
+                          onChange={(e) => setEditPriority(Number(e.target.value))}
+                          className="w-16 h-8 text-sm text-center"
+                        />
+                      </div>
                       <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => saveEdit(book.id)} disabled={updateBookMutation.isPending}>
                         <Save className="w-3 h-3 mr-1" />
                         Save
@@ -1516,6 +1530,9 @@ function RecordBooksSection() {
                       <span className="font-medium text-sm">{book.name}</span>
                       <Badge variant="outline" className={cn('text-[10px] px-1.5 py-0', scopeInfo.color)}>
                         {scopeInfo.label}
+                      </Badge>
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-mono">
+                        Priority: {book.displayOrder ?? 99}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
                         ({book.records.length} record{book.records.length !== 1 ? 's' : ''})
