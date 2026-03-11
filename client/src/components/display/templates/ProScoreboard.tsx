@@ -259,13 +259,13 @@ export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingInt
               if (typeof mark === 'number') {
                 // Track times: round UP to nearest hundredth (8.315 → 8.32)
                 // Field marks: truncate DOWN to nearest hundredth per WA rules
-                const ceilH = (v: number) => Math.ceil(v * 100 - 1e-9) / 100;
+                const roundH = (v: number) => Math.round(v * 100) / 100;
                 const floorH = (v: number) => Math.floor(v * 100 + 1e-9) / 100;
                 if (displayMode === 'track') {
-                  const rounded = ceilH(mark);
+                  const rounded = roundH(mark);
                   if (rounded >= 60) {
                     const mins = Math.floor(rounded / 60);
-                    const secs = ceilH(rounded % 60).toFixed(2);
+                    const secs = roundH(rounded % 60).toFixed(2);
                     return `${mins}:${secs.padStart(5, '0')}`;
                   }
                   return rounded.toFixed(2);

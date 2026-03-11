@@ -104,8 +104,9 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
 
   // Format time - handles both string times from live data ("10.23", "1:45.67") 
   // and numeric times from database (seconds — HyTek MDB stores as seconds)
-  // Round UP to nearest hundredth (track & field rule: 8.315 → 8.32)
-  const ceilHundredths = (val: number): number => Math.ceil(val * 100 - 1e-9) / 100;
+  // Standard rounding — HyTek data is already correctly rounded; Math.ceil caused
+  // float precision errors from Access DB (e.g. 8.09 stored as 8.0900005 → ceiled to 8.10)
+  const roundHundredths = (val: number): number => Math.round(val * 100) / 100;
 
   const formatTime = (mark: any): string => {
     if (mark === null || mark === undefined || mark === '') return '';
@@ -116,10 +117,10 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
     }
     // Numeric value from database — HyTek stores times in seconds (e.g. 10.23, 128.59)
     if (typeof mark === 'number') {
-      const rounded = ceilHundredths(mark);
+      const rounded = roundHundredths(mark);
       if (rounded >= 60) {
         const minutes = Math.floor(rounded / 60);
-        const seconds = ceilHundredths(rounded % 60).toFixed(2);
+        const seconds = roundHundredths(rounded % 60).toFixed(2);
         return `${minutes}:${seconds.padStart(5, '0')}`;
       }
       return rounded.toFixed(2);

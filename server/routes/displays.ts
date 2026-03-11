@@ -826,22 +826,24 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         teams.forEach(t => { if (t) teamMap.set(t.id, t); });
       }
       
-      const ceilToPrecision = (val: number, precision: number): number => {
+      const roundToPrecision = (val: number, precision: number): number => {
         const factor = Math.pow(10, precision);
-        // Round UP to nearest hundredth (track & field rule: 8.315 → 8.32)
-        return Math.ceil(val * factor - 1e-9) / factor;
+        // Use standard rounding — HyTek data is already correctly rounded by HyTek Meet Manager.
+        // Math.ceil was causing issues: float precision errors from Access DB (e.g. 8.09 stored
+        // as 8.0900005) would get ceiled to the next hundredth (8.10 instead of 8.09).
+        return Math.round(val * factor) / factor;
       };
       const formatTimeSeconds = (seconds: number, precision: number = 2): string => {
-        const rounded = ceilToPrecision(seconds, precision);
+        const rounded = roundToPrecision(seconds, precision);
         if (rounded >= 3600) {
           const hours = Math.floor(rounded / 3600);
           const mins = Math.floor((rounded % 3600) / 60);
-          const secs = ceilToPrecision(rounded % 60, precision).toFixed(precision);
+          const secs = roundToPrecision(rounded % 60, precision).toFixed(precision);
           return `${hours}:${String(mins).padStart(2, '0')}:${secs.padStart(precision + 3, '0')}`;
         }
         if (rounded >= 60) {
           const mins = Math.floor(rounded / 60);
-          const secs = ceilToPrecision(rounded % 60, precision).toFixed(precision);
+          const secs = roundToPrecision(rounded % 60, precision).toFixed(precision);
           return `${mins}:${secs.padStart(precision + 3, '0')}`;
         }
         return rounded.toFixed(precision);
@@ -1375,22 +1377,21 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
     const isMultiEvent = /\b(decathlon|heptathlon|pentathlon)\b/i.test(eventName || dbEvent?.name || '');
     const displayEventNameLower = (eventName || dbEvent?.name || '').toLowerCase();
     const isRelayEvent = displayEventNameLower.includes('relay') || displayEventNameLower.includes('medley') || /\d+x\d+/.test(displayEventNameLower);
-    const ceilToPrecision = (val: number, precision: number): number => {
+    const roundToPrecision2 = (val: number, precision: number): number => {
       const factor = Math.pow(10, precision);
-      // Round UP to nearest hundredth (track & field rule: 8.315 → 8.32)
-      return Math.ceil(val * factor - 1e-9) / factor;
+      return Math.round(val * factor) / factor;
     };
     const formatTimeSeconds = (seconds: number, precision: number = 2): string => {
-      const rounded = ceilToPrecision(seconds, precision);
+      const rounded = roundToPrecision2(seconds, precision);
       if (rounded >= 3600) {
         const hours = Math.floor(rounded / 3600);
         const mins = Math.floor((rounded % 3600) / 60);
-        const secs = ceilToPrecision(rounded % 60, precision).toFixed(precision);
+        const secs = roundToPrecision2(rounded % 60, precision).toFixed(precision);
         return `${hours}:${String(mins).padStart(2, '0')}:${secs.padStart(precision + 3, '0')}`;
       }
       if (rounded >= 60) {
         const mins = Math.floor(rounded / 60);
-        const secs = ceilToPrecision(rounded % 60, precision).toFixed(precision);
+        const secs = roundToPrecision2(rounded % 60, precision).toFixed(precision);
         return `${mins}:${secs.padStart(precision + 3, '0')}`;
       }
       return rounded.toFixed(precision);

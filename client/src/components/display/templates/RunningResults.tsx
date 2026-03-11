@@ -37,16 +37,17 @@ export function RunningResults({ event, meet, athleteEntry, liveTime }: RunningR
     );
   }
 
-  // Round UP to nearest hundredth (track & field rule: 8.315 → 8.32)
-  const ceilHundredths = (val: number): number => Math.ceil(val * 100 - 1e-9) / 100;
+  // Standard rounding — HyTek data is already correctly rounded; Math.ceil caused
+  // float precision errors from Access DB (e.g. 8.09 stored as 8.0900005 → ceiled to 8.10)
+  const roundHundredths = (val: number): number => Math.round(val * 100) / 100;
 
   const formatTime = (mark: number | null | undefined): string => {
     if (mark === null || mark === undefined) return '--';
     const totalSeconds = mark / 1000;
-    const rounded = ceilHundredths(totalSeconds);
+    const rounded = roundHundredths(totalSeconds);
     if (rounded >= 60) {
       const minutes = Math.floor(rounded / 60);
-      const seconds = ceilHundredths(rounded % 60).toFixed(2);
+      const seconds = roundHundredths(rounded % 60).toFixed(2);
       return `${minutes}:${seconds.padStart(5, '0')}`;
     }
     return rounded.toFixed(2);

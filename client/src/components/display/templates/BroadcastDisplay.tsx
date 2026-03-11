@@ -162,8 +162,8 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
       const secs = match[2];
       const fraction = match[3];
       const decimalValue = parseFloat(`0.${fraction}`);
-      const roundedUp = Math.ceil(decimalValue * 100) / 100;
-      const hundredths = roundedUp.toFixed(2).substring(2);
+      const rounded = Math.round(decimalValue * 100) / 100;
+      const hundredths = rounded.toFixed(2).substring(2);
       return `${mins}:${secs}.${hundredths}`;
     }
     
@@ -172,8 +172,8 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
       const secs = secMatch[1];
       const fraction = secMatch[2];
       const decimalValue = parseFloat(`0.${fraction}`);
-      const roundedUp = Math.ceil(decimalValue * 100) / 100;
-      const hundredths = roundedUp.toFixed(2).substring(2);
+      const rounded = Math.round(decimalValue * 100) / 100;
+      const hundredths = rounded.toFixed(2).substring(2);
       return `${secs}.${hundredths}`;
     }
     
