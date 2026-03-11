@@ -444,8 +444,14 @@ export default function DisplayDevice() {
               // This prevents defaulting to track mode when device reconnects or server restarts
               if (deviceData.contentMode && deviceData.contentMode !== 'lynx') {
                 console.log(`[Display] Restoring persisted contentMode: ${deviceData.contentMode}`);
-                // Disable auto mode for non-lynx content modes (winners, record, hytek, team_scores)
+                // Disable auto mode for non-lynx content modes (winners, record, hytek, team_scores, field)
                 autoModeRef.current = false;
+                // If content mode is 'field', ensure isFieldMode is set so field data is accepted
+                if (deviceData.contentMode === 'field') {
+                  setIsFieldMode(true);
+                  isFieldModeRef.current = true;
+                  console.log(`[Display] Restored field mode from persisted contentMode`);
+                }
               }
             }
           }
@@ -955,18 +961,11 @@ export default function DisplayDevice() {
                 }));
               }
               
-              // If not in field mode but data arrives on our assigned port, auto-switch to field mode
-              // This allows the field board to take over when an athlete is brought up in FieldLynx
+              // Only process field data when device is set to Field Events mode
+              // Do NOT auto-switch from other display types (hytek, lynx, etc.) to field mode
               if (!isFieldModeRef.current) {
-                if (dataPort && dataPort === myPort) {
-                  console.log(`[Display] Auto-switching to field mode - data received on assigned port ${myPort}`);
-                  setIsFieldMode(true);
-                  isFieldModeRef.current = true;
-                  currentLayoutModeRef.current = null; // Reset for fresh scene switch
-                } else {
-                  console.log(`[Display] Ignoring field data - display is in track mode`);
-                  return;
-                }
+                console.log(`[Display] Ignoring field data - display is not in field mode (port ${dataPort})`);
+                return;
               }
               
               // Mark that we've received data on our assigned port
@@ -1074,17 +1073,11 @@ export default function DisplayDevice() {
                 return;
               }
               
-              // For liveEventData (single): auto-switch to field mode if data is for our port
+              // Only process field standings when device is set to Field Events mode
+              // Do NOT auto-switch from other display types to field mode
               if (!isFieldModeRef.current) {
-                if (data.fieldPort && data.fieldPort === myPort) {
-                  console.log(`[Display] Auto-switching to field mode for standings - data received on assigned port ${myPort}`);
-                  setIsFieldMode(true);
-                  isFieldModeRef.current = true;
-                  currentLayoutModeRef.current = null;
-                } else {
-                  console.log(`[Display] Field standings stored in port map, skipping liveEventData - display is in track mode`);
-                  return;
-                }
+                console.log(`[Display] Ignoring field standings - display is not in field mode`);
+                return;
               }
               
               console.log(`[Display] Field standings received: Event ${data.eventNumber}, Page ${data.currentPage}/${data.totalPages}, ${data.entries?.length} athletes`);
