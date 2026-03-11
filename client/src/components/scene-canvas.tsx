@@ -432,9 +432,25 @@ export function SceneObjectRenderer({
           );
         }
         // Override event name with live FinishLynx data - NEVER use database name
+        // Also merge recordTags from liveData entries (server-enriched) into DB entries
+        const liveEntries = liveData?.entries || [];
         const eventWithLiveName = {
           ...event,
           name: liveData?.eventName || '', // Event name MUST come from FinishLynx only
+          entries: event.entries.map((dbEntry: any) => {
+            // Match liveData entry by athlete last name to merge recordTags
+            const dbLast = (dbEntry.athlete?.lastName || '').toLowerCase();
+            const dbFirst = (dbEntry.athlete?.firstName || '').toLowerCase();
+            const liveMatch = liveEntries.find((le: any) => {
+              const liveLast = (le.lastName || '').toLowerCase();
+              const liveFirst = (le.firstName || '').toLowerCase();
+              return dbLast && liveLast && dbLast === liveLast && (!liveFirst || !dbFirst || dbFirst.charAt(0) === liveFirst.charAt(0));
+            });
+            if (liveMatch?.recordTags?.length > 0) {
+              return { ...dbEntry, recordTags: liveMatch.recordTags };
+            }
+            return dbEntry;
+          }),
         };
         const boardType = componentConfig.boardType || "live-results";
         if (eventWithLiveName.status === "completed" && componentConfig.scrollOnComplete !== false) {
