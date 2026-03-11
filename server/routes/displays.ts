@@ -703,8 +703,24 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       
       const selectedRound = round || 'final';
       
+      // The UI picks round names from the LAST N entries of ['preliminary','quarterfinal','semifinal','final'].
+      // For a 2-round event this gives ['semifinal','final'], for 3-round ['quarterfinal','semifinal','final'], etc.
+      // But HyTek always stores round data sequentially: round 1 → preliminary*, round 2 → quarterfinal* or semifinal*, round 3 → semifinal*, last → final*.
+      // We need to map the UI's round name to the correct DB column based on the event's actual round count.
+      const totalRoundsForMapping = event.numRounds || 1;
+      const fullRoundOrder = ['preliminary', 'quarterfinal', 'semifinal', 'final'];
+      const uiRounds = fullRoundOrder.slice(-totalRoundsForMapping); // What the UI shows
+      // Map: data columns always go preliminary → quarterfinal → semifinal → final in order
+      const dataRounds = totalRoundsForMapping === 4 ? ['preliminary', 'quarterfinal', 'semifinal', 'final']
+        : totalRoundsForMapping === 3 ? ['preliminary', 'semifinal', 'final']  // skip quarterfinal column — HyTek uses Pre→Sem→Fin for 3 rounds
+        : totalRoundsForMapping === 2 ? ['preliminary', 'final']
+        : ['final'];
+      const uiRoundIndex = uiRounds.indexOf(selectedRound);
+      const dataRound = uiRoundIndex >= 0 && uiRoundIndex < dataRounds.length ? dataRounds[uiRoundIndex] : selectedRound;
+      console.log(`[Hytek Round] UI round=${selectedRound}, numRounds=${totalRoundsForMapping}, uiRounds=[${uiRounds}], dataRound=${dataRound}`);
+      
       const getRoundFields = (entry: any) => {
-        switch (selectedRound) {
+        switch (dataRound) {
           case 'preliminary':
             return {
               mark: entry.preliminaryMark,
@@ -859,12 +875,12 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         }
       }
       
-      const isFinalRound = selectedRound === 'final';
+      const isFinalRound = dataRound === 'final';
       const isPrelimRound = !isFinalRound;
       
       // Determine per-round advancement values (Q/q qualifiers)
       // The advancement_json column stores per-round data: {"preliminary":{"place":N,"time":N},"quarterfinal":...,"semifinal":...}
-      // Fall back to legacy advanceByPlace/advanceByTime columns (which only store prelims data)
+      // Use dataRound (the actual DB column round) as the key, not selectedRound (the UI label)
       let eventAdvanceByPlace = 0;
       let eventAdvanceByTime = 0;
       if (!isFinalRound) {
@@ -872,13 +888,13 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         if (advJsonStr) {
           try {
             const advData = JSON.parse(advJsonStr);
-            // Map selectedRound to advancement key
-            const roundKey = selectedRound; // 'preliminary', 'quarterfinal', 'semifinal'
+            // Use dataRound as key — this matches the advancement_json keys (preliminary, quarterfinal, semifinal)
+            const roundKey = dataRound;
             if (advData[roundKey]) {
               eventAdvanceByPlace = advData[roundKey].place || 0;
               eventAdvanceByTime = advData[roundKey].time || 0;
             }
-            console.log(`[Hytek Q/q] advancement_json parsed for round=${roundKey}: place=${eventAdvanceByPlace}, time=${eventAdvanceByTime}, raw=${advJsonStr}`);
+            console.log(`[Hytek Q/q] advancement_json parsed for dataRound=${roundKey}: place=${eventAdvanceByPlace}, time=${eventAdvanceByTime}, raw=${advJsonStr}`);
           } catch (e) {
             console.log(`[Hytek Q/q] Failed to parse advancement_json: ${advJsonStr}`);
           }
@@ -890,7 +906,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           console.log(`[Hytek Q/q] Using legacy advancement: advanceByPlace=${eventAdvanceByPlace}, advanceByTime=${eventAdvanceByTime}`);
         }
       }
-      console.log(`[Hytek Q/q DEBUG] selectedRound=${selectedRound}, isFinalRound=${isFinalRound}, isPrelimRound=${isPrelimRound}, advanceByPlace=${eventAdvanceByPlace}, advanceByTime=${eventAdvanceByTime}, isTrackEvent=${isTrackEvent}, eventName=${event.name}`);
+      console.log(`[Hytek Q/q DEBUG] selectedRound=${selectedRound}, dataRound=${dataRound}, isFinalRound=${isFinalRound}, isPrelimRound=${isPrelimRound}, advanceByPlace=${eventAdvanceByPlace}, advanceByTime=${eventAdvanceByTime}, isTrackEvent=${isTrackEvent}, eventName=${event.name}`);
       
       // === Q/q QUALIFIER ASSIGNMENT (prelim rounds only, track events) ===
       // Big Q = top advanceByPlace finishers from EACH heat (by within-heat place)
