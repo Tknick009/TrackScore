@@ -864,20 +864,58 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       const eventAdvanceByTime = isFinalRound ? 0 : ((event as any).advanceByTime || 0);
       const isPrelimRound = !isFinalRound;
       
-      const qualifierTimeSet = new Set<string>();
-      if (isPrelimRound && eventAdvanceByTime > 0 && isTrackEvent) {
-        const nonPlaceQualifiers: { entryId: string; mark: number }[] = [];
+      // === Q/q QUALIFIER ASSIGNMENT (prelim rounds only, track events) ===
+      // Big Q = top advanceByPlace finishers from EACH heat (by within-heat place)
+      // little q = next fastest eventAdvanceByTime times across ALL heats (excluding Big Q)
+      const qualifierPlaceSet = new Set<string>(); // Big Q
+      const qualifierTimeSet = new Set<string>();  // little q
+      
+      if (isPrelimRound && isTrackEvent && (eventAdvanceByPlace > 0 || eventAdvanceByTime > 0)) {
+        // Step 1: Group valid entries by heat
+        const heatGroups = new Map<number, { entryId: string; place: number; mark: number }[]>();
+        const statusCodesToSkip = new Set(['NH', 'NM', 'FOUL', 'DNS', 'DNF', 'DQ', 'SCR', 'FS', 'NT']);
         sortedEntries.forEach(entry => {
           const fields = getRoundFields(entry);
+          const heat = fields.heat || 0;
           const place = fields.place || 0;
           const mark = fields.mark;
-          if (typeof mark === 'number' && mark > 0 && (!place || place > eventAdvanceByPlace)) {
-            nonPlaceQualifiers.push({ entryId: entry.id, mark });
-          }
+          if (typeof mark !== 'number' || mark <= 0) return;
+          if (entry.isScratched || entry.isDisqualified) return;
+          const dqCode = entry.notes ? String(entry.notes).trim().toUpperCase() : '';
+          if (statusCodesToSkip.has(dqCode)) return;
+          
+          if (!heatGroups.has(heat)) heatGroups.set(heat, []);
+          heatGroups.get(heat)!.push({ entryId: entry.id, place, mark });
         });
-        nonPlaceQualifiers.sort((a, b) => a.mark - b.mark);
-        const timeQualifiers = nonPlaceQualifiers.slice(0, eventAdvanceByTime);
-        timeQualifiers.forEach(q => qualifierTimeSet.add(q.entryId));
+        
+        // Step 2: Big Q — top advanceByPlace finishers from EACH heat (by within-heat place)
+        if (eventAdvanceByPlace > 0) {
+          heatGroups.forEach((entries) => {
+            const sorted = [...entries].sort((a, b) => {
+              if (a.place && b.place) return a.place - b.place;
+              if (a.place) return -1;
+              if (b.place) return 1;
+              return a.mark - b.mark; // fallback: fastest time
+            });
+            sorted.slice(0, eventAdvanceByPlace).forEach(e => qualifierPlaceSet.add(e.entryId));
+          });
+        }
+        
+        // Step 3: little q — next fastest eventAdvanceByTime times across ALL heats (excluding Big Q)
+        if (eventAdvanceByTime > 0) {
+          const nonQEntries: { entryId: string; mark: number }[] = [];
+          heatGroups.forEach(entries => {
+            entries.forEach(e => {
+              if (!qualifierPlaceSet.has(e.entryId)) {
+                nonQEntries.push({ entryId: e.entryId, mark: e.mark });
+              }
+            });
+          });
+          nonQEntries.sort((a, b) => a.mark - b.mark);
+          nonQEntries.slice(0, eventAdvanceByTime).forEach(e => qualifierTimeSet.add(e.entryId));
+        }
+        
+        console.log(`[Hytek Q/q] advanceByPlace=${eventAdvanceByPlace}, advanceByTime=${eventAdvanceByTime}, heats=${heatGroups.size}, BigQ=${qualifierPlaceSet.size}, littleQ=${qualifierTimeSet.size}`);
       }
       
       // Filter out scratches and DNS before building display entries
@@ -935,12 +973,42 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         }
       }
       
+      // For compiled prelim results, re-sort: Big Q by time, little q by time, rest by time, DQ/SCR at end
+      if (isPrelimRound && isTrackEvent && (qualifierPlaceSet.size > 0 || qualifierTimeSet.size > 0)) {
+        const compiledStatusCodes = new Set(['NH', 'NM', 'FOUL', 'DNS', 'DNF', 'DQ', 'SCR', 'FS', 'NT']);
+        displayEntries.sort((a, b) => {
+          const aFields = getRoundFields(a);
+          const bFields = getRoundFields(b);
+          
+          // Status/DQ/SCR at the end
+          const aDq = a.notes ? String(a.notes).trim().toUpperCase() : '';
+          const bDq = b.notes ? String(b.notes).trim().toUpperCase() : '';
+          const aIsStatus = a.isDisqualified || a.isScratched || compiledStatusCodes.has(aDq);
+          const bIsStatus = b.isDisqualified || b.isScratched || compiledStatusCodes.has(bDq);
+          if (aIsStatus !== bIsStatus) return aIsStatus ? 1 : -1;
+          
+          // Group: Q=0, q=1, none=2
+          const aGroup = qualifierPlaceSet.has(a.id) ? 0 : qualifierTimeSet.has(a.id) ? 1 : 2;
+          const bGroup = qualifierPlaceSet.has(b.id) ? 0 : qualifierTimeSet.has(b.id) ? 1 : 2;
+          if (aGroup !== bGroup) return aGroup - bGroup;
+          
+          // Within group, sort by time ascending
+          const aMark = typeof aFields.mark === 'number' ? aFields.mark : 999999;
+          const bMark = typeof bFields.mark === 'number' ? bFields.mark : 999999;
+          return aMark - bMark;
+        });
+      }
+      
       const enrichedEntries = displayEntries.map((entry, index) => {
         const athlete = entry.athleteId ? athleteMap.get(entry.athleteId) : null;
         const teamId = entry.teamId || athlete?.teamId;
         const team = teamId ? teamMap.get(teamId) : null;
         const fields = getRoundFields(entry);
-        const position = fields.place || (index + 1);
+        // For compiled prelim results, use compiled position (1,2,3...) based on Q/q sort order
+        // For finals or non-compiled results, use within-heat place or fallback to index
+        const position = (isPrelimRound && isTrackEvent && (qualifierPlaceSet.size > 0 || qualifierTimeSet.size > 0))
+          ? (index + 1)
+          : (fields.place || (index + 1));
         
         const dqCode = entry.notes ? String(entry.notes).trim().toUpperCase() : null;
         const knownStatusCodes = ['NH', 'NM', 'FOUL', 'DNS', 'DNF', 'DQ', 'SCR', 'FS', 'NT'];
@@ -973,8 +1041,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         
         let qualifier = '';
         if (isPrelimRound && !isKnownStatus && !entry.isDisqualified && !entry.isScratched) {
-          const place = fields.place || 0;
-          if (place > 0 && eventAdvanceByPlace > 0 && place <= eventAdvanceByPlace) {
+          if (qualifierPlaceSet.has(entry.id)) {
             qualifier = 'Q';
           } else if (qualifierTimeSet.has(entry.id)) {
             qualifier = 'q';
