@@ -858,8 +858,16 @@ export function SceneObjectRenderer({
           }
           
           // Determine single priority record tag: MR > FR > PB > SB
+          // First check server-enriched recordTags (from enrichEntriesWithRecordTags),
+          // which correctly detects when an athlete BROKE a record (mark > record).
+          // Fall back to name-matching (checks if athlete IS the record holder) only
+          // when server tags aren't available.
           let recordTag = '';
-          if (athleteMatchesMR) {
+          const serverRecordTags: string[] = firstEntry?.recordTags || [];
+          if (serverRecordTags.length > 0) {
+            // Server tags are already priority-ordered: MR, FR, etc.
+            recordTag = serverRecordTags[0];
+          } else if (athleteMatchesMR) {
             recordTag = 'MR';
           } else if (athleteMatchesFR) {
             recordTag = 'FR';
