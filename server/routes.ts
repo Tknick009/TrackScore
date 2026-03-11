@@ -472,6 +472,54 @@ async function enrichEntriesWithRecordTags(eventType: string, gender: string, en
   }
 }
 
+// Auto-update athlete PB/SB when live results beat stored bests.
+// Called after enrichEntriesWithRecordTags so we already know who has PB/SB tags.
+// Updates the athlete_bests table so subsequent rounds use the new marks.
+async function autoUpdateAthleteBests(eventType: string, entries: EntryWithDetails[]): Promise<void> {
+  try {
+    let updated = 0;
+
+    for (const entry of entries) {
+      const tags: string[] = (entry as any).recordTags || [];
+      if (!entry.athleteId || entry.finalMark === null || entry.finalMark === undefined) continue;
+
+      // finalMark is in ms (track) or mm (field); athlete_bests.mark is in seconds / meters
+      const markInBaseUnits = entry.finalMark / 1000;
+
+      // If athlete got PB tag, update their college best
+      if (tags.includes('PB')) {
+        await storage.upsertAthleteBest({
+          athleteId: entry.athleteId,
+          eventType,
+          bestType: 'college',
+          mark: markInBaseUnits,
+        });
+        updated++;
+        console.log(`[AutoPB] Updated college best for athlete ${entry.athleteId}: ${markInBaseUnits} (${eventType})`);
+      }
+
+      // If athlete got SB or PB tag, update their season best
+      // (PB implies SB since a college best is also a season best)
+      if (tags.includes('SB') || tags.includes('PB')) {
+        await storage.upsertAthleteBest({
+          athleteId: entry.athleteId,
+          eventType,
+          bestType: 'season',
+          mark: markInBaseUnits,
+        });
+        if (!tags.includes('PB')) updated++; // avoid double counting
+        console.log(`[AutoPB] Updated season best for athlete ${entry.athleteId}: ${markInBaseUnits} (${eventType})`);
+      }
+    }
+
+    if (updated > 0) {
+      console.log(`[AutoPB] Auto-updated ${updated} athlete bests for ${eventType}`);
+    }
+  } catch (error) {
+    console.error('[AutoPB] Error auto-updating athlete bests:', error);
+  }
+}
+
 // Helper to broadcast current event state
 async function broadcastCurrentEvent() {
   const currentEvent = await storage.getCurrentEvent();
@@ -753,6 +801,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     prefetchSceneData,
     getDisplayModeFromTemplate,
     enrichEntriesWithRecordTags,
+    autoUpdateAthleteBests,
   };
 
   // Register all domain-specific route modules

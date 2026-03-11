@@ -64,6 +64,7 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     getConnectedDevicesForMeet, prefetchSceneData, getDisplayModeFromTemplate,
     abbreviateEventName, upload, fileStorage, displayClients,
     enrichEntriesWithRecordTags,
+    autoUpdateAthleteBests,
   } = ctx;
 
   // ===== SCORING / RECORDS / MEDALS =====
@@ -1639,6 +1640,9 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
           if (tagged.length > 0) {
             console.log(`[Lynx] Record tags: ${tagged.map((e: any) => `${e.name}: [${e.recordTags.join(',')}]`).join(', ')}`);
           }
+          // Auto-update athlete PB/SB in the database when they beat their stored bests.
+          // This ensures subsequent rounds (semis, finals) use the updated marks.
+          await autoUpdateAthleteBests(resolvedEventType, data.entries);
         } catch (err) {
           console.warn('[Lynx] Failed to enrich with record tags:', err);
         } finally {
