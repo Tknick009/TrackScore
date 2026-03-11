@@ -712,10 +712,12 @@ export function registerLayoutsScenesRoutes(app: Express, ctx: RouteContext) {
         const bookWithRecords = await storage.getRecordBook(book.id);
         if (bookWithRecords) {
           for (const rec of bookWithRecords.records) {
+            // Normalize gender to short codes (M/W) to match events table
+            const normalizedGender = rec.gender === 'male' ? 'M' : rec.gender === 'female' ? 'W' : rec.gender;
             allRecords.push({
               id: rec.id,
               eventType: rec.eventType,
-              gender: rec.gender,
+              gender: normalizedGender,
               performance: rec.performance,
               athleteName: rec.athleteName,
               team: rec.team,

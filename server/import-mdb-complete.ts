@@ -2138,7 +2138,8 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
                 performance = '0.00';
               }
               
-              const recordGender = gender === 'M' ? 'male' : gender === 'F' ? 'female' : 'unknown';
+              // Use short gender codes (M/W) to match events table format
+              const recordGender = gender === 'M' ? 'M' : (gender === 'F' || gender === 'W') ? 'W' : gender;
               const recordDate = `${year > 0 ? year : 2000}-${String(month > 0 ? month : 1).padStart(2, '0')}-${String(day > 0 ? day : 1).padStart(2, '0')}`;
               
               insertRecordStmt.run(bookId, eventInfo.eventType, recordGender, performance, holder, team || null, recordDate, `Event: ${eventInfo.name}`, 'HyTek MDB Import');
