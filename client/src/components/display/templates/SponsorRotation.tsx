@@ -35,22 +35,37 @@ export function SponsorRotation({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const intervalMs = Math.max(3, rotationInterval || 8) * 1000;
 
   // Auto-rotation
   useEffect(() => {
-    if (entries.length <= 1) return;
+    // Ensure currentIndex remains in bounds as entries change.
+    setCurrentIndex(prev => (prev >= entries.length ? 0 : prev));
+
+    if (timerRef.current) clearInterval(timerRef.current);
+    if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+
+    if (entries.length <= 1) {
+      setIsTransitioning(false);
+      return;
+    }
+
     timerRef.current = setInterval(() => {
       setIsTransitioning(true);
-      // After fade-out, switch to next sponsor
-      setTimeout(() => {
+
+      // After fade-out, switch to next sponsor.
+      if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+      fadeTimerRef.current = setTimeout(() => {
         setCurrentIndex(prev => (prev + 1) % entries.length);
         setIsTransitioning(false);
       }, 500); // 500ms fade-out duration
     }, intervalMs);
+
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
     };
   }, [entries.length, intervalMs]);
 

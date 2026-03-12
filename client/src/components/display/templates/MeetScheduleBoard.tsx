@@ -49,11 +49,22 @@ export function MeetScheduleBoard({
 
   // Auto-paging
   useEffect(() => {
-    if (effectiveMaxPages <= 1) return;
+    // If entries changed and we no longer have multiple pages, reset to page 0.
+    if (effectiveMaxPages <= 1) {
+      setCurrentPage(0);
+      return;
+    }
+
+    // If entries shrank and we're beyond the end, reset.
+    setCurrentPage(prev => (prev >= effectiveMaxPages ? 0 : prev));
+
     const intervalMs = (pagingInterval || 8) * 1000;
+
+    if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
       setCurrentPage(prev => (prev + 1) % effectiveMaxPages);
     }, intervalMs);
+
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
