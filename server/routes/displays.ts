@@ -2048,21 +2048,9 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         connectedDevice.contentMode = 'meet_schedule';
         storage.updateDisplayContentMode(deviceId, 'meet_schedule').catch(err => console.error('[Meet Schedule] Failed to persist contentMode:', err));
 
-        // Look up custom scene mapping
-        const displayType = device.displayType || 'P10';
-        let sceneId: number | null = null;
-        let sceneData: { scene: any; objects: any[] } | null = null;
-        if (device.meetId) {
-          try {
-            const mapping = await storage.getSceneTemplateMappingByTypeAndMode(device.meetId, displayType, 'meet_schedule');
-            if (mapping) {
-              sceneId = mapping.sceneId;
-              sceneData = await prefetchSceneData(sceneId);
-            }
-          } catch (err) {
-            console.error(`[Meet Schedule] Error looking up scene mapping:`, err);
-          }
-        }
+        // Pre-meet boards are built-in templates (no scene mapping required)
+        const sceneId: number | null = null;
+        const sceneData: { scene: any; objects: any[] } | null = null;
 
         connectedDevice.ws.send(JSON.stringify({
           type: 'display_command',
@@ -2172,20 +2160,9 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         connectedDevice.contentMode = 'meet_records';
         storage.updateDisplayContentMode(deviceId, 'meet_records').catch(err => console.error('[Meet Records] Failed to persist contentMode:', err));
 
-        const displayType = device.displayType || 'P10';
-        let sceneId: number | null = null;
-        let sceneData: { scene: any; objects: any[] } | null = null;
-        if (device.meetId) {
-          try {
-            const mapping = await storage.getSceneTemplateMappingByTypeAndMode(device.meetId, displayType, 'meet_records');
-            if (mapping) {
-              sceneId = mapping.sceneId;
-              sceneData = await prefetchSceneData(sceneId);
-            }
-          } catch (err) {
-            console.error(`[Meet Records] Error looking up scene mapping:`, err);
-          }
-        }
+        // Pre-meet boards are built-in templates (no scene mapping required)
+        const sceneId: number | null = null;
+        const sceneData: { scene: any; objects: any[] } | null = null;
 
         connectedDevice.ws.send(JSON.stringify({
           type: 'display_command',
@@ -2253,20 +2230,9 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         connectedDevice.contentMode = 'sponsors';
         storage.updateDisplayContentMode(deviceId, 'sponsors').catch(err => console.error('[Sponsors] Failed to persist contentMode:', err));
 
-        const displayType = device.displayType || 'P10';
-        let sceneId: number | null = null;
-        let sceneData: { scene: any; objects: any[] } | null = null;
-        if (device.meetId) {
-          try {
-            const mapping = await storage.getSceneTemplateMappingByTypeAndMode(device.meetId, displayType, 'sponsors');
-            if (mapping) {
-              sceneId = mapping.sceneId;
-              sceneData = await prefetchSceneData(sceneId);
-            }
-          } catch (err) {
-            console.error(`[Sponsors] Error looking up scene mapping:`, err);
-          }
-        }
+        // Pre-meet boards are built-in templates (no scene mapping required)
+        const sceneId: number | null = null;
+        const sceneData: { scene: any; objects: any[] } | null = null;
 
         connectedDevice.ws.send(JSON.stringify({
           type: 'display_command',
@@ -2383,27 +2349,9 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         connectedDevice.contentMode = 'team_preview';
         storage.updateDisplayContentMode(deviceId, 'team_preview').catch(err => console.error('[Team Preview] Failed to persist contentMode:', err));
 
-        const displayType = device.displayType || 'P10';
-        let sceneId: number | null = null;
-        let sceneData: { scene: any; objects: any[] } | null = null;
-        if (device.meetId) {
-          try {
-            const mapping = await storage.getSceneTemplateMappingByTypeAndMode(device.meetId, displayType, 'team_preview');
-            if (!mapping) {
-              // Fallback to team_scores scene
-              const fallback = await storage.getSceneTemplateMappingByTypeAndMode(device.meetId, displayType, 'team_scores');
-              if (fallback) {
-                sceneId = fallback.sceneId;
-                sceneData = await prefetchSceneData(sceneId);
-              }
-            } else {
-              sceneId = mapping.sceneId;
-              sceneData = await prefetchSceneData(sceneId);
-            }
-          } catch (err) {
-            console.error(`[Team Preview] Error looking up scene mapping:`, err);
-          }
-        }
+        // Team Preview is a built-in template (no scene mapping required)
+        const sceneId: number | null = null;
+        const sceneData: { scene: any; objects: any[] } | null = null;
 
         connectedDevice.ws.send(JSON.stringify({
           type: 'display_command',

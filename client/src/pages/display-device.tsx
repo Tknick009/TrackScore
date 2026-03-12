@@ -1877,12 +1877,16 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     if (isTeamScores) {
       // Prefer live WebSocket data (pushed from server via team-scores endpoint)
       // Fall back to static query data
-      const liveTeamEntries = liveEventData?.mode === 'team_scores' ? liveEventData.entries : null;
-      const standings = liveTeamEntries || teamStandings as any[] | undefined;
-      const title = liveEventData?.mode === 'team_scores' 
-        ? (liveEventData.eventName || 'Team Standings')
-        : (meet?.name || 'Team Standings');
-      const eventsScored = liveEventData?.totalEventsScored;
+      const liveTeamEntries =
+        liveEventData?.mode === 'team_scores' || liveEventData?.mode === 'team_preview'
+          ? liveEventData.entries
+          : null;
+      const standings = liveTeamEntries || (teamStandings as any[] | undefined);
+      const title =
+        liveEventData?.mode === 'team_scores' || liveEventData?.mode === 'team_preview'
+          ? liveEventData.eventName || 'Team Standings'
+          : meet?.name || 'Team Standings';
+      const eventsScored = liveEventData?.mode === 'team_scores' ? liveEventData?.totalEventsScored : undefined;
       
       if (!standings || standings.length === 0) {
         return (
