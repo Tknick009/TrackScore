@@ -2270,7 +2270,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       const deviceId = req.params.id;
       const selectedGender: string = gender === 'W' ? 'W' : 'M';
       const effectiveMaxPages = Math.max(0, parseInt(reqMaxPages) || 0);
-      const genderLabel = selectedGender === 'W' ? "Women's" : "Men's";
+      const genderLabel = selectedGender === 'W' ? "Women" : "Men";
 
       const device = await storage.getDisplayDevice(deviceId);
       if (!device) return res.status(404).json({ error: "Display device not found" });
@@ -2297,14 +2297,14 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         }
       } catch {}
 
-      // Use getTeamStandings which handles gender-filtered scoring
+      // Use getProjectedTeamStandings for seed-based projections
       let standings: any[] = [];
       let hasScores = false;
       try {
-        standings = await storage.getTeamStandings(device.meetId, { gender: selectedGender });
+        standings = await storage.getProjectedTeamStandings(device.meetId, { gender: selectedGender });
         hasScores = standings.some((s: any) => (s.totalPoints || 0) > 0);
       } catch (err) {
-        console.log('[Team Preview] getTeamStandings failed, falling back');
+        console.log('[Team Preview] getProjectedTeamStandings failed, falling back');
       }
 
       let teamEntries: any[];

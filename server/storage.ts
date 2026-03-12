@@ -365,6 +365,8 @@ export interface IStorage {
 
   // Team Scoring - Queries
   getTeamStandings(meetId: string, scope?: { gender?: string; division?: string }): Promise<TeamStandingsEntry[]>;
+  // Pre-meet projections based on seeds (no scored events required)
+  getProjectedTeamStandings(meetId: string, scope?: { gender?: string; division?: string }): Promise<TeamStandingsEntry[]>;
   recalculateTeamScoring(meetId: string): Promise<void>;
   getEventPoints(eventId: string): Promise<EventPointsBreakdown>;
   
@@ -2404,6 +2406,15 @@ export class DatabaseStorage implements IStorage {
       }));
 
     return standings;
+  }
+
+  async getProjectedTeamStandings(
+    meetId: string,
+    scope?: { gender?: string; division?: string }
+  ): Promise<TeamStandingsEntry[]> {
+    // Postgres path doesn't currently implement seed-based projections.
+    // Fallback to scored standings so callers remain type-safe.
+    return this.getTeamStandings(meetId, scope);
   }
 
   // Recalculate Team Scoring
