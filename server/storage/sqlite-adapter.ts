@@ -3245,8 +3245,7 @@ export class SQLiteStorage implements IStorage {
       // Sort by seed mark.
       // Time events: lower is better. Field events: higher is better.
       const timeBased = isTimeEvent(evt.event_type);
-      const fieldBased = isDistanceEvent(evt.event_type) || isHeightEvent(evt.event_type);
-      const higherIsBetter = !timeBased && (fieldBased || true);
+      const higherIsBetter = !timeBased;
 
       eventEntries.sort((a: any, b: any) => {
         const av = a.seed_mark ?? 0;

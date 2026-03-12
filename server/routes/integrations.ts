@@ -3090,7 +3090,9 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
       const results = athletes.map(athlete => {
         const team = athlete.teamId ? teamMap.get(athlete.teamId) : null;
         // Use team name (or affiliation) as the school part of the filename
-        const school = (team?.name || team?.affiliation || '').trim();
+        // Replace spaces with underscores to match scraper format
+        const schoolRaw = (team?.name || team?.affiliation || '').trim();
+        const school = schoolRaw.replace(/\s+/g, '_');
         const firstName = (athlete.firstName || '').trim();
         const lastName = (athlete.lastName || '').trim();
         const expectedFilename = `${school}_${firstName}_${lastName}`;
