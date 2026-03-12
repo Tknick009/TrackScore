@@ -355,6 +355,7 @@ const MemoTeamRow = memo(function TeamRow({
   onRename,
   isRenaming,
 }: TeamRowProps) {
+  const [isSelectOpen, setIsSelectOpen] = useState(false);
   const handleCheck = useCallback((checked: boolean | "indeterminate") => {
     onToggleCheck(team.teamId, !!checked);
   }, [team.teamId, onToggleCheck]);
@@ -409,16 +410,23 @@ const MemoTeamRow = memo(function TeamRow({
               </span>
             )}
             <div className="flex items-center gap-2">
-              <Select value={selectedFile} onValueChange={handleFile}>
+              <Select
+                value={selectedFile}
+                onValueChange={handleFile}
+                open={isSelectOpen}
+                onOpenChange={setIsSelectOpen}
+              >
                 <SelectTrigger className="w-56 h-8 text-xs">
                   <SelectValue placeholder="Pick a file..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {orphanFiles.map(f => (
-                    <SelectItem key={f} value={f} className="text-xs">
-                      {f}{f === team.suggestedFile ? ' (suggested)' : ''}
-                    </SelectItem>
-                  ))}
+                  {isSelectOpen
+                    ? orphanFiles.map(f => (
+                        <SelectItem key={f} value={f} className="text-xs">
+                          {f}{f === team.suggestedFile ? ' (suggested)' : ''}
+                        </SelectItem>
+                      ))
+                    : null}
                 </SelectContent>
               </Select>
               <Button
