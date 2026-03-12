@@ -139,6 +139,9 @@ import {
   ProScoreboard,
   RecordBoard,
   WinnersBoard,
+  MeetScheduleBoard,
+  MeetRecordsBoard,
+  SponsorRotation,
 } from "@/components/display/templates";
 import { BroadcastDisplay } from "@/components/display/templates/BroadcastDisplay";
 import { 
@@ -1683,6 +1686,58 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
 
     const isRecordBoard = templateId === 'record-board';
     const isWinnersBoard = templateId === 'winners-board';
+    const isMeetSchedule = templateId === 'meet-schedule';
+    const isMeetRecords = templateId === 'meet-records';
+    const isSponsorRotation = templateId === 'sponsor-rotation';
+
+    // Pre-meet display modes
+    if (isMeetSchedule && liveEventData?.mode === 'meet_schedule') {
+      return (
+        <MeetScheduleBoard
+          title={liveEventData.eventName || 'Meet Schedule'}
+          entries={liveEventData.entries || []}
+          meetName={(liveEventData as any).meetName || meet?.name || ''}
+          meetLogoUrl={(liveEventData as any).meetLogoUrl || meet?.logoUrl || null}
+          meetLogoEffect={(meet as any)?.logoEffect}
+          pagingSize={pagingSize}
+          pagingInterval={pagingInterval}
+          maxPages={maxPages}
+          primaryColor={meet?.primaryColor || undefined}
+          secondaryColor={meet?.secondaryColor || undefined}
+        />
+      );
+    }
+
+    if (isMeetRecords && liveEventData?.mode === 'meet_records') {
+      return (
+        <MeetRecordsBoard
+          title={liveEventData.eventName || 'Meet Records'}
+          entries={liveEventData.entries || []}
+          meetName={(liveEventData as any).meetName || meet?.name || ''}
+          meetLogoUrl={(liveEventData as any).meetLogoUrl || meet?.logoUrl || null}
+          meetLogoEffect={(meet as any)?.logoEffect}
+          pagingSize={pagingSize}
+          pagingInterval={pagingInterval}
+          maxPages={maxPages}
+          primaryColor={meet?.primaryColor || undefined}
+          secondaryColor={meet?.secondaryColor || undefined}
+        />
+      );
+    }
+
+    if (isSponsorRotation && liveEventData?.mode === 'sponsors') {
+      return (
+        <SponsorRotation
+          entries={liveEventData.entries || []}
+          meetName={(liveEventData as any).meetName || meet?.name || ''}
+          meetLogoUrl={(liveEventData as any).meetLogoUrl || meet?.logoUrl || null}
+          meetLogoEffect={(meet as any)?.logoEffect}
+          rotationInterval={(liveEventData as any).rotationInterval || 8}
+          primaryColor={meet?.primaryColor || undefined}
+          secondaryColor={meet?.secondaryColor || undefined}
+        />
+      );
+    }
 
     if (isRecordBoard && liveEventData?.mode === 'record') {
       return (
@@ -2263,10 +2318,13 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     </div>
   );
 
-  // Record Board and Winners Board always render full-screen regardless of display type
+  // Record Board, Winners Board, and pre-meet displays always render full-screen regardless of display type
   const isFullScreenBoard = 
     (template === 'record-board' && liveEventData?.mode === 'record') ||
-    (template === 'winners-board' && liveEventData?.mode === 'winners');
+    (template === 'winners-board' && liveEventData?.mode === 'winners') ||
+    (template === 'meet-schedule' && liveEventData?.mode === 'meet_schedule') ||
+    (template === 'meet-records' && liveEventData?.mode === 'meet_records') ||
+    (template === 'sponsor-rotation' && liveEventData?.mode === 'sponsors');
 
   // Display scale: set CSS custom property for text/logo condensing only (backgrounds stay full-size)
   const scaleClass = displayScale !== 100 ? 'display-scale-active' : '';

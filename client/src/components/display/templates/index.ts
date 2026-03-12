@@ -16,3 +16,6 @@ export * from './SingleAthleteField';
 export * from './ProScoreboard';
 export * from './RecordBoard';
 export * from './WinnersBoard';
+export * from './MeetScheduleBoard';
+export * from './MeetRecordsBoard';
+export * from './SponsorRotation';
