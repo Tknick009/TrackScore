@@ -3105,8 +3105,15 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
         const firstName = (athlete.firstName || '').trim();
         const lastName = (athlete.lastName || '').trim();
         const expectedFilename = `${schoolForFilename}_${firstName}_${lastName}`;
+        const expectedFilenameWithSpaces = `${school}_${firstName}_${lastName}`;
+
         const matchKey = expectedFilename.toLowerCase();
-        const matchedFile = fileMap.get(matchKey) || null;
+        const matchKeyWithSpaces = expectedFilenameWithSpaces.toLowerCase();
+
+        const matchedFile =
+          fileMap.get(matchKey) ||
+          fileMap.get(matchKeyWithSpaces) ||
+          null;
 
         return {
           athleteId: athlete.id,
