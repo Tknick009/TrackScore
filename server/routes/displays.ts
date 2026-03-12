@@ -1991,6 +1991,454 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
     }
   });
 
+  // ===== PRE-MEET DISPLAY FEATURES =====
+
+  // Send Meet Schedule Board to a display device
+  app.post("/api/display-devices/:id/meet-schedule", async (req, res) => {
+    try {
+      const { pagingLines, maxPages: reqMaxPages } = req.body;
+      const deviceId = req.params.id;
+      const effectiveMaxPages = Math.max(0, parseInt(reqMaxPages) || 0);
+
+      const device = await storage.getDisplayDevice(deviceId);
+      if (!device) return res.status(404).json({ error: "Display device not found" });
+      if (!device.meetId) return res.status(400).json({ error: "Device has no assigned meet" });
+
+      // Get the meet info
+      const meet = await storage.getMeet(device.meetId);
+      if (!meet) return res.status(404).json({ error: "Meet not found" });
+
+      // Get all events for this meet, sorted by event number
+      const allEvents = await storage.getEventsByMeetId(device.meetId);
+      const sorted = allEvents
+        .sort((a: any, b: any) => (a.eventNumber || 0) - (b.eventNumber || 0));
+
+      // Build schedule entries
+      const scheduleEntries = sorted.map((evt: any, index: number) => {
+        const name = (evt.name || '').replace(/\s+/g, ' ').trim();
+        const gender = (evt.gender || '').toUpperCase().charAt(0);
+        const genderLabel = gender === 'M' ? "Men's" : gender === 'W' || gender === 'F' ? "Women's" : '';
+        const cleanName = name.replace(/^(Men'?s?|Women'?s?)\s+/i, '').trim();
+        const displayName = genderLabel ? `${genderLabel} ${cleanName}` : cleanName;
+        return {
+          place: String(evt.eventNumber || index + 1),
+          name: displayName,
+          lastName: displayName,
+          affiliation: evt.eventTime || '',
+          team: '',
+          time: evt.eventTime || '',
+          mark: '',
+          status: evt.status || 'upcoming',
+          gender: gender,
+          eventType: evt.eventType || '',
+          isFieldEvent: !!(evt.eventType && ['long_jump','triple_jump','high_jump','pole_vault','shot_put','discus','javelin','hammer','weight_throw'].includes(evt.eventType)),
+        };
+      });
+
+      const lines = Math.max(1, Math.min(20, parseInt(pagingLines) || 8));
+
+      // Get meet logo
+      let meetLogoUrl: string | null = null;
+      try {
+        if (meet.logoUrl) meetLogoUrl = meet.logoUrl;
+      } catch {}
+
+      const connectedDevice = connectedDisplayDevices.get(deviceId);
+      if (connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {
+        connectedDevice.contentMode = 'meet_schedule';
+        storage.updateDisplayContentMode(deviceId, 'meet_schedule').catch(err => console.error('[Meet Schedule] Failed to persist contentMode:', err));
+
+        // Look up custom scene mapping
+        const displayType = device.displayType || 'P10';
+        let sceneId: number | null = null;
+        let sceneData: { scene: any; objects: any[] } | null = null;
+        if (device.meetId) {
+          try {
+            const mapping = await storage.getSceneTemplateMappingByTypeAndMode(device.meetId, displayType, 'meet_schedule');
+            if (mapping) {
+              sceneId = mapping.sceneId;
+              sceneData = await prefetchSceneData(sceneId);
+            }
+          } catch (err) {
+            console.error(`[Meet Schedule] Error looking up scene mapping:`, err);
+          }
+        }
+
+        connectedDevice.ws.send(JSON.stringify({
+          type: 'display_command',
+          template: sceneId ? null : 'meet-schedule',
+          sceneId,
+          sceneData,
+          liveEventData: {
+            mode: 'meet_schedule',
+            eventName: `${meet.name || 'Meet'} Schedule`,
+            meetName: meet.name || '',
+            meetLogoUrl,
+            entries: scheduleEntries,
+          },
+          pagingSize: lines,
+          pagingInterval: lines,
+          maxPages: effectiveMaxPages,
+        }));
+
+        console.log(`[Meet Schedule] Sent ${scheduleEntries.length} events to ${device.deviceName}`);
+        res.json({ success: true, delivered: true, eventCount: scheduleEntries.length });
+      } else {
+        res.json({ success: false, delivered: false, message: "Device offline" });
+      }
+    } catch (error: any) {
+      console.error(`[Meet Schedule] Error:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Send Meet Records Board to a display device
+  app.post("/api/display-devices/:id/meet-records", async (req, res) => {
+    try {
+      const { pagingLines, maxPages: reqMaxPages, bookId } = req.body;
+      const deviceId = req.params.id;
+      const effectiveMaxPages = Math.max(0, parseInt(reqMaxPages) || 0);
+
+      const device = await storage.getDisplayDevice(deviceId);
+      if (!device) return res.status(404).json({ error: "Display device not found" });
+      if (!device.meetId) return res.status(400).json({ error: "Device has no assigned meet" });
+
+      const meet = await storage.getMeet(device.meetId);
+      if (!meet) return res.status(404).json({ error: "Meet not found" });
+
+      // Get record books (active only, or specific book)
+      const allBooks = await storage.getRecordBooks();
+      const books = bookId ? allBooks.filter(b => b.id === parseInt(bookId)) : allBooks;
+
+      if (books.length === 0) {
+        return res.status(400).json({ error: "No active record books found", warning: true });
+      }
+
+      // Get all events for matching
+      const allEvents = await storage.getEventsByMeetId(device.meetId);
+
+      // Build record entries grouped by event
+      const recordEntries: any[] = [];
+      for (const book of books) {
+        const bookWithRecords = await storage.getRecordBook(book.id);
+        if (!bookWithRecords) continue;
+
+        for (const rec of bookWithRecords.records) {
+          const normalizedGender = rec.gender === 'male' ? 'M' : rec.gender === 'female' ? 'F' : rec.gender === 'W' ? 'F' : rec.gender;
+          // Try to find a matching event for display ordering
+          const matchingEvent = allEvents.find((e: any) => {
+            const evtGender = (e.gender || '').toUpperCase().charAt(0);
+            return e.eventType === rec.eventType && (evtGender === normalizedGender || evtGender === '' || !evtGender);
+          });
+
+          // Scope color coding
+          const scopeColors: Record<string, string> = {
+            meet: '#ef4444',      // red
+            facility: '#8b5cf6',  // purple
+            national: '#3b82f6',  // blue
+            international: '#f59e0b', // amber
+            custom: '#6b7280',    // gray
+          };
+
+          recordEntries.push({
+            place: matchingEvent ? String(matchingEvent.eventNumber || '') : '',
+            name: rec.athleteName || 'Unknown',
+            lastName: rec.athleteName || 'Unknown',
+            affiliation: rec.team || '',
+            team: rec.team || '',
+            time: rec.performance || '',
+            mark: rec.performance || '',
+            eventType: rec.eventType,
+            gender: normalizedGender,
+            bookName: book.name,
+            bookScope: book.scope,
+            scopeColor: scopeColors[book.scope] || '#6b7280',
+            date: rec.date ? new Date(rec.date).getFullYear().toString() : '',
+            eventNumber: matchingEvent?.eventNumber || 999,
+          });
+        }
+      }
+
+      // Sort by event number so records show in event order
+      recordEntries.sort((a, b) => a.eventNumber - b.eventNumber);
+
+      const lines = Math.max(1, Math.min(20, parseInt(pagingLines) || 8));
+
+      let meetLogoUrl: string | null = null;
+      try { if (meet.logoUrl) meetLogoUrl = meet.logoUrl; } catch {}
+
+      const connectedDevice = connectedDisplayDevices.get(deviceId);
+      if (connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {
+        connectedDevice.contentMode = 'meet_records';
+        storage.updateDisplayContentMode(deviceId, 'meet_records').catch(err => console.error('[Meet Records] Failed to persist contentMode:', err));
+
+        const displayType = device.displayType || 'P10';
+        let sceneId: number | null = null;
+        let sceneData: { scene: any; objects: any[] } | null = null;
+        if (device.meetId) {
+          try {
+            const mapping = await storage.getSceneTemplateMappingByTypeAndMode(device.meetId, displayType, 'meet_records');
+            if (mapping) {
+              sceneId = mapping.sceneId;
+              sceneData = await prefetchSceneData(sceneId);
+            }
+          } catch (err) {
+            console.error(`[Meet Records] Error looking up scene mapping:`, err);
+          }
+        }
+
+        connectedDevice.ws.send(JSON.stringify({
+          type: 'display_command',
+          template: sceneId ? null : 'meet-records',
+          sceneId,
+          sceneData,
+          liveEventData: {
+            mode: 'meet_records',
+            eventName: bookId ? books[0]?.name || 'Records' : 'Meet Records',
+            meetName: meet.name || '',
+            meetLogoUrl,
+            entries: recordEntries,
+          },
+          pagingSize: lines,
+          pagingInterval: lines,
+          maxPages: effectiveMaxPages,
+        }));
+
+        console.log(`[Meet Records] Sent ${recordEntries.length} records from ${books.length} book(s) to ${device.deviceName}`);
+        res.json({ success: true, delivered: true, recordCount: recordEntries.length });
+      } else {
+        res.json({ success: false, delivered: false, message: "Device offline" });
+      }
+    } catch (error: any) {
+      console.error(`[Meet Records] Error:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Send Sponsor Rotation to a display device
+  app.post("/api/display-devices/:id/sponsor-rotation", async (req, res) => {
+    try {
+      const { sponsors, interval } = req.body;
+      const deviceId = req.params.id;
+
+      // sponsors = array of { name, imageUrl } or just URLs
+      if (!sponsors || !Array.isArray(sponsors) || sponsors.length === 0) {
+        return res.status(400).json({ error: "At least one sponsor is required" });
+      }
+
+      const device = await storage.getDisplayDevice(deviceId);
+      if (!device) return res.status(404).json({ error: "Display device not found" });
+      if (!device.meetId) return res.status(400).json({ error: "Device has no assigned meet" });
+
+      const meet = await storage.getMeet(device.meetId);
+      const rotationInterval = Math.max(3, Math.min(60, parseInt(interval) || 8)); // seconds per sponsor
+
+      let meetLogoUrl: string | null = null;
+      try { if (meet?.logoUrl) meetLogoUrl = meet.logoUrl; } catch {}
+
+      const sponsorEntries = sponsors.map((s: any, index: number) => ({
+        place: String(index + 1),
+        name: typeof s === 'string' ? '' : (s.name || ''),
+        lastName: typeof s === 'string' ? '' : (s.name || ''),
+        affiliation: '',
+        team: '',
+        time: '',
+        mark: '',
+        imageUrl: typeof s === 'string' ? s : (s.imageUrl || s.url || ''),
+        logoUrl: typeof s === 'string' ? s : (s.imageUrl || s.url || ''),
+      }));
+
+      const connectedDevice = connectedDisplayDevices.get(deviceId);
+      if (connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {
+        connectedDevice.contentMode = 'sponsors';
+        storage.updateDisplayContentMode(deviceId, 'sponsors').catch(err => console.error('[Sponsors] Failed to persist contentMode:', err));
+
+        const displayType = device.displayType || 'P10';
+        let sceneId: number | null = null;
+        let sceneData: { scene: any; objects: any[] } | null = null;
+        if (device.meetId) {
+          try {
+            const mapping = await storage.getSceneTemplateMappingByTypeAndMode(device.meetId, displayType, 'sponsors');
+            if (mapping) {
+              sceneId = mapping.sceneId;
+              sceneData = await prefetchSceneData(sceneId);
+            }
+          } catch (err) {
+            console.error(`[Sponsors] Error looking up scene mapping:`, err);
+          }
+        }
+
+        connectedDevice.ws.send(JSON.stringify({
+          type: 'display_command',
+          template: sceneId ? null : 'sponsor-rotation',
+          sceneId,
+          sceneData,
+          liveEventData: {
+            mode: 'sponsors',
+            eventName: 'Sponsors',
+            meetName: meet?.name || '',
+            meetLogoUrl,
+            entries: sponsorEntries,
+            rotationInterval,
+          },
+          pagingSize: 1,
+          pagingInterval: rotationInterval,
+          maxPages: 0, // infinite rotation
+        }));
+
+        console.log(`[Sponsors] Sent ${sponsorEntries.length} sponsors to ${device.deviceName} (${rotationInterval}s interval)`);
+        res.json({ success: true, delivered: true, sponsorCount: sponsorEntries.length });
+      } else {
+        res.json({ success: false, delivered: false, message: "Device offline" });
+      }
+    } catch (error: any) {
+      console.error(`[Sponsors] Error:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Send Team Points Preview to a display device
+  app.post("/api/display-devices/:id/team-preview", async (req, res) => {
+    try {
+      const { pagingLines, gender, maxPages: reqMaxPages } = req.body;
+      const deviceId = req.params.id;
+      const selectedGender: string = gender === 'W' ? 'W' : 'M';
+      const effectiveMaxPages = Math.max(0, parseInt(reqMaxPages) || 0);
+      const genderLabel = selectedGender === 'W' ? "Women's" : "Men's";
+
+      const device = await storage.getDisplayDevice(deviceId);
+      if (!device) return res.status(404).json({ error: "Display device not found" });
+      if (!device.meetId) return res.status(400).json({ error: "Device has no assigned meet" });
+
+      const meet = await storage.getMeet(device.meetId);
+      if (!meet) return res.status(404).json({ error: "Meet not found" });
+
+      // Get team logos
+      const logoMap = new Map<string, string>();
+      try {
+        const allLogos = await storage.getTeamLogosByMeet(device.meetId);
+        for (const logo of allLogos) {
+          logoMap.set(logo.teamId, fileStorage.publicUrlForKey(logo.storageKey));
+        }
+      } catch {}
+
+      // Get team abbreviations
+      const teamAbbrMap = new Map<string, string>();
+      try {
+        const allTeams = await storage.getTeamsByMeetId(device.meetId);
+        for (const t of allTeams) {
+          if (t.abbreviation) teamAbbrMap.set(t.id, t.abbreviation);
+        }
+      } catch {}
+
+      // Use getTeamStandings which handles gender-filtered scoring
+      let standings: any[] = [];
+      let hasScores = false;
+      try {
+        standings = await storage.getTeamStandings(device.meetId, { gender: selectedGender });
+        hasScores = standings.some((s: any) => (s.totalPoints || 0) > 0);
+      } catch (err) {
+        console.log('[Team Preview] getTeamStandings failed, falling back');
+      }
+
+      let teamEntries: any[];
+      if (standings.length > 0) {
+        teamEntries = standings
+          .map((s: any, index: number) => ({
+            place: String(index + 1),
+            name: s.teamName || 'Unknown',
+            lastName: s.teamName || 'Unknown',
+            affiliation: teamAbbrMap.get(s.teamId) || s.teamName || '',
+            team: teamAbbrMap.get(s.teamId) || s.teamName || '',
+            time: String(s.totalPoints || 0),
+            mark: String(s.totalPoints || 0),
+            points: s.totalPoints || 0,
+            logoUrl: logoMap.get(s.teamId) || null,
+          }));
+      } else {
+        // Fallback: list teams alphabetically
+        const teams = await storage.getTeamsByMeetId(device.meetId);
+        teamEntries = teams
+          .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+          .map((team, index: number) => ({
+            place: String(index + 1),
+            name: team.name || team.shortName || 'Unknown',
+            lastName: team.name || team.shortName || 'Unknown',
+            affiliation: team.abbreviation || team.name || team.shortName || '',
+            team: team.abbreviation || team.name || team.shortName || '',
+            time: '0',
+            mark: '0',
+            points: 0,
+            logoUrl: logoMap.get(team.id) || null,
+          }));
+      }
+
+      const lines = Math.max(1, Math.min(20, parseInt(pagingLines) || 8));
+
+      let meetLogoUrl: string | null = null;
+      try { if (meet.logoUrl) meetLogoUrl = meet.logoUrl; } catch {}
+
+      const connectedDevice = connectedDisplayDevices.get(deviceId);
+      if (connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {
+        connectedDevice.contentMode = 'team_preview';
+        storage.updateDisplayContentMode(deviceId, 'team_preview').catch(err => console.error('[Team Preview] Failed to persist contentMode:', err));
+
+        const displayType = device.displayType || 'P10';
+        let sceneId: number | null = null;
+        let sceneData: { scene: any; objects: any[] } | null = null;
+        if (device.meetId) {
+          try {
+            const mapping = await storage.getSceneTemplateMappingByTypeAndMode(device.meetId, displayType, 'team_preview');
+            if (!mapping) {
+              // Fallback to team_scores scene
+              const fallback = await storage.getSceneTemplateMappingByTypeAndMode(device.meetId, displayType, 'team_scores');
+              if (fallback) {
+                sceneId = fallback.sceneId;
+                sceneData = await prefetchSceneData(sceneId);
+              }
+            } else {
+              sceneId = mapping.sceneId;
+              sceneData = await prefetchSceneData(sceneId);
+            }
+          } catch (err) {
+            console.error(`[Team Preview] Error looking up scene mapping:`, err);
+          }
+        }
+
+        connectedDevice.ws.send(JSON.stringify({
+          type: 'display_command',
+          template: sceneId ? null : 'team-scores',
+          sceneId,
+          sceneData,
+          liveEventData: {
+            mode: 'team_preview',
+            eventName: `${genderLabel} Team Standings`,
+            gender: selectedGender,
+            meetName: meet.name || '',
+            meetLogoUrl,
+            entries: teamEntries,
+          },
+          pagingSize: lines,
+          pagingInterval: lines,
+          maxPages: effectiveMaxPages,
+        }));
+
+        console.log(`[Team Preview] Sent ${teamEntries.length} ${genderLabel} teams to ${device.deviceName} (hasScores: ${hasScores})`);
+        res.json({
+          success: true,
+          delivered: true,
+          teamCount: teamEntries.length,
+          hasScores,
+        });
+      } else {
+        res.json({ success: false, delivered: false, message: "Device offline" });
+      }
+    } catch (error: any) {
+      console.error(`[Team Preview] Error:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Switch device content mode (lynx, hytek, team_scores, field)
   // Used to unlock a device back to FinishLynx mode after showing HyTek/team scores/field
   app.patch("/api/display-devices/:id/content-mode", async (req, res) => {
@@ -1998,7 +2446,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       const { contentMode } = req.body;
       const deviceId = req.params.id;
       
-      const validModes = ['lynx', 'hytek', 'team_scores', 'field', 'winners', 'record'];
+      const validModes = ['lynx', 'hytek', 'team_scores', 'field', 'winners', 'record', 'meet_schedule', 'meet_records', 'sponsors', 'team_preview'];
       if (!contentMode || !validModes.includes(contentMode)) {
         return res.status(400).json({ error: `contentMode must be one of: ${validModes.join(', ')}` });
       }

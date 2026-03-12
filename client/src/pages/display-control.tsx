@@ -92,7 +92,7 @@ interface DisplayDevice {
 }
 
 // Display mode types
-type DisplayMode = 'finishlynx' | 'hytek' | 'teamscores' | 'field' | 'winners' | 'record';
+type DisplayMode = 'finishlynx' | 'hytek' | 'teamscores' | 'field' | 'winners' | 'record' | 'meet_schedule' | 'meet_records' | 'sponsors' | 'team_preview';
 
 export default function DisplayControlPage() {
   const { currentMeetId, currentMeet } = useMeet();
@@ -117,6 +117,10 @@ export default function DisplayControlPage() {
   const [eventSearch, setEventSearch] = useState('');
   const [winnersEventSearch, setWinnersEventSearch] = useState('');
   const [pendingFieldPort, setPendingFieldPort] = useState<Record<string, number>>({});
+  const [sponsorUrls, setSponsorUrls] = useState<Record<string, string>>({});
+  const [sponsorInterval, setSponsorInterval] = useState<Record<string, number>>({});
+  const [teamPreviewGender, setTeamPreviewGender] = useState<Record<string, 'M' | 'W'>>({});
+  const [selectedRecordBook, setSelectedRecordBook] = useState<Record<string, string>>({});
 
   const baseUrl = typeof window !== 'undefined' 
     ? `${window.location.protocol}//${window.location.host}` 
@@ -461,6 +465,45 @@ export default function DisplayControlPage() {
   });
 
   // Scene Template Mappings - for assigning custom scenes to display types/modes
+  // Pre-meet display mutations
+  const sendMeetScheduleMutation = useMutation({
+    mutationFn: async ({ deviceId, pagingLines, maxPages }: { deviceId: string; pagingLines: number; maxPages: number }) => {
+      return apiRequest('POST', `/api/display-devices/${deviceId}/meet-schedule`, { pagingLines, maxPages });
+    },
+    onSuccess: () => toast({ title: 'Meet Schedule sent to display' }),
+    onError: (error: Error) => toast({ title: 'Failed to send schedule', description: error.message, variant: 'destructive' }),
+  });
+
+  const sendMeetRecordsMutation = useMutation({
+    mutationFn: async ({ deviceId, pagingLines, maxPages, bookId }: { deviceId: string; pagingLines: number; maxPages: number; bookId?: string }) => {
+      return apiRequest('POST', `/api/display-devices/${deviceId}/meet-records`, { pagingLines, maxPages, bookId });
+    },
+    onSuccess: () => toast({ title: 'Meet Records sent to display' }),
+    onError: (error: Error) => toast({ title: 'Failed to send records', description: error.message, variant: 'destructive' }),
+  });
+
+  const sendSponsorRotationMutation = useMutation({
+    mutationFn: async ({ deviceId, sponsors, interval }: { deviceId: string; sponsors: any[]; interval: number }) => {
+      return apiRequest('POST', `/api/display-devices/${deviceId}/sponsor-rotation`, { sponsors, interval });
+    },
+    onSuccess: () => toast({ title: 'Sponsor rotation sent to display' }),
+    onError: (error: Error) => toast({ title: 'Failed to send sponsors', description: error.message, variant: 'destructive' }),
+  });
+
+  const sendTeamPreviewMutation = useMutation({
+    mutationFn: async ({ deviceId, pagingLines, gender, maxPages }: { deviceId: string; pagingLines: number; gender: string; maxPages: number }) => {
+      return apiRequest('POST', `/api/display-devices/${deviceId}/team-preview`, { pagingLines, gender, maxPages });
+    },
+    onSuccess: () => toast({ title: 'Team preview sent to display' }),
+    onError: (error: Error) => toast({ title: 'Failed to send team preview', description: error.message, variant: 'destructive' }),
+  });
+
+  const { data: recordBooks = [] } = useQuery<any[]>({
+    queryKey: ['/api/record-books', { all: true }],
+    queryFn: () => fetch('/api/record-books?all=true').then(r => r.json()),
+    enabled: !!currentMeetId,
+  });
+
   const { data: sceneMappings = [] } = useQuery<SelectSceneTemplateMapping[]>({
     queryKey: [`/api/scene-template-mappings/${currentMeetId}`],
     enabled: !!currentMeetId,
@@ -530,6 +573,10 @@ export default function DisplayControlPage() {
     'team_scores',
     'winners',
     'record',
+    'meet_schedule',
+    'meet_records',
+    'sponsors',
+    'team_preview',
   ] as const;
   
   const displayModeLabels: Record<string, string> = {
@@ -544,6 +591,10 @@ export default function DisplayControlPage() {
     team_scores: 'Team Scores',
     winners: 'Winners Board',
     record: 'Record Board',
+    meet_schedule: 'Meet Schedule',
+    meet_records: 'Meet Records',
+    sponsors: 'Sponsor Rotation',
+    team_preview: 'Team Preview',
   };
 
   // Helper to find mapping for a specific cell
@@ -996,6 +1047,109 @@ export default function DisplayControlPage() {
                             Winner + record broken label
                           </p>
                           {displayMode[selectedDevice.id] === 'record' && !autoModeStatus?.autoMode && (
+                            <Badge variant="default" className="mt-2">Active</Badge>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDisplayMode(prev => ({ ...prev, [selectedDevice.id]: 'meet_schedule' }));
+                            toggleAutoModeMutation.mutate({ deviceId: selectedDevice.id, enabled: false });
+                            apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}/content-mode`, { contentMode: 'meet_schedule' });
+                          }}
+                          className={`p-4 rounded-lg border-2 transition-all text-left ${
+                            displayMode[selectedDevice.id] === 'meet_schedule' && !autoModeStatus?.autoMode
+                              ? 'border-primary bg-primary/10'
+                              : 'border-border hover-elevate'
+                          }`}
+                          data-testid="tile-meet-schedule"
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <List className="w-5 h-5 text-cyan-500" />
+                            <span className="font-medium">Meet Schedule</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Day's event order with times
+                          </p>
+                          {displayMode[selectedDevice.id] === 'meet_schedule' && !autoModeStatus?.autoMode && (
+                            <Badge variant="default" className="mt-2">Active</Badge>
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDisplayMode(prev => ({ ...prev, [selectedDevice.id]: 'meet_records' }));
+                            toggleAutoModeMutation.mutate({ deviceId: selectedDevice.id, enabled: false });
+                            apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}/content-mode`, { contentMode: 'meet_records' });
+                          }}
+                          className={`p-4 rounded-lg border-2 transition-all text-left ${
+                            displayMode[selectedDevice.id] === 'meet_records' && !autoModeStatus?.autoMode
+                              ? 'border-primary bg-primary/10'
+                              : 'border-border hover-elevate'
+                          }`}
+                          data-testid="tile-meet-records"
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <Award className="w-5 h-5 text-red-500" />
+                            <span className="font-medium">Meet Records</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Current records per event
+                          </p>
+                          {displayMode[selectedDevice.id] === 'meet_records' && !autoModeStatus?.autoMode && (
+                            <Badge variant="default" className="mt-2">Active</Badge>
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDisplayMode(prev => ({ ...prev, [selectedDevice.id]: 'sponsors' }));
+                            toggleAutoModeMutation.mutate({ deviceId: selectedDevice.id, enabled: false });
+                            apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}/content-mode`, { contentMode: 'sponsors' });
+                          }}
+                          className={`p-4 rounded-lg border-2 transition-all text-left ${
+                            displayMode[selectedDevice.id] === 'sponsors' && !autoModeStatus?.autoMode
+                              ? 'border-primary bg-primary/10'
+                              : 'border-border hover-elevate'
+                          }`}
+                          data-testid="tile-sponsors"
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <Image className="w-5 h-5 text-green-500" />
+                            <span className="font-medium">Sponsors</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Cycle sponsor logos/images
+                          </p>
+                          {displayMode[selectedDevice.id] === 'sponsors' && !autoModeStatus?.autoMode && (
+                            <Badge variant="default" className="mt-2">Active</Badge>
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDisplayMode(prev => ({ ...prev, [selectedDevice.id]: 'team_preview' }));
+                            toggleAutoModeMutation.mutate({ deviceId: selectedDevice.id, enabled: false });
+                            apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}/content-mode`, { contentMode: 'team_preview' });
+                          }}
+                          className={`p-4 rounded-lg border-2 transition-all text-left ${
+                            displayMode[selectedDevice.id] === 'team_preview' && !autoModeStatus?.autoMode
+                              ? 'border-primary bg-primary/10'
+                              : 'border-border hover-elevate'
+                          }`}
+                          data-testid="tile-team-preview"
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <Trophy className="w-5 h-5 text-purple-500" />
+                            <span className="font-medium">Team Preview</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Pre-meet team standings
+                          </p>
+                          {displayMode[selectedDevice.id] === 'team_preview' && !autoModeStatus?.autoMode && (
                             <Badge variant="default" className="mt-2">Active</Badge>
                           )}
                         </button>
@@ -1457,6 +1611,258 @@ export default function DisplayControlPage() {
                               </Button>
                             </div>
                           )}
+                        </div>
+                      ) : displayMode[selectedDevice.id] === 'meet_schedule' ? (
+                        <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
+                          <div className="space-y-2">
+                            <Label>Paging (lines = seconds)</Label>
+                            <div className="flex items-center gap-2">
+                              <Select
+                                value={String(pagingLines[selectedDevice.id] || 8)}
+                                onValueChange={(value) => setPagingLines(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }))}
+                              >
+                                <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  {[4, 6, 8, 10, 12, 16, 20].map(n => (
+                                    <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <span className="text-sm text-muted-foreground">
+                                events per page, {pagingLines[selectedDevice.id] || 8}s per page
+                              </span>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Max Pages</Label>
+                            <div className="flex items-center gap-2">
+                              <Select
+                                value={String(maxPages[selectedDevice.id] || 0)}
+                                onValueChange={(value) => setMaxPages(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }))}
+                              >
+                                <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  {[0, 1, 2, 3, 5, 10].map(n => (
+                                    <SelectItem key={n} value={String(n)}>{n === 0 ? 'All' : String(n)}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          <Button
+                            onClick={() => {
+                              sendMeetScheduleMutation.mutate({
+                                deviceId: selectedDevice.id,
+                                pagingLines: pagingLines[selectedDevice.id] || 8,
+                                maxPages: maxPages[selectedDevice.id] || 0,
+                              });
+                            }}
+                            disabled={sendMeetScheduleMutation.isPending}
+                            className="w-full"
+                            data-testid="button-send-schedule"
+                          >
+                            <Send className="w-4 h-4 mr-2" />
+                            Send Schedule to Display
+                          </Button>
+                        </div>
+                      ) : displayMode[selectedDevice.id] === 'meet_records' ? (
+                        <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
+                          <div className="space-y-2">
+                            <Label>Record Book</Label>
+                            <Select
+                              value={selectedRecordBook[selectedDevice.id] || 'all'}
+                              onValueChange={(val) => setSelectedRecordBook(prev => ({ ...prev, [selectedDevice.id]: val }))}
+                            >
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="all">All Record Books</SelectItem>
+                                {recordBooks.map((book: any) => (
+                                  <SelectItem key={book.id} value={String(book.id)}>{book.name} ({book.scope})</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Paging (lines = seconds)</Label>
+                            <div className="flex items-center gap-2">
+                              <Select
+                                value={String(pagingLines[selectedDevice.id] || 8)}
+                                onValueChange={(value) => setPagingLines(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }))}
+                              >
+                                <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  {[4, 6, 8, 10, 12, 16, 20].map(n => (
+                                    <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <span className="text-sm text-muted-foreground">
+                                records per page
+                              </span>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Max Pages</Label>
+                            <div className="flex items-center gap-2">
+                              <Select
+                                value={String(maxPages[selectedDevice.id] || 0)}
+                                onValueChange={(value) => setMaxPages(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }))}
+                              >
+                                <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  {[0, 1, 2, 3, 5, 10].map(n => (
+                                    <SelectItem key={n} value={String(n)}>{n === 0 ? 'All' : String(n)}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          <Button
+                            onClick={() => {
+                              const bookVal = selectedRecordBook[selectedDevice.id];
+                              sendMeetRecordsMutation.mutate({
+                                deviceId: selectedDevice.id,
+                                pagingLines: pagingLines[selectedDevice.id] || 8,
+                                maxPages: maxPages[selectedDevice.id] || 0,
+                                bookId: bookVal && bookVal !== 'all' ? bookVal : undefined,
+                              });
+                            }}
+                            disabled={sendMeetRecordsMutation.isPending}
+                            className="w-full"
+                            data-testid="button-send-records"
+                          >
+                            <Send className="w-4 h-4 mr-2" />
+                            Send Records to Display
+                          </Button>
+                        </div>
+                      ) : displayMode[selectedDevice.id] === 'sponsors' ? (
+                        <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
+                          <div className="space-y-2">
+                            <Label>Sponsor Image URLs (one per line)</Label>
+                            <textarea
+                              className="w-full h-32 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              placeholder={"https://example.com/sponsor1.png\nhttps://example.com/sponsor2.png"}
+                              value={sponsorUrls[selectedDevice.id] || ''}
+                              onChange={(e) => setSponsorUrls(prev => ({ ...prev, [selectedDevice.id]: e.target.value }))}
+                              data-testid="textarea-sponsor-urls"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Enter one image URL per line. These can be logos, banners, or ads.
+                            </p>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Rotation Interval (seconds per sponsor)</Label>
+                            <div className="flex items-center gap-2">
+                              <Select
+                                value={String(sponsorInterval[selectedDevice.id] || 8)}
+                                onValueChange={(value) => setSponsorInterval(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }))}
+                              >
+                                <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  {[3, 5, 8, 10, 15, 20, 30].map(n => (
+                                    <SelectItem key={n} value={String(n)}>{n}s</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <span className="text-sm text-muted-foreground">
+                                seconds per sponsor
+                              </span>
+                            </div>
+                          </div>
+                          <Button
+                            onClick={() => {
+                              const urlText = sponsorUrls[selectedDevice.id] || '';
+                              const urls = urlText.split('\n').map(u => u.trim()).filter(u => u.length > 0);
+                              if (urls.length === 0) {
+                                toast({ title: 'No sponsors', description: 'Enter at least one image URL', variant: 'destructive' });
+                                return;
+                              }
+                              sendSponsorRotationMutation.mutate({
+                                deviceId: selectedDevice.id,
+                                sponsors: urls.map(url => ({ imageUrl: url })),
+                                interval: sponsorInterval[selectedDevice.id] || 8,
+                              });
+                            }}
+                            disabled={sendSponsorRotationMutation.isPending}
+                            className="w-full"
+                            data-testid="button-send-sponsors"
+                          >
+                            <Send className="w-4 h-4 mr-2" />
+                            Start Sponsor Rotation
+                          </Button>
+                        </div>
+                      ) : displayMode[selectedDevice.id] === 'team_preview' ? (
+                        <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
+                          <div className="space-y-2">
+                            <Label>Gender</Label>
+                            <div className="flex gap-2">
+                              <Button
+                                variant={teamPreviewGender[selectedDevice.id] === 'M' || !teamPreviewGender[selectedDevice.id] ? 'default' : 'outline'}
+                                onClick={() => setTeamPreviewGender(prev => ({ ...prev, [selectedDevice.id]: 'M' }))}
+                                className="flex-1"
+                              >
+                                Men
+                              </Button>
+                              <Button
+                                variant={teamPreviewGender[selectedDevice.id] === 'W' ? 'default' : 'outline'}
+                                onClick={() => setTeamPreviewGender(prev => ({ ...prev, [selectedDevice.id]: 'W' }))}
+                                className="flex-1"
+                              >
+                                Women
+                              </Button>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Paging (lines = seconds)</Label>
+                            <div className="flex items-center gap-2">
+                              <Select
+                                value={String(pagingLines[selectedDevice.id] || 8)}
+                                onValueChange={(value) => setPagingLines(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }))}
+                              >
+                                <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  {[4, 6, 8, 10, 12, 16, 20].map(n => (
+                                    <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <span className="text-sm text-muted-foreground">
+                                teams per page
+                              </span>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Max Pages</Label>
+                            <div className="flex items-center gap-2">
+                              <Select
+                                value={String(maxPages[selectedDevice.id] || 0)}
+                                onValueChange={(value) => setMaxPages(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }))}
+                              >
+                                <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  {[0, 1, 2, 3, 5, 10].map(n => (
+                                    <SelectItem key={n} value={String(n)}>{n === 0 ? 'All' : String(n)}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          <Button
+                            onClick={() => {
+                              sendTeamPreviewMutation.mutate({
+                                deviceId: selectedDevice.id,
+                                pagingLines: pagingLines[selectedDevice.id] || 8,
+                                gender: teamPreviewGender[selectedDevice.id] || 'M',
+                                maxPages: maxPages[selectedDevice.id] || 0,
+                              });
+                            }}
+                            disabled={sendTeamPreviewMutation.isPending}
+                            className="w-full"
+                            data-testid="button-send-team-preview"
+                          >
+                            <Send className="w-4 h-4 mr-2" />
+                            Send Team Preview to Display
+                          </Button>
                         </div>
                       ) : displayMode[selectedDevice.id] === 'field' ? (
                         <div className="space-y-4 p-4 rounded-lg border bg-muted/30">

@@ -593,6 +593,12 @@ export default function DisplayDevice() {
               autoModeRef.current = false;
               currentLayoutModeRef.current = null; // Reset so display_command triggers fresh render
               console.log(`[Display] Switched to ${newContentMode} content mode (auto-mode disabled)`);
+            } else if (newContentMode === 'meet_schedule' || newContentMode === 'meet_records' || newContentMode === 'sponsors' || newContentMode === 'team_preview') {
+              // Switch to pre-meet display modes — disable auto mode so FinishLynx doesn't override
+              setIsFieldMode(false);
+              autoModeRef.current = false;
+              currentLayoutModeRef.current = null; // Reset so display_command triggers fresh render
+              console.log(`[Display] Switched to ${newContentMode} content mode (auto-mode disabled)`);
             }
           }
 
