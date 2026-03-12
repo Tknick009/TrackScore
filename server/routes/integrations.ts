@@ -2928,35 +2928,44 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
       const fsPromises = await import('fs/promises');
       const pathModule = await import('path');
       
-      // Build filename pattern: School_FirstName_LastName.png
-      const schoolStr = String(school).trim();
+      // Build filename patterns.
+      // Headshot files may use either spaces or underscores in school name.
+      const schoolStrRaw = String(school).trim();
+      const schoolStrUnderscore = schoolStrRaw.replace(/\s+/g, '_');
       const firstStr = String(firstName).trim();
       const lastStr = String(lastName).trim();
-      const baseFilename = `${schoolStr}_${firstStr}_${lastStr}`;
-      
+
+      const baseFilenames = Array.from(new Set([
+        `${schoolStrRaw}_${firstStr}_${lastStr}`,
+        `${schoolStrUnderscore}_${firstStr}_${lastStr}`,
+      ]));
+
       // Try multiple extensions
       const extensions = ['.png', '.jpg', '.jpeg', '.PNG', '.JPG', '.JPEG'];
       let foundPath: string | null = null;
-      
-      for (const ext of extensions) {
-        const filePath = pathModule.default.join(headshotDir, `${baseFilename}${ext}`);
-        try {
-          await fsPromises.access(filePath);
-          foundPath = filePath;
-          break;
-        } catch {
-          // Try next extension
+
+      for (const baseFilename of baseFilenames) {
+        for (const ext of extensions) {
+          const filePath = pathModule.default.join(headshotDir, `${baseFilename}${ext}`);
+          try {
+            await fsPromises.access(filePath);
+            foundPath = filePath;
+            break;
+          } catch {
+            // Try next extension
+          }
         }
+        if (foundPath) break;
       }
-      
+
       // Also try case-insensitive match by listing directory
       if (!foundPath) {
         try {
           const files = await fsPromises.readdir(headshotDir);
-          const lowerBase = baseFilename.toLowerCase();
+          const lowerBases = baseFilenames.map(b => b.toLowerCase());
           const match = files.find(f => {
             const name = f.substring(0, f.lastIndexOf('.'));
-            return name.toLowerCase() === lowerBase;
+            return lowerBases.includes(name.toLowerCase());
           });
           if (match) {
             foundPath = pathModule.default.join(headshotDir, match);
@@ -3089,13 +3098,13 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
       // For each athlete, check if a headshot file exists
       const results = athletes.map(athlete => {
         const team = athlete.teamId ? teamMap.get(athlete.teamId) : null;
-        // Use team name (or affiliation) as the school part of the filename
-        // Replace spaces with underscores to match scraper format
-        const schoolRaw = (team?.name || team?.affiliation || '').trim();
-        const school = schoolRaw.replace(/\s+/g, '_');
+        // Use team name (or affiliation) as the school part of the filename.
+        // Headshot filenames are from a scraper that replaces spaces with underscores.
+        const school = (team?.name || team?.affiliation || '').trim();
+        const schoolForFilename = school.replace(/\s+/g, '_');
         const firstName = (athlete.firstName || '').trim();
         const lastName = (athlete.lastName || '').trim();
-        const expectedFilename = `${school}_${firstName}_${lastName}`;
+        const expectedFilename = `${schoolForFilename}_${firstName}_${lastName}`;
         const matchKey = expectedFilename.toLowerCase();
         const matchedFile = fileMap.get(matchKey) || null;
 
