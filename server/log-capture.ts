@@ -10,7 +10,8 @@ interface LogEntry {
   message: string;
 }
 
-const MAX_ENTRIES = 50_000; // keep last 50k lines (~10-20 MB text)
+const MAX_ENTRIES = 5_000; // keep last 5k lines (~1-2 MB text)
+const MAX_MESSAGE_LENGTH = 500; // truncate long messages to prevent memory bloat
 const logBuffer: LogEntry[] = [];
 const serverStartTime = new Date().toISOString();
 
@@ -20,16 +21,20 @@ const originalWarn = console.warn;
 const originalError = console.error;
 
 function formatArgs(args: unknown[]): string {
-  return args
+  const result = args
     .map((a) => {
       if (typeof a === 'string') return a;
       try {
-        return JSON.stringify(a, null, 0);
+        // Limit stringified object size to prevent memory bloat
+        const s = JSON.stringify(a, null, 0);
+        return s.length > MAX_MESSAGE_LENGTH ? s.slice(0, MAX_MESSAGE_LENGTH) + '...' : s;
       } catch {
         return String(a);
       }
     })
     .join(' ');
+  // Truncate the final message
+  return result.length > MAX_MESSAGE_LENGTH * 2 ? result.slice(0, MAX_MESSAGE_LENGTH * 2) + '...' : result;
 }
 
 function push(level: LogEntry['level'], args: unknown[]) {
@@ -39,9 +44,9 @@ function push(level: LogEntry['level'], args: unknown[]) {
     message: formatArgs(args),
   };
   logBuffer.push(entry);
-  // Trim oldest entries if buffer exceeds limit
-  if (logBuffer.length > MAX_ENTRIES) {
-    logBuffer.splice(0, logBuffer.length - MAX_ENTRIES);
+  // Trim oldest entries if buffer exceeds limit — use shift for lower GC pressure
+  while (logBuffer.length > MAX_ENTRIES) {
+    logBuffer.shift();
   }
 }
 

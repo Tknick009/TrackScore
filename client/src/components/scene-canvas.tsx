@@ -131,8 +131,8 @@ function useLiveEventData(eventNumber: string | number | null | undefined) {
       return res.json();
     },
     enabled: !!eventNumber,
-    staleTime: 500,
-    refetchInterval: 1000,
+    staleTime: 5000,
+    refetchInterval: 10000, // WebSocket handles real-time; this is fallback only
   });
 }
 
@@ -145,8 +145,8 @@ function useLatestLiveEventData() {
       const data = await res.json();
       return Array.isArray(data) && data.length > 0 ? data[0] : null;
     },
-    staleTime: 500,
-    refetchInterval: 1000,
+    staleTime: 5000,
+    refetchInterval: 10000, // WebSocket handles real-time; this is fallback only
   });
 }
 

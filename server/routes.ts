@@ -252,10 +252,8 @@ async function getActiveMeetId(): Promise<string | null> {
 // Compute PB/SB/MR/FR tags for each entry in an event
 async function enrichEntriesWithRecordTags(eventType: string, gender: string, entries: EntryWithDetails[]): Promise<void> {
   try {
-    console.log(`[RecordTags] Enriching ${entries.length} entries (eventType=${eventType}, gender=${gender})`);
     // Fetch all record books for this event type and gender
     const matchingRecords = await storage.getRecordsByEvent(eventType, gender);
-    console.log(`[RecordTags] Found ${matchingRecords.length} matching records for ${eventType}/${gender}`);
     // Build a map of record book scope -> { performance, allowMultiple }
     const recordsByScope: Map<string, { perf: number; allowMultiple: boolean }> = new Map();
     for (const record of matchingRecords) {
@@ -342,22 +340,11 @@ async function enrichEntriesWithRecordTags(eventType: string, gender: string, en
             else if (isTimeEvent(eventType) ? b.mark < collegeBest : b.mark > collegeBest) collegeBest = b.mark;
           }
         }
-        // Log first few athletes for debugging
-        if (bestsByAthlete.size < 3) {
-          const allEventTypes = bests.map(b => b.eventType);
-          console.log(`[RecordTags] Athlete ${athleteId}: has ${bests.length} total bests (eventTypes: [${[...new Set(allEventTypes)].join(',')}]), filtered to ${eventBests.length} for "${eventType}" (canonical: "${canonicalEventType}"), college=${collegeBest}, season=${seasonBest}`);
-        }
         bestsByAthlete.set(athleteId, { season: seasonBest, college: collegeBest });
       } catch {
         // Skip if bests can't be fetched
       }
     }
-
-    // Log what we found
-    for (const [scope, info] of recordsByScope) {
-      console.log(`[RecordTags] Record scope=${scope}, performance=${info.perf}, allowMultiple=${info.allowMultiple}`);
-    }
-    console.log(`[RecordTags] Athlete bests found for ${bestsByAthlete.size} athletes`);
 
     const isTime = isTimeEvent(eventType);
 
@@ -456,9 +443,6 @@ async function enrichEntriesWithRecordTags(eventType: string, gender: string, en
 
     // Assign final tags to entries
     for (const eti of entryTagInfos) {
-      if (eti.tags.length > 0) {
-        console.log(`[RecordTags] Athlete ${eti.entry.athleteId}: mark=${eti.mark}, tags=[${eti.tags.join(',')}]`);
-      }
       (eti.entry as any).recordTags = eti.tags;
     }
   } catch (error) {
