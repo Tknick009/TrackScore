@@ -158,7 +158,7 @@ export function WinnersBoard({
   const confettiPieces = useMemo(() => generateConfettiPieces(60, logoColors), [logoColors]);
 
   // Early return AFTER all hooks to comply with React Rules of Hooks
-  if (!entries || entries.length === 0) return null;
+  if (!entries || entries.length === 0 || !winner) return null;
 
   return (
     <div

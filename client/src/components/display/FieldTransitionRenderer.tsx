@@ -216,7 +216,11 @@ export function FieldTransitionRenderer({
 
     // Cooldown guard: prevent rapid re-triggering even if a new athlete is detected
     const now = Date.now();
-    if (now - lastCurtainTimeRef.current < CURTAIN_COOLDOWN_MS) return;
+    if (now - lastCurtainTimeRef.current < CURTAIN_COOLDOWN_MS) {
+      // Still update seen bibs so we don't "miss" athletes that appear during cooldown
+      seenBibsRef.current = currentBibs;
+      return;
+    }
 
     // Update seen bibs and refs ONLY when we actually fire the curtain.
     // This ensures athletes appearing during cooldown aren't permanently

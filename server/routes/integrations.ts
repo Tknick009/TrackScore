@@ -2930,10 +2930,13 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
       
       // Build filename patterns.
       // Headshot files may use either spaces or underscores in school name.
-      const schoolStrRaw = String(school).trim();
+      // Sanitize inputs to prevent path traversal
+      const sanitize = (s: any) => String(s || '').replace(/[\/\\]/g, '').trim();
+      
+      const schoolStrRaw = sanitize(school);
       const schoolStrUnderscore = schoolStrRaw.replace(/\s+/g, '_');
-      const firstStr = String(firstName).trim();
-      const lastStr = String(lastName).trim();
+      const firstStr = sanitize(firstName);
+      const lastStr = sanitize(lastName);
 
       const baseFilenames = Array.from(new Set([
         `${schoolStrRaw}_${firstStr}_${lastStr}`,
@@ -2943,10 +2946,15 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
       // Try multiple extensions
       const extensions = ['.png', '.jpg', '.jpeg', '.PNG', '.JPG', '.JPEG'];
       let foundPath: string | null = null;
+      const resolvedHeadshotDir = pathModule.default.resolve(headshotDir);
 
       for (const baseFilename of baseFilenames) {
         for (const ext of extensions) {
           const filePath = pathModule.default.join(headshotDir, `${baseFilename}${ext}`);
+          // Verify path is within headshot directory
+          const resolvedPath = pathModule.default.resolve(filePath);
+          if (!resolvedPath.startsWith(resolvedHeadshotDir)) continue;
+          
           try {
             await fsPromises.access(filePath);
             foundPath = filePath;
@@ -2968,7 +2976,11 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
             return lowerBases.includes(name.toLowerCase());
           });
           if (match) {
-            foundPath = pathModule.default.join(headshotDir, match);
+            const filePath = pathModule.default.join(headshotDir, match);
+            const resolvedPath = pathModule.default.resolve(filePath);
+            if (resolvedPath.startsWith(resolvedHeadshotDir)) {
+              foundPath = filePath;
+            }
           }
         } catch {
           // Directory not readable

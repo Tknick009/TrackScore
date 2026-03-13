@@ -712,7 +712,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       // Use the same round naming as dataRounds so labels match data
       const uiRounds = totalRoundsForMapping === 4 ? ['preliminary', 'quarterfinal', 'semifinal', 'final']
         : totalRoundsForMapping === 3 ? ['preliminary', 'semifinal', 'final']
-        : totalRoundsForMapping === 2 ? ['preliminary', 'final']
+        : totalRoundsForMapping === 2 ? ['semifinal', 'final'] // UI often picks last 2, so semi->final
         : ['final'];
       // Map: data columns always go preliminary → quarterfinal → semifinal → final in order
       const dataRounds = totalRoundsForMapping === 4 ? ['preliminary', 'quarterfinal', 'semifinal', 'final']
