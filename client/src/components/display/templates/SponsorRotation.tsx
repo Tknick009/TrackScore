@@ -47,8 +47,10 @@ export function SponsorRotation({
     if (timerRef.current) clearInterval(timerRef.current);
     if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
 
+    // Reset transition state so content is visible when effect re-runs
+    setIsTransitioning(false);
+
     if (entries.length <= 1) {
-      setIsTransitioning(false);
       return;
     }
 

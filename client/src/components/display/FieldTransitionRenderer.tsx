@@ -60,8 +60,6 @@ export function FieldTransitionRenderer({
   // Skip Strategy 2 on the very first data load — seenBibsRef is empty so every
   // entry looks "new", which would cause a spurious curtain animation.
   const initialLoadRef = useRef(true);
-  // Track the event identifier to reset state when switching events
-  const prevEventIdRef = useRef<string>('');
   // Cache fetched team colors/logos by school name so subsequent curtain animations
   // for the same school start with the correct color instead of the default blue.
   const teamCacheRef = useRef<Map<string, { primary: string; secondary: string; logo: string | null }>>(new Map());
