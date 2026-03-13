@@ -947,6 +947,7 @@ export function SceneObjectRenderer({
             'facility-record': facilityRecordDisplay,
             // Record tags as text (highest priority only) - badges are rendered separately
             'record-tag': recordTags.length > 0 ? recordTags[0] : '',
+            'new-record-tag': recordTags.length > 0 ? 'NEW' : '',
             // Name fields (badge will be rendered separately, don't duplicate tag in text)
             'name-record-tag': displayName,
             'last-name-record-tag': isTeamScores ? (firstEntry?.name || '') : isRelayOrMedleyText ? (firstEntry?.name || firstEntry?.lastName || '') : firstEntry?.lastName,
@@ -1029,8 +1030,13 @@ export function SceneObjectRenderer({
         // Includes qualifier fields so Q/q badge shows first, then record tag badge
         const isNameField = fieldKey === 'name' || fieldKey === 'last-name' 
           || fieldKey === 'name-qualifier' || fieldKey === 'last-name-qualifier'
-          || fieldKey === 'name-record-tag' || fieldKey === 'last-name-record-tag' || fieldKey === 'record-tag';
-        const recordTagBadges = (isNameField && hoistedRecordTags.length > 0) ? hoistedRecordTags : [];
+          || fieldKey === 'name-record-tag' || fieldKey === 'last-name-record-tag' || fieldKey === 'record-tag'
+          || fieldKey === 'new-record-tag';
+        let recordTagBadges = (isNameField && hoistedRecordTags.length > 0) ? hoistedRecordTags : [];
+        // 'new-record-tag' is intended for compact "NEW + badge" usage, so show only top-priority tag
+        if (fieldKey === 'new-record-tag') {
+          recordTagBadges = recordTagBadges.slice(0, 1);
+        }
         
         return (
           <div 
