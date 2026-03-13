@@ -217,8 +217,8 @@ export function FieldTransitionRenderer({
     // Cooldown guard: prevent rapid re-triggering even if a new athlete is detected
     const now = Date.now();
     if (now - lastCurtainTimeRef.current < CURTAIN_COOLDOWN_MS) {
-      // Still update seen bibs so we don't "miss" athletes that appear during cooldown
-      seenBibsRef.current = currentBibs;
+      // Do NOT update seenBibsRef during cooldown — athletes appearing during
+      // cooldown should remain "unseen" so Strategy 2 can detect them after cooldown expires.
       return;
     }
 
