@@ -355,7 +355,7 @@ async function enrichEntriesWithRecordTags(eventType: string, gender: string, en
 
     for (const entry of entries) {
       const tags: string[] = [];
-      if (entry.finalMark === null || entry.finalMark === undefined) {
+      if (entry.finalMark === null || entry.finalMark === undefined || entry.finalMark === 0) {
         (entry as any).recordTags = tags;
         continue;
       }
