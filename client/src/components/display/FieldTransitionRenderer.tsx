@@ -216,8 +216,11 @@ export function FieldTransitionRenderer({
       ? String(calledUp.name)
       : '';
     if (!calledId || calledId === prevCalledBibRef.current) {
-      // Still update seen bibs so late-arriving athletes don't trigger spurious curtains
-      seenBibsRef.current = currentBibs;
+      // Only add the known calledId to seenBibs — do NOT replace with all currentBibs.
+      // If we replaced with currentBibs here, any truly new athlete (C) that appeared
+      // alongside a cooldown-suppressed athlete (B) would be permanently marked "seen"
+      // without ever triggering a curtain.
+      if (calledId) seenBibsRef.current = new Set([...seenBibsRef.current, calledId]);
       initialLoadRef.current = false;
       return;
     }
