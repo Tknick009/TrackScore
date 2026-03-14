@@ -175,6 +175,32 @@ function broadcastToDisplays(message: WSMessage) {
   });
 }
 
+// === PERFORMANCE: Dedicated clock broadcast — completely isolated from all other processing ===
+// Clock ticks must never be delayed by start-list DB queries, field data broadcasts, or
+// record tag enrichment. This function does the absolute minimum work:
+// 1. Pre-serialize the JSON string ONCE
+// 2. Send directly to each open WebSocket client (only lynx-mode devices)
+// 3. Zero async operations, zero DB queries, zero object allocation per tick
+function broadcastClockUpdate(eventNumber: number, time: string, command: string) {
+  const messageStr = `{"type":"clock_update","data":{"eventNumber":${eventNumber},"time":"${time}","command":"${command}"}}`;
+  
+  // Build skip-set ONCE (O(M)) instead of nested forEach (O(N*M))
+  let skipWs: Set<WebSocket> | null = null;
+  connectedDisplayDevices.forEach((device) => {
+    if (device.contentMode !== 'lynx') {
+      if (!skipWs) skipWs = new Set();
+      skipWs.add(device.ws);
+    }
+  });
+  
+  // Send to all open clients, skipping non-lynx devices
+  displayClients.forEach((client) => {
+    if (client.readyState === 1 && !(skipWs && skipWs.has(client))) { // 1 = WebSocket.OPEN
+      client.send(messageStr);
+    }
+  });
+}
+
 // Send targeted message to a specific display device
 function sendToDisplayDevice(deviceId: string, message: WSMessage) {
   const device = connectedDisplayDevices.get(deviceId);
@@ -779,6 +805,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Build shared route context
   const ctx: RouteContext = {
     broadcastToDisplays,
+    broadcastClockUpdate,
     broadcastCurrentEvent,
     broadcastFieldEventUpdate,
     sendToDisplayDevice,

@@ -59,7 +59,7 @@ import type { RouteContext } from "../route-context";
 
 export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
   const {
-    broadcastToDisplays, broadcastCurrentEvent, broadcastFieldEventUpdate,
+    broadcastToDisplays, broadcastClockUpdate, broadcastCurrentEvent, broadcastFieldEventUpdate,
     sendToDisplayDevice, getActiveMeetId, connectedDisplayDevices,
     getConnectedDevicesForMeet, prefetchSceneData, getDisplayModeFromTemplate,
     abbreviateEventName, upload, fileStorage, displayClients,
@@ -1722,7 +1722,9 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     }
   });
 
-  // Clock handler - deduplicate identical ticks to reduce WebSocket traffic
+  // Clock handler - DEDICATED PIPELINE: completely isolated from track/field results processing
+  // Uses broadcastClockUpdate() which bypasses the shared broadcastToDisplays() entirely,
+  // so clock ticks are never blocked by start-list DB queries, field data, or record enrichment.
   let lastClockTime = '';
   let lastClockCommand = '';
   lynxListener.on('clock-update', (eventNumber, time, command) => {
@@ -1733,14 +1735,8 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     lastClockTime = time || '';
     lastClockCommand = command || '';
     
-    broadcastToDisplays({
-      type: 'clock_update',
-      data: {
-        eventNumber,
-        time,
-        command,
-      }
-    } as WSMessage);
+    // Direct dedicated clock broadcast — zero async, zero DB, zero shared pipeline
+    broadcastClockUpdate(eventNumber, time || '', command || '');
   });
 
   // Layout command handler - FinishLynx tells us when to switch layouts

@@ -20,6 +20,7 @@ export interface ConnectedDisplayDevice {
 
 export interface RouteContext {
   broadcastToDisplays: (message: WSMessage) => void;
+  broadcastClockUpdate: (eventNumber: number, time: string, command: string) => void;
   broadcastCurrentEvent: () => Promise<void>;
   broadcastFieldEventUpdate: (sessionId: number, deviceName?: string) => Promise<void>;
   sendToDisplayDevice: (deviceId: string, message: WSMessage) => boolean;
