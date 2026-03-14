@@ -3142,10 +3142,20 @@ export class SQLiteStorage implements IStorage {
       console.warn('[getTeamStandings] Could not read score override columns (schema may need migration):', (e as any)?.message);
     }
 
-    const standings: TeamStandingsEntry[] = Array.from(teamScores.entries())
-      .sort((a, b) => b[1].totalPoints - a[1].totalPoints)
-      .map(([teamId, data], index) => ({
-        rank: index + 1,
+    const sorted = Array.from(teamScores.entries())
+      .sort((a, b) => b[1].totalPoints - a[1].totalPoints);
+
+    // Tie-aware ranks: teams with the same score share the same rank,
+    // and the next rank skips accordingly (e.g., 1,1,3 not 1,2,3)
+    const standings: TeamStandingsEntry[] = [];
+    for (let i = 0; i < sorted.length; i++) {
+      const [teamId, data] = sorted[i];
+      let rank = i + 1;
+      if (i > 0 && data.totalPoints === sorted[i - 1][1].totalPoints) {
+        rank = standings[i - 1].rank;
+      }
+      standings.push({
+        rank,
         teamId,
         teamName: data.teamName,
         totalPoints: data.totalPoints,
@@ -3155,7 +3165,8 @@ export class SQLiteStorage implements IStorage {
           eventName: e.eventName,
           points: e.points,
         })),
-      }));
+      });
+    }
 
     return standings;
   }
@@ -3312,10 +3323,20 @@ export class SQLiteStorage implements IStorage {
       }
     }
 
-    const standings: TeamStandingsEntry[] = Array.from(teamScores.entries())
-      .sort((a, b) => b[1].totalPoints - a[1].totalPoints)
-      .map(([teamId, data], index) => ({
-        rank: index + 1,
+    const sorted = Array.from(teamScores.entries())
+      .sort((a, b) => b[1].totalPoints - a[1].totalPoints);
+
+    // Tie-aware ranks: teams with the same score share the same rank,
+    // and the next rank skips accordingly (e.g., 1,1,3 not 1,2,3)
+    const standings: TeamStandingsEntry[] = [];
+    for (let i = 0; i < sorted.length; i++) {
+      const [teamId, data] = sorted[i];
+      let rank = i + 1;
+      if (i > 0 && data.totalPoints === sorted[i - 1][1].totalPoints) {
+        rank = standings[i - 1].rank;
+      }
+      standings.push({
+        rank,
         teamId,
         teamName: data.teamName,
         totalPoints: data.totalPoints,
@@ -3325,7 +3346,8 @@ export class SQLiteStorage implements IStorage {
           eventName: e.eventName,
           points: e.points,
         })),
-      }));
+      });
+    }
 
     return standings;
   }
