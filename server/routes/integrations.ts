@@ -628,6 +628,45 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
   const entryAccumulator = createEmptyAccumulator(); // Standard/small board
   const entryAccumulatorBig = createEmptyAccumulator(); // Big board
 
+  // === PERFORMANCE: Start-list deduplication ===
+  // FinishLynx re-sends the same start list every ~2s even when nothing changed.
+  // We fingerprint the accumulated entries and skip the entire enrichment+broadcast
+  // pipeline when the data is identical — this eliminates 5-6 DB queries per cycle.
+  let lastStartListFingerprint = '';
+  let lastStartListFingerprintBig = '';
+
+  // === PERFORMANCE: DB query cache for hot-path lookups ===
+  // These queries run on every start-list cycle (~2s) but rarely change during a meet.
+  // Cache them with a 30-second TTL to avoid hammering the DB.
+  const dbCache = {
+    athletesByMeet: { data: null as any[] | null, meetId: '', expiry: 0 },
+    eventsByNumber: new Map<number, { data: any[], expiry: number }>(),
+  };
+  const DB_CACHE_TTL = 30_000; // 30 seconds
+
+  function getCachedAthletesByMeet(meetId: string): any[] | null {
+    const now = Date.now();
+    if (dbCache.athletesByMeet.meetId === meetId && dbCache.athletesByMeet.data && now < dbCache.athletesByMeet.expiry) {
+      return dbCache.athletesByMeet.data;
+    }
+    return null;
+  }
+  async function getAthletesByMeetCached(meetId: string): Promise<any[]> {
+    const cached = getCachedAthletesByMeet(meetId);
+    if (cached) return cached;
+    const athletes = await storage.getAthletesByMeetId(meetId);
+    dbCache.athletesByMeet = { data: athletes, meetId, expiry: Date.now() + DB_CACHE_TTL };
+    return athletes;
+  }
+  async function getEventsByLynxNumberCached(eventNumber: number): Promise<any[]> {
+    const now = Date.now();
+    const cached = dbCache.eventsByNumber.get(eventNumber);
+    if (cached && now < cached.expiry) return cached.data;
+    const events = await storage.getEventsByLynxEventNumber(eventNumber);
+    dbCache.eventsByNumber.set(eventNumber, { data: events, expiry: now + DB_CACHE_TTL });
+    return events;
+  }
+
   // Get Lynx connection status (used by UI)
   app.get("/api/lynx/status", async (req, res) => {
     try {
@@ -1485,7 +1524,8 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     
     try {
       // Auto-activate event when data arrives (set to in_progress if scheduled)
-      const allMatchingEvents = await storage.getEventsByLynxEventNumber(eventNumber);
+      // === PERFORMANCE: Use cached DB lookup instead of hitting DB on every track-mode-change ===
+      const allMatchingEvents = await getEventsByLynxNumberCached(eventNumber);
 
       // Get total heats from EVT watcher for the active meet
       const roundNum = data.round ? parseInt(String(data.round)) : 1;
@@ -1613,9 +1653,10 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
           const resolvedGender = eventGender || '';
           // Resolve athleteId from bib number so PB/SB tags can be computed
           // FinishLynx entries have bib but not athleteId
+          // === PERFORMANCE: Use cached athlete lookup instead of fetching ALL athletes on every results broadcast ===
           const enrichMeetId = await getActiveMeetId();
           if (enrichMeetId) {
-            const meetAthletes = await storage.getAthletesByMeetId(enrichMeetId);
+            const meetAthletes = await getAthletesByMeetCached(enrichMeetId);
             const bibToAthlete = new Map(meetAthletes.map(a => [a.bibNumber, a.id]));
             for (const entry of data.entries) {
               if (entry.bib && !entry.athleteId) {
@@ -1718,6 +1759,8 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
       console.log(`[Lynx] Clearing ${isBigBoard ? 'big board' : 'standard'} entry accumulator for new page (${acc.entries.length} entries cleared)`);
       acc.entries = [];
       acc.lastLayoutCommand = layoutName;
+      // Reset fingerprint so next start-list will always broadcast after a clear
+      if (isBigBoard) { lastStartListFingerprintBig = ''; } else { lastStartListFingerprint = ''; }
     }
     
     // Broadcast layout switch command - big board uses separate channel
@@ -2012,6 +2055,18 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
       }
     }
     
+    // === PERFORMANCE: Fingerprint-based deduplication ===
+    // FinishLynx re-sends the same start list every ~2s. Compute a fingerprint
+    // of the accumulated entries and skip the ENTIRE enrichment+broadcast pipeline
+    // when nothing changed. This eliminates 5-6 DB queries per redundant cycle.
+    const fingerprint = `${eventNumber}:${heat}:${acc.entries.length}:${acc.entries.map((e: any) => `${e.bib||''}:${e.lane||''}:${e.name||''}:${e.time||''}`).join(',')}`;
+    const lastFP = isBigBoard ? lastStartListFingerprintBig : lastStartListFingerprint;
+    if (fingerprint === lastFP) {
+      // Data unchanged — skip all DB queries, enrichment, and broadcast
+      return;
+    }
+    if (isBigBoard) { lastStartListFingerprintBig = fingerprint; } else { lastStartListFingerprint = fingerprint; }
+    
     console.log(`[Lynx] Start list (${isBigBoard ? 'BIG BOARD' : 'standard'}): Event ${eventNumber}, Heat ${heat}, +${entries.length} entries, total: ${acc.entries.length}`);
     
     // Get total heats from EVT watcher for the active meet
@@ -2020,11 +2075,9 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     let evtHeats: number | null = null;
     if (activeMeetId) {
       evtHeats = getTotalHeatsFromCache(activeMeetId, eventNumber, roundNum);
-      console.log(`[Lynx StartList Heat] eventNumber=${eventNumber}, round=${roundNum}, totalHeats=${evtHeats} (active meet: ${activeMeetId})`);
     } else {
       // Fallback to searching all watchers if no displays connected
       evtHeats = getTotalHeatsFromAnyWatcher(eventNumber, roundNum);
-      console.log(`[Lynx StartList Heat] eventNumber=${eventNumber}, round=${roundNum}, totalHeats=${evtHeats} (no active meet, searched all)`);
     }
     const totalHeats = evtHeats ?? 1;
     
@@ -2038,7 +2091,8 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     let eventGender: string | null = null;
     
     try {
-      const allMatchEvents = await storage.getEventsByLynxEventNumber(eventNumber);
+      // === PERFORMANCE: Use cached DB lookup instead of hitting DB every 2s ===
+      const allMatchEvents = await getEventsByLynxNumberCached(eventNumber);
       // Filter to active meet's events to avoid stale advancement formulas from old meets
       const meetFilteredEvents = activeMeetId 
         ? allMatchEvents.filter(e => e.meetId === activeMeetId) 
@@ -2120,9 +2174,10 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
         const resolvedEventType = eventType || 'track';
         const resolvedGender = eventGender || '';
         // Resolve athleteId from bib number so PB/SB tags can be computed
+        // === PERFORMANCE: Use cached athlete lookup instead of fetching ALL athletes every 2s ===
         const slEnrichMeetId = await getActiveMeetId();
         if (slEnrichMeetId) {
-          const slMeetAthletes = await storage.getAthletesByMeetId(slEnrichMeetId);
+          const slMeetAthletes = await getAthletesByMeetCached(slEnrichMeetId);
           const slBibToAthlete = new Map(slMeetAthletes.map(a => [a.bibNumber, a.id]));
           for (const entry of acc.entries) {
             if (entry.bib && !entry.athleteId) {
