@@ -2745,6 +2745,93 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
     }
   });
 
+  // ===== SCORING RULES CONFIGURATION =====
+
+  // GET all scoring rules for a meet
+  app.get("/api/meets/:meetId/scoring-rules", async (req, res) => {
+    try {
+      const { meetId } = req.params;
+      const rules = (storage as any).getScoringRules(meetId);
+      const maxScorers = (storage as any).getMaxScorers(meetId);
+
+      // Group rules by gender (level)
+      const grouped: Record<string, { indPoints: number[]; relPoints: number[] }> = {};
+      for (const rule of rules) {
+        if (!grouped[rule.gender]) {
+          grouped[rule.gender] = { indPoints: [], relPoints: [] };
+        }
+        // place is 1-indexed, push in order
+        grouped[rule.gender].indPoints.push(rule.indScore);
+        grouped[rule.gender].relPoints.push(rule.relScore);
+      }
+
+      res.json({
+        levels: Object.entries(grouped).map(([gender, pts]) => ({
+          gender,
+          indPoints: pts.indPoints,
+          relPoints: pts.relPoints,
+        })),
+        indMaxScorers: maxScorers.indMaxScorers,
+        relMaxScorers: maxScorers.relMaxScorers,
+      });
+    } catch (error: any) {
+      console.error('[Scoring Rules] GET error:', error.message);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // PUT (save/update) scoring rules for a specific level in a meet
+  app.put("/api/meets/:meetId/scoring-rules", async (req, res) => {
+    try {
+      const { meetId } = req.params;
+      const { gender, indPoints, relPoints, indMaxScorers, relMaxScorers } = req.body;
+
+      if (!gender || typeof gender !== 'string') {
+        return res.status(400).json({ error: "gender (level) is required (e.g., CM, CW, HSB, HSG)" });
+      }
+
+      // Parse comma-separated strings or arrays
+      const parsePoints = (input: any): number[] => {
+        if (!input) return [];
+        if (Array.isArray(input)) return input.map(Number).filter(n => !isNaN(n));
+        if (typeof input === 'string') {
+          return input.split(',').map((s: string) => Number(s.trim())).filter(n => !isNaN(n));
+        }
+        return [];
+      };
+
+      const indPts = parsePoints(indPoints);
+      const relPts = parsePoints(relPoints);
+      const indMax = parseInt(indMaxScorers) || 999;
+      const relMax = parseInt(relMaxScorers) || 999;
+
+      (storage as any).saveScoringRules(meetId, {
+        gender: gender.toUpperCase(),
+        indPoints: indPts,
+        relPoints: relPts,
+        indMaxScorers: indMax,
+        relMaxScorers: relMax,
+      });
+
+      res.json({ success: true, message: `Scoring rules saved for ${gender.toUpperCase()}` });
+    } catch (error: any) {
+      console.error('[Scoring Rules] PUT error:', error.message);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // DELETE scoring rules for a specific level in a meet
+  app.delete("/api/meets/:meetId/scoring-rules/:gender", async (req, res) => {
+    try {
+      const { meetId, gender } = req.params;
+      (storage as any).deleteScoringRulesForGender(meetId, gender.toUpperCase());
+      res.json({ success: true, message: `Scoring rules deleted for ${gender.toUpperCase()}` });
+    } catch (error: any) {
+      console.error('[Scoring Rules] DELETE error:', error.message);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post("/api/overlay/update", async (req, res) => {
     try {
       const validated = overlayUpdateSchema.parse(req.body);
