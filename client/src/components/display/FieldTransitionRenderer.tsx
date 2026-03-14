@@ -209,6 +209,7 @@ export function FieldTransitionRenderer({
     if (!calledId || calledId === prevCalledBibRef.current) {
       // Still update seen bibs so late-arriving athletes don't trigger spurious curtains
       seenBibsRef.current = currentBibs;
+      initialLoadRef.current = false;
       return;
     }
 

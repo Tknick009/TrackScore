@@ -286,6 +286,9 @@ export default function DisplayDevice() {
   // Clock performance: store clock time in a ref to avoid re-rendering the entire
   // component tree on every tick (~10x/second). Only command changes trigger setState.
   const liveClockTimeRef = useRef<string>('');
+  // Track clock command in a ref so we can compare without reading from state closure
+  // (reading state.liveClockCommand inside the WS handler reads a stale closure value)
+  const liveClockCommandRef = useRef<string>('');
   // Subscribers that want clock updates (e.g., StaticRunningClock) register callbacks here.
   // This lets them update the DOM directly without going through React's render cycle.
   const clockSubscribersRef = useRef<Set<(time: string) => void>>(new Set());
@@ -422,7 +425,12 @@ export default function DisplayDevice() {
       ws.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
-          console.log('WebSocket message received:', message.type);
+          
+          // PERFORMANCE: Skip logging for high-frequency messages (clock ticks ~10x/sec)
+          // console.log is synchronous and blocks the main thread
+          if (message.type !== 'clock_update') {
+            console.log('WebSocket message received:', message.type);
+          }
           
           if (message.type === 'device_registered') {
             console.log('Device successfully registered:', message.data);
@@ -622,8 +630,10 @@ export default function DisplayDevice() {
             }
           }
           
-          // Clock update - store time in ref to avoid re-rendering on every tick.
-          // Only command changes (armed, running, etc.) trigger a React state update.
+          // CLOCK UPDATE — HOT PATH (fires ~10x/second from FinishLynx)
+          // CRITICAL: This must be fast. No setState, no console.log, no DOM work.
+          // Time updates go via ref → subscriber → direct DOM textContent mutation.
+          // Only command changes (armed → running, running → idle) trigger setState.
           if (message.type === 'clock_update') {
             const data = message.data;
             if (data) {
@@ -645,8 +655,8 @@ export default function DisplayDevice() {
               // Only trigger a React re-render when the COMMAND changes
               // (e.g., armed → running, running → idle). Time-only changes
               // are handled via the ref + subscriber pattern above.
-              const prevCommand = state.liveClockCommand || '';
-              if (newCommand !== prevCommand) {
+              if (newCommand !== liveClockCommandRef.current) {
+                liveClockCommandRef.current = newCommand;
                 setState(prev => ({
                   ...prev,
                   liveClockTime: newTime,
@@ -654,6 +664,7 @@ export default function DisplayDevice() {
                 }));
               }
             }
+            return; // Early return — clock ticks don't need any other handling
           }
           
           // Scene mapping changed - update display without refresh when operator changes scene mappings
