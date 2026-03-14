@@ -27,6 +27,7 @@ export function FieldTransitionRenderer({
   meetId,
   liveData,
   liveEventDataByPort,
+  deviceFieldPort,
   canvasWidth,
   canvasHeight,
 }: {
@@ -37,8 +38,11 @@ export function FieldTransitionRenderer({
   // WebSocket context directly, but that's a SEPARATE unregistered connection that never receives
   // field_mode_change messages from the server.
   liveData?: { entries?: any[]; results?: any[] } | null;
-  // All field port data — so the curtain triggers on ANY field port, not just the device's primary port
+  // All field port data keyed by port number
   liveEventDataByPort?: Record<number, { entries?: any[]; results?: any[] }> | null;
+  // The device's assigned field port — curtain ONLY triggers for data on this port.
+  // Without this, the curtain fires for ANY port (causing wrong-school curtains on wrong boards).
+  deviceFieldPort?: number | null;
   // Canvas dimensions for responsive scaling — the curtain scales text/logo relative to
   // a 1080p reference so it looks correct on P10 (192x96) through BigBoard (1920x1080).
   canvasWidth?: number;
@@ -109,26 +113,31 @@ export function FieldTransitionRenderer({
 
   useEffect(() => () => clearTimers(), [clearTimers]);
 
-  // Merge all data sources: primary liveData + all port-specific data
-  // This ensures the curtain triggers for ANY field port, not just the device's primary port.
+  // Get live data ONLY from the device's assigned field port.
+  // Previously this merged ALL port data, causing the curtain to fire on wrong boards
+  // when data arrived on a port assigned to a different device.
   // Skip auto-standings data (isStandings=true / mode="field_standings") — those are from
   // the server-side LFF parser, not live FieldLynx call-ups.
   const mergedLiveData = useMemo(() => {
     const allSources: Array<{ entries?: any[]; results?: any[] }> = [];
-    if (liveData) {
+    
+    // If device has an assigned port, ONLY use data from that specific port
+    if (deviceFieldPort && liveEventDataByPort) {
+      const portData = liveEventDataByPort[deviceFieldPort];
+      if (portData) {
+        const pd = portData as any;
+        if (!pd.isStandings && pd.mode !== 'field_standings') {
+          allSources.push(portData);
+        }
+      }
+    } else if (liveData) {
+      // Fallback: no specific port assigned, use primary liveData only
       const ld = liveData as any;
       if (!ld.isStandings && ld.mode !== 'field_standings') allSources.push(liveData);
     }
-    if (liveEventDataByPort) {
-      for (const portData of Object.values(liveEventDataByPort)) {
-        if (portData) {
-          const pd = portData as any;
-          if (!pd.isStandings && pd.mode !== 'field_standings') allSources.push(portData);
-        }
-      }
-    }
+    
     return allSources;
-  }, [liveData, liveEventDataByPort]);
+  }, [liveData, liveEventDataByPort, deviceFieldPort]);
 
   // React to live data changes — detect when a new athlete is "called up".
   // For horizontal events (long jump, shot put): the called-up athlete has no mark yet.

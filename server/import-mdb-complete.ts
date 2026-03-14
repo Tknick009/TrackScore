@@ -1539,24 +1539,36 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       
       // Get relay member mapping from RelayNames table
       // We need at least one athlete per relay to create an entry (entries require athlete_id)
-      const relayMemberMap = new Map<number, number>(); // Relay_no -> first Ath_no
+      // Build a map of Relay_no -> ALL member Ath_nos (ordered by position).
+      // We need multiple members per relay because teams with A/B relay entries
+      // may share the same first member. Using the same athlete_id for two entries
+      // in the same event causes ON CONFLICT to overwrite the A-team's scored entry
+      // with the B-team's unscored entry (the root cause of DMR scoring bugs).
+      const relayAllMembersMap = new Map<number, number[]>(); // Relay_no -> [Ath_no, ...]
       try {
         const relayNamesTable = reader.getTable("RelayNames");
         const relayNamesData = relayNamesTable.getData();
         for (const rn of relayNamesData) {
           const relayNo = Number(rn.Relay_no || 0);
           const athNo = Number(rn.Ath_no || 0);
-          if (relayNo > 0 && athNo > 0 && !relayMemberMap.has(relayNo)) {
-            relayMemberMap.set(relayNo, athNo);
+          if (relayNo > 0 && athNo > 0) {
+            const members = relayAllMembersMap.get(relayNo) || [];
+            members.push(athNo);
+            relayAllMembersMap.set(relayNo, members);
           }
         }
-        console.log(`   📋 Found relay members for ${relayMemberMap.size} relay teams`);
+        console.log(`   📋 Found relay members for ${relayAllMembersMap.size} relay teams`);
       } catch (e) {
         console.log(`   ⚠️  RelayNames table not found, will use team-based fallback`);
       }
       
       const relayEntryBatch: any[] = [];
       let relaySkipped = 0;
+      
+      // Track which (event_id, athlete_id) pairs are already used to avoid conflicts.
+      // When a team has multiple relay entries (A/B teams) sharing the same first member,
+      // we pick a different member for the second entry.
+      const usedEventAthleteKeys = new Set<string>();
       
       for (const row of relayData) {
         const eventPtr = typeof row.Event_ptr === 'number' ? row.Event_ptr : Number(row.Event_ptr || 0);
@@ -1568,18 +1580,28 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         
         if (!eventId) { relaySkipped++; continue; }
         
-        // Find an athlete for this relay entry
-        // First try RelayNames, then find any athlete on this team
+        // Find a UNIQUE athlete for this relay entry.
+        // Try each relay member in order until we find one that doesn't conflict
+        // with an already-used (event_id, athlete_id) pair.
         let athleteId: string | null = null;
-        const memberAthNo = relayMemberMap.get(relayNo);
-        if (memberAthNo) {
-          athleteId = athleteIdMap.get(memberAthNo) || null;
+        const members = relayAllMembersMap.get(relayNo) || [];
+        for (const athNo of members) {
+          const candidateId = athleteIdMap.get(athNo);
+          if (candidateId) {
+            const key = `${eventId}|${candidateId}`;
+            if (!usedEventAthleteKeys.has(key)) {
+              athleteId = candidateId;
+              break;
+            }
+          }
         }
         
-        // Fallback: find any athlete on this team that we have mapped
+        // Fallback: find any athlete on this team that we have mapped and isn't used
         if (!athleteId && teamNo) {
           const athEntries = Array.from(athleteIdMap.entries());
           for (const [athNo, id] of athEntries) {
+            const key = `${eventId}|${id}`;
+            if (usedEventAthleteKeys.has(key)) continue;
             const athEntry = entryData.find((e: any) => Number(e.Ath_no) === athNo && Number(e.Team_no) === teamNo);
             if (athEntry) {
               athleteId = id;
@@ -1589,6 +1611,9 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         }
         
         if (!athleteId) { relaySkipped++; continue; }
+        
+        // Mark this (event_id, athlete_id) as used
+        usedEventAthleteKeys.add(`${eventId}|${athleteId}`);
         
         const seedMark = row.ActualSeed_time ? (typeof row.ActualSeed_time === 'number' ? row.ActualSeed_time : parseFloat(String(row.ActualSeed_time))) : null;
         const evScore = row.Ev_score != null && Number(row.Ev_score) > 0 ? Number(row.Ev_score) : null;

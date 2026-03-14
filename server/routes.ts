@@ -355,7 +355,13 @@ async function enrichEntriesWithRecordTags(eventType: string, gender: string, en
 
     for (const entry of entries) {
       const tags: string[] = [];
-      if (entry.finalMark === null || entry.finalMark === undefined || entry.finalMark === 0) {
+      // Skip entries with no valid mark: null, undefined, 0, NaN, empty strings, negative values.
+      // This prevents record tags from appearing for athletes who haven't raced yet
+      // (e.g., start list entries, DNS, scratches).
+      const rawMark = entry.finalMark;
+      if (rawMark === null || rawMark === undefined || rawMark === 0 ||
+          (typeof rawMark === 'string' && rawMark.trim() === '') ||
+          (typeof rawMark === 'number' && (isNaN(rawMark) || rawMark <= 0))) {
         (entry as any).recordTags = tags;
         continue;
       }
@@ -363,7 +369,12 @@ async function enrichEntriesWithRecordTags(eventType: string, gender: string, en
       // Convert finalMark to base units: finalMark is in ms for track, mm for field
       // athlete_bests.mark is in seconds for track, meters for field
       // records.performance is parsed by parsePerformanceToSeconds (returns seconds for track, meters for field)
-      const markInBaseUnits = entry.finalMark / 1000;
+      const numericMark = typeof rawMark === 'string' ? parseFloat(rawMark) : rawMark;
+      if (isNaN(numericMark) || numericMark <= 0) {
+        (entry as any).recordTags = tags;
+        continue;
+      }
+      const markInBaseUnits = numericMark / 1000;
 
       // Check MR (Meet Record)
       const meetRecord = recordsByScope.get('meet');
