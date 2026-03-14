@@ -181,21 +181,6 @@ export class SQLiteStorage implements IStorage {
     try { this.db.prepare("ALTER TABLE meets ADD COLUMN logo_effect TEXT DEFAULT 'none'").run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE record_books ADD COLUMN display_order INTEGER DEFAULT 99').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE record_books ADD COLUMN allow_multiple INTEGER DEFAULT 0').run(); } catch(e) {}
-    try { this.db.prepare('ALTER TABLE meets ADD COLUMN ind_max_scorers_per_team INTEGER DEFAULT 0').run(); } catch(e) {}
-    try { this.db.prepare('ALTER TABLE meets ADD COLUMN rel_max_scorers_per_team INTEGER DEFAULT 0').run(); } catch(e) {}
-    // Ensure meet_scoring_rules table exists (was previously only created during MDB import)
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS meet_scoring_rules (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        meet_id TEXT NOT NULL,
-        gender TEXT NOT NULL,
-        place INTEGER NOT NULL,
-        ind_score REAL NOT NULL DEFAULT 0,
-        rel_score REAL NOT NULL DEFAULT 0,
-        combevt_score REAL NOT NULL DEFAULT 0,
-        UNIQUE(meet_id, gender, place)
-      );
-    `);
   }
 
   private createTables(): void {
@@ -3064,44 +3049,43 @@ export class SQLiteStorage implements IStorage {
       const genderRaw = (evt.gender || '').toUpperCase().charAt(0);
       const evtGender = genderRaw === 'W' || genderRaw === 'F' ? 'F' : 'M';
 
-      // Try multiple gender key variations to match user-configured levels
-      // User may store rules as CM/CW/HSB/HSG or M/W/F
-      const genderKeys = evtGender === 'F'
-        ? ['CW', 'W', 'F', 'HSG']
-        : ['CM', 'M', 'HSB'];
-
       let ptsMap: Map<number, number> | undefined;
       if (isRelay) {
-        for (const gk of genderKeys) {
-          ptsMap = relPointsMap.get(gk);
-          if (ptsMap && ptsMap.size > 0) break;
-        }
-        if (!ptsMap || ptsMap.size === 0) ptsMap = relPointsMap.get('ALL');
+        ptsMap = relPointsMap.get(evtGender) || relPointsMap.get('ALL');
       } else {
-        for (const gk of genderKeys) {
-          ptsMap = indPointsMap.get(gk);
-          if (ptsMap && ptsMap.size > 0) break;
-        }
-        if (!ptsMap || ptsMap.size === 0) ptsMap = indPointsMap.get('ALL');
+        ptsMap = indPointsMap.get(evtGender) || indPointsMap.get('ALL');
       }
 
       const maxScorers = isRelay ? relMaxScorers : indMaxScorers;
       const eventEntries = entriesByEvent.get(evt.id) || [];
       const teamScorerCount = new Map<string, number>();
 
-      // ALWAYS use manual scoring rules + final_place.
-      // Ignore HyTek's scored_points — the user configures scoring in the app.
+      // Check if this event has any entries with scored_points from HyTek.
+      // If so, ONLY use scored_points for this event (don't fall back to place-based scoring).
+      // This prevents double-counting when HyTek has already assigned team scoring points.
+      // The place-based fallback is only used for events scored manually in TrackScore
+      // (where entries have final_place but no scored_points).
+      const eventHasScoredPoints = eventEntries.some(
+        (e: any) => e.scored_points != null && e.scored_points > 0
+      );
+
       for (const entry of eventEntries) {
         if (!entry.team_id || !entry.team_name) continue;
-        if (!entry.final_place || !ptsMap || ptsMap.size === 0) continue;
 
         let pts = 0;
-        if (maxScorers > 0) {
-          const count = teamScorerCount.get(entry.team_id) || 0;
-          if (count >= maxScorers) continue;
-          teamScorerCount.set(entry.team_id, count + 1);
+        if (entry.scored_points != null && entry.scored_points > 0) {
+          // Use HyTek's scored_points directly (handles ties, split points, etc.)
+          pts = entry.scored_points;
+        } else if (!eventHasScoredPoints && entry.final_place && ptsMap && ptsMap.size > 0) {
+          // Place-based fallback: only used when NO entries in this event have scored_points
+          // (i.e., event was scored manually in TrackScore, not imported from HyTek)
+          if (maxScorers > 0) {
+            const count = teamScorerCount.get(entry.team_id) || 0;
+            if (count >= maxScorers) continue;
+            teamScorerCount.set(entry.team_id, count + 1);
+          }
+          pts = ptsMap.get(entry.final_place) || 0;
         }
-        pts = ptsMap.get(entry.final_place) || 0;
         if (pts === 0) continue;
 
         if (!teamScores.has(entry.team_id)) {
@@ -3255,24 +3239,11 @@ export class SQLiteStorage implements IStorage {
       const genderRaw = (evt.gender || '').toUpperCase().charAt(0);
       const evtGender = genderRaw === 'W' || genderRaw === 'F' ? 'F' : 'M';
 
-      // Try multiple gender key variations to match user-configured levels
-      const genderKeys = evtGender === 'F'
-        ? ['CW', 'W', 'F', 'HSG']
-        : ['CM', 'M', 'HSB'];
-
       let ptsMap: Map<number, number> | undefined;
       if (isRelay) {
-        for (const gk of genderKeys) {
-          ptsMap = relPointsMap.get(gk);
-          if (ptsMap && ptsMap.size > 0) break;
-        }
-        if (!ptsMap || ptsMap.size === 0) ptsMap = relPointsMap.get('ALL');
+        ptsMap = relPointsMap.get(evtGender) || relPointsMap.get('ALL');
       } else {
-        for (const gk of genderKeys) {
-          ptsMap = indPointsMap.get(gk);
-          if (ptsMap && ptsMap.size > 0) break;
-        }
-        if (!ptsMap || ptsMap.size === 0) ptsMap = indPointsMap.get('ALL');
+        ptsMap = indPointsMap.get(evtGender) || indPointsMap.get('ALL');
       }
       if (!ptsMap || ptsMap.size === 0) continue;
 
@@ -3323,16 +3294,16 @@ export class SQLiteStorage implements IStorage {
       }
     }
 
-    const sorted = Array.from(teamScores.entries())
+    const projSorted = Array.from(teamScores.entries())
       .sort((a, b) => b[1].totalPoints - a[1].totalPoints);
 
     // Tie-aware ranks: teams with the same score share the same rank,
     // and the next rank skips accordingly (e.g., 1,1,3 not 1,2,3)
     const standings: TeamStandingsEntry[] = [];
-    for (let i = 0; i < sorted.length; i++) {
-      const [teamId, data] = sorted[i];
+    for (let i = 0; i < projSorted.length; i++) {
+      const [teamId, data] = projSorted[i];
       let rank = i + 1;
-      if (i > 0 && data.totalPoints === sorted[i - 1][1].totalPoints) {
+      if (i > 0 && data.totalPoints === projSorted[i - 1][1].totalPoints) {
         rank = standings[i - 1].rank;
       }
       standings.push({
@@ -5233,68 +5204,6 @@ export class SQLiteStorage implements IStorage {
   async deleteSceneTemplateMapping(id: number): Promise<boolean> {
     const result = this.db.prepare('DELETE FROM scene_template_mappings WHERE id = ?').run(id);
     return result.changes > 0;
-  }
-
-  // ============= SCORING RULES CRUD =============
-
-  getScoringRules(meetId: string): { gender: string; place: number; indScore: number; relScore: number; combevtScore: number }[] {
-    try {
-      const rows = this.db.prepare(
-        'SELECT gender, place, ind_score, rel_score, combevt_score FROM meet_scoring_rules WHERE meet_id = ? ORDER BY gender, place'
-      ).all(meetId) as any[];
-      return rows.map((r: any) => ({
-        gender: r.gender,
-        place: r.place,
-        indScore: r.ind_score,
-        relScore: r.rel_score,
-        combevtScore: r.combevt_score,
-      }));
-    } catch (e) {
-      return [];
-    }
-  }
-
-  saveScoringRules(meetId: string, rules: { gender: string; indPoints: number[]; relPoints: number[]; indMaxScorers: number; relMaxScorers: number }): void {
-    const deleteStmt = this.db.prepare('DELETE FROM meet_scoring_rules WHERE meet_id = ? AND gender = ?');
-    const insertStmt = this.db.prepare(
-      'INSERT INTO meet_scoring_rules (meet_id, gender, place, ind_score, rel_score, combevt_score) VALUES (?, ?, ?, ?, ?, 0)'
-    );
-
-    const transaction = this.db.transaction(() => {
-      deleteStmt.run(meetId, rules.gender);
-      const maxLen = Math.max(rules.indPoints.length, rules.relPoints.length);
-      for (let i = 0; i < maxLen; i++) {
-        const indPts = i < rules.indPoints.length ? rules.indPoints[i] : 0;
-        const relPts = i < rules.relPoints.length ? rules.relPoints[i] : 0;
-        if (indPts > 0 || relPts > 0) {
-          insertStmt.run(meetId, rules.gender, i + 1, indPts, relPts);
-        }
-      }
-      // Update max scorers on the meets table
-      try {
-        this.db.prepare('UPDATE meets SET ind_max_scorers_per_team = ?, rel_max_scorers_per_team = ? WHERE id = ?')
-          .run(rules.indMaxScorers, rules.relMaxScorers, meetId);
-      } catch (e) {
-        // columns may not exist yet
-      }
-    });
-    transaction();
-  }
-
-  deleteScoringRulesForGender(meetId: string, gender: string): void {
-    this.db.prepare('DELETE FROM meet_scoring_rules WHERE meet_id = ? AND gender = ?').run(meetId, gender);
-  }
-
-  getMaxScorers(meetId: string): { indMaxScorers: number; relMaxScorers: number } {
-    try {
-      const row = this.db.prepare('SELECT ind_max_scorers_per_team, rel_max_scorers_per_team FROM meets WHERE id = ?').get(meetId) as any;
-      return {
-        indMaxScorers: row?.ind_max_scorers_per_team || 0,
-        relMaxScorers: row?.rel_max_scorers_per_team || 0,
-      };
-    } catch (e) {
-      return { indMaxScorers: 0, relMaxScorers: 0 };
-    }
   }
 
   public close(): void {
