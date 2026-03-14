@@ -181,7 +181,6 @@ interface DisplayDeviceState {
   currentLayoutMode: string | null; // Track current layout mode to debounce duplicate commands
   isConnected: boolean;
   setupComplete: boolean;
-  liveClockTime: string | null;
   liveClockCommand: string | null;  // Command from FinishLynx (e.g., 'armed')
   liveEventData: LiveEventData | null;
   liveEventDataByPort: Record<number, LiveEventData>;
@@ -247,7 +246,6 @@ export default function DisplayDevice() {
     currentLayoutMode: null,
     isConnected: false,
     setupComplete: false,
-    liveClockTime: null,
     liveClockCommand: null,
     liveEventData: null,
     liveEventDataByPort: {},
@@ -659,7 +657,6 @@ export default function DisplayDevice() {
                 liveClockCommandRef.current = newCommand;
                 setState(prev => ({
                   ...prev,
-                  liveClockTime: newTime,
                   liveClockCommand: newCommand,
                 }));
               }
@@ -1458,7 +1455,6 @@ export default function DisplayDevice() {
       eventId={state.currentEventId}
       deviceId={registeredDeviceId || 'pending'}
       isConnected={state.isConnected}
-      liveClockTime={state.liveClockTime}
       liveClockTimeRef={liveClockTimeRef}
       clockSubscribersRef={clockSubscribersRef}
       liveEventData={state.liveEventData}
@@ -1597,7 +1593,6 @@ interface DisplayRendererProps {
   eventId: number | null;
   deviceId: string;
   isConnected: boolean;
-  liveClockTime: string | null;
   liveClockTimeRef?: React.RefObject<string>;
   clockSubscribersRef?: React.RefObject<Set<(time: string) => void>>;
   liveEventData: LiveEventData | null;
@@ -1616,7 +1611,7 @@ interface EventWithEntries extends Event {
   entries: any[];
 }
 
-function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTime, liveClockTimeRef, clockSubscribersRef, liveEventData, liveEventDataByPort, pagingSize, pagingInterval, maxPages, customWidth, customHeight, fieldPort, displayScale = 100, onReturnToLogo }: DisplayRendererProps) {
+function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTimeRef, clockSubscribersRef, liveEventData, liveEventDataByPort, pagingSize, pagingInterval, maxPages, customWidth, customHeight, fieldPort, displayScale = 100, onReturnToLogo }: DisplayRendererProps) {
   const { data: meet } = useQuery<Meet>({
     queryKey: ['/api/meets', meetId],
     enabled: !!meetId,
@@ -1682,7 +1677,6 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
           meetId={meetId || undefined}
           liveEventData={liveEventData}
           liveEventDataByPort={liveEventDataByPort}
-          liveClockTime={liveClockTime}
           liveClockTimeRef={liveClockTimeRef}
           clockSubscribersRef={clockSubscribersRef}
           pagingSize={pagingSize}
@@ -1813,7 +1807,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
         <div className="w-screen h-screen">
           <BroadcastDisplay 
             meet={meet} 
-            liveClockTime={liveClockTime || undefined}
+            liveClockTime={liveClockTimeRef?.current || undefined}
             liveEventData={liveEventData}
           />
         </div>
@@ -2153,7 +2147,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             entries: [],
           }
         : null;
-      return <RunningTime event={eventWithLiveName as any} meet={meet} liveTime={liveClockTime || undefined} />;
+      return <RunningTime event={eventWithLiveName as any} meet={meet} liveTime={liveClockTimeRef?.current || undefined} />;
     }
 
     if ((isFieldResults || isFieldStandings) && currentEvent) {

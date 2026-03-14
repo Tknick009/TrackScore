@@ -114,8 +114,11 @@ export interface SceneCanvasProps {
   eventNumber?: string;
   liveEventData?: any;
   liveEventDataByPort?: Record<number, any>;
-  liveClockTime?: string | null;
-  // Clock performance: ref + subscriber pattern for direct DOM updates
+  // Clock performance: ref + subscriber pattern for direct DOM updates.
+  // liveClockTimeRef holds the latest clock value (updated on every tick without re-render).
+  // clockSubscribersRef lets StaticRunningClock subscribe for direct DOM mutations.
+  // No liveClockTime prop — reading from the ref avoids re-rendering the entire
+  // SceneCanvas → SceneObjectRenderer tree on every clock tick (~10x/second).
   liveClockTimeRef?: React.RefObject<string>;
   clockSubscribersRef?: React.RefObject<Set<(time: string) => void>>;
   pagingSize?: number;
@@ -222,7 +225,7 @@ export function SceneObjectRenderer({
   pageIndex = 0,
   pageSize = 8,
   sharedLatestLiveData,
-  liveClockTime,
+  liveClockTimeRef,
   clockSubscribersRef,
   deviceFieldPort,
   liveEventDataByPort
@@ -235,7 +238,8 @@ export function SceneObjectRenderer({
   pageIndex?: number;
   pageSize?: number;
   sharedLatestLiveData?: any;
-  liveClockTime?: string | null;
+  // Clock performance: read time from ref (no re-render on tick)
+  liveClockTimeRef?: React.RefObject<string>;
   clockSubscribersRef?: React.RefObject<Set<(time: string) => void>>;
   deviceFieldPort?: number;
   liveEventDataByPort?: Record<number, any>;
@@ -685,10 +689,12 @@ export function SceneObjectRenderer({
         }
         
         // Special case: running-time uses smooth clock for jitter-free updates
-        // Clock data from port 5556 (liveClockTime) is authoritative - if FinishLynx sends it, display it
-        // Also check liveData.runningTime as secondary source when race mode is active
+        // Clock performance: read from ref (no re-render on tick). The ref is updated
+        // on every FinishLynx tick by display-device.tsx without triggering setState.
+        // Also check liveData.runningTime as secondary source when race mode is active.
         const isRaceRunning = liveData?.mode === 'running' || liveData?.isRunning === true;
-        const clockTime = liveClockTime || (isRaceRunning ? liveData?.runningTime : null);
+        const clockTimeFromRef = liveClockTimeRef?.current || '';
+        const clockTime = clockTimeFromRef || (isRaceRunning ? liveData?.runningTime : null);
         if (fieldKey === 'running-time' && clockTime) {
           // Use numeric fontSize from style, or fall back to componentConfig string mapping
           const numericFontSize = styleConfig.fontSize || componentConfig.fontSize;
@@ -1573,7 +1579,6 @@ export function SceneCanvas({
   eventNumber,
   liveEventData: propLiveEventData,
   liveEventDataByPort,
-  liveClockTime,
   liveClockTimeRef,
   clockSubscribersRef,
   pagingSize = 8,
@@ -1820,7 +1825,7 @@ export function SceneCanvas({
                   pageIndex={currentPageIndex}
                   pageSize={pagingSize}
                   sharedLatestLiveData={objectLiveData}
-                  liveClockTime={liveClockTime}
+                  liveClockTimeRef={liveClockTimeRef}
                   clockSubscribersRef={clockSubscribersRef}
                   deviceFieldPort={deviceFieldPort}
                   liveEventDataByPort={liveEventDataByPort}
@@ -1875,7 +1880,7 @@ export function SceneCanvas({
               pageIndex={currentPageIndex}
               pageSize={pagingSize}
               sharedLatestLiveData={objectLiveData}
-              liveClockTime={liveClockTime}
+              liveClockTimeRef={liveClockTimeRef}
               clockSubscribersRef={clockSubscribersRef}
               deviceFieldPort={deviceFieldPort}
               liveEventDataByPort={liveEventDataByPort}
@@ -1944,7 +1949,7 @@ export function SceneCanvas({
               pageIndex={currentPageIndex}
               pageSize={pagingSize}
               sharedLatestLiveData={objectLiveData}
-              liveClockTime={liveClockTime}
+              liveClockTimeRef={liveClockTimeRef}
               clockSubscribersRef={clockSubscribersRef}
               deviceFieldPort={deviceFieldPort}
               liveEventDataByPort={liveEventDataByPort}
