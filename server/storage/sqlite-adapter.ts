@@ -2981,11 +2981,13 @@ export class SQLiteStorage implements IStorage {
         'SELECT gender, place, ind_score, rel_score FROM meet_scoring_rules WHERE meet_id = ? ORDER BY place'
       ).all(meetId) as any[];
     } catch (e) {
+      // Table may not exist — that's OK, we can still use HyTek scored_points directly.
+      // Only log once to avoid spamming.
       if (!this._scoringRulesWarningLogged) {
-        console.warn('[getTeamStandings] meet_scoring_rules table not found — run db:push to migrate. Scoring will be unavailable until then.');
+        console.warn('[getTeamStandings] meet_scoring_rules table not found — place-based fallback unavailable, will use HyTek scored_points if present.');
         this._scoringRulesWarningLogged = true;
       }
-      return [];
+      // Don't return [] here — continue so scored_points from HyTek Ev_score can still be used
     }
 
     const indPointsMap = new Map<string, Map<number, number>>();

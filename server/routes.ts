@@ -308,7 +308,7 @@ async function enrichEntriesWithRecordTags(eventType: string, gender: string, en
         'ht': 'hammer', 'hammer': 'hammer', 'hammerthrow': 'hammer',
         // Distance aliases
         '1m': 'mile', '1mile': 'mile', 'mile': 'mile', 'onemile': 'mile',
-        '3000sc': '3000steeplechase', 'steeplechase': '3000steeplechase', '3000steeple': '3000steeplechase',
+        '3000sc': '3000steeplechase', 'steeplechase': '3000steeplechase', '3000steeple': '3000steeplechase', '3000msteeplechase': '3000steeplechase',
         // Multi-events
         'ipentathlon': 'pentathlon',
       };

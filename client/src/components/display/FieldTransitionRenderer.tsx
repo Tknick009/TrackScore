@@ -227,6 +227,8 @@ export function FieldTransitionRenderer({
     if (now - lastCurtainTimeRef.current < CURTAIN_COOLDOWN_MS) {
       // Do NOT update seenBibsRef during cooldown — athletes appearing during
       // cooldown should remain "unseen" so Strategy 2 can detect them after cooldown expires.
+      // BUT DO update prevCalledBibRef so the same athlete won't re-trigger after cooldown.
+      prevCalledBibRef.current = calledId;
       return;
     }
 
