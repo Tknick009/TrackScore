@@ -282,6 +282,13 @@ export default function DisplayDevice() {
   
   const wsRef = useRef<WebSocket | null>(null);
   const deviceNameRef = useRef<string>('');
+  
+  // Clock performance: store clock time in a ref to avoid re-rendering the entire
+  // component tree on every tick (~10x/second). Only command changes trigger setState.
+  const liveClockTimeRef = useRef<string>('');
+  // Subscribers that want clock updates (e.g., StaticRunningClock) register callbacks here.
+  // This lets them update the DOM directly without going through React's render cycle.
+  const clockSubscribersRef = useRef<Set<(time: string) => void>>(new Set());
 
   const { data: meets } = useQuery<Meet[]>({
     queryKey: ['/api/meets'],
@@ -615,22 +622,37 @@ export default function DisplayDevice() {
             }
           }
           
-          // Clock update - just pass through exactly what FinishLynx sends
+          // Clock update - store time in ref to avoid re-rendering on every tick.
+          // Only command changes (armed, running, etc.) trigger a React state update.
           if (message.type === 'clock_update') {
             const data = message.data;
             if (data) {
+              const newTime = data.time || '';
+              const newCommand = data.command || '';
+              
+              // Always update the ref (no re-render)
+              liveClockTimeRef.current = newTime;
+              
+              // Notify all direct-DOM clock subscribers (bypasses React render)
+              clockSubscribersRef.current.forEach(cb => cb(newTime));
+              
               // Reset layout mode debouncing when system is armed
-              // This ensures each new heat gets fresh scene switching
-              if (data.command === 'armed' && autoModeRef.current) {
+              if (newCommand === 'armed' && autoModeRef.current) {
                 console.log(`[Display] System ARMED - resetting layout mode for fresh scene switching`);
                 currentLayoutModeRef.current = null;
               }
               
-              setState(prev => ({
-                ...prev,
-                liveClockTime: data.time || '',
-                liveClockCommand: data.command || '',
-              }));
+              // Only trigger a React re-render when the COMMAND changes
+              // (e.g., armed → running, running → idle). Time-only changes
+              // are handled via the ref + subscriber pattern above.
+              const prevCommand = state.liveClockCommand || '';
+              if (newCommand !== prevCommand) {
+                setState(prev => ({
+                  ...prev,
+                  liveClockTime: newTime,
+                  liveClockCommand: newCommand,
+                }));
+              }
             }
           }
           
@@ -1426,6 +1448,8 @@ export default function DisplayDevice() {
       deviceId={registeredDeviceId || 'pending'}
       isConnected={state.isConnected}
       liveClockTime={state.liveClockTime}
+      liveClockTimeRef={liveClockTimeRef}
+      clockSubscribersRef={clockSubscribersRef}
       liveEventData={state.liveEventData}
       liveEventDataByPort={state.liveEventDataByPort}
       pagingSize={state.pagingSize}
@@ -1563,6 +1587,8 @@ interface DisplayRendererProps {
   deviceId: string;
   isConnected: boolean;
   liveClockTime: string | null;
+  liveClockTimeRef?: React.RefObject<string>;
+  clockSubscribersRef?: React.RefObject<Set<(time: string) => void>>;
   liveEventData: LiveEventData | null;
   liveEventDataByPort: Record<number, LiveEventData>;
   pagingSize: number;
@@ -1579,7 +1605,7 @@ interface EventWithEntries extends Event {
   entries: any[];
 }
 
-function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTime, liveEventData, liveEventDataByPort, pagingSize, pagingInterval, maxPages, customWidth, customHeight, fieldPort, displayScale = 100, onReturnToLogo }: DisplayRendererProps) {
+function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTime, liveClockTimeRef, clockSubscribersRef, liveEventData, liveEventDataByPort, pagingSize, pagingInterval, maxPages, customWidth, customHeight, fieldPort, displayScale = 100, onReturnToLogo }: DisplayRendererProps) {
   const { data: meet } = useQuery<Meet>({
     queryKey: ['/api/meets', meetId],
     enabled: !!meetId,
@@ -1646,6 +1672,8 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
           liveEventData={liveEventData}
           liveEventDataByPort={liveEventDataByPort}
           liveClockTime={liveClockTime}
+          liveClockTimeRef={liveClockTimeRef}
+          clockSubscribersRef={clockSubscribersRef}
           pagingSize={pagingSize}
           pagingInterval={pagingInterval}
           maxPages={maxPages}

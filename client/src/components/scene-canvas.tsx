@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, memo, useRef } from "react";
+import { useState, useEffect, useMemo, memo, useRef, useCallback } from "react";
 import { FieldTransitionRenderer } from "@/components/display/FieldTransitionRenderer";
 import { useQuery } from "@tanstack/react-query";
 import type { 
@@ -22,17 +22,38 @@ import { formatHeatDisplay } from "@/lib/fieldBindings";
 import { calculateMultiEventPoints, normalizeEventType, hasScoring, type Gender } from "@shared/combined-scoring";
 import { Trophy, Clock, Users, User, Image, Type, Award, Loader2 } from "lucide-react";
 
-// Static clock display - shows exactly what FinishLynx sends, no local interpolation
-function StaticRunningClock({ 
+// Static clock display - uses direct DOM updates via subscriber pattern to bypass React renders.
+// When clockSubscribersRef is provided, the component registers a callback that updates
+// the DOM element directly on every tick (~10x/second), avoiding costly React re-render cascades.
+// Falls back to the serverTime prop if no subscriber mechanism is available.
+const StaticRunningClock = memo(function StaticRunningClock({ 
   serverTime, 
+  clockSubscribersRef,
   fontSize,
   color
 }: { 
   serverTime: string | null | undefined;
+  clockSubscribersRef?: React.RefObject<Set<(time: string) => void>>;
   fontSize?: string;
   color?: string;
 }) {
-  // Display exactly what FinishLynx sends - no local counting
+  const spanRef = useRef<HTMLSpanElement>(null);
+  
+  // Subscribe to direct clock updates (bypasses React render cycle)
+  useEffect(() => {
+    const subscribers = clockSubscribersRef?.current;
+    if (!subscribers) return;
+    
+    const handleClockUpdate = (time: string) => {
+      if (spanRef.current) {
+        spanRef.current.textContent = time || '';
+      }
+    };
+    
+    subscribers.add(handleClockUpdate);
+    return () => { subscribers.delete(handleClockUpdate); };
+  }, [clockSubscribersRef]);
+  
   return (
     <div 
       className="font-stadium-numbers font-[900]"
@@ -41,10 +62,10 @@ function StaticRunningClock({
         color: color || 'hsl(var(--display-fg))'
       }}
     >
-      {serverTime || ""}
+      <span ref={spanRef}>{serverTime || ""}</span>
     </div>
   );
-}
+});
 
 // Robust logo component with proper error handling
 // Falls back to 0.png when logo fails to load
@@ -94,6 +115,9 @@ export interface SceneCanvasProps {
   liveEventData?: any;
   liveEventDataByPort?: Record<number, any>;
   liveClockTime?: string | null;
+  // Clock performance: ref + subscriber pattern for direct DOM updates
+  liveClockTimeRef?: React.RefObject<string>;
+  clockSubscribersRef?: React.RefObject<Set<(time: string) => void>>;
   pagingSize?: number;
   pagingInterval?: number;
   maxPages?: number;
@@ -199,6 +223,7 @@ export function SceneObjectRenderer({
   pageSize = 8,
   sharedLatestLiveData,
   liveClockTime,
+  clockSubscribersRef,
   deviceFieldPort,
   liveEventDataByPort
 }: { 
@@ -211,6 +236,7 @@ export function SceneObjectRenderer({
   pageSize?: number;
   sharedLatestLiveData?: any;
   liveClockTime?: string | null;
+  clockSubscribersRef?: React.RefObject<Set<(time: string) => void>>;
   deviceFieldPort?: number;
   liveEventDataByPort?: Record<number, any>;
 }) {
@@ -495,6 +521,7 @@ export function SceneObjectRenderer({
           >
             <StaticRunningClock 
               serverTime={timerTime}
+              clockSubscribersRef={clockSubscribersRef}
               fontSize={timerFontSize}
               color="hsl(var(--display-fg))"
             />
@@ -677,6 +704,7 @@ export function SceneObjectRenderer({
             >
               <StaticRunningClock 
                 serverTime={clockTime}
+                clockSubscribersRef={clockSubscribersRef}
                 fontSize={textFontSize}
                 color={componentConfig.textColor || styleConfig.textColor || "hsl(var(--display-fg))"}
               />
@@ -1546,6 +1574,8 @@ export function SceneCanvas({
   liveEventData: propLiveEventData,
   liveEventDataByPort,
   liveClockTime,
+  liveClockTimeRef,
+  clockSubscribersRef,
   pagingSize = 8,
   pagingInterval = 5,
   maxPages = 0,
@@ -1791,6 +1821,7 @@ export function SceneCanvas({
                   pageSize={pagingSize}
                   sharedLatestLiveData={objectLiveData}
                   liveClockTime={liveClockTime}
+                  clockSubscribersRef={clockSubscribersRef}
                   deviceFieldPort={deviceFieldPort}
                   liveEventDataByPort={liveEventDataByPort}
                 />
@@ -1845,6 +1876,7 @@ export function SceneCanvas({
               pageSize={pagingSize}
               sharedLatestLiveData={objectLiveData}
               liveClockTime={liveClockTime}
+              clockSubscribersRef={clockSubscribersRef}
               deviceFieldPort={deviceFieldPort}
               liveEventDataByPort={liveEventDataByPort}
             />
@@ -1913,6 +1945,7 @@ export function SceneCanvas({
               pageSize={pagingSize}
               sharedLatestLiveData={objectLiveData}
               liveClockTime={liveClockTime}
+              clockSubscribersRef={clockSubscribersRef}
               deviceFieldPort={deviceFieldPort}
               liveEventDataByPort={liveEventDataByPort}
             />

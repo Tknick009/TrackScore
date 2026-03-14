@@ -1681,9 +1681,17 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     }
   });
 
-  // Clock handler - NO SMART LOGIC, just pass through exactly what FinishLynx sends
+  // Clock handler - deduplicate identical ticks to reduce WebSocket traffic
+  let lastClockTime = '';
+  let lastClockCommand = '';
   lynxListener.on('clock-update', (eventNumber, time, command) => {
-    // Just broadcast the raw clock data to all displays
+    // Skip broadcast if both time and command are identical to the last tick
+    if (time === lastClockTime && command === lastClockCommand) {
+      return;
+    }
+    lastClockTime = time || '';
+    lastClockCommand = command || '';
+    
     broadcastToDisplays({
       type: 'clock_update',
       data: {
