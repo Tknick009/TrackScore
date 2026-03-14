@@ -1877,8 +1877,8 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       if (standings.length > 0) {
         teamEntries = standings
           .filter((s: any) => (s.totalPoints || 0) > 0)
-          .map((s: any, index: number) => ({
-            place: String(index + 1),
+          .map((s: any) => ({
+            place: String(s.rank || 1),
             name: s.teamName || 'Unknown',
             lastName: s.teamName || 'Unknown',
             affiliation: teamAbbrMap.get(s.teamId) || s.teamName || '',
