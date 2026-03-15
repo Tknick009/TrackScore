@@ -885,10 +885,22 @@ export function registerAthletesTeamsRoutes(app: Express, ctx: RouteContext) {
         normalizedFileMap.set(normalize(nameWithoutExt), f);
       }
 
-      // Get all teams for this meet
+      // Get all teams for this meet, filtered to only teams with athletes that have competitor numbers
       const teams = await storage.getTeamsByMeetId(meetId);
+      const allAthletes = await storage.getAthletesByMeetId(meetId);
+      
+      // Build set of team IDs that have at least one athlete with a bib/competitor number
+      const teamsWithCompetitors = new Set<string>();
+      for (const athlete of allAthletes) {
+        if (athlete.bibNumber && athlete.teamId) {
+          teamsWithCompetitors.add(athlete.teamId);
+        }
+      }
+      
+      // Filter teams to only those with competing athletes
+      const filteredTeams = teams.filter(team => teamsWithCompetitors.has(team.id));
 
-      const results = teams.map(team => {
+      const results = filteredTeams.map(team => {
         const teamName = (team.name || '').trim();
         const lowerName = teamName.toLowerCase();
 

@@ -37,6 +37,9 @@ export const EVENT_TYPE_CATEGORIES = {
     '60m', '100m', '200m', '400m', '800m', '1000m', '1500m', '3000m', '5000m', '10000m',
     '60m_hurdles', '100m_hurdles', '110m_hurdles', '400m_hurdles',
     '4x100m', '4x400m',
+    // Non-standard but common event types from MDB imports
+    '1m', 'mile', '1mile', '4x800m', '4000m',
+    '300m', '500m', '600m',
   ] as const,
   DISTANCE_EVENTS: [
     'long_jump', 'triple_jump',
@@ -45,10 +48,34 @@ export const EVENT_TYPE_CATEGORIES = {
   HEIGHT_EVENTS: [
     'high_jump', 'pole_vault',
   ] as const,
+  // Multi-event / combined events use point totals where HIGHER is better
+  POINTS_EVENTS: [
+    'heptathlon', 'decathlon', 'pentathlon', 'ipentathlon', 'combined_event',
+  ] as const,
 } as const;
 
+export function isPointsEvent(eventType: string): boolean {
+  if (EVENT_TYPE_CATEGORIES.POINTS_EVENTS.includes(eventType as any)) return true;
+  // Fallback: check for common multi-event patterns
+  const lower = eventType.toLowerCase();
+  const pointsPatterns = ['heptathlon', 'decathlon', 'pentathlon', 'combined'];
+  return pointsPatterns.some(p => lower.includes(p));
+}
+
 export function isTimeEvent(eventType: string): boolean {
-  return EVENT_TYPE_CATEGORIES.TIME_EVENTS.includes(eventType as any);
+  // Points events (multi-events) use "higher is better" — not time events
+  if (isPointsEvent(eventType)) return false;
+  if (EVENT_TYPE_CATEGORIES.TIME_EVENTS.includes(eventType as any)) return true;
+  // Fallback: if it's not a known field event, assume it's a time event
+  // This handles non-standard event types like '1m' (mile), relay variants, etc.
+  const lower = eventType.toLowerCase();
+  if (EVENT_TYPE_CATEGORIES.DISTANCE_EVENTS.includes(eventType as any)) return false;
+  if (EVENT_TYPE_CATEGORIES.HEIGHT_EVENTS.includes(eventType as any)) return false;
+  // Check for common field event patterns
+  const fieldPatterns = ['jump', 'vault', 'put', 'throw', 'discus', 'javelin', 'hammer'];
+  if (fieldPatterns.some(p => lower.includes(p))) return false;
+  // Default: assume time event (tracks/runs/dashes/hurdles/relays)
+  return true;
 }
 
 export function isDistanceEvent(eventType: string): boolean {
@@ -278,6 +305,7 @@ export const meets = pgTable("meets", {
   status: text("status").default("upcoming"), // upcoming, in_progress, completed
   trackLength: integer("track_length").default(400), // Track length in meters
   logoUrl: text("logo_url"),
+  logoEffect: text("logo_effect").default("none"), // none, pulse, glow, shimmer, bounce, spin, fade-in-out
   meetCode: varchar("meet_code", { length: 6 }).notNull().unique().default(sql`upper(substring(md5(random()::text) from 1 for 6))`), // 6-character code for displays to join
   mdbPath: text("mdb_path"), // Path to .mdb file for auto-refresh
   autoRefresh: boolean("auto_refresh").default(false), // Whether to poll .mdb file
@@ -860,6 +888,8 @@ export const displayDevices = pgTable("display_devices", {
   isBigBoard: boolean("is_big_board").default(false),
   displayWidth: integer("display_width"),
   displayHeight: integer("display_height"),
+  displayScale: integer("display_scale").default(100), // Horizontal scale percentage (1-100). 100 = no scaling, 80 = 80% width (condensed)
+  contentMode: text("content_mode").default("lynx"), // Persisted content mode: lynx, hytek, winners, record, team_scores, field
   status: text("status").default("offline"), // online, offline, idle
   lastSeenAt: timestamp("last_seen_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -1292,6 +1322,10 @@ export const recordBooks = pgTable('record_books', {
   description: text('description'),
   scope: text('scope', { enum: ['facility', 'meet', 'national', 'international', 'custom'] }).notNull(),
   isActive: boolean('is_active').default(true),
+  displayOrder: integer('display_order').default(99),
+  // When false (default for meet/facility), only the best performer in the event gets the tag.
+  // When true (useful for qualifying standards), all athletes who beat the standard get the tag.
+  allowMultiple: boolean('allow_multiple').default(false),
   createdAt: timestamp('created_at').defaultNow(),
 });
 

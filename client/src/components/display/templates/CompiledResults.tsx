@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import type { EventWithEntries, Meet } from "@shared/schema";
+import { getLogoEffectStyle } from "@/lib/logoEffects";
 
 interface CompiledResultsProps {
   event: EventWithEntries;
@@ -29,15 +30,20 @@ export function CompiledResults({ event, meet }: CompiledResultsProps) {
     return 0;
   });
 
+  // Standard rounding — HyTek data is already correctly rounded; Math.ceil caused
+  // float precision errors from Access DB (e.g. 8.09 stored as 8.0900005 → ceiled to 8.10)
+  const roundHundredths = (val: number): number => Math.round(val * 100) / 100;
+
   const formatTime = (mark: number | null | undefined): string => {
     if (mark === null || mark === undefined) return '';
     const totalSeconds = mark / 1000;
-    if (totalSeconds >= 60) {
-      const minutes = Math.floor(totalSeconds / 60);
-      const seconds = (totalSeconds % 60).toFixed(2);
+    const rounded = roundHundredths(totalSeconds);
+    if (rounded >= 60) {
+      const minutes = Math.floor(rounded / 60);
+      const seconds = roundHundredths(rounded % 60).toFixed(2);
       return `${minutes}:${seconds.padStart(5, '0')}`;
     }
-    return totalSeconds.toFixed(2);
+    return rounded.toFixed(2);
   };
 
   const getTeamCode = (teamName: string | undefined): string => {
@@ -74,6 +80,7 @@ export function CompiledResults({ event, meet }: CompiledResultsProps) {
                 src={meet.logoUrl} 
                 alt={meet.name} 
                 className="h-16 object-contain"
+                style={getLogoEffectStyle(meet.logoEffect)}
               />
             )}
             <h1 

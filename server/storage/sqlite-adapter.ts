@@ -175,7 +175,12 @@ export class SQLiteStorage implements IStorage {
     try { this.db.prepare('ALTER TABLE display_devices ADD COLUMN is_big_board INTEGER DEFAULT 0').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE display_devices ADD COLUMN display_width INTEGER').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE display_devices ADD COLUMN display_height INTEGER').run(); } catch(e) {}
+    try { this.db.prepare('ALTER TABLE display_devices ADD COLUMN display_scale INTEGER DEFAULT 100').run(); } catch(e) {}
+    try { this.db.prepare("ALTER TABLE display_devices ADD COLUMN content_mode TEXT DEFAULT 'lynx'").run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE meet_ingestion_settings ADD COLUMN headshot_directory TEXT').run(); } catch(e) {}
+    try { this.db.prepare("ALTER TABLE meets ADD COLUMN logo_effect TEXT DEFAULT 'none'").run(); } catch(e) {}
+    try { this.db.prepare('ALTER TABLE record_books ADD COLUMN display_order INTEGER DEFAULT 99').run(); } catch(e) {}
+    try { this.db.prepare('ALTER TABLE record_books ADD COLUMN allow_multiple INTEGER DEFAULT 0').run(); } catch(e) {}
   }
 
   private createTables(): void {
@@ -208,7 +213,8 @@ export class SQLiteStorage implements IStorage {
         primary_color TEXT DEFAULT '#0066CC',
         secondary_color TEXT DEFAULT '#003366',
         accent_color TEXT DEFAULT '#FFD700',
-        text_color TEXT DEFAULT '#FFFFFF'
+        text_color TEXT DEFAULT '#FFFFFF',
+        logo_effect TEXT DEFAULT 'none'
       );
       CREATE INDEX IF NOT EXISTS meets_meet_code_idx ON meets(meet_code);
       CREATE INDEX IF NOT EXISTS meets_season_id_idx ON meets(season_id);
@@ -403,6 +409,7 @@ export class SQLiteStorage implements IStorage {
         is_big_board INTEGER DEFAULT 0,
         display_width INTEGER,
         display_height INTEGER,
+        display_scale INTEGER DEFAULT 100,
         current_template TEXT,
         last_ip TEXT,
         last_seen_at TEXT,
@@ -539,6 +546,8 @@ export class SQLiteStorage implements IStorage {
         description TEXT,
         scope TEXT NOT NULL,
         is_active INTEGER DEFAULT 1,
+        display_order INTEGER DEFAULT 99,
+        allow_multiple INTEGER DEFAULT 0,
         created_at TEXT DEFAULT (datetime('now'))
       );
 
@@ -988,6 +997,7 @@ export class SQLiteStorage implements IStorage {
       secondaryColor: row.secondary_color,
       accentColor: row.accent_color,
       textColor: row.text_color,
+      logoEffect: row.logo_effect ?? 'none',
     };
   }
 
@@ -1010,6 +1020,7 @@ export class SQLiteStorage implements IStorage {
       isScored: this.toBoolean(row.is_scored),
       advanceByPlace: row.advance_by_place ?? null,
       advanceByTime: row.advance_by_time ?? null,
+      advancementJson: row.advancement_json ?? null,
       isMultiEvent: this.toBoolean(row.is_multi_event),
       lastResultSource: row.last_result_source,
       lastResultAt: row.last_result_at ? new Date(row.last_result_at) : null,
@@ -1525,8 +1536,8 @@ export class SQLiteStorage implements IStorage {
     const meetCode = meet.meetCode || this.generateMeetCode();
     
     this.db.prepare(`
-      INSERT INTO meets (id, season_id, name, location, start_date, end_date, status, track_length, logo_url, meet_code, mdb_path, auto_refresh, refresh_interval, primary_color, secondary_color, accent_color, text_color)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO meets (id, season_id, name, location, start_date, end_date, status, track_length, logo_url, meet_code, mdb_path, auto_refresh, refresh_interval, primary_color, secondary_color, accent_color, text_color, logo_effect)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       meet.seasonId ?? null,
@@ -1544,7 +1555,8 @@ export class SQLiteStorage implements IStorage {
       meet.primaryColor ?? '#0066CC',
       meet.secondaryColor ?? '#003366',
       meet.accentColor ?? '#FFD700',
-      meet.textColor ?? '#FFFFFF'
+      meet.textColor ?? '#FFFFFF',
+      meet.logoEffect ?? 'none'
     );
     const created = (await this.getMeet(id))!;
     this.logSyncEvent('meets', id, 'insert', created);
@@ -1580,6 +1592,7 @@ export class SQLiteStorage implements IStorage {
       secondaryColor: 'secondary_color',
       accentColor: 'accent_color',
       textColor: 'text_color',
+      logoEffect: 'logo_effect',
     };
 
     for (const [key, val] of Object.entries(data)) {
@@ -1853,6 +1866,8 @@ export class SQLiteStorage implements IStorage {
       isBigBoard: this.toBoolean(row.is_big_board ?? false),
       displayWidth: row.display_width ?? null,
       displayHeight: row.display_height ?? null,
+      displayScale: row.display_scale ?? 100,
+      contentMode: row.content_mode ?? 'lynx',
       currentTemplate: row.current_template,
       lastIp: row.last_ip,
       lastSeenAt: row.last_seen_at ? new Date(row.last_seen_at) : null,
@@ -2537,12 +2552,19 @@ export class SQLiteStorage implements IStorage {
       description: row.description,
       scope: row.scope,
       isActive: this.toBoolean(row.is_active),
+      displayOrder: row.display_order ?? 99,
+      allowMultiple: this.toBoolean(row.allow_multiple),
       createdAt: row.created_at ? new Date(row.created_at) : new Date(),
     };
   }
 
   async getRecordBooks(): Promise<SelectRecordBook[]> {
     const rows = this.db.prepare('SELECT * FROM record_books WHERE is_active = 1').all();
+    return rows.map((row: any) => this.mapRecordBookRow(row));
+  }
+
+  async getAllRecordBooks(): Promise<SelectRecordBook[]> {
+    const rows = this.db.prepare('SELECT * FROM record_books').all();
     return rows.map((row: any) => this.mapRecordBookRow(row));
   }
 
@@ -2556,10 +2578,12 @@ export class SQLiteStorage implements IStorage {
   }
 
   async createRecordBook(book: InsertRecordBook): Promise<SelectRecordBook> {
+    const displayOrder = (book as any).displayOrder ?? this.getDefaultDisplayOrder(book.scope);
+    const allowMultiple = (book as any).allowMultiple ?? false;
     const result = this.db.prepare(`
-      INSERT INTO record_books (name, description, scope, is_active)
-      VALUES (?, ?, ?, ?)
-    `).run(book.name, book.description ?? null, book.scope, this.fromBoolean(book.isActive ?? true));
+      INSERT INTO record_books (name, description, scope, is_active, display_order, allow_multiple)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(book.name, book.description ?? null, book.scope, this.fromBoolean(book.isActive ?? true), displayOrder, this.fromBoolean(allowMultiple));
     
     const row = this.db.prepare('SELECT * FROM record_books WHERE id = ?').get(result.lastInsertRowid);
     return this.mapRecordBookRow(row);
@@ -2573,6 +2597,8 @@ export class SQLiteStorage implements IStorage {
     if (updates.description !== undefined) { setClause.push('description = ?'); values.push(updates.description); }
     if (updates.scope !== undefined) { setClause.push('scope = ?'); values.push(updates.scope); }
     if (updates.isActive !== undefined) { setClause.push('is_active = ?'); values.push(this.fromBoolean(updates.isActive)); }
+    if ((updates as any).displayOrder !== undefined) { setClause.push('display_order = ?'); values.push((updates as any).displayOrder); }
+    if ((updates as any).allowMultiple !== undefined) { setClause.push('allow_multiple = ?'); values.push(this.fromBoolean((updates as any).allowMultiple)); }
 
     if (setClause.length > 0) {
       values.push(id);
@@ -2581,6 +2607,11 @@ export class SQLiteStorage implements IStorage {
 
     const row = this.db.prepare('SELECT * FROM record_books WHERE id = ?').get(id);
     return row ? this.mapRecordBookRow(row) : undefined;
+  }
+
+  private getDefaultDisplayOrder(scope: string): number {
+    const defaults: Record<string, number> = { meet: 1, facility: 2, national: 3, international: 4, custom: 5 };
+    return defaults[scope] ?? 99;
   }
 
   async deleteRecordBook(id: number): Promise<void> {
@@ -2612,11 +2643,23 @@ export class SQLiteStorage implements IStorage {
   }
 
   async getRecordsByEvent(eventType: string, gender: string): Promise<SelectRecord[]> {
+    // Normalize gender for matching: events use 'M'/'F', records may have 'M'/'F'/'W'/'male'/'female'
+    // Query with all possible variants to handle legacy data
+    const genderVariants = [gender];
+    if (gender === 'F' || gender === 'female') {
+      genderVariants.push('F', 'W', 'female');
+    } else if (gender === 'W') {
+      genderVariants.push('F', 'W', 'female');
+    } else if (gender === 'M' || gender === 'male') {
+      genderVariants.push('M', 'male');
+    }
+    const uniqueVariants = [...new Set(genderVariants)];
+    const placeholders = uniqueVariants.map(() => '?').join(',');
     const rows = this.db.prepare(`
       SELECT r.* FROM records r
       JOIN record_books rb ON r.record_book_id = rb.id
-      WHERE r.event_type = ? AND r.gender = ? AND rb.is_active = 1
-    `).all(eventType, gender);
+      WHERE r.event_type = ? AND r.gender IN (${placeholders}) AND rb.is_active = 1
+    `).all(eventType, ...uniqueVariants);
     return rows.map((row: any) => this.mapRecordRow(row));
   }
 
@@ -2938,11 +2981,13 @@ export class SQLiteStorage implements IStorage {
         'SELECT gender, place, ind_score, rel_score FROM meet_scoring_rules WHERE meet_id = ? ORDER BY place'
       ).all(meetId) as any[];
     } catch (e) {
+      // Table may not exist — that's OK, we can still use HyTek scored_points directly.
+      // Only log once to avoid spamming.
       if (!this._scoringRulesWarningLogged) {
-        console.warn('[getTeamStandings] meet_scoring_rules table not found — run db:push to migrate. Scoring will be unavailable until then.');
+        console.warn('[getTeamStandings] meet_scoring_rules table not found — place-based fallback unavailable, will use HyTek scored_points if present.');
         this._scoringRulesWarningLogged = true;
       }
-      return [];
+      // Don't return [] here — continue so scored_points from HyTek Ev_score can still be used
     }
 
     const indPointsMap = new Map<string, Map<number, number>>();
@@ -3017,13 +3062,25 @@ export class SQLiteStorage implements IStorage {
       const eventEntries = entriesByEvent.get(evt.id) || [];
       const teamScorerCount = new Map<string, number>();
 
+      // Check if this event has any entries with scored_points from HyTek.
+      // If so, ONLY use scored_points for this event (don't fall back to place-based scoring).
+      // This prevents double-counting when HyTek has already assigned team scoring points.
+      // The place-based fallback is only used for events scored manually in TrackScore
+      // (where entries have final_place but no scored_points).
+      const eventHasScoredPoints = eventEntries.some(
+        (e: any) => e.scored_points != null && e.scored_points > 0
+      );
+
       for (const entry of eventEntries) {
         if (!entry.team_id || !entry.team_name) continue;
 
         let pts = 0;
         if (entry.scored_points != null && entry.scored_points > 0) {
+          // Use HyTek's scored_points directly (handles ties, split points, etc.)
           pts = entry.scored_points;
-        } else if (entry.final_place && ptsMap && ptsMap.size > 0) {
+        } else if (!eventHasScoredPoints && entry.final_place && ptsMap && ptsMap.size > 0) {
+          // Place-based fallback: only used when NO entries in this event have scored_points
+          // (i.e., event was scored manually in TrackScore, not imported from HyTek)
           if (maxScorers > 0) {
             const count = teamScorerCount.get(entry.team_id) || 0;
             if (count >= maxScorers) continue;
@@ -3071,10 +3128,20 @@ export class SQLiteStorage implements IStorage {
       console.warn('[getTeamStandings] Could not read score override columns (schema may need migration):', (e as any)?.message);
     }
 
-    const standings: TeamStandingsEntry[] = Array.from(teamScores.entries())
-      .sort((a, b) => b[1].totalPoints - a[1].totalPoints)
-      .map(([teamId, data], index) => ({
-        rank: index + 1,
+    const sorted = Array.from(teamScores.entries())
+      .sort((a, b) => b[1].totalPoints - a[1].totalPoints);
+
+    // Tie-aware ranks: teams with the same score share the same rank,
+    // and the next rank skips accordingly (e.g., 1,1,3 not 1,2,3)
+    const standings: TeamStandingsEntry[] = [];
+    for (let i = 0; i < sorted.length; i++) {
+      const [teamId, data] = sorted[i];
+      let rank = i + 1;
+      if (i > 0 && data.totalPoints === sorted[i - 1][1].totalPoints) {
+        rank = standings[i - 1].rank;
+      }
+      standings.push({
+        rank,
         teamId,
         teamName: data.teamName,
         totalPoints: data.totalPoints,
@@ -3084,7 +3151,176 @@ export class SQLiteStorage implements IStorage {
           eventName: e.eventName,
           points: e.points,
         })),
-      }));
+      });
+    }
+
+    return standings;
+  }
+
+  async getProjectedTeamStandings(meetId: string, scope?: { gender?: string; division?: string }): Promise<TeamStandingsEntry[]> {
+    // Pre-meet seed-based projections.
+    // - Uses entries.seed_mark (HyTek import)
+    // - Does NOT require events.is_scored = 1
+    // - Assigns points using meet_scoring_rules
+
+    let rules: any[] = [];
+    try {
+      rules = this.db.prepare(
+        'SELECT gender, place, ind_score, rel_score FROM meet_scoring_rules WHERE meet_id = ? ORDER BY place'
+      ).all(meetId) as any[];
+    } catch (e) {
+      if (!this._scoringRulesWarningLogged) {
+        console.warn('[getProjectedTeamStandings] meet_scoring_rules table not found — run db:push to migrate. Projections will be unavailable until then.');
+        this._scoringRulesWarningLogged = true;
+      }
+      return [];
+    }
+
+    const indPointsMap = new Map<string, Map<number, number>>();
+    const relPointsMap = new Map<string, Map<number, number>>();
+    for (const rule of rules) {
+      const g = rule.gender;
+      if (!indPointsMap.has(g)) indPointsMap.set(g, new Map());
+      if (!relPointsMap.has(g)) relPointsMap.set(g, new Map());
+      if (rule.ind_score > 0) indPointsMap.get(g)!.set(rule.place, rule.ind_score);
+      if (rule.rel_score > 0) relPointsMap.get(g)!.set(rule.place, rule.rel_score);
+    }
+
+    let indMaxScorers = 0;
+    let relMaxScorers = 0;
+    try {
+      const meetRow = this.db.prepare('SELECT ind_max_scorers_per_team, rel_max_scorers_per_team FROM meets WHERE id = ?').get(meetId) as any;
+      indMaxScorers = meetRow?.ind_max_scorers_per_team || 0;
+      relMaxScorers = meetRow?.rel_max_scorers_per_team || 0;
+    } catch (e) {
+      console.warn('[getProjectedTeamStandings] Could not read max scorers columns (schema may need migration):', (e as any)?.message);
+    }
+
+    // Pull all events for the meet (no is_scored filter)
+    let eventsQuery = 'SELECT id, name, gender, event_type FROM events WHERE meet_id = ?';
+    const eventsParams: any[] = [meetId];
+    if (scope?.gender) {
+      eventsQuery += ' AND gender = ?';
+      eventsParams.push(scope.gender);
+    }
+    const eventsList = this.db.prepare(eventsQuery).all(...eventsParams) as any[];
+    if (eventsList.length === 0) return [];
+
+    // Gather all seed-marked entries for these events.
+    const eventIds = eventsList.map((e: any) => e.id);
+    const placeholders = eventIds.map(() => '?').join(',');
+
+    const allSeedEntries = this.db.prepare(`
+      SELECT en.event_id, en.seed_mark, a.team_id, t.name as team_name
+      FROM entries en
+      INNER JOIN athletes a ON en.athlete_id = a.id
+      LEFT JOIN teams t ON a.team_id = t.id
+      WHERE en.event_id IN (${placeholders})
+        AND en.seed_mark IS NOT NULL
+        AND a.team_id IS NOT NULL
+        AND (en.is_scratched IS NULL OR en.is_scratched = 0)
+        AND (en.is_disqualified IS NULL OR en.is_disqualified = 0)
+    `).all(...eventIds) as any[];
+
+    if (allSeedEntries.length === 0) return [];
+
+    const entriesByEvent = new Map<string, any[]>();
+    for (const entry of allSeedEntries) {
+      const eventEntries = entriesByEvent.get(entry.event_id) || [];
+      eventEntries.push(entry);
+      entriesByEvent.set(entry.event_id, eventEntries);
+    }
+
+    const teamScores = new Map<string, { teamName: string; totalPoints: number; events: Map<string, { eventName: string; points: number }> }>();
+
+    for (const evt of eventsList) {
+      const nameLower = (evt.name || '').toLowerCase();
+      const typeLower = (evt.event_type || '').toLowerCase();
+      const isRelay = nameLower.includes('relay') || typeLower.startsWith('4x') || typeLower.includes('relay') || /^\d+x\d+/.test(typeLower);
+
+      const genderRaw = (evt.gender || '').toUpperCase().charAt(0);
+      const evtGender = genderRaw === 'W' || genderRaw === 'F' ? 'F' : 'M';
+
+      let ptsMap: Map<number, number> | undefined;
+      if (isRelay) {
+        ptsMap = relPointsMap.get(evtGender) || relPointsMap.get('ALL');
+      } else {
+        ptsMap = indPointsMap.get(evtGender) || indPointsMap.get('ALL');
+      }
+      if (!ptsMap || ptsMap.size === 0) continue;
+
+      const maxScorers = isRelay ? relMaxScorers : indMaxScorers;
+      const teamScorerCount = new Map<string, number>();
+
+      const eventEntries = (entriesByEvent.get(evt.id) || []).slice();
+      if (eventEntries.length === 0) continue;
+
+      // Sort by seed mark.
+      // Time events: lower is better. Field events: higher is better.
+      const timeBased = isTimeEvent(evt.event_type);
+      const higherIsBetter = !timeBased;
+
+      eventEntries.sort((a: any, b: any) => {
+        const av = a.seed_mark ?? 0;
+        const bv = b.seed_mark ?? 0;
+        return higherIsBetter ? (bv - av) : (av - bv);
+      });
+
+      // Assign projected places and score.
+      for (let i = 0; i < eventEntries.length; i++) {
+        const entry = eventEntries[i];
+        if (!entry.team_id || !entry.team_name) continue;
+
+        if (maxScorers > 0) {
+          const count = teamScorerCount.get(entry.team_id) || 0;
+          if (count >= maxScorers) continue;
+          teamScorerCount.set(entry.team_id, count + 1);
+        }
+
+        const place = i + 1;
+        const pts = ptsMap.get(place) || 0;
+        if (pts === 0) continue;
+
+        if (!teamScores.has(entry.team_id)) {
+          teamScores.set(entry.team_id, { teamName: entry.team_name, totalPoints: 0, events: new Map() });
+        }
+        const team = teamScores.get(entry.team_id)!;
+        team.totalPoints += pts;
+
+        const existing = team.events.get(evt.id);
+        if (existing) {
+          existing.points += pts;
+        } else {
+          team.events.set(evt.id, { eventName: evt.name, points: pts });
+        }
+      }
+    }
+
+    const projSorted = Array.from(teamScores.entries())
+      .sort((a, b) => b[1].totalPoints - a[1].totalPoints);
+
+    // Tie-aware ranks: teams with the same score share the same rank,
+    // and the next rank skips accordingly (e.g., 1,1,3 not 1,2,3)
+    const standings: TeamStandingsEntry[] = [];
+    for (let i = 0; i < projSorted.length; i++) {
+      const [teamId, data] = projSorted[i];
+      let rank = i + 1;
+      if (i > 0 && data.totalPoints === projSorted[i - 1][1].totalPoints) {
+        rank = standings[i - 1].rank;
+      }
+      standings.push({
+        rank,
+        teamId,
+        teamName: data.teamName,
+        totalPoints: data.totalPoints,
+        eventCount: data.events.size,
+        eventBreakdown: Array.from(data.events.entries()).map(([eventId, e]) => ({
+          eventId,
+          eventName: e.eventName,
+          points: e.points,
+        })),
+      });
+    }
 
     return standings;
   }
@@ -4670,7 +4906,12 @@ export class SQLiteStorage implements IStorage {
     return this.getDisplayDevice(id);
   }
 
-  async updateDisplayDevice(id: string, updates: Partial<{ pagingSize: number; pagingInterval: number; fieldPort: number | null; isBigBoard: boolean }>): Promise<DisplayDevice | undefined> {
+  async updateDisplayContentMode(id: string, contentMode: string): Promise<DisplayDevice | undefined> {
+    this.db.prepare('UPDATE display_devices SET content_mode = ? WHERE id = ?').run(contentMode, id);
+    return this.getDisplayDevice(id);
+  }
+
+  async updateDisplayDevice(id: string, updates: Partial<{ pagingSize: number; pagingInterval: number; fieldPort: number | null; isBigBoard: boolean; displayScale: number }>): Promise<DisplayDevice | undefined> {
     const setClause: string[] = [];
     const values: any[] = [];
     
@@ -4678,6 +4919,7 @@ export class SQLiteStorage implements IStorage {
     if (updates.pagingInterval !== undefined) { setClause.push('paging_interval = ?'); values.push(updates.pagingInterval); }
     if (updates.fieldPort !== undefined) { setClause.push('field_port = ?'); values.push(updates.fieldPort); }
     if (updates.isBigBoard !== undefined) { setClause.push('is_big_board = ?'); values.push(this.fromBoolean(updates.isBigBoard)); }
+    if (updates.displayScale !== undefined) { setClause.push('display_scale = ?'); values.push(updates.displayScale); }
     
     if (setClause.length > 0) {
       values.push(id);

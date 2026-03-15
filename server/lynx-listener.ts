@@ -103,6 +103,21 @@ function cleanEventName(name: string | undefined): string | undefined {
   let cleaned = name.replace(/(\d)\s*Meters?\b/gi, '$1M');
   // Remove trailing "Run" or "Dash" (case-insensitive, with optional leading space)
   cleaned = cleaned.replace(/\s*(Run|Dash)\s*$/i, '').trim();
+  // For multi-event names, FinishLynx sends gender-first format like "Men Hept 60M Hurdles".
+  // Display headers should strip gender ("Hept 60M Hurdles"), but parseMultiEventName()
+  // needs the format "Hept Men 60M Hurdles" for scoring. We reposition gender after the
+  // multi-event type so both display (can strip later) and scoring work.
+  // For standalone multi-event headers (e.g. "Men Pent", "Women Hept") with no sub-event,
+  // just strip the gender since there's nothing to score.
+  const multiMatch = cleaned.match(/^(Men'?s?|Women'?s?)\s+((?:Pent|Hept|Dec)(?:athlon)?)\s+(.+)/i);
+  if (multiMatch) {
+    // Reposition: "Men Hept 60M Hurdles" → "Hept Men 60M Hurdles"
+    const gender = multiMatch[1].replace(/'s$/i, '').replace(/s$/i, ''); // normalize Men's → Men
+    cleaned = `${multiMatch[2]} ${gender} ${multiMatch[3]}`.trim();
+  } else if (/\b(pent|hept|dec(athlon)?|combined)/i.test(cleaned)) {
+    // Standalone header like "Men Pent" or "Women Heptathlon" — strip gender for display
+    cleaned = cleaned.replace(/^(Men'?s?|Women'?s?)\s+/i, '').trim();
+  }
   return cleaned;
 }
 

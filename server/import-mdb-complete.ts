@@ -231,6 +231,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       try { sqliteDb.exec('ALTER TABLE meets ADD COLUMN rel_max_scorers_per_team INTEGER DEFAULT 0'); } catch(e) {}
       try { sqliteDb.exec('ALTER TABLE events ADD COLUMN advance_by_place INTEGER'); } catch(e) {}
       try { sqliteDb.exec('ALTER TABLE events ADD COLUMN advance_by_time INTEGER'); } catch(e) {}
+      try { sqliteDb.exec('ALTER TABLE events ADD COLUMN advancement_json TEXT'); } catch(e) {}
       try { sqliteDb.exec('ALTER TABLE events ADD COLUMN is_multi_event INTEGER DEFAULT 0'); } catch(e) {}
       try { sqliteDb.exec('ALTER TABLE entries ADD COLUMN preliminary_points REAL'); } catch(e) {}
       try { sqliteDb.exec('ALTER TABLE entries ADD COLUMN quarterfinal_points REAL'); } catch(e) {}
@@ -248,6 +249,9 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
   const multiEventPtrs = new Set<number>(); // Track which Event_ptrs are multi-events (heptathlon, pentathlon, etc.)
   const multiEventMetaMap = new Map<number, { name: string; gender: string; eventNum: number }>(); // Event_ptr → parent event metadata
   const subEventIdMap = new Map<string, string>(); // "eventPtr_multPtr" → child event ID (for Entrymulti import)
+  // Track events that have an explicit Event_stat — these should NOT be overridden by Ev_score inference
+  // "Done" (Event_stat='D') does NOT mean "Scored" — only 'S' or 'C' should be marked as scored
+  const eventsWithExplicitStatus = new Set<number>();
   
   // Statistics tracking
   const stats: ImportStatistics = {
@@ -532,6 +536,9 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
     console.log("   ⚠️  Meet table not found or could not be read, using fallback date");
   }
   
+  // Declare eventBatch at function scope so it's accessible from the records import section (section 7)
+  const eventBatch: any[] = [];
+  
   try {
     const eventTable = reader.getTable("Event");
     const eventData = eventTable.getData();
@@ -544,8 +551,6 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       console.log(`   📝 Available columns in Event table: ${columnNames.join(', ')}`);
       console.log(`   📝 Sample first event row:`, JSON.stringify(firstRow, null, 2));
     }
-    
-    const eventBatch = [];
     let datesFound = 0;
     let timesFound = 0;
     let namesFound = 0;
@@ -598,9 +603,14 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       console.log("   ⚠️  Session table not found");
     }
     
-    // Step 2: Read Sessitem table to get Event_ptr → (Sess_ptr, Start_time) mapping
-    // This is the critical link between events and sessions with actual start times!
-    const eventScheduleMap = new Map<number, { sessPtr: number; startTime: string | null; sessDay: number | null; sessName: string | null }>();
+    // Step 2: Read Sessitem table to get Event_ptr → per-round schedule data
+    // CRITICAL: Events can appear in MULTIPLE sessions (e.g., Saturday prelims + Sunday finals).
+    // We store ALL Sessitem entries per event, keyed by Sess_ptr, so each round gets the correct date/time.
+    // eventScheduleMap: Event_ptr → first/primary schedule (used for the main event date/time)
+    // eventAllSchedulesMap: Event_ptr → array of ALL schedules (used for per-round date/time lookup)
+    type ScheduleEntry = { sessPtr: number; startTime: string | null; sessDay: number | null; sessName: string | null };
+    const eventScheduleMap = new Map<number, ScheduleEntry>();
+    const eventAllSchedulesMap = new Map<number, ScheduleEntry[]>();
     let sessitemTimesFound = 0;
     try {
       console.log("\n📋 Attempting to read Sessitem table (event-to-session mapping)...");
@@ -613,10 +623,9 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         const firstRow = sessitemData[0];
         const columnNames = Object.keys(firstRow);
         console.log(`   📝 Available columns: ${columnNames.join(', ')}`);
-        console.log(`   📝 Sample first row:`, JSON.stringify(firstRow, null, 2));
       }
       
-      // Build Event_ptr → schedule info map
+      // Build Event_ptr → schedule info maps (store ALL entries, not just first)
       sessitemData.forEach((item) => {
         const eventPtr = item.Event_ptr ? Number(item.Event_ptr) : null;
         const sessPtr = item.Sess_ptr ? Number(item.Sess_ptr) : null;
@@ -639,30 +648,47 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           // Get session metadata
           const sessionMeta = sessionMetaMap.get(sessPtr);
           
-          // Only store the first (or best) entry per event
-          // If we already have this event, only update if this entry has a time and the existing one doesn't
+          const entry: ScheduleEntry = {
+            sessPtr,
+            startTime: startTime || sessionMeta?.defaultTime || null,
+            sessDay: sessionMeta?.sessDay || null,
+            sessName: sessionMeta?.name || null,
+          };
+          
+          // Store in the "all schedules" map (every Sessitem row for this event)
+          if (!eventAllSchedulesMap.has(eventPtr)) {
+            eventAllSchedulesMap.set(eventPtr, []);
+          }
+          eventAllSchedulesMap.get(eventPtr)!.push(entry);
+          
+          // Store the EARLIEST session as the primary schedule (lowest sessDay = first day)
           const existing = eventScheduleMap.get(eventPtr);
-          if (!existing || (startTime && !existing.startTime)) {
-            eventScheduleMap.set(eventPtr, {
-              sessPtr,
-              startTime: startTime || sessionMeta?.defaultTime || null,
-              sessDay: sessionMeta?.sessDay || null,
-              sessName: sessionMeta?.name || null,
-            });
+          if (!existing) {
+            eventScheduleMap.set(eventPtr, entry);
+          } else {
+            // Prefer the entry with the earlier session day (first day of the meet)
+            const existingDay = existing.sessDay ?? 999;
+            const newDay = entry.sessDay ?? 999;
+            if (newDay < existingDay || (newDay === existingDay && startTime && !existing.startTime)) {
+              eventScheduleMap.set(eventPtr, entry);
+            }
           }
         }
       });
       
+      const multiSessionEvents = [...eventAllSchedulesMap.entries()].filter(([_, schedules]) => schedules.length > 1);
       console.log(`   ✅ Sessitem table found, mapped ${eventScheduleMap.size} events to sessions`);
       console.log(`   ⏰ Events with explicit times from Sessitem: ${sessitemTimesFound}`);
+      console.log(`   📅 Events spanning multiple sessions: ${multiSessionEvents.length}`);
+      for (const [evtPtr, schedules] of multiSessionEvents) {
+        const days = schedules.map(s => `Day${s.sessDay}@${s.startTime || '?'}`).join(', ');
+        console.log(`      Event_ptr ${evtPtr}: ${days}`);
+      }
     } catch (sessitemError) {
       console.log("   ⚠️  Sessitem table not found, falling back to Session table only");
-      
-      // Fallback: if no Sessitem, use Session table directly (less accurate)
-      // This won't work well but provides some data
     }
     
-    // Create combined sessionMap for backward compatibility (Event_ptr → session info)
+    // Create combined sessionMap for backward compatibility (Event_ptr → primary session info)
     const sessionMap = new Map<number, { sessDay: number | null; time: string | null; name: string | null }>();
     eventScheduleMap.forEach((schedule, eventPtr) => {
       sessionMap.set(eventPtr, {
@@ -700,10 +726,12 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           case 'u':
           case 'unseeded':
             hytekStatus = 'unseeded';
+            eventsWithExplicitStatus.add(eventPtr);
             break;
           case '1':
           case 'seeded':
             hytekStatus = 'seeded';
+            eventsWithExplicitStatus.add(eventPtr);
             break;
           case 'A':
           case 'a':
@@ -711,6 +739,8 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           case 'd':
           case 'done':
             hytekStatus = 'done';
+            // "Done" does NOT mean "Scored" — do NOT set isScored here
+            eventsWithExplicitStatus.add(eventPtr);
             break;
           case 'S':
           case 's':
@@ -719,6 +749,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           case 'scored':
             hytekStatus = 'scored';
             isScored = true;
+            eventsWithExplicitStatus.add(eventPtr);
             break;
           default:
             hytekStatus = statusStr;
@@ -736,7 +767,14 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       // Determine event type from distance and track/field indicator
       let eventType = "100m"; // default
       
-      if (trkField === "F") {
+      if (trkField === "M") {
+        // Multi-events (Decathlon, Heptathlon, Pentathlon) — trkField="M" in HyTek
+        const stroke = (row.Event_stroke || "").toString().trim();
+        if (stroke === '1') eventType = 'decathlon';
+        else if (stroke === '2') eventType = 'heptathlon';
+        else if (stroke === '3') eventType = 'pentathlon';
+        else eventType = 'combined_event';
+      } else if (trkField === "F") {
         const stroke = (row.Event_stroke || "").toString().trim();
         eventType = getFieldEventType(stroke, isIndoorMeet);
       } else if (distance) {
@@ -897,24 +935,61 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       const numRounds = row.Event_rounds ? Number(row.Event_rounds) : 1;
       const numLanes = row.Num_finlanes ? Number(row.Num_finlanes) : 8;
       
-      // Extract advancement formula from HyTek
-      // Top_no1/Next_Best1 = prelims advancement, Top_no2/Next_Best2 = quarters, Top_no3/Next_Best3 = semis
-      // Use the first round's advancement data (prelims → next round)
+      // Extract advancement formula from HyTek (per-round)
+      // Top_no1/Next_Best1 = prelims→next, Top_no2/Next_Best2 = quarters→next, Top_no3/Next_Best3 = semis→finals
       let advanceByPlace: number | null = null;
       let advanceByTime: number | null = null;
+      let advancementJson: string | null = null;
       
       if (numRounds > 1) {
-        // Extract advancement from first round (prelims to next round)
+        // Extract advancement from first round (prelims to next round) — stored in legacy columns
         if (row.Top_no1 !== null && row.Top_no1 !== undefined) {
           advanceByPlace = Number(row.Top_no1) || null;
         }
         if (row.Next_Best1 !== null && row.Next_Best1 !== undefined) {
           advanceByTime = Number(row.Next_Best1) || null;
         }
+        // Build per-round advancement JSON — keys must match the dataRounds mapping
+        // in displays.ts so that the correct advancement data is found for each round.
+        // HyTek stores: Top_no1/Next_Best1 = round 1→2, Top_no2/Next_Best2 = round 2→3, Top_no3/Next_Best3 = round 3→4
+        // displays.ts dataRounds mapping:
+        //   2 rounds: ['preliminary', 'final']
+        //   3 rounds: ['preliminary', 'semifinal', 'final']  (skips quarterfinal)
+        //   4 rounds: ['preliminary', 'quarterfinal', 'semifinal', 'final']
+        const advancement: Record<string, { place: number; time: number }> = {};
+        if (numRounds === 2) {
+          // 2 rounds: Top_no1 = prelims→final
+          if (row.Top_no1 || row.Next_Best1) {
+            advancement.preliminary = { place: Number(row.Top_no1) || 0, time: Number(row.Next_Best1) || 0 };
+          }
+        } else if (numRounds === 3) {
+          // 3 rounds: Top_no1 = prelims→semis, Top_no2 = semis→finals
+          if (row.Top_no1 || row.Next_Best1) {
+            advancement.preliminary = { place: Number(row.Top_no1) || 0, time: Number(row.Next_Best1) || 0 };
+          }
+          if (row.Top_no2 || row.Next_Best2) {
+            advancement.semifinal = { place: Number(row.Top_no2) || 0, time: Number(row.Next_Best2) || 0 };
+          }
+        } else {
+          // 4 rounds: Top_no1 = prelims→quarters, Top_no2 = quarters→semis, Top_no3 = semis→finals
+          if (row.Top_no1 || row.Next_Best1) {
+            advancement.preliminary = { place: Number(row.Top_no1) || 0, time: Number(row.Next_Best1) || 0 };
+          }
+          if (row.Top_no2 || row.Next_Best2) {
+            advancement.quarterfinal = { place: Number(row.Top_no2) || 0, time: Number(row.Next_Best2) || 0 };
+          }
+          if (row.Top_no3 || row.Next_Best3) {
+            advancement.semifinal = { place: Number(row.Top_no3) || 0, time: Number(row.Next_Best3) || 0 };
+          }
+        }
+        if (Object.keys(advancement).length > 0) {
+          advancementJson = JSON.stringify(advancement);
+        }
       }
       
       // Auto-detect multi-event (Decathlon, Heptathlon, Pentathlon) from event name
-      const isMultiEvent = /\b(decathlon|heptathlon|pentathlon)\b/i.test(eventName);
+      // Supports abbreviations: "Hept", "Pent", "Dec" as used in FinishLynx
+      const isMultiEvent = trkField === "M" || /\b(dec(athlon)?|hept(athlon)?|pent(athlon)?)\b/i.test(eventName);
       
       // Track which Event_ptrs are multi-events so we can set resultType='points' during entry import
       if (isMultiEvent) {
@@ -940,6 +1015,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         isScored,    // NEW: Derived lock flag
         advanceByPlace, // Advancement by place (Q qualifiers)
         advanceByTime,  // Advancement by time (q qualifiers)
+        advancementJson, // Per-round advancement JSON
         isMultiEvent,   // Auto-detected from event name
       });
     }
@@ -948,14 +1024,14 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       let insertedEvents: any[];
       if (isEdgeMode && sqliteDb) {
         const upsertStmt = sqliteDb.prepare(`
-          INSERT INTO events (id, meet_id, event_number, name, event_type, gender, distance, status, num_rounds, num_lanes, event_date, event_time, session_name, hytek_status, is_scored, advance_by_place, advance_by_time, is_multi_event)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO events (id, meet_id, event_number, name, event_type, gender, distance, status, num_rounds, num_lanes, event_date, event_time, session_name, hytek_status, is_scored, advance_by_place, advance_by_time, advancement_json, is_multi_event)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(meet_id, event_number) DO UPDATE SET
             name=excluded.name, event_type=excluded.event_type, gender=excluded.gender, distance=excluded.distance,
             status=excluded.status, num_rounds=excluded.num_rounds, num_lanes=excluded.num_lanes, event_date=excluded.event_date,
             event_time=excluded.event_time, session_name=excluded.session_name, hytek_status=excluded.hytek_status,
             is_scored=excluded.is_scored, advance_by_place=excluded.advance_by_place, advance_by_time=excluded.advance_by_time,
-            is_multi_event=excluded.is_multi_event
+            advancement_json=excluded.advancement_json, is_multi_event=excluded.is_multi_event
         `);
         const insertMany = sqliteDb.transaction((items: any[]) => {
           for (const item of items) {
@@ -964,7 +1040,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
               item.distance, item.status, item.numRounds, item.numLanes,
               item.eventDate instanceof Date ? item.eventDate.toISOString().split('T')[0] : item.eventDate,
               item.eventTime, item.sessionName, item.hytekStatus, item.isScored ? 1 : 0,
-              item.advanceByPlace, item.advanceByTime, item.isMultiEvent ? 1 : 0
+              item.advanceByPlace, item.advanceByTime, item.advancementJson, item.isMultiEvent ? 1 : 0
             );
           }
         });
@@ -1026,6 +1102,10 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       console.log(`   📝 Events with HyTek status: ${eventBatch.filter(e => e.hytekStatus).length}`);
       console.log(`   🏃 Multi-round events: ${eventBatch.filter(e => e.numRounds > 1).length}`);
       console.log(`   🎯 Events with advancement formula: ${eventBatch.filter(e => e.advanceByPlace || e.advanceByTime).length}`);
+      console.log(`   🎯 Events with per-round advancement JSON: ${eventBatch.filter(e => e.advancementJson).length}`);
+      eventBatch.filter(e => e.advancementJson).forEach(e => {
+        console.log(`      📋 Event #${e.eventNumber} (${e.name}): ${e.advancementJson}`);
+      });
     }
   } catch (error) {
     console.error("   ❌ Error importing events:", error);
@@ -1480,24 +1560,36 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       
       // Get relay member mapping from RelayNames table
       // We need at least one athlete per relay to create an entry (entries require athlete_id)
-      const relayMemberMap = new Map<number, number>(); // Relay_no -> first Ath_no
+      // Build a map of Relay_no -> ALL member Ath_nos (ordered by position).
+      // We need multiple members per relay because teams with A/B relay entries
+      // may share the same first member. Using the same athlete_id for two entries
+      // in the same event causes ON CONFLICT to overwrite the A-team's scored entry
+      // with the B-team's unscored entry (the root cause of DMR scoring bugs).
+      const relayAllMembersMap = new Map<number, number[]>(); // Relay_no -> [Ath_no, ...]
       try {
         const relayNamesTable = reader.getTable("RelayNames");
         const relayNamesData = relayNamesTable.getData();
         for (const rn of relayNamesData) {
           const relayNo = Number(rn.Relay_no || 0);
           const athNo = Number(rn.Ath_no || 0);
-          if (relayNo > 0 && athNo > 0 && !relayMemberMap.has(relayNo)) {
-            relayMemberMap.set(relayNo, athNo);
+          if (relayNo > 0 && athNo > 0) {
+            const members = relayAllMembersMap.get(relayNo) || [];
+            members.push(athNo);
+            relayAllMembersMap.set(relayNo, members);
           }
         }
-        console.log(`   📋 Found relay members for ${relayMemberMap.size} relay teams`);
+        console.log(`   📋 Found relay members for ${relayAllMembersMap.size} relay teams`);
       } catch (e) {
         console.log(`   ⚠️  RelayNames table not found, will use team-based fallback`);
       }
       
       const relayEntryBatch: any[] = [];
       let relaySkipped = 0;
+      
+      // Track which (event_id, athlete_id) pairs are already used to avoid conflicts.
+      // When a team has multiple relay entries (A/B teams) sharing the same first member,
+      // we pick a different member for the second entry.
+      const usedEventAthleteKeys = new Set<string>();
       
       for (const row of relayData) {
         const eventPtr = typeof row.Event_ptr === 'number' ? row.Event_ptr : Number(row.Event_ptr || 0);
@@ -1509,18 +1601,28 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         
         if (!eventId) { relaySkipped++; continue; }
         
-        // Find an athlete for this relay entry
-        // First try RelayNames, then find any athlete on this team
+        // Find a UNIQUE athlete for this relay entry.
+        // Try each relay member in order until we find one that doesn't conflict
+        // with an already-used (event_id, athlete_id) pair.
         let athleteId: string | null = null;
-        const memberAthNo = relayMemberMap.get(relayNo);
-        if (memberAthNo) {
-          athleteId = athleteIdMap.get(memberAthNo) || null;
+        const members = relayAllMembersMap.get(relayNo) || [];
+        for (const athNo of members) {
+          const candidateId = athleteIdMap.get(athNo);
+          if (candidateId) {
+            const key = `${eventId}|${candidateId}`;
+            if (!usedEventAthleteKeys.has(key)) {
+              athleteId = candidateId;
+              break;
+            }
+          }
         }
         
-        // Fallback: find any athlete on this team that we have mapped
+        // Fallback: find any athlete on this team that we have mapped and isn't used
         if (!athleteId && teamNo) {
           const athEntries = Array.from(athleteIdMap.entries());
           for (const [athNo, id] of athEntries) {
+            const key = `${eventId}|${id}`;
+            if (usedEventAthleteKeys.has(key)) continue;
             const athEntry = entryData.find((e: any) => Number(e.Ath_no) === athNo && Number(e.Team_no) === teamNo);
             if (athEntry) {
               athleteId = id;
@@ -1530,6 +1632,9 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         }
         
         if (!athleteId) { relaySkipped++; continue; }
+        
+        // Mark this (event_id, athlete_id) as used
+        usedEventAthleteKeys.add(`${eventId}|${athleteId}`);
         
         const seedMark = row.ActualSeed_time ? (typeof row.ActualSeed_time === 'number' ? row.ActualSeed_time : parseFloat(String(row.ActualSeed_time))) : null;
         const evScore = row.Ev_score != null && Number(row.Ev_score) > 0 ? Number(row.Ev_score) : null;
@@ -1772,7 +1877,11 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
     }
     
     // Post-import: Infer is_scored from Ev_score values (both individual AND relay entries)
-    // If any entry in an event has Ev_score > 0, mark that event as scored
+    // IMPORTANT: Only infer scoring for events that do NOT have an explicit Event_stat.
+    // "Done" (Event_stat='D') does NOT mean "Scored" — HyTek distinguishes these states.
+    // Events with Event_stat='D' have finished running but are NOT yet officially scored.
+    // Only events with Event_stat='S' or 'C' should be marked as scored.
+    // The Ev_score inference is a fallback for events where Event_stat is missing entirely.
     const eventsWithScores = new Set<number>();
     const withEvScore = entryData.filter(r => r.Ev_score != null && Number(r.Ev_score) > 0);
     // Also check relay data for Ev_score
@@ -1781,19 +1890,21 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       const relayWithScore = relayData2.filter((r: any) => r.Ev_score != null && Number(r.Ev_score) > 0);
       for (const row of relayWithScore) {
         const eventPtr = typeof row.Event_ptr === 'number' ? row.Event_ptr : Number(row.Event_ptr || 0);
-        if (eventPtr > 0) eventsWithScores.add(eventPtr);
+        // Only add if the event does NOT have an explicit Event_stat
+        if (eventPtr > 0 && !eventsWithExplicitStatus.has(eventPtr)) eventsWithScores.add(eventPtr);
       }
     } catch (e) { /* relay table already processed above */ }
     console.log(`   🔍 Entries with Ev_score > 0: ${withEvScore.length} individual + relay`);
     for (const row of withEvScore) {
       const eventPtr = typeof row.Event_ptr === 'number' ? row.Event_ptr : Number(row.Event_ptr || 0);
-      if (eventPtr > 0) eventsWithScores.add(eventPtr);
+      // Only add if the event does NOT have an explicit Event_stat
+      if (eventPtr > 0 && !eventsWithExplicitStatus.has(eventPtr)) eventsWithScores.add(eventPtr);
     }
     
     if (eventsWithScores.size > 0) {
       const scoredPtrs = Array.from(eventsWithScores);
       const eventNums = scoredPtrs.map(ptr => ptrToNumMap.get(ptr)).filter(n => n != null);
-      console.log(`   🏆 Events with Ev_score data (inferred scored): ${eventsWithScores.size} events (Event_no: ${eventNums.join(', ')})`);
+      console.log(`   🏆 Events WITHOUT explicit Event_stat but with Ev_score data (inferred scored): ${eventsWithScores.size} events (Event_no: ${eventNums.join(', ')})`);
       
       // Build list of event IDs to mark as scored
       // eventIdMap is keyed by Event_ptr (not Event_no)
@@ -1807,13 +1918,18 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         if (isEdgeMode && sqliteDb) {
           const placeholders = eventIdsToMark.map(() => '?').join(',');
           const updateResult = sqliteDb.prepare(`UPDATE events SET is_scored = 1 WHERE id IN (${placeholders}) AND (is_scored IS NULL OR is_scored = 0)`).run(...eventIdsToMark);
-          console.log(`   ✅ Marked ${updateResult.changes} additional events as scored (from Ev_score inference)`);
+          console.log(`   ✅ Marked ${updateResult.changes} additional events as scored (from Ev_score inference, only for events without explicit status)`);
         } else if (db) {
           for (const eid of eventIdsToMark) {
             await db.execute(sql`UPDATE events SET is_scored = true WHERE id = ${eid} AND (is_scored IS NULL OR is_scored = false)`);
           }
-          console.log(`   ✅ Marked up to ${eventIdsToMark.length} additional events as scored (from Ev_score inference)`);
+          console.log(`   ✅ Marked up to ${eventIdsToMark.length} additional events as scored (from Ev_score inference, only for events without explicit status)`);
         }
+      }
+    } else {
+      const skippedCount = withEvScore.length > 0 ? eventsWithExplicitStatus.size : 0;
+      if (skippedCount > 0) {
+        console.log(`   ℹ️  Skipped Ev_score inference for ${skippedCount} events that have explicit Event_stat (respecting Done vs Scored distinction)`);
       }
     }
   } catch (error) {
@@ -1943,12 +2059,68 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       
       console.log(`   📝 Found ${tagGroups.size} record type(s): tag_ptrs = [${Array.from(tagGroups.keys()).join(', ')}]`);
       
-      // HyTek standard tag_ptr naming: We'll name them based on the tag_ptr value
-      // Common HyTek conventions: 6=Meet Record, 14=Facility Record, 16=Conference Record
-      const tagNameMap: Record<number, { name: string; scope: 'meet' | 'facility' | 'custom' }> = {
-        6: { name: 'Meet Record', scope: 'meet' },
-        14: { name: 'Facility Record', scope: 'facility' },
-      };
+      // Try to read the HyTek RecordTags table for tag abbreviations/names
+      // HyTek uses "RecordTags" (some older versions may use "RecTag")
+      // Fields: tag_ptr, tag_order, tag_name, tag_flag (abbreviation: F=Facility, M=Meet, C=Collegiate, etc.)
+      const tagNameMap: Record<number, { name: string; scope: 'meet' | 'facility' | 'national' | 'international' | 'custom' }> = {};
+      let recTagFound = false;
+      for (const tableName of ['RecordTags', 'RecTag']) {
+        try {
+          const recTagTable = reader.getTable(tableName);
+          const recTagData = recTagTable.getData();
+          console.log(`   📋 ${tableName} table has ${recTagData.length} rows`);
+          recTagFound = true;
+          for (const tagRow of recTagData) {
+            const ptr = Number(tagRow.tag_ptr || tagRow.Tag_ptr || 0);
+            // tag_flag is the abbreviation in HyTek RecordTags (F, M, C, etc.)
+            // Also try tag_abbr for older formats
+            const abbr = String(tagRow.tag_flag || tagRow.Tag_flag || tagRow.tag_abbr || tagRow.Tag_abbr || tagRow.Abbr || tagRow.abbr || '').trim().toUpperCase();
+            const tagName = String(tagRow.tag_name || tagRow.Tag_name || tagRow.Name || tagRow.name || '').trim();
+            const tagNameUpper = tagName.toUpperCase();
+            console.log(`   📋 ${tableName}: ptr=${ptr}, flag/abbr="${abbr}", name="${tagName}"`);
+            
+            // Auto-map by flag/abbreviation first, then by tag_name string
+            if (abbr === 'F' || abbr === 'FR' || abbr.includes('FAC')) {
+              tagNameMap[ptr] = { name: tagName || 'Facility Record', scope: 'facility' };
+            } else if (abbr === 'M' || abbr === 'MR' || abbr.includes('MEET')) {
+              tagNameMap[ptr] = { name: tagName || 'Meet Record', scope: 'meet' };
+            } else if (abbr === 'N' || abbr === 'NR' || abbr.includes('NAT')) {
+              tagNameMap[ptr] = { name: tagName || 'National Record', scope: 'national' };
+            } else if (abbr === 'C' || abbr === 'CR' || abbr.includes('COL') || abbr.includes('CONF')) {
+              // Collegiate/Conference records — map to national scope (closest category)
+              tagNameMap[ptr] = { name: tagName || 'Collegiate Record', scope: 'national' };
+            } else if (abbr === 'I' || abbr === 'IR' || abbr === 'WR' || abbr.includes('INT') || abbr.includes('WORLD')) {
+              tagNameMap[ptr] = { name: tagName || 'International Record', scope: 'international' };
+            } else if (tagNameUpper.includes('FACILITY') || tagNameUpper.includes('VENUE') || tagNameUpper.includes('ARENA')) {
+              tagNameMap[ptr] = { name: tagName, scope: 'facility' };
+            } else if (tagNameUpper.includes('MEET')) {
+              tagNameMap[ptr] = { name: tagName, scope: 'meet' };
+            } else if (tagNameUpper.includes('COLLEGIATE') || tagNameUpper.includes('CONFERENCE') || tagNameUpper.includes('NCAA')) {
+              tagNameMap[ptr] = { name: tagName, scope: 'national' };
+            } else if (tagNameUpper.includes('NATIONAL') || tagNameUpper.includes('AMERICAN')) {
+              tagNameMap[ptr] = { name: tagName, scope: 'national' };
+            } else if (tagNameUpper.includes('WORLD') || tagNameUpper.includes('INTERNATIONAL') || tagNameUpper.includes('OLYMPIC')) {
+              tagNameMap[ptr] = { name: tagName, scope: 'international' };
+            } else if (tagName) {
+              // Has a name but unrecognized abbreviation — use the name, mark as custom
+              tagNameMap[ptr] = { name: tagName, scope: 'custom' };
+            }
+          }
+          break; // Found and processed the table, no need to try other names
+        } catch (e) {
+          // Table not found with this name, try next
+        }
+      }
+      if (!recTagFound) {
+        console.log('   ⚠️  RecordTags/RecTag table not found — falling back to tag_ptr-based mapping');
+        // Only use hardcoded fallbacks when no RecordTags table exists at all
+        // These are default HyTek conventions but can be wrong for specific meets
+        if (!tagNameMap[6]) tagNameMap[6] = { name: 'Meet Record', scope: 'meet' };
+        if (!tagNameMap[14]) tagNameMap[14] = { name: 'Facility Record', scope: 'facility' };
+      }
+      
+      // Default display order by scope (lower = higher priority)
+      const scopeDisplayOrder: Record<string, number> = { meet: 1, facility: 2, national: 3, international: 4, custom: 5 };
       
       // Build event name lookup from eventIdMap (Event_ptr -> event name/type)
       // We already have ptrToNumMap (Event_ptr -> eventNumber) and eventBatch has names
@@ -1980,6 +2152,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
               description: `Imported from HyTek MDB (tag_ptr=${tagPtr})`,
               scope: tagInfo.scope,
               isActive: true,
+              displayOrder: scopeDisplayOrder[tagInfo.scope] ?? 99,
             }).returning();
             bookId = newBook.id;
           }
@@ -1990,6 +2163,11 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
             const eventPtr = Number(row.event_ptr || 0);
             const eventInfo = eventNameByPtr.get(eventPtr);
             if (!eventInfo) continue;
+            
+            // Skip multi-event records — their performance values are point totals
+            // (e.g. 6639 for heptathlon), not times, and would corrupt enrichment
+            const multiEventTypes = ['decathlon', 'heptathlon', 'pentathlon', 'combined_event'];
+            if (multiEventTypes.includes(eventInfo.eventType)) continue;
             
             const holder = String(row.Record_Holder || '').trim();
             if (!holder) continue;
@@ -2016,8 +2194,9 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
               performance = '0.00';
             }
             
-            // Map gender
-            const recordGender = gender === 'M' ? 'male' : gender === 'F' ? 'female' : 'unknown';
+            // Use short gender codes (M/F) to match events table format
+            // Events table stores gender as 'M'/'F' from HyTek Event_sex field
+            const recordGender = gender === 'M' ? 'M' : (gender === 'F' || gender === 'W') ? 'F' : gender;
             
             // Build date
             const recordDate = new Date(year > 0 ? year : 2000, month > 0 ? month - 1 : 0, day > 0 ? day : 1);
@@ -2051,6 +2230,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
               description TEXT,
               scope TEXT NOT NULL DEFAULT 'custom',
               is_active INTEGER DEFAULT 1,
+              display_order INTEGER DEFAULT 99,
               created_at TEXT DEFAULT CURRENT_TIMESTAMP
             );
             CREATE TABLE IF NOT EXISTS records (
@@ -2076,8 +2256,8 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
             bookId = existingBook.id;
             sqliteDb.prepare('DELETE FROM records WHERE record_book_id = ?').run(bookId);
           } else {
-            const result = sqliteDb.prepare('INSERT INTO record_books (name, description, scope, is_active) VALUES (?, ?, ?, 1)').run(
-              tagInfo.name, `Imported from HyTek MDB (tag_ptr=${tagPtr})`, tagInfo.scope
+            const result = sqliteDb.prepare('INSERT INTO record_books (name, description, scope, is_active, display_order) VALUES (?, ?, ?, 1, ?)').run(
+              tagInfo.name, `Imported from HyTek MDB (tag_ptr=${tagPtr})`, tagInfo.scope, scopeDisplayOrder[tagInfo.scope] ?? 99
             );
             bookId = result.lastInsertRowid as number;
           }
@@ -2092,6 +2272,11 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
               const eventPtr = Number(row.event_ptr || 0);
               const eventInfo = eventNameByPtr.get(eventPtr);
               if (!eventInfo) continue;
+              
+              // Skip multi-event records — their performance values are point totals
+              // (e.g. 6639 for heptathlon), not times, and would corrupt enrichment
+              const multiEventTypes = ['decathlon', 'heptathlon', 'pentathlon', 'combined_event'];
+              if (multiEventTypes.includes(eventInfo.eventType)) continue;
               
               const holder = String(row.Record_Holder || '').trim();
               if (!holder) continue;
@@ -2117,7 +2302,8 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
                 performance = '0.00';
               }
               
-              const recordGender = gender === 'M' ? 'male' : gender === 'F' ? 'female' : 'unknown';
+              // Use short gender codes (M/F) to match events table format
+              const recordGender = gender === 'M' ? 'M' : (gender === 'F' || gender === 'W') ? 'F' : gender;
               const recordDate = `${year > 0 ? year : 2000}-${String(month > 0 ? month : 1).padStart(2, '0')}-${String(day > 0 ? day : 1).padStart(2, '0')}`;
               
               insertRecordStmt.run(bookId, eventInfo.eventType, recordGender, performance, holder, team || null, recordDate, `Event: ${eventInfo.name}`, 'HyTek MDB Import');

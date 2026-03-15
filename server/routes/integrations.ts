@@ -54,14 +54,17 @@ import { mergeFlightsForEvent, type MergedFieldStandings } from '../parsers/lff-
 import { getResulTVParser } from '../parsers/resultv-parser';
 import { importCompleteMDB } from '../import-mdb-complete';
 import { insertExternalScoreboardSchema } from '@shared/schema';
+import { calculateEventPoints, parseMultiEventName, parsePerformance } from '../combined-events-scoring';
 import type { RouteContext } from "../route-context";
 
 export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
   const {
-    broadcastToDisplays, broadcastCurrentEvent, broadcastFieldEventUpdate,
+    broadcastToDisplays, broadcastClockUpdate, broadcastCurrentEvent, broadcastFieldEventUpdate,
     sendToDisplayDevice, getActiveMeetId, connectedDisplayDevices,
     getConnectedDevicesForMeet, prefetchSceneData, getDisplayModeFromTemplate,
     abbreviateEventName, upload, fileStorage, displayClients,
+    enrichEntriesWithRecordTags,
+    autoUpdateAthleteBests,
   } = ctx;
 
   // ===== SCORING / RECORDS / MEDALS =====
@@ -625,6 +628,45 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
   const entryAccumulator = createEmptyAccumulator(); // Standard/small board
   const entryAccumulatorBig = createEmptyAccumulator(); // Big board
 
+  // === PERFORMANCE: Start-list deduplication ===
+  // FinishLynx re-sends the same start list every ~2s even when nothing changed.
+  // We fingerprint the accumulated entries and skip the entire enrichment+broadcast
+  // pipeline when the data is identical — this eliminates 5-6 DB queries per cycle.
+  let lastStartListFingerprint = '';
+  let lastStartListFingerprintBig = '';
+
+  // === PERFORMANCE: DB query cache for hot-path lookups ===
+  // These queries run on every start-list cycle (~2s) but rarely change during a meet.
+  // Cache them with a 30-second TTL to avoid hammering the DB.
+  const dbCache = {
+    athletesByMeet: { data: null as any[] | null, meetId: '', expiry: 0 },
+    eventsByNumber: new Map<number, { data: any[], expiry: number }>(),
+  };
+  const DB_CACHE_TTL = 30_000; // 30 seconds
+
+  function getCachedAthletesByMeet(meetId: string): any[] | null {
+    const now = Date.now();
+    if (dbCache.athletesByMeet.meetId === meetId && dbCache.athletesByMeet.data && now < dbCache.athletesByMeet.expiry) {
+      return dbCache.athletesByMeet.data;
+    }
+    return null;
+  }
+  async function getAthletesByMeetCached(meetId: string): Promise<any[]> {
+    const cached = getCachedAthletesByMeet(meetId);
+    if (cached) return cached;
+    const athletes = await storage.getAthletesByMeetId(meetId);
+    dbCache.athletesByMeet = { data: athletes, meetId, expiry: Date.now() + DB_CACHE_TTL };
+    return athletes;
+  }
+  async function getEventsByLynxNumberCached(eventNumber: number): Promise<any[]> {
+    const now = Date.now();
+    const cached = dbCache.eventsByNumber.get(eventNumber);
+    if (cached && now < cached.expiry) return cached.data;
+    const events = await storage.getEventsByLynxEventNumber(eventNumber);
+    dbCache.eventsByNumber.set(eventNumber, { data: events, expiry: now + DB_CACHE_TTL });
+    return events;
+  }
+
   // Get Lynx connection status (used by UI)
   app.get("/api/lynx/status", async (req, res) => {
     try {
@@ -884,8 +926,9 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     }
   };
   
-  // Check every 10 seconds for idle ports
-  setInterval(checkFieldPortsForStandings, 10000);
+  // Auto-standings disabled — feature not yet fully working.
+  // To re-enable, uncomment the line below:
+  // setInterval(checkFieldPortsForStandings, 10000);
   
   // Trigger standings mode for a port - find LFF files and start paging
   async function triggerFieldStandingsMode(port: number, state: FieldPortState) {
@@ -1277,10 +1320,24 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
   app.patch("/api/meets/:meetId/ingestion-settings", async (req, res) => {
     try {
       const { meetId } = req.params;
-      const settings = await storage.upsertIngestionSettings({
-        meetId,
-        ...req.body,
-      });
+      // Use partial update if settings already exist, so saving one field
+      // (e.g. lynxFilesDirectory) doesn't clear another (e.g. headshotDirectory)
+      const existing = await storage.getIngestionSettings(meetId);
+      let settings;
+      if (existing) {
+        // upsertIngestionSettings handles both insert and update — merge with existing
+        // to preserve fields not included in the request body
+        settings = await storage.upsertIngestionSettings({
+          ...existing,
+          meetId,
+          ...req.body,
+        });
+      } else {
+        settings = await storage.upsertIngestionSettings({
+          meetId,
+          ...req.body,
+        });
+      }
       
       // Restart watchers if enabled
       const { ingestionManager } = await import('../ingestion-manager');
@@ -1467,7 +1524,8 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     
     try {
       // Auto-activate event when data arrives (set to in_progress if scheduled)
-      const allMatchingEvents = await storage.getEventsByLynxEventNumber(eventNumber);
+      // === PERFORMANCE: Use cached DB lookup instead of hitting DB on every track-mode-change ===
+      const allMatchingEvents = await getEventsByLynxNumberCached(eventNumber);
 
       // Get total heats from EVT watcher for the active meet
       const roundNum = data.round ? parseInt(String(data.round)) : 1;
@@ -1517,6 +1575,18 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
         eventType = event.eventType ?? null;
         eventGender = event.gender ?? null;
         
+        // Also detect multi-event from event name if not set in DB
+        // Supports abbreviations like "Hept", "Pent", "Dec" used in FinishLynx
+        if (!isMultiEvent) {
+          const nameToCheck = (event.name || '').toLowerCase();
+          const lynxName = (data.eventName || '').toLowerCase();
+          if (/\b(hept|pent|dec(athlon)?|heptathlon|pentathlon)\b/i.test(nameToCheck) ||
+              /\b(hept|pent|dec(athlon)?|heptathlon|pentathlon)\b/i.test(lynxName)) {
+            isMultiEvent = true;
+            console.log(`[Lynx] Auto-detected multi-event from name: "${event.name}" / "${data.eventName}"`);
+          }
+        }
+        
         // Determine round name based on event configuration
         if (totalRounds === 1) {
           roundName = 'Finals';
@@ -1538,6 +1608,14 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
         }
       }
 
+      // Fallback: detect multi-event from FinishLynx event name when no DB event matched
+      if (!isMultiEvent && data.eventName) {
+        if (/\b(dec(athlon)?|hept(athlon)?|pent(athlon)?)\b/i.test(data.eventName)) {
+          isMultiEvent = true;
+          console.log(`[Lynx] Auto-detected multi-event from Lynx event name (no DB match): "${data.eventName}"`);
+        }
+      }
+
       // Determine display mode for scene template mapping
       // Multi-events use 'multi_track' instead of 'track_results' to show points
       let displayMode = mode === 'results' ? 'track_results' : 
@@ -1545,6 +1623,75 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
                         mode === 'start_list' ? 'start_list' : mode;
       if (isMultiEvent && mode === 'results') {
         displayMode = 'multi_track';
+      }
+      
+      // Calculate multi-event points for each entry when showing results
+      // FinishLynx does NOT send points — we calculate them from the athlete's time
+      // using the WA scoring tables based on the sub-event and gender
+      if (isMultiEvent && mode === 'results' && data.entries && data.eventName) {
+        const parsed = parseMultiEventName(data.eventName);
+        if (parsed) {
+          for (const entry of data.entries) {
+            if (entry.time) {
+              const points = calculateEventPoints(parsed.scoringKey, entry.time, parsed.gender);
+              if (points > 0) {
+                entry.eventPoints = points;
+              }
+            }
+          }
+          console.log(`[Lynx] Calculated multi-event points for "${data.eventName}" → ${parsed.scoringKey} (${parsed.gender})`);
+        } else {
+          console.log(`[Lynx] Could not parse multi-event name: "${data.eventName}"`);
+        }
+      }
+      
+      // Enrich entries with MR/FR/PB/SB record tags for live FinishLynx data
+      // The enrichment function expects finalMark in ms and athleteId for PB/SB lookup
+      if (mode === 'results' && data.entries && data.entries.length > 0 && (eventType || data.eventName)) {
+        try {
+          const resolvedEventType = eventType || 'track';
+          const resolvedGender = eventGender || '';
+          // Resolve athleteId from bib number so PB/SB tags can be computed
+          // FinishLynx entries have bib but not athleteId
+          // === PERFORMANCE: Use cached athlete lookup instead of fetching ALL athletes on every results broadcast ===
+          const enrichMeetId = await getActiveMeetId();
+          if (enrichMeetId) {
+            const meetAthletes = await getAthletesByMeetCached(enrichMeetId);
+            const bibToAthlete = new Map(meetAthletes.map(a => [a.bibNumber, a.id]));
+            for (const entry of data.entries) {
+              if (entry.bib && !entry.athleteId) {
+                const athleteId = bibToAthlete.get(entry.bib) || bibToAthlete.get(String(entry.bib));
+                if (athleteId) {
+                  entry.athleteId = athleteId;
+                }
+              }
+            }
+          }
+          // Temporarily set finalMark (in ms) for the enrichment function
+          for (const entry of data.entries) {
+            if (entry.time) {
+              const seconds = parsePerformance(entry.time);
+              if (seconds !== null) {
+                entry.finalMark = seconds * 1000;
+              }
+            }
+          }
+          await enrichEntriesWithRecordTags(resolvedEventType, resolvedGender, data.entries);
+          const tagged = data.entries.filter((e: any) => e.recordTags?.length > 0);
+          if (tagged.length > 0) {
+            console.log(`[Lynx] Record tags: ${tagged.map((e: any) => `${e.name}: [${e.recordTags.join(',')}]`).join(', ')}`);
+          }
+          // Auto-update athlete PB/SB in the database when they beat their stored bests.
+          // This ensures subsequent rounds (semis, finals) use the updated marks.
+          await autoUpdateAthleteBests(resolvedEventType, data.entries);
+        } catch (err) {
+          console.warn('[Lynx] Failed to enrich with record tags:', err);
+        } finally {
+          // Clean up temporary finalMark (entries use 'time' field for display)
+          for (const entry of data.entries) {
+            delete entry.finalMark;
+          }
+        }
       }
       
       // Suppress advancement data on finals — no Q badges or advancement formula on final rounds
@@ -1575,17 +1722,33 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     }
   });
 
-  // Clock handler - NO SMART LOGIC, just pass through exactly what FinishLynx sends
+  // Clock handler - DEDICATED PIPELINE: completely isolated from track/field results processing
+  // Uses broadcastClockUpdate() which bypasses the shared broadcastToDisplays() entirely,
+  // so clock ticks are never blocked by start-list DB queries, field data, or record enrichment.
+  //
+  // SECONDS-ONLY OPTIMIZATION: The LSS script sends whole seconds only (no tenths) to reduce
+  // network traffic and server processing. As a safety measure, the server also strips any
+  // fractional seconds that slip through (e.g. "12.3" → "12", "1:05.7" → "1:05").
+  let lastClockTime = '';
+  let lastClockCommand = '';
   lynxListener.on('clock-update', (eventNumber, time, command) => {
-    // Just broadcast the raw clock data to all displays
-    broadcastToDisplays({
-      type: 'clock_update',
-      data: {
-        eventNumber,
-        time,
-        command,
-      }
-    } as WSMessage);
+    let cleanTime = (time || '').trim();
+    
+    // Strip tenths/hundredths — display only whole seconds
+    // Handles formats: "12.3" → "12", "1:05.7" → "1:05", "1:05:23.4" → "1:05:23"
+    if (cleanTime) {
+      cleanTime = cleanTime.replace(/\.\d+\s*$/, '').trim();
+    }
+    
+    // Skip broadcast if both time and command are identical to the last tick
+    if (cleanTime === lastClockTime && command === lastClockCommand) {
+      return;
+    }
+    lastClockTime = cleanTime;
+    lastClockCommand = command || '';
+    
+    // Direct dedicated clock broadcast — zero async, zero DB, zero shared pipeline
+    broadcastClockUpdate(eventNumber, cleanTime, command || '');
   });
 
   // Layout command handler - FinishLynx tells us when to switch layouts
@@ -1604,6 +1767,8 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
       console.log(`[Lynx] Clearing ${isBigBoard ? 'big board' : 'standard'} entry accumulator for new page (${acc.entries.length} entries cleared)`);
       acc.entries = [];
       acc.lastLayoutCommand = layoutName;
+      // Reset fingerprint so next start-list will always broadcast after a clear
+      if (isBigBoard) { lastStartListFingerprintBig = ''; } else { lastStartListFingerprint = ''; }
     }
     
     // Broadcast layout switch command - big board uses separate channel
@@ -1898,6 +2063,18 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
       }
     }
     
+    // === PERFORMANCE: Fingerprint-based deduplication ===
+    // FinishLynx re-sends the same start list every ~2s. Compute a fingerprint
+    // of the accumulated entries and skip the ENTIRE enrichment+broadcast pipeline
+    // when nothing changed. This eliminates 5-6 DB queries per redundant cycle.
+    const fingerprint = `${eventNumber}:${heat}:${acc.entries.length}:${acc.entries.map((e: any) => `${e.bib||''}:${e.lane||''}:${e.name||''}:${e.time||''}`).join(',')}`;
+    const lastFP = isBigBoard ? lastStartListFingerprintBig : lastStartListFingerprint;
+    if (fingerprint === lastFP) {
+      // Data unchanged — skip all DB queries, enrichment, and broadcast
+      return;
+    }
+    if (isBigBoard) { lastStartListFingerprintBig = fingerprint; } else { lastStartListFingerprint = fingerprint; }
+    
     console.log(`[Lynx] Start list (${isBigBoard ? 'BIG BOARD' : 'standard'}): Event ${eventNumber}, Heat ${heat}, +${entries.length} entries, total: ${acc.entries.length}`);
     
     // Get total heats from EVT watcher for the active meet
@@ -1906,11 +2083,9 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     let evtHeats: number | null = null;
     if (activeMeetId) {
       evtHeats = getTotalHeatsFromCache(activeMeetId, eventNumber, roundNum);
-      console.log(`[Lynx StartList Heat] eventNumber=${eventNumber}, round=${roundNum}, totalHeats=${evtHeats} (active meet: ${activeMeetId})`);
     } else {
       // Fallback to searching all watchers if no displays connected
       evtHeats = getTotalHeatsFromAnyWatcher(eventNumber, roundNum);
-      console.log(`[Lynx StartList Heat] eventNumber=${eventNumber}, round=${roundNum}, totalHeats=${evtHeats} (no active meet, searched all)`);
     }
     const totalHeats = evtHeats ?? 1;
     
@@ -1924,7 +2099,8 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     let eventGender: string | null = null;
     
     try {
-      const allMatchEvents = await storage.getEventsByLynxEventNumber(eventNumber);
+      // === PERFORMANCE: Use cached DB lookup instead of hitting DB every 2s ===
+      const allMatchEvents = await getEventsByLynxNumberCached(eventNumber);
       // Filter to active meet's events to avoid stale advancement formulas from old meets
       const meetFilteredEvents = activeMeetId 
         ? allMatchEvents.filter(e => e.meetId === activeMeetId) 
@@ -1939,6 +2115,16 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
         isMultiEvent = event.isMultiEvent ?? false;
         eventType = event.eventType ?? null;
         eventGender = event.gender ?? null;
+        
+        // Also detect multi-event from event name if not set in DB
+        if (!isMultiEvent) {
+          const nameToCheck = (event.name || '').toLowerCase();
+          const lynxName = (acc.eventName || '').toLowerCase();
+          if (/\b(dec(athlon)?|hept(athlon)?|pent(athlon)?)\b/i.test(nameToCheck) ||
+              /\b(dec(athlon)?|hept(athlon)?|pent(athlon)?)\b/i.test(lynxName)) {
+            isMultiEvent = true;
+          }
+        }
         
         // Determine round name based on event configuration
         if (totalRounds === 1) {
@@ -1960,12 +2146,73 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
           else roundName = `Round ${roundNum}`;
         }
       }
+      
+      // Fallback: detect multi-event from FinishLynx event name when no DB event matched
+      if (!isMultiEvent && acc.eventName) {
+        if (/\b(dec(athlon)?|hept(athlon)?|pent(athlon)?)\b/i.test(acc.eventName)) {
+          isMultiEvent = true;
+        }
+      }
     } catch (error) {
       console.error('[Lynx] Error getting round info:', error);
     }
     
     // Suppress advancement data on finals — no Q badges or advancement formula on final rounds
     const isFinalRound = roundName === 'Finals';
+    
+    // Calculate multi-event points for accumulated entries (BigBoard path)
+    if (isMultiEvent && acc.eventName && acc.entries.length > 0) {
+      const parsed = parseMultiEventName(acc.eventName);
+      if (parsed) {
+        for (const entry of acc.entries) {
+          if (entry.time) {
+            const points = calculateEventPoints(parsed.scoringKey, entry.time, parsed.gender);
+            if (points > 0) {
+              entry.eventPoints = points;
+            }
+          }
+        }
+        console.log(`[Lynx StartList] Calculated multi-event points for "${acc.eventName}" → ${parsed.scoringKey} (${parsed.gender})`);
+      }
+    }
+    
+    // Enrich accumulated entries with record tags (including PB/SB via athleteId)
+    if (acc.entries.length > 0 && acc.entries.some((e: any) => e.time)) {
+      try {
+        const resolvedEventType = eventType || 'track';
+        const resolvedGender = eventGender || '';
+        // Resolve athleteId from bib number so PB/SB tags can be computed
+        // === PERFORMANCE: Use cached athlete lookup instead of fetching ALL athletes every 2s ===
+        const slEnrichMeetId = await getActiveMeetId();
+        if (slEnrichMeetId) {
+          const slMeetAthletes = await getAthletesByMeetCached(slEnrichMeetId);
+          const slBibToAthlete = new Map(slMeetAthletes.map(a => [a.bibNumber, a.id]));
+          for (const entry of acc.entries) {
+            if (entry.bib && !entry.athleteId) {
+              const athleteId = slBibToAthlete.get(entry.bib) || slBibToAthlete.get(String(entry.bib));
+              if (athleteId) {
+                entry.athleteId = athleteId;
+              }
+            }
+          }
+        }
+        for (const entry of acc.entries) {
+          if (entry.time) {
+            const seconds = parsePerformance(entry.time);
+            if (seconds !== null) {
+              entry.finalMark = seconds * 1000;
+            }
+          }
+        }
+        await enrichEntriesWithRecordTags(resolvedEventType, resolvedGender, acc.entries);
+      } catch (err) {
+        console.warn('[Lynx StartList] Failed to enrich with record tags:', err);
+      } finally {
+        for (const entry of acc.entries) {
+          delete entry.finalMark;
+        }
+      }
+    }
     
     // Broadcast entries in arrival order (FinishLynx controls display order)
     // Display maps by array position: Line 1 = entries[0], Line 2 = entries[1], etc.
@@ -2752,38 +2999,59 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
       const fsPromises = await import('fs/promises');
       const pathModule = await import('path');
       
-      // Build filename pattern: School_FirstName_LastName.png
-      const schoolStr = String(school).trim();
-      const firstStr = String(firstName).trim();
-      const lastStr = String(lastName).trim();
-      const baseFilename = `${schoolStr}_${firstStr}_${lastStr}`;
+      // Build filename patterns.
+      // Headshot files may use either spaces or underscores in school name.
+      // Sanitize inputs to prevent path traversal
+      const sanitize = (s: any) => String(s || '').replace(/[\/\\]/g, '').trim();
       
+      const schoolStrRaw = sanitize(school);
+      const schoolStrUnderscore = schoolStrRaw.replace(/\s+/g, '_');
+      const firstStr = sanitize(firstName);
+      const lastStr = sanitize(lastName);
+
+      const baseFilenames = Array.from(new Set([
+        `${schoolStrRaw}_${firstStr}_${lastStr}`,
+        `${schoolStrUnderscore}_${firstStr}_${lastStr}`,
+      ]));
+
       // Try multiple extensions
       const extensions = ['.png', '.jpg', '.jpeg', '.PNG', '.JPG', '.JPEG'];
       let foundPath: string | null = null;
-      
-      for (const ext of extensions) {
-        const filePath = pathModule.default.join(headshotDir, `${baseFilename}${ext}`);
-        try {
-          await fsPromises.access(filePath);
-          foundPath = filePath;
-          break;
-        } catch {
-          // Try next extension
+      const resolvedHeadshotDir = pathModule.default.resolve(headshotDir);
+
+      for (const baseFilename of baseFilenames) {
+        for (const ext of extensions) {
+          const filePath = pathModule.default.join(headshotDir, `${baseFilename}${ext}`);
+          // Verify path is within headshot directory
+          const resolvedPath = pathModule.default.resolve(filePath);
+          if (!resolvedPath.startsWith(resolvedHeadshotDir)) continue;
+          
+          try {
+            await fsPromises.access(filePath);
+            foundPath = filePath;
+            break;
+          } catch {
+            // Try next extension
+          }
         }
+        if (foundPath) break;
       }
-      
+
       // Also try case-insensitive match by listing directory
       if (!foundPath) {
         try {
           const files = await fsPromises.readdir(headshotDir);
-          const lowerBase = baseFilename.toLowerCase();
+          const lowerBases = baseFilenames.map(b => b.toLowerCase());
           const match = files.find(f => {
             const name = f.substring(0, f.lastIndexOf('.'));
-            return name.toLowerCase() === lowerBase;
+            return lowerBases.includes(name.toLowerCase());
           });
           if (match) {
-            foundPath = pathModule.default.join(headshotDir, match);
+            const filePath = pathModule.default.join(headshotDir, match);
+            const resolvedPath = pathModule.default.resolve(filePath);
+            if (resolvedPath.startsWith(resolvedHeadshotDir)) {
+              foundPath = filePath;
+            }
           }
         } catch {
           // Directory not readable
@@ -2794,7 +3062,8 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
         return res.status(404).json({ error: 'Headshot not found' });
       }
       
-      // Send the file
+      // Send the file with cache headers to prevent flashy re-fetching
+      res.setHeader('Cache-Control', 'public, max-age=3600');
       res.sendFile(foundPath);
     } catch (error: any) {
       console.error('Headshot lookup error:', error);
@@ -2904,21 +3173,31 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
         fileMap.set(nameWithoutExt, f);
       }
 
-      // Get all athletes for this meet
-      const athletes = await storage.getAthletesByMeetId(meetId);
+      // Get all athletes for this meet, filtered to only those with competitor numbers
+      const allAthletes = await storage.getAthletesByMeetId(meetId);
+      const athletes = allAthletes.filter(a => !!a.bibNumber);
       const teams = await storage.getTeamsByMeetId(meetId);
       const teamMap = new Map(teams.map(t => [t.id, t]));
 
       // For each athlete, check if a headshot file exists
       const results = athletes.map(athlete => {
         const team = athlete.teamId ? teamMap.get(athlete.teamId) : null;
-        // Use team name (or affiliation) as the school part of the filename
+        // Use team name (or affiliation) as the school part of the filename.
+        // Headshot filenames are from a scraper that replaces spaces with underscores.
         const school = (team?.name || team?.affiliation || '').trim();
+        const schoolForFilename = school.replace(/\s+/g, '_');
         const firstName = (athlete.firstName || '').trim();
         const lastName = (athlete.lastName || '').trim();
-        const expectedFilename = `${school}_${firstName}_${lastName}`;
+        const expectedFilename = `${schoolForFilename}_${firstName}_${lastName}`;
+        const expectedFilenameWithSpaces = `${school}_${firstName}_${lastName}`;
+
         const matchKey = expectedFilename.toLowerCase();
-        const matchedFile = fileMap.get(matchKey) || null;
+        const matchKeyWithSpaces = expectedFilenameWithSpaces.toLowerCase();
+
+        const matchedFile =
+          fileMap.get(matchKey) ||
+          fileMap.get(matchKeyWithSpaces) ||
+          null;
 
         return {
           athleteId: athlete.id,
@@ -3060,32 +3339,6 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     }
   });
 
-  // Get records for a specific event type and gender (for display pipeline)
-  app.get('/api/records/by-event', async (req, res) => {
-    try {
-      const { eventType, gender } = req.query;
-      if (!eventType) {
-        return res.status(400).json({ error: 'eventType parameter is required' });
-      }
-      const recs = await storage.getRecordsByEvent(
-        eventType as string,
-        (gender as string) || 'male'
-      );
-      
-      // Enrich with record book names
-      const bookIds = [...new Set(recs.map(r => r.recordBookId))];
-      const books = await Promise.all(bookIds.map(id => storage.getRecordBook(id)));
-      const bookMap = new Map(books.filter(Boolean).map(b => [b!.id, b!]));
-      
-      const enriched = recs.map(r => ({
-        ...r,
-        bookName: bookMap.get(r.recordBookId)?.name || 'Unknown',
-        bookScope: bookMap.get(r.recordBookId)?.scope || 'custom',
-      }));
-      
-      res.json(enriched);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
+  // NOTE: /api/records/by-event route is registered in layouts-scenes.ts
+  // (must be before /api/records/:id to avoid Express route shadowing)
 }

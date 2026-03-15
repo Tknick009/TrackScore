@@ -692,7 +692,119 @@ export function registerLayoutsScenesRoutes(app: Express, ctx: RouteContext) {
     }
   });
 
-  // ARCHIVED: Record books feature (first set)
+  // ============= RECORD BOOKS MANAGEMENT =============
+  
+  // Get all record books (including inactive) with their records
+  app.get('/api/record-books', async (req, res) => {
+    try {
+      const includeInactive = req.query.all === 'true';
+      const books = includeInactive 
+        ? await storage.getAllRecordBooks()
+        : await storage.getRecordBooks();
+      
+      // Fetch records for each book
+      const booksWithRecords = [];
+      for (const book of books) {
+        const bookWithRecords = await storage.getRecordBook(book.id);
+        if (bookWithRecords) {
+          // Normalize gender in records for display
+          const normalizedRecords = bookWithRecords.records.map(rec => ({
+            ...rec,
+            gender: rec.gender === 'male' ? 'M' : rec.gender === 'female' ? 'W' : rec.gender,
+          }));
+          booksWithRecords.push({ ...bookWithRecords, records: normalizedRecords });
+        }
+      }
+      
+      res.json(booksWithRecords);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Update a record book (name, scope, active status)
+  app.patch('/api/record-books/:id', async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { name, scope, isActive, displayOrder } = req.body;
+      
+      const updates: any = {};
+      if (name !== undefined) updates.name = name;
+      if (scope !== undefined) {
+        const validScopes = ['facility', 'meet', 'national', 'international', 'custom'];
+        if (!validScopes.includes(scope)) {
+          return res.status(400).json({ error: `Invalid scope. Must be one of: ${validScopes.join(', ')}` });
+        }
+        updates.scope = scope;
+      }
+      if (isActive !== undefined) updates.isActive = isActive;
+      if (displayOrder !== undefined) updates.displayOrder = Number(displayOrder);
+      
+      const updated = await storage.updateRecordBook(id, updates);
+      if (!updated) {
+        return res.status(404).json({ error: 'Record book not found' });
+      }
+      res.json(updated);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Delete a record book and all its records
+  app.delete('/api/record-books/:id', async (req, res) => {
+    try {
+      await storage.deleteRecordBook(parseInt(req.params.id));
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get all active records with book info (for schedule display)
+  app.get('/api/records/all', async (req, res) => {
+    try {
+      const books = await storage.getRecordBooks(); // only active books
+      const allRecords: Array<{
+        id: number;
+        eventType: string;
+        gender: string;
+        performance: string;
+        athleteName: string;
+        team: string | null;
+        date: Date | null;
+        bookName: string;
+        bookScope: string;
+        bookDisplayOrder: number;
+      }> = [];
+
+      for (const book of books) {
+        const bookWithRecords = await storage.getRecordBook(book.id);
+        if (bookWithRecords) {
+          for (const rec of bookWithRecords.records) {
+            // Normalize gender to short codes (M/F) to match events table
+            // Events table stores 'M'/'F', records may have 'male'/'female'/'M'/'F'/'W'
+            const normalizedGender = rec.gender === 'male' ? 'M' : rec.gender === 'female' ? 'F' : rec.gender === 'W' ? 'F' : rec.gender;
+            allRecords.push({
+              id: rec.id,
+              eventType: rec.eventType,
+              gender: normalizedGender,
+              performance: rec.performance,
+              athleteName: rec.athleteName,
+              team: rec.team,
+              date: rec.date,
+              bookName: book.name,
+              bookScope: book.scope,
+              bookDisplayOrder: (book as any).displayOrder ?? 99,
+            });
+          }
+        }
+      }
+
+      res.json(allRecords);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
 
   app.get('/api/records/check', async (req, res) => {
     try {
@@ -711,6 +823,37 @@ export function registerLayoutsScenesRoutes(app: Express, ctx: RouteContext) {
       );
       
       res.json(checks);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get records for a specific event type and gender (for display pipeline)
+  // IMPORTANT: This route MUST be registered before /api/records/:id to avoid
+  // Express matching "by-event" as the :id parameter
+  app.get('/api/records/by-event', async (req, res) => {
+    try {
+      const { eventType, gender } = req.query;
+      if (!eventType) {
+        return res.status(400).json({ error: 'eventType parameter is required' });
+      }
+      const recs = await storage.getRecordsByEvent(
+        eventType as string,
+        (gender as string) || 'male'
+      );
+      
+      // Enrich with record book names
+      const bookIds = [...new Set(recs.map(r => r.recordBookId))];
+      const books = await Promise.all(bookIds.map(id => storage.getRecordBook(id)));
+      const bookMap = new Map(books.filter(Boolean).map(b => [b!.id, b!]));
+      
+      const enriched = recs.map(r => ({
+        ...r,
+        bookName: bookMap.get(r.recordBookId)?.name || 'Unknown',
+        bookScope: bookMap.get(r.recordBookId)?.scope || 'custom',
+      }));
+      
+      res.json(enriched);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

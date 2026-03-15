@@ -10,6 +10,7 @@ import type { TrackDisplayMode, FieldDisplayMode, Meet, FieldEventUpdatePayload 
 import {
   isHeightEvent,
   isTimeEvent,
+  isPointsEvent,
   parsePerformanceToSeconds,
   type DisplayBoardState,
   type WSMessage,
@@ -87,9 +88,9 @@ function abbreviateEventName(name: string): string {
   if (/Hammer/i.test(n)) return 'HT';
   if (/Weight\s+Throw|^WT$/i.test(n)) return 'WT';
 
-  if (/Decathlon/i.test(n)) return 'DEC';
-  if (/Heptathlon/i.test(n)) return 'HEP';
-  if (/Pentathlon/i.test(n)) return 'PEN';
+  if (/\bDec(athlon)?\b/i.test(n)) return 'DEC';
+  if (/\bHept(athlon)?\b/i.test(n)) return 'HEP';
+  if (/\bPent(athlon)?\b/i.test(n)) return 'PEN';
 
   const rwMatch = n.match(/^(\d+[,.]?\d*)\s*(km|k|m)?\s*Race\s+Walk$/i);
   if (rwMatch) {
@@ -175,6 +176,35 @@ function broadcastToDisplays(message: WSMessage) {
   });
 }
 
+// === PERFORMANCE: Dedicated clock broadcast — completely isolated from all other processing ===
+// Clock ticks must never be delayed by start-list DB queries, field data broadcasts, or
+// record tag enrichment. This function does the absolute minimum work:
+// 1. Pre-serialize the JSON string ONCE
+// 2. Send directly to each open WebSocket client (only lynx-mode devices)
+// 3. Zero async operations, zero DB queries, zero object allocation per tick
+function broadcastClockUpdate(eventNumber: number, time: string, command: string) {
+  // Sanitize strings to prevent malformed JSON from garbled serial data
+  const safeTime = time.replace(/[\\"/\n\r]/g, '');
+  const safeCmd = (command || '').replace(/[\\"/\n\r]/g, '');
+  const messageStr = `{"type":"clock_update","data":{"eventNumber":${eventNumber},"time":"${safeTime}","command":"${safeCmd}"}}`;
+  
+  // Build skip-set ONCE (O(M)) instead of nested forEach (O(N*M))
+  let skipWs: Set<WebSocket> | null = null;
+  connectedDisplayDevices.forEach((device) => {
+    if (device.contentMode !== 'lynx') {
+      if (!skipWs) skipWs = new Set();
+      skipWs.add(device.ws);
+    }
+  });
+  
+  // Send to all open clients, skipping non-lynx devices
+  displayClients.forEach((client) => {
+    if (client.readyState === 1 && !(skipWs && skipWs.has(client))) { // 1 = WebSocket.OPEN
+      client.send(messageStr);
+    }
+  });
+}
+
 // Send targeted message to a specific display device
 function sendToDisplayDevice(deviceId: string, message: WSMessage) {
   const device = connectedDisplayDevices.get(deviceId);
@@ -252,26 +282,36 @@ async function getActiveMeetId(): Promise<string | null> {
 // Compute PB/SB/MR/FR tags for each entry in an event
 async function enrichEntriesWithRecordTags(eventType: string, gender: string, entries: EntryWithDetails[]): Promise<void> {
   try {
+    // Multi-events (heptathlon, pentathlon, decathlon) use point totals — skip record enrichment
+    // Their point totals are not comparable to time/distance records
+    if (isPointsEvent(eventType)) {
+      for (const entry of entries) {
+        (entry as any).recordTags = [];
+      }
+      return;
+    }
+
     // Fetch all record books for this event type and gender
     const matchingRecords = await storage.getRecordsByEvent(eventType, gender);
-    // Build a map of record book scope -> best performance (in base units)
-    const recordsByScope: Map<string, number> = new Map();
+    // Build a map of record book scope -> { performance, allowMultiple }
+    const recordsByScope: Map<string, { perf: number; allowMultiple: boolean }> = new Map();
     for (const record of matchingRecords) {
       const perf = parsePerformanceToSeconds(record.performance);
       if (perf === null) continue;
-      // Get the record book to know its scope
+      // Get the record book to know its scope and allowMultiple setting
       const book = await storage.getRecordBook(record.recordBookId);
       if (!book) continue;
       const scope = book.scope;
+      const allowMultiple = (book as any).allowMultiple ?? false;
       const existing = recordsByScope.get(scope);
       if (existing === undefined) {
-        recordsByScope.set(scope, perf);
+        recordsByScope.set(scope, { perf, allowMultiple });
       } else {
         // Keep the best record (lowest for time, highest for distance/height)
         if (isTimeEvent(eventType)) {
-          if (perf < existing) recordsByScope.set(scope, perf);
+          if (perf < existing.perf) recordsByScope.set(scope, { perf, allowMultiple });
         } else {
-          if (perf > existing) recordsByScope.set(scope, perf);
+          if (perf > existing.perf) recordsByScope.set(scope, { perf, allowMultiple });
         }
       }
     }
@@ -283,10 +323,50 @@ async function enrichEntriesWithRecordTags(eventType: string, gender: string, en
 
     // Batch fetch athlete bests
     const bestsByAthlete: Map<string, { season: number | null; college: number | null }> = new Map();
+    
+    // Canonical event type key: maps various abbreviations to a single key
+    // CSV uses short codes (800, 60H, pv, hj), DB uses full types (800m, 60m_hurdles, pole_vault, high_jump)
+    const canonicalizeEventType = (et: string): string => {
+      const lower = et.toLowerCase().replace(/[\s_-]+/g, '');
+      // Alias map: common abbreviations → canonical form
+      const aliases: Record<string, string> = {
+        // Track events - strip trailing 'm' so "800m" and "800" both become the distance
+        '60h': '60hurdles', '60mh': '60hurdles', '60hurdles': '60hurdles', '60mhurdles': '60hurdles',
+        '100h': '100hurdles', '100mh': '100hurdles', '100hurdles': '100hurdles', '100mhurdles': '100hurdles',
+        '110h': '110hurdles', '110mh': '110hurdles', '110hurdles': '110hurdles', '110mhurdles': '110hurdles',
+        '400h': '400hurdles', '400mh': '400hurdles', '400hurdles': '400hurdles', '400mhurdles': '400hurdles',
+        // Field events
+        'hj': 'highjump', 'highjump': 'highjump',
+        'pv': 'polevault', 'polevault': 'polevault',
+        'lj': 'longjump', 'longjump': 'longjump',
+        'tj': 'triplejump', 'triplejump': 'triplejump',
+        'sp': 'shotput', 'shotput': 'shotput',
+        'wt': 'weightthrow', 'weightthrow': 'weightthrow',
+        'dt': 'discus', 'discus': 'discus', 'discusthrow': 'discus',
+        'jt': 'javelin', 'javelin': 'javelin', 'javelinthrow': 'javelin',
+        'ht': 'hammer', 'hammer': 'hammer', 'hammerthrow': 'hammer',
+        // Distance aliases
+        '1m': 'mile', '1mile': 'mile', 'mile': 'mile', 'onemile': 'mile',
+        '3000sc': '3000steeplechase', 'steeplechase': '3000steeplechase', '3000steeple': '3000steeplechase', '3000msteeplechase': '3000steeplechase',
+        // Multi-events
+        'ipentathlon': 'pentathlon',
+      };
+      if (aliases[lower]) return aliases[lower];
+      // Strip trailing 'm' for numeric distances: "800m" → "800", "800" → "800"
+      const stripped = lower.replace(/m$/, '');
+      if (/^\d+$/.test(stripped)) return stripped;
+      return lower;
+    };
+    
+    const canonicalEventType = canonicalizeEventType(eventType);
+    
     for (const athleteId of athleteIds) {
       try {
         const bests = await storage.getAthleteBests(athleteId);
-        const eventBests = bests.filter(b => b.eventType === eventType);
+        // Match event type flexibly using canonical form
+        const eventBests = bests.filter(b => 
+          b.eventType === eventType || canonicalizeEventType(b.eventType) === canonicalEventType
+        );
         let seasonBest: number | null = null;
         let collegeBest: number | null = null;
         for (const b of eventBests) {
@@ -305,10 +385,22 @@ async function enrichEntriesWithRecordTags(eventType: string, gender: string, en
       }
     }
 
-    // Now enrich each entry with tags
+    const isTime = isTimeEvent(eventType);
+
+    // First pass: compute all tags for each entry
+    // Then enforce allowMultiple constraints (only best breaker gets tag when false)
+    type EntryTagInfo = { entry: EntryWithDetails; mark: number; tags: string[] };
+    const entryTagInfos: EntryTagInfo[] = [];
+
     for (const entry of entries) {
       const tags: string[] = [];
-      if (entry.finalMark === null || entry.finalMark === undefined) {
+      // Skip entries with no valid mark: null, undefined, 0, NaN, empty strings, negative values.
+      // This prevents record tags from appearing for athletes who haven't raced yet
+      // (e.g., start list entries, DNS, scratches).
+      const rawMark = entry.finalMark;
+      if (rawMark === null || rawMark === undefined || rawMark === 0 ||
+          (typeof rawMark === 'string' && rawMark.trim() === '') ||
+          (typeof rawMark === 'number' && (isNaN(rawMark) || rawMark <= 0))) {
         (entry as any).recordTags = tags;
         continue;
       }
@@ -316,15 +408,19 @@ async function enrichEntriesWithRecordTags(eventType: string, gender: string, en
       // Convert finalMark to base units: finalMark is in ms for track, mm for field
       // athlete_bests.mark is in seconds for track, meters for field
       // records.performance is parsed by parsePerformanceToSeconds (returns seconds for track, meters for field)
-      const markInBaseUnits = entry.finalMark / 1000;
-      const isTime = isTimeEvent(eventType);
+      const numericMark = typeof rawMark === 'string' ? parseFloat(rawMark) : rawMark;
+      if (isNaN(numericMark) || numericMark <= 0) {
+        (entry as any).recordTags = tags;
+        continue;
+      }
+      const markInBaseUnits = numericMark / 1000;
 
       // Check MR (Meet Record)
       const meetRecord = recordsByScope.get('meet');
       if (meetRecord !== undefined) {
-        if (isTime ? markInBaseUnits < meetRecord : markInBaseUnits > meetRecord) {
+        if (isTime ? markInBaseUnits < meetRecord.perf : markInBaseUnits > meetRecord.perf) {
           tags.push('MR');
-        } else if (Math.abs(markInBaseUnits - meetRecord) < 0.005) {
+        } else if (Math.abs(markInBaseUnits - meetRecord.perf) < 0.005) {
           tags.push('=MR');
         }
       }
@@ -332,30 +428,72 @@ async function enrichEntriesWithRecordTags(eventType: string, gender: string, en
       // Check FR (Facility Record)
       const facilityRecord = recordsByScope.get('facility');
       if (facilityRecord !== undefined) {
-        if (isTime ? markInBaseUnits < facilityRecord : markInBaseUnits > facilityRecord) {
+        if (isTime ? markInBaseUnits < facilityRecord.perf : markInBaseUnits > facilityRecord.perf) {
           tags.push('FR');
-        } else if (Math.abs(markInBaseUnits - facilityRecord) < 0.005) {
+        } else if (Math.abs(markInBaseUnits - facilityRecord.perf) < 0.005) {
           tags.push('=FR');
         }
       }
 
-      // Check PB (Personal Best / College Best)
+      // Check PB (Personal Best / College Best) and SB (Season Best)
+      // PB takes priority: if athlete beats their college best, show PB only (not SB)
+      // If athlete only beats their season best, show SB
       const athleteBests = bestsByAthlete.get(entry.athleteId);
       if (athleteBests) {
+        let isPB = false;
         if (athleteBests.college !== null) {
           if (isTime ? markInBaseUnits < athleteBests.college : markInBaseUnits > athleteBests.college) {
             tags.push('PB');
+            isPB = true;
           }
         }
-        // Check SB (Season Best)
-        if (athleteBests.season !== null) {
+        // Only show SB if not already a PB
+        if (!isPB && athleteBests.season !== null) {
           if (isTime ? markInBaseUnits < athleteBests.season : markInBaseUnits > athleteBests.season) {
             tags.push('SB');
           }
         }
       }
 
-      (entry as any).recordTags = tags;
+      entryTagInfos.push({ entry, mark: markInBaseUnits, tags });
+    }
+
+    // Second pass: enforce allowMultiple constraints
+    // For scopes where allowMultiple=false, only the BEST breaker gets that tag
+    const scopeTagMap: Record<string, string[]> = {
+      'meet': ['MR', '=MR'],
+      'facility': ['FR', '=FR'],
+    };
+
+    for (const [scope, info] of recordsByScope) {
+      if (info.allowMultiple) continue; // all breakers keep their tag
+      
+      const tagsForScope = scopeTagMap[scope] || [];
+      if (tagsForScope.length === 0) continue;
+      
+      // Find the best breaker among entries that have this scope's tag
+      let bestBreaker: EntryTagInfo | null = null;
+      for (const eti of entryTagInfos) {
+        if (eti.tags.some(t => tagsForScope.includes(t))) {
+          if (!bestBreaker || (isTime ? eti.mark < bestBreaker.mark : eti.mark > bestBreaker.mark)) {
+            bestBreaker = eti;
+          }
+        }
+      }
+      
+      // Remove the tag from everyone except the best breaker
+      if (bestBreaker) {
+        for (const eti of entryTagInfos) {
+          if (eti !== bestBreaker) {
+            eti.tags = eti.tags.filter(t => !tagsForScope.includes(t));
+          }
+        }
+      }
+    }
+
+    // Assign final tags to entries
+    for (const eti of entryTagInfos) {
+      (eti.entry as any).recordTags = eti.tags;
     }
   } catch (error) {
     console.error('[RecordTags] Error enriching entries with record tags:', error);
@@ -365,6 +503,54 @@ async function enrichEntriesWithRecordTags(eventType: string, gender: string, en
         (entry as any).recordTags = [];
       }
     }
+  }
+}
+
+// Auto-update athlete PB/SB when live results beat stored bests.
+// Called after enrichEntriesWithRecordTags so we already know who has PB/SB tags.
+// Updates the athlete_bests table so subsequent rounds use the new marks.
+async function autoUpdateAthleteBests(eventType: string, entries: EntryWithDetails[]): Promise<void> {
+  try {
+    let updated = 0;
+
+    for (const entry of entries) {
+      const tags: string[] = (entry as any).recordTags || [];
+      if (!entry.athleteId || entry.finalMark === null || entry.finalMark === undefined) continue;
+
+      // finalMark is in ms (track) or mm (field); athlete_bests.mark is in seconds / meters
+      const markInBaseUnits = entry.finalMark / 1000;
+
+      // If athlete got PB tag, update their college best
+      if (tags.includes('PB')) {
+        await storage.upsertAthleteBest({
+          athleteId: entry.athleteId,
+          eventType,
+          bestType: 'college',
+          mark: markInBaseUnits,
+        });
+        updated++;
+        console.log(`[AutoPB] Updated college best for athlete ${entry.athleteId}: ${markInBaseUnits} (${eventType})`);
+      }
+
+      // If athlete got SB or PB tag, update their season best
+      // (PB implies SB since a college best is also a season best)
+      if (tags.includes('SB') || tags.includes('PB')) {
+        await storage.upsertAthleteBest({
+          athleteId: entry.athleteId,
+          eventType,
+          bestType: 'season',
+          mark: markInBaseUnits,
+        });
+        if (!tags.includes('PB')) updated++; // avoid double counting
+        console.log(`[AutoPB] Updated season best for athlete ${entry.athleteId}: ${markInBaseUnits} (${eventType})`);
+      }
+    }
+
+    if (updated > 0) {
+      console.log(`[AutoPB] Auto-updated ${updated} athlete bests for ${eventType}`);
+    }
+  } catch (error) {
+    console.error('[AutoPB] Error auto-updating athlete bests:', error);
   }
 }
 
@@ -632,6 +818,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Build shared route context
   const ctx: RouteContext = {
     broadcastToDisplays,
+    broadcastClockUpdate,
     broadcastCurrentEvent,
     broadcastFieldEventUpdate,
     sendToDisplayDevice,
@@ -648,6 +835,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     abbreviateEventName,
     prefetchSceneData,
     getDisplayModeFromTemplate,
+    enrichEntriesWithRecordTags,
+    autoUpdateAthleteBests,
   };
 
   // Register all domain-specific route modules
@@ -730,6 +919,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               // Track this WebSocket connection with the device (including displayType)
               // Load persisted autoMode from database, default to true for track displays
               const deviceAutoMode = device.autoMode ?? (device.displayMode === 'track');
+              // Load persisted contentMode from database, default to 'lynx'
+              const deviceContentMode = (device as any).contentMode || 'lynx';
               connectedDisplayDevices.set(device.id, {
                 ws,
                 deviceId: device.id,
@@ -740,7 +931,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 pagingSize: device.pagingSize ?? 8,
                 pagingInterval: device.pagingInterval ?? 5,
                 fieldPort: device.fieldPort ?? undefined,
-                contentMode: 'lynx',
+                contentMode: deviceContentMode,
               });
               
               // Send registration confirmation with assigned event
@@ -757,6 +948,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   isBigBoard: device.isBigBoard,
                   displayMode: device.displayMode,
                   autoMode: deviceAutoMode,
+                  displayScale: device.displayScale ?? 100,
+                  contentMode: deviceContentMode,
                 }
               }));
               

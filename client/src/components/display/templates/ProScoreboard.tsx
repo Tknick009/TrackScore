@@ -3,6 +3,7 @@ import type { EventWithEntries, Meet, EntryWithDetails } from "@shared/schema";
 import { isTrackEvent as checkIsTrackEvent } from "@shared/event-catalog";
 import { formatResult, formatTimeValue } from "../utils";
 import { getTeamColor, getPodiumColor } from "../utils";
+import { getLogoEffectStyle } from "@/lib/logoEffects";
 
 interface ProScoreboardProps {
   event: EventWithEntries;
@@ -28,6 +29,9 @@ export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingInt
   const displayMode = determineDisplayMode(event);
   const isCompleted = event.status === 'completed';
   const isLive = event.status === 'in_progress';
+  // Detect multi-events (Pentathlon, Heptathlon, Decathlon) - show points instead of time on results
+  // Supports abbreviations: "Hept", "Pent", "Dec" as used in FinishLynx
+  const isMultiEvent = (event as any).isMultiEvent === true || /\b(dec(athlon)?|hept(athlon)?|pent(athlon)?)\b/i.test(event.name || '');
 
   // Clock
   useEffect(() => {
@@ -97,7 +101,11 @@ export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingInt
     ? `${windReading > 0 ? '+' : ''}${windReading.toFixed(1)} m/s`
     : null;
 
-  const statusLabel = isCompleted ? 'OFFICIAL RESULTS' : isLive ? 'LIVE' : 'SCHEDULED';
+  // Use roundName from liveEventData if available (e.g., "Prelims", "Semis", "Finals")
+  const roundName = (event as any).roundName;
+  const statusLabel = roundName 
+    ? roundName.toUpperCase()
+    : (isCompleted ? 'OFFICIAL RESULTS' : isLive ? 'LIVE' : 'SCHEDULED');
 
   return (
     <div
@@ -127,6 +135,7 @@ export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingInt
                 src={meet.logoUrl}
                 alt={meet.name || ''}
                 className="h-14 object-contain"
+                style={getLogoEffectStyle(meet.logoEffect)}
               />
             )}
             <div>
@@ -248,15 +257,20 @@ export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingInt
               }
               // Numeric times from database
               if (typeof mark === 'number') {
+                // Track times: round UP to nearest hundredth (8.315 → 8.32)
+                // Field marks: truncate DOWN to nearest hundredth per WA rules
+                const roundH = (v: number) => Math.round(v * 100) / 100;
+                const floorH = (v: number) => Math.floor(v * 100 + 1e-9) / 100;
                 if (displayMode === 'track') {
-                  if (mark >= 60) {
-                    const mins = Math.floor(mark / 60);
-                    const secs = (mark % 60).toFixed(2);
+                  const rounded = roundH(mark);
+                  if (rounded >= 60) {
+                    const mins = Math.floor(rounded / 60);
+                    const secs = roundH(rounded % 60).toFixed(2);
                     return `${mins}:${secs.padStart(5, '0')}`;
                   }
-                  return mark.toFixed(2);
+                  return rounded.toFixed(2);
                 }
-                return `${mark.toFixed(2)}m`;
+                return `${floorH(mark).toFixed(2)}m`;
               }
               return String(mark);
             })();
@@ -348,10 +362,30 @@ export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingInt
                   )}
                   <div className="min-w-0">
                     <div
-                      className="text-white font-semibold truncate leading-tight"
+                      className="text-white font-semibold truncate leading-tight flex items-center gap-2"
                       style={{ fontSize: '30px' }}
                     >
                       {athleteName}
+                      {/* Record/Best Tags - next to athlete name */}
+                      {((entry as any).recordTags || []).length > 0 && (
+                        <div className="flex gap-1 shrink-0">
+                          {((entry as any).recordTags as string[]).map((tag: string) => (
+                            <span
+                              key={tag}
+                              className="font-bold uppercase rounded"
+                              style={{
+                                fontSize: '18px',
+                                padding: '2px 6px',
+                                backgroundColor: tag.includes('MR') || tag.includes('FR') ? 'rgba(255, 215, 0, 0.25)' : 'rgba(0, 200, 255, 0.2)',
+                                color: tag.includes('MR') || tag.includes('FR') ? '#ffd700' : '#00e5ff',
+                                border: `2px solid ${tag.includes('MR') || tag.includes('FR') ? 'rgba(255, 215, 0, 0.5)' : 'rgba(0, 200, 255, 0.4)'}`,
+                              }}
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     {teamDisplay && (
                       <div
@@ -382,26 +416,24 @@ export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingInt
                           fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
                         }}
                       >
-                        {resultText || '--'}
+                        {resultText ? (isMultiEvent && (entry as any).eventPoints ? `${(entry as any).eventPoints}` : resultText) : '--'}
                       </span>
-                      {((entry as any).recordTags || []).length > 0 && (
-                        <div className="flex gap-0.5">
-                          {((entry as any).recordTags as string[]).map((tag: string) => (
-                            <span
-                              key={tag}
-                              className="font-bold uppercase rounded"
-                              style={{
-                                fontSize: '0.35em',
-                                padding: '0.1em 0.35em',
-                                backgroundColor: tag.includes('MR') || tag.includes('FR') ? 'rgba(255, 215, 0, 0.25)' : 'rgba(0, 200, 255, 0.2)',
-                                color: tag.includes('MR') || tag.includes('FR') ? '#ffd700' : '#00e5ff',
-                                border: `1px solid ${tag.includes('MR') || tag.includes('FR') ? 'rgba(255, 215, 0, 0.5)' : 'rgba(0, 200, 255, 0.4)'}`,
-                              }}
-                            >
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
+                      {/* Q/q Qualifier Badge */}
+                      {(entry as any).qualifier && (
+                        <span
+                          className="font-bold rounded"
+                          style={{
+                            fontSize: '20px',
+                            padding: '2px 8px',
+                            backgroundColor: 'rgba(21, 128, 61, 0.3)',
+                            color: '#4ade80',
+                            border: '1px solid rgba(74, 222, 128, 0.4)',
+                            minWidth: '32px',
+                            textAlign: 'center' as const,
+                          }}
+                        >
+                          {(entry as any).qualifier}
+                        </span>
                       )}
                     </>
                   )}

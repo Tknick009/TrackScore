@@ -7,6 +7,7 @@ import {
   getPodiumColor,
   generateAttemptHeaders
 } from "../utils";
+import { getLogoEffectStyle } from "@/lib/logoEffects";
 
 interface LiveResultsBoardProps {
   event: EventWithEntries;
@@ -36,6 +37,7 @@ export function LiveResultsBoard({ event, meet, mode }: LiveResultsBoardProps) {
           src={meet.logoUrl}
           alt="Meet logo"
           className="absolute top-8 right-8 max-w-[120px] max-h-[80px] z-10"
+          style={getLogoEffectStyle(meet.logoEffect)}
           data-testid="img-meet-logo"
         />
       )}
@@ -128,6 +130,19 @@ function TrackResultsDisplay({ event, mode }: { event: EventWithEntries; mode: s
                 >
                   {athleteName}
                 </h2>
+                {/* Record tags (MR, FR, etc.) from server enrichment */}
+                {((result as any).recordTags || []).length > 0 && (
+                  <span 
+                    className="text-[40px] font-[900] px-3 py-1 rounded"
+                    style={{
+                      backgroundColor: 'rgba(255, 215, 0, 0.25)',
+                      color: '#ffd700',
+                      border: '2px solid rgba(255, 215, 0, 0.5)',
+                    }}
+                  >
+                    {((result as any).recordTags as string[])[0]}
+                  </span>
+                )}
                 {(() => {
                   const notes = (result as any).notes;
                   const statusCodes = ['DNF', 'DQ', 'DNS', 'SCR', 'NH', 'NM', 'FOUL', 'FS', 'NT'];
