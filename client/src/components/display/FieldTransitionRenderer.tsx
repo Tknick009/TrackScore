@@ -167,6 +167,7 @@ export function FieldTransitionRenderer({
         seenBibsRef.current = currentBibs;
         initialLoadRef.current = false;
         prevCalledBibRef.current = '';
+        lastCurtainTimeRef.current = 0; // Reset cooldown so first athlete in new event gets curtain
         return;
       }
     }
