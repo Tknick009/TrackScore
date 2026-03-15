@@ -183,7 +183,10 @@ function broadcastToDisplays(message: WSMessage) {
 // 2. Send directly to each open WebSocket client (only lynx-mode devices)
 // 3. Zero async operations, zero DB queries, zero object allocation per tick
 function broadcastClockUpdate(eventNumber: number, time: string, command: string) {
-  const messageStr = `{"type":"clock_update","data":{"eventNumber":${eventNumber},"time":"${time}","command":"${command}"}}`;
+  // Sanitize strings to prevent malformed JSON from garbled serial data
+  const safeTime = time.replace(/[\\"/\n\r]/g, '');
+  const safeCmd = (command || '').replace(/[\\"/\n\r]/g, '');
+  const messageStr = `{"type":"clock_update","data":{"eventNumber":${eventNumber},"time":"${safeTime}","command":"${safeCmd}"}}`;
   
   // Build skip-set ONCE (O(M)) instead of nested forEach (O(N*M))
   let skipWs: Set<WebSocket> | null = null;
