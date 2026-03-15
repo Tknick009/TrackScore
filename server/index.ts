@@ -82,7 +82,14 @@ app.use((req, res, next) => {
   }
   
   // ===== Log export endpoints =====
-  app.get('/api/logs/export', (_req, res) => {
+  // Guard: only allow log endpoints from localhost or same-machine requests
+  const isLocalRequest = (req: Request): boolean => {
+    const ip = req.ip || req.socket.remoteAddress || '';
+    return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1' || ip === req.socket.localAddress;
+  };
+
+  app.get('/api/logs/export', (req, res) => {
+    if (!isLocalRequest(req)) { res.status(403).json({ error: 'Forbidden' }); return; }
     const text = exportLogs();
     const filename = `trackscore-logs-${new Date().toISOString().replace(/[:.]/g, '-')}.txt`;
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
@@ -90,12 +97,14 @@ app.use((req, res, next) => {
     res.send(text);
   });
 
-  app.post('/api/logs/clear', (_req, res) => {
+  app.post('/api/logs/clear', (req, res) => {
+    if (!isLocalRequest(req)) { res.status(403).json({ error: 'Forbidden' }); return; }
     clearLogs();
     res.json({ ok: true });
   });
 
-  app.get('/api/logs/count', (_req, res) => {
+  app.get('/api/logs/count', (req, res) => {
+    if (!isLocalRequest(req)) { res.status(403).json({ error: 'Forbidden' }); return; }
     res.json({ count: logCount() });
   });
 
