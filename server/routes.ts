@@ -10,6 +10,7 @@ import type { TrackDisplayMode, FieldDisplayMode, Meet, FieldEventUpdatePayload 
 import {
   isHeightEvent,
   isTimeEvent,
+  isPointsEvent,
   parsePerformanceToSeconds,
   type DisplayBoardState,
   type WSMessage,
@@ -278,6 +279,15 @@ async function getActiveMeetId(): Promise<string | null> {
 // Compute PB/SB/MR/FR tags for each entry in an event
 async function enrichEntriesWithRecordTags(eventType: string, gender: string, entries: EntryWithDetails[]): Promise<void> {
   try {
+    // Multi-events (heptathlon, pentathlon, decathlon) use point totals — skip record enrichment
+    // Their point totals are not comparable to time/distance records
+    if (isPointsEvent(eventType)) {
+      for (const entry of entries) {
+        (entry as any).recordTags = [];
+      }
+      return;
+    }
+
     // Fetch all record books for this event type and gender
     const matchingRecords = await storage.getRecordsByEvent(eventType, gender);
     // Build a map of record book scope -> { performance, allowMultiple }

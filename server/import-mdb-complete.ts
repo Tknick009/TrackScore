@@ -603,9 +603,14 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       console.log("   ⚠️  Session table not found");
     }
     
-    // Step 2: Read Sessitem table to get Event_ptr → (Sess_ptr, Start_time) mapping
-    // This is the critical link between events and sessions with actual start times!
-    const eventScheduleMap = new Map<number, { sessPtr: number; startTime: string | null; sessDay: number | null; sessName: string | null }>();
+    // Step 2: Read Sessitem table to get Event_ptr → per-round schedule data
+    // CRITICAL: Events can appear in MULTIPLE sessions (e.g., Saturday prelims + Sunday finals).
+    // We store ALL Sessitem entries per event, keyed by Sess_ptr, so each round gets the correct date/time.
+    // eventScheduleMap: Event_ptr → first/primary schedule (used for the main event date/time)
+    // eventAllSchedulesMap: Event_ptr → array of ALL schedules (used for per-round date/time lookup)
+    type ScheduleEntry = { sessPtr: number; startTime: string | null; sessDay: number | null; sessName: string | null };
+    const eventScheduleMap = new Map<number, ScheduleEntry>();
+    const eventAllSchedulesMap = new Map<number, ScheduleEntry[]>();
     let sessitemTimesFound = 0;
     try {
       console.log("\n📋 Attempting to read Sessitem table (event-to-session mapping)...");
@@ -618,10 +623,9 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         const firstRow = sessitemData[0];
         const columnNames = Object.keys(firstRow);
         console.log(`   📝 Available columns: ${columnNames.join(', ')}`);
-        console.log(`   📝 Sample first row:`, JSON.stringify(firstRow, null, 2));
       }
       
-      // Build Event_ptr → schedule info map
+      // Build Event_ptr → schedule info maps (store ALL entries, not just first)
       sessitemData.forEach((item) => {
         const eventPtr = item.Event_ptr ? Number(item.Event_ptr) : null;
         const sessPtr = item.Sess_ptr ? Number(item.Sess_ptr) : null;
@@ -644,30 +648,47 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           // Get session metadata
           const sessionMeta = sessionMetaMap.get(sessPtr);
           
-          // Only store the first (or best) entry per event
-          // If we already have this event, only update if this entry has a time and the existing one doesn't
+          const entry: ScheduleEntry = {
+            sessPtr,
+            startTime: startTime || sessionMeta?.defaultTime || null,
+            sessDay: sessionMeta?.sessDay || null,
+            sessName: sessionMeta?.name || null,
+          };
+          
+          // Store in the "all schedules" map (every Sessitem row for this event)
+          if (!eventAllSchedulesMap.has(eventPtr)) {
+            eventAllSchedulesMap.set(eventPtr, []);
+          }
+          eventAllSchedulesMap.get(eventPtr)!.push(entry);
+          
+          // Store the EARLIEST session as the primary schedule (lowest sessDay = first day)
           const existing = eventScheduleMap.get(eventPtr);
-          if (!existing || (startTime && !existing.startTime)) {
-            eventScheduleMap.set(eventPtr, {
-              sessPtr,
-              startTime: startTime || sessionMeta?.defaultTime || null,
-              sessDay: sessionMeta?.sessDay || null,
-              sessName: sessionMeta?.name || null,
-            });
+          if (!existing) {
+            eventScheduleMap.set(eventPtr, entry);
+          } else {
+            // Prefer the entry with the earlier session day (first day of the meet)
+            const existingDay = existing.sessDay ?? 999;
+            const newDay = entry.sessDay ?? 999;
+            if (newDay < existingDay || (newDay === existingDay && startTime && !existing.startTime)) {
+              eventScheduleMap.set(eventPtr, entry);
+            }
           }
         }
       });
       
+      const multiSessionEvents = [...eventAllSchedulesMap.entries()].filter(([_, schedules]) => schedules.length > 1);
       console.log(`   ✅ Sessitem table found, mapped ${eventScheduleMap.size} events to sessions`);
       console.log(`   ⏰ Events with explicit times from Sessitem: ${sessitemTimesFound}`);
+      console.log(`   📅 Events spanning multiple sessions: ${multiSessionEvents.length}`);
+      for (const [evtPtr, schedules] of multiSessionEvents) {
+        const days = schedules.map(s => `Day${s.sessDay}@${s.startTime || '?'}`).join(', ');
+        console.log(`      Event_ptr ${evtPtr}: ${days}`);
+      }
     } catch (sessitemError) {
       console.log("   ⚠️  Sessitem table not found, falling back to Session table only");
-      
-      // Fallback: if no Sessitem, use Session table directly (less accurate)
-      // This won't work well but provides some data
     }
     
-    // Create combined sessionMap for backward compatibility (Event_ptr → session info)
+    // Create combined sessionMap for backward compatibility (Event_ptr → primary session info)
     const sessionMap = new Map<number, { sessDay: number | null; time: string | null; name: string | null }>();
     eventScheduleMap.forEach((schedule, eventPtr) => {
       sessionMap.set(eventPtr, {

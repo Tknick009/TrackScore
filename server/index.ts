@@ -13,10 +13,20 @@ installLogCapture();
 const app = express();
 
 // Serve static files from public folder (NCAA logos, etc.)
-app.use(express.static(path.join(process.cwd(), 'public')));
+// Cache-Control headers prevent browser re-fetching on every render cycle,
+// eliminating the "flashy" look on headshots and logos.
+app.use(express.static(path.join(process.cwd(), 'public'), {
+  maxAge: '1h',
+  etag: true,
+  lastModified: true,
+}));
 
 // Serve uploaded files (meet logos, athlete photos, team logos)
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads'), {
+  maxAge: '1h',
+  etag: true,
+  lastModified: true,
+}));
 
 declare module 'http' {
   interface IncomingMessage {

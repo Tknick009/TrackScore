@@ -1725,18 +1725,30 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
   // Clock handler - DEDICATED PIPELINE: completely isolated from track/field results processing
   // Uses broadcastClockUpdate() which bypasses the shared broadcastToDisplays() entirely,
   // so clock ticks are never blocked by start-list DB queries, field data, or record enrichment.
+  //
+  // SECONDS-ONLY OPTIMIZATION: The LSS script sends whole seconds only (no tenths) to reduce
+  // network traffic and server processing. As a safety measure, the server also strips any
+  // fractional seconds that slip through (e.g. "12.3" → "12", "1:05.7" → "1:05").
   let lastClockTime = '';
   let lastClockCommand = '';
   lynxListener.on('clock-update', (eventNumber, time, command) => {
+    let cleanTime = (time || '').trim();
+    
+    // Strip tenths/hundredths — display only whole seconds
+    // Handles formats: "12.3" → "12", "1:05.7" → "1:05", "1:05:23.4" → "1:05:23"
+    if (cleanTime) {
+      cleanTime = cleanTime.replace(/\.\d+\s*$/, '').trim();
+    }
+    
     // Skip broadcast if both time and command are identical to the last tick
-    if (time === lastClockTime && command === lastClockCommand) {
+    if (cleanTime === lastClockTime && command === lastClockCommand) {
       return;
     }
-    lastClockTime = time || '';
+    lastClockTime = cleanTime;
     lastClockCommand = command || '';
     
     // Direct dedicated clock broadcast — zero async, zero DB, zero shared pipeline
-    broadcastClockUpdate(eventNumber, time || '', command || '');
+    broadcastClockUpdate(eventNumber, cleanTime, command || '');
   });
 
   // Layout command handler - FinishLynx tells us when to switch layouts
@@ -3050,7 +3062,8 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
         return res.status(404).json({ error: 'Headshot not found' });
       }
       
-      // Send the file
+      // Send the file with cache headers to prevent flashy re-fetching
+      res.setHeader('Cache-Control', 'public, max-age=3600');
       res.sendFile(foundPath);
     } catch (error: any) {
       console.error('Headshot lookup error:', error);
