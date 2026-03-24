@@ -1726,19 +1726,13 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
   // Uses broadcastClockUpdate() which bypasses the shared broadcastToDisplays() entirely,
   // so clock ticks are never blocked by start-list DB queries, field data, or record enrichment.
   //
-  // SECONDS-ONLY OPTIMIZATION: The LSS script sends whole seconds only (no tenths) to reduce
-  // network traffic and server processing. As a safety measure, the server also strips any
-  // fractional seconds that slip through (e.g. "12.3" → "12", "1:05.7" → "1:05").
+  // TENTHS DISPLAY: Server passes through the full time string (including tenths) from FinishLynx.
+  // The client-side StaticRunningClock uses requestAnimationFrame interpolation to render
+  // smooth tenths at 60fps between server ticks (~10/second), so the display never looks jittery.
   let lastClockTime = '';
   let lastClockCommand = '';
   lynxListener.on('clock-update', (eventNumber, time, command) => {
-    let cleanTime = (time || '').trim();
-    
-    // Strip tenths/hundredths — display only whole seconds
-    // Handles formats: "12.3" → "12", "1:05.7" → "1:05", "1:05:23.4" → "1:05:23"
-    if (cleanTime) {
-      cleanTime = cleanTime.replace(/\.\d+\s*$/, '').trim();
-    }
+    const cleanTime = (time || '').trim();
     
     // Skip broadcast if both time and command are identical to the last tick
     if (cleanTime === lastClockTime && command === lastClockCommand) {
