@@ -293,13 +293,23 @@ async function enrichEntriesWithRecordTags(eventType: string, gender: string, en
 
     // Fetch all record books for this event type and gender
     const matchingRecords = await storage.getRecordsByEvent(eventType, gender);
+    // === PERFORMANCE: Batch-fetch all distinct record books in one pass ===
+    // Previously called storage.getRecordBook() per-record (N+1 query pattern).
+    // With 6 records that's 6 sequential DB queries. Now we deduplicate and batch.
+    const uniqueBookIds = [...new Set(matchingRecords.map(r => r.recordBookId))];
+    const bookCache = new Map<number, any>();
+    for (const bookId of uniqueBookIds) {
+      const book = await storage.getRecordBook(bookId);
+      if (book) bookCache.set(bookId, book);
+    }
+    
     // Build a map of record book scope -> { performance, allowMultiple }
     const recordsByScope: Map<string, { perf: number; allowMultiple: boolean }> = new Map();
     for (const record of matchingRecords) {
       const perf = parsePerformanceToSeconds(record.performance);
       if (perf === null) continue;
-      // Get the record book to know its scope and allowMultiple setting
-      const book = await storage.getRecordBook(record.recordBookId);
+      // Get the record book from cache (no DB query per-record)
+      const book = bookCache.get(record.recordBookId);
       if (!book) continue;
       const scope = book.scope;
       const allowMultiple = (book as any).allowMultiple ?? false;
@@ -321,7 +331,8 @@ async function enrichEntriesWithRecordTags(eventType: string, gender: string, en
       .filter(e => e.finalMark !== null && e.finalMark !== undefined && e.athleteId)
       .map(e => e.athleteId);
 
-    // Batch fetch athlete bests
+    // === PERFORMANCE: Batch fetch ALL athlete bests in parallel ===
+    // Previously fetched per-athlete sequentially (N queries). Now fetch all in parallel.
     const bestsByAthlete: Map<string, { season: number | null; college: number | null }> = new Map();
     
     // Canonical event type key: maps various abbreviations to a single key
@@ -360,29 +371,33 @@ async function enrichEntriesWithRecordTags(eventType: string, gender: string, en
     
     const canonicalEventType = canonicalizeEventType(eventType);
     
-    for (const athleteId of athleteIds) {
-      try {
+    // Fetch all athlete bests in parallel (Promise.allSettled won't fail if one rejects)
+    const bestsResults = await Promise.allSettled(
+      athleteIds.map(async (athleteId) => {
         const bests = await storage.getAthleteBests(athleteId);
-        // Match event type flexibly using canonical form
-        const eventBests = bests.filter(b => 
-          b.eventType === eventType || canonicalizeEventType(b.eventType) === canonicalEventType
-        );
-        let seasonBest: number | null = null;
-        let collegeBest: number | null = null;
-        for (const b of eventBests) {
-          if (b.bestType === 'season' && b.mark !== null) {
-            if (seasonBest === null) seasonBest = b.mark;
-            else if (isTimeEvent(eventType) ? b.mark < seasonBest : b.mark > seasonBest) seasonBest = b.mark;
-          }
-          if (b.bestType === 'college' && b.mark !== null) {
-            if (collegeBest === null) collegeBest = b.mark;
-            else if (isTimeEvent(eventType) ? b.mark < collegeBest : b.mark > collegeBest) collegeBest = b.mark;
-          }
+        return { athleteId, bests };
+      })
+    );
+    for (const result of bestsResults) {
+      if (result.status !== 'fulfilled') continue;
+      const { athleteId, bests } = result.value;
+      // Match event type flexibly using canonical form
+      const eventBests = bests.filter(b => 
+        b.eventType === eventType || canonicalizeEventType(b.eventType) === canonicalEventType
+      );
+      let seasonBest: number | null = null;
+      let collegeBest: number | null = null;
+      for (const b of eventBests) {
+        if (b.bestType === 'season' && b.mark !== null) {
+          if (seasonBest === null) seasonBest = b.mark;
+          else if (isTimeEvent(eventType) ? b.mark < seasonBest : b.mark > seasonBest) seasonBest = b.mark;
         }
-        bestsByAthlete.set(athleteId, { season: seasonBest, college: collegeBest });
-      } catch {
-        // Skip if bests can't be fetched
+        if (b.bestType === 'college' && b.mark !== null) {
+          if (collegeBest === null) collegeBest = b.mark;
+          else if (isTimeEvent(eventType) ? b.mark < collegeBest : b.mark > collegeBest) collegeBest = b.mark;
+        }
       }
+      bestsByAthlete.set(athleteId, { season: seasonBest, college: collegeBest });
     }
 
     const isTime = isTimeEvent(eventType);
@@ -554,8 +569,31 @@ async function autoUpdateAthleteBests(eventType: string, entries: EntryWithDetai
   }
 }
 
-// Helper to broadcast current event state
+// === PERFORMANCE: Debounce broadcastCurrentEvent ===
+// When 10-15 devices connect simultaneously (e.g., server restart), each triggers broadcastCurrentEvent.
+// Without debouncing, that's 10-15 sequential calls, each running 5+ DB queries for record enrichment.
+// This coalesces all calls within 500ms into a single broadcast.
+let broadcastCurrentEventTimer: ReturnType<typeof setTimeout> | null = null;
+let broadcastCurrentEventPromise: Promise<void> | null = null;
+
 async function broadcastCurrentEvent() {
+  // If a broadcast is already scheduled, skip — the pending one will cover this request
+  if (broadcastCurrentEventTimer) return;
+  
+  return new Promise<void>((resolve) => {
+    broadcastCurrentEventTimer = setTimeout(async () => {
+      broadcastCurrentEventTimer = null;
+      try {
+        await broadcastCurrentEventImpl();
+      } catch (e) {
+        console.error('[broadcastCurrentEvent] Error:', e);
+      }
+      resolve();
+    }, 300);
+  });
+}
+
+async function broadcastCurrentEventImpl() {
   const currentEvent = await storage.getCurrentEvent();
   
   // Get the meet associated with the current event, or fall back to most recent active meet
@@ -1022,11 +1060,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("WebSocket client disconnected");
       displayClients.delete(ws);
       
-      // Clean up field session subscriptions
+      // Clean up field session subscriptions + prune empty entries
       fieldSessionSubscribers.forEach((subscribers, sessionId) => {
         if (subscribers.has(ws)) {
           subscribers.delete(ws);
-          console.log(`[Field WS] Client removed from session ${sessionId} on close`);
+          // === PERFORMANCE: Remove empty subscriber Sets so the Map doesn't grow unbounded ===
+          // With many field sessions over a long meet, empty Sets accumulate and slow down forEach
+          if (subscribers.size === 0) {
+            fieldSessionSubscribers.delete(sessionId);
+          }
         }
       });
       

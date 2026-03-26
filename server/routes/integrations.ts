@@ -1060,18 +1060,16 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
       }
     };
     
-    // Send to all connected display devices that are in field mode and on this port
+    // === PERFORMANCE: Only send to field-mode devices on the matching port ===
+    // Previously sent to ALL clients (12+ devices) even if only 1-2 are in field mode.
+    // With 10-15 devices, this was ~10x unnecessary JSON serialization + send calls.
+    const standingsStr = JSON.stringify(standingsMessage);
     connectedDisplayDevices.forEach((device) => {
-      if (device.ws.readyState === WebSocket.OPEN) {
-        // Send to all - let client filter by port
-        device.ws.send(JSON.stringify(standingsMessage));
-      }
-    });
-    
-    // Also send to displayClients (non-device WebSocket connections)
-    displayClients.forEach((client) => {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(JSON.stringify(standingsMessage));
+      if (device.ws.readyState === WebSocket.OPEN && device.contentMode === 'field') {
+        // Only send to devices assigned to this port (or devices with no port = accept all)
+        if (!device.fieldPort || device.fieldPort === port) {
+          device.ws.send(standingsStr);
+        }
       }
     });
     
