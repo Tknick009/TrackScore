@@ -10,7 +10,10 @@ import {
   overlayConfigSchema,
   type WSMessage,
 } from "@shared/schema";
-import { mergeFlightsForEvent } from "../parsers/lff-parser";
+import { mergeFlightsForEvent, parseLFFFile, findLFFFilesForEvent } from "../parsers/lff-parser";
+import { parseLIFFile, type NormalizedResult, type LIFEventHeader } from "../parsers/lif-parser";
+import * as fs from 'fs';
+import * as pathModule from 'path';
 import {
   calculateHorizontalStandings,
   calculateVerticalStandings,
@@ -242,6 +245,13 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         return res.status(404).json({ error: "Display device not found" });
       }
 
+      // Update in-memory connected device tracking so server-side filtering
+      // takes effect immediately (no display refresh needed)
+      const connectedDevice = connectedDisplayDevices.get(req.params.id);
+      if (connectedDevice) {
+        connectedDevice.displayMode = displayMode;
+      }
+
       // Broadcast the mode change
       broadcastToDisplays({
         type: 'display_mode_change',
@@ -458,7 +468,8 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
     }
   });
 
-  // Remote refresh — send a reload command to a connected display device
+  // Remote refresh — send device config + reload command so display re-registers
+  // without requiring the user to manually re-enter settings on the remote board
   app.post("/api/display-devices/:id/refresh", async (req, res) => {
     try {
       const deviceId = req.params.id;
@@ -470,8 +481,25 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
 
       const connectedDevice = connectedDisplayDevices.get(deviceId);
       if (connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {
-        connectedDevice.ws.send(JSON.stringify({ type: 'refresh' }));
-        console.log(`[Remote Refresh] Sent refresh to ${device.deviceName}`);
+        // Send the full device config so the client can re-apply settings
+        // and re-enter fullscreen without manual login
+        connectedDevice.ws.send(JSON.stringify({
+          type: 'refresh',
+          data: {
+            deviceId: device.id,
+            deviceName: device.deviceName,
+            meetId: device.meetId,
+            displayType: device.displayType || 'P10',
+            fieldPort: device.fieldPort,
+            isBigBoard: device.isBigBoard,
+            displayMode: device.displayMode,
+            autoMode: device.autoMode ?? true,
+            displayWidth: device.displayWidth,
+            displayHeight: device.displayHeight,
+            assignedEventId: device.assignedEventId,
+          }
+        }));
+        console.log(`[Remote Refresh] Sent full config refresh to ${device.deviceName}`);
         res.json({ success: true, delivered: true });
       } else {
         res.json({ success: true, delivered: false, message: "Device offline — refresh will apply when it reconnects" });
@@ -973,6 +1001,8 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       if (connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {
         // Lock device to hytek mode so FinishLynx broadcasts don't override it
         connectedDevice.contentMode = 'hytek';
+        // Persist to DB so mode survives reconnection
+        storage.updateDisplayContentMode(deviceId, 'hytek').catch(err => console.error('[Hytek] Failed to persist contentMode:', err));
         // Update paging settings (lines = seconds)
         connectedDevice.pagingSize = lines;
         connectedDevice.pagingInterval = lines;
@@ -1013,8 +1043,9 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
             mode: 'results',
             entries: enrichedEntries,
             // Only send advancement data for non-final rounds
-            advanceByPlace: isFinalRound ? null : (eventAdvanceByPlace || undefined),
-            advanceByTime: isFinalRound ? null : (eventAdvanceByTime || undefined),
+            // Always send explicit values (never undefined) so client doesn't carry over stale data
+            advanceByPlace: isFinalRound ? 0 : eventAdvanceByPlace,
+            advanceByTime: isFinalRound ? 0 : eventAdvanceByTime,
             // Additional metadata for better display rendering
             eventType: event.eventType || 'track',
             gender: event.gender || '',
@@ -1039,6 +1070,526 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       }
     } catch (error: any) {
       console.error(`[Hytek Results] Error:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Send Winners Board to a display device
+  app.post("/api/display-devices/:id/winners-board", async (req, res) => {
+    try {
+      const { eventId } = req.body;
+      const deviceId = req.params.id;
+      
+      if (!eventId) {
+        return res.status(400).json({ error: "eventId is required" });
+      }
+      
+      const device = await storage.getDisplayDevice(deviceId);
+      if (!device) {
+        return res.status(404).json({ error: "Display device not found" });
+      }
+      
+      const event = await storage.getEvent(eventId);
+      if (!event) {
+        return res.status(404).json({ error: "Event not found" });
+      }
+      
+      const allEntries = await storage.getEntriesByEvent(eventId);
+      
+      if (allEntries.length === 0) {
+        return res.status(400).json({ error: "No entries found for this event", warning: true });
+      }
+      
+      // Get final results sorted by place
+      const entriesWithPlace = allEntries.filter(e => e.finalPlace && e.finalPlace > 0 && !e.isScratched && !e.isDisqualified);
+      entriesWithPlace.sort((a, b) => (a.finalPlace || 999) - (b.finalPlace || 999));
+      
+      // Take top 4
+      const top4 = entriesWithPlace.slice(0, 4);
+      
+      if (top4.length === 0) {
+        return res.status(400).json({ error: "No placed results found for this event", warning: true });
+      }
+      
+      // Fetch athletes and teams
+      const athleteIds = top4.map(e => e.athleteId).filter((id): id is string => !!id);
+      const uniqueAthleteIds = [...new Set(athleteIds)];
+      const athleteMap = new Map<string, any>();
+      const teamMap = new Map<string, any>();
+      
+      if (uniqueAthleteIds.length > 0) {
+        const athletes = await Promise.all(uniqueAthleteIds.map(id => storage.getAthlete(id)));
+        athletes.forEach(a => { if (a) athleteMap.set(a.id, a); });
+      }
+      
+      const teamIds = new Set<string>();
+      top4.forEach(e => { if (e.teamId) teamIds.add(e.teamId); });
+      athleteMap.forEach(a => { if (a.teamId) teamIds.add(a.teamId); });
+      
+      if (teamIds.size > 0) {
+        const teams = await Promise.all([...teamIds].map(id => storage.getTeam(id)));
+        teams.forEach(t => { if (t) teamMap.set(t.id, t); });
+      }
+      
+      // Fetch team logos and athlete photos
+      const meetId = device.meetId || event.meetId;
+      const teamLogoMap = new Map<string, string>();
+      const headshotMap = new Map<string, string>();
+      
+      if (meetId) {
+        try {
+          const teamLogos = await storage.getTeamLogosByMeet(meetId);
+          teamLogos.forEach(logo => {
+            teamLogoMap.set(logo.teamId, fileStorage.publicUrlForKey(logo.storageKey));
+          });
+        } catch (err) {
+          console.warn('[Winners] Failed to fetch team logos:', err);
+        }
+        
+        try {
+          const photos = await storage.getAthletePhotosByMeet(meetId);
+          photos.forEach(photo => {
+            headshotMap.set(photo.athleteId, fileStorage.publicUrlForKey(photo.storageKey));
+          });
+        } catch (err) {
+          console.warn('[Winners] Failed to fetch athlete photos:', err);
+        }
+      }
+      
+      // Detect event type for formatting
+      const isTrackEvent = event.eventType ? !['high_jump','pole_vault','long_jump','triple_jump','shot_put','discus','hammer','javelin','weight_throw'].some(ft => event.eventType!.toLowerCase().includes(ft.replace('_',''))) : true;
+      const isMultiEvent = /\b(decathlon|heptathlon|pentathlon)\b/i.test(event.name || '');
+      
+      const ceilToPrecision = (val: number, precision: number): number => {
+        const factor = Math.pow(10, precision);
+        return Math.ceil(val * factor - 1e-9) / factor;
+      };
+      const formatTimeSeconds = (seconds: number, precision: number = 2): string => {
+        const rounded = ceilToPrecision(seconds, precision);
+        if (rounded >= 3600) {
+          const hours = Math.floor(rounded / 3600);
+          const mins = Math.floor((rounded % 3600) / 60);
+          const secs = ceilToPrecision(rounded % 60, precision).toFixed(precision);
+          return `${hours}:${String(mins).padStart(2, '0')}:${secs.padStart(precision + 3, '0')}`;
+        }
+        if (rounded >= 60) {
+          const mins = Math.floor(rounded / 60);
+          const secs = ceilToPrecision(rounded % 60, precision).toFixed(precision);
+          return `${mins}:${secs.padStart(precision + 3, '0')}`;
+        }
+        return rounded.toFixed(precision);
+      };
+      
+      // Build enriched entries
+      const winnersEntries = top4.map((entry) => {
+        const athlete = entry.athleteId ? athleteMap.get(entry.athleteId) : null;
+        const teamId = entry.teamId || athlete?.teamId;
+        const team = teamId ? teamMap.get(teamId) : null;
+        const teamName = team?.name || team?.shortName || '';
+        const teamAbbrev = team?.abbreviation || team?.shortName || '';
+        
+        let markValue: string;
+        const rawMark = entry.finalMark;
+        if (typeof rawMark === 'number') {
+          if (isMultiEvent) {
+            markValue = Math.round(rawMark).toString();
+          } else if (isTrackEvent) {
+            markValue = formatTimeSeconds(rawMark);
+          } else {
+            markValue = rawMark.toFixed(2);
+          }
+        } else if (rawMark) {
+          markValue = String(rawMark);
+        } else {
+          markValue = '';
+        }
+        
+        const teamLogoUrl = teamId ? teamLogoMap.get(teamId) : null;
+        const headshotUrl = athlete ? headshotMap.get(athlete.id) : null;
+        
+        return {
+          position: entry.finalPlace || 0,
+          firstName: athlete?.firstName || '',
+          lastName: athlete?.lastName || '',
+          name: athlete ? `${athlete.firstName} ${athlete.lastName}`.trim() : 'Unknown',
+          team: teamAbbrev,
+          affiliation: teamName,
+          time: markValue,
+          mark: markValue,
+          teamLogoUrl: teamLogoUrl || null,
+          headshotUrl: headshotUrl || null,
+        };
+      });
+      
+      // Get meet info for logo
+      let meetLogoUrl: string | null = null;
+      if (meetId) {
+        try {
+          const meet = await storage.getMeet(meetId);
+          meetLogoUrl = meet?.logoUrl || null;
+        } catch (err) {
+          // Meet logo not available
+        }
+      }
+      
+      // Send display_command with winners-board template
+      const connectedDevice = connectedDisplayDevices.get(deviceId);
+      if (connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {
+        // Lock device to winners mode
+        connectedDevice.contentMode = 'winners';
+        storage.updateDisplayContentMode(deviceId, 'winners').catch(err => console.error('[Winners] Failed to persist contentMode:', err));
+        
+        connectedDevice.ws.send(JSON.stringify({
+          type: 'display_command',
+          template: 'winners-board',
+          liveEventData: {
+            eventName: event.name || '',
+            mode: 'winners',
+            entries: winnersEntries,
+          },
+          winnersData: {
+            eventName: event.name || '',
+            meetName: (meetId ? (await storage.getMeet(meetId))?.name : '') || '',
+            meetLogoUrl,
+            entries: winnersEntries,
+          },
+        }));
+        
+        console.log(`[Winners] Sent ${winnersEntries.length} winners for "${event.name}" to ${device.deviceName}`);
+        res.json({ success: true, delivered: true, entryCount: winnersEntries.length });
+      } else {
+        res.json({ success: false, delivered: false, message: "Device offline" });
+      }
+    } catch (error: any) {
+      console.error(`[Winners] Error:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Send Winners Board from LIF/LFF files (FinishLynx output) — no MDB import needed
+  // Reads directly from the configured Lynx files directory, finds the latest round,
+  // merges heats, takes the top 4, and enriches with headshots/logos from the DB.
+  app.post("/api/display-devices/:id/winners-board-lynx", async (req, res) => {
+    try {
+      const { eventNumber } = req.body;
+      const deviceId = req.params.id;
+      
+      if (!eventNumber) {
+        return res.status(400).json({ error: "eventNumber is required" });
+      }
+      
+      const evtNum = parseInt(eventNumber);
+      if (isNaN(evtNum) || evtNum <= 0) {
+        return res.status(400).json({ error: "eventNumber must be a positive integer" });
+      }
+      
+      const device = await storage.getDisplayDevice(deviceId);
+      if (!device) {
+        return res.status(404).json({ error: "Display device not found" });
+      }
+      
+      const meetId = device.meetId;
+      if (!meetId) {
+        return res.status(400).json({ error: "Device has no assigned meet" });
+      }
+      
+      // Get the Lynx files directory from ingestion settings
+      const ingestionSettings = await storage.getIngestionSettings(meetId);
+      if (!ingestionSettings?.lynxFilesDirectory) {
+        return res.status(400).json({ error: "No Lynx files directory configured. Set it in Ingestion Settings." });
+      }
+      
+      const lynxDir = ingestionSettings.lynxFilesDirectory;
+      if (!fs.existsSync(lynxDir)) {
+        return res.status(400).json({ error: `Lynx files directory not found: ${lynxDir}` });
+      }
+      
+      // Scan directory for all LIF and LFF files matching this event number
+      const allFiles = fs.readdirSync(lynxDir);
+      const eventPattern = new RegExp(`^0*${evtNum}-(\\d+)-(\\d+)\\.(lif|lff)$`, 'i');
+      
+      interface FileMatch {
+        filePath: string;
+        round: number;
+        heat: number;
+        ext: string;
+      }
+      
+      const matchingFiles: FileMatch[] = [];
+      for (const file of allFiles) {
+        const match = file.match(eventPattern);
+        if (match) {
+          matchingFiles.push({
+            filePath: pathModule.join(lynxDir, file),
+            round: parseInt(match[1]),
+            heat: parseInt(match[2]),
+            ext: match[3].toLowerCase(),
+          });
+        }
+      }
+      
+      if (matchingFiles.length === 0) {
+        return res.status(400).json({ error: `No LIF/LFF files found for event ${evtNum} in ${lynxDir}`, warning: true });
+      }
+      
+      // Find the highest (latest) round number
+      const maxRound = Math.max(...matchingFiles.map(f => f.round));
+      const latestRoundFiles = matchingFiles.filter(f => f.round === maxRound);
+      
+      // Determine if this is a track (LIF) or field (LFF) event
+      const hasLIF = latestRoundFiles.some(f => f.ext === 'lif');
+      const hasLFF = latestRoundFiles.some(f => f.ext === 'lff');
+      
+      let eventName = '';
+      let isFieldEvent = false;
+      
+      interface WinnerCandidate {
+        place: number;
+        mark: number | null; // seconds for track, meters for field
+        firstName: string;
+        lastName: string;
+        team: string | null;
+        bibNumber: number;
+        isDNS: boolean;
+        isDNF: boolean;
+        isDQ: boolean;
+      }
+      
+      const candidates: WinnerCandidate[] = [];
+      
+      if (hasLIF) {
+        // Track event — parse all LIF files for the latest round
+        const lifFiles = latestRoundFiles.filter(f => f.ext === 'lif').sort((a, b) => a.heat - b.heat);
+        
+        for (const fileInfo of lifFiles) {
+          try {
+            const { header, results } = await parseLIFFile(fileInfo.filePath);
+            if (!eventName && header.eventName) {
+              eventName = header.eventName;
+            }
+            
+            for (const result of results) {
+              if (result.isDNS || result.isDNF || result.isDQ) continue;
+              if (result.place === null || result.place <= 0) continue;
+              
+              candidates.push({
+                place: result.place,
+                mark: result.mark,
+                firstName: result.firstName,
+                lastName: result.lastName,
+                team: result.team,
+                bibNumber: result.bibNumber,
+                isDNS: result.isDNS,
+                isDNF: result.isDNF,
+                isDQ: result.isDQ,
+              });
+            }
+          } catch (err) {
+            console.warn(`[Winners-Lynx] Failed to parse LIF file ${fileInfo.filePath}:`, err);
+          }
+        }
+      }
+      
+      if (hasLFF) {
+        // Field event — parse all LFF files for the latest round (flights)
+        isFieldEvent = true;
+        const lffFiles = latestRoundFiles.filter(f => f.ext === 'lff').sort((a, b) => a.heat - b.heat);
+        
+        for (const fileInfo of lffFiles) {
+          try {
+            const { header, results } = await parseLFFFile(fileInfo.filePath);
+            if (!eventName && header.eventName) {
+              eventName = header.eventName;
+            }
+            
+            for (const result of results) {
+              if (result.isDNS) continue;
+              if (result.place === null || result.place <= 0) continue;
+              
+              candidates.push({
+                place: result.place,
+                mark: result.bestMark,
+                firstName: result.firstName,
+                lastName: result.lastName,
+                team: result.team,
+                bibNumber: result.bibNumber,
+                isDNS: result.isDNS,
+                isDNF: false,
+                isDQ: false,
+              });
+            }
+          } catch (err) {
+            console.warn(`[Winners-Lynx] Failed to parse LFF file ${fileInfo.filePath}:`, err);
+          }
+        }
+      }
+      
+      if (candidates.length === 0) {
+        return res.status(400).json({ error: `No placed results found for event ${evtNum} (round ${maxRound})`, warning: true });
+      }
+      
+      // Sort by place, take top 4
+      candidates.sort((a, b) => a.place - b.place);
+      const top4 = candidates.slice(0, 4);
+      
+      // Try to match athletes from DB for headshots/logos enrichment
+      const athletes = await storage.getAthletesByMeetId(meetId);
+      const events = await storage.getEventsByMeetId(meetId);
+      const dbEvent = events.find(e => e.eventNumber === evtNum);
+      
+      // Build bib-to-athlete map
+      const bibToAthlete = new Map<number, any>();
+      for (const a of athletes) {
+        if (a.bibNumber) {
+          bibToAthlete.set(parseInt(a.bibNumber), a);
+        }
+      }
+      
+      // Build team map from DB
+      const teamIds = new Set<string>();
+      for (const winner of top4) {
+        const athlete = bibToAthlete.get(winner.bibNumber);
+        if (athlete?.teamId) teamIds.add(athlete.teamId);
+      }
+      
+      const teamMap = new Map<string, any>();
+      if (teamIds.size > 0) {
+        const teams = await Promise.all([...teamIds].map(id => storage.getTeam(id)));
+        teams.forEach(t => { if (t) teamMap.set(t.id, t); });
+      }
+      
+      // Fetch team logos and athlete photos
+      const teamLogoMap = new Map<string, string>();
+      const headshotMap = new Map<string, string>();
+      
+      try {
+        const teamLogos = await storage.getTeamLogosByMeet(meetId);
+        teamLogos.forEach(logo => {
+          teamLogoMap.set(logo.teamId, fileStorage.publicUrlForKey(logo.storageKey));
+        });
+      } catch (err) {
+        console.warn('[Winners-Lynx] Failed to fetch team logos:', err);
+      }
+      
+      try {
+        const photos = await storage.getAthletePhotosByMeet(meetId);
+        photos.forEach(photo => {
+          headshotMap.set(photo.athleteId, fileStorage.publicUrlForKey(photo.storageKey));
+        });
+      } catch (err) {
+        console.warn('[Winners-Lynx] Failed to fetch athlete photos:', err);
+      }
+      
+      // Detect event type for mark formatting
+      const isMultiEvent = /\b(decathlon|heptathlon|pentathlon)\b/i.test(eventName || dbEvent?.name || '');
+      
+      const ceilToPrecision = (val: number, precision: number): number => {
+        const factor = Math.pow(10, precision);
+        return Math.ceil(val * factor - 1e-9) / factor;
+      };
+      const formatTimeSeconds = (seconds: number, precision: number = 2): string => {
+        const rounded = ceilToPrecision(seconds, precision);
+        if (rounded >= 3600) {
+          const hours = Math.floor(rounded / 3600);
+          const mins = Math.floor((rounded % 3600) / 60);
+          const secs = ceilToPrecision(rounded % 60, precision).toFixed(precision);
+          return `${hours}:${String(mins).padStart(2, '0')}:${secs.padStart(precision + 3, '0')}`;
+        }
+        if (rounded >= 60) {
+          const mins = Math.floor(rounded / 60);
+          const secs = ceilToPrecision(rounded % 60, precision).toFixed(precision);
+          return `${mins}:${secs.padStart(precision + 3, '0')}`;
+        }
+        return rounded.toFixed(precision);
+      };
+      
+      // Build enriched winners entries
+      const winnersEntries = top4.map((winner) => {
+        const dbAthlete = bibToAthlete.get(winner.bibNumber);
+        const teamId = dbAthlete?.teamId;
+        const team = teamId ? teamMap.get(teamId) : null;
+        // Use DB names if available (more complete), fall back to LIF/LFF names
+        const firstName = dbAthlete?.firstName || winner.firstName;
+        const lastName = dbAthlete?.lastName || winner.lastName;
+        const teamName = team?.name || team?.shortName || winner.team || '';
+        const teamAbbrev = team?.abbreviation || team?.shortName || winner.team || '';
+        
+        let markValue: string;
+        if (typeof winner.mark === 'number') {
+          if (isMultiEvent) {
+            markValue = Math.round(winner.mark).toString();
+          } else if (!isFieldEvent) {
+            // Track event — format as time
+            markValue = formatTimeSeconds(winner.mark);
+          } else {
+            // Field event — format as distance (2 decimal places)
+            markValue = winner.mark.toFixed(2);
+          }
+        } else {
+          markValue = '';
+        }
+        
+        const teamLogoUrl = teamId ? teamLogoMap.get(teamId) : null;
+        const headshotUrl = dbAthlete ? headshotMap.get(dbAthlete.id) : null;
+        
+        return {
+          position: winner.place,
+          firstName,
+          lastName,
+          name: `${firstName} ${lastName}`.trim() || 'Unknown',
+          team: teamAbbrev,
+          affiliation: teamName,
+          time: markValue,
+          mark: markValue,
+          teamLogoUrl: teamLogoUrl || null,
+          headshotUrl: headshotUrl || null,
+        };
+      });
+      
+      // Get meet info for logo
+      let meetLogoUrl: string | null = null;
+      try {
+        const meet = await storage.getMeet(meetId);
+        meetLogoUrl = meet?.logoUrl || null;
+      } catch (err) {
+        // Meet logo not available
+      }
+      
+      // Use event name from file, fall back to DB event name
+      const displayEventName = eventName || dbEvent?.name || `Event ${evtNum}`;
+      
+      // Send display_command with winners-board template
+      const connectedDevice = connectedDisplayDevices.get(deviceId);
+      if (connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {
+        // Lock device to winners mode
+        connectedDevice.contentMode = 'winners';
+        storage.updateDisplayContentMode(deviceId, 'winners').catch(err => console.error('[Winners-Lynx] Failed to persist contentMode:', err));
+        
+        const meetName = (await storage.getMeet(meetId))?.name || '';
+        
+        connectedDevice.ws.send(JSON.stringify({
+          type: 'display_command',
+          template: 'winners-board',
+          liveEventData: {
+            eventName: displayEventName,
+            mode: 'winners',
+            entries: winnersEntries,
+          },
+          winnersData: {
+            eventName: displayEventName,
+            meetName,
+            meetLogoUrl,
+            entries: winnersEntries,
+          },
+        }));
+        
+        console.log(`[Winners-Lynx] Sent ${winnersEntries.length} winners for "${displayEventName}" (event ${evtNum}, round ${maxRound}) to ${device.deviceName}`);
+        res.json({ success: true, delivered: true, entryCount: winnersEntries.length, round: maxRound, source: hasLIF ? 'lif' : 'lff' });
+      } else {
+        res.json({ success: false, delivered: false, message: "Device offline" });
+      }
+    } catch (error: any) {
+      console.error(`[Winners-Lynx] Error:`, error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -1167,6 +1718,8 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       if (connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {
         // Lock device to team_scores mode so FinishLynx broadcasts don't override it
         connectedDevice.contentMode = 'team_scores';
+        // Persist to DB so mode survives reconnection
+        storage.updateDisplayContentMode(deviceId, 'team_scores').catch(err => console.error('[Team Scores] Failed to persist contentMode:', err));
         // Update paging settings (lines = seconds)
         connectedDevice.pagingSize = lines;
         connectedDevice.pagingInterval = lines;
@@ -1249,7 +1802,9 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       const connectedDevice = connectedDisplayDevices.get(deviceId);
       if (connectedDevice) {
         connectedDevice.contentMode = contentMode;
-        console.log(`[Content Mode] Device ${connectedDevice.deviceName} switched to ${contentMode}`);
+        // Persist to DB so mode survives reconnection
+        await storage.updateDisplayContentMode(deviceId, contentMode);
+        console.log(`[Content Mode] Device ${connectedDevice.deviceName} switched to ${contentMode} (persisted)`);
         
         // Notify the display device of the content mode change so it updates immediately
         if (connectedDevice.ws.readyState === WebSocket.OPEN) {

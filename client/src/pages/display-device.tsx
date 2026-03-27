@@ -93,13 +93,14 @@ function useLayoutTransition(
       fadeStarted: false,
     });
     
-    // Defer fade start to next microtask with version binding
+    // Delay fade start by 250ms to let color extraction / new content render
+    // before the curtain transition reveals it (prevents brief flash of default color)
     const capturedVersion = newVersion;
-    queueMicrotask(() => {
+    setTimeout(() => {
       // Only start fade if this is still the current version
       if (versionRef.current !== capturedVersion) return;
       setState(prev => prev.version === capturedVersion ? { ...prev, fadeStarted: true } : prev);
-    });
+    }, 250);
   }, [currentLayoutKey]);
   
   // Callback for when transition completes (called from transitionend handler)
@@ -136,6 +137,7 @@ import {
   SingleAthleteTrack,
   SingleAthleteField,
   ProScoreboard,
+  WinnersBoard,
 } from "@/components/display/templates";
 import { BroadcastDisplay } from "@/components/display/templates/BroadcastDisplay";
 import { 
@@ -158,6 +160,13 @@ interface LiveEventData {
   mode?: string;
 }
 
+interface WinnersData {
+  eventName: string;
+  meetName: string;
+  meetLogoUrl: string | null;
+  entries: any[];
+}
+
 interface DisplayDeviceState {
   displayType: DisplayType | null;
   meetId: string | null;
@@ -175,6 +184,7 @@ interface DisplayDeviceState {
   pagingSize: number;
   pagingInterval: number;
   maxPages: number;
+  winnersData: WinnersData | null;
 }
 
 // Storage helpers for device identity - keyed by device name for persistence across type changes
@@ -241,6 +251,7 @@ export default function DisplayDevice() {
     pagingSize: 8,
     pagingInterval: 5,
     maxPages: 0,
+    winnersData: null,
   });
   const [selectedMeetId, setSelectedMeetId] = useState<string | null>(null);
   const [deviceName, setDeviceName] = useState<string>(getLastDeviceName());
@@ -262,12 +273,40 @@ export default function DisplayDevice() {
   
   const autoModeRef = useRef<boolean>(true);
   
+  // Content mode ref: tracks what mode this display is in (lynx/hytek/team_scores/field).
+  // When NOT 'lynx', all FinishLynx messages (layout_command, board_update, track_mode_change,
+  // clock, wind, page) are blocked so the display stays locked on its assigned content.
+  const contentModeRef = useRef<string>('lynx');
+  
+  // Gate: don't process layout/mode commands until device_registered confirms
+  // our displayMode + contentMode. Prevents track data from overriding during
+  // the race window between WebSocket connect and registration response.
+  const isDeviceRegisteredRef = useRef<boolean>(false);
+  
   // Track whether this device has received data on its assigned port yet.
   // Device stays on meet logo until its specific port receives data.
   const hasReceivedPortDataRef = useRef<boolean>(false);
   
   const wsRef = useRef<WebSocket | null>(null);
   const deviceNameRef = useRef<string>('');
+  
+  // WebSocket health tracking — detect silently dead connections
+  // lastMessageAtRef tracks when ANY message was last received from the server.
+  // If no message arrives within HEALTH_TIMEOUT_MS after a ping, the connection
+  // is assumed dead and force-closed so onclose triggers a reconnect.
+  const lastMessageAtRef = useRef<number>(Date.now());
+  const healthCheckTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Clock refs for smooth updates without full re-renders
+  // clockTimeRef is written by WebSocket handler and read by ClockBridge via rAF
+  const clockTimeRef = useRef<string>('');
+  const lastClockCommandRef = useRef<string>('');
+  
+  // Local fallback timer for when FinishLynx clock port is not configured
+  // Starts counting when display enters running_time mode
+  const raceStartTimeRef = useRef<number | null>(null);
+  const localTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const hasExternalClockRef = useRef<boolean>(false);
 
   const { data: meets } = useQuery<Meet[]>({
     queryKey: ['/api/meets'],
@@ -381,6 +420,7 @@ export default function DisplayDevice() {
           return;
         }
         console.log('Display device connected to WebSocket');
+        isDeviceRegisteredRef.current = false; // Reset gate until registration completes
         setState(prev => ({ ...prev, isConnected: true }));
         
         // Use stored device ID if available (per display type), otherwise server will create a new one
@@ -399,9 +439,38 @@ export default function DisplayDevice() {
       };
 
       ws.onmessage = (event) => {
+        // Update health tracker on EVERY message (including pong)
+        lastMessageAtRef.current = Date.now();
+        
         try {
           const message = JSON.parse(event.data);
-          console.log('WebSocket message received:', message.type);
+          // Reduce logging in production — only log important events, not every message
+          
+          // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+          // CONTENT MODE GATE: Block ALL FinishLynx track messages when the
+          // display is NOT in 'lynx' mode. This is the single point of
+          // enforcement that prevents start lists, running times, results,
+          // clock updates, and layout commands from leaking into HyTek,
+          // Team Scores, or Field displays — both on reconnect AND during
+          // normal operation.
+          //
+          // Messages that ARE allowed through regardless of content mode:
+          //   device_registered, content_mode_change, display_mode_change,
+          //   display_command, auto_mode_update, device_config_update,
+          //   scene_mapping_changed, scene_update, pong,
+          //   field_mode_change*, field_standings_update*,
+          //   hytek_results, team_standings_update
+          // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+          const LYNX_ONLY_MESSAGES = [
+            'layout_command', 'layout_command_big',
+            'track_mode_change', 'track_mode_change_big',
+            'clock_update',
+            'board_update',
+          ];
+          if (contentModeRef.current !== 'lynx' && LYNX_ONLY_MESSAGES.includes(message.type)) {
+            // Non-lynx device — silently drop this track message
+            return;
+          }
           
           if (message.type === 'device_registered') {
             console.log('Device successfully registered:', message.data);
@@ -411,14 +480,29 @@ export default function DisplayDevice() {
               setRegisteredDeviceId(message.data.deviceId);
               console.log('Saved device ID for reconnection:', message.data.deviceId);
               const deviceData = message.data;
+              // CRITICAL: Sync refs IMMEDIATELY so the very next WebSocket message
+              // uses the correct values. setFieldPort/setIsFieldMode trigger async
+              // React state updates → useEffect ref sync, but a field_mode_change
+              // could arrive BEFORE that render. Without immediate ref updates,
+              // the port filter on line ~943 would use stale defaults (4560/false)
+              // and either accept wrong-port data or discard our own port's data.
               if (deviceData.fieldPort !== undefined) {
-                setFieldPort(deviceData.fieldPort ?? 4560);
+                const newPort = deviceData.fieldPort ?? 4560;
+                fieldPortRef.current = newPort;
+                setFieldPort(newPort);
               }
               if (deviceData.isBigBoard !== undefined) {
+                isBigBoardRef.current = !!deviceData.isBigBoard;
                 setIsBigBoard(!!deviceData.isBigBoard);
               }
               if (deviceData.displayMode !== undefined) {
-                setIsFieldMode(deviceData.displayMode === 'field');
+                const isField = deviceData.displayMode === 'field';
+                isFieldModeRef.current = isField;
+                setIsFieldMode(isField);
+                // Sync autoMode: field devices should not auto-switch on track data
+                if (isField) {
+                  autoModeRef.current = false;
+                }
               }
               if (deviceData.displayType) {
                 setState(prev => ({ ...prev, displayType: deviceData.displayType }));
@@ -426,6 +510,17 @@ export default function DisplayDevice() {
               if (deviceData.autoMode !== undefined) {
                 autoModeRef.current = deviceData.autoMode !== false;
               }
+              // Restore contentMode from server — persisted across reconnections
+              if (deviceData.contentMode) {
+                contentModeRef.current = deviceData.contentMode;
+                console.log(`[Display] Content mode restored from server: ${deviceData.contentMode}`);
+                // Non-lynx modes should disable autoMode so track data doesn't leak through
+                if (deviceData.contentMode !== 'lynx') {
+                  autoModeRef.current = false;
+                }
+              }
+              // Open the gate — device is now registered with correct mode settings
+              isDeviceRegisteredRef.current = true;
             }
           }
           
@@ -480,6 +575,15 @@ export default function DisplayDevice() {
                 pagingSize: message.pagingSize ?? prev.pagingSize,
                 pagingInterval: message.pagingInterval ?? prev.pagingInterval,
                 maxPages: message.maxPages ?? prev.maxPages,
+                // Winners board data from display_command
+                winnersData: message.template === 'winners-board' && message.liveEventData
+                  ? {
+                      eventName: message.liveEventData.eventName || '',
+                      meetName: message.liveEventData.meetName || '',
+                      meetLogoUrl: message.liveEventData.meetLogoUrl || null,
+                      entries: message.liveEventData.entries || [],
+                    }
+                  : (message.template === 'winners-board' ? prev.winnersData : prev.winnersData),
               };
             });
           }
@@ -523,8 +627,17 @@ export default function DisplayDevice() {
                 setState(prev => ({ ...prev, displayType: data.displayType }));
               }
               if (data.displayMode !== undefined) {
-                setIsFieldMode(data.displayMode === 'field');
-                console.log(`[Display] Display mode updated to: ${data.displayMode} (isFieldMode: ${data.displayMode === 'field'})`);
+                const isField = data.displayMode === 'field';
+                setIsFieldMode(isField);
+                // CRITICAL FIX: Sync autoMode when display mode changes via device_config_update
+                // Without this, field-mode devices still had autoMode=true, allowing track data to leak through
+                if (isField) {
+                  autoModeRef.current = false;
+                } else if (!isField && data.displayMode === 'track') {
+                  // Only re-enable auto mode when explicitly switching to track mode
+                  autoModeRef.current = true;
+                }
+                console.log(`[Display] Display mode updated to: ${data.displayMode} (isFieldMode: ${isField}, autoMode: ${autoModeRef.current})`);
               }
             }
           }
@@ -539,22 +652,27 @@ export default function DisplayDevice() {
           // (lynx = live FinishLynx data, hytek = compiled results, team_scores, field)
           if (message.type === 'content_mode_change') {
             const newContentMode = message.contentMode;
+            // Update content mode ref IMMEDIATELY so the very next message is filtered correctly
+            contentModeRef.current = newContentMode;
             console.log(`[Display] Content mode changed to: ${newContentMode}`);
             
             if (newContentMode === 'field') {
               // Switch to field mode — set isFieldMode so field data is accepted
+              isFieldModeRef.current = true;
               setIsFieldMode(true);
               autoModeRef.current = false;
               currentLayoutModeRef.current = null; // Reset so next field data triggers scene switch
               console.log(`[Display] Switched to field content mode`);
             } else if (newContentMode === 'lynx') {
               // Switch back to FinishLynx — re-enable auto mode and reset layout
+              isFieldModeRef.current = false;
               setIsFieldMode(false);
               autoModeRef.current = true;
               currentLayoutModeRef.current = null; // Reset so next FinishLynx data triggers scene switch
               console.log(`[Display] Switched to FinishLynx content mode (auto-mode enabled)`);
             } else if (newContentMode === 'hytek' || newContentMode === 'team_scores') {
               // Switch to HyTek or Team Scores — disable auto mode so FinishLynx doesn't override
+              isFieldModeRef.current = false;
               setIsFieldMode(false);
               autoModeRef.current = false;
               console.log(`[Display] Switched to ${newContentMode} content mode (auto-mode disabled)`);
@@ -566,15 +684,31 @@ export default function DisplayDevice() {
             const myDeviceId = registeredDeviceIdRef.current;
             if (data && data.deviceId === myDeviceId && data.displayMode !== undefined) {
               const isField = data.displayMode === 'field';
+              // Update ref immediately so layout command filter works on the very next message
+              isFieldModeRef.current = isField;
               setIsFieldMode(isField);
+              // Field devices should not auto-switch on track data
+              if (isField) {
+                autoModeRef.current = false;
+              }
               console.log(`[Display] Display mode changed to: ${data.displayMode} (isFieldMode: ${isField})`);
             }
           }
           
-          // Clock update - just pass through exactly what FinishLynx sends
+          // Clock update - update state on every tick so timer objects display correctly
           if (message.type === 'clock_update') {
             const data = message.data;
             if (data) {
+              // Mark that we have an external clock source - stop local fallback timer
+              if (!hasExternalClockRef.current && data.time) {
+                hasExternalClockRef.current = true;
+                if (localTimerRef.current) {
+                  clearInterval(localTimerRef.current);
+                  localTimerRef.current = null;
+                  console.log(`[Display] External clock detected - stopping local fallback timer`);
+                }
+              }
+              
               // Reset layout mode debouncing when system is armed
               // This ensures each new heat gets fresh scene switching
               if (data.command === 'armed' && autoModeRef.current) {
@@ -582,10 +716,19 @@ export default function DisplayDevice() {
                 currentLayoutModeRef.current = null;
               }
               
+              // Write clock time to ref for any components that read directly
+              clockTimeRef.current = data.time || '';
+              
+              // Update state on every tick so liveClockTime prop flows to timer/clock objects
+              const newCommand = data.command || '';
+              const commandChanged = newCommand !== lastClockCommandRef.current;
+              if (commandChanged) {
+                lastClockCommandRef.current = newCommand;
+              }
               setState(prev => ({
                 ...prev,
                 liveClockTime: data.time || '',
-                liveClockCommand: data.command || '',
+                ...(commandChanged ? { liveClockCommand: newCommand } : {}),
               }));
             }
           }
@@ -653,8 +796,24 @@ export default function DisplayDevice() {
           if (message.type === myLayoutChannel) {
             const layoutName = message.data?.layoutName?.toLowerCase() || '';
             
+            // Don't process layout commands until registration confirms our displayMode
+            if (!isDeviceRegisteredRef.current) {
+              console.log(`[Display] Not yet registered - queuing layout command: "${layoutName}"`);
+              return;
+            }
+            
             if (!autoModeRef.current) {
               console.log(`[Display] Auto-mode disabled - ignoring layout command: "${layoutName}"`);
+              return;
+            }
+            
+            // Field displays should ignore track-specific layout commands
+            // They only respond to field/standings/idle commands — not running_time, start_list, track_results
+            const isTrackCommand = (layoutName.includes('running') || layoutName.includes('time') ||
+              layoutName.includes('result') || layoutName.includes('start') || layoutName.includes('draw')) &&
+              !layoutName.includes('field');
+            if (isFieldModeRef.current && isTrackCommand) {
+              console.log(`[Display] Field display ignoring track layout command: "${layoutName}"`);
               return;
             }
             
@@ -663,10 +822,49 @@ export default function DisplayDevice() {
             let displayMode: string | null = null;
             if (layoutName.includes('running') || layoutName.includes('time')) {
               displayMode = 'running_time';
+              
+              // Start local fallback timer if no external clock port is sending data
+              // This handles FinishLynx setups without a dedicated clock TCP port
+              if (!hasExternalClockRef.current && !raceStartTimeRef.current) {
+                raceStartTimeRef.current = Date.now();
+                console.log(`[Display] Starting local fallback timer (no external clock)`);
+                // Update liveClockTime every 100ms using local timer
+                localTimerRef.current = setInterval(() => {
+                  const elapsed = Date.now() - (raceStartTimeRef.current || Date.now());
+                  const totalSeconds = elapsed / 1000;
+                  const minutes = Math.floor(totalSeconds / 60);
+                  const seconds = totalSeconds % 60;
+                  // Under 1 minute: SS.d, 1 minute+: M:SS.d
+                  let timeStr: string;
+                  if (minutes === 0) {
+                    timeStr = seconds.toFixed(1);
+                  } else {
+                    const secStr = seconds < 10 ? '0' + seconds.toFixed(1) : seconds.toFixed(1);
+                    timeStr = `${minutes}:${secStr}`;
+                  }
+                  clockTimeRef.current = timeStr;
+                  setState(prev => ({ ...prev, liveClockTime: timeStr }));
+                }, 100);
+              }
             } else if (layoutName.includes('result')) {
               displayMode = 'track_results';
+              // Stop local fallback timer when leaving running mode
+              if (localTimerRef.current) {
+                clearInterval(localTimerRef.current);
+                localTimerRef.current = null;
+                raceStartTimeRef.current = null;
+              }
             } else if (layoutName.includes('start') || layoutName.includes('draw')) {
               displayMode = 'start_list';
+              // Stop local fallback timer and clear clock when going back to start list
+              if (localTimerRef.current) {
+                clearInterval(localTimerRef.current);
+                localTimerRef.current = null;
+                raceStartTimeRef.current = null;
+              }
+              // Clear the clock time so timer objects show blank (not stale time)
+              clockTimeRef.current = '';
+              setState(prev => ({ ...prev, liveClockTime: null }));
             } else if (layoutName.includes('field') && layoutName.includes('standing')) {
               displayMode = 'field_standings';
             } else if (layoutName.includes('field')) {
@@ -675,6 +873,12 @@ export default function DisplayDevice() {
               displayMode = 'team_scores';
             } else if (layoutName.includes('idle') || layoutName.includes('meettitle') || layoutName.includes('logo')) {
               displayMode = 'idle';
+              // Stop local fallback timer on idle
+              if (localTimerRef.current) {
+                clearInterval(localTimerRef.current);
+                localTimerRef.current = null;
+                raceStartTimeRef.current = null;
+              }
             }
             
             // Debounce: Skip if same mode as current (FinishLynx sends commands every 2s)
@@ -786,6 +990,11 @@ export default function DisplayDevice() {
           // Big boards ONLY listen to 'track_mode_change_big' so they stay on meet title unless big board port is connected
           const myChannel = isBigBoardRef.current ? 'track_mode_change_big' : 'track_mode_change';
           if (message.type === myChannel) {
+            // Don't process track data until registration confirms our displayMode
+            if (!isDeviceRegisteredRef.current) {
+              console.log(`[Display] Not yet registered - ignoring track mode change`);
+              return;
+            }
             if (!autoModeRef.current) {
               console.log(`[Display] Auto-mode disabled - ignoring track mode change`);
               return;
@@ -883,11 +1092,13 @@ export default function DisplayDevice() {
                     entries: entries.length > 0 ? entries : (prev.liveEventData?.entries || []),
                     // Always use the server's value for advancement data — never carry over from previous events
                     // This prevents Q badges from showing on events that don't have qualifiers
-                    advanceByPlace: eventChanged ? (data.advanceByPlace ?? null) : (data.advanceByPlace !== undefined ? data.advanceByPlace : prev.liveEventData?.advanceByPlace),
-                    advanceByTime: eventChanged ? (data.advanceByTime ?? null) : (data.advanceByTime !== undefined ? data.advanceByTime : prev.liveEventData?.advanceByTime),
+                    // Server now sends explicit 0 instead of null/undefined, so always prefer server value
+                    advanceByPlace: data.advanceByPlace ?? (eventChanged ? 0 : (prev.liveEventData?.advanceByPlace ?? 0)),
+                    advanceByTime: data.advanceByTime ?? (eventChanged ? 0 : (prev.liveEventData?.advanceByTime ?? 0)),
                     isMultiEvent: data.isMultiEvent,
                     eventType: data.eventType,
                     gender: data.gender,
+                    isRelay: data.isRelay,
                   },
                 };
               });
@@ -905,7 +1116,22 @@ export default function DisplayDevice() {
               const dataPort = data.fieldPort;
               const myPort = fieldPortRef.current;
               
-              // Always store in liveEventDataByPort for multi-field-event scene support
+              // Track mode displays ignore field data entirely — don't even store it
+              // This prevents field data from bleeding into track-mode displays
+              if (!isFieldModeRef.current) {
+                return;
+              }
+              
+              // STRICT PORT ISOLATION: Only store data for THIS device's assigned port.
+              // If data comes from a DIFFERENT port, discard it entirely — don't even
+              // put it in liveEventDataByPort. This guarantees the curtain and all other
+              // field components never see or react to another port's data.
+              if (dataPort && myPort && dataPort !== myPort) {
+                // Not our port — discard completely
+                return;
+              }
+              
+              // This IS our port (or global data with no port) — store it
               if (dataPort) {
                 const portEventData: any = {
                   eventNumber: data.eventNumber,
@@ -924,12 +1150,6 @@ export default function DisplayDevice() {
                     [dataPort]: portEventData,
                   },
                 }));
-              }
-              
-              // Track mode displays ignore field data entirely
-              if (!isFieldModeRef.current) {
-                console.log(`[Display] Ignoring field data - display is in track mode`);
-                return;
               }
               
               // Mark that we've received data on our assigned port
@@ -1011,7 +1231,20 @@ export default function DisplayDevice() {
             if (data) {
               const myPort = fieldPortRef.current;
               
-              // Always store in liveEventDataByPort for multi-field-event scene support (regardless of field/track mode)
+              // Track mode displays ignore field standings entirely
+              if (!isFieldModeRef.current) {
+                return;
+              }
+              
+              // STRICT PORT ISOLATION for standings too — discard other ports' data
+              // entirely so it never accumulates in liveEventDataByPort and triggers
+              // unnecessary re-renders on devices assigned to different ports.
+              if (data.fieldPort && myPort && data.fieldPort !== myPort) {
+                return;
+              }
+              
+              // Store in liveEventDataByPort for multi-field-event scene support
+              // Only store if we're in field mode (checked above)
               if (data.fieldPort) {
                 const portStandingsData: any = {
                   eventNumber: data.eventNumber,
@@ -1033,13 +1266,6 @@ export default function DisplayDevice() {
               }
               
               if (!autoModeRef.current) {
-                console.log(`[Display] Auto-mode disabled - ignoring field standings scene switch`);
-                return;
-              }
-              
-              // For liveEventData (single): only update when in field mode
-              if (!isFieldModeRef.current) {
-                console.log(`[Display] Field standings stored in port map, skipping liveEventData - display is in track mode`);
                 return;
               }
               
@@ -1114,10 +1340,82 @@ export default function DisplayDevice() {
             }
           }
           
-          // Handle remote refresh command — reload the page
+          // Handle remote refresh command — re-apply device settings and refresh all data
+          // The server sends the full device config so the display re-registers without
+          // the user having to manually re-enter settings on the remote board
           if (message.type === 'refresh') {
-            console.log('[Display] Remote refresh command received — reloading page');
-            window.location.reload();
+            const refreshData = message.data;
+            console.log('[Display] Remote refresh command received', refreshData ? 'with device config' : 'without config');
+            
+            // If server sent device config, re-apply all settings
+            if (refreshData) {
+              // Re-apply display mode
+              if (refreshData.displayMode) {
+                const isField = refreshData.displayMode === 'field';
+                setIsFieldMode(isField);
+                isFieldModeRef.current = isField;
+                if (isField) {
+                  autoModeRef.current = false;
+                }
+              }
+              // Re-apply field port
+              if (refreshData.fieldPort) {
+                setFieldPort(refreshData.fieldPort);
+                fieldPortRef.current = refreshData.fieldPort;
+              }
+              // Re-apply big board flag
+              if (refreshData.isBigBoard !== undefined) {
+                setIsBigBoard(!!refreshData.isBigBoard);
+                isBigBoardRef.current = !!refreshData.isBigBoard;
+              }
+              // Re-apply auto mode
+              if (refreshData.autoMode !== undefined) {
+                autoModeRef.current = refreshData.autoMode;
+              }
+            }
+            
+            // Invalidate ALL React Query caches so everything re-fetches fresh
+            queryClient.invalidateQueries();
+            
+            // Read current scene ID from state and re-fetch its data
+            setState(prev => {
+              const currentSceneId = prev.currentSceneId;
+              if (currentSceneId) {
+                // Async re-fetch scene data (fire and forget from setState)
+                Promise.all([
+                  fetch(`/api/layout-scenes/${currentSceneId}`),
+                  fetch(`/api/layout-objects?sceneId=${currentSceneId}`),
+                ]).then(async ([sceneRes, objectsRes]) => {
+                  if (sceneRes.ok && objectsRes.ok) {
+                    const scene = await sceneRes.json();
+                    const objects = await objectsRes.json();
+                    queryClient.setQueryData(['/api/layout-scenes', currentSceneId], scene);
+                    queryClient.setQueryData(['/api/layout-objects', { sceneId: currentSceneId }], objects);
+                    setState(p => ({
+                      ...p,
+                      currentSceneData: { scene, objects },
+                    }));
+                    console.log(`[Display] Soft refresh: re-fetched scene ${currentSceneId}`);
+                  }
+                }).catch(err => {
+                  console.error('[Display] Soft refresh failed:', err);
+                });
+              }
+              return prev; // Don't change state in this outer setState
+            });
+            
+            // Request fullscreen after refresh (browsers allow this from user-gesture-triggered events)
+            try {
+              if (document.documentElement.requestFullscreen && !document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {
+                  // Fullscreen request may fail if not triggered by user gesture — that's OK
+                });
+              }
+            } catch (e) {
+              // Fullscreen not supported or blocked — continue without it
+            }
+            
+            console.log('[Display] Remote refresh complete — settings re-applied, caches invalidated');
             return;
           }
 
@@ -1153,8 +1451,9 @@ export default function DisplayDevice() {
                     wind: prev.liveEventData?.wind,
                     distance: data.distance || prev.liveEventData?.distance,
                     // Always use the server's value for advancement data — never carry over from previous events
-                    advanceByPlace: eventChanged ? (data.advanceByPlace ?? null) : (data.advanceByPlace !== undefined ? data.advanceByPlace : prev.liveEventData?.advanceByPlace),
-                    advanceByTime: eventChanged ? (data.advanceByTime ?? null) : (data.advanceByTime !== undefined ? data.advanceByTime : prev.liveEventData?.advanceByTime),
+                    // Server now sends explicit 0 instead of null/undefined, so always prefer server value
+                    advanceByPlace: data.advanceByPlace ?? (eventChanged ? 0 : (prev.liveEventData?.advanceByPlace ?? 0)),
+                    advanceByTime: data.advanceByTime ?? (eventChanged ? 0 : (prev.liveEventData?.advanceByTime ?? 0)),
                     isMultiEvent: data.isMultiEvent ?? (eventChanged ? undefined : prev.liveEventData?.isMultiEvent),
                     eventType: data.eventType ?? (eventChanged ? undefined : prev.liveEventData?.eventType),
                     gender: data.gender ?? (eventChanged ? undefined : prev.liveEventData?.gender),
@@ -1182,9 +1481,43 @@ export default function DisplayDevice() {
 
     connectWebSocket();
 
+    // ROBUST WebSocket keepalive with dead-connection detection.
+    // Problem: A half-open TCP connection (client thinks OPEN, server has dropped it)
+    // will silently queue pings that never arrive. The display freezes indefinitely
+    // because onclose never fires. Fix: after each ping, check whether ANY message
+    // has been received within HEALTH_TIMEOUT_MS. If not, force-close the socket
+    // so onclose fires and triggers a reconnect.
+    const PING_INTERVAL_MS = 15000;  // Send ping every 15s (was 25s — more aggressive)
+    const HEALTH_TIMEOUT_MS = 10000; // If no message within 10s after ping, assume dead
+    
+    const keepaliveInterval = setInterval(() => {
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        try {
+          wsRef.current.send(JSON.stringify({ type: 'ping' }));
+        } catch (e) {
+          // Send failed — force close to trigger reconnect
+          try { wsRef.current?.close(); } catch (_) { /* ignore */ }
+          return;
+        }
+        
+        // Schedule a health check: if no message received within HEALTH_TIMEOUT_MS,
+        // the connection is dead. Force close it.
+        if (healthCheckTimerRef.current) clearTimeout(healthCheckTimerRef.current);
+        healthCheckTimerRef.current = setTimeout(() => {
+          const elapsed = Date.now() - lastMessageAtRef.current;
+          if (elapsed >= HEALTH_TIMEOUT_MS) {
+            console.warn(`[Display] No messages received for ${Math.round(elapsed / 1000)}s after ping — connection assumed dead, forcing reconnect`);
+            try { wsRef.current?.close(); } catch (_) { /* ignore */ }
+          }
+        }, HEALTH_TIMEOUT_MS);
+      }
+    }, PING_INTERVAL_MS);
+
     return () => {
       isCleaningUp = true;
       isConnectingRef.current = false;
+      clearInterval(keepaliveInterval);
+      if (healthCheckTimerRef.current) clearTimeout(healthCheckTimerRef.current);
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
@@ -1371,6 +1704,7 @@ export default function DisplayDevice() {
       deviceId={registeredDeviceId || 'pending'}
       isConnected={state.isConnected}
       liveClockTime={state.liveClockTime}
+      clockTimeRef={clockTimeRef}
       liveEventData={state.liveEventData}
       liveEventDataByPort={state.liveEventDataByPort}
       pagingSize={state.pagingSize}
@@ -1380,6 +1714,7 @@ export default function DisplayDevice() {
       customHeight={state.displayType === 'Custom' ? customHeight : undefined}
       fieldPort={fieldPort}
       onReturnToLogo={returnToMeetLogo}
+      winnersData={state.winnersData}
     />
   );
 }
@@ -1394,6 +1729,7 @@ interface DisplayRendererProps {
   deviceId: string;
   isConnected: boolean;
   liveClockTime: string | null;
+  clockTimeRef?: React.RefObject<string>;
   liveEventData: LiveEventData | null;
   liveEventDataByPort: Record<number, LiveEventData>;
   pagingSize: number;
@@ -1403,13 +1739,14 @@ interface DisplayRendererProps {
   customHeight?: number;
   fieldPort?: number;
   onReturnToLogo?: () => void;
+  winnersData?: WinnersData | null;
 }
 
 interface EventWithEntries extends Event {
   entries: any[];
 }
 
-function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTime, liveEventData, liveEventDataByPort, pagingSize, pagingInterval, maxPages, customWidth, customHeight, fieldPort, onReturnToLogo }: DisplayRendererProps) {
+function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTime, clockTimeRef, liveEventData, liveEventDataByPort, pagingSize, pagingInterval, maxPages, customWidth, customHeight, fieldPort, onReturnToLogo, winnersData }: DisplayRendererProps) {
   const { data: meet } = useQuery<Meet>({
     queryKey: ['/api/meets', meetId],
     enabled: !!meetId,
@@ -1519,9 +1856,21 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     const isRunningTimeTemplate = templateId.includes('running-time');
     const isStartList = templateId.includes('start-list');
     const isTeamScores = templateId === 'team-scores' || templateId.includes('team-scores');
+    const isWinnersBoard = templateId === 'winners-board' || templateId.includes('winners-board');
     const isMeetLogo = templateId === 'meet-logo' || templateId.includes('meet-logo') || !effectiveTemplate;
     const isBigBoard = templateId.includes('live-results') || templateId.includes('BigBoard');
     const isBroadcast = displayType === 'Broadcast';
+
+    if (isWinnersBoard && winnersData) {
+      return (
+        <WinnersBoard
+          eventName={winnersData.eventName}
+          entries={winnersData.entries}
+          meetName={winnersData.meetName}
+          meetLogoUrl={winnersData.meetLogoUrl}
+        />
+      );
+    }
 
     if (isBroadcast) {
       return (
@@ -1879,11 +2228,14 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
         ? {
             ...currentEvent,
             name: liveEventData?.eventName || currentEvent.name || '',
+            // Pass server's relay flag so templates can detect relay events accurately
+            isRelay: (liveEventData as any)?.isRelay ?? undefined,
           }
         : {
             id: 0,
             name: liveEventData?.eventName || '',
-            eventType: 'track',
+            eventType: liveEventData?.eventType || 'track',
+            isRelay: (liveEventData as any)?.isRelay ?? false,
             status: liveEventData?.mode === 'results' ? 'completed' : 'in_progress',
             entries: (liveEventData?.entries || []).map((entry: any, idx: number) => {
               const firstName = entry.firstName || entry.name?.split(' ')[0] || '';

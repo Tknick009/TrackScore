@@ -1562,8 +1562,8 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
           totalHeats, // Include total heats for "Heat X of Y" display
           roundName, // Include round name for "Prelims", "Finals", etc.
           totalRounds, // Total rounds configured for event
-          advanceByPlace: isFinalRound ? null : advanceByPlace, // Suppress on finals
-          advanceByTime: isFinalRound ? null : advanceByTime, // Suppress on finals
+          advanceByPlace: isFinalRound ? 0 : (advanceByPlace || 0), // Suppress on finals, always send explicit value
+          advanceByTime: isFinalRound ? 0 : (advanceByTime || 0), // Suppress on finals, always send explicit value
           isMultiEvent, // For multi-event points display
           eventType, // For calculating multi-event points
           gender: eventGender, // For calculating multi-event points
@@ -1577,6 +1577,10 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
 
   // Clock handler - NO SMART LOGIC, just pass through exactly what FinishLynx sends
   lynxListener.on('clock-update', (eventNumber, time, command) => {
+    // Log clock broadcasts for diagnostics
+    if (command === 'start' || command === 'stop' || command === 'armed' || command === 'init') {
+      console.log(`[Lynx:Clock] Broadcasting clock_update: time="${time}" command="${command}" event=${eventNumber}`);
+    }
     // Just broadcast the raw clock data to all displays
     broadcastToDisplays({
       type: 'clock_update',
@@ -1978,8 +1982,8 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
         totalHeats, // Include total heats for "Heat X of Y" display
         roundName, // Include round name for "Prelims", "Finals", etc.
         totalRounds, // Total rounds configured for event
-        advanceByPlace: isFinalRound ? null : advanceByPlace, // Suppress on finals
-        advanceByTime: isFinalRound ? null : advanceByTime, // Suppress on finals
+        advanceByPlace: isFinalRound ? 0 : (advanceByPlace || 0), // Suppress on finals, always send explicit value
+        advanceByTime: isFinalRound ? 0 : (advanceByTime || 0), // Suppress on finals, always send explicit value
         isMultiEvent, // For multi-event points display
         eventType, // For calculating multi-event points
         gender: eventGender, // For calculating multi-event points
@@ -2794,7 +2798,8 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
         return res.status(404).json({ error: 'Headshot not found' });
       }
       
-      // Send the file
+      // Send the file with cache headers to avoid repeated disk reads
+      res.set('Cache-Control', 'public, max-age=3600');
       res.sendFile(foundPath);
     } catch (error: any) {
       console.error('Headshot lookup error:', error);

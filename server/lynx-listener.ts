@@ -423,7 +423,16 @@ export class LynxListener extends EventEmitter {
 
   private handleData(socket: net.Socket, data: Buffer, config: PortConfig) {
     let buffer = this.buffers.get(socket) || '';
-    buffer += data.toString();
+    const rawStr = data.toString();
+    buffer += rawStr;
+    
+    // Log clock port data for diagnostics (first 100 chars, throttled)
+    if (config.portType === 'clock') {
+      const preview = rawStr.replace(/[\x00-\x1f]/g, '').substring(0, 100);
+      if (preview.trim()) {
+        console.log(`[Lynx:Clock] Raw data on port ${config.port}: ${preview}`);
+      }
+    }
     
     const { objects, remaining } = this.extractJsonObjects(buffer);
     this.buffers.set(socket, remaining);
@@ -793,9 +802,31 @@ export class LynxListener extends EventEmitter {
       
       // Handle clock data without type (passthrough immediately)
       if (!msgType && config.portType === 'clock') {
-        const timeValue = data.t || data.time;
-        const command = data.c;
-        this.emit('clock-update', this.currentEventNumber, timeValue || '', command || '');
+        const rawTime = data.t || data.time;
+        const timeValue = typeof rawTime === 'string' ? rawTime.trim() : '';
+        const command = (data.c || '').trim();
+        
+        // Skip time_of_day ticks — those are wall clock, not race time
+        // time_of_day is sent when armed/idle, we don't display it as race time
+        if (command === 'time_of_day') {
+          continue;
+        }
+        
+        // Only emit if we have a time value (armed packets may not have one)
+        if (timeValue) {
+          console.log(`[Lynx:Clock] Emitting clock-update: time="${timeValue}" command="${command}"`);
+          this.emit('clock-update', this.currentEventNumber, timeValue, command);
+        }
+        
+        // Track running state from clock commands
+        if (command === 'armed') {
+          this.isRunning = false;
+          this.emit('clock-update', this.currentEventNumber, '', 'armed');
+        } else if (command === 'start' || command === 'running') {
+          this.isRunning = true;
+        } else if (command === 'stop') {
+          this.isRunning = false;
+        }
         continue;
       }
       
@@ -1047,13 +1078,31 @@ export class LynxListener extends EventEmitter {
       }
 
       // Handle clock data without a type field (e.g., {t: "0:12.34"} or {time: "0:12.34"})
-      // NO SMART LOGIC - just pass through exactly what FinishLynx sends
       if (!msgType && config.portType === 'clock') {
-        const timeValue = data.t || data.time;
-        const command = data.c;
+        const rawTime = data.t || data.time;
+        const timeValue = typeof rawTime === 'string' ? rawTime.trim() : '';
+        const command = (data.c || '').trim();
         
-        // Pass through raw clock data - no state tracking, no mode transitions
-        this.emit('clock-update', this.currentEventNumber, timeValue || '', command || '');
+        // Skip time_of_day ticks — wall clock, not race time
+        if (command === 'time_of_day') {
+          return;
+        }
+        
+        // Only emit if we have a time value
+        if (timeValue) {
+          console.log(`[Lynx:Clock] processJsonData clock-update: time="${timeValue}" command="${command}"`);
+          this.emit('clock-update', this.currentEventNumber, timeValue, command);
+        }
+        
+        // Track running state from clock commands
+        if (command === 'armed') {
+          this.isRunning = false;
+          this.emit('clock-update', this.currentEventNumber, '', 'armed');
+        } else if (command === 'start' || command === 'running') {
+          this.isRunning = true;
+        } else if (command === 'stop') {
+          this.isRunning = false;
+        }
         return;
       }
 

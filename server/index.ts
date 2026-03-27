@@ -8,11 +8,12 @@ import { initEVTWatchers } from "./evt-watcher";
 
 const app = express();
 
-// Serve static files from public folder (NCAA logos, etc.)
-app.use(express.static(path.join(process.cwd(), 'public')));
+// Serve static files from public folder (NCAA logos, etc.) with aggressive caching
+// Images rarely change, so cache for 1 hour to avoid repeated disk reads
+app.use(express.static(path.join(process.cwd(), 'public'), { maxAge: '1h' }));
 
-// Serve uploaded files (meet logos, athlete photos, team logos)
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+// Serve uploaded files (meet logos, athlete photos, team logos) with caching
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads'), { maxAge: '1h' }));
 
 declare module 'http' {
   interface IncomingMessage {

@@ -89,29 +89,26 @@ export function isEliminatedVertical(
 ): boolean {
   if (!marks.length) return false;
 
-  const marksByHeight = new Map<number, FieldEventMark[]>();
-  for (const mark of marks) {
-    if (mark.heightIndex === null || mark.heightIndex === undefined) continue;
-    const existing = marksByHeight.get(mark.heightIndex) || [];
-    existing.push(mark);
-    marksByHeight.set(mark.heightIndex, existing);
-  }
+  // Per IAAF/World Athletics rules, elimination occurs after 3 consecutive
+  // misses tracked ACROSS heights, not just within a single height.
+  // Example: 2 misses at 1.90m then 1 miss at 1.95m = eliminated.
+  // A clear resets the counter; passes are neutral.
+  const sortedMarks = [...marks]
+    .filter(m => m.heightIndex !== null && m.heightIndex !== undefined)
+    .sort((a, b) => a.attemptNumber - b.attemptNumber);
 
-  const entries = Array.from(marksByHeight.entries());
-  for (let i = 0; i < entries.length; i++) {
-    const heightMarks = entries[i][1];
-    let consecutiveMisses = 0;
-    
-    for (const mark of heightMarks) {
-      if (mark.markType === 'missed') {
-        consecutiveMisses++;
-        if (consecutiveMisses >= 3) {
-          return true;
-        }
-      } else if (mark.markType === 'cleared') {
-        consecutiveMisses = 0;
+  let consecutiveMisses = 0;
+  
+  for (const mark of sortedMarks) {
+    if (mark.markType === 'missed') {
+      consecutiveMisses++;
+      if (consecutiveMisses >= 3) {
+        return true;
       }
+    } else if (mark.markType === 'cleared') {
+      consecutiveMisses = 0;
     }
+    // Passes don't affect the miss count (neutral)
   }
   
   return false;

@@ -730,6 +730,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
               // Track this WebSocket connection with the device (including displayType)
               // Load persisted autoMode from database, default to true for track displays
               const deviceAutoMode = device.autoMode ?? (device.displayMode === 'track');
+              // Restore contentMode from DB — this is the key fix for mode persistence.
+              // Previously hardcoded to 'lynx', which wiped out hytek/team_scores/field on reconnection.
+              const deviceContentMode = (device as any).contentMode || 'lynx';
               connectedDisplayDevices.set(device.id, {
                 ws,
                 deviceId: device.id,
@@ -740,10 +743,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 pagingSize: device.pagingSize ?? 8,
                 pagingInterval: device.pagingInterval ?? 5,
                 fieldPort: device.fieldPort ?? undefined,
-                contentMode: 'lynx',
+                contentMode: deviceContentMode as any,
+                displayMode: device.displayMode || 'track',
               });
               
-              // Send registration confirmation with assigned event
+              // Send registration confirmation with assigned event + contentMode
               ws.send(JSON.stringify({
                 type: 'device_registered',
                 data: {
@@ -756,6 +760,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   fieldPort: device.fieldPort,
                   isBigBoard: device.isBigBoard,
                   displayMode: device.displayMode,
+                  contentMode: deviceContentMode,
                   autoMode: deviceAutoMode,
                 }
               }));
@@ -765,6 +770,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 type: 'devices_updated',
                 data: { meetId: device.meetId }
               } as WSMessage);
+              
+              // For non-lynx devices: re-send content_mode_change AFTER registration
+              // to override any track layout commands that arrived during the race
+              // window between WebSocket connect and registration completion.
+              // This handles ALL modes: field, hytek, team_scores — not just field.
+              if (deviceContentMode !== 'lynx') {
+                ws.send(JSON.stringify({
+                  type: 'content_mode_change',
+                  contentMode: deviceContentMode,
+                  deviceId: device.id,
+                }));
+                console.log(`[Display] Device "${device.deviceName}" — sent content_mode_change (${deviceContentMode}) after registration`);
+              }
+              if (device.displayMode === 'field') {
+                ws.send(JSON.stringify({
+                  type: 'display_mode_change',
+                  data: {
+                    deviceId: device.id,
+                    deviceName: device.deviceName,
+                    displayMode: 'field',
+                  }
+                }));
+                console.log(`[Display] Field device "${device.deviceName}" — sent display_mode_change after registration`);
+              }
               
               console.log(`Display device registered: ${device.deviceName} (${device.id})`);
             } catch (error) {
@@ -780,6 +809,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Handle display device heartbeat via WebSocket
         if (data.type === 'device_heartbeat' && registeredDeviceId) {
           await storage.updateDisplayDeviceStatus(registeredDeviceId, 'online');
+        }
+        
+        // Handle keepalive ping from display devices — respond with pong
+        // This prevents silent WebSocket disconnects that cause screen lock-ups
+        if (data.type === 'ping') {
+          try {
+            ws.send(JSON.stringify({ type: 'pong' }));
+          } catch (e) {
+            // Connection may be closing
+          }
         }
         
         // Handle field session subscription

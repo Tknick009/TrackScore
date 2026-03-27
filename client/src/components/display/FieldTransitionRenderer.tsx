@@ -27,6 +27,7 @@ export function FieldTransitionRenderer({
   meetId,
   liveData,
   liveEventDataByPort,
+  deviceFieldPort,
   canvasWidth,
   canvasHeight,
 }: {
@@ -37,8 +38,10 @@ export function FieldTransitionRenderer({
   // WebSocket context directly, but that's a SEPARATE unregistered connection that never receives
   // field_mode_change messages from the server.
   liveData?: { entries?: any[]; results?: any[] } | null;
-  // All field port data — so the curtain triggers on ANY field port, not just the device's primary port
+  // All field port data keyed by port number
   liveEventDataByPort?: Record<number, { entries?: any[]; results?: any[] }> | null;
+  // This device's assigned field port — curtain only fires for THIS port's data
+  deviceFieldPort?: number;
   // Canvas dimensions for responsive scaling — the curtain scales text/logo relative to
   // a 1080p reference so it looks correct on P10 (192x96) through BigBoard (1920x1080).
   canvasWidth?: number;
@@ -51,6 +54,9 @@ export function FieldTransitionRenderer({
   const prevCalledBibRef = useRef<string>('');
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const versionRef = useRef(0);
+  // Ref that tracks current phase so async team-data fetch can check
+  // whether the curtain is still active before updating colors.
+  const phaseRef = useRef<CurtainPhase>('idle');
 
   const clearTimers = useCallback(() => {
     timersRef.current.forEach(clearTimeout);
@@ -67,46 +73,51 @@ export function FieldTransitionRenderer({
     setLogoSrc(newLogoSrc);
     setPrimaryColor(primary);
     setSecondaryColor(secondary);
-    setPhase('coverStart');
+    setPhase('coverStart'); phaseRef.current = 'coverStart';
 
     timersRef.current.push(setTimeout(() => {
       if (versionRef.current !== version) return;
-      setPhase('covering');
+      setPhase('covering'); phaseRef.current = 'covering';
 
       timersRef.current.push(setTimeout(() => {
         if (versionRef.current !== version) return;
-        setPhase('paused');
+        setPhase('paused'); phaseRef.current = 'paused';
 
         timersRef.current.push(setTimeout(() => {
           if (versionRef.current !== version) return;
-          setPhase('reveal');
+          setPhase('reveal'); phaseRef.current = 'reveal';
 
           timersRef.current.push(setTimeout(() => {
             if (versionRef.current !== version) return;
-            setPhase('idle');
+            setPhase('idle'); phaseRef.current = 'idle';
           }, 700));
-        }, 1400));
+        }, 1000));  // Was 1400ms — reduced to 1000ms for snappier feel
       }, 600));
     }, 30));
   }, [clearTimers]);
 
   useEffect(() => () => clearTimers(), [clearTimers]);
 
-  // Merge all data sources: primary liveData + all port-specific data
-  // This ensures the curtain triggers for ANY field port, not just the device's primary port
+  // Get the live data for THIS device's assigned field port only.
+  // If the device has a specific port assigned, use only that port's data.
+  // This prevents the curtain from firing on ALL devices when ANY port updates.
   const mergedLiveData = useMemo(() => {
     const allSources: Array<{ entries?: any[]; results?: any[] }> = [];
-    if (liveData) allSources.push(liveData);
-    if (liveEventDataByPort) {
-      for (const portData of Object.values(liveEventDataByPort)) {
-        if (portData) allSources.push(portData);
-      }
+    
+    // If device has a specific field port, ONLY use that port's data
+    if (deviceFieldPort && liveEventDataByPort) {
+      const portData = liveEventDataByPort[deviceFieldPort];
+      if (portData) allSources.push(portData);
+    } else if (liveData) {
+      // No specific port assigned — use the global liveData (original behavior)
+      allSources.push(liveData);
     }
+    
     return allSources;
-  }, [liveData, liveEventDataByPort]);
+  }, [liveData, liveEventDataByPort, deviceFieldPort]);
 
   // React to live data changes — detect when a new athlete is "called up" (entry with no mark).
-  // Scans ALL field port data so the curtain fires for any field event, not just the primary port.
+  // Only scans this device's own field port data so the curtain fires only for the correct event.
   useEffect(() => {
     if (mergedLiveData.length === 0) return;
 
@@ -133,13 +144,16 @@ export function FieldTransitionRenderer({
     const school = calledUp.affiliation || calledUp.team || '';
     const name = calledUp.name || '';
 
-    // Fetch team colors and logo asynchronously, then trigger curtain
-    (async () => {
-      let logoUrl: string | null = null;
-      let primary = curtainColor;
-      let secondary = curtainColor;
-
-      if (school) {
+    // START CURTAIN IMMEDIATELY with default colors — don't wait for HTTP fetch.
+    // Previously the curtain waited for team color fetch (1-2s) BEFORE starting,
+    // which combined with the 2.7s animation created a perceived 4s delay.
+    // Now: curtain starts instantly, team data updates colors mid-animation.
+    runCurtain(null, curtainColor, curtainColor);
+    
+    // Fetch team colors/logo in parallel — update curtain colors if data arrives
+    // during the covering or paused phase (before reveal starts).
+    if (school) {
+      (async () => {
         try {
           const meetParam = meetId
             ? `&meetId=${encodeURIComponent(meetId)}`
@@ -149,19 +163,23 @@ export function FieldTransitionRenderer({
           );
           if (res.ok) {
             const teamData = await res.json();
-            if (teamData?.logoUrl) logoUrl = teamData.logoUrl;
-            if (teamData?.primaryColor) {
-              primary = teamData.primaryColor;
-              secondary = teamData.secondaryColor || teamData.primaryColor;
+            // Only update if curtain is still active (not yet revealing/idle)
+            const currentPhase = phaseRef.current;
+            if (currentPhase === 'coverStart' || currentPhase === 'covering' || currentPhase === 'paused') {
+              if (teamData?.primaryColor) {
+                setPrimaryColor(teamData.primaryColor);
+                setSecondaryColor(teamData.secondaryColor || teamData.primaryColor);
+              }
+              if (teamData?.logoUrl) {
+                setLogoSrc(teamData.logoUrl);
+              }
             }
           }
         } catch {
-          /* ignore */
+          /* ignore — curtain already running with default colors */
         }
-      }
-
-      runCurtain(logoUrl, primary, secondary);
-    })();
+      })();
+    }
   }, [mergedLiveData, curtainColor, meetId, runCurtain]);
 
   if (phase === 'idle') return null;
@@ -212,7 +230,7 @@ export function FieldTransitionRenderer({
     overflow: 'hidden',
     background: gradient,
     zIndex: 50,
-    transition: panelTransition,
+    transition: `${panelTransition}, background 0.3s ease`,
   };
 
   // Subtle diagonal stripe texture — scale stripe width with display size

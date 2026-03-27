@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Search, CheckCircle2, XCircle, ArrowUpDown, RefreshCw, Play } from "lucide-react";
+import { Search, CheckCircle2, XCircle, ArrowUpDown, RefreshCw, Play, Palette } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -25,6 +25,8 @@ type TeamMatch = {
   hasLogo: boolean;
   logoUrl: string | null;
   suggestedFile: string | null;
+  primaryColor: string | null;
+  secondaryColor: string | null;
 };
 
 type LogoData = {
@@ -146,6 +148,23 @@ export default function LogoManager() {
   const handleSingleRename = useCallback((oldFilename: string, newFilename: string) => {
     renameMutation.mutate({ oldFilename, newFilename });
   }, [renameMutation]);
+
+  const colorMutation = useMutation({
+    mutationFn: async ({ teamId, primaryColor, secondaryColor }: { teamId: string; primaryColor: string | null; secondaryColor: string | null }) => {
+      return apiRequest('PATCH', `/api/teams/${teamId}/colors`, { primaryColor, secondaryColor });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/meets', currentMeetId, 'logo-manager'] });
+      toast({ title: 'Colors updated' });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Color update failed', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  const handleColorChange = useCallback((teamId: string, primaryColor: string | null, secondaryColor: string | null) => {
+    colorMutation.mutate({ teamId, primaryColor, secondaryColor });
+  }, [colorMutation]);
 
   const filteredAndSorted = useMemo(() => {
     if (!data?.teams) return [];
@@ -302,6 +321,7 @@ export default function LogoManager() {
                   <th className="text-left px-3 py-2 font-medium">Team</th>
                   <th className="text-left px-3 py-2 font-medium">Expected File</th>
                   <th className="text-left px-3 py-2 font-medium">Assign File</th>
+                  <th className="text-left px-3 py-2 font-medium">Colors</th>
                 </tr>
               </thead>
               <tbody>
@@ -316,11 +336,12 @@ export default function LogoManager() {
                     onFileSelect={handleFileSelect}
                     onRename={handleSingleRename}
                     isRenaming={renameMutation.isPending}
+                    onColorChange={handleColorChange}
                   />
                 ))}
                 {filteredAndSorted.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="text-center text-muted-foreground py-8">
+                    <td colSpan={7} className="text-center text-muted-foreground py-8">
                       No teams found
                     </td>
                   </tr>
@@ -343,6 +364,7 @@ interface TeamRowProps {
   onFileSelect: (teamId: string, filename: string) => void;
   onRename: (oldFilename: string, newFilename: string) => void;
   isRenaming: boolean;
+  onColorChange: (teamId: string, primaryColor: string | null, secondaryColor: string | null) => void;
 }
 
 const MemoTeamRow = memo(function TeamRow({
@@ -354,7 +376,26 @@ const MemoTeamRow = memo(function TeamRow({
   onFileSelect,
   onRename,
   isRenaming,
+  onColorChange,
 }: TeamRowProps) {
+  const [editingColors, setEditingColors] = useState(false);
+  const [primary, setPrimary] = useState(team.primaryColor || '#000000');
+  const [secondary, setSecondary] = useState(team.secondaryColor || '#ffffff');
+
+  useEffect(() => {
+    setPrimary(team.primaryColor || '#000000');
+    setSecondary(team.secondaryColor || '#ffffff');
+  }, [team.primaryColor, team.secondaryColor]);
+
+  const handleSaveColors = useCallback(() => {
+    onColorChange(team.teamId, primary, secondary);
+    setEditingColors(false);
+  }, [team.teamId, primary, secondary, onColorChange]);
+
+  const handleClearColors = useCallback(() => {
+    onColorChange(team.teamId, null, null);
+    setEditingColors(false);
+  }, [team.teamId, onColorChange]);
   const handleCheck = useCallback((checked: boolean | "indeterminate") => {
     onToggleCheck(team.teamId, !!checked);
   }, [team.teamId, onToggleCheck]);
@@ -437,6 +478,74 @@ const MemoTeamRow = memo(function TeamRow({
           <span className="text-xs text-muted-foreground">{team.matchedFile}</span>
         )}
       </td>
+      <td className="px-3 py-2">
+        {!editingColors ? (
+          <div className="flex items-center gap-1.5">
+            {team.primaryColor ? (
+              <>
+                <button
+                  onClick={() => setEditingColors(true)}
+                  className="flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-muted transition-colors"
+                  title="Edit colors"
+                >
+                  <span
+                    className="inline-block w-5 h-5 rounded border border-border"
+                    style={{ backgroundColor: team.primaryColor }}
+                  />
+                  <span
+                    className="inline-block w-5 h-5 rounded border border-border"
+                    style={{ backgroundColor: team.secondaryColor || '#ffffff' }}
+                  />
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => setEditingColors(true)}
+                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+              >
+                <Palette className="w-3.5 h-3.5" />
+                Set
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs text-muted-foreground w-5">1</label>
+              <input
+                type="color"
+                value={primary}
+                onChange={(e) => setPrimary(e.target.value)}
+                className="w-7 h-7 rounded cursor-pointer border border-border p-0"
+              />
+              <span className="text-xs font-mono text-muted-foreground">{primary}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs text-muted-foreground w-5">2</label>
+              <input
+                type="color"
+                value={secondary}
+                onChange={(e) => setSecondary(e.target.value)}
+                className="w-7 h-7 rounded cursor-pointer border border-border p-0"
+              />
+              <span className="text-xs font-mono text-muted-foreground">{secondary}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button size="sm" variant="default" onClick={handleSaveColors} className="h-6 text-xs px-2">
+                Save
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setEditingColors(false)} className="h-6 text-xs px-2">
+                Cancel
+              </Button>
+              {team.primaryColor && (
+                <Button size="sm" variant="ghost" onClick={handleClearColors} className="h-6 text-xs px-2 text-destructive">
+                  Clear
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+      </td>
     </tr>
   );
 }, (prevProps, nextProps) => {
@@ -446,6 +555,8 @@ const MemoTeamRow = memo(function TeamRow({
     prevProps.isRenaming === nextProps.isRenaming &&
     prevProps.team.teamId === nextProps.team.teamId &&
     prevProps.team.hasLogo === nextProps.team.hasLogo &&
+    prevProps.team.primaryColor === nextProps.team.primaryColor &&
+    prevProps.team.secondaryColor === nextProps.team.secondaryColor &&
     prevProps.orphanFiles === nextProps.orphanFiles
   );
 });

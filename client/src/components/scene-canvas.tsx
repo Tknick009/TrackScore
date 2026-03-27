@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, memo, useRef } from "react";
+import { useState, useEffect, useMemo, memo, useRef, useCallback } from "react";
 import { FieldTransitionRenderer } from "@/components/display/FieldTransitionRenderer";
 import { useQuery } from "@tanstack/react-query";
 import type { 
@@ -22,8 +22,44 @@ import { formatHeatDisplay } from "@/lib/fieldBindings";
 import { calculateMultiEventPoints, normalizeEventType, hasScoring, type Gender } from "@shared/combined-scoring";
 import { Trophy, Clock, Users, User, Image, Type, Award, Loader2 } from "lucide-react";
 
-// Static clock display - shows exactly what FinishLynx sends, no local interpolation
-function StaticRunningClock({ 
+// Helper: parse time string (M:SS.dd or SS.dd) to total milliseconds
+function parseTimeToMs(timeStr: string): number | null {
+  if (!timeStr) return null;
+  // Match formats: "1:23.45", "23.45", "1:23.4", "23.4", "1:23", "23"
+  const match = timeStr.trim().match(/^(\d{1,2}):(\d{1,2})(?:\.(\d{1,3}))?$|^(\d{1,3})(?:\.(\d{1,3}))?$/);
+  if (!match) return null;
+  let minutes = 0, seconds = 0, frac = 0;
+  if (match[1] !== undefined) {
+    // M:SS.dd format
+    minutes = parseInt(match[1]);
+    seconds = parseInt(match[2]);
+    frac = match[3] ? parseInt(match[3].padEnd(3, '0')) : 0;
+  } else {
+    // SS.dd format
+    seconds = parseInt(match[4]);
+    frac = match[5] ? parseInt(match[5].padEnd(3, '0')) : 0;
+  }
+  return (minutes * 60 + seconds) * 1000 + frac;
+}
+
+// Helper: format milliseconds to M:SS.d (tenths precision for display)
+function formatMsToTime(ms: number): string {
+  if (ms < 0) ms = 0;
+  const totalSeconds = ms / 1000;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  // Under 1 minute: show SS.d (no leading 0: prefix)
+  // 1 minute+: show M:SS.d
+  if (minutes === 0) {
+    return seconds.toFixed(1);
+  }
+  const secStr = seconds < 10 ? '0' + seconds.toFixed(1) : seconds.toFixed(1);
+  return `${minutes}:${secStr}`;
+}
+
+// Interpolating clock display - receives server ticks and smoothly counts between them
+// Uses requestAnimationFrame to fill in between FinishLynx ticks for buttery smooth tenths
+const StaticRunningClock = memo(function StaticRunningClock({ 
   serverTime, 
   fontSize,
   color
@@ -32,19 +68,85 @@ function StaticRunningClock({
   fontSize?: string;
   color?: string;
 }) {
-  // Display exactly what FinishLynx sends - no local counting
+  const displayRef = useRef<HTMLDivElement>(null);
+  // Track the last server tick: parsed ms value and when we received it (performance.now)
+  const lastServerMsRef = useRef<number | null>(null);
+  const lastServerReceivedAtRef = useRef<number>(0);
+  const rafRef = useRef<number>(0);
+  const lastDisplayedRef = useRef<string>('');
+  const isRunningRef = useRef<boolean>(false);
+
+  // When serverTime changes, update our reference point
+  useEffect(() => {
+    if (!serverTime) {
+      // Clock cleared (e.g. back to start list) - stop interpolation
+      isRunningRef.current = false;
+      lastServerMsRef.current = null;
+      if (displayRef.current) {
+        displayRef.current.textContent = '';
+      }
+      return;
+    }
+    
+    const parsed = parseTimeToMs(serverTime);
+    if (parsed !== null) {
+      if (isRunningRef.current && lastServerMsRef.current !== null) {
+        // Already interpolating — only resync if drift is significant (>500ms)
+        // This prevents choppy jumps caused by React render delays resetting
+        // the reference point while rAF is smoothly counting
+        const currentElapsed = performance.now() - lastServerReceivedAtRef.current;
+        const currentInterpolated = lastServerMsRef.current + currentElapsed;
+        const drift = Math.abs(parsed - currentInterpolated);
+        if (drift < 500) {
+          return; // In sync — let rAF keep running smoothly
+        }
+      }
+      // First tick or significant drift — sync to server
+      lastServerMsRef.current = parsed;
+      lastServerReceivedAtRef.current = performance.now();
+      isRunningRef.current = true;
+    } else {
+      // Can't parse — just show raw text
+      if (displayRef.current) {
+        displayRef.current.textContent = serverTime;
+      }
+    }
+  }, [serverTime]);
+
+  // requestAnimationFrame loop for smooth interpolation
+  useEffect(() => {
+    const tick = () => {
+      if (isRunningRef.current && lastServerMsRef.current !== null && displayRef.current) {
+        // Calculate interpolated time: last server time + elapsed since we received it
+        const elapsed = performance.now() - lastServerReceivedAtRef.current;
+        const interpolatedMs = lastServerMsRef.current + elapsed;
+        const formatted = formatMsToTime(interpolatedMs);
+        // Only update DOM if text actually changed (avoid layout thrashing)
+        if (formatted !== lastDisplayedRef.current) {
+          displayRef.current.textContent = formatted;
+          lastDisplayedRef.current = formatted;
+        }
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, []);
+
   return (
     <div 
+      ref={displayRef}
       className="font-stadium-numbers font-[900]"
       style={{ 
         fontSize: fontSize || '48px',
-        color: color || 'hsl(var(--display-fg))'
+        color: color || 'hsl(var(--display-fg))',
+        // GPU-accelerated text rendering for smooth clock updates
+        willChange: 'contents',
+        contain: 'layout style paint',
       }}
-    >
-      {serverTime || ""}
-    </div>
+    />
   );
-}
+});
 
 // Robust logo component with proper error handling
 // Falls back to 0.png when logo fails to load
@@ -408,6 +510,12 @@ export function SceneObjectRenderer({
     padding: styleConfig.padding ? `${styleConfig.padding}px` : undefined,
     paddingLeft: styleConfig.paddingLeft ? `${styleConfig.paddingLeft}px` : undefined,
     paddingRight: styleConfig.paddingRight ? `${styleConfig.paddingRight}px` : undefined,
+    // Smooth opacity transitions when results come in (50% → 100%)
+    transition: 'opacity 0.3s ease-out',
+    // GPU acceleration: promote this element to its own compositor layer
+    // This prevents layout thrash when sibling elements update
+    willChange: 'opacity',
+    contain: 'layout style paint',
     ...borderStyles,
   };
   
@@ -465,12 +573,17 @@ export function SceneObjectRenderer({
         const timerFontSize = typeof timerNumericSize === 'number' 
           ? `${timerNumericSize}px` 
           : (timerNumericSize === 'xlarge' ? '96px' : timerNumericSize === 'large' ? '72px' : timerNumericSize === 'medium' ? '48px' : '36px');
-        // Only show time from FinishLynx when race is running
+        // Use liveClockTime (from FinishLynx port 5556) as primary source,
+        // fall back to liveData.runningTime when race is running
         const timerIsRunning = liveData?.mode === 'running' || liveData?.isRunning === true;
-        const timerTime = timerIsRunning ? liveData?.runningTime : null;
+        const timerTime = liveClockTime || (timerIsRunning ? liveData?.runningTime : null);
         return (
           <div 
             className="flex items-center justify-center h-full bg-[hsl(var(--display-bg))]"
+            style={{
+              // GPU-accelerated container for smooth clock digit updates
+              contain: 'layout style paint',
+            }}
           >
             <StaticRunningClock 
               serverTime={timerTime}
@@ -494,7 +607,11 @@ export function SceneObjectRenderer({
           <div className="flex flex-col justify-center h-full p-4 bg-[hsl(var(--display-bg))]">
             <h1 
               className="font-stadium font-[900] text-[hsl(var(--display-fg))] uppercase"
-              style={{ fontSize: headerFontSize }}
+              style={{ 
+                fontSize: headerFontSize,
+                // Smooth text transitions when event name changes
+                transition: 'opacity 0.2s ease-out',
+              }}
             >
               {headerEventName}
             </h1>
@@ -540,7 +657,7 @@ export function SceneObjectRenderer({
             // Detect relay/medley events — these don't have individual headshots
             const currentEventNameForPhoto = liveData.eventName || '';
             const eventLowerForPhoto = currentEventNameForPhoto.toLowerCase();
-            const isRelayOrMedleyPhoto = eventLowerForPhoto.includes('relay') || eventLowerForPhoto.includes('medley');
+            const isRelayOrMedleyPhoto = (liveData as any).isRelay === true || eventLowerForPhoto.includes('relay') || eventLowerForPhoto.includes('medley');
             
             if (isRelayOrMedleyPhoto) {
               // For relays/medleys, fall back directly to team/affiliation logo
@@ -712,12 +829,14 @@ export function SceneObjectRenderer({
           const windDisplay = isValidWind ? windStr : '';
           
           // Compute qualifier status: Q = qualified by place, q = qualified by time
-          const advanceByPlace = liveData.advanceByPlace;
-          const advanceByTime = liveData.advanceByTime;
+          // Only show Big Q when advanceByPlace > 0 (explicit positive number check)
+          // If formula is "Top 0 + Next 8 Times", no Q badges should appear
+          const advanceByPlace = typeof liveData.advanceByPlace === 'number' ? liveData.advanceByPlace : 0;
+          const advanceByTime = typeof liveData.advanceByTime === 'number' ? liveData.advanceByTime : 0;
           let qualifierStatus = '';
           const entryPlace = parseInt(String(firstEntry?.place || '0'));
           const roundCheckStr = String(liveData.roundName || liveData.round || '').toLowerCase();
-          if (entryPlace > 0 && advanceByPlace && !roundCheckStr.includes('final')) {
+          if (entryPlace > 0 && advanceByPlace > 0 && !roundCheckStr.includes('final')) {
             if (entryPlace <= advanceByPlace) {
               qualifierStatus = 'Q'; // Qualified by place
             }
@@ -729,9 +848,9 @@ export function SceneObjectRenderer({
           const isFinalRound = roundNameStr.includes('final');
           
           let advancementFormula = '';
-          if (!isFinalRound && (advanceByPlace || advanceByTime)) {
-            const place = advanceByPlace || 0;
-            const time = advanceByTime || 0;
+          if (!isFinalRound && (advanceByPlace > 0 || advanceByTime > 0)) {
+            const place = advanceByPlace;
+            const time = advanceByTime;
             if (place > 0 && time > 0) {
               advancementFormula = `Top ${place} + Next ${time} Times`;
             } else if (place > 0) {
@@ -767,7 +886,7 @@ export function SceneObjectRenderer({
           
           const isTeamScores = liveData.mode === 'team_scores';
           const eventNameLowerText = eventName.toLowerCase();
-          const isRelayOrMedleyText = eventNameLowerText.includes('relay') || eventNameLowerText.includes('medley');
+          const isRelayOrMedleyText = (liveData as any).isRelay === true || eventNameLowerText.includes('relay') || eventNameLowerText.includes('medley');
           const displayName = isTeamScores 
             ? (firstEntry?.name || '')
             : isRelayOrMedleyText
@@ -983,10 +1102,11 @@ export function SceneObjectRenderer({
           if (entry?.qualifier) {
             qualifierBadge = entry.qualifier;
           } else {
-            const advanceByPlace = liveData.advanceByPlace;
+            const advByPlace = typeof liveData.advanceByPlace === 'number' ? liveData.advanceByPlace : 0;
             const entryPlace = parseInt(String(entry?.place || '0'));
             const roundStr = String(liveData.roundName || liveData.round || '').toLowerCase();
-            if (entryPlace > 0 && advanceByPlace && entryPlace <= advanceByPlace && !roundStr.includes('final')) {
+            // Only show Big Q when advanceByPlace > 0 and not a final round
+            if (entryPlace > 0 && advByPlace > 0 && entryPlace <= advByPlace && !roundStr.includes('final')) {
               qualifierBadge = 'Q';
             }
           }
@@ -1482,6 +1602,7 @@ export function SceneObjectRenderer({
             meetId={meetId}
             liveData={liveData}
             liveEventDataByPort={liveEventDataByPort}
+            deviceFieldPort={deviceFieldPort}
             canvasWidth={canvasWidth}
             canvasHeight={canvasHeight}
           />
@@ -1571,8 +1692,19 @@ export function SceneCanvas({
   // Use entries in arrival order for start_list (FinishLynx controls display order)
   // Only sort results mode by place
   // DNS entries are completely hidden, all others are visible (50% opacity if no timing data)
+  //
+  // PERFORMANCE: Use a ref to store the previous result and only return a new object
+  // if the data actually changed. This prevents cascading re-renders of all child
+  // SceneObjectRenderer components when the raw data reference changes but content is the same.
+  const prevLiveDataRef = useRef<any>(null);
+  const prevLiveDataKeyRef = useRef<string>('');
+  
   const liveData = useMemo(() => {
-    if (!rawLiveData) return rawLiveData;
+    if (!rawLiveData) {
+      prevLiveDataRef.current = null;
+      prevLiveDataKeyRef.current = '';
+      return rawLiveData;
+    }
     
     const entries = rawLiveData.entries || rawLiveData.results || [];
     if (entries.length === 0) return rawLiveData;
@@ -1582,6 +1714,8 @@ export function SceneCanvas({
     
     // Keep ALL entries visible (including DNS/FS/Scratch) — they render at 50% opacity
     // instead of being hidden. The SceneObjectRenderer contentFadeOpacity logic handles dimming.
+    
+    let processedEntries = entries;
     
     if (isResults) {
       // If entries have times but no places, compute places from times
@@ -1611,7 +1745,7 @@ export function SceneCanvas({
         });
       }
       
-      const sortedEntries = [...enrichedEntries].sort((a: any, b: any) => {
+      processedEntries = [...enrichedEntries].sort((a: any, b: any) => {
         const hasTimeA = a.time && String(a.time).trim() !== '';
         const hasPlaceA = a.place && String(a.place).trim() !== '';
         const hasResultA = hasTimeA || hasPlaceA;
@@ -1627,18 +1761,26 @@ export function SceneCanvas({
         }
         return 0;
       });
-      return {
-        ...rawLiveData,
-        entries: sortedEntries,
-      };
     }
     
-    // For running/start_list modes: show all entries
-    // DNS/FS/Scratch entries render at 50% opacity (handled by SceneObjectRenderer)
-    return {
+    // PERFORMANCE: Create a content fingerprint to detect actual data changes.
+    // If the key hasn't changed, return the previous object reference to prevent
+    // cascading re-renders down the component tree.
+    const contentKey = `${rawLiveData.eventNumber}|${mode}|${processedEntries.length}|${
+      processedEntries.map((e: any) => `${e.bib || ''}:${e.time || ''}:${e.place || ''}:${e.mark || ''}`).join(',')
+    }`;
+    
+    if (contentKey === prevLiveDataKeyRef.current && prevLiveDataRef.current) {
+      return prevLiveDataRef.current;
+    }
+    
+    const result = {
       ...rawLiveData,
-      entries: entries,
+      entries: processedEntries,
     };
+    prevLiveDataRef.current = result;
+    prevLiveDataKeyRef.current = contentKey;
+    return result;
   }, [rawLiveData]);
   
   const totalEntries = useMemo(() => {

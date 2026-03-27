@@ -20,7 +20,7 @@ import type { RouteContext } from "../route-context";
 import * as fs from 'fs';
 
 export function registerFieldEventsRoutes(app: Express, ctx: RouteContext) {
-  const { broadcastFieldEventUpdate, autoExportLFF, broadcastToDisplays } = ctx;
+  const { broadcastFieldEventUpdate, autoExportLFF, broadcastToDisplays, fieldSessionSubscribers } = ctx;
 
   // ===== EVT CONFIG =====
   // ===============================
@@ -606,6 +606,10 @@ export function registerFieldEventsRoutes(app: Express, ctx: RouteContext) {
         return res.status(400).json({ error: "Invalid session ID" });
       }
       await storage.deleteFieldEventSession(id);
+      // Clean up WebSocket subscriber set for this session to prevent memory leak
+      if (fieldSessionSubscribers.has(id)) {
+        fieldSessionSubscribers.delete(id);
+      }
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -1126,8 +1130,12 @@ export function registerFieldEventsRoutes(app: Express, ctx: RouteContext) {
         
         // Check if bar should advance (all active athletes finished at current height)
         const currentHeightIndex = session.currentHeightIndex || 0;
+        // Include all athletes who are NOT in a terminal state.
+        // Athletes can have various active statuses ('competing', 'checked_in', 'waiting',
+        // 'active', 'up') — exclude only terminal ones to avoid missing anyone.
+        const terminalStatuses = new Set(['completed', 'dns', 'scratched', 'retired', 'checked_out']);
         const activeAthletes = athletes.filter(a => 
-          a.competitionStatus === 'competing' || a.competitionStatus === 'checked_in'
+          a.checkInStatus === 'checked_in' && !terminalStatuses.has(a.competitionStatus || '')
         );
         
         // For bar advancement, we need to check if all active athletes have either:

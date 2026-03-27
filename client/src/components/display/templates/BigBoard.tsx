@@ -78,7 +78,10 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
     });
   }, [displayedEntries]);
 
-  const isRelay = event.eventType?.toLowerCase().includes('relay');
+  // Detect relay events — check server flag, eventType, AND event name for comprehensive detection
+  const eventNameLower = (event.name || '').toLowerCase();
+  const eventTypeLower = (event.eventType || '').toLowerCase();
+  const isRelay = (event as any).isRelay === true || eventTypeLower.includes('relay') || eventTypeLower.startsWith('4x') || /^\d+x\d+/.test(eventTypeLower) || eventNameLower.includes('relay') || eventNameLower.includes('medley');
   const isCompleted = event.status === 'completed';
   const isStartList = event.status === 'scheduled' || event.status === 'upcoming';
   const status = isCompleted ? 'FINAL' : event.status === 'in_progress' ? 'IN PROGRESS' : 'SCHEDULED';
