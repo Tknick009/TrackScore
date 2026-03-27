@@ -5,6 +5,7 @@ import { getPodiumColor, getTeamColor } from "../utils";
 import { isTrackEvent as checkIsTrackEvent } from "@shared/event-catalog";
 import { formatHeatDisplay } from "@/lib/fieldBindings";
 import { Star } from "lucide-react";
+import { getLogoEffectStyle } from "@/lib/logoEffects";
 
 interface SingleResultBoardProps {
   event: EventWithEntries;
@@ -46,6 +47,7 @@ export function SingleResultBoard({ event, meet, mode, athleteId }: SingleResult
             src={meet.logoUrl}
             alt={meet.name}
             className="h-20 w-auto object-contain opacity-80"
+            style={getLogoEffectStyle(meet.logoEffect)}
             data-testid="img-meet-logo"
           />
         </div>

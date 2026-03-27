@@ -236,6 +236,14 @@ export const FIELD_BINDINGS: Record<string, FieldBinding> = {
     dataKey: 'qualifier',
     category: 'result',
   },
+  'new-record-tag': {
+    key: 'new-record-tag',
+    label: 'New Record Tag',
+    type: 'text',
+    description: 'Shows "NEW" plus the record badge (MR/FR/PB/SB) for this athlete line',
+    dataKey: 'newRecordTag',
+    category: 'result',
+  },
   'attempt': {
     key: 'attempt',
     label: 'Attempt',

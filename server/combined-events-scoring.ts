@@ -362,6 +362,80 @@ export function isEventInCombinedEvent(eventType: string, combinedEventType: Com
   return COMBINED_EVENT_DEFINITIONS[combinedEventType]?.events.includes(normalized) || false;
 }
 
+/**
+ * Map a sub-event name (from FinishLynx) to a scoring table key.
+ * Handles cleaned names like "60M", "60M Hurdles", "1000M", "800M"
+ * as well as raw names like "60 Meter Dash", "60 Meter Hurdles", "1000 Meter Run".
+ */
+export function mapSubEventToScoringKey(subEvent: string): string | null {
+  const normalized = subEvent.toLowerCase().trim();
+  
+  // Track events: "60 Meter Dash" / "60M" → "60m", "60 Meter Hurdles" / "60M Hurdles" → "60m_hurdles"
+  const trackMatch = normalized.match(/^(\d+)\s*(?:meter|m)\s*(dash|run|hurdles?)?/i);
+  if (trackMatch) {
+    const distance = trackMatch[1];
+    const type = (trackMatch[2] || '').toLowerCase();
+    if (type.startsWith('hurdle')) {
+      return `${distance}m_hurdles`;
+    }
+    return `${distance}m`;
+  }
+  
+  // Field events
+  if (/high\s*jump/i.test(normalized)) return 'high_jump';
+  if (/long\s*jump/i.test(normalized)) return 'long_jump';
+  if (/triple\s*jump/i.test(normalized)) return 'triple_jump';
+  if (/pole\s*vault/i.test(normalized)) return 'pole_vault';
+  if (/shot\s*put/i.test(normalized)) return 'shot_put';
+  if (/discus/i.test(normalized)) return 'discus';
+  if (/javelin/i.test(normalized)) return 'javelin';
+  if (/hammer/i.test(normalized)) return 'hammer';
+  
+  return null;
+}
+
+/**
+ * Parse a multi-event name from FinishLynx to extract the sub-event type and gender.
+ * FinishLynx sends event names like:
+ *   "Hept Men 60 Meter Dash"  (raw) or "Hept Men 60M" (cleaned)
+ *   "Pent Women 60 Meter Hurdles" (raw) or "Pent Women 60M Hurdles" (cleaned)
+ *   "Hept Men 1000 Meter Run" (raw) or "Hept Men 1000M" (cleaned)
+ * 
+ * Returns the scoring key and gender needed for calculateEventPoints().
+ */
+export function parseMultiEventName(eventName: string): {
+  scoringKey: string;
+  gender: Gender;
+  combinedType: string;
+} | null {
+  if (!eventName) return null;
+  
+  // Match: (Hept|Pent|Dec|Heptathlon|Pentathlon|Decathlon) (Men|Women) <sub-event>
+  const match = eventName.match(/\b(Hept(?:athlon)?|Pent(?:athlon)?|Dec(?:athlon)?)\s+(Men|Women)\s+(.+)/i);
+  if (!match) return null;
+  
+  const multiType = match[1].toLowerCase();
+  const genderStr = match[2].toLowerCase();
+  const subEvent = match[3].trim();
+  
+  const gender: Gender = genderStr === 'women' ? 'F' : 'M';
+  
+  // Determine combined event type label
+  let combinedType = '';
+  if (multiType.startsWith('hept')) {
+    combinedType = gender === 'M' ? 'indoor_heptathlon' : 'heptathlon';
+  } else if (multiType.startsWith('pent')) {
+    combinedType = gender === 'F' ? 'indoor_pentathlon' : 'outdoor_pentathlon';
+  } else if (multiType.startsWith('dec')) {
+    combinedType = 'decathlon';
+  }
+  
+  const scoringKey = mapSubEventToScoringKey(subEvent);
+  if (!scoringKey) return null;
+  
+  return { scoringKey, gender, combinedType };
+}
+
 export default {
   calculateEventPoints,
   calculateCombinedEventTotal,
@@ -370,6 +444,8 @@ export default {
   parsePerformance,
   normalizeEventType,
   isEventInCombinedEvent,
+  parseMultiEventName,
+  mapSubEventToScoringKey,
   COMBINED_EVENT_DEFINITIONS,
   SCORING_TABLES
 };

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import type { EventWithEntries, Meet, EntryWithDetails } from "@shared/schema";
+import { getLogoEffectStyle } from "@/lib/logoEffects";
 
 interface FieldSideBySideProps {
   event: EventWithEntries;
@@ -28,10 +29,13 @@ export function FieldSideBySide({ event, meet, leftAthlete, rightAthlete, liveTi
     return () => clearInterval(interval);
   }, []);
 
+  // Truncate to nearest hundredth (field event marks are rounded DOWN per WA rules)
+  const floorH = (v: number) => Math.floor(v * 100 + 1e-9) / 100;
+
   const formatMark = (mark: number | null | undefined): string => {
     if (mark === null || mark === undefined) return '--';
     const meters = mark / 100;
-    return `${meters.toFixed(2)}m`;
+    return `${floorH(meters).toFixed(2)}m`;
   };
 
   const getAttemptNumber = (entry: EntryWithDetails | undefined): number => {
@@ -183,6 +187,7 @@ export function FieldSideBySide({ event, meet, leftAthlete, rightAthlete, liveTi
               src={meet.logoUrl} 
               alt={meet.name} 
               className="h-16 object-contain"
+              style={getLogoEffectStyle(meet.logoEffect)}
             />
           )}
           <h1 

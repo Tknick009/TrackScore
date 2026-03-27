@@ -22,129 +22,168 @@ import { formatHeatDisplay } from "@/lib/fieldBindings";
 import { calculateMultiEventPoints, normalizeEventType, hasScoring, type Gender } from "@shared/combined-scoring";
 import { Trophy, Clock, Users, User, Image, Type, Award, Loader2 } from "lucide-react";
 
-// Helper: parse time string (M:SS.dd or SS.dd) to total milliseconds
-function parseTimeToMs(timeStr: string): number | null {
-  if (!timeStr) return null;
-  // Match formats: "1:23.45", "23.45", "1:23.4", "23.4", "1:23", "23"
-  const match = timeStr.trim().match(/^(\d{1,2}):(\d{1,2})(?:\.(\d{1,3}))?$|^(\d{1,3})(?:\.(\d{1,3}))?$/);
-  if (!match) return null;
-  let minutes = 0, seconds = 0, frac = 0;
-  if (match[1] !== undefined) {
-    // M:SS.dd format
-    minutes = parseInt(match[1]);
-    seconds = parseInt(match[2]);
-    frac = match[3] ? parseInt(match[3].padEnd(3, '0')) : 0;
+// Parse a clock time string like "12.3", "1:05.7", "1:05" into total seconds (float).
+// Returns NaN if the string can't be parsed.
+function parseClockTimeToSeconds(timeStr: string): number {
+  if (!timeStr) return NaN;
+  const cleaned = timeStr.trim();
+  if (!cleaned) return NaN;
+  
+  // Format: "M:SS.t", "M:SS", "SS.t", "SS", "H:MM:SS.t"
+  const parts = cleaned.split(':');
+  if (parts.length === 1) {
+    // Just seconds (possibly with decimal)
+    return parseFloat(parts[0]);
+  } else if (parts.length === 2) {
+    // M:SS or M:SS.t
+    return parseFloat(parts[0]) * 60 + parseFloat(parts[1]);
+  } else if (parts.length === 3) {
+    // H:MM:SS or H:MM:SS.t
+    return parseFloat(parts[0]) * 3600 + parseFloat(parts[1]) * 60 + parseFloat(parts[2]);
+  }
+  return NaN;
+}
+
+// Format total seconds back to a display string.
+// Under 1 minute: "SS.t" (e.g. "12.3")
+// 1 minute+: "M:SS.t" (e.g. "1:05.7")
+// 1 hour+: "H:MM:SS.t"
+function formatSecondsToClockDisplay(totalSeconds: number): string {
+  if (isNaN(totalSeconds) || totalSeconds < 0) return '0.0';
+  
+  const hours = Math.floor(totalSeconds / 3600);
+  const mins = Math.floor((totalSeconds % 3600) / 60);
+  const secs = totalSeconds % 60;
+  
+  // Get whole seconds and single tenth
+  const wholeSeconds = Math.floor(secs);
+  const tenths = Math.floor((secs - wholeSeconds) * 10);
+  
+  if (hours > 0) {
+    return `${hours}:${String(mins).padStart(2, '0')}:${String(wholeSeconds).padStart(2, '0')}.${tenths}`;
+  } else if (mins > 0) {
+    return `${mins}:${String(wholeSeconds).padStart(2, '0')}.${tenths}`;
   } else {
-    // SS.dd format
-    seconds = parseInt(match[4]);
-    frac = match[5] ? parseInt(match[5].padEnd(3, '0')) : 0;
+    return `${wholeSeconds}.${tenths}`;
   }
-  return (minutes * 60 + seconds) * 1000 + frac;
 }
 
-// Helper: format milliseconds to M:SS.d (tenths precision for display)
-function formatMsToTime(ms: number): string {
-  if (ms < 0) ms = 0;
-  const totalSeconds = ms / 1000;
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  // Under 1 minute: show SS.d (no leading 0: prefix)
-  // 1 minute+: show M:SS.d
-  if (minutes === 0) {
-    return seconds.toFixed(1);
-  }
-  const secStr = seconds < 10 ? '0' + seconds.toFixed(1) : seconds.toFixed(1);
-  return `${minutes}:${secStr}`;
-}
-
-// Interpolating clock display - receives server ticks and smoothly counts between them
-// Uses requestAnimationFrame to fill in between FinishLynx ticks for buttery smooth tenths
+// Smooth clock display with requestAnimationFrame interpolation.
+// Receives server ticks (~10/second via FinishLynx) and interpolates at 60fps between them
+// so the tenths digit rolls smoothly. Uses direct DOM mutations (no React re-renders).
+//
+// How it works:
+// 1. Each server tick records (serverSeconds, timestamp).
+// 2. A rAF loop runs continuously while "running". On each frame it computes:
+//    interpolatedTime = lastServerSeconds + (now - lastTickTimestamp) / 1000
+// 3. When the next server tick arrives, it snaps to the new authoritative value.
+// 4. Only the tenths digit interpolates — minutes:seconds come from the server.
 const StaticRunningClock = memo(function StaticRunningClock({ 
   serverTime, 
+  clockSubscribersRef,
   fontSize,
   color
 }: { 
   serverTime: string | null | undefined;
+  clockSubscribersRef?: React.RefObject<Set<(time: string) => void>>;
   fontSize?: string;
   color?: string;
 }) {
-  const displayRef = useRef<HTMLDivElement>(null);
-  // Track the last server tick: parsed ms value and when we received it (performance.now)
-  const lastServerMsRef = useRef<number | null>(null);
-  const lastServerReceivedAtRef = useRef<number>(0);
-  const rafRef = useRef<number>(0);
-  const lastDisplayedRef = useRef<string>('');
+  const spanRef = useRef<HTMLSpanElement>(null);
+  
+  // Interpolation state — kept in refs to avoid re-renders
+  const lastServerSecondsRef = useRef<number>(0);
+  const lastTickTsRef = useRef<number>(0);
   const isRunningRef = useRef<boolean>(false);
-
-  // When serverTime changes, update our reference point
-  useEffect(() => {
-    if (!serverTime) {
-      // Clock cleared (e.g. back to start list) - stop interpolation
-      isRunningRef.current = false;
-      lastServerMsRef.current = null;
-      if (displayRef.current) {
-        displayRef.current.textContent = '';
+  const rafIdRef = useRef<number>(0);
+  const lastDisplayedRef = useRef<string>('');
+  
+  // The rAF interpolation loop — runs at 60fps, computes interpolated time,
+  // updates DOM directly. Stops when isRunningRef becomes false.
+  const loopRef = useRef<() => void>();
+  loopRef.current = () => {
+    if (!isRunningRef.current) return;
+    
+    const now = performance.now();
+    const elapsed = (now - lastTickTsRef.current) / 1000;
+    const interpolated = lastServerSecondsRef.current + elapsed;
+    const display = formatSecondsToClockDisplay(interpolated);
+    
+    // Only touch the DOM when the displayed string actually changes
+    if (display !== lastDisplayedRef.current) {
+      lastDisplayedRef.current = display;
+      if (spanRef.current) {
+        spanRef.current.textContent = display;
       }
-      return;
     }
     
-    const parsed = parseTimeToMs(serverTime);
-    if (parsed !== null) {
-      if (isRunningRef.current && lastServerMsRef.current !== null) {
-        // Already interpolating — only resync if drift is significant (>500ms)
-        // This prevents choppy jumps caused by React render delays resetting
-        // the reference point while rAF is smoothly counting
-        const currentElapsed = performance.now() - lastServerReceivedAtRef.current;
-        const currentInterpolated = lastServerMsRef.current + currentElapsed;
-        const drift = Math.abs(parsed - currentInterpolated);
-        if (drift < 500) {
-          return; // In sync — let rAF keep running smoothly
-        }
-      }
-      // First tick or significant drift — sync to server
-      lastServerMsRef.current = parsed;
-      lastServerReceivedAtRef.current = performance.now();
-      isRunningRef.current = true;
-    } else {
-      // Can't parse — just show raw text
-      if (displayRef.current) {
-        displayRef.current.textContent = serverTime;
-      }
-    }
-  }, [serverTime]);
-
-  // requestAnimationFrame loop for smooth interpolation
+    rafIdRef.current = requestAnimationFrame(loopRef.current!);
+  };
+  
+  // Subscribe to clock ticks from the server (via WebSocket → ref → subscriber)
   useEffect(() => {
-    const tick = () => {
-      if (isRunningRef.current && lastServerMsRef.current !== null && displayRef.current) {
-        // Calculate interpolated time: last server time + elapsed since we received it
-        const elapsed = performance.now() - lastServerReceivedAtRef.current;
-        const interpolatedMs = lastServerMsRef.current + elapsed;
-        const formatted = formatMsToTime(interpolatedMs);
-        // Only update DOM if text actually changed (avoid layout thrashing)
-        if (formatted !== lastDisplayedRef.current) {
-          displayRef.current.textContent = formatted;
-          lastDisplayedRef.current = formatted;
+    const subscribers = clockSubscribersRef?.current;
+    if (!subscribers) return;
+    
+    const handleClockUpdate = (time: string) => {
+      const seconds = parseClockTimeToSeconds(time);
+      
+      if (!isNaN(seconds) && seconds > 0) {
+        // Valid running time — snap to server value and continue interpolating
+        lastServerSecondsRef.current = seconds;
+        lastTickTsRef.current = performance.now();
+        
+        if (!isRunningRef.current) {
+          // Start the interpolation loop
+          isRunningRef.current = true;
+          rafIdRef.current = requestAnimationFrame(loopRef.current!);
+        }
+      } else if (time === '' || time === '0' || time === '0.0' || time === '0:00' || time === '0:00.0') {
+        // Clock reset (armed, idle) — show 0.0 and stop interpolating
+        isRunningRef.current = false;
+        cancelAnimationFrame(rafIdRef.current);
+        lastServerSecondsRef.current = 0;
+        lastDisplayedRef.current = '0.0';
+        if (spanRef.current) {
+          spanRef.current.textContent = '0.0';
+        }
+      } else if (time) {
+        // Non-numeric command or non-running state — display as-is
+        isRunningRef.current = false;
+        cancelAnimationFrame(rafIdRef.current);
+        lastDisplayedRef.current = time;
+        if (spanRef.current) {
+          spanRef.current.textContent = time;
         }
       }
-      rafRef.current = requestAnimationFrame(tick);
     };
-    rafRef.current = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(rafRef.current);
+    
+    subscribers.add(handleClockUpdate);
+    return () => {
+      subscribers.delete(handleClockUpdate);
+      isRunningRef.current = false;
+      cancelAnimationFrame(rafIdRef.current);
+    };
+  }, [clockSubscribersRef]);
+  
+  // Cleanup rAF on unmount
+  useEffect(() => {
+    return () => {
+      isRunningRef.current = false;
+      cancelAnimationFrame(rafIdRef.current);
+    };
   }, []);
-
+  
   return (
     <div 
-      ref={displayRef}
       className="font-stadium-numbers font-[900]"
       style={{ 
         fontSize: fontSize || '48px',
-        color: color || 'hsl(var(--display-fg))',
-        // GPU-accelerated text rendering for smooth clock updates
-        willChange: 'contents',
-        contain: 'layout style paint',
+        color: color || 'hsl(var(--display-fg))'
       }}
-    />
+    >
+      <span ref={spanRef}>{serverTime || "0.0"}</span>
+    </div>
   );
 });
 
@@ -195,7 +234,13 @@ export interface SceneCanvasProps {
   eventNumber?: string;
   liveEventData?: any;
   liveEventDataByPort?: Record<number, any>;
-  liveClockTime?: string | null;
+  // Clock performance: ref + subscriber pattern for direct DOM updates.
+  // liveClockTimeRef holds the latest clock value (updated on every tick without re-render).
+  // clockSubscribersRef lets StaticRunningClock subscribe for direct DOM mutations.
+  // No liveClockTime prop — reading from the ref avoids re-rendering the entire
+  // SceneCanvas → SceneObjectRenderer tree on every clock tick (~10x/second).
+  liveClockTimeRef?: React.RefObject<string>;
+  clockSubscribersRef?: React.RefObject<Set<(time: string) => void>>;
   pagingSize?: number;
   pagingInterval?: number;
   maxPages?: number;
@@ -233,8 +278,8 @@ function useLiveEventData(eventNumber: string | number | null | undefined) {
       return res.json();
     },
     enabled: !!eventNumber,
-    staleTime: 500,
-    refetchInterval: 1000,
+    staleTime: 5000,
+    refetchInterval: 10000, // WebSocket handles real-time; this is fallback only
   });
 }
 
@@ -247,8 +292,8 @@ function useLatestLiveEventData() {
       const data = await res.json();
       return Array.isArray(data) && data.length > 0 ? data[0] : null;
     },
-    staleTime: 500,
-    refetchInterval: 1000,
+    staleTime: 5000,
+    refetchInterval: 10000, // WebSocket handles real-time; this is fallback only
   });
 }
 
@@ -300,7 +345,8 @@ export function SceneObjectRenderer({
   pageIndex = 0,
   pageSize = 8,
   sharedLatestLiveData,
-  liveClockTime,
+  liveClockTimeRef,
+  clockSubscribersRef,
   deviceFieldPort,
   liveEventDataByPort
 }: { 
@@ -312,7 +358,9 @@ export function SceneObjectRenderer({
   pageIndex?: number;
   pageSize?: number;
   sharedLatestLiveData?: any;
-  liveClockTime?: string | null;
+  // Clock performance: read time from ref (no re-render on tick)
+  liveClockTimeRef?: React.RefObject<string>;
+  clockSubscribersRef?: React.RefObject<Set<(time: string) => void>>;
   deviceFieldPort?: number;
   liveEventDataByPort?: Record<number, any>;
 }) {
@@ -510,12 +558,6 @@ export function SceneObjectRenderer({
     padding: styleConfig.padding ? `${styleConfig.padding}px` : undefined,
     paddingLeft: styleConfig.paddingLeft ? `${styleConfig.paddingLeft}px` : undefined,
     paddingRight: styleConfig.paddingRight ? `${styleConfig.paddingRight}px` : undefined,
-    // Smooth opacity transitions when results come in (50% → 100%)
-    transition: 'opacity 0.3s ease-out',
-    // GPU acceleration: promote this element to its own compositor layer
-    // This prevents layout thrash when sibling elements update
-    willChange: 'opacity',
-    contain: 'layout style paint',
     ...borderStyles,
   };
   
@@ -540,9 +582,30 @@ export function SceneObjectRenderer({
           );
         }
         // Override event name with live FinishLynx data - NEVER use database name
+        // Also merge recordTags from liveData entries (server-enriched) into DB entries
+        const liveEntries = liveData?.entries || [];
         const eventWithLiveName = {
           ...event,
           name: liveData?.eventName || '', // Event name MUST come from FinishLynx only
+          entries: event.entries.map((dbEntry: any) => {
+            // Match liveData entry to merge recordTags — prefer bib number, fall back to name
+            const dbBib = dbEntry.athlete?.bibNumber || '';
+            const dbLast = (dbEntry.athlete?.lastName || '').toLowerCase();
+            const dbFirst = (dbEntry.athlete?.firstName || '').toLowerCase();
+            const liveMatch = liveEntries.find((le: any) => {
+              // Prefer bib match (most reliable)
+              if (dbBib && le.bib && String(dbBib) === String(le.bib)) return true;
+              // Fall back to name match only when bib unavailable
+              if (dbBib || le.bib) return false;
+              const liveLast = (le.lastName || '').toLowerCase();
+              const liveFirst = (le.firstName || '').toLowerCase();
+              return dbLast && liveLast && dbLast === liveLast && (!liveFirst || !dbFirst || dbFirst.charAt(0) === liveFirst.charAt(0));
+            });
+            if (liveMatch?.recordTags?.length > 0) {
+              return { ...dbEntry, recordTags: liveMatch.recordTags };
+            }
+            return dbEntry;
+          }),
         };
         const boardType = componentConfig.boardType || "live-results";
         if (eventWithLiveName.status === "completed" && componentConfig.scrollOnComplete !== false) {
@@ -573,20 +636,16 @@ export function SceneObjectRenderer({
         const timerFontSize = typeof timerNumericSize === 'number' 
           ? `${timerNumericSize}px` 
           : (timerNumericSize === 'xlarge' ? '96px' : timerNumericSize === 'large' ? '72px' : timerNumericSize === 'medium' ? '48px' : '36px');
-        // Use liveClockTime (from FinishLynx port 5556) as primary source,
-        // fall back to liveData.runningTime when race is running
+        // Only show time from FinishLynx when race is running
         const timerIsRunning = liveData?.mode === 'running' || liveData?.isRunning === true;
-        const timerTime = liveClockTime || (timerIsRunning ? liveData?.runningTime : null);
+        const timerTime = timerIsRunning ? liveData?.runningTime : null;
         return (
           <div 
             className="flex items-center justify-center h-full bg-[hsl(var(--display-bg))]"
-            style={{
-              // GPU-accelerated container for smooth clock digit updates
-              contain: 'layout style paint',
-            }}
           >
             <StaticRunningClock 
               serverTime={timerTime}
+              clockSubscribersRef={clockSubscribersRef}
               fontSize={timerFontSize}
               color="hsl(var(--display-fg))"
             />
@@ -607,11 +666,7 @@ export function SceneObjectRenderer({
           <div className="flex flex-col justify-center h-full p-4 bg-[hsl(var(--display-bg))]">
             <h1 
               className="font-stadium font-[900] text-[hsl(var(--display-fg))] uppercase"
-              style={{ 
-                fontSize: headerFontSize,
-                // Smooth text transitions when event name changes
-                transition: 'opacity 0.2s ease-out',
-              }}
+              style={{ fontSize: headerFontSize }}
             >
               {headerEventName}
             </h1>
@@ -630,6 +685,9 @@ export function SceneObjectRenderer({
         
         if (componentConfig.logoType === "meet") {
           logoUrl = meet?.logoUrl;
+        } else if (logoFieldKey === "meet-logo") {
+          // Meet logo binding — use meet data from React Query cache
+          logoUrl = meet?.logoUrl || null;
         } else if (logoFieldKey === "athlete-photo" && liveData) {
           // Athlete headshot from directory: School_FirstName_LastName.png
           const photoAthleteIndex = (dataBinding.athleteIndex || 0) + pageOffset;
@@ -657,14 +715,14 @@ export function SceneObjectRenderer({
             // Detect relay/medley events — these don't have individual headshots
             const currentEventNameForPhoto = liveData.eventName || '';
             const eventLowerForPhoto = currentEventNameForPhoto.toLowerCase();
-            const isRelayOrMedleyPhoto = (liveData as any).isRelay === true || eventLowerForPhoto.includes('relay') || eventLowerForPhoto.includes('medley');
+            const isRelayOrMedleyPhoto = eventLowerForPhoto.includes('relay') || eventLowerForPhoto.includes('medley');
             
             if (isRelayOrMedleyPhoto) {
-              // For relays/medleys, fall back directly to team/affiliation logo
-              const teamNameForLogo = photoEntry.name || photoEntry.affiliation || photoEntry.team || '';
-              if (teamNameForLogo) {
-                logoUrl = `/logos/NCAA/${teamNameForLogo}.png`;
-              }
+              // For relays/medleys, hide the headshot — team logo is shown separately via school-logo binding
+              logoUrl = null;
+            } else if (photoEntry.headshotUrl || photoEntry.athletePhotoUrl) {
+              // Use server-provided headshot URL if available (e.g., from Winners Board)
+              logoUrl = photoEntry.headshotUrl || photoEntry.athletePhotoUrl;
             } else if (school && firstName && lastName) {
               // Individual event — try headshot first
               logoUrl = `/api/meets/${meetId}/headshot?school=${encodeURIComponent(school)}&firstName=${encodeURIComponent(firstName)}&lastName=${encodeURIComponent(lastName)}`;
@@ -721,6 +779,8 @@ export function SceneObjectRenderer({
       case "text":
         const fieldKey = dataBinding.fieldKey as string | undefined;
         let textContent = componentConfig.text || componentConfig.textContent || componentConfig.dynamicText;
+        // Hoist recordTag so it's available for badge rendering outside the fieldMap block
+        let hoistedRecordTags: string[] = [];
         
         // Check hideWhenFieldNonNumeric - hide this element if a related field has non-numeric data
         // Useful for hiding "PL:" label when place shows DNF, DNS, DQ, etc.
@@ -749,10 +809,12 @@ export function SceneObjectRenderer({
         }
         
         // Special case: running-time uses smooth clock for jitter-free updates
-        // Clock data from port 5556 (liveClockTime) is authoritative - if FinishLynx sends it, display it
-        // Also check liveData.runningTime as secondary source when race mode is active
+        // Clock performance: read from ref (no re-render on tick). The ref is updated
+        // on every FinishLynx tick by display-device.tsx without triggering setState.
+        // Also check liveData.runningTime as secondary source when race mode is active.
         const isRaceRunning = liveData?.mode === 'running' || liveData?.isRunning === true;
-        const clockTime = liveClockTime || (isRaceRunning ? liveData?.runningTime : null);
+        const clockTimeFromRef = liveClockTimeRef?.current || '';
+        const clockTime = clockTimeFromRef || (isRaceRunning ? liveData?.runningTime : null);
         if (fieldKey === 'running-time' && clockTime) {
           // Use numeric fontSize from style, or fall back to componentConfig string mapping
           const numericFontSize = styleConfig.fontSize || componentConfig.fontSize;
@@ -768,6 +830,7 @@ export function SceneObjectRenderer({
             >
               <StaticRunningClock 
                 serverTime={clockTime}
+                clockSubscribersRef={clockSubscribersRef}
                 fontSize={textFontSize}
                 color={componentConfig.textColor || styleConfig.textColor || "hsl(var(--display-fg))"}
               />
@@ -829,14 +892,12 @@ export function SceneObjectRenderer({
           const windDisplay = isValidWind ? windStr : '';
           
           // Compute qualifier status: Q = qualified by place, q = qualified by time
-          // Only show Big Q when advanceByPlace > 0 (explicit positive number check)
-          // If formula is "Top 0 + Next 8 Times", no Q badges should appear
-          const advanceByPlace = typeof liveData.advanceByPlace === 'number' ? liveData.advanceByPlace : 0;
-          const advanceByTime = typeof liveData.advanceByTime === 'number' ? liveData.advanceByTime : 0;
+          const advanceByPlace = liveData.advanceByPlace;
+          const advanceByTime = liveData.advanceByTime;
           let qualifierStatus = '';
           const entryPlace = parseInt(String(firstEntry?.place || '0'));
           const roundCheckStr = String(liveData.roundName || liveData.round || '').toLowerCase();
-          if (entryPlace > 0 && advanceByPlace > 0 && !roundCheckStr.includes('final')) {
+          if (entryPlace > 0 && advanceByPlace && !roundCheckStr.includes('final')) {
             if (entryPlace <= advanceByPlace) {
               qualifierStatus = 'Q'; // Qualified by place
             }
@@ -848,9 +909,9 @@ export function SceneObjectRenderer({
           const isFinalRound = roundNameStr.includes('final');
           
           let advancementFormula = '';
-          if (!isFinalRound && (advanceByPlace > 0 || advanceByTime > 0)) {
-            const place = advanceByPlace;
-            const time = advanceByTime;
+          if (!isFinalRound && (advanceByPlace || advanceByTime)) {
+            const place = advanceByPlace || 0;
+            const time = advanceByTime || 0;
             if (place > 0 && time > 0) {
               advancementFormula = `Top ${place} + Next ${time} Times`;
             } else if (place > 0) {
@@ -886,16 +947,14 @@ export function SceneObjectRenderer({
           
           const isTeamScores = liveData.mode === 'team_scores';
           const eventNameLowerText = eventName.toLowerCase();
-          const isRelayOrMedleyText = (liveData as any).isRelay === true || eventNameLowerText.includes('relay') || eventNameLowerText.includes('medley');
+          const isRelayOrMedleyText = eventNameLowerText.includes('relay') || eventNameLowerText.includes('medley');
           const displayName = isTeamScores 
             ? (firstEntry?.name || '')
             : isRelayOrMedleyText
               ? (firstEntry?.name || firstEntry?.lastName || '')
               : formatName(firstEntry?.firstName, firstEntry?.lastName, firstEntry?.name);
           
-          const schoolDisplay = isRelayOrMedleyText
-            ? (firstEntry?.affiliation || firstEntry?.team || '').substring(4).trim()
-            : (firstEntry?.affiliation || firstEntry?.team);
+          const schoolDisplay = firstEntry?.affiliation || firstEntry?.team || '';
           
           const isVerticalEvent = (liveData.eventType && isHeightEvent(liveData.eventType))
             || eventName.toLowerCase().includes('high jump') || eventName.toLowerCase().includes('pole vault');
@@ -975,17 +1034,23 @@ export function SceneObjectRenderer({
             }
           }
           
-          // Determine single priority record tag: MR > FR > PB > SB
-          let recordTag = '';
-          if (athleteMatchesMR) {
-            recordTag = 'MR';
-          } else if (athleteMatchesFR) {
-            recordTag = 'FR';
-          } else if (athletePB) {
-            recordTag = 'PB';
-          } else if (athleteSB) {
-            recordTag = 'SB';
+          // Determine record tags for this athlete.
+          // Server-enriched recordTags (from enrichEntriesWithRecordTags) are the
+          // authority — they correctly compare the athlete's mark vs the record/best.
+          // Fall back to name-matching only when server tags aren't available.
+          // We keep ALL tags so multiple badges can show (e.g. MR + PB).
+          let recordTags: string[] = [];
+          const serverRecordTags: string[] = firstEntry?.recordTags || [];
+          if (serverRecordTags.length > 0) {
+            recordTags = [...serverRecordTags];
+          } else {
+            // Fallback: name-matching for MR/FR only (no PB/SB fallback —
+            // PB/SB require actual mark comparison which only the server does)
+            if (athleteMatchesMR) recordTags.push('MR');
+            if (athleteMatchesFR) recordTags.push('FR');
           }
+          // Hoist so badge rendering can use it outside this block
+          hoistedRecordTags = recordTags;
           
           const fieldMap: Record<string, any> = {
             'event-name': eventName,
@@ -1015,7 +1080,7 @@ export function SceneObjectRenderer({
             'school': schoolDisplay,
             'time': firstEntry?.time || firstEntry?.mark,
             'mark-converted': firstEntry?.markConverted || '',
-            'last-split': firstEntry?.lastSplit,
+            'last-split': isMultiEvent && eventPoints > 0 ? `${eventPoints}` : firstEntry?.lastSplit,
             'cumulative-split': firstEntry?.cumulativeSplit,
             'reaction-time': firstEntry?.reactionTime,
             'bib': firstEntry?.bib,
@@ -1034,11 +1099,15 @@ export function SceneObjectRenderer({
             // Meet record / Facility record from MDB import
             'meet-record': meetRecordDisplay,
             'facility-record': facilityRecordDisplay,
-            // Single priority record tag (MR > FR > PB > SB)
-            'record-tag': recordTag,
-            // Name with record tag appended (for combined display)
+            // Record tags as text (highest priority only) - badges are rendered separately
+            'record-tag': recordTags.length > 0 ? recordTags[0] : '',
+            'new-record-tag': recordTags.length > 0 ? 'NEW' : '',
+            // Name fields (badge will be rendered separately, don't duplicate tag in text)
             'name-record-tag': displayName,
             'last-name-record-tag': isTeamScores ? (firstEntry?.name || '') : isRelayOrMedleyText ? (firstEntry?.name || firstEntry?.lastName || '') : firstEntry?.lastName,
+            // Record Board fields (sent when mode === 'record')
+            'record-label': liveData.recordLabel || '',
+            'meet-name': liveData.meetName || '',
           };
           const resolvedValue = fieldMap[fieldKey];
           if (resolvedValue !== undefined && resolvedValue !== null && resolvedValue !== '') {
@@ -1102,63 +1171,25 @@ export function SceneObjectRenderer({
           if (entry?.qualifier) {
             qualifierBadge = entry.qualifier;
           } else {
-            const advByPlace = typeof liveData.advanceByPlace === 'number' ? liveData.advanceByPlace : 0;
+            const advanceByPlace = liveData.advanceByPlace;
             const entryPlace = parseInt(String(entry?.place || '0'));
             const roundStr = String(liveData.roundName || liveData.round || '').toLowerCase();
-            // Only show Big Q when advanceByPlace > 0 and not a final round
-            if (entryPlace > 0 && advByPlace > 0 && entryPlace <= advByPlace && !roundStr.includes('final')) {
+            if (entryPlace > 0 && advanceByPlace && entryPlace <= advanceByPlace && !roundStr.includes('final')) {
               qualifierBadge = 'Q';
             }
           }
         }
         
-        // Check if this is a record-tag field to show the single priority badge (MR > FR > PB > SB)
-        const isRecordTagField = fieldKey === 'name-record-tag' || fieldKey === 'last-name-record-tag' || fieldKey === 'record-tag';
-        let recordTagBadge: string | null = null;
-        if (isRecordTagField && liveData) {
-          const entries = Array.isArray(liveData.entries) ? liveData.entries : [];
-          const rtIdx = (dataBinding.athleteIndex || 0) + pageOffset;
-          const rtEntry = entries[rtIdx];
-          
-          // Determine the tag for this specific athlete
-          // Priority: MR > FR > PB > SB
-          let thisMR = false;
-          let thisFR = false;
-          let thisPB = false;
-          let thisSB = false;
-          
-          // Check MR/FR: does this athlete hold the record?
-          if (eventRecords.length > 0 && rtEntry) {
-            const meetRec = eventRecords.find((r: any) => r.bookScope === 'meet');
-            const facRec = eventRecords.find((r: any) => r.bookScope === 'facility');
-            const eLast = (rtEntry.lastName || '').toLowerCase();
-            const eName = (rtEntry.name || '').toLowerCase();
-            if (meetRec) {
-              const h = (meetRec.athleteName || '').toLowerCase();
-              if ((eLast && h.includes(eLast)) || (eName && h.includes(eName))) thisMR = true;
-            }
-            if (facRec) {
-              const h = (facRec.athleteName || '').toLowerCase();
-              if ((eLast && h.includes(eLast)) || (eName && h.includes(eName))) thisFR = true;
-            }
-          }
-          
-          // Check PB/SB from imported bests
-          if (rtEntry && athleteBests.length > 0) {
-            const aid = rtEntry.athleteId;
-            if (aid) {
-              const bests = athleteBests.filter((b: any) => b.athleteId === aid);
-              for (const b of bests) {
-                if (b.bestType === 'college' && b.mark) thisPB = true;
-                if (b.bestType === 'season' && b.mark) thisSB = true;
-              }
-            }
-          }
-          
-          if (thisMR) recordTagBadge = 'MR';
-          else if (thisFR) recordTagBadge = 'FR';
-          else if (thisPB) recordTagBadge = 'PB';
-          else if (thisSB) recordTagBadge = 'SB';
+        // Use the hoisted recordTag for badge display on name fields
+        // Includes qualifier fields so Q/q badge shows first, then record tag badge
+        const isNameField = fieldKey === 'name' || fieldKey === 'last-name' 
+          || fieldKey === 'name-qualifier' || fieldKey === 'last-name-qualifier'
+          || fieldKey === 'name-record-tag' || fieldKey === 'last-name-record-tag' || fieldKey === 'record-tag'
+          || fieldKey === 'new-record-tag';
+        let recordTagBadges = (isNameField && hoistedRecordTags.length > 0) ? hoistedRecordTags : [];
+        // 'new-record-tag' is intended for compact "NEW + badge" usage, so show only top-priority tag
+        if (fieldKey === 'new-record-tag') {
+          recordTagBadges = recordTagBadges.slice(0, 1);
         }
         
         return (
@@ -1208,22 +1239,28 @@ export function SceneObjectRenderer({
                 {qualifierBadge}
               </span>
             )}
-            {recordTagBadge && (
+            {recordTagBadges.map((badge, badgeIdx) => (
               <span 
-                className="ml-4 px-3 py-1 rounded font-bold"
+                key={badgeIdx}
+                className="ml-4 px-3 py-1 rounded-md font-bold"
                 style={{
-                  backgroundColor: recordTagBadge === 'MR' ? '#b91c1c' 
-                    : recordTagBadge === 'FR' ? '#7c3aed' 
-                    : recordTagBadge === 'PB' ? '#0369a1' 
+                  backgroundColor: badge === 'MR' || badge === '=MR' ? '#dc2626' 
+                    : badge === 'FR' || badge === '=FR' ? '#7c3aed' 
+                    : badge === 'PB' ? '#0369a1' 
                     : '#ca8a04',
                   color: '#ffffff',
-                  fontSize: `calc(${resolvedFontSize} * 0.65)`,
+                  fontSize: `calc(${resolvedFontSize} * 0.55)`,
                   letterSpacing: '0.05em',
+                  padding: '2px 8px',
+                  verticalAlign: 'middle',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  marginLeft: badgeIdx > 0 ? '4px' : undefined,
                 }}
               >
-                {recordTagBadge}
+                {badge}
               </span>
-            )}
+            ))}
           </div>
         );
         
@@ -1663,7 +1700,8 @@ export function SceneCanvas({
   eventNumber,
   liveEventData: propLiveEventData,
   liveEventDataByPort,
-  liveClockTime,
+  liveClockTimeRef,
+  clockSubscribersRef,
   pagingSize = 8,
   pagingInterval = 5,
   maxPages = 0,
@@ -1692,19 +1730,8 @@ export function SceneCanvas({
   // Use entries in arrival order for start_list (FinishLynx controls display order)
   // Only sort results mode by place
   // DNS entries are completely hidden, all others are visible (50% opacity if no timing data)
-  //
-  // PERFORMANCE: Use a ref to store the previous result and only return a new object
-  // if the data actually changed. This prevents cascading re-renders of all child
-  // SceneObjectRenderer components when the raw data reference changes but content is the same.
-  const prevLiveDataRef = useRef<any>(null);
-  const prevLiveDataKeyRef = useRef<string>('');
-  
   const liveData = useMemo(() => {
-    if (!rawLiveData) {
-      prevLiveDataRef.current = null;
-      prevLiveDataKeyRef.current = '';
-      return rawLiveData;
-    }
+    if (!rawLiveData) return rawLiveData;
     
     const entries = rawLiveData.entries || rawLiveData.results || [];
     if (entries.length === 0) return rawLiveData;
@@ -1714,8 +1741,6 @@ export function SceneCanvas({
     
     // Keep ALL entries visible (including DNS/FS/Scratch) — they render at 50% opacity
     // instead of being hidden. The SceneObjectRenderer contentFadeOpacity logic handles dimming.
-    
-    let processedEntries = entries;
     
     if (isResults) {
       // If entries have times but no places, compute places from times
@@ -1745,7 +1770,7 @@ export function SceneCanvas({
         });
       }
       
-      processedEntries = [...enrichedEntries].sort((a: any, b: any) => {
+      const sortedEntries = [...enrichedEntries].sort((a: any, b: any) => {
         const hasTimeA = a.time && String(a.time).trim() !== '';
         const hasPlaceA = a.place && String(a.place).trim() !== '';
         const hasResultA = hasTimeA || hasPlaceA;
@@ -1761,26 +1786,18 @@ export function SceneCanvas({
         }
         return 0;
       });
+      return {
+        ...rawLiveData,
+        entries: sortedEntries,
+      };
     }
     
-    // PERFORMANCE: Create a content fingerprint to detect actual data changes.
-    // If the key hasn't changed, return the previous object reference to prevent
-    // cascading re-renders down the component tree.
-    const contentKey = `${rawLiveData.eventNumber}|${mode}|${processedEntries.length}|${
-      processedEntries.map((e: any) => `${e.bib || ''}:${e.time || ''}:${e.place || ''}:${e.mark || ''}`).join(',')
-    }`;
-    
-    if (contentKey === prevLiveDataKeyRef.current && prevLiveDataRef.current) {
-      return prevLiveDataRef.current;
-    }
-    
-    const result = {
+    // For running/start_list modes: show all entries
+    // DNS/FS/Scratch entries render at 50% opacity (handled by SceneObjectRenderer)
+    return {
       ...rawLiveData,
-      entries: processedEntries,
+      entries: entries,
     };
-    prevLiveDataRef.current = result;
-    prevLiveDataKeyRef.current = contentKey;
-    return result;
   }, [rawLiveData]);
   
   const totalEntries = useMemo(() => {
@@ -1929,7 +1946,8 @@ export function SceneCanvas({
                   pageIndex={currentPageIndex}
                   pageSize={pagingSize}
                   sharedLatestLiveData={objectLiveData}
-                  liveClockTime={liveClockTime}
+                  liveClockTimeRef={liveClockTimeRef}
+                  clockSubscribersRef={clockSubscribersRef}
                   deviceFieldPort={deviceFieldPort}
                   liveEventDataByPort={liveEventDataByPort}
                 />
@@ -1983,7 +2001,8 @@ export function SceneCanvas({
               pageIndex={currentPageIndex}
               pageSize={pagingSize}
               sharedLatestLiveData={objectLiveData}
-              liveClockTime={liveClockTime}
+              liveClockTimeRef={liveClockTimeRef}
+              clockSubscribersRef={clockSubscribersRef}
               deviceFieldPort={deviceFieldPort}
               liveEventDataByPort={liveEventDataByPort}
             />
@@ -2051,7 +2070,8 @@ export function SceneCanvas({
               pageIndex={currentPageIndex}
               pageSize={pagingSize}
               sharedLatestLiveData={objectLiveData}
-              liveClockTime={liveClockTime}
+              liveClockTimeRef={liveClockTimeRef}
+              clockSubscribersRef={clockSubscribersRef}
               deviceFieldPort={deviceFieldPort}
               liveEventDataByPort={liveEventDataByPort}
             />

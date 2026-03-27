@@ -54,19 +54,25 @@ export function getUnitSuffix(resultType: string | null | undefined): string {
   }
 }
 
+function roundToPrecision(val: number, precision: number): number {
+  const factor = Math.pow(10, precision);
+  return Math.round(val * factor) / factor;
+}
+
 export function formatTimeValue(seconds: number, precision: number = 2): string {
-  if (seconds >= 3600) {
-    const hours = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = (seconds % 60).toFixed(precision);
+  const rounded = roundToPrecision(seconds, precision);
+  if (rounded >= 3600) {
+    const hours = Math.floor(rounded / 3600);
+    const mins = Math.floor((rounded % 3600) / 60);
+    const secs = roundToPrecision(rounded % 60, precision).toFixed(precision);
     return `${hours}:${String(mins).padStart(2, '0')}:${secs.padStart(precision + 3, '0')}`;
   }
-  if (seconds >= 60) {
-    const mins = Math.floor(seconds / 60);
-    const secs = (seconds % 60).toFixed(precision);
+  if (rounded >= 60) {
+    const mins = Math.floor(rounded / 60);
+    const secs = roundToPrecision(rounded % 60, precision).toFixed(precision);
     return `${mins}:${secs.padStart(precision + 3, '0')}`;
   }
-  return seconds.toFixed(precision);
+  return rounded.toFixed(precision);
 }
 
 export function formatResult(entry: EntryWithDetails): string {
@@ -111,8 +117,10 @@ export function generateAttemptHeaders(entries: EntryWithDetails[]): string[] {
 export function formatSplitTime(seconds: number | null | undefined): string {
   if (seconds === null || seconds === undefined) return '–';
   
-  const mins = Math.floor(seconds / 60);
-  const secs = (seconds % 60).toFixed(2);
+  const roundH = (v: number) => Math.round(v * 100) / 100;
+  const rounded = roundH(seconds);
+  const mins = Math.floor(rounded / 60);
+  const secs = roundH(rounded % 60).toFixed(2);
   
   if (mins > 0) {
     return `${mins}:${secs.padStart(5, '0')}`;
