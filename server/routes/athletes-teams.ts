@@ -39,7 +39,14 @@ export function registerAthletesTeamsRoutes(app: Express, ctx: RouteContext) {
         
         return res.json(athletesWithTeams);
       }
-      athletes = await storage.getAthletes();
+      // When no meetId provided, try to scope to the active meet to prevent cross-meet data leakage
+      const allMeets = await storage.getMeets();
+      const activeMeet = allMeets.find(m => m.status === 'in_progress') || allMeets.find(m => m.status === 'upcoming');
+      if (activeMeet) {
+        athletes = await storage.getAthletesByMeetId(activeMeet.id);
+      } else {
+        athletes = await storage.getAthletes();
+      }
       
       // Filter by search if provided
       if (search && typeof search === 'string' && search.trim()) {
@@ -123,6 +130,13 @@ export function registerAthletesTeamsRoutes(app: Express, ctx: RouteContext) {
       const { meetId } = req.query;
       if (meetId) {
         const teams = await storage.getTeamsByMeetId(meetId as string);
+        return res.json(teams);
+      }
+      // When no meetId provided, try to scope to the active meet to prevent cross-meet data leakage
+      const allMeets = await storage.getMeets();
+      const activeMeet = allMeets.find(m => m.status === 'in_progress') || allMeets.find(m => m.status === 'upcoming');
+      if (activeMeet) {
+        const teams = await storage.getTeamsByMeetId(activeMeet.id);
         return res.json(teams);
       }
       const teams = await storage.getTeams();
@@ -283,8 +297,19 @@ export function registerAthletesTeamsRoutes(app: Express, ctx: RouteContext) {
 
   // Divisions
   app.get("/api/divisions", async (req, res) => {
-    const divisions = await storage.getDivisions();
-    res.json(divisions);
+    try {
+      const { meetId } = req.query;
+      if (meetId) {
+        // If storage has getDivisionsByMeetId, use it; otherwise filter in memory
+        const divisions = await storage.getDivisions();
+        const filtered = divisions.filter((d: any) => d.meetId === meetId);
+        return res.json(filtered.length > 0 ? filtered : divisions);
+      }
+      const divisions = await storage.getDivisions();
+      res.json(divisions);
+    } catch (error: any) {
+      res.status(500).json({ error: (error as Error).message });
+    }
   });
 
   app.post("/api/divisions", async (req, res) => {

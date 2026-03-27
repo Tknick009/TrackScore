@@ -37,6 +37,13 @@ export function registerEventsRoutes(app: Express, ctx: RouteContext) {
         const events = await storage.getEventsByMeetId(meetId as string);
         return res.json(events);
       }
+      // When no meetId provided, try to scope to the active meet to prevent cross-meet data leakage
+      const allMeets = await storage.getMeets();
+      const activeMeet = allMeets.find(m => m.status === 'in_progress') || allMeets.find(m => m.status === 'upcoming');
+      if (activeMeet) {
+        const events = await storage.getEventsByMeetId(activeMeet.id);
+        return res.json(events);
+      }
       const events = await storage.getEvents();
       res.json(events);
     } catch (error: any) {
@@ -45,7 +52,8 @@ export function registerEventsRoutes(app: Express, ctx: RouteContext) {
   });
 
   app.get("/api/events/current", async (req, res) => {
-    const event = await storage.getCurrentEvent();
+    const { meetId } = req.query;
+    const event = await storage.getCurrentEvent(meetId as string | undefined);
     if (!event) {
       return res.status(404).json({ error: "No current event" });
     }
@@ -174,7 +182,14 @@ export function registerEventsRoutes(app: Express, ctx: RouteContext) {
         
         return res.json(athletesWithTeams);
       }
-      athletes = await storage.getAthletes();
+      // When no meetId provided, try to scope to the active meet to prevent cross-meet data leakage
+      const allMeets = await storage.getMeets();
+      const activeMeet = allMeets.find(m => m.status === 'in_progress') || allMeets.find(m => m.status === 'upcoming');
+      if (activeMeet) {
+        athletes = await storage.getAthletesByMeetId(activeMeet.id);
+      } else {
+        athletes = await storage.getAthletes();
+      }
       
       // Filter by search if provided
       if (search && typeof search === 'string' && search.trim()) {
@@ -254,8 +269,23 @@ export function registerEventsRoutes(app: Express, ctx: RouteContext) {
 
   // Entries (unified results for track and field)
   app.get("/api/entries", async (req, res) => {
-    const entries = await storage.getEntries();
-    res.json(entries);
+    try {
+      const { meetId } = req.query;
+      if (meetId) {
+        // Get all events for this meet, then get entries for those events
+        const events = await storage.getEventsByMeetId(meetId as string);
+        const allEntries = [];
+        for (const event of events) {
+          const eventEntries = await storage.getEntriesByEvent(event.id);
+          allEntries.push(...eventEntries);
+        }
+        return res.json(allEntries);
+      }
+      const entries = await storage.getEntries();
+      res.json(entries);
+    } catch (error: any) {
+      res.status(500).json({ error: (error as Error).message });
+    }
   });
 
   app.get("/api/entries/event/:eventId", async (req, res) => {

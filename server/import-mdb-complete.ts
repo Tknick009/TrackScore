@@ -28,11 +28,11 @@ export interface MDBEvent {
 
 const OUTDOOR_STROKE_MAP: Record<string, string> = {
   "K": "High Jump",
-  "L": "Long Jump",
+  "L": "Pole Vault",
   "M": "Shot Put",
   "N": "Discus",
   "O": "Hammer",
-  "P": "Pole Vault",
+  "P": "Long Jump",
   "Q": "Javelin",
   "R": "Triple Jump",
   "S": "Weight Throw",
@@ -266,10 +266,11 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
   // 1. IMPORT TEAMS
   // ===========================
   console.log("\n🏫 Importing Teams...");
+  // Declare teamBatch at function scope so it's accessible from the color extraction section
+  let teamBatch: any[] = [];
   try {
     const teamTable = reader.getTable("Team");
     const teamData = teamTable.getData();
-    const teamBatch = [];
     
     for (const row of teamData) {
       const teamNo = typeof row.Team_no === 'number' ? row.Team_no : Number(row.Team_no || 0);
@@ -559,6 +560,39 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       const mdbMeet = meetData[0]; // Should only be 1 row
       console.log(`   📝 Meet table has ${meetData.length} row(s)`);
       
+      // Update meet name from MDB if available (HyTek uses Meet_name1, not Meet_name)
+      const mdbMeetName = (mdbMeet as any).Meet_name1 || (mdbMeet as any).Meet_name || null;
+      if (mdbMeetName && String(mdbMeetName).trim()) {
+        const meetName = String(mdbMeetName).trim();
+        const meetName2 = (mdbMeet as any).Meet_name2 ? String((mdbMeet as any).Meet_name2).trim() : '';
+        const fullMeetName = meetName2 && meetName2 !== ' ' ? `${meetName} ${meetName2}` : meetName;
+        const meetLocation = (mdbMeet as any).Meet_location ? String((mdbMeet as any).Meet_location).trim() : null;
+        console.log(`   📝 Meet name from MDB: "${fullMeetName}"`);
+        if (meetLocation) console.log(`   📍 Meet location from MDB: "${meetLocation}"`);
+        
+        try {
+          if (isEdgeMode && sqliteDb) {
+            const updateFields: string[] = ['name = ?'];
+            const updateValues: any[] = [fullMeetName];
+            if (meetLocation && meetLocation !== ' ') {
+              updateFields.push('location = ?');
+              updateValues.push(meetLocation);
+            }
+            updateValues.push(meetId);
+            sqliteDb.prepare(`UPDATE meets SET ${updateFields.join(', ')} WHERE id = ?`).run(...updateValues);
+          } else {
+            const updateData: any = { name: fullMeetName };
+            if (meetLocation && meetLocation !== ' ') {
+              updateData.location = meetLocation;
+            }
+            await db!.update(meets).set(updateData).where(sql`${meets.id} = ${meetId}`);
+          }
+          console.log(`   ✅ Updated meet name to: "${fullMeetName}"`);
+        } catch (nameErr) {
+          console.log(`   ⚠️  Could not update meet name: ${(nameErr as Error).message}`);
+        }
+      }
+      
       const arenaVal = ((mdbMeet as any).meet_arena || '').toString().trim().toUpperCase();
       if (arenaVal === 'I') {
         isIndoorMeet = true;
@@ -762,6 +796,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       const genderRaw = row.Event_sex || row.Event_gender || "M";
       const gender = String(genderRaw);
       const trkField = row.Trk_Field || "T"; // T = Track, F = Field
+      const isRelay = (row.Ind_rel || '').toString().toUpperCase() === 'R';
       
       const hytekStatusRaw = row.Event_stat || row.Event_status || row.Event_Status || null;
       let hytekStatus: string | null = null;
@@ -828,6 +863,14 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       } else if (trkField === "F") {
         const stroke = (row.Event_stroke || "").toString().trim();
         eventType = getFieldEventType(stroke, isIndoorMeet);
+      } else if (isRelay && distance) {
+        // Relay events - use relay-specific event types
+        // HyTek stores total relay distance (e.g., 400 for 4x100, 1600 for 4x400)
+        if (distance === 400) eventType = "relay_4x100";
+        else if (distance === 800) eventType = "relay_4x200";
+        else if (distance === 1600) eventType = "relay_4x400";
+        else if (distance === 3200) eventType = "relay_4x800";
+        else eventType = `relay_${distance}m`;
       } else if (distance) {
         // Track events - use distance
         if (distance === 100) eventType = "100m";
@@ -1049,6 +1092,18 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         multiEventMetaMap.set(eventPtr, { name: eventName, gender, eventNum });
       }
       
+      // Map hytekStatus to a proper event status
+      let eventStatus = "scheduled";
+      if (hytekStatus === 'scored') {
+        eventStatus = 'completed';
+      } else if (hytekStatus === 'done') {
+        eventStatus = 'completed';
+      } else if (hytekStatus === 'seeded') {
+        eventStatus = 'scheduled';
+      } else if (hytekStatus === 'unseeded') {
+        eventStatus = 'scheduled';
+      }
+      
       eventBatch.push({
         meetId,
         eventNumber: eventNum,
@@ -1056,7 +1111,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         eventType,
         gender,
         distance,
-        status: "scheduled",
+        status: eventStatus,
         numRounds,
         numLanes,
         eventDate,
@@ -1079,7 +1134,8 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(meet_id, event_number) DO UPDATE SET
             name=excluded.name, event_type=excluded.event_type, gender=excluded.gender, distance=excluded.distance,
-            status=excluded.status, num_rounds=excluded.num_rounds, num_lanes=excluded.num_lanes, event_date=excluded.event_date,
+            status=CASE WHEN events.status = 'in_progress' THEN events.status ELSE excluded.status END,
+            num_rounds=excluded.num_rounds, num_lanes=excluded.num_lanes, event_date=excluded.event_date,
             event_time=excluded.event_time, session_name=excluded.session_name, hytek_status=excluded.hytek_status,
             is_scored=excluded.is_scored, advance_by_place=excluded.advance_by_place, advance_by_time=excluded.advance_by_time,
             advancement_json=excluded.advancement_json, is_multi_event=excluded.is_multi_event
@@ -1111,7 +1167,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
               eventType: sql`excluded.event_type`,
               gender: sql`excluded.gender`,
               distance: sql`excluded.distance`,
-              status: sql`excluded.status`,
+              status: sql`CASE WHEN events.status = 'in_progress' THEN events.status ELSE excluded.status END`,
               numRounds: sql`excluded.num_rounds`,
               numLanes: sql`excluded.num_lanes`,
               eventDate: sql`excluded.event_date`,
