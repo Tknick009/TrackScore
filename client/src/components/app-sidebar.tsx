@@ -2,7 +2,6 @@ import {
   Calendar, 
   Users, 
   Monitor,
-  Activity,
   Upload,
   Building2,
   Home,
@@ -10,10 +9,10 @@ import {
   LayoutTemplate,
   Target,
   Send,
-  Trophy,
   Zap,
   ChevronDown,
   ChevronRight,
+  ExternalLink,
 } from "lucide-react";
 import {
   Sidebar,
@@ -29,9 +28,9 @@ import {
 } from "@/components/ui/sidebar";
 import { Link, useLocation } from "wouter";
 import { useMeet } from "@/contexts/MeetContext";
-import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Separator } from "@/components/ui/separator";
 
 export function AppSidebar() {
   const [location] = useLocation();
@@ -52,16 +51,16 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="p-4 border-b border-sidebar-border">
         <Link href={basePath ? `${basePath}/schedule` : '/'}>
-          <div className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity">
-            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Zap className="w-4 h-4 text-primary" />
+          <div className="flex items-center gap-3 cursor-pointer group">
+            <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center shadow-sm transition-transform group-hover:scale-105">
+              <Zap className="w-4 h-4 text-primary-foreground" />
             </div>
             <div className="flex-1 min-w-0">
-              <h2 className="text-sm font-bold text-sidebar-foreground truncate">
+              <h2 className="text-sm font-semibold text-sidebar-foreground truncate leading-tight">
                 {currentMeet?.name || "TrackScore"}
               </h2>
               {currentMeet?.location && (
-                <p className="text-[11px] text-muted-foreground truncate">
+                <p className="text-[11px] text-muted-foreground truncate mt-0.5">
                   {currentMeet.location}
                 </p>
               )}
@@ -70,10 +69,10 @@ export function AppSidebar() {
         </Link>
       </SidebarHeader>
 
-      <SidebarContent>
+      <SidebarContent className="px-1">
         {/* Quick Access — always visible, most-used during meet */}
         <SidebarGroup>
-          <SidebarGroupLabel className="text-[11px] uppercase tracking-wider text-muted-foreground/60">Quick Access</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/50 mb-0.5">Quick Access</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {quickAccessItems.map((item) => (
@@ -90,9 +89,11 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
+        <Separator className="mx-3 w-auto opacity-40" />
+
         {/* Rosters */}
         <SidebarGroup>
-          <SidebarGroupLabel className="text-[11px] uppercase tracking-wider text-muted-foreground/60">Rosters</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/50 mb-0.5">Rosters</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
@@ -115,11 +116,13 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
+        <Separator className="mx-3 w-auto opacity-40" />
+
         {/* Displays — collapsible since it has sub-items */}
         <SidebarGroup>
           <Collapsible open={displaysOpen} onOpenChange={setDisplaysOpen}>
             <CollapsibleTrigger className="w-full">
-              <SidebarGroupLabel className="text-[11px] uppercase tracking-wider text-muted-foreground/60 flex items-center justify-between w-full cursor-pointer hover:text-muted-foreground transition-colors">
+              <SidebarGroupLabel className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/50 flex items-center justify-between w-full cursor-pointer hover:text-muted-foreground transition-colors mb-0.5">
                 <span>Displays</span>
                 {displaysOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
               </SidebarGroupLabel>
@@ -157,9 +160,11 @@ export function AppSidebar() {
           </Collapsible>
         </SidebarGroup>
 
+        <Separator className="mx-3 w-auto opacity-40" />
+
         {/* Data & Config — grouped together to reduce clutter */}
         <SidebarGroup>
-          <SidebarGroupLabel className="text-[11px] uppercase tracking-wider text-muted-foreground/60">Manage</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/50 mb-0.5">Manage</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
@@ -183,7 +188,7 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-2 border-t border-sidebar-border">
+      <SidebarFooter className="p-3 border-t border-sidebar-border">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild>
@@ -197,7 +202,10 @@ export function AppSidebar() {
             <SidebarMenuButton asChild>
               <Link href="/display" target="_blank" data-testid="link-open-display">
                 <Monitor />
-                <span>Open Display Board</span>
+                <span className="flex items-center gap-1.5">
+                  Open Display Board
+                  <ExternalLink className="w-3 h-3 opacity-50" />
+                </span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

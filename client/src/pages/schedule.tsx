@@ -485,10 +485,10 @@ export default function Schedule() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="px-6 py-5 border-b bg-background space-y-3">
+      <div className="px-6 py-5 border-b border-border/60 bg-background/95 backdrop-blur-sm space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <h1 className="text-2xl font-bold tracking-tight">Event Schedule</h1>
+            <h1 className="text-xl font-bold tracking-tight">Event Schedule</h1>
             {liveEvents.length > 0 && (
               <Badge className="bg-green-600 text-white gap-1">
                 <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
@@ -525,20 +525,20 @@ export default function Schedule() {
         </div>
         {/* Status summary chips */}
         <div className="flex items-center gap-2 flex-wrap">
-          <Badge variant="outline" className="text-xs gap-1 font-normal">
-            <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground" />
+          <Badge variant="outline" className="text-xs gap-1.5 font-normal rounded-full px-3 py-1">
+            <span className="w-2 h-2 rounded-full bg-muted-foreground" />
             {unseededEvents.length} unseeded
           </Badge>
-          <Badge variant="outline" className="text-xs gap-1 font-normal">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+          <Badge variant="outline" className="text-xs gap-1.5 font-normal rounded-full px-3 py-1">
+            <span className="w-2 h-2 rounded-full bg-teal-500" />
             {seededEvents.length} seeded
           </Badge>
-          <Badge variant="outline" className="text-xs gap-1 font-normal">
-            <span className="w-1.5 h-1.5 rounded-full bg-yellow-500" />
+          <Badge variant="outline" className="text-xs gap-1.5 font-normal rounded-full px-3 py-1">
+            <span className="w-2 h-2 rounded-full bg-gray-400" />
             {doneEvents.length} done
           </Badge>
-          <Badge variant="outline" className="text-xs gap-1 font-normal">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+          <Badge variant="outline" className="text-xs gap-1.5 font-normal rounded-full px-3 py-1">
+            <span className="w-2 h-2 rounded-full bg-pink-500" />
             {scoredEvents.length} scored
           </Badge>
           {searchQuery && (
@@ -601,9 +601,9 @@ export default function Schedule() {
                   {groupEvents.map((event: Event) => {
                     const isPrelim = (event.numRounds || 1) > 1;
                     return (
-                      <div key={event.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg border bg-background hover:bg-accent/50 transition-colors">
+                      <div key={event.id} className="flex items-center gap-3 px-4 py-3 rounded-xl border bg-card hover:bg-accent/40 transition-all hover:shadow-sm">
                               {/* Event type icon with color coding */}
-                              <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                              <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
                                 event.status === 'in_progress' 
                                   ? 'bg-green-500/10 text-green-600' 
                                   : event.status === 'completed'

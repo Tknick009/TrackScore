@@ -652,17 +652,17 @@ export default function MeetDetail() {
               <img 
                 src={meet.logoUrl} 
                 alt={`${meet.name} logo`}
-                className="w-20 h-20 object-contain rounded-lg border bg-white"
+                className="w-20 h-20 object-contain rounded-xl border bg-white shadow-sm"
                 data-testid="img-meet-logo-header"
               />
             </div>
           )}
           
           <div className="flex-1">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground" data-testid="heading-meet-name">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground" data-testid="heading-meet-name">
               {meet.name}
             </h1>
-            <div className="flex flex-wrap items-center gap-4 text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-muted-foreground">
               <div className="flex items-center gap-2">
                 <Calendar className="w-4 h-4" />
                 <span data-testid="text-meet-date">
@@ -681,49 +681,57 @@ export default function MeetDetail() {
               <Separator orientation="vertical" className="h-4" />
               <div className="flex items-center gap-2">
                 <Hash className="w-4 h-4" />
-                <span className="font-mono" data-testid="text-meet-code">{meet.meetCode}</span>
+                <span className="font-mono text-xs bg-muted px-2 py-0.5 rounded-md" data-testid="text-meet-code">{meet.meetCode}</span>
               </div>
             </div>
           </div>
         </div>
 
         {/* Overview Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="rounded-lg border bg-background px-4 py-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="rounded-xl border bg-card px-5 py-4 shadow-sm transition-all hover:shadow-md">
             <div className="flex items-center gap-3">
-              <Trophy className="w-5 h-5 text-primary" />
+              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Trophy className="w-5 h-5 text-primary" />
+              </div>
               <div>
-                <div className="text-2xl font-bold" data-testid="stat-total-events">{stats.total}</div>
+                <div className="text-2xl font-bold tracking-tight" data-testid="stat-total-events">{stats.total}</div>
                 <div className="text-xs text-muted-foreground">Total Events</div>
               </div>
             </div>
           </div>
 
-          <div className="rounded-lg border bg-background px-4 py-3">
+          <div className="rounded-xl border bg-card px-5 py-4 shadow-sm transition-all hover:shadow-md">
             <div className="flex items-center gap-3">
-              <Users className="w-5 h-5 text-primary" />
+              <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                <Users className="w-5 h-5 text-blue-500" />
+              </div>
               <div>
-                <div className="text-2xl font-bold" data-testid="stat-total-athletes">{athletes.length}</div>
+                <div className="text-2xl font-bold tracking-tight" data-testid="stat-total-athletes">{athletes.length}</div>
                 <div className="text-xs text-muted-foreground">Athletes</div>
               </div>
             </div>
           </div>
 
-          <div className="rounded-lg border bg-background px-4 py-3">
+          <div className="rounded-xl border bg-card px-5 py-4 shadow-sm transition-all hover:shadow-md">
             <div className="flex items-center gap-3">
-              <PlayCircle className="w-5 h-5 text-amber-500" />
+              <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                <PlayCircle className="w-5 h-5 text-amber-500" />
+              </div>
               <div>
-                <div className="text-2xl font-bold" data-testid="stat-in-progress">{stats.inProgress}</div>
+                <div className="text-2xl font-bold tracking-tight" data-testid="stat-in-progress">{stats.inProgress}</div>
                 <div className="text-xs text-muted-foreground">In Progress</div>
               </div>
             </div>
           </div>
 
-          <div className="rounded-lg border bg-background px-4 py-3">
+          <div className="rounded-xl border bg-card px-5 py-4 shadow-sm transition-all hover:shadow-md">
             <div className="flex items-center gap-3">
-              <CheckCircle2 className="w-5 h-5 text-green-500" />
+              <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center">
+                <CheckCircle2 className="w-5 h-5 text-green-500" />
+              </div>
               <div>
-                <div className="text-2xl font-bold" data-testid="stat-completed">{stats.completed}</div>
+                <div className="text-2xl font-bold tracking-tight" data-testid="stat-completed">{stats.completed}</div>
                 <div className="text-xs text-muted-foreground">Completed</div>
               </div>
             </div>
@@ -732,7 +740,7 @@ export default function MeetDetail() {
 
         {/* Quick Actions */}
         <div>
-          <h2 className="text-2xl font-semibold mb-4">Quick Actions</h2>
+          <h2 className="text-lg font-semibold mb-4">Quick Actions</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Link href="/control" className="block">
               <Card className="hover-elevate h-full">
@@ -799,7 +807,7 @@ export default function MeetDetail() {
             <CardContent>
               <div className="space-y-3">
                 {liveEvents.map((event) => (
-                  <div key={event.id} className="flex items-center justify-between p-4 bg-muted rounded-lg" data-testid={`live-event-${event.id}`}>
+                  <div key={event.id} className="flex items-center justify-between p-4 bg-primary/5 border border-primary/10 rounded-xl" data-testid={`live-event-${event.id}`}>
                     <div className="flex items-center gap-4">
                       <Badge className="bg-primary" data-testid={`badge-event-number-${event.id}`}>
                         #{event.eventNumber}
@@ -833,7 +841,7 @@ export default function MeetDetail() {
             <CardContent>
               <div className="space-y-3">
                 {upcomingEvents.map((event, index) => (
-                  <div key={event.id} className="flex items-center gap-4 p-4 bg-muted rounded-lg" data-testid={`upcoming-event-${event.id}`}>
+                  <div key={event.id} className="flex items-center gap-4 p-4 bg-card border rounded-xl" data-testid={`upcoming-event-${event.id}`}>
                     <div className="flex items-center justify-center w-8 h-8 rounded-full bg-background border-2 border-primary text-sm font-bold">
                       {index + 1}
                     </div>
