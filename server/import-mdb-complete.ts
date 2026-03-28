@@ -616,6 +616,32 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           console.log(`   📅 Meet start date from MDB: ${meetStartDate.toISOString().split('T')[0]}`);
         }
       }
+      
+      // Import meet end date from MDB
+      let meetEndDate: Date | null = null;
+      if (mdbMeet.Meet_end) {
+        if (mdbMeet.Meet_end instanceof Date) {
+          meetEndDate = mdbMeet.Meet_end;
+        } else if (typeof mdbMeet.Meet_end === 'string' || typeof mdbMeet.Meet_end === 'number') {
+          const parsed = new Date(mdbMeet.Meet_end);
+          if (!isNaN(parsed.getTime())) {
+            meetEndDate = parsed;
+          }
+        }
+        if (meetEndDate) {
+          console.log(`   📅 Meet end date from MDB: ${meetEndDate.toISOString().split('T')[0]}`);
+          try {
+            if (isEdgeMode && sqliteDb) {
+              sqliteDb.prepare('UPDATE meets SET end_date = ? WHERE id = ?').run(meetEndDate.toISOString(), meetId);
+            } else {
+              await db!.update(meets).set({ endDate: meetEndDate }).where(sql`${meets.id} = ${meetId}`);
+            }
+            console.log(`   ✅ Updated meet end date`);
+          } catch (endDateErr) {
+            console.log(`   ⚠️  Could not update meet end date: ${(endDateErr as Error).message}`);
+          }
+        }
+      }
     }
   } catch (meetError) {
     console.log("   ⚠️  Meet table not found or could not be read, using fallback date");
@@ -872,16 +898,34 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         else if (distance === 3200) eventType = "relay_4x800";
         else eventType = `relay_${distance}m`;
       } else if (distance) {
-        // Track events - use distance
-        if (distance === 100) eventType = "100m";
-        else if (distance === 200) eventType = "200m";
-        else if (distance === 400) eventType = "400m";
-        else if (distance === 800) eventType = "800m";
-        else if (distance === 1500) eventType = "1500m";
-        else if (distance === 3000) eventType = "3000m";
-        else if (distance === 5000) eventType = "5000m";
-        else if (distance === 10000) eventType = "10000m";
-        else eventType = `${distance}m`;
+        // Track events - use distance + stroke code to distinguish hurdles/steeplechase
+        const stroke = (row.Event_stroke || "").toString().trim().toUpperCase();
+        const isHurdles = stroke === 'D' || stroke === 'E';
+        const isSteeplechase = stroke === 'F' || stroke === 'G' || stroke === 'H';
+        
+        if (isHurdles) {
+          // Hurdle events: use distance + _hurdles suffix
+          if (distance === 60) eventType = "60m_hurdles";
+          else if (distance === 100) eventType = "100m_hurdles";
+          else if (distance === 110) eventType = "110m_hurdles";
+          else if (distance === 400) eventType = "400m_hurdles";
+          else eventType = `${distance}m_hurdles`;
+        } else if (isSteeplechase) {
+          // Steeplechase events
+          eventType = `${distance}m_steeplechase`;
+        } else {
+          // Regular track events
+          if (distance === 60) eventType = "60m";
+          else if (distance === 100) eventType = "100m";
+          else if (distance === 200) eventType = "200m";
+          else if (distance === 400) eventType = "400m";
+          else if (distance === 800) eventType = "800m";
+          else if (distance === 1500) eventType = "1500m";
+          else if (distance === 3000) eventType = "3000m";
+          else if (distance === 5000) eventType = "5000m";
+          else if (distance === 10000) eventType = "10000m";
+          else eventType = `${distance}m`;
+        }
       }
       
       // Extract individual event date/time from Event table
@@ -1746,6 +1790,15 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         const seedMark = row.ActualSeed_time ? (typeof row.ActualSeed_time === 'number' ? row.ActualSeed_time : parseFloat(String(row.ActualSeed_time))) : null;
         const evScore = row.Ev_score != null && Number(row.Ev_score) > 0 ? Number(row.Ev_score) : null;
         
+        // Build notes: include relay team letter (A/B/C) and finish status
+        const relayLetter = row.Team_ltr ? String(row.Team_ltr).trim() : null;
+        const finStat = row.Fin_stat != null && String(row.Fin_stat).trim() !== '' && String(row.Fin_stat).trim() !== ' '
+          ? String(row.Fin_stat).trim().toUpperCase() : null;
+        const noteParts: string[] = [];
+        if (relayLetter) noteParts.push(`Relay ${relayLetter}`);
+        if (finStat) noteParts.push(finStat);
+        const relayNotes = noteParts.length > 0 ? noteParts.join(' | ') : null;
+        
         relayEntryBatch.push({
           eventId,
           athleteId,
@@ -1769,8 +1822,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           scoredPoints: evScore,
           isDisqualified: row.Fin_stat != null && String(row.Fin_stat).trim().toUpperCase() === 'D',
           isScratched: row.Scr_stat === true || row.Scr_stat === "Y",
-          notes: row.Fin_stat != null && String(row.Fin_stat).trim() !== '' && String(row.Fin_stat).trim() !== ' ' 
-            ? String(row.Fin_stat).trim().toUpperCase() : null,
+          notes: relayNotes,
         });
       }
       

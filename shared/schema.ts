@@ -40,6 +40,10 @@ export const EVENT_TYPE_CATEGORIES = {
     // Non-standard but common event types from MDB imports
     '1m', 'mile', '1mile', '4x800m', '4000m',
     '300m', '500m', '600m',
+    // Steeplechase events (time-based)
+    '3000m_steeplechase', '2000m_steeplechase',
+    // Relay event types from MDB import (relay_NxM format)
+    'relay_4x100', 'relay_4x200', 'relay_4x400', 'relay_4x800',
   ] as const,
   DISTANCE_EVENTS: [
     'long_jump', 'triple_jump',

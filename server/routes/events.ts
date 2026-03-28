@@ -270,7 +270,15 @@ export function registerEventsRoutes(app: Express, ctx: RouteContext) {
   // Entries (unified results for track and field)
   app.get("/api/entries", async (req, res) => {
     try {
-      const { meetId } = req.query;
+      let { meetId } = req.query;
+      if (!meetId) {
+        // Auto-scope to active meet to prevent cross-meet data leakage
+        const allMeets = await storage.getMeets();
+        const activeMeet = allMeets.find(m => m.status === 'in_progress') || allMeets.find(m => m.status === 'upcoming');
+        if (activeMeet) {
+          meetId = activeMeet.id;
+        }
+      }
       if (meetId) {
         // Get all events for this meet, then get entries for those events
         const events = await storage.getEventsByMeetId(meetId as string);
