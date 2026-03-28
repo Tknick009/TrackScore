@@ -2117,6 +2117,9 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
                 reactionTime: entry.reactionTime || '',
                 qualifier: entry.qualifier || '',
                 recordTags: entry.recordTags || [],
+                isDisqualified: entry.isDisqualified || false,
+                isScratched: entry.isScratched || false,
+                notes: entry.notes || entry.statusCode || null,
                 athlete: {
                   firstName,
                   lastName,
@@ -2180,6 +2183,9 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
           recordTags: entry.recordTags || [],
           eventPoints: entry.eventPoints || '',
           totalPoints: entry.totalPoints || '',
+          isDisqualified: entry.isDisqualified || false,
+          isScratched: entry.isScratched || false,
+          notes: entry.notes || entry.statusCode || null,
           athlete: {
             firstName,
             lastName,

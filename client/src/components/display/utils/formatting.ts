@@ -76,9 +76,30 @@ export function formatTimeValue(seconds: number, precision: number = 2): string 
 }
 
 export function formatResult(entry: EntryWithDetails): string {
-  const value = entry.finalMark;
-  if (value === null || value === undefined) return '-';
+  // Runtime: finalMark can be a string from hytek-results (e.g., "DQ", "DNF", "11:13.01")
+  // even though the TypeScript type says number | null
+  const raw = entry.finalMark as unknown;
+  if (raw === null || raw === undefined) return '-';
   
+  // If the mark is a string (from hytek-results enriched entries via mapLiveEntries),
+  // handle status codes and numeric strings
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (trimmed === '') return '-';
+    // Status codes like "DQ", "DNF", "SCR", "FS", "NT", "FOUL", "FAIL", "NH", "ND" — return as-is
+    if (/^[A-Za-z]/.test(trimmed)) return trimmed;
+    // Numeric string — try to parse and format
+    const parsed = parseFloat(trimmed);
+    if (isNaN(parsed)) return trimmed;
+    const descriptor = getEventDescriptor(entry.event?.eventType || '');
+    if (entry.resultType === 'time') {
+      return formatTimeValue(parsed, descriptor.precision);
+    }
+    const suffix = getUnitSuffix(entry.resultType);
+    return `${parsed.toFixed(descriptor.precision)}${suffix}`;
+  }
+  
+  const value = raw as number;
   const descriptor = getEventDescriptor(entry.event?.eventType || '');
   
   if (entry.resultType === 'time') {

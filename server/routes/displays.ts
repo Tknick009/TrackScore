@@ -1135,7 +1135,8 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           qualifier,
           isScratched: entry.isScratched || false,
           isDisqualified: entry.isDisqualified || false,
-          statusCode: isKnownStatus ? dqCode : null,
+          statusCode: isKnownStatus ? dqCode : (entry.isDisqualified ? 'DQ' : null),
+          notes: entry.notes || null,
           // Include athleteId so client can look up PB/SB from athlete bests
           athleteId: entry.athleteId || '',
           // Multi-event points: totalPoints is the athlete's accumulated points across all component events
