@@ -833,10 +833,16 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       
       const roundToPrecision = (val: number, precision: number): number => {
         const factor = Math.pow(10, precision);
-        // Use standard rounding — HyTek data is already correctly rounded by HyTek Meet Manager.
-        // Math.ceil was causing issues: float precision errors from Access DB (e.g. 8.09 stored
-        // as 8.0900005) would get ceiled to the next hundredth (8.10 instead of 8.09).
-        return Math.round(val * factor) / factor;
+        const scaled = val * factor;
+        const frac = scaled - Math.floor(scaled);
+        // Track timing convention: round UP (ceil) from thousandths to hundredths.
+        // HyTek stores raw timing values (e.g. 673.003 for 11:13.003) as float32 in Access DB.
+        // Float32 also introduces tiny noise (e.g. 8.09 stored as 8.0900005).
+        // Threshold of 0.01 distinguishes real thousandths (frac >= 0.1) from float noise (frac < 0.001).
+        if (frac < 0.01) {
+          return Math.floor(scaled) / factor;
+        }
+        return Math.ceil(scaled) / factor;
       };
       const formatTimeSeconds = (seconds: number, precision: number = 2): string => {
         const rounded = roundToPrecision(seconds, precision);
@@ -1390,7 +1396,13 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
     const isRelayEvent = displayEventNameLower.includes('relay') || displayEventNameLower.includes('medley') || /\d+x\d+/.test(displayEventNameLower);
     const roundToPrecision2 = (val: number, precision: number): number => {
       const factor = Math.pow(10, precision);
-      return Math.round(val * factor) / factor;
+      const scaled = val * factor;
+      const frac = scaled - Math.floor(scaled);
+      // Track timing convention: ceil from thousandths to hundredths with float-noise tolerance.
+      if (frac < 0.01) {
+        return Math.floor(scaled) / factor;
+      }
+      return Math.ceil(scaled) / factor;
     };
     const formatTimeSeconds = (seconds: number, precision: number = 2): string => {
       const rounded = roundToPrecision2(seconds, precision);
