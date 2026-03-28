@@ -151,6 +151,11 @@ export default function DisplayControlPage() {
 
   const sortedFilteredEvents = useMemo(() => {
     const sorted = [...events].sort((a, b) => {
+      // Sort by date first so multi-day meets show events in day order
+      const dateA = a.eventDate ? new Date(a.eventDate).getTime() : 0;
+      const dateB = b.eventDate ? new Date(b.eventDate).getTime() : 0;
+      if (dateA !== dateB) return dateA - dateB;
+      // Then by time within the same day
       const timeDiff = parseEventTime(a.eventTime) - parseEventTime(b.eventTime);
       if (timeDiff !== 0) return timeDiff;
       return (a.eventNumber || 0) - (b.eventNumber || 0);
@@ -1188,33 +1193,47 @@ export default function DisplayControlPage() {
                                 {hytekEventRoundItems.length === 0 && (
                                   <p className="text-sm text-muted-foreground p-2">No events found</p>
                                 )}
-                                {hytekEventRoundItems.map(item => {
+                                {hytekEventRoundItems.map((item, idx) => {
                                   const isSelected = selectedHytekItem[selectedDevice.id] === item.key;
                                   // Detect sub-events: event number >= 1000 and name contains " - " (e.g., "Women's Pentathlon - 60m Hurdles")
                                   const isSubEvent = (item.event.eventNumber || 0) >= 1000 && item.label.includes(' - ');
                                   // For sub-events, show only the sub-event part after " - "
                                   const displayLabel = isSubEvent ? item.label.split(' - ').slice(1).join(' - ') : item.label;
+
+                                  // Show day header when date changes between items
+                                  const currentDate = item.event.eventDate ? new Date(item.event.eventDate).toDateString() : '';
+                                  const prevDate = idx > 0 && hytekEventRoundItems[idx - 1].event.eventDate
+                                    ? new Date(hytekEventRoundItems[idx - 1].event.eventDate!).toDateString()
+                                    : '';
+                                  const showDayHeader = currentDate && currentDate !== prevDate;
+
                                   return (
-                                    <button
-                                      key={item.key}
-                                      onClick={() => setSelectedHytekItem(prev => ({ ...prev, [selectedDevice.id]: item.key }))}
-                                      className={`flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded-md cursor-pointer hover-elevate ${isSelected ? 'bg-accent' : ''} ${isSubEvent ? 'pl-6' : ''}`}
-                                      data-testid={`button-hytek-${item.key}`}
-                                    >
-                                      {!isSubEvent && item.event.eventTime && (
-                                        <span className="text-muted-foreground shrink-0 w-16 text-xs">{item.event.eventTime}</span>
+                                    <div key={item.key}>
+                                      {showDayHeader && (
+                                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 border-b border-t mt-1 first:mt-0 first:border-t-0">
+                                          {new Date(item.event.eventDate!).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
+                                        </div>
                                       )}
-                                      {isSubEvent && (
-                                        <span className="text-muted-foreground shrink-0 text-xs">↳</span>
-                                      )}
-                                      <span className="truncate">
-                                        {displayLabel}
-                                        {item.roundLabel && (
-                                          <span className="text-muted-foreground"> - {item.roundLabel}</span>
+                                      <button
+                                        onClick={() => setSelectedHytekItem(prev => ({ ...prev, [selectedDevice.id]: item.key }))}
+                                        className={`flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded-md cursor-pointer hover-elevate ${isSelected ? 'bg-accent' : ''} ${isSubEvent ? 'pl-6' : ''}`}
+                                        data-testid={`button-hytek-${item.key}`}
+                                      >
+                                        {!isSubEvent && item.event.eventTime && (
+                                          <span className="text-muted-foreground shrink-0 w-16 text-xs">{item.event.eventTime}</span>
                                         )}
-                                      </span>
-                                      <EventStatusBadge event={item.event} />
-                                    </button>
+                                        {isSubEvent && (
+                                          <span className="text-muted-foreground shrink-0 text-xs">↳</span>
+                                        )}
+                                        <span className="truncate">
+                                          {displayLabel}
+                                          {item.roundLabel && (
+                                            <span className="text-muted-foreground"> - {item.roundLabel}</span>
+                                          )}
+                                        </span>
+                                        <EventStatusBadge event={item.event} />
+                                      </button>
+                                    </div>
                                   );
                                 })}
                               </div>
