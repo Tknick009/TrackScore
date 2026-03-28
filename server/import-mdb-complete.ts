@@ -1554,13 +1554,24 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           scoredPoints: row.Ev_score != null && Number(row.Ev_score) > 0 ? Number(row.Ev_score) : null,
           
           // Flags (proper boolean parsing)
-          // Only set isDisqualified for actual DQ (Fin_stat='D'), NOT for DNF or other status types
-          // HyTek's dq_type field is used for ALL non-standard finishes, not just DQs
-          isDisqualified: [row.Fin_stat, row.Sem_stat, row.Qtr_stat, row.Pre_stat].some(
-            s => s != null && String(s).trim().toUpperCase() === 'D'
-          ),
+          // HyTek status codes are CONTEXT-DEPENDENT (track vs field):
+          //   Track:       D=DNF, F=FS, N=NT, S=DNS, R=SCR, X=DQ
+          //   Horiz field: D=DNF, F=FOUL, N=ND, S=DNS, R=SCR, X=FOUL
+          //   Vert field:  D=DNF, F=FAIL, N=NH, S=DNS, R=SCR, X=FAIL
+          // isDisqualified = true only for actual DQ (track: X)
+          isDisqualified: (() => {
+            const isTrack = eventDetails && !eventDetails.eventType.includes('jump') && !eventDetails.eventType.includes('vault') && !eventDetails.eventType.includes('throw') && !eventDetails.eventType.includes('shot') && !eventDetails.eventType.includes('discus') && !eventDetails.eventType.includes('hammer') && !eventDetails.eventType.includes('javelin');
+            if (isTrack) {
+              // Track: X = DQ
+              return [row.Fin_stat, row.Sem_stat, row.Qtr_stat, row.Pre_stat].some(
+                s => s != null && String(s).trim().toUpperCase() === 'X'
+              );
+            }
+            // Field events don't have a true DQ code — X means FOUL/FAIL
+            return false;
+          })(),
           isScratched: row.Scr_stat === true || row.Scr_stat === "Y" || row.Scr_stat === "y" ||
-            [row.Fin_stat, row.Sem_stat, row.Qtr_stat, row.Pre_stat].some(s => s != null && String(s).trim().toUpperCase() === 'S'),
+            [row.Fin_stat, row.Sem_stat, row.Qtr_stat, row.Pre_stat].some(s => s != null && String(s).trim().toUpperCase() === 'R'),
           
           notes: (() => {
             const statFields = [
@@ -1569,15 +1580,37 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
               { stat: row.Qtr_stat, round: 'quarterfinal' },
               { stat: row.Pre_stat, round: 'preliminary' },
             ];
+            const isVertical = eventDetails && (eventDetails.eventType.includes('high_jump') || eventDetails.eventType.includes('pole_vault'));
+            const isHorizontalField = eventDetails && (eventDetails.eventType.includes('long_jump') || eventDetails.eventType.includes('triple_jump') || eventDetails.eventType.includes('shot') || eventDetails.eventType.includes('discus') || eventDetails.eventType.includes('hammer') || eventDetails.eventType.includes('javelin'));
+            const isTrack = !isVertical && !isHorizontalField;
             for (const { stat } of statFields) {
               if (stat != null && String(stat).trim() !== '') {
                 const code = String(stat).trim().toUpperCase();
-                const isVertical = eventDetails && (eventDetails.eventType.includes('high_jump') || eventDetails.eventType.includes('pole_vault'));
-                if (code === 'N') return isVertical ? 'NH' : 'NM';
-                if (code === 'F') return 'FOUL';
-                if (code === 'S') return 'SCR';
-                if (code === 'D') return 'DQ';
-                if (code === 'X') return 'DNS';
+                if (isTrack) {
+                  // Track: D=DNF, F=FS, N=NT, S=DNS, R=SCR, X=DQ
+                  if (code === 'D') return 'DNF';
+                  if (code === 'F') return 'FS';
+                  if (code === 'N') return 'NT';
+                  if (code === 'S') return 'DNS';
+                  if (code === 'R') return 'SCR';
+                  if (code === 'X') return 'DQ';
+                } else if (isVertical) {
+                  // Vertical field: D=DNF, F=FAIL, N=NH, S=DNS, R=SCR, X=FAIL
+                  if (code === 'D') return 'DNF';
+                  if (code === 'F') return 'FAIL';
+                  if (code === 'N') return 'NH';
+                  if (code === 'S') return 'DNS';
+                  if (code === 'R') return 'SCR';
+                  if (code === 'X') return 'FAIL';
+                } else {
+                  // Horizontal field: D=DNF, F=FOUL, N=ND, S=DNS, R=SCR, X=FOUL
+                  if (code === 'D') return 'DNF';
+                  if (code === 'F') return 'FOUL';
+                  if (code === 'N') return 'ND';
+                  if (code === 'S') return 'DNS';
+                  if (code === 'R') return 'SCR';
+                  if (code === 'X') return 'FOUL';
+                }
                 return code;
               }
             }
@@ -1820,9 +1853,20 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           finalWind: null,
           finalPoints: evScore,
           scoredPoints: evScore,
-          isDisqualified: row.Fin_stat != null && String(row.Fin_stat).trim().toUpperCase() === 'D',
-          isScratched: row.Scr_stat === true || row.Scr_stat === "Y",
-          notes: relayNotes,
+          // Relays are always track events: X=DQ, R=SCR
+          isDisqualified: row.Fin_stat != null && String(row.Fin_stat).trim().toUpperCase() === 'X',
+          isScratched: row.Scr_stat === true || row.Scr_stat === "Y" ||
+            (row.Fin_stat != null && String(row.Fin_stat).trim().toUpperCase() === 'R'),
+          notes: (() => {
+            const parts: string[] = [];
+            if (relayLetter) parts.push(`Relay ${relayLetter}`);
+            if (finStat) {
+              // Track status codes for relays: D=DNF, F=FS, N=NT, S=DNS, R=SCR, X=DQ
+              const statusMap: Record<string, string> = { D: 'DNF', F: 'FS', N: 'NT', S: 'DNS', R: 'SCR', X: 'DQ' };
+              parts.push(statusMap[finStat] || finStat);
+            }
+            return parts.length > 0 ? parts.join(' | ') : null;
+          })(),
         });
       }
       
@@ -1963,10 +2007,30 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
             finalWind: finWind,
             finalPoints: finPoints,
             scoredPoints: null, // Sub-events don't have team scoring points
-            isDisqualified: row.Fin_stat != null && String(row.Fin_stat).trim().toUpperCase() === 'D',
-            isScratched: false,
-            notes: row.Fin_stat != null && String(row.Fin_stat).trim() !== '' && String(row.Fin_stat).trim() !== ' '
-              ? String(row.Fin_stat).trim().toUpperCase() : null,
+            // Multi-event sub-events can be track or field — map status codes by type
+            isDisqualified: (() => {
+              const stat = row.Fin_stat != null ? String(row.Fin_stat).trim().toUpperCase() : '';
+              const isTrackSub = resultType === 'time';
+              return isTrackSub ? stat === 'X' : false;
+            })(),
+            isScratched: row.Fin_stat != null && String(row.Fin_stat).trim().toUpperCase() === 'R',
+            notes: (() => {
+              if (row.Fin_stat == null || String(row.Fin_stat).trim() === '' || String(row.Fin_stat).trim() === ' ') return null;
+              const code = String(row.Fin_stat).trim().toUpperCase();
+              const isTrackSub = resultType === 'time';
+              const et = eventDetails?.eventType || '';
+              const isVertSub = et.includes('high_jump') || et.includes('pole_vault');
+              if (isTrackSub) {
+                const m: Record<string, string> = { D: 'DNF', F: 'FS', N: 'NT', S: 'DNS', R: 'SCR', X: 'DQ' };
+                return m[code] || code;
+              } else if (isVertSub) {
+                const m: Record<string, string> = { D: 'DNF', F: 'FAIL', N: 'NH', S: 'DNS', R: 'SCR', X: 'FAIL' };
+                return m[code] || code;
+              } else {
+                const m: Record<string, string> = { D: 'DNF', F: 'FOUL', N: 'ND', S: 'DNS', R: 'SCR', X: 'FOUL' };
+                return m[code] || code;
+              }
+            })(),
           });
         }
         

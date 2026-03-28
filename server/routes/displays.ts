@@ -930,7 +930,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       if (isPrelimRound && isTrackEvent && (eventAdvanceByPlace > 0 || eventAdvanceByTime > 0)) {
         // Step 1: Group valid entries by heat
         const heatGroups = new Map<number, { entryId: string; place: number; mark: number }[]>();
-        const statusCodesToSkip = new Set(['NH', 'NM', 'FOUL', 'DNS', 'DNF', 'DQ', 'SCR', 'FS', 'NT']);
+        const statusCodesToSkip = new Set(['NH', 'NM', 'ND', 'FOUL', 'FAIL', 'DNS', 'DNF', 'DQ', 'SCR', 'FS', 'NT']);
         sortedEntries.forEach(entry => {
           const fields = getRoundFields(entry);
           const heat = fields.heat || 0;
@@ -1032,7 +1032,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       
       // For compiled prelim results, re-sort: Big Q by time, little q by time, rest by time, DQ/SCR at end
       if (isPrelimRound && isTrackEvent && (qualifierPlaceSet.size > 0 || qualifierTimeSet.size > 0)) {
-        const compiledStatusCodes = new Set(['NH', 'NM', 'FOUL', 'DNS', 'DNF', 'DQ', 'SCR', 'FS', 'NT']);
+        const compiledStatusCodes = new Set(['NH', 'NM', 'ND', 'FOUL', 'FAIL', 'DNS', 'DNF', 'DQ', 'SCR', 'FS', 'NT']);
         displayEntries.sort((a, b) => {
           const aFields = getRoundFields(a);
           const bFields = getRoundFields(b);
@@ -1068,7 +1068,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           : (fields.place || (index + 1));
         
         const dqCode = entry.notes ? String(entry.notes).trim().toUpperCase() : null;
-        const knownStatusCodes = ['NH', 'NM', 'FOUL', 'DNS', 'DNF', 'DQ', 'SCR', 'FS', 'NT'];
+        const knownStatusCodes = ['NH', 'NM', 'ND', 'FOUL', 'FAIL', 'DNS', 'DNF', 'DQ', 'SCR', 'FS', 'NT'];
         const isKnownStatus = dqCode && knownStatusCodes.includes(dqCode);
         
         let markValue: string;
