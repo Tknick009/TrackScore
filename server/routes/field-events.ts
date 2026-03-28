@@ -1142,7 +1142,7 @@ export function registerFieldEventsRoutes(app: Express, ctx: RouteContext) {
         // 'active', 'up') — exclude only terminal ones to avoid missing anyone.
         const terminalStatuses = new Set(['completed', 'dns', 'scratched', 'retired', 'checked_out']);
         const activeAthletes = athletes.filter(a => 
-          a.checkInStatus === 'checked_in' && !terminalStatuses.has(a.competitionStatus || '')
+          !terminalStatuses.has(a.competitionStatus || '')
         );
         
         // For bar advancement, we need to check if all active athletes have either:

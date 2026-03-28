@@ -29,12 +29,12 @@ export interface MDBEvent {
 const OUTDOOR_STROKE_MAP: Record<string, string> = {
   "K": "High Jump",
   "L": "Pole Vault",
-  "M": "Shot Put",
-  "N": "Discus",
-  "O": "Hammer",
-  "P": "Long Jump",
+  "M": "Long Jump",
+  "N": "Triple Jump",
+  "O": "Discus",
+  "P": "Hammer",
   "Q": "Javelin",
-  "R": "Triple Jump",
+  "R": "Shot Put",
   "S": "Weight Throw",
 };
 
