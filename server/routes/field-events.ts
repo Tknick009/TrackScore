@@ -392,6 +392,7 @@ export function registerFieldEventsRoutes(app: Express, ctx: RouteContext) {
   }
 
   // Get all field sessions (optionally filter by eventId or meetId query param)
+  // Meet isolation: auto-scopes to active meet when no filter is provided
   app.get("/api/field-sessions", async (req, res) => {
     try {
       const { eventId, meetId } = req.query;
@@ -403,7 +404,13 @@ export function registerFieldEventsRoutes(app: Express, ctx: RouteContext) {
         const sessions = await storage.getFieldEventSessionsByMeetId(meetId);
         return res.json(sessions);
       }
-      // Return all sessions if no filter specified
+      // Auto-scope to active meet to prevent cross-meet data leakage
+      const allMeets = await storage.getMeets();
+      const activeMeet = allMeets.find(m => m.status === 'in_progress') || allMeets.find(m => m.status === 'upcoming');
+      if (activeMeet) {
+        const sessions = await storage.getFieldEventSessionsByMeetId(activeMeet.id);
+        return res.json(sessions);
+      }
       const sessions = await storage.getAllFieldEventSessions();
       res.json(sessions);
     } catch (error: any) {

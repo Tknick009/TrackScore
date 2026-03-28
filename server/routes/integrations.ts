@@ -409,6 +409,9 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
   });
 
   // Get all social media posts
+  // Note: Social media posts are stored in-memory without meetId scoping.
+  // Posts are already inherently scoped because they're generated from meet-specific events.
+  // The event_result posts reference eventId which belongs to a specific meet.
   app.get("/api/social-media/posts", async (req, res) => {
     const posts = await storage.getSocialMediaPosts();
     res.json(posts);

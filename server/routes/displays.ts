@@ -395,7 +395,8 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           if (displayMode === 'start_list' || displayMode === 'running_time' || displayMode === 'track_results') {
             try {
               // Get the most recent live event data
-              const liveData = await storage.getLiveEventsByMeet();
+              // Meet isolation: scope live events to this device's meet
+              const liveData = await storage.getLiveEventsByMeet(device.meetId);
               if (liveData && liveData.length > 0) {
                 // Use the most recent entry
                 const latestLive = liveData[0];

@@ -178,9 +178,16 @@ export function registerAthletesTeamsRoutes(app: Express, ctx: RouteContext) {
       }
 
       // 2. Look up team in DB — use cached colors (set during import or manually edited)
+      // Meet isolation: auto-scope to active meet if no meetId provided
       try {
-        const teamsToSearch = meetId
-          ? await storage.getTeamsByMeetId(String(meetId))
+        let effectiveMeetId = meetId ? String(meetId) : undefined;
+        if (!effectiveMeetId) {
+          const allMeets = await storage.getMeets();
+          const activeMeet = allMeets.find(m => m.status === 'in_progress') || allMeets.find(m => m.status === 'upcoming');
+          if (activeMeet) effectiveMeetId = activeMeet.id;
+        }
+        const teamsToSearch = effectiveMeetId
+          ? await storage.getTeamsByMeetId(effectiveMeetId)
           : await storage.getTeams();
         const match = teamsToSearch.find(t =>
           t.name.trim() === nameStr ||
@@ -296,14 +303,20 @@ export function registerAthletesTeamsRoutes(app: Express, ctx: RouteContext) {
   });
 
   // Divisions
+  // Meet isolation: auto-scopes to active meet when no meetId provided
   app.get("/api/divisions", async (req, res) => {
     try {
-      const { meetId } = req.query;
+      let { meetId } = req.query;
+      if (!meetId) {
+        // Auto-scope to active meet to prevent cross-meet data leakage
+        const allMeets = await storage.getMeets();
+        const activeMeet = allMeets.find(m => m.status === 'in_progress') || allMeets.find(m => m.status === 'upcoming');
+        if (activeMeet) meetId = activeMeet.id;
+      }
       if (meetId) {
-        // If storage has getDivisionsByMeetId, use it; otherwise filter in memory
         const divisions = await storage.getDivisions();
         const filtered = divisions.filter((d: any) => d.meetId === meetId);
-        return res.json(filtered.length > 0 ? filtered : divisions);
+        return res.json(filtered);
       }
       const divisions = await storage.getDivisions();
       res.json(divisions);

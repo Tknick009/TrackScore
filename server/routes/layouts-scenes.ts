@@ -20,9 +20,15 @@ export function registerLayoutsScenesRoutes(app: Express, ctx: RouteContext) {
   // =============================
 
   // List all layouts (optionally filtered by meetId)
+  // Meet isolation: auto-scopes to active meet when no meetId provided
   app.get('/api/layouts', async (req, res) => {
     try {
-      const meetId = req.query.meetId as string | undefined;
+      let meetId = req.query.meetId as string | undefined;
+      if (!meetId) {
+        const allMeets = await storage.getMeets();
+        const activeMeet = allMeets.find(m => m.status === 'in_progress') || allMeets.find(m => m.status === 'upcoming');
+        if (activeMeet) meetId = activeMeet.id;
+      }
       const layouts = await storage.listLayouts(meetId);
       res.json(layouts);
     } catch (error: any) {
@@ -272,9 +278,15 @@ export function registerLayoutsScenesRoutes(app: Express, ctx: RouteContext) {
   // ===== LAYOUT SCENES API ROUTES =====
 
   // Get all scenes (optional ?meetId= filter)
+  // Meet isolation: auto-scopes to active meet when no meetId provided
   app.get('/api/layout-scenes', async (req, res) => {
     try {
-      const meetId = req.query.meetId as string | undefined;
+      let meetId = req.query.meetId as string | undefined;
+      if (!meetId) {
+        const allMeets = await storage.getMeets();
+        const activeMeet = allMeets.find(m => m.status === 'in_progress') || allMeets.find(m => m.status === 'upcoming');
+        if (activeMeet) meetId = activeMeet.id;
+      }
       const scenes = await storage.getLayoutScenes(meetId);
       res.json(scenes);
     } catch (error: any) {
@@ -600,10 +612,16 @@ export function registerLayoutsScenesRoutes(app: Express, ctx: RouteContext) {
   // ===== SCENE EXPORT/IMPORT =====
   // ===== SCENE EXPORT/IMPORT =====
   
-  // Export all scenes for a meet (or all scenes if no meetId provided)
+  // Export all scenes for a meet
+  // Meet isolation: auto-scopes to active meet when no meetId provided
   app.get('/api/scenes/export', async (req, res) => {
     try {
-      const meetId = req.query.meetId as string | undefined;
+      let meetId = req.query.meetId as string | undefined;
+      if (!meetId) {
+        const allMeets = await storage.getMeets();
+        const activeMeet = allMeets.find(m => m.status === 'in_progress') || allMeets.find(m => m.status === 'upcoming');
+        if (activeMeet) meetId = activeMeet.id;
+      }
       const scenes = await storage.getLayoutScenes(meetId);
       
       // Get objects for each scene
@@ -695,9 +713,12 @@ export function registerLayoutsScenesRoutes(app: Express, ctx: RouteContext) {
   // ============= RECORD BOOKS MANAGEMENT =============
   
   // Get all record books (including inactive) with their records
+  // Note: Record books are intentionally global (facility, national, etc.) - they are NOT per-meet.
+  // The meetId filter here is optional and only used to filter record books by scope if needed.
   app.get('/api/record-books', async (req, res) => {
     try {
       const includeInactive = req.query.all === 'true';
+      const meetId = req.query.meetId as string | undefined;
       const books = includeInactive 
         ? await storage.getAllRecordBooks()
         : await storage.getRecordBooks();
