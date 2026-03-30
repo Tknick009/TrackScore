@@ -720,8 +720,8 @@ export function registerLayoutsScenesRoutes(app: Express, ctx: RouteContext) {
       const includeInactive = req.query.all === 'true';
       const meetId = req.query.meetId as string | undefined;
       const books = includeInactive 
-        ? await storage.getAllRecordBooks()
-        : await storage.getRecordBooks();
+        ? await storage.getAllRecordBooks(meetId)
+        : await storage.getRecordBooks(meetId);
       
       // Fetch records for each book
       const booksWithRecords = [];
@@ -784,7 +784,8 @@ export function registerLayoutsScenesRoutes(app: Express, ctx: RouteContext) {
   // Get all active records with book info (for schedule display)
   app.get('/api/records/all', async (req, res) => {
     try {
-      const books = await storage.getRecordBooks(); // only active books
+      const meetId = req.query.meetId as string | undefined;
+      const books = await storage.getRecordBooks(meetId); // only active books, filtered by meetId if provided
       const allRecords: Array<{
         id: number;
         eventType: string;
@@ -837,10 +838,13 @@ export function registerLayoutsScenesRoutes(app: Express, ctx: RouteContext) {
         });
       }
       
+      const meetId = req.query.meetId as string | undefined;
       const checks = await storage.checkForRecords(
         eventType as string,
         gender as string,
-        performance as string
+        performance as string,
+        undefined,
+        meetId
       );
       
       res.json(checks);
@@ -858,9 +862,11 @@ export function registerLayoutsScenesRoutes(app: Express, ctx: RouteContext) {
       if (!eventType) {
         return res.status(400).json({ error: 'eventType parameter is required' });
       }
+      const meetId = req.query.meetId as string | undefined;
       const recs = await storage.getRecordsByEvent(
         eventType as string,
-        (gender as string) || 'male'
+        (gender as string) || 'male',
+        meetId
       );
       
       // Enrich with record book names

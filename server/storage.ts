@@ -321,8 +321,8 @@ export interface IStorage {
   getZonesByLayout(layoutId: number): Promise<SelectLayoutZone[]>;
 
   // Record Books
-  getRecordBooks(): Promise<SelectRecordBook[]>;
-  getAllRecordBooks(): Promise<SelectRecordBook[]>;
+  getRecordBooks(meetId?: string): Promise<SelectRecordBook[]>;
+  getAllRecordBooks(meetId?: string): Promise<SelectRecordBook[]>;
   getRecordBook(id: number): Promise<RecordBookWithRecords | null>;
   createRecordBook(book: InsertRecordBook): Promise<SelectRecordBook>;
   updateRecordBook(id: number, updates: Partial<InsertRecordBook>): Promise<SelectRecordBook | undefined>;
@@ -330,7 +330,7 @@ export interface IStorage {
 
   // Records
   getRecords(recordBookId: number): Promise<SelectRecord[]>;
-  getRecordsByEvent(eventType: string, gender: string): Promise<SelectRecord[]>;
+  getRecordsByEvent(eventType: string, gender: string, meetId?: string): Promise<SelectRecord[]>;
   getRecord(id: number): Promise<SelectRecord | undefined>;
   getRecordForEvent(bookId: number, eventType: string, gender: string): Promise<SelectRecord | undefined>;
   createRecord(record: InsertRecord): Promise<SelectRecord>;
@@ -338,7 +338,7 @@ export interface IStorage {
   deleteRecord(id: number): Promise<void>;
 
   // Record Checking
-  checkForRecords(eventType: string, gender: string, performance: string, windSpeed?: number): Promise<RecordCheck[]>;
+  checkForRecords(eventType: string, gender: string, performance: string, windSpeed?: number, meetId?: string): Promise<RecordCheck[]>;
 
   // Team Scoring - Presets
   getScoringPresets(): Promise<ScoringPreset[]>;
@@ -1825,11 +1825,17 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Record Books
-  async getRecordBooks(): Promise<SelectRecordBook[]> {
+  async getRecordBooks(meetId?: string): Promise<SelectRecordBook[]> {
+    if (meetId) {
+      return db.select().from(recordBooks).where(and(eq(recordBooks.isActive, true), sql`(${recordBooks.meetId} = ${meetId} OR ${recordBooks.meetId} IS NULL)`));
+    }
     return db.select().from(recordBooks).where(eq(recordBooks.isActive, true));
   }
 
-  async getAllRecordBooks(): Promise<SelectRecordBook[]> {
+  async getAllRecordBooks(meetId?: string): Promise<SelectRecordBook[]> {
+    if (meetId) {
+      return db.select().from(recordBooks).where(sql`(${recordBooks.meetId} = ${meetId} OR ${recordBooks.meetId} IS NULL)`);
+    }
     return db.select().from(recordBooks);
   }
 
@@ -1878,7 +1884,7 @@ export class DatabaseStorage implements IStorage {
       .where(eq(records.recordBookId, recordBookId));
   }
 
-  async getRecordsByEvent(eventType: string, gender: string): Promise<SelectRecord[]> {
+  async getRecordsByEvent(eventType: string, gender: string, meetId?: string): Promise<SelectRecord[]> {
     // Normalize gender for matching: events use 'M'/'F', records may have 'M'/'F'/'W'/'male'/'female'
     // Query with all possible variants to handle legacy data
     const genderVariants = [gender];
@@ -1891,15 +1897,20 @@ export class DatabaseStorage implements IStorage {
     }
     const uniqueVariants = [...new Set(genderVariants)];
 
+    const conditions = [
+      eq(records.eventType, eventType),
+      inArray(records.gender, uniqueVariants),
+      eq(recordBooks.isActive, true),
+    ];
+    if (meetId) {
+      conditions.push(sql`(${recordBooks.meetId} = ${meetId} OR ${recordBooks.meetId} IS NULL)`);
+    }
+
     const results = await db
       .select()
       .from(records)
       .innerJoin(recordBooks, eq(records.recordBookId, recordBooks.id))
-      .where(and(
-        eq(records.eventType, eventType),
-        inArray(records.gender, uniqueVariants),
-        eq(recordBooks.isActive, true)
-      ));
+      .where(and(...conditions));
 
     return results.map(r => r.records);
   }
@@ -1948,7 +1959,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Record Checking
-  async checkForRecords(eventType: string, gender: string, performance: string, windSpeed?: number): Promise<RecordCheck[]> {
+  async checkForRecords(eventType: string, gender: string, performance: string, windSpeed?: number, meetId?: string): Promise<RecordCheck[]> {
     const newPerf = parsePerformanceToSeconds(performance);
     if (newPerf === null) return [];
     
@@ -1956,7 +1967,7 @@ export class DatabaseStorage implements IStorage {
     const isWindLegal = windSpeed === undefined || windSpeed <= 2.0;
     if (!isWindLegal) return []; // Don't compare wind-illegal performances
     
-    const matchingRecords = await this.getRecordsByEvent(eventType, gender);
+    const matchingRecords = await this.getRecordsByEvent(eventType, gender, meetId);
     const checks: RecordCheck[] = [];
     
     for (const record of matchingRecords) {

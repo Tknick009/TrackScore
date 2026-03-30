@@ -2563,12 +2563,20 @@ export class SQLiteStorage implements IStorage {
     };
   }
 
-  async getRecordBooks(): Promise<SelectRecordBook[]> {
+  async getRecordBooks(meetId?: string): Promise<SelectRecordBook[]> {
+    if (meetId) {
+      const rows = this.db.prepare('SELECT * FROM record_books WHERE is_active = 1 AND (meet_id = ? OR meet_id IS NULL)').all(meetId);
+      return rows.map((row: any) => this.mapRecordBookRow(row));
+    }
     const rows = this.db.prepare('SELECT * FROM record_books WHERE is_active = 1').all();
     return rows.map((row: any) => this.mapRecordBookRow(row));
   }
 
-  async getAllRecordBooks(): Promise<SelectRecordBook[]> {
+  async getAllRecordBooks(meetId?: string): Promise<SelectRecordBook[]> {
+    if (meetId) {
+      const rows = this.db.prepare('SELECT * FROM record_books WHERE (meet_id = ? OR meet_id IS NULL)').all(meetId);
+      return rows.map((row: any) => this.mapRecordBookRow(row));
+    }
     const rows = this.db.prepare('SELECT * FROM record_books').all();
     return rows.map((row: any) => this.mapRecordBookRow(row));
   }
@@ -2585,10 +2593,11 @@ export class SQLiteStorage implements IStorage {
   async createRecordBook(book: InsertRecordBook): Promise<SelectRecordBook> {
     const displayOrder = (book as any).displayOrder ?? this.getDefaultDisplayOrder(book.scope);
     const allowMultiple = (book as any).allowMultiple ?? false;
+    const meetId = (book as any).meetId ?? null;
     const result = this.db.prepare(`
-      INSERT INTO record_books (name, description, scope, is_active, display_order, allow_multiple)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(book.name, book.description ?? null, book.scope, this.fromBoolean(book.isActive ?? true), displayOrder, this.fromBoolean(allowMultiple));
+      INSERT INTO record_books (name, description, scope, is_active, display_order, allow_multiple, meet_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(book.name, book.description ?? null, book.scope, this.fromBoolean(book.isActive ?? true), displayOrder, this.fromBoolean(allowMultiple), meetId);
     
     const row = this.db.prepare('SELECT * FROM record_books WHERE id = ?').get(result.lastInsertRowid);
     return this.mapRecordBookRow(row);
@@ -2726,14 +2735,14 @@ export class SQLiteStorage implements IStorage {
   }
 
   // ============= RECORD CHECKING =============
-  async checkForRecords(eventType: string, gender: string, performance: string, windSpeed?: number): Promise<RecordCheck[]> {
+  async checkForRecords(eventType: string, gender: string, performance: string, windSpeed?: number, meetId?: string): Promise<RecordCheck[]> {
     const newPerf = parsePerformanceToSeconds(performance);
     if (newPerf === null) return [];
     
     const isWindLegal = windSpeed === undefined || windSpeed <= 2.0;
     if (!isWindLegal) return [];
     
-    const matchingRecords = await this.getRecordsByEvent(eventType, gender);
+    const matchingRecords = await this.getRecordsByEvent(eventType, gender, meetId);
     const checks: RecordCheck[] = [];
     
     for (const record of matchingRecords) {

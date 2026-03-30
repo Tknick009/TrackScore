@@ -2109,8 +2109,8 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       const meet = await storage.getMeet(device.meetId);
       if (!meet) return res.status(404).json({ error: "Meet not found" });
 
-      // Get record books (active only, or specific book)
-      const allBooks = await storage.getRecordBooks();
+      // Get record books (active only, or specific book) - scoped to this meet
+      const allBooks = await storage.getRecordBooks(device.meetId);
       const books = bookId ? allBooks.filter(b => b.id === parseInt(bookId)) : allBooks;
 
       if (books.length === 0) {
