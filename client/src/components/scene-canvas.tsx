@@ -85,7 +85,7 @@ const StaticRunningClock = memo(function StaticRunningClock({
   color
 }: { 
   serverTime: string | null | undefined;
-  clockSubscribersRef?: React.RefObject<Set<(time: string) => void>>;
+  clockSubscribersRef?: React.RefObject<Set<(time: string, command?: string) => void>>;
   fontSize?: string;
   color?: string;
 }) {
@@ -125,8 +125,21 @@ const StaticRunningClock = memo(function StaticRunningClock({
     const subscribers = clockSubscribersRef?.current;
     if (!subscribers) return;
     
-    const handleClockUpdate = (time: string) => {
+    const handleClockUpdate = (time: string, command?: string) => {
       const seconds = parseClockTimeToSeconds(time);
+      
+      // Clock stopped (e.g., manually stopped on leader) — freeze at final time
+      if (command === 'stop' && !isNaN(seconds) && seconds > 0) {
+        isRunningRef.current = false;
+        cancelAnimationFrame(rafIdRef.current);
+        lastServerSecondsRef.current = seconds;
+        const display = formatSecondsToClockDisplay(seconds);
+        lastDisplayedRef.current = display;
+        if (spanRef.current) {
+          spanRef.current.textContent = display;
+        }
+        return;
+      }
       
       if (!isNaN(seconds) && seconds > 0) {
         // Valid running time — snap to server value and continue interpolating
@@ -240,7 +253,7 @@ export interface SceneCanvasProps {
   // No liveClockTime prop — reading from the ref avoids re-rendering the entire
   // SceneCanvas → SceneObjectRenderer tree on every clock tick (~10x/second).
   liveClockTimeRef?: React.RefObject<string>;
-  clockSubscribersRef?: React.RefObject<Set<(time: string) => void>>;
+  clockSubscribersRef?: React.RefObject<Set<(time: string, command?: string) => void>>;
   pagingSize?: number;
   pagingInterval?: number;
   maxPages?: number;
@@ -360,7 +373,7 @@ export function SceneObjectRenderer({
   sharedLatestLiveData?: any;
   // Clock performance: read time from ref (no re-render on tick)
   liveClockTimeRef?: React.RefObject<string>;
-  clockSubscribersRef?: React.RefObject<Set<(time: string) => void>>;
+  clockSubscribersRef?: React.RefObject<Set<(time: string, command?: string) => void>>;
   deviceFieldPort?: number;
   liveEventDataByPort?: Record<number, any>;
 }) {

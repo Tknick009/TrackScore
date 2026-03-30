@@ -289,7 +289,7 @@ export default function DisplayDevice() {
   const liveClockCommandRef = useRef<string>('');
   // Subscribers that want clock updates (e.g., StaticRunningClock) register callbacks here.
   // This lets them update the DOM directly without going through React's render cycle.
-  const clockSubscribersRef = useRef<Set<(time: string) => void>>(new Set());
+  const clockSubscribersRef = useRef<Set<(time: string, command?: string) => void>>(new Set());
 
   const { data: meets } = useQuery<Meet[]>({
     queryKey: ['/api/meets'],
@@ -642,7 +642,7 @@ export default function DisplayDevice() {
               liveClockTimeRef.current = newTime;
               
               // Notify all direct-DOM clock subscribers (bypasses React render)
-              clockSubscribersRef.current.forEach(cb => cb(newTime));
+              clockSubscribersRef.current.forEach(cb => cb(newTime, newCommand));
               
               // Reset layout mode debouncing when system is armed
               if (newCommand === 'armed' && autoModeRef.current) {
@@ -1594,7 +1594,7 @@ interface DisplayRendererProps {
   deviceId: string;
   isConnected: boolean;
   liveClockTimeRef?: React.RefObject<string>;
-  clockSubscribersRef?: React.RefObject<Set<(time: string) => void>>;
+  clockSubscribersRef?: React.RefObject<Set<(time: string, command?: string) => void>>;
   liveEventData: LiveEventData | null;
   liveEventDataByPort: Record<number, LiveEventData>;
   pagingSize: number;
