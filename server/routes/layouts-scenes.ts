@@ -774,7 +774,15 @@ export function registerLayoutsScenesRoutes(app: Express, ctx: RouteContext) {
   // Delete a record book and all its records
   app.delete('/api/record-books/:id', async (req, res) => {
     try {
-      await storage.deleteRecordBook(parseInt(req.params.id));
+      const id = parseInt(req.params.id);
+      // Delete child records first to avoid FK violations
+      const book = await storage.getRecordBook(id);
+      if (book) {
+        for (const rec of book.records) {
+          await storage.deleteRecord(rec.id);
+        }
+      }
+      await storage.deleteRecordBook(id);
       res.status(204).send();
     } catch (error: any) {
       res.status(500).json({ error: error.message });

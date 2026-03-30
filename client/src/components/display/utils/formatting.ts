@@ -88,6 +88,8 @@ export function formatResult(entry: EntryWithDetails): string {
     if (trimmed === '') return '-';
     // Status codes like "DQ", "DNF", "SCR", "FS", "NT", "FOUL", "FAIL", "NH", "ND" — return as-is
     if (/^[A-Za-z]/.test(trimmed)) return trimmed;
+    // If the string already contains a colon (M:SS.hh format), it's pre-formatted — return as-is
+    if (trimmed.includes(':')) return trimmed;
     // Numeric string — try to parse and format
     const parsed = parseFloat(trimmed);
     if (isNaN(parsed)) return trimmed;
