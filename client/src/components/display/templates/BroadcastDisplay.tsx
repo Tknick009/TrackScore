@@ -169,6 +169,11 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
     if (secMatch) {
       const totalSeconds = parseFloat(`${secMatch[1]}.${secMatch[2]}`);
       const rounded = Math.round(totalSeconds * 100) / 100;
+      if (rounded >= 60) {
+        const mins = Math.floor(rounded / 60);
+        const secs = rounded - mins * 60;
+        return `${mins}:${secs.toFixed(2).padStart(5, '0')}`;
+      }
       return rounded.toFixed(2);
     }
     
