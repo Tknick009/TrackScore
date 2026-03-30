@@ -3,6 +3,7 @@ import type { EventWithEntries, Meet, EntryWithDetails } from "@shared/schema";
 import { isTrackEvent as checkIsTrackEvent } from "@shared/event-catalog";
 import { formatResult, formatTimeValue } from "../utils";
 import { getTeamColor, getPodiumColor } from "../utils";
+import { shouldShowWind } from "../utils/formatting";
 import { getLogoEffectStyle } from "@/lib/logoEffects";
 
 interface ProScoreboardProps {
@@ -99,8 +100,10 @@ export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingInt
   const eventNameLower = (event.name || '').toLowerCase();
   const eventTypeLower = (event.eventType || '').toLowerCase();
   const isRelay = (event as any).isRelay === true || eventTypeLower.includes('relay') || eventTypeLower.startsWith('4x') || /^\d+x\d+/.test(eventTypeLower) || eventNameLower.includes('relay') || eventNameLower.includes('medley');
+  // Only show wind for events 200m and under
+  const windAllowed = shouldShowWind(event.name || (event as any).eventName, event.eventType, (event as any).distance);
   const windReading = event.entries?.[0]?.finalWind;
-  const windDisplay = windReading !== null && windReading !== undefined
+  const windDisplay = windAllowed && windReading !== null && windReading !== undefined
     ? `${windReading > 0 ? '+' : ''}${windReading.toFixed(1)} m/s`
     : null;
 

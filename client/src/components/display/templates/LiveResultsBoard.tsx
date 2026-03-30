@@ -8,6 +8,7 @@ import {
   generateAttemptHeaders
 } from "../utils";
 import { getLogoEffectStyle } from "@/lib/logoEffects";
+import { shouldShowWind } from "../utils/formatting";
 
 interface LiveResultsBoardProps {
   event: EventWithEntries;
@@ -60,6 +61,8 @@ export function LiveResultsBoard({ event, meet, mode }: LiveResultsBoardProps) {
 }
 
 function TrackResultsDisplay({ event, mode }: { event: EventWithEntries; mode: string }) {
+  // Only show wind for events 200m and under
+  const windAllowed = shouldShowWind(event.name || (event as any).eventName, event.eventType, (event as any).distance);
   const sortedResults = [...event.entries].sort((a, b) => {
     const aPos = a.finalPlace ?? 999;
     const bPos = b.finalPlace ?? 999;
@@ -172,8 +175,8 @@ function TrackResultsDisplay({ event, mode }: { event: EventWithEntries; mode: s
               >
                 {formatResult(result)}
               </div>
-              {/* Wind reading - 36px below */}
-              {result.finalWind && (
+              {/* Wind reading - 36px below, only for events 200m and under */}
+              {windAllowed && result.finalWind && (
                 <p className="text-[36px] text-[hsl(var(--display-muted))] mt-2 leading-none">
                   Wind: {result.finalWind > 0 ? '+' : ''}{result.finalWind.toFixed(1)}
                 </p>

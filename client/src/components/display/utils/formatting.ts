@@ -151,6 +151,45 @@ export function formatSplitTime(seconds: number | null | undefined): string {
   return `${secs}s`;
 }
 
+/**
+ * Extract the race distance in meters from an event name or event type string.
+ * Returns the distance in meters, or null if it can't be determined.
+ * For relays like "4x100", returns the leg distance (100), not the total.
+ * Wind is only relevant for sprints (200m and under), so callers use this
+ * to decide whether to show wind readings.
+ */
+export function extractDistanceMeters(eventName: string | null | undefined, eventType?: string | null): number | null {
+  const str = (eventName || eventType || '').toLowerCase();
+  // Relay: "4x100" or "4 x 200" — extract leg distance
+  const relayMatch = str.match(/(\d+)\s*x\s*(\d+)/);
+  if (relayMatch) return parseInt(relayMatch[2]);
+  // Direct distance: "100m", "200 meters", "110m hurdles", "100 meter dash"
+  const distMatch = str.match(/(\d+)\s*m(?:eter)?/);
+  if (distMatch) return parseInt(distMatch[1]);
+  // Just a number at the start or after a space: "100 Dash", "200 Hurdles"
+  const numMatch = str.match(/\b(\d+)\b/);
+  if (numMatch) return parseInt(numMatch[1]);
+  return null;
+}
+
+/**
+ * Returns true if wind should be displayed for this event.
+ * Wind is only shown for events 200m and under (per IAAF/NCAA rules).
+ */
+export function shouldShowWind(eventName: string | null | undefined, eventType?: string | null, distance?: number | null): boolean {
+  // If we have a direct distance value, use it
+  if (distance !== null && distance !== undefined && distance > 0) {
+    return distance <= 200;
+  }
+  // Otherwise try to extract from the name/type
+  const extracted = extractDistanceMeters(eventName, eventType);
+  if (extracted !== null) {
+    return extracted <= 200;
+  }
+  // If we can't determine distance, show wind by default (safer to show than hide)
+  return true;
+}
+
 export function calculatePaceDelta(time: number, leaderTime: number): string {
   const delta = time - leaderTime;
   if (Math.abs(delta) < 0.01) return '—';

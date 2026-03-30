@@ -19,6 +19,7 @@ import {
   ScrollingResultsBoard 
 } from "@/components/display/templates";
 import { formatHeatDisplay } from "@/lib/fieldBindings";
+import { shouldShowWind } from "@/components/display/utils/formatting";
 import { calculateMultiEventPoints, normalizeEventType, hasScoring, type Gender } from "@shared/combined-scoring";
 import { Trophy, Clock, Users, User, Image, Type, Award, Loader2 } from "lucide-react";
 
@@ -907,7 +908,10 @@ export function SceneObjectRenderer({
           const windUpper = windStr.toUpperCase();
           const isValidWind = rawWind !== undefined && rawWind !== null && rawWind !== '' 
             && windUpper !== 'NWI' && !windUpper.includes('NWI') && windStr !== '';
-          const windDisplay = isValidWind ? windStr : '';
+          // Only show wind for events 200m and under
+          const eventDistance = liveData.distance || event?.distance;
+          const windAllowed = shouldShowWind(eventName, liveData.eventType || event?.eventType, eventDistance);
+          const windDisplay = (isValidWind && windAllowed) ? windStr : '';
           
           // Compute qualifier status: Q = qualified by place, q = qualified by time
           const advanceByPlace = liveData.advanceByPlace;
@@ -1411,9 +1415,11 @@ export function SceneObjectRenderer({
         const windReadingUpper = windReadingClean.toUpperCase();
         const isValidWindReading = windReadingRaw !== undefined && windReadingRaw !== null && windReadingRaw !== '' 
           && windReadingUpper !== 'NWI' && !windReadingUpper.includes('NWI') && windReadingClean !== '';
-        
-        // Hide completely when NWI or no valid wind data
-        if (!isValidWindReading) {
+
+        // Hide completely when NWI, no valid wind data, or event is over 200m
+        const windReadingEventDistance = liveData?.distance || event?.distance;
+        const windReadingAllowed = shouldShowWind(liveData?.eventName || event?.name, liveData?.eventType || event?.eventType, windReadingEventDistance);
+        if (!isValidWindReading || !windReadingAllowed) {
           return null;
         }
         

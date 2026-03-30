@@ -9,6 +9,7 @@ import {
 } from "../utils";
 import { Trophy } from "lucide-react";
 import { getLogoEffectStyle } from "@/lib/logoEffects";
+import { shouldShowWind } from "../utils/formatting";
 
 interface ScrollingResultsBoardProps {
   event: EventWithEntries;
@@ -67,7 +68,7 @@ export function ScrollingResultsBoard({
         <div className="flex-1 p-8 relative">
           <div className="animate-fade-in">
             {showTrackResults ? (
-              <TrackResultsPage results={sortedResults} />
+              <TrackResultsPage results={sortedResults} event={event} />
             ) : (
               <FieldResultsPage results={sortedResults} />
             )}
@@ -78,7 +79,9 @@ export function ScrollingResultsBoard({
   );
 }
 
-function TrackResultsPage({ results }: { results: EntryWithDetails[] }) {
+function TrackResultsPage({ results, event }: { results: EntryWithDetails[]; event?: EventWithEntries }) {
+  // Only show wind for events 200m and under
+  const windAllowed = event ? shouldShowWind(event.name || (event as any).eventName, event.eventType, (event as any).distance) : true;
   return (
     <div className="space-y-6">
       {results.map((result, index) => {
@@ -181,7 +184,7 @@ function TrackResultsPage({ results }: { results: EntryWithDetails[] }) {
               >
                 {formatResult(result)}
               </div>
-              {result.finalWind !== null && result.finalWind !== undefined && (
+              {windAllowed && result.finalWind !== null && result.finalWind !== undefined && (
                 <p className="text-[28px] text-[hsl(var(--display-muted))] mt-1 leading-none">
                   Wind: {result.finalWind > 0 ? '+' : ''}{result.finalWind.toFixed(1)}
                 </p>

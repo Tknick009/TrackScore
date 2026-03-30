@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import type { EventWithEntries, Meet } from "@shared/schema";
 import { getLogoEffectStyle } from "@/lib/logoEffects";
+import { shouldShowWind } from "../utils/formatting";
 
 interface BigBoardProps {
   event: EventWithEntries;
@@ -95,8 +96,11 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
     : (isCompleted ? 'FINAL' : event.status === 'in_progress' ? 'IN PROGRESS' : 'SCHEDULED');
   
   // Wind display - handle both numeric and string wind values
+  // Only show wind for events 200m and under
+  const windAllowed = shouldShowWind(event.name || (event as any).eventName, event.eventType, (event as any).distance);
   const windReading = (event as any).wind ?? event.entries?.[0]?.finalWind;
   const windDisplay = (() => {
+    if (!windAllowed) return '';
     if (windReading === null || windReading === undefined) return 'WIND: nwi';
     if (typeof windReading === 'string') {
       const trimmed = windReading.trim();
