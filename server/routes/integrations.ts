@@ -1677,7 +1677,7 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
               }
             }
           }
-          await enrichEntriesWithRecordTags(resolvedEventType, resolvedGender, data.entries);
+          await enrichEntriesWithRecordTags(resolvedEventType, resolvedGender, data.entries, enrichMeetId || undefined);
           const tagged = data.entries.filter((e: any) => e.recordTags?.length > 0);
           if (tagged.length > 0) {
             console.log(`[Lynx] Record tags: ${tagged.map((e: any) => `${e.name}: [${e.recordTags.join(',')}]`).join(', ')}`);
@@ -2199,7 +2199,7 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
             }
           }
         }
-        await enrichEntriesWithRecordTags(resolvedEventType, resolvedGender, acc.entries);
+        await enrichEntriesWithRecordTags(resolvedEventType, resolvedGender, acc.entries, slEnrichMeetId || undefined);
       } catch (err) {
         console.warn('[Lynx StartList] Failed to enrich with record tags:', err);
       } finally {

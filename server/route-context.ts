@@ -38,6 +38,6 @@ export interface RouteContext {
   abbreviateEventName: (name: string) => string;
   prefetchSceneData: (sceneId: number) => Promise<{ scene: any; objects: any[] } | null>;
   getDisplayModeFromTemplate: (template: string) => string | null;
-  enrichEntriesWithRecordTags: (eventType: string, gender: string, entries: any[]) => Promise<void>;
+  enrichEntriesWithRecordTags: (eventType: string, gender: string, entries: any[], meetId?: string) => Promise<void>;
   autoUpdateAthleteBests: (eventType: string, entries: any[]) => Promise<void>;
 }

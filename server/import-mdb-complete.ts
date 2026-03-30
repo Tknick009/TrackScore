@@ -2364,7 +2364,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         let bookId: number;
         if (!isEdgeMode || !sqliteDb) {
           // PostgreSQL mode - create record book
-          const existingBooks = await db!.select().from(recordBooks).where(sql`${recordBooks.name} = ${tagInfo.name}`);
+          const existingBooks = await db!.select().from(recordBooks).where(sql`${recordBooks.name} = ${tagInfo.name} AND ${recordBooks.meetId} = ${meetId}`);
           if (existingBooks.length > 0) {
             bookId = existingBooks[0].id;
             // Delete existing records for re-import
@@ -2376,6 +2376,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
               scope: tagInfo.scope,
               isActive: true,
               displayOrder: scopeDisplayOrder[tagInfo.scope] ?? 99,
+              meetId: meetId,
             }).returning();
             bookId = newBook.id;
           }
@@ -2474,13 +2475,13 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           `);
           
           // Find or create record book
-          let existingBook = sqliteDb.prepare('SELECT id FROM record_books WHERE name = ?').get(tagInfo.name);
+          let existingBook = sqliteDb.prepare('SELECT id FROM record_books WHERE name = ? AND meet_id = ?').get(tagInfo.name, meetId) as any;
           if (existingBook) {
             bookId = existingBook.id;
             sqliteDb.prepare('DELETE FROM records WHERE record_book_id = ?').run(bookId);
           } else {
-            const result = sqliteDb.prepare('INSERT INTO record_books (name, description, scope, is_active, display_order) VALUES (?, ?, ?, 1, ?)').run(
-              tagInfo.name, `Imported from HyTek MDB (tag_ptr=${tagPtr})`, tagInfo.scope, scopeDisplayOrder[tagInfo.scope] ?? 99
+            const result = sqliteDb.prepare('INSERT INTO record_books (name, description, scope, is_active, display_order, meet_id) VALUES (?, ?, ?, 1, ?, ?)').run(
+              tagInfo.name, `Imported from HyTek MDB (tag_ptr=${tagPtr})`, tagInfo.scope, scopeDisplayOrder[tagInfo.scope] ?? 99, meetId
             );
             bookId = result.lastInsertRowid as number;
           }

@@ -1005,11 +1005,12 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
             }
           }
         }
-        console.log(`[Hytek Results] Enriching ${displayEntries.length} entries for record tags (eventType=${event.eventType}, gender=${event.gender})`);
+        console.log(`[Hytek Results] Enriching ${displayEntries.length} entries for record tags (eventType=${event.eventType}, gender=${event.gender}, meetId=${event.meetId})`);
         await enrichEntriesWithRecordTags(
           event.eventType || 'track',
           event.gender || '',
-          displayEntries as any[]
+          displayEntries as any[],
+          event.meetId || undefined
         );
         // Log the record tags that were computed
         const taggedEntries = displayEntries.filter(e => ((e as any).recordTags || []).length > 0);

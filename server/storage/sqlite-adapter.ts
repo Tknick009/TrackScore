@@ -181,6 +181,7 @@ export class SQLiteStorage implements IStorage {
     try { this.db.prepare("ALTER TABLE meets ADD COLUMN logo_effect TEXT DEFAULT 'none'").run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE record_books ADD COLUMN display_order INTEGER DEFAULT 99').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE record_books ADD COLUMN allow_multiple INTEGER DEFAULT 0').run(); } catch(e) {}
+    try { this.db.prepare('ALTER TABLE record_books ADD COLUMN meet_id TEXT').run(); } catch(e) {}
   }
 
   private createTables(): void {
@@ -1664,6 +1665,9 @@ export class SQLiteStorage implements IStorage {
       try { this.db.prepare('DELETE FROM combined_events WHERE meet_id = ?').run(meetId); } catch (e) {}
       try { this.db.prepare('DELETE FROM medal_awards WHERE meet_id = ?').run(meetId); } catch (e) {}
       try { this.db.prepare('DELETE FROM processed_ingestion_files WHERE meet_id = ?').run(meetId); } catch (e) {}
+      // Clean up meet-scoped record books and their records
+      try { this.db.prepare('DELETE FROM records WHERE record_book_id IN (SELECT id FROM record_books WHERE meet_id = ?)').run(meetId); } catch (e) {}
+      try { this.db.prepare('DELETE FROM record_books WHERE meet_id = ?').run(meetId); } catch (e) {}
       this.db.prepare('DELETE FROM entries WHERE event_id IN (SELECT id FROM events WHERE meet_id = ?)').run(meetId);
       this.db.prepare('DELETE FROM events WHERE meet_id = ?').run(meetId);
       this.db.prepare('DELETE FROM athletes WHERE meet_id = ?').run(meetId);
@@ -2554,6 +2558,7 @@ export class SQLiteStorage implements IStorage {
       isActive: this.toBoolean(row.is_active),
       displayOrder: row.display_order ?? 99,
       allowMultiple: this.toBoolean(row.allow_multiple),
+      meetId: row.meet_id ?? null,
       createdAt: row.created_at ? new Date(row.created_at) : new Date(),
     };
   }
@@ -2642,7 +2647,7 @@ export class SQLiteStorage implements IStorage {
     return rows.map((row: any) => this.mapRecordRow(row));
   }
 
-  async getRecordsByEvent(eventType: string, gender: string): Promise<SelectRecord[]> {
+  async getRecordsByEvent(eventType: string, gender: string, meetId?: string): Promise<SelectRecord[]> {
     // Normalize gender for matching: events use 'M'/'F', records may have 'M'/'F'/'W'/'male'/'female'
     // Query with all possible variants to handle legacy data
     const genderVariants = [gender];
@@ -2655,6 +2660,17 @@ export class SQLiteStorage implements IStorage {
     }
     const uniqueVariants = [...new Set(genderVariants)];
     const placeholders = uniqueVariants.map(() => '?').join(',');
+    // When meetId is provided, only return records from books that belong to that meet
+    // (or books with no meet_id, which are global/shared records like facility or national)
+    if (meetId) {
+      const rows = this.db.prepare(`
+        SELECT r.* FROM records r
+        JOIN record_books rb ON r.record_book_id = rb.id
+        WHERE r.event_type = ? AND r.gender IN (${placeholders}) AND rb.is_active = 1
+        AND (rb.meet_id = ? OR rb.meet_id IS NULL)
+      `).all(eventType, ...uniqueVariants, meetId);
+      return rows.map((row: any) => this.mapRecordRow(row));
+    }
     const rows = this.db.prepare(`
       SELECT r.* FROM records r
       JOIN record_books rb ON r.record_book_id = rb.id

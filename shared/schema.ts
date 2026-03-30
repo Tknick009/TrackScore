@@ -1329,6 +1329,8 @@ export const recordBooks = pgTable('record_books', {
   // When false (default for meet/facility), only the best performer in the event gets the tag.
   // When true (useful for qualifying standards), all athletes who beat the standard get the tag.
   allowMultiple: boolean('allow_multiple').default(false),
+  // Meet that this record book belongs to (null = global/shared)
+  meetId: text('meet_id'),
   createdAt: timestamp('created_at').defaultNow(),
 });
 

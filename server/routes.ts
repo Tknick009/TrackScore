@@ -280,7 +280,7 @@ async function getActiveMeetId(): Promise<string | null> {
 }
 
 // Compute PB/SB/MR/FR tags for each entry in an event
-async function enrichEntriesWithRecordTags(eventType: string, gender: string, entries: EntryWithDetails[]): Promise<void> {
+async function enrichEntriesWithRecordTags(eventType: string, gender: string, entries: EntryWithDetails[], meetId?: string): Promise<void> {
   try {
     // Multi-events (heptathlon, pentathlon, decathlon) use point totals — skip record enrichment
     // Their point totals are not comparable to time/distance records
@@ -291,8 +291,8 @@ async function enrichEntriesWithRecordTags(eventType: string, gender: string, en
       return;
     }
 
-    // Fetch all record books for this event type and gender
-    const matchingRecords = await storage.getRecordsByEvent(eventType, gender);
+    // Fetch all record books for this event type and gender, scoped to meet if provided
+    const matchingRecords = await storage.getRecordsByEvent(eventType, gender, meetId);
     // === PERFORMANCE: Batch-fetch all distinct record books in one pass ===
     // Previously called storage.getRecordBook() per-record (N+1 query pattern).
     // With 6 records that's 6 sequential DB queries. Now we deduplicate and batch.
@@ -610,12 +610,13 @@ async function broadcastCurrentEventImpl() {
         || meets[0];
   }
 
-  // Enrich entries with PB/SB/MR/FR tags before broadcasting
+  // Enrich entries with PB/SB/MR/FR tags before broadcasting (scoped to meet)
   if (currentEvent?.entries && currentEvent.entries.length > 0) {
     await enrichEntriesWithRecordTags(
       currentEvent.eventType,
       currentEvent.gender,
-      currentEvent.entries
+      currentEvent.entries,
+      currentEvent.meetId || undefined
     );
   }
 
