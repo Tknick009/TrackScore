@@ -161,7 +161,7 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
       const totalSeconds = parseInt(match[1]) * 60 + parseFloat(`${match[2]}.${match[3]}`);
       const rounded = Math.round(totalSeconds * 100) / 100;
       const mins = Math.floor(rounded / 60);
-      const secs = rounded - mins * 60;
+      const secs = Math.round((rounded % 60) * 100) / 100;
       return `${mins}:${secs.toFixed(2).padStart(5, '0')}`;
     }
     
@@ -171,7 +171,7 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
       const rounded = Math.round(totalSeconds * 100) / 100;
       if (rounded >= 60) {
         const mins = Math.floor(rounded / 60);
-        const secs = rounded - mins * 60;
+        const secs = Math.round((rounded % 60) * 100) / 100;
         return `${mins}:${secs.toFixed(2).padStart(5, '0')}`;
       }
       return rounded.toFixed(2);

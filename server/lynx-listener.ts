@@ -112,7 +112,8 @@ function cleanEventName(name: string | undefined): string | undefined {
   const multiMatch = cleaned.match(/^(Men'?s?|Women'?s?)\s+((?:Pent|Hept|Dec)(?:athlon)?)\s+(.+)/i);
   if (multiMatch) {
     // Reposition: "Men Hept 60M Hurdles" → "Hept Men 60M Hurdles"
-    const gender = multiMatch[1].replace(/'s$/i, ''); // normalize Men's → Men, Women's → Women
+    // Normalize all variants (Men's, Mens, Women's, Womens) to canonical "Men" or "Women"
+    const gender = /^women/i.test(multiMatch[1]) ? 'Women' : 'Men';
     cleaned = `${multiMatch[2]} ${gender} ${multiMatch[3]}`.trim();
   } else if (/\b(pent|hept|dec(athlon)?|combined)/i.test(cleaned)) {
     // Standalone header like "Men Pent" or "Women Heptathlon" — strip gender for display
