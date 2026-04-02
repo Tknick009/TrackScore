@@ -285,6 +285,20 @@ export class LynxListener extends EventEmitter {
             entries: sortedEntries,
             sourcePortType: event.sourcePortType, // Pass through for big board routing
           });
+        } else if (hasAnyTimes) {
+          // Entries have times but no places — this is running mode (or DNS-only before race start).
+          // Emit all entries so the client can display them (DNS at 50% opacity, others waiting for data).
+          const mode = this.isRunning ? 'running' : 'start_list';
+          this.emit('track-mode-change', event.eventNumber, mode, {
+            eventNumber: event.eventNumber,
+            heat: event.heat,
+            round: event.round,
+            distance: event.distance,
+            wind: event.wind,
+            eventName: event.eventName,
+            entries: sortedEntries,
+            sourcePortType: event.sourcePortType,
+          });
         }
         break;
       case 'F':
@@ -990,12 +1004,12 @@ export class LynxListener extends EventEmitter {
         const lastSplit = data.LS?.trim() || '';
         const lapsToGo = data.L2G?.trim() || '';
         
-        // FILTER: Skip entries without any timing data (time, split, or place)
-        // Only show athletes who have crossed a timing point
-        const hasTimingData = time !== '' || cumulativeSplit !== '' || lastSplit !== '' || place !== '';
-        if (!hasTimingData) {
-          continue; // Skip this entry - no data yet
-        }
+        // Include ALL entries — the client handles opacity for athletes without
+        // timing data yet (50% opacity). Previously this filter skipped entries
+        // without timing data, but that caused a bug: when FinishLynx marks an
+        // athlete as DNS before the race starts, the DNS entry has T:"DNS" (passes)
+        // while all other athletes have empty fields (filtered out). This meant
+        // only DNS athletes appeared during the running time transition.
         
         entries.push({
           place: place,
@@ -1045,7 +1059,7 @@ export class LynxListener extends EventEmitter {
       };
       // Create sorted copy to determine places
       const sorted = [...entries]
-        .map((e, idx) => ({ idx, time: parseTime(e.time) }))
+        .map((e, idx) => ({ idx, time: parseTime(e.time || '') }))
         .filter(e => e.time !== Infinity)
         .sort((a, b) => a.time - b.time);
       sorted.forEach((item, rank) => {
