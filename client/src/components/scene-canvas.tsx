@@ -1088,9 +1088,7 @@ export function SceneObjectRenderer({
               const rawPlace = firstEntry?.place;
               if (rawPlace === undefined || rawPlace === null || rawPlace === '') return rawPlace;
               const placeStr = String(rawPlace).trim();
-              // Add "PL: " prefix on all displays except BigBoard (1920+ wide)
-              const isBigBoard = canvasWidth >= 1920;
-              return isBigBoard ? placeStr : `PL: ${placeStr}`;
+              return placeStr;
             })(),
             'name': displayName,
             'first-name': isTeamScores ? (firstEntry?.name || '') : isRelayOrMedleyText ? '' : firstEntry?.firstName,
