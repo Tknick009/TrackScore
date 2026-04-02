@@ -841,20 +841,25 @@ export class LynxListener extends EventEmitter {
           continue;
         }
         
-        // Only emit if we have a time value (armed packets may not have one)
-        if (timeValue) {
-          console.log(`[Lynx:Clock] Emitting clock-update: time="${timeValue}" command="${command}"`);
-          this.emit('clock-update', this.currentEventNumber, timeValue, command);
-        }
-        
-        // Track running state from clock commands
+        // Track running state from clock commands — emit once per packet to avoid
+        // double-emission (e.g. armed + timeValue would cause a brief flash)
         if (command === 'armed') {
           this.isRunning = false;
           this.emit('clock-update', this.currentEventNumber, '', 'armed');
         } else if (command === 'start' || command === 'running') {
           this.isRunning = true;
+          if (timeValue) {
+            this.emit('clock-update', this.currentEventNumber, timeValue, command);
+          }
         } else if (command === 'stop') {
           this.isRunning = false;
+          if (timeValue) {
+            this.emit('clock-update', this.currentEventNumber, timeValue, command);
+          }
+        } else if (timeValue) {
+          // Normal time tick — no state command
+          console.log(`[Lynx:Clock] Emitting clock-update: time="${timeValue}" command="${command}"`);
+          this.emit('clock-update', this.currentEventNumber, timeValue, command);
         }
         continue;
       }
