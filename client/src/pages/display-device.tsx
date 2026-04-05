@@ -1235,7 +1235,7 @@ export default function DisplayDevice() {
                     roundName: eventChanged ? (data.roundName ?? 'Finals') : (data.roundName ?? prev.liveEventData?.roundName),
                     mode: 'start_list',
                     entries: data.entries || [],
-                    wind: prev.liveEventData?.wind,
+                    wind: undefined,
                     distance: data.distance || prev.liveEventData?.distance,
                     // Always use the server's value for advancement data — never carry over from previous events
                     advanceByPlace: eventChanged ? (data.advanceByPlace ?? null) : (data.advanceByPlace !== undefined ? data.advanceByPlace : prev.liveEventData?.advanceByPlace),
