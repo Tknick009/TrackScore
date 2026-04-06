@@ -2171,42 +2171,13 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
       }
     }
     
-    // Enrich accumulated entries with record tags (including PB/SB via athleteId)
-    if (acc.entries.length > 0 && acc.entries.some((e: any) => e.time)) {
-      try {
-        const resolvedEventType = eventType || 'track';
-        const resolvedGender = eventGender || '';
-        // Resolve athleteId from bib number so PB/SB tags can be computed
-        // === PERFORMANCE: Use cached athlete lookup instead of fetching ALL athletes every 2s ===
-        const slEnrichMeetId = await getActiveMeetId();
-        if (slEnrichMeetId) {
-          const slMeetAthletes = await getAthletesByMeetCached(slEnrichMeetId);
-          const slBibToAthlete = new Map(slMeetAthletes.map(a => [a.bibNumber, a.id]));
-          for (const entry of acc.entries) {
-            if (entry.bib && !entry.athleteId) {
-              const athleteId = slBibToAthlete.get(entry.bib) || slBibToAthlete.get(String(entry.bib));
-              if (athleteId) {
-                entry.athleteId = athleteId;
-              }
-            }
-          }
-        }
-        for (const entry of acc.entries) {
-          if (entry.time) {
-            const seconds = parsePerformance(entry.time);
-            if (seconds !== null) {
-              entry.finalMark = seconds * 1000;
-            }
-          }
-        }
-        await enrichEntriesWithRecordTags(resolvedEventType, resolvedGender, acc.entries, slEnrichMeetId || undefined);
-      } catch (err) {
-        console.warn('[Lynx StartList] Failed to enrich with record tags:', err);
-      } finally {
-        for (const entry of acc.entries) {
-          delete entry.finalMark;
-        }
-      }
+    // Do NOT enrich start lists with record tags.
+    // Start lists contain seed times, not results — comparing seeds against records
+    // causes random/incorrect MR/FR/PB/SB tags to appear on start lists.
+    // Record tags are only meaningful on actual results (handled in the results path).
+    // Clear any stale record tags from previous broadcasts.
+    for (const entry of acc.entries) {
+      (entry as any).recordTags = [];
     }
     
     // Broadcast entries in arrival order (FinishLynx controls display order)
