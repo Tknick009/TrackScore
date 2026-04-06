@@ -13,6 +13,7 @@ import {
   ChevronDown,
   ChevronRight,
   ExternalLink,
+  Image,
 } from "lucide-react";
 import {
   Sidebar,
@@ -180,6 +181,14 @@ export function AppSidebar() {
                   <Link href={`${basePath}/setup`} data-testid="link-setup">
                     <Settings />
                     <span>Meet Setup</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location === `${basePath}/logos`}>
+                  <Link href={`${basePath}/logos`} data-testid="link-logos">
+                    <Image />
+                    <span>Check Logos</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
