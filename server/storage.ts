@@ -1827,14 +1827,14 @@ export class DatabaseStorage implements IStorage {
   // Record Books
   async getRecordBooks(meetId?: string): Promise<SelectRecordBook[]> {
     if (meetId) {
-      return db.select().from(recordBooks).where(and(eq(recordBooks.isActive, true), sql`(${recordBooks.meetId} = ${meetId} OR ${recordBooks.meetId} IS NULL)`));
+      return db.select().from(recordBooks).where(and(eq(recordBooks.isActive, true), eq(recordBooks.meetId, meetId)));
     }
     return db.select().from(recordBooks).where(eq(recordBooks.isActive, true));
   }
 
   async getAllRecordBooks(meetId?: string): Promise<SelectRecordBook[]> {
     if (meetId) {
-      return db.select().from(recordBooks).where(sql`(${recordBooks.meetId} = ${meetId} OR ${recordBooks.meetId} IS NULL)`);
+      return db.select().from(recordBooks).where(eq(recordBooks.meetId, meetId));
     }
     return db.select().from(recordBooks);
   }
@@ -1903,7 +1903,7 @@ export class DatabaseStorage implements IStorage {
       eq(recordBooks.isActive, true),
     ];
     if (meetId) {
-      conditions.push(sql`(${recordBooks.meetId} = ${meetId} OR ${recordBooks.meetId} IS NULL)`);
+      conditions.push(eq(recordBooks.meetId, meetId));
     }
 
     const results = await db

@@ -2455,6 +2455,8 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
               scope TEXT NOT NULL DEFAULT 'custom',
               is_active INTEGER DEFAULT 1,
               display_order INTEGER DEFAULT 99,
+              allow_multiple INTEGER DEFAULT 0,
+              meet_id TEXT,
               created_at TEXT DEFAULT CURRENT_TIMESTAMP
             );
             CREATE TABLE IF NOT EXISTS records (
@@ -2473,6 +2475,9 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
               created_at TEXT DEFAULT CURRENT_TIMESTAMP
             );
           `);
+          // Ensure meet_id column exists (for tables created by older versions)
+          try { sqliteDb.prepare('ALTER TABLE record_books ADD COLUMN meet_id TEXT').run(); } catch(e) {}
+          try { sqliteDb.prepare('ALTER TABLE record_books ADD COLUMN allow_multiple INTEGER DEFAULT 0').run(); } catch(e) {}
           
           // Find or create record book
           let existingBook = sqliteDb.prepare('SELECT id FROM record_books WHERE name = ? AND meet_id = ?').get(tagInfo.name, meetId) as any;

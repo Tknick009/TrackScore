@@ -182,6 +182,16 @@ export class SQLiteStorage implements IStorage {
     try { this.db.prepare('ALTER TABLE record_books ADD COLUMN display_order INTEGER DEFAULT 99').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE record_books ADD COLUMN allow_multiple INTEGER DEFAULT 0').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE record_books ADD COLUMN meet_id TEXT').run(); } catch(e) {}
+    // Clean up orphaned record books (NULL meet_id) — these leak into every meet
+    // and cause records from old meets to appear sporadically in other meets
+    try {
+      const orphaned = this.db.prepare('SELECT COUNT(*) as count FROM record_books WHERE meet_id IS NULL').get() as any;
+      if (orphaned?.count > 0) {
+        this.db.prepare('DELETE FROM records WHERE record_book_id IN (SELECT id FROM record_books WHERE meet_id IS NULL)').run();
+        this.db.prepare('DELETE FROM record_books WHERE meet_id IS NULL').run();
+        console.log(`🧹 Cleaned up ${orphaned.count} orphaned record book(s) with no meet_id`);
+      }
+    } catch(e) {}
   }
 
   private createTables(): void {
@@ -549,6 +559,7 @@ export class SQLiteStorage implements IStorage {
         is_active INTEGER DEFAULT 1,
         display_order INTEGER DEFAULT 99,
         allow_multiple INTEGER DEFAULT 0,
+        meet_id TEXT,
         created_at TEXT DEFAULT (datetime('now'))
       );
 
@@ -2565,7 +2576,7 @@ export class SQLiteStorage implements IStorage {
 
   async getRecordBooks(meetId?: string): Promise<SelectRecordBook[]> {
     if (meetId) {
-      const rows = this.db.prepare('SELECT * FROM record_books WHERE is_active = 1 AND (meet_id = ? OR meet_id IS NULL)').all(meetId);
+      const rows = this.db.prepare('SELECT * FROM record_books WHERE is_active = 1 AND meet_id = ?').all(meetId);
       return rows.map((row: any) => this.mapRecordBookRow(row));
     }
     const rows = this.db.prepare('SELECT * FROM record_books WHERE is_active = 1').all();
@@ -2574,7 +2585,7 @@ export class SQLiteStorage implements IStorage {
 
   async getAllRecordBooks(meetId?: string): Promise<SelectRecordBook[]> {
     if (meetId) {
-      const rows = this.db.prepare('SELECT * FROM record_books WHERE (meet_id = ? OR meet_id IS NULL)').all(meetId);
+      const rows = this.db.prepare('SELECT * FROM record_books WHERE meet_id = ?').all(meetId);
       return rows.map((row: any) => this.mapRecordBookRow(row));
     }
     const rows = this.db.prepare('SELECT * FROM record_books').all();
@@ -2670,13 +2681,13 @@ export class SQLiteStorage implements IStorage {
     const uniqueVariants = [...new Set(genderVariants)];
     const placeholders = uniqueVariants.map(() => '?').join(',');
     // When meetId is provided, only return records from books that belong to that meet
-    // (or books with no meet_id, which are global/shared records like facility or national)
+    // Records with NULL meet_id are orphaned and excluded to ensure strict meet isolation
     if (meetId) {
       const rows = this.db.prepare(`
         SELECT r.* FROM records r
         JOIN record_books rb ON r.record_book_id = rb.id
         WHERE r.event_type = ? AND r.gender IN (${placeholders}) AND rb.is_active = 1
-        AND (rb.meet_id = ? OR rb.meet_id IS NULL)
+        AND rb.meet_id = ?
       `).all(eventType, ...uniqueVariants, meetId);
       return rows.map((row: any) => this.mapRecordRow(row));
     }

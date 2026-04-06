@@ -713,8 +713,7 @@ export function registerLayoutsScenesRoutes(app: Express, ctx: RouteContext) {
   // ============= RECORD BOOKS MANAGEMENT =============
   
   // Get all record books (including inactive) with their records
-  // Note: Record books are intentionally global (facility, national, etc.) - they are NOT per-meet.
-  // The meetId filter here is optional and only used to filter record books by scope if needed.
+  // Record books are scoped to a specific meet via meet_id for strict meet isolation.
   app.get('/api/record-books', async (req, res) => {
     try {
       const includeInactive = req.query.all === 'true';
