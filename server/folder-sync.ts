@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import Database from 'better-sqlite3';
 import { storage } from './storage';
 import { importMeetPackage, exportMeetPackage, listMeetPackages } from './meet-package';
 import type { ImportResult } from './meet-package';
@@ -223,7 +224,346 @@ function copyDirRecursive(src: string, dest: string): void {
 }
 
 /**
+ * Find a scoreboard.db file in the sync folder (checks root and data/ subfolder).
+ * Returns the path if found, null otherwise.
+ */
+function findRemoteDb(syncPath: string): string | null {
+  // Check data/scoreboard.db (if sync folder is a TrackScore project root)
+  const dataDbPath = path.join(syncPath, 'data', 'scoreboard.db');
+  if (fs.existsSync(dataDbPath)) {
+    console.log(`[Folder Sync] Found remote database: ${dataDbPath}`);
+    return dataDbPath;
+  }
+  // Check scoreboard.db in root
+  const rootDbPath = path.join(syncPath, 'scoreboard.db');
+  if (fs.existsSync(rootDbPath)) {
+    console.log(`[Folder Sync] Found remote database: ${rootDbPath}`);
+    return rootDbPath;
+  }
+  return null;
+}
+
+/**
+ * Sync meets directly from a remote scoreboard.db file.
+ * Opens the DB read-only and copies meet data (meets, events, athletes, entries,
+ * teams, divisions, display themes) into the local database.
+ * Returns a FolderSyncSummary if a DB was found and processed, null if no DB exists.
+ */
+async function syncMeetsFromRemoteDb(syncPath: string): Promise<FolderSyncSummary | null> {
+  const remoteDbPath = findRemoteDb(syncPath);
+  if (!remoteDbPath) {
+    console.log('[Folder Sync] No scoreboard.db found in sync folder — will try meet packages');
+    return null;
+  }
+
+  // Don't sync from ourselves
+  const localDbPath = path.resolve('./data/scoreboard.db');
+  if (path.resolve(remoteDbPath) === localDbPath) {
+    console.log('[Folder Sync] Remote DB is the same as local DB — skipping DB sync');
+    return null;
+  }
+
+  let remoteDb: ReturnType<typeof Database> | null = null;
+  const results: FolderSyncResult[] = [];
+  let imported = 0;
+  let skippedExists = 0;
+  let skippedError = 0;
+  let totalMeetsFound = 0;
+
+  try {
+    // Open remote DB read-only
+    remoteDb = new Database(remoteDbPath, { readonly: true, fileMustExist: true });
+    console.log(`[Folder Sync] Opened remote database: ${remoteDbPath}`);
+
+    // Get all meets from remote DB
+    const remoteMeets = remoteDb.prepare('SELECT * FROM meets').all() as any[];
+    totalMeetsFound = remoteMeets.length;
+    console.log(`[Folder Sync] Found ${totalMeetsFound} meet(s) in remote database`);
+
+    if (totalMeetsFound === 0) {
+      remoteDb.close();
+      return {
+        success: true,
+        syncFolderPath: syncPath,
+        packagesFound: 0,
+        imported: 0,
+        skippedExists: 0,
+        skippedError: 0,
+        results: [],
+      };
+    }
+
+    for (const remoteMeet of remoteMeets) {
+      const meetCode = remoteMeet.meet_code;
+      const meetName = remoteMeet.name || 'Unknown';
+
+      // Check if this meet already exists locally
+      const existingMeet = await storage.getMeetByCode(meetCode);
+      if (existingMeet) {
+        console.log(`[Folder Sync] Skipping "${meetName}" (code: ${meetCode}) — already exists`);
+        results.push({
+          packageName: meetName,
+          meetName,
+          meetCode,
+          action: 'skipped_exists',
+        });
+        skippedExists++;
+        continue;
+      }
+
+      // Import this meet and all its data
+      console.log(`[Folder Sync] Importing "${meetName}" (code: ${meetCode}) from remote DB...`);
+      try {
+        const stats = await importMeetFromRemoteDb(remoteDb, remoteMeet);
+        console.log(`[Folder Sync] Successfully imported "${meetName}": ${stats.events} events, ${stats.athletes} athletes, ${stats.entries} entries`);
+        results.push({
+          packageName: meetName,
+          meetName,
+          meetCode,
+          action: 'imported',
+          stats,
+        });
+        imported++;
+      } catch (error: any) {
+        console.error(`[Folder Sync] Error importing "${meetName}":`, error);
+        results.push({
+          packageName: meetName,
+          meetName,
+          meetCode,
+          action: 'skipped_error',
+          error: error.message || 'Unknown error',
+        });
+        skippedError++;
+      }
+    }
+  } catch (error: any) {
+    console.error('[Folder Sync] Error reading remote database:', error);
+    // If the DB is locked or corrupt, fall back to meet packages
+    if (remoteDb) {
+      try { remoteDb.close(); } catch (_) {}
+    }
+    return null;
+  } finally {
+    if (remoteDb) {
+      try { remoteDb.close(); } catch (_) {}
+    }
+  }
+
+  saveSyncResults(results);
+
+  return {
+    success: true,
+    syncFolderPath: syncPath,
+    packagesFound: totalMeetsFound,
+    imported,
+    skippedExists,
+    skippedError,
+    results,
+  };
+}
+
+/**
+ * Import a single meet and all its related data from a remote DB into the local DB.
+ */
+async function importMeetFromRemoteDb(
+  remoteDb: ReturnType<typeof Database>,
+  remoteMeet: any
+): Promise<{ events: number; athletes: number; teams: number; entries: number; scenes: number }> {
+  const oldMeetId = remoteMeet.id;
+
+  // Create the meet locally
+  const newMeet = await storage.createMeet({
+    name: remoteMeet.name,
+    location: remoteMeet.location,
+    startDate: remoteMeet.start_date ? new Date(remoteMeet.start_date) : new Date(),
+    endDate: remoteMeet.end_date ? new Date(remoteMeet.end_date) : null,
+    seasonId: null, // Don't carry over season references
+    status: remoteMeet.status || 'upcoming',
+    trackLength: remoteMeet.track_length || 400,
+    logoUrl: remoteMeet.logo_url,
+    meetCode: remoteMeet.meet_code,
+    mdbPath: remoteMeet.mdb_path,
+    autoRefresh: remoteMeet.auto_refresh ? true : false,
+    refreshInterval: remoteMeet.refresh_interval || 30,
+    primaryColor: remoteMeet.primary_color || '#0066CC',
+    secondaryColor: remoteMeet.secondary_color || '#003366',
+    accentColor: remoteMeet.accent_color || '#FFD700',
+    textColor: remoteMeet.text_color || '#FFFFFF',
+    logoEffect: remoteMeet.logo_effect || 'none',
+  });
+  const newMeetId = newMeet.id;
+
+  // Build ID mappings (old remote ID -> new local ID) for foreign keys
+  const teamIdMap = new Map<string, string>();
+  const divisionIdMap = new Map<string, string>();
+  const athleteIdMap = new Map<string, string>();
+  const eventIdMap = new Map<string, string>();
+
+  // Import teams
+  const remoteTeams = remoteDb.prepare('SELECT * FROM teams WHERE meet_id = ?').all(oldMeetId) as any[];
+  for (const rt of remoteTeams) {
+    const newTeam = await storage.createTeam({
+      meetId: newMeetId,
+      teamNumber: rt.team_number,
+      name: rt.name,
+      shortName: rt.short_name,
+      abbreviation: rt.abbreviation,
+      menScoreOverride: rt.men_score_override,
+      womenScoreOverride: rt.women_score_override,
+    });
+    teamIdMap.set(rt.id, newTeam.id);
+  }
+
+  // Import divisions
+  let remoteDivisions: any[] = [];
+  try {
+    remoteDivisions = remoteDb.prepare('SELECT * FROM divisions WHERE meet_id = ?').all(oldMeetId) as any[];
+  } catch (_) { /* table might not exist */ }
+  for (const rd of remoteDivisions) {
+    const newDiv = await storage.createDivision({
+      meetId: newMeetId,
+      divisionNumber: rd.division_number,
+      name: rd.name,
+      abbreviation: rd.abbreviation,
+      lowAge: rd.low_age,
+      highAge: rd.high_age,
+    });
+    divisionIdMap.set(rd.id, newDiv.id);
+  }
+
+  // Import athletes
+  const remoteAthletes = remoteDb.prepare('SELECT * FROM athletes WHERE meet_id = ?').all(oldMeetId) as any[];
+  for (const ra of remoteAthletes) {
+    const newAthlete = await storage.createAthlete({
+      meetId: newMeetId,
+      athleteNumber: ra.athlete_number,
+      firstName: ra.first_name,
+      lastName: ra.last_name,
+      teamId: ra.team_id ? (teamIdMap.get(ra.team_id) || null) : null,
+      divisionId: ra.division_id ? (divisionIdMap.get(ra.division_id) || null) : null,
+      bibNumber: ra.bib_number,
+      gender: ra.gender,
+    });
+    athleteIdMap.set(ra.id, newAthlete.id);
+  }
+
+  // Import events
+  const remoteEvents = remoteDb.prepare('SELECT * FROM events WHERE meet_id = ?').all(oldMeetId) as any[];
+  for (const re of remoteEvents) {
+    const newEvent = await storage.createEvent({
+      meetId: newMeetId,
+      eventNumber: re.event_number,
+      name: re.name,
+      eventType: re.event_type,
+      gender: re.gender,
+      distance: re.distance,
+      status: re.status || 'scheduled',
+      numRounds: re.num_rounds,
+      numLanes: re.num_lanes,
+      eventDate: re.event_date ? new Date(re.event_date) : null,
+      eventTime: re.event_time,
+      sessionName: re.session_name,
+      hytekStatus: re.hytek_status,
+      isScored: re.is_scored ? true : false,
+    });
+    eventIdMap.set(re.id, newEvent.id);
+  }
+
+  // Import entries
+  let entriesImported = 0;
+  const remoteEntries = remoteDb.prepare(
+    `SELECT e.* FROM entries e 
+     JOIN events ev ON e.event_id = ev.id 
+     WHERE ev.meet_id = ?`
+  ).all(oldMeetId) as any[];
+
+  for (const entry of remoteEntries) {
+    const newEventId = eventIdMap.get(entry.event_id);
+    const newAthleteId = athleteIdMap.get(entry.athlete_id);
+    if (!newEventId || !newAthleteId) continue;
+
+    try {
+      await storage.createEntry({
+        eventId: newEventId,
+        athleteId: newAthleteId,
+        teamId: entry.team_id ? (teamIdMap.get(entry.team_id) || null) : null,
+        divisionId: entry.division_id ? (divisionIdMap.get(entry.division_id) || null) : null,
+        seedMark: entry.seed_mark,
+        resultType: entry.result_type || 'time',
+        preliminaryHeat: entry.preliminary_heat,
+        preliminaryLane: entry.preliminary_lane,
+        quarterfinalHeat: entry.quarterfinal_heat,
+        quarterfinalLane: entry.quarterfinal_lane,
+        semifinalHeat: entry.semifinal_heat,
+        semifinalLane: entry.semifinal_lane,
+        finalHeat: entry.final_heat,
+        finalLane: entry.final_lane,
+        preliminaryMark: entry.preliminary_mark,
+        preliminaryPlace: entry.preliminary_place,
+        preliminaryWind: entry.preliminary_wind,
+        quarterfinalMark: entry.quarterfinal_mark,
+        quarterfinalPlace: entry.quarterfinal_place,
+        quarterfinalWind: entry.quarterfinal_wind,
+        semifinalMark: entry.semifinal_mark,
+        semifinalPlace: entry.semifinal_place,
+        semifinalWind: entry.semifinal_wind,
+        finalMark: entry.final_mark,
+        finalPlace: entry.final_place,
+        finalWind: entry.final_wind,
+        isDisqualified: entry.is_disqualified ? true : false,
+        isScratched: entry.is_scratched ? true : false,
+        scoringStatus: entry.scoring_status || 'pending',
+        scoredPoints: entry.scored_points,
+        notes: entry.notes,
+        checkInStatus: entry.check_in_status || 'pending',
+        checkInTime: entry.check_in_time ? new Date(entry.check_in_time) : null,
+        checkInOperator: entry.check_in_operator,
+        checkInMethod: entry.check_in_method,
+      });
+      entriesImported++;
+    } catch (e) {
+      // Skip duplicate entries (unique constraint)
+    }
+  }
+
+  // Import display themes
+  let themesImported = 0;
+  try {
+    const remoteThemes = remoteDb.prepare('SELECT * FROM display_themes WHERE meet_id = ?').all(oldMeetId) as any[];
+    for (const rt of remoteThemes) {
+      await storage.createDisplayTheme({
+        meetId: newMeetId,
+        name: rt.name,
+        isDefault: rt.is_default ? true : false,
+        accentColor: rt.accent_color,
+        bgColor: rt.bg_color,
+        bgElevatedColor: rt.bg_elevated_color,
+        bgBorderColor: rt.bg_border_color,
+        fgColor: rt.fg_color,
+        mutedColor: rt.muted_color,
+        headingFont: rt.heading_font,
+        bodyFont: rt.body_font,
+        numbersFont: rt.numbers_font,
+        logoUrl: rt.logo_url,
+        sponsorLogos: rt.sponsor_logos,
+        features: rt.features,
+      });
+      themesImported++;
+    }
+  } catch (_) { /* display_themes table might not exist */ }
+
+  return {
+    events: remoteEvents.length,
+    athletes: remoteAthletes.length,
+    teams: remoteTeams.length,
+    entries: entriesImported,
+    scenes: themesImported,
+  };
+}
+
+/**
  * Main sync function: scan the configured folder and import new meet packages.
+ * First tries to read from a scoreboard.db, then falls back to meet-package.json files.
  * Skips meets that already exist in the database (by meetCode).
  */
 export async function syncFromFolder(folderPath?: string): Promise<FolderSyncSummary> {
@@ -260,7 +600,13 @@ export async function syncFromFolder(folderPath?: string): Promise<FolderSyncSum
     };
   }
 
-  // Find all meet packages in the sync folder
+  // Strategy 1: Try to sync from a scoreboard.db in the sync folder
+  const dbSyncResult = await syncMeetsFromRemoteDb(syncPath);
+  if (dbSyncResult) {
+    return dbSyncResult;
+  }
+
+  // Strategy 2: Fall back to scanning for meet-package.json files
   const packages = findMeetPackages(syncPath);
   console.log(`[Folder Sync] Found ${packages.length} meet package(s) in sync folder`);
 

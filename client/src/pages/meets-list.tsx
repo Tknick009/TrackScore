@@ -443,8 +443,8 @@ function FolderSyncPanel() {
         toast({ title: 'Sync complete', description: `All ${data.packagesFound} meet(s) already imported` });
       } else {
         toast({
-          title: 'No meet packages found',
-          description: `Searched: ${data.syncFolderPath || folderPath}. Make sure exported meet packages (with meet-package.json) are in this folder.`,
+          title: 'No meets found',
+          description: `Searched: ${data.syncFolderPath || folderPath}. No scoreboard.db or meet packages found in this folder.`,
           variant: 'destructive',
         });
       }

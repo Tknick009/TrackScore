@@ -164,8 +164,9 @@ export function extractDistanceMeters(eventName: string | null | undefined, even
   const relayMatch = str.match(/(\d+)\s*x\s*(\d+)/);
   if (relayMatch) return parseInt(relayMatch[2]);
   // Direct distance: "100m", "200 meters", "110m hurdles", "100 meter dash"
-  const distMatch = str.match(/(\d+)\s*m(?:eter)?/);
-  if (distMatch) return parseInt(distMatch[1]);
+  // Exclude "mile" events (e.g. "1 Mile", "2 Mile") — those are not 1m or 2m
+  const distMatch = str.match(/(\d+)\s*m(?:eters?)?\b/);
+  if (distMatch && !/mile/i.test(str)) return parseInt(distMatch[1]);
   // Just a number at the start or after a space: "100 Dash", "200 Hurdles"
   const numMatch = str.match(/\b(\d+)\b/);
   if (numMatch) return parseInt(numMatch[1]);
