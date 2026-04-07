@@ -433,12 +433,20 @@ function FolderSyncPanel() {
       setIsSyncing(false);
       queryClient.invalidateQueries({ queryKey: ['/api/meets'] });
       queryClient.invalidateQueries({ queryKey: ['/api/folder-sync/config'] });
-      if (data.imported > 0) {
+      if (data.error) {
+        toast({ title: 'Sync issue', description: data.error, variant: 'destructive' });
+      } else if (data.imported > 0) {
         toast({ title: 'Sync complete', description: `Imported ${data.imported} new meet(s)` });
+      } else if (data.skippedExists > 0) {
+        toast({ title: 'Sync complete', description: `All ${data.packagesFound} meet(s) already imported` });
       } else if (data.packagesFound > 0) {
         toast({ title: 'Sync complete', description: `All ${data.packagesFound} meet(s) already imported` });
       } else {
-        toast({ title: 'Sync complete', description: 'No meet packages found in sync folder' });
+        toast({
+          title: 'No meet packages found',
+          description: `Searched: ${data.syncFolderPath || folderPath}. Make sure exported meet packages (with meet-package.json) are in this folder.`,
+          variant: 'destructive',
+        });
       }
     },
     onError: (error: Error) => {

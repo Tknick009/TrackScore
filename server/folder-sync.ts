@@ -108,10 +108,13 @@ function saveSyncResults(results: FolderSyncResult[]): void {
 }
 
 /**
- * Scan a folder for meet-package.json files.
- * Supports two structures:
- *   1. folder/<meet-name>/meet-package.json  (same as ./meets/ structure)
- *   2. folder/meet-package.json (single package in root)
+ * Recursively scan a folder for meet-package.json files at any depth.
+ * Skips node_modules, .git, and other non-relevant directories.
+ * Supports:
+ *   1. folder/meet-package.json (root)
+ *   2. folder/<meet-name>/meet-package.json (one level deep)
+ *   3. folder/meets/<meet-name>/meet-package.json (two levels deep, e.g. TrackScore project copy)
+ *   4. Any deeper nesting
  */
 function findMeetPackages(folderPath: string): { packageDir: string; packageName: string; data: any }[] {
   const packages: { packageDir: string; packageName: string; data: any }[] = [];
@@ -127,45 +130,51 @@ function findMeetPackages(folderPath: string): { packageDir: string; packageName
     return packages;
   }
 
-  // Check for meet-package.json directly in the root folder
-  const rootPackagePath = path.join(folderPath, 'meet-package.json');
-  if (fs.existsSync(rootPackagePath)) {
-    try {
-      const data = JSON.parse(fs.readFileSync(rootPackagePath, 'utf-8'));
-      if (data.meet && data.meet.meetCode) {
-        packages.push({
-          packageDir: folderPath,
-          packageName: path.basename(folderPath),
-          data,
-        });
-      }
-    } catch (e) {
-      console.warn(`[Folder Sync] Error reading ${rootPackagePath}:`, e);
-    }
-  }
+  console.log(`[Folder Sync] Scanning folder: ${folderPath}`);
 
-  // Check subdirectories for meet-package.json files
-  const entries = fs.readdirSync(folderPath, { withFileTypes: true });
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
+  // Directories to skip when scanning
+  const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', '.cache', 'data']);
+  const MAX_DEPTH = 5; // Don't recurse forever
 
-    const subPackagePath = path.join(folderPath, entry.name, 'meet-package.json');
-    if (fs.existsSync(subPackagePath)) {
+  function scanDir(dir: string, depth: number): void {
+    if (depth > MAX_DEPTH) return;
+
+    // Check for meet-package.json in this directory
+    const packagePath = path.join(dir, 'meet-package.json');
+    if (fs.existsSync(packagePath)) {
       try {
-        const data = JSON.parse(fs.readFileSync(subPackagePath, 'utf-8'));
+        const data = JSON.parse(fs.readFileSync(packagePath, 'utf-8'));
         if (data.meet && data.meet.meetCode) {
+          const packageName = path.basename(dir);
+          console.log(`[Folder Sync] Found meet package: ${packageName} (${data.meet.name || 'Unknown'})`);
           packages.push({
-            packageDir: path.join(folderPath, entry.name),
-            packageName: entry.name,
+            packageDir: dir,
+            packageName,
             data,
           });
         }
       } catch (e) {
-        console.warn(`[Folder Sync] Error reading ${subPackagePath}:`, e);
+        console.warn(`[Folder Sync] Error reading ${packagePath}:`, e);
       }
+    }
+
+    // Recurse into subdirectories
+    try {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        if (SKIP_DIRS.has(entry.name)) continue;
+
+        scanDir(path.join(dir, entry.name), depth + 1);
+      }
+    } catch (e) {
+      // Permission errors, etc. — skip silently
     }
   }
 
+  scanDir(folderPath, 0);
+
+  console.log(`[Folder Sync] Scan complete: found ${packages.length} meet package(s)`);
   return packages;
 }
 
@@ -235,6 +244,21 @@ export async function syncFromFolder(folderPath?: string): Promise<FolderSyncSum
   }
 
   console.log(`[Folder Sync] Starting sync from: ${syncPath}`);
+
+  // Verify the folder exists
+  if (!fs.existsSync(syncPath)) {
+    console.error(`[Folder Sync] Sync folder does not exist: ${syncPath}`);
+    return {
+      success: false,
+      syncFolderPath: syncPath,
+      packagesFound: 0,
+      imported: 0,
+      skippedExists: 0,
+      skippedError: 0,
+      results: [],
+      error: `Sync folder does not exist: ${syncPath}`,
+    };
+  }
 
   // Find all meet packages in the sync folder
   const packages = findMeetPackages(syncPath);
