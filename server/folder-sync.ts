@@ -631,6 +631,17 @@ export async function syncFromFolder(folderPath?: string): Promise<FolderSyncSum
   console.log(`[Folder Sync] Found ${packages.length} meet package(s) in sync folder`);
 
   if (packages.length === 0) {
+    // Include folder contents in the response for debugging
+    let folderContents = '';
+    try {
+      const entries = fs.readdirSync(syncPath);
+      folderContents = entries.slice(0, 30).join(', ');
+      const dataDir = path.join(syncPath, 'data');
+      if (fs.existsSync(dataDir) && fs.statSync(dataDir).isDirectory()) {
+        const dataEntries = fs.readdirSync(dataDir);
+        folderContents += ` | data/: ${dataEntries.join(', ')}`;
+      }
+    } catch (_) {}
     const summary: FolderSyncSummary = {
       success: true,
       syncFolderPath: syncPath,
@@ -639,6 +650,7 @@ export async function syncFromFolder(folderPath?: string): Promise<FolderSyncSum
       skippedExists: 0,
       skippedError: 0,
       results: [],
+      error: folderContents ? `No scoreboard.db or meet packages found. Folder contents: ${folderContents}` : undefined,
     };
     saveSyncResults([]);
     return summary;

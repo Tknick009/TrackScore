@@ -167,6 +167,8 @@ export function extractDistanceMeters(eventName: string | null | undefined, even
   // Exclude "mile" events (e.g. "1 Mile", "2 Mile") — those are not 1m or 2m
   const distMatch = str.match(/(\d+)\s*m(?:eters?)?\b/);
   if (distMatch && !/mile/i.test(str)) return parseInt(distMatch[1]);
+  // Exclude mile/heptathlon/decathlon — don't extract incidental numbers
+  if (/mile|heptathlon|decathlon|pentathlon/i.test(str)) return null;
   // Just a number at the start or after a space: "100 Dash", "200 Hurdles"
   const numMatch = str.match(/\b(\d+)\b/);
   if (numMatch) return parseInt(numMatch[1]);
