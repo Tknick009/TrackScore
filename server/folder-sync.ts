@@ -230,15 +230,35 @@ function copyDirRecursive(src: string, dest: string): void {
 function findRemoteDb(syncPath: string): string | null {
   // Check data/scoreboard.db (if sync folder is a TrackScore project root)
   const dataDbPath = path.join(syncPath, 'data', 'scoreboard.db');
+  console.log(`[Folder Sync] Checking for remote DB at: ${dataDbPath} — exists: ${fs.existsSync(dataDbPath)}`);
   if (fs.existsSync(dataDbPath)) {
-    console.log(`[Folder Sync] Found remote database: ${dataDbPath}`);
     return dataDbPath;
   }
   // Check scoreboard.db in root
   const rootDbPath = path.join(syncPath, 'scoreboard.db');
+  console.log(`[Folder Sync] Checking for remote DB at: ${rootDbPath} — exists: ${fs.existsSync(rootDbPath)}`);
   if (fs.existsSync(rootDbPath)) {
-    console.log(`[Folder Sync] Found remote database: ${rootDbPath}`);
     return rootDbPath;
+  }
+  // Check if the sync path itself IS the data folder (user might have pointed to TrackScore/data/)
+  const directDbPath = path.join(syncPath, '..', 'data', 'scoreboard.db');
+  const resolvedDirect = path.resolve(directDbPath);
+  console.log(`[Folder Sync] Checking parent data folder at: ${resolvedDirect} — exists: ${fs.existsSync(resolvedDirect)}`);
+  if (fs.existsSync(resolvedDirect)) {
+    return resolvedDirect;
+  }
+  // List what's actually in the sync folder to help debug
+  try {
+    const entries = fs.readdirSync(syncPath);
+    console.log(`[Folder Sync] Contents of sync folder (${syncPath}): ${entries.slice(0, 20).join(', ')}${entries.length > 20 ? '...' : ''}`);
+    // Check if data folder exists
+    const dataDir = path.join(syncPath, 'data');
+    if (fs.existsSync(dataDir) && fs.statSync(dataDir).isDirectory()) {
+      const dataEntries = fs.readdirSync(dataDir);
+      console.log(`[Folder Sync] Contents of data/ subfolder: ${dataEntries.join(', ')}`);
+    }
+  } catch (e) {
+    console.log(`[Folder Sync] Could not read sync folder contents: ${e}`);
   }
   return null;
 }
