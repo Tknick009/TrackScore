@@ -162,7 +162,64 @@ export function registerMeetsRoutes(app: Express, ctx: RouteContext) {
     }
   });
 
-  // ===== MEET PACKAGE API (Dropbox sync) =====
+  // ===== FOLDER SYNC API =====
+
+  // Get folder sync config
+  app.get("/api/folder-sync/config", async (req, res) => {
+    try {
+      const { getFolderSyncConfig } = await import('../folder-sync');
+      const config = getFolderSyncConfig();
+      res.json(config || { syncFolderPath: '', autoSyncOnBoot: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Save folder sync config
+  app.put("/api/folder-sync/config", async (req, res) => {
+    try {
+      const { syncFolderPath, autoSyncOnBoot } = req.body;
+      if (!syncFolderPath || typeof syncFolderPath !== 'string') {
+        return res.status(400).json({ error: 'syncFolderPath is required' });
+      }
+      const { saveFolderSyncConfig } = await import('../folder-sync');
+      saveFolderSyncConfig(syncFolderPath.trim(), autoSyncOnBoot ?? true);
+      res.json({ success: true, syncFolderPath: syncFolderPath.trim(), autoSyncOnBoot: autoSyncOnBoot ?? true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Trigger manual folder sync
+  app.post("/api/folder-sync/sync", async (req, res) => {
+    try {
+      const { syncFromFolder } = await import('../folder-sync');
+      const { syncFolderPath } = req.body || {};
+      const result = await syncFromFolder(syncFolderPath || undefined);
+      res.json(result);
+    } catch (error: any) {
+      console.error('[Folder Sync API Error]', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Export a meet to the sync folder
+  app.post("/api/folder-sync/export/:meetId", async (req, res) => {
+    try {
+      const { exportToSyncFolder } = await import('../folder-sync');
+      const result = await exportToSyncFolder(req.params.meetId);
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(400).json({ error: result.error });
+      }
+    } catch (error: any) {
+      console.error('[Folder Sync Export Error]', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ===== MEET PACKAGE API =====
   
   // List available meet packages
   app.get("/api/meet-packages", async (req, res) => {
@@ -223,6 +280,34 @@ export function registerMeetsRoutes(app: Express, ctx: RouteContext) {
       }
     } catch (error: any) {
       console.error('[Meet Package Delete Error]', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Export and sync a meet to the sync folder in one step
+  app.post("/api/meet-packages/export-and-sync/:meetId", async (req, res) => {
+    try {
+      const { exportMeetPackage } = await import('../meet-package');
+      const { exportToSyncFolder } = await import('../folder-sync');
+
+      // Export locally first
+      const exportResult = await exportMeetPackage(req.params.meetId);
+      if (!exportResult.success) {
+        return res.status(400).json({ error: exportResult.error });
+      }
+
+      // Then copy to sync folder
+      const syncResult = await exportToSyncFolder(req.params.meetId);
+
+      res.json({
+        exported: true,
+        synced: syncResult.success,
+        packagePath: exportResult.packagePath,
+        syncFolderPath: syncResult.packagePath,
+        syncError: syncResult.error,
+      });
+    } catch (error: any) {
+      console.error('[Meet Package Export+Sync Error]', error);
       res.status(500).json({ error: error.message });
     }
   });

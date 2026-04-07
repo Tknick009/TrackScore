@@ -6,6 +6,7 @@ import { startAutoRefresh } from "./auto-refresh";
 import { storage } from "./storage";
 import { initEVTWatchers } from "./evt-watcher";
 import { installLogCapture, exportLogs, clearLogs, logCount } from "./log-capture";
+import { bootSync } from "./folder-sync";
 
 // Install log capture BEFORE anything else so all console output is recorded
 installLogCapture();
@@ -144,6 +145,11 @@ app.use((req, res, next) => {
     // Initialize EVT file watchers for field event sessions
     initEVTWatchers().catch(err => {
       console.error("Failed to initialize EVT watchers:", err);
+    });
+
+    // Boot-time folder sync: check configured sync folder for new meet packages
+    bootSync().catch(err => {
+      console.error("Failed to run boot sync:", err);
     });
   });
 })();
