@@ -190,6 +190,44 @@ export function registerMeetsRoutes(app: Express, ctx: RouteContext) {
     }
   });
 
+  // Debug: list contents of sync folder (helps diagnose path issues)
+  app.get("/api/folder-sync/debug", async (req, res) => {
+    try {
+      const { getFolderSyncConfig } = await import('../folder-sync');
+      const config = getFolderSyncConfig();
+      const syncPath = (req.query.path as string) || config?.syncFolderPath;
+      if (!syncPath) {
+        return res.json({ error: 'No sync folder configured' });
+      }
+      const fs = await import('fs');
+      const path = await import('path');
+      const result: any = { syncPath, exists: fs.existsSync(syncPath) };
+      if (result.exists) {
+        try {
+          const entries = fs.readdirSync(syncPath);
+          result.contents = entries;
+          const dataDir = path.join(syncPath, 'data');
+          result.dataFolderExists = fs.existsSync(dataDir);
+          if (result.dataFolderExists) {
+            result.dataContents = fs.readdirSync(dataDir);
+            const dbPath = path.join(dataDir, 'scoreboard.db');
+            result.scoreboardDbExists = fs.existsSync(dbPath);
+            if (result.scoreboardDbExists) {
+              const stat = fs.statSync(dbPath);
+              result.scoreboardDbSize = stat.size;
+              result.scoreboardDbModified = stat.mtime;
+            }
+          }
+        } catch (e: any) {
+          result.readError = e.message;
+        }
+      }
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Trigger manual folder sync
   app.post("/api/folder-sync/sync", async (req, res) => {
     try {
