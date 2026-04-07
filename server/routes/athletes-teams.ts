@@ -45,7 +45,8 @@ export function registerAthletesTeamsRoutes(app: Express, ctx: RouteContext) {
       if (activeMeet) {
         athletes = await storage.getAthletesByMeetId(activeMeet.id);
       } else {
-        athletes = await storage.getAthletes();
+        // No active meet found — return empty array to prevent cross-meet data leakage
+        athletes = [];
       }
       
       // Filter by search if provided
@@ -139,8 +140,8 @@ export function registerAthletesTeamsRoutes(app: Express, ctx: RouteContext) {
         const teams = await storage.getTeamsByMeetId(activeMeet.id);
         return res.json(teams);
       }
-      const teams = await storage.getTeams();
-      res.json(teams);
+      // No active meet found — return empty array to prevent cross-meet data leakage
+      res.json([]);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -188,7 +189,7 @@ export function registerAthletesTeamsRoutes(app: Express, ctx: RouteContext) {
         }
         const teamsToSearch = effectiveMeetId
           ? await storage.getTeamsByMeetId(effectiveMeetId)
-          : await storage.getTeams();
+          : []; // No meet context — return empty to prevent cross-meet data leakage
         const match = teamsToSearch.find(t =>
           t.name.trim() === nameStr ||
           (t.shortName && t.shortName.trim() === nameStr) ||
@@ -318,8 +319,8 @@ export function registerAthletesTeamsRoutes(app: Express, ctx: RouteContext) {
         const filtered = divisions.filter((d: any) => d.meetId === meetId);
         return res.json(filtered);
       }
-      const divisions = await storage.getDivisions();
-      res.json(divisions);
+      // No meetId and no active meet — return empty array to prevent cross-meet data leakage
+      res.json([]);
     } catch (error: any) {
       res.status(500).json({ error: (error as Error).message });
     }

@@ -1533,11 +1533,14 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
       const activeMeetId = await getActiveMeetId();
 
       // Filter to active meet's events to avoid stale data from old meets
+      // STRICT meet isolation: never fall back to events from other meets
       const matchingEvents = activeMeetId 
         ? allMatchingEvents.filter(e => e.meetId === activeMeetId) 
         : allMatchingEvents;
-      // Fallback to all events if no matches in active meet
-      const effectiveEvents = matchingEvents.length > 0 ? matchingEvents : allMatchingEvents;
+      const effectiveEvents = matchingEvents;
+      if (activeMeetId && matchingEvents.length === 0 && allMatchingEvents.length > 0) {
+        console.warn(`[Lynx] Event ${eventNumber} found in other meets but NOT in active meet ${activeMeetId} — skipping to prevent cross-meet interference`);
+      }
 
       for (const event of effectiveEvents) {
         if (event.status === 'scheduled') {
@@ -1901,10 +1904,14 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     try {
       const allFieldMatchEvents = await storage.getEventsByLynxEventNumber(eventNumber);
       const fieldActiveMeetId = await getActiveMeetId();
+      // STRICT meet isolation: never fall back to events from other meets
       const fieldMeetFiltered = fieldActiveMeetId 
         ? allFieldMatchEvents.filter(e => e.meetId === fieldActiveMeetId) 
         : allFieldMatchEvents;
-      const fieldEffectiveEvents = fieldMeetFiltered.length > 0 ? fieldMeetFiltered : allFieldMatchEvents;
+      const fieldEffectiveEvents = fieldMeetFiltered;
+      if (fieldActiveMeetId && fieldMeetFiltered.length === 0 && allFieldMatchEvents.length > 0) {
+        console.warn(`[Lynx] Field event ${eventNumber} found in other meets but NOT in active meet ${fieldActiveMeetId} — skipping to prevent cross-meet interference`);
+      }
       
       for (const event of fieldEffectiveEvents) {
         if (event.status === 'scheduled') {
@@ -2097,10 +2104,14 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
       // === PERFORMANCE: Use cached DB lookup instead of hitting DB every 2s ===
       const allMatchEvents = await getEventsByLynxNumberCached(eventNumber);
       // Filter to active meet's events to avoid stale advancement formulas from old meets
+      // STRICT meet isolation: never fall back to events from other meets
       const meetFilteredEvents = activeMeetId 
         ? allMatchEvents.filter(e => e.meetId === activeMeetId) 
         : allMatchEvents;
-      const effectiveMatchEvents = meetFilteredEvents.length > 0 ? meetFilteredEvents : allMatchEvents;
+      const effectiveMatchEvents = meetFilteredEvents;
+      if (activeMeetId && meetFilteredEvents.length === 0 && allMatchEvents.length > 0) {
+        console.warn(`[Lynx] Start list event ${eventNumber} found in other meets but NOT in active meet ${activeMeetId} — skipping to prevent cross-meet interference`);
+      }
       
       if (effectiveMatchEvents.length > 0) {
         const event = effectiveMatchEvents[0];

@@ -44,8 +44,8 @@ export function registerEventsRoutes(app: Express, ctx: RouteContext) {
         const events = await storage.getEventsByMeetId(activeMeet.id);
         return res.json(events);
       }
-      const events = await storage.getEvents();
-      res.json(events);
+      // No active meet found — return empty array to prevent cross-meet data leakage
+      res.json([]);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -188,7 +188,8 @@ export function registerEventsRoutes(app: Express, ctx: RouteContext) {
       if (activeMeet) {
         athletes = await storage.getAthletesByMeetId(activeMeet.id);
       } else {
-        athletes = await storage.getAthletes();
+        // No active meet found — return empty array to prevent cross-meet data leakage
+        athletes = [];
       }
       
       // Filter by search if provided
@@ -289,8 +290,8 @@ export function registerEventsRoutes(app: Express, ctx: RouteContext) {
         }
         return res.json(allEntries);
       }
-      const entries = await storage.getEntries();
-      res.json(entries);
+      // No meetId and no active meet — return empty array to prevent cross-meet data leakage
+      res.json([]);
     } catch (error: any) {
       res.status(500).json({ error: (error as Error).message });
     }

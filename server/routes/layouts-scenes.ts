@@ -29,6 +29,10 @@ export function registerLayoutsScenesRoutes(app: Express, ctx: RouteContext) {
         const activeMeet = allMeets.find(m => m.status === 'in_progress') || allMeets.find(m => m.status === 'upcoming');
         if (activeMeet) meetId = activeMeet.id;
       }
+      if (!meetId) {
+        // No active meet found — return empty array to prevent cross-meet data leakage
+        return res.json([]);
+      }
       const layouts = await storage.listLayouts(meetId);
       res.json(layouts);
     } catch (error: any) {
@@ -286,6 +290,10 @@ export function registerLayoutsScenesRoutes(app: Express, ctx: RouteContext) {
         const allMeets = await storage.getMeets();
         const activeMeet = allMeets.find(m => m.status === 'in_progress') || allMeets.find(m => m.status === 'upcoming');
         if (activeMeet) meetId = activeMeet.id;
+      }
+      if (!meetId) {
+        // No active meet found — return empty array to prevent cross-meet data leakage
+        return res.json([]);
       }
       const scenes = await storage.getLayoutScenes(meetId);
       res.json(scenes);
@@ -622,6 +630,10 @@ export function registerLayoutsScenesRoutes(app: Express, ctx: RouteContext) {
         const activeMeet = allMeets.find(m => m.status === 'in_progress') || allMeets.find(m => m.status === 'upcoming');
         if (activeMeet) meetId = activeMeet.id;
       }
+      if (!meetId) {
+        // No active meet found — return empty export to prevent cross-meet data leakage
+        return res.json({ version: '1.0', exportedAt: new Date().toISOString(), meetId: null, scenes: [] });
+      }
       const scenes = await storage.getLayoutScenes(meetId);
       
       // Get objects for each scene
@@ -717,7 +729,17 @@ export function registerLayoutsScenesRoutes(app: Express, ctx: RouteContext) {
   app.get('/api/record-books', async (req, res) => {
     try {
       const includeInactive = req.query.all === 'true';
-      const meetId = req.query.meetId as string | undefined;
+      let meetId = req.query.meetId as string | undefined;
+      // Auto-scope to active meet when no meetId provided
+      if (!meetId) {
+        const allMeets = await storage.getMeets();
+        const activeMeet = allMeets.find(m => m.status === 'in_progress') || allMeets.find(m => m.status === 'upcoming');
+        if (activeMeet) meetId = activeMeet.id;
+      }
+      if (!meetId) {
+        // No active meet found — return empty array to prevent cross-meet data leakage
+        return res.json([]);
+      }
       const books = includeInactive 
         ? await storage.getAllRecordBooks(meetId)
         : await storage.getRecordBooks(meetId);

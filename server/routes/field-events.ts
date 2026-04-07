@@ -87,11 +87,15 @@ export function registerFieldEventsRoutes(app: Express, ctx: RouteContext) {
         fs.mkdirSync(resultsDirectory, { recursive: true });
       }
       
-      // Apply the new defaults to all existing field event sessions
-      const allSessions = await storage.getAllFieldEventSessions();
+      // Apply the new defaults to all existing field event sessions for the active meet
+      const allMeetsForConfig = await storage.getMeets();
+      const activeMeetForConfig = allMeetsForConfig.find(m => m.status === 'in_progress') || allMeetsForConfig.find(m => m.status === 'upcoming');
+      const sessionsToUpdate = activeMeetForConfig 
+        ? await storage.getFieldEventSessionsByMeetId(activeMeetForConfig.id)
+        : [];
       let updatedCount = 0;
       
-      for (const session of allSessions) {
+      for (const session of sessionsToUpdate) {
         const eventName = session.evtEventName || '';
         const updates: Record<string, any> = {};
         
@@ -193,7 +197,12 @@ export function registerFieldEventsRoutes(app: Express, ctx: RouteContext) {
       const fieldEvents = summaries.filter(evt => isFieldEventName(evt.eventName));
       
       // Get all existing sessions to check which EVT events already have sessions
-      const existingSessions = await storage.getAllFieldEventSessions();
+      // Scope to active meet to avoid cross-meet interference
+      const allMeetsForProvision = await storage.getMeets();
+      const activeMeetForProvision = allMeetsForProvision.find(m => m.status === 'in_progress') || allMeetsForProvision.find(m => m.status === 'upcoming');
+      const existingSessions = activeMeetForProvision
+        ? await storage.getFieldEventSessionsByMeetId(activeMeetForProvision.id)
+        : await storage.getAllFieldEventSessions();
       const existingEvtSessionMap = new Map<number, typeof existingSessions[0]>();
       const duplicatesToDelete: number[] = [];
       
@@ -411,8 +420,8 @@ export function registerFieldEventsRoutes(app: Express, ctx: RouteContext) {
         const sessions = await storage.getFieldEventSessionsByMeetId(activeMeet.id);
         return res.json(sessions);
       }
-      const sessions = await storage.getAllFieldEventSessions();
-      res.json(sessions);
+      // No active meet found — return empty array to prevent cross-meet data leakage
+      res.json([]);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

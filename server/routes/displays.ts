@@ -209,9 +209,8 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         eventData = await storage.getEventWithEntries(eventId);
       }
 
-      // Get the meet for context
-      const meets = await storage.getMeets();
-      const meet = meets.find(m => m.id === device.meetId);
+      // Get the meet for context — use device.meetId directly instead of scanning all meets
+      const meet = device.meetId ? await storage.getMeet(device.meetId) : null;
 
       // Broadcast the assignment with event data to all connected displays
       broadcastToDisplays({
@@ -405,10 +404,11 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
                 let totalHeats = 1;
                 const allMatchingEvents = await storage.getEventsByLynxEventNumber(latestLive.eventNumber);
                 // Filter to the device's meet to avoid pulling data from other meets
+                // STRICT meet isolation: only use events from this device's meet
                 const matchingEvents = device.meetId
                   ? allMatchingEvents.filter(e => e.meetId === device.meetId)
                   : allMatchingEvents;
-                const effectiveEvents = matchingEvents.length > 0 ? matchingEvents : allMatchingEvents;
+                const effectiveEvents = matchingEvents;
                 if (effectiveEvents.length > 0) {
                   const event = effectiveEvents[0];
                   const roundNum = latestLive.round ? parseInt(String(latestLive.round)) : 1;
