@@ -471,7 +471,7 @@ function FolderSyncPanel() {
             <p className="text-xs text-muted-foreground">
               {syncConfig?.syncFolderPath
                 ? `Syncing from: ${syncConfig.syncFolderPath}`
-                : 'Configure a shared folder to auto-import meets on boot'}
+                : 'Configure a shared folder to auto-sync app updates and meets on boot'}
             </p>
           </div>
         </div>
@@ -510,7 +510,8 @@ function FolderSyncPanel() {
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 Path to a shared folder (local, network drive, or cloud-synced like OneDrive/Google Drive).
-                Meet packages in this folder will be auto-imported on server boot.
+                On startup, the app will pull any updated files (code, configs, meets) from this folder
+                before launching the server. Put your TrackScore files here to keep all computers in sync.
               </p>
             </div>
 

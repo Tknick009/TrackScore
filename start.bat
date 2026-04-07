@@ -4,11 +4,11 @@ echo   Track and Field Scoreboard
 echo ============================================
 echo.
 
-REM Configuration - Set your Dropbox sync folder here
-SET SOURCE_DIR=C:\Users\%USERNAME%\Dropbox\scoreboard
-REM Alternative examples:
+REM Sync folder path is read from data/edge-config.json (configured via the UI).
+REM To override, uncomment one of the lines below:
+REM SET SOURCE_DIR=C:\Users\%USERNAME%\Dropbox\scoreboard
+REM SET SOURCE_DIR=C:\Users\%USERNAME%\Google Drive\TrackScore
 REM SET SOURCE_DIR=\\SERVER\share\scoreboard
-REM SET SOURCE_DIR=D:\NetworkShare\scoreboard
 
 set EDGE_MODE=true
 set NODE_ENV=development
@@ -23,23 +23,25 @@ if %ERRORLEVEL% neq 0 (
 echo Node.js found.
 echo.
 
-REM Check for file changes from source directory
-if exist "%SOURCE_DIR%" (
+REM Check for file updates from sync folder
+REM If SOURCE_DIR is set above, pass it explicitly; otherwise edge-launcher reads from config
+if defined SOURCE_DIR (
     echo Checking for updates from: %SOURCE_DIR%
     echo.
     call npx tsx tools/edge-launcher.ts --source "%SOURCE_DIR%" --sync-only
-    if %ERRORLEVEL% neq 0 (
-        echo.
-        echo WARNING: Sync had issues, but continuing with server start...
-        echo.
-    ) else (
-        echo.
-        echo Sync complete.
-        echo.
-    )
 ) else (
-    echo Source directory not found: %SOURCE_DIR%
-    echo Skipping sync - edit SOURCE_DIR in this file to enable sync.
+    echo Checking for app updates from configured sync folder...
+    echo.
+    call npx tsx tools/edge-launcher.ts --sync-only
+)
+
+if %ERRORLEVEL% neq 0 (
+    echo.
+    echo WARNING: Sync had issues, but continuing with server start...
+    echo.
+) else (
+    echo.
+    echo Sync check complete.
     echo.
 )
 
