@@ -26,7 +26,14 @@ export interface FolderSyncResult {
     events: number;
     athletes: number;
     teams: number;
+    entries: number;
     scenes: number;
+    sceneMappings: number;
+    themes: number;
+    layouts: number;
+    boardConfigs: number;
+    recordBooks: number;
+    records: number;
   };
 }
 
@@ -335,7 +342,7 @@ async function syncMeetsFromRemoteDb(syncPath: string): Promise<FolderSyncSummar
       console.log(`[Folder Sync] Importing "${meetName}" (code: ${meetCode}) from remote DB...`);
       try {
         const stats = await importMeetFromRemoteDb(remoteDb, remoteMeet);
-        console.log(`[Folder Sync] Successfully imported "${meetName}": ${stats.events} events, ${stats.athletes} athletes, ${stats.entries} entries`);
+        console.log(`[Folder Sync] Successfully imported "${meetName}": ${stats.events} events, ${stats.athletes} athletes, ${stats.entries} entries, ${stats.scenes} scenes, ${stats.sceneMappings} scene mappings, ${stats.themes} themes, ${stats.layouts} layouts, ${stats.recordBooks} record books, ${stats.records} records`);
         results.push({
           packageName: meetName,
           meetName,
@@ -388,7 +395,7 @@ async function syncMeetsFromRemoteDb(syncPath: string): Promise<FolderSyncSummar
 async function importMeetFromRemoteDb(
   remoteDb: ReturnType<typeof Database>,
   remoteMeet: any
-): Promise<{ events: number; athletes: number; teams: number; entries: number; scenes: number }> {
+): Promise<{ events: number; athletes: number; teams: number; entries: number; scenes: number; sceneMappings: number; themes: number; layouts: number; boardConfigs: number; recordBooks: number; records: number }> {
   const oldMeetId = remoteMeet.id;
 
   // Create the meet locally
@@ -546,12 +553,13 @@ async function importMeetFromRemoteDb(
     }
   }
 
-  // Import display themes
+  // Import display themes (and build ID map for board_configs)
   let themesImported = 0;
+  const themeIdMap = new Map<string, string>();
   try {
     const remoteThemes = remoteDb.prepare('SELECT * FROM display_themes WHERE meet_id = ?').all(oldMeetId) as any[];
     for (const rt of remoteThemes) {
-      await storage.createDisplayTheme({
+      const newTheme = await storage.createDisplayTheme({
         meetId: newMeetId,
         name: rt.name,
         isDefault: rt.is_default ? true : false,
@@ -565,19 +573,200 @@ async function importMeetFromRemoteDb(
         bodyFont: rt.body_font,
         numbersFont: rt.numbers_font,
         logoUrl: rt.logo_url,
-        sponsorLogos: rt.sponsor_logos,
-        features: rt.features,
+        sponsorLogos: rt.sponsor_logos ? (typeof rt.sponsor_logos === 'string' ? JSON.parse(rt.sponsor_logos) : rt.sponsor_logos) : null,
+        features: rt.features ? (typeof rt.features === 'string' ? JSON.parse(rt.features) : rt.features) : null,
       });
+      themeIdMap.set(rt.id, newTheme.id);
       themesImported++;
     }
   } catch (_) { /* display_themes table might not exist */ }
+
+  // Import layout scenes and their objects
+  let scenesImported = 0;
+  const sceneIdMap = new Map<number, number>();
+  try {
+    const remoteScenes = remoteDb.prepare('SELECT * FROM layout_scenes WHERE meet_id = ?').all(oldMeetId) as any[];
+    for (const rs of remoteScenes) {
+      const newScene = await storage.createLayoutScene({
+        meetId: newMeetId,
+        name: rs.name,
+        description: rs.description,
+        canvasWidth: rs.canvas_width || 1920,
+        canvasHeight: rs.canvas_height || 1080,
+        aspectRatio: rs.aspect_ratio || '16:9',
+        backgroundColor: rs.background_color || '#000000',
+        backgroundImage: rs.background_image,
+        isTemplate: rs.is_template ? true : false,
+      });
+      sceneIdMap.set(rs.id, newScene.id);
+      scenesImported++;
+
+      // Import layout objects for this scene
+      try {
+        const remoteObjects = remoteDb.prepare('SELECT * FROM layout_objects WHERE scene_id = ?').all(rs.id) as any[];
+        for (const ro of remoteObjects) {
+          await storage.createLayoutObject({
+            sceneId: newScene.id,
+            name: ro.name,
+            objectType: ro.object_type,
+            x: ro.x,
+            y: ro.y,
+            width: ro.width,
+            height: ro.height,
+            zIndex: ro.z_index || 0,
+            rotation: ro.rotation || 0,
+            dataBinding: ro.data_binding ? (typeof ro.data_binding === 'string' ? JSON.parse(ro.data_binding) : ro.data_binding) : null,
+            config: ro.config ? (typeof ro.config === 'string' ? JSON.parse(ro.config) : ro.config) : null,
+            style: ro.style ? (typeof ro.style === 'string' ? JSON.parse(ro.style) : ro.style) : null,
+            visible: ro.visible !== false && ro.visible !== 0,
+            locked: ro.locked ? true : false,
+          });
+        }
+      } catch (_) { /* layout_objects table might not exist */ }
+    }
+  } catch (_) { /* layout_scenes table might not exist */ }
+
+  // Import scene template mappings (links scenes to display types and modes)
+  let mappingsImported = 0;
+  try {
+    const remoteMappings = remoteDb.prepare('SELECT * FROM scene_template_mappings WHERE meet_id = ?').all(oldMeetId) as any[];
+    for (const rm of remoteMappings) {
+      const newSceneId = sceneIdMap.get(rm.scene_id);
+      if (!newSceneId) continue; // Skip if referenced scene wasn't imported
+      await storage.setSceneTemplateMapping({
+        meetId: newMeetId,
+        displayType: rm.display_type,
+        displayMode: rm.display_mode,
+        sceneId: newSceneId,
+      });
+      mappingsImported++;
+    }
+  } catch (_) { /* scene_template_mappings table might not exist */ }
+
+  // Import display layouts and their cells
+  let layoutsImported = 0;
+  try {
+    const remoteLayouts = remoteDb.prepare('SELECT * FROM display_layouts WHERE meet_id = ?').all(oldMeetId) as any[];
+    for (const rl of remoteLayouts) {
+      const newLayout = await storage.createDisplayLayout({
+        meetId: newMeetId,
+        name: rl.name,
+        description: rl.description,
+        rows: rl.rows || 2,
+        cols: rl.cols || 2,
+        isTemplate: rl.is_template ? true : false,
+        templateId: rl.template_id,
+        version: rl.version || 1,
+      });
+      layoutsImported++;
+
+      // Import layout cells for this layout
+      try {
+        const remoteCells = remoteDb.prepare('SELECT * FROM layout_cells WHERE layout_id = ?').all(rl.id) as any[];
+        for (const rc of remoteCells) {
+          await storage.createLayoutCell({
+            layoutId: newLayout.id,
+            row: rc.row,
+            col: rc.col,
+            rowSpan: rc.row_span || 1,
+            colSpan: rc.col_span || 1,
+            eventId: rc.event_id ? (eventIdMap.get(rc.event_id) || null) : null,
+            eventType: rc.event_type,
+            boardType: rc.board_type || 'live_time',
+            settings: rc.settings ? (typeof rc.settings === 'string' ? JSON.parse(rc.settings) : rc.settings) : null,
+          });
+        }
+      } catch (_) { /* layout_cells table might not exist */ }
+    }
+  } catch (_) { /* display_layouts table might not exist */ }
+
+  // Import board configs (per-board theme overrides)
+  let boardConfigsImported = 0;
+  try {
+    const remoteBoardConfigs = remoteDb.prepare('SELECT * FROM board_configs WHERE meet_id = ?').all(oldMeetId) as any[];
+    for (const rbc of remoteBoardConfigs) {
+      try {
+        await storage.createBoardConfig({
+          meetId: newMeetId,
+          boardId: rbc.board_id,
+          themeId: rbc.theme_id ? (themeIdMap.get(rbc.theme_id) || null) : null,
+          overrides: rbc.overrides ? (typeof rbc.overrides === 'string' ? JSON.parse(rbc.overrides) : rbc.overrides) : null,
+        });
+        boardConfigsImported++;
+      } catch (_) { /* Skip if board doesn't exist locally */ }
+    }
+  } catch (_) { /* board_configs table might not exist */ }
+
+  // Import record books and their records
+  let recordBooksImported = 0;
+  let recordsImported = 0;
+  try {
+    const remoteRecordBooks = remoteDb.prepare('SELECT * FROM record_books WHERE meet_id = ?').all(oldMeetId) as any[];
+    for (const rrb of remoteRecordBooks) {
+      const newBook = await storage.createRecordBook({
+        name: rrb.name,
+        description: rrb.description,
+        scope: rrb.scope || 'meet',
+        isActive: rrb.is_active !== false && rrb.is_active !== 0,
+        displayOrder: rrb.display_order || 99,
+        allowMultiple: rrb.allow_multiple ? true : false,
+        meetId: newMeetId,
+      });
+      recordBooksImported++;
+
+      // Import individual records for this book
+      try {
+        const remoteRecords = remoteDb.prepare('SELECT * FROM records WHERE record_book_id = ?').all(rrb.id) as any[];
+        for (const rr of remoteRecords) {
+          try {
+            await storage.createRecord({
+              recordBookId: newBook.id,
+              eventType: rr.event_type,
+              gender: rr.gender,
+              performance: rr.performance,
+              athleteName: rr.athlete_name,
+              team: rr.team,
+              date: rr.date ? new Date(rr.date) : new Date(),
+              location: rr.location,
+              wind: rr.wind,
+              notes: rr.notes,
+              verifiedBy: rr.verified_by,
+            });
+            recordsImported++;
+          } catch (_) { /* Skip invalid records */ }
+        }
+      } catch (_) { /* records table might not exist */ }
+    }
+  } catch (_) { /* record_books table might not exist */ }
+
+  // Handle meet logo file copying
+  // If the meet has a logo_url that points to a local file path, try to copy it
+  if (remoteMeet.logo_url) {
+    try {
+      const logoUrl = remoteMeet.logo_url as string;
+      // Check if logo_url is a relative path (e.g., /logos/meet-logo.png or uploads/...)
+      if (logoUrl.startsWith('/logos/') || logoUrl.startsWith('logos/') || 
+          logoUrl.startsWith('/uploads/') || logoUrl.startsWith('uploads/') ||
+          logoUrl.startsWith('/public/logos/') || logoUrl.startsWith('public/logos/')) {
+        // The logo file should already be synced by the file-level sync (edge-launcher)
+        // since logos/ and uploads/ are in SYNC_PATHS. Just ensure the meet record has the URL.
+        console.log(`[folder-sync] Meet logo URL preserved: ${logoUrl}`);
+      }
+    } catch (_) { /* Logo handling is best-effort */ }
+  }
 
   return {
     events: remoteEvents.length,
     athletes: remoteAthletes.length,
     teams: remoteTeams.length,
     entries: entriesImported,
-    scenes: themesImported,
+    scenes: scenesImported,
+    sceneMappings: mappingsImported,
+    themes: themesImported,
+    layouts: layoutsImported,
+    boardConfigs: boardConfigsImported,
+    recordBooks: recordBooksImported,
+    records: recordsImported,
   };
 }
 
@@ -695,7 +884,14 @@ export async function syncFromFolder(folderPath?: string): Promise<FolderSyncSum
             events: importResult.stats.events,
             athletes: importResult.stats.athletes,
             teams: importResult.stats.teams,
+            entries: 0,
             scenes: importResult.stats.scenes,
+            sceneMappings: 0,
+            themes: 0,
+            layouts: 0,
+            boardConfigs: 0,
+            recordBooks: 0,
+            records: 0,
           } : undefined,
         });
         imported++;
