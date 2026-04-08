@@ -721,14 +721,27 @@ async function syncMeetConfigFromRemoteDb(
     console.error(`[Folder Sync] Error syncing record books:`, err.message);
   }
 
-  // Handle meet logo — update local meet's logo_url if remote has one
-  if (remoteMeet.logo_url) {
-    try {
-      const logoUrl = remoteMeet.logo_url as string;
-      console.log(`[Folder Sync] Meet logo URL from remote: ${logoUrl}`);
-      // Update the local meet's logo URL to match the remote
-      // The actual file should be synced by edge-launcher's file sync
-    } catch (_) { /* Logo handling is best-effort */ }
+  // Update the local meet's logo, colors, and other display properties from the remote meet
+  try {
+    const meetUpdates: Record<string, any> = {};
+    if (remoteMeet.logo_url) {
+      meetUpdates.logoUrl = remoteMeet.logo_url;
+      console.log(`[Folder Sync] Syncing meet logo URL: ${remoteMeet.logo_url}`);
+    }
+    if (remoteMeet.primary_color) meetUpdates.primaryColor = remoteMeet.primary_color;
+    if (remoteMeet.secondary_color) meetUpdates.secondaryColor = remoteMeet.secondary_color;
+    if (remoteMeet.accent_color) meetUpdates.accentColor = remoteMeet.accent_color;
+    if (remoteMeet.text_color) meetUpdates.textColor = remoteMeet.text_color;
+    if (remoteMeet.logo_effect) meetUpdates.logoEffect = remoteMeet.logo_effect;
+    if (remoteMeet.location) meetUpdates.location = remoteMeet.location;
+    if (remoteMeet.track_length) meetUpdates.trackLength = remoteMeet.track_length;
+
+    if (Object.keys(meetUpdates).length > 0) {
+      await storage.updateMeet(localMeetId, meetUpdates);
+      console.log(`[Folder Sync] Updated meet properties: ${Object.keys(meetUpdates).join(', ')}`);
+    }
+  } catch (err: any) {
+    console.error(`[Folder Sync] Error updating meet properties:`, err.message);
   }
 
   console.log(`[Folder Sync] Config sync complete: ${themesImported} themes, ${scenesImported} scenes, ${mappingsImported} mappings, ${layoutsImported} layouts, ${boardConfigsImported} board configs, ${recordBooksImported} record books, ${recordsImported} records`);
