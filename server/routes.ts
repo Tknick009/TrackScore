@@ -184,9 +184,10 @@ function broadcastToDisplays(message: WSMessage) {
 // 3. Zero async operations, zero DB queries, zero object allocation per tick
 function broadcastClockUpdate(eventNumber: number, time: string, command: string) {
   // Sanitize strings to prevent malformed JSON from garbled serial data
+  const safeEventNumber = Number.isFinite(eventNumber) ? eventNumber : 0;
   const safeTime = time.replace(/[\\"\x00-\x1f\x7f]/g, '');
   const safeCmd = (command || '').replace(/[\\"\x00-\x1f\x7f]/g, '');
-  const messageStr = `{"type":"clock_update","data":{"eventNumber":${eventNumber},"time":"${safeTime}","command":"${safeCmd}"}}`;
+  const messageStr = `{"type":"clock_update","data":{"eventNumber":${safeEventNumber},"time":"${safeTime}","command":"${safeCmd}"}}`;
   
   // Build skip-set ONCE (O(M)) instead of nested forEach (O(N*M))
   let skipWs: Set<WebSocket> | null = null;
