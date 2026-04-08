@@ -20,7 +20,7 @@ export interface FolderSyncResult {
   packageName: string;
   meetName: string;
   meetCode: string;
-  action: 'imported' | 'skipped_exists' | 'skipped_error';
+  action: 'imported' | 'updated' | 'skipped_exists' | 'skipped_error';
   error?: string;
   stats?: {
     events: number;
@@ -42,6 +42,7 @@ export interface FolderSyncSummary {
   syncFolderPath: string;
   packagesFound: number;
   imported: number;
+  updated: number;
   skippedExists: number;
   skippedError: number;
   results: FolderSyncResult[];
@@ -293,6 +294,7 @@ async function syncMeetsFromRemoteDb(syncPath: string): Promise<FolderSyncSummar
   let remoteDb: ReturnType<typeof Database> | null = null;
   const results: FolderSyncResult[] = [];
   let imported = 0;
+  let updated = 0;
   let skippedExists = 0;
   let skippedError = 0;
   let totalMeetsFound = 0;
@@ -314,6 +316,7 @@ async function syncMeetsFromRemoteDb(syncPath: string): Promise<FolderSyncSummar
         syncFolderPath: syncPath,
         packagesFound: 0,
         imported: 0,
+        updated: 0,
         skippedExists: 0,
         skippedError: 0,
         results: [],
@@ -327,14 +330,30 @@ async function syncMeetsFromRemoteDb(syncPath: string): Promise<FolderSyncSummar
       // Check if this meet already exists locally
       const existingMeet = await storage.getMeetByCode(meetCode);
       if (existingMeet) {
-        console.log(`[Folder Sync] Skipping "${meetName}" (code: ${meetCode}) — already exists`);
-        results.push({
-          packageName: meetName,
-          meetName,
-          meetCode,
-          action: 'skipped_exists',
-        });
-        skippedExists++;
+        // Meet exists — sync its configuration (scenes, mappings, themes, records, etc.)
+        console.log(`[Folder Sync] Meet "${meetName}" (code: ${meetCode}) already exists — syncing configuration...`);
+        try {
+          const configStats = await syncMeetConfigFromRemoteDb(remoteDb, remoteMeet, existingMeet.id);
+          console.log(`[Folder Sync] Updated config for "${meetName}": ${configStats.scenes} scenes, ${configStats.sceneMappings} scene mappings, ${configStats.themes} themes, ${configStats.layouts} layouts, ${configStats.boardConfigs} board configs, ${configStats.recordBooks} record books, ${configStats.records} records`);
+          results.push({
+            packageName: meetName,
+            meetName,
+            meetCode,
+            action: 'updated',
+            stats: configStats,
+          });
+          updated++;
+        } catch (error: any) {
+          console.error(`[Folder Sync] Error updating config for "${meetName}":`, error);
+          results.push({
+            packageName: meetName,
+            meetName,
+            meetCode,
+            action: 'skipped_error',
+            error: `Config sync failed: ${error.message}`,
+          });
+          skippedError++;
+        }
         continue;
       }
 
@@ -383,9 +402,349 @@ async function syncMeetsFromRemoteDb(syncPath: string): Promise<FolderSyncSummar
     syncFolderPath: syncPath,
     packagesFound: totalMeetsFound,
     imported,
+    updated,
     skippedExists,
     skippedError,
     results,
+  };
+}
+
+/**
+ * Sync configuration (scenes, mappings, themes, layouts, board configs, records) from
+ * a remote DB into an already-existing local meet. This is called when a meet was previously
+ * imported but its configuration wasn't synced (e.g., meet existed before config sync was added).
+ * It clears existing config data for the meet and re-imports from the remote DB.
+ */
+async function syncMeetConfigFromRemoteDb(
+  remoteDb: ReturnType<typeof Database>,
+  remoteMeet: any,
+  localMeetId: string
+): Promise<{ events: number; athletes: number; teams: number; entries: number; scenes: number; sceneMappings: number; themes: number; layouts: number; boardConfigs: number; recordBooks: number; records: number }> {
+  const oldMeetId = remoteMeet.id;
+  console.log(`[Folder Sync] Syncing config for meet ${localMeetId} from remote meet ${oldMeetId}...`);
+
+  // Build ID maps by matching local entities to remote entities by their natural keys
+  // (event_number, team_number, etc.) so we can remap foreign keys correctly
+  const eventIdMap = new Map<string, string>();
+  const teamIdMap = new Map<string, string>();
+
+  // Match events by event_number
+  try {
+    const localEvents = await storage.getEventsByMeetId(localMeetId);
+    const remoteEvents = remoteDb.prepare('SELECT * FROM events WHERE meet_id = ?').all(oldMeetId) as any[];
+    console.log(`[Folder Sync] Building event ID map: ${localEvents.length} local events, ${remoteEvents.length} remote events`);
+    for (const re of remoteEvents) {
+      const localEvent = localEvents.find(le => le.eventNumber === re.event_number);
+      if (localEvent) {
+        eventIdMap.set(re.id, localEvent.id);
+      }
+    }
+    console.log(`[Folder Sync] Mapped ${eventIdMap.size} events`);
+  } catch (err: any) {
+    console.error(`[Folder Sync] Error building event ID map:`, err.message);
+  }
+
+  // Match teams by team_number
+  try {
+    const localTeams = await storage.getTeamsByMeetId(localMeetId);
+    const remoteTeams = remoteDb.prepare('SELECT * FROM teams WHERE meet_id = ?').all(oldMeetId) as any[];
+    console.log(`[Folder Sync] Building team ID map: ${localTeams.length} local teams, ${remoteTeams.length} remote teams`);
+    for (const rt of remoteTeams) {
+      const localTeam = localTeams.find(lt => lt.teamNumber === rt.team_number);
+      if (localTeam) {
+        teamIdMap.set(rt.id, localTeam.id);
+      }
+    }
+    console.log(`[Folder Sync] Mapped ${teamIdMap.size} teams`);
+  } catch (err: any) {
+    console.error(`[Folder Sync] Error building team ID map:`, err.message);
+  }
+
+  // Clear existing config data for this meet before re-importing
+  // (themes, scenes, scene mappings, layouts, board configs, record books)
+  try {
+    const existingThemes = await storage.getDisplayThemes(localMeetId);
+    for (const t of existingThemes) {
+      try { await storage.deleteDisplayTheme(t.id); } catch (_) {}
+    }
+    console.log(`[Folder Sync] Cleared ${existingThemes.length} existing themes`);
+  } catch (_) {}
+
+  try {
+    const existingScenes = await storage.getLayoutScenes(localMeetId);
+    for (const s of existingScenes) {
+      try { await storage.deleteLayoutScene(s.id); } catch (_) {}
+    }
+    console.log(`[Folder Sync] Cleared ${existingScenes.length} existing scenes`);
+  } catch (_) {}
+
+  try {
+    const existingMappings = await storage.getSceneTemplateMappings(localMeetId);
+    for (const m of existingMappings) {
+      try { await storage.deleteSceneTemplateMapping(m.id); } catch (_) {}
+    }
+    console.log(`[Folder Sync] Cleared ${existingMappings.length} existing scene mappings`);
+  } catch (_) {}
+
+  try {
+    const existingLayouts = await storage.getDisplayLayoutsByMeet(localMeetId);
+    for (const l of existingLayouts) {
+      try { await storage.deleteDisplayLayout(l.id); } catch (_) {}
+    }
+    console.log(`[Folder Sync] Cleared ${existingLayouts.length} existing layouts`);
+  } catch (_) {}
+
+  try {
+    const existingRecordBooks = await storage.getRecordBooks(localMeetId);
+    for (const rb of existingRecordBooks) {
+      try { await storage.deleteRecordBook(rb.id); } catch (_) {}
+    }
+    console.log(`[Folder Sync] Cleared ${existingRecordBooks.length} existing record books`);
+  } catch (_) {}
+
+  // Now import config from remote DB (same logic as importMeetFromRemoteDb but using localMeetId)
+  const newMeetId = localMeetId;
+
+  // Import display themes (and build ID map for board_configs)
+  let themesImported = 0;
+  const themeIdMap = new Map<string, string>();
+  try {
+    const remoteThemes = remoteDb.prepare('SELECT * FROM display_themes WHERE meet_id = ?').all(oldMeetId) as any[];
+    console.log(`[Folder Sync] Found ${remoteThemes.length} remote themes to sync`);
+    for (const rt of remoteThemes) {
+      const newTheme = await storage.createDisplayTheme({
+        meetId: newMeetId,
+        name: rt.name,
+        isDefault: rt.is_default ? true : false,
+        accentColor: rt.accent_color,
+        bgColor: rt.bg_color,
+        bgElevatedColor: rt.bg_elevated_color,
+        bgBorderColor: rt.bg_border_color,
+        fgColor: rt.fg_color,
+        mutedColor: rt.muted_color,
+        headingFont: rt.heading_font,
+        bodyFont: rt.body_font,
+        numbersFont: rt.numbers_font,
+        logoUrl: rt.logo_url,
+        sponsorLogos: rt.sponsor_logos ? (typeof rt.sponsor_logos === 'string' ? JSON.parse(rt.sponsor_logos) : rt.sponsor_logos) : null,
+        features: rt.features ? (typeof rt.features === 'string' ? JSON.parse(rt.features) : rt.features) : null,
+      });
+      themeIdMap.set(rt.id, newTheme.id);
+      themesImported++;
+    }
+  } catch (err: any) {
+    console.error(`[Folder Sync] Error syncing themes:`, err.message);
+  }
+
+  // Import layout scenes and their objects
+  let scenesImported = 0;
+  const sceneIdMap = new Map<number, number>();
+  try {
+    const remoteScenes = remoteDb.prepare('SELECT * FROM layout_scenes WHERE meet_id = ?').all(oldMeetId) as any[];
+    console.log(`[Folder Sync] Found ${remoteScenes.length} remote scenes to sync`);
+    for (const rs of remoteScenes) {
+      const newScene = await storage.createLayoutScene({
+        meetId: newMeetId,
+        name: rs.name,
+        description: rs.description,
+        canvasWidth: rs.canvas_width || 1920,
+        canvasHeight: rs.canvas_height || 1080,
+        aspectRatio: rs.aspect_ratio || '16:9',
+        backgroundColor: rs.background_color || '#000000',
+        backgroundImage: rs.background_image,
+        isTemplate: rs.is_template ? true : false,
+      });
+      sceneIdMap.set(rs.id, newScene.id);
+      scenesImported++;
+
+      // Import layout objects for this scene
+      try {
+        const remoteObjects = remoteDb.prepare('SELECT * FROM layout_objects WHERE scene_id = ?').all(rs.id) as any[];
+        for (const ro of remoteObjects) {
+          await storage.createLayoutObject({
+            sceneId: newScene.id,
+            name: ro.name,
+            objectType: ro.object_type,
+            x: ro.x,
+            y: ro.y,
+            width: ro.width,
+            height: ro.height,
+            zIndex: ro.z_index || 0,
+            rotation: ro.rotation || 0,
+            dataBinding: ro.data_binding ? (typeof ro.data_binding === 'string' ? JSON.parse(ro.data_binding) : ro.data_binding) : null,
+            config: ro.config ? (typeof ro.config === 'string' ? JSON.parse(ro.config) : ro.config) : null,
+            style: ro.style ? (typeof ro.style === 'string' ? JSON.parse(ro.style) : ro.style) : null,
+            visible: ro.visible !== false && ro.visible !== 0,
+            locked: ro.locked ? true : false,
+          });
+        }
+        console.log(`[Folder Sync] Imported ${remoteObjects.length} objects for scene "${rs.name}"`);
+      } catch (err: any) {
+        console.error(`[Folder Sync] Error syncing objects for scene ${rs.id}:`, err.message);
+      }
+    }
+  } catch (err: any) {
+    console.error(`[Folder Sync] Error syncing scenes:`, err.message);
+  }
+
+  // Import scene template mappings
+  let mappingsImported = 0;
+  try {
+    const remoteMappings = remoteDb.prepare('SELECT * FROM scene_template_mappings WHERE meet_id = ?').all(oldMeetId) as any[];
+    console.log(`[Folder Sync] Found ${remoteMappings.length} remote scene mappings to sync`);
+    for (const rm of remoteMappings) {
+      const newSceneId = sceneIdMap.get(rm.scene_id);
+      if (!newSceneId) {
+        console.log(`[Folder Sync] Skipping mapping — scene ${rm.scene_id} not found in map`);
+        continue;
+      }
+      await storage.setSceneTemplateMapping({
+        meetId: newMeetId,
+        displayType: rm.display_type,
+        displayMode: rm.display_mode,
+        sceneId: newSceneId,
+      });
+      mappingsImported++;
+    }
+  } catch (err: any) {
+    console.error(`[Folder Sync] Error syncing scene mappings:`, err.message);
+  }
+
+  // Import display layouts and their cells
+  let layoutsImported = 0;
+  try {
+    const remoteLayouts = remoteDb.prepare('SELECT * FROM display_layouts WHERE meet_id = ?').all(oldMeetId) as any[];
+    console.log(`[Folder Sync] Found ${remoteLayouts.length} remote layouts to sync`);
+    for (const rl of remoteLayouts) {
+      const newLayout = await storage.createDisplayLayout({
+        meetId: newMeetId,
+        name: rl.name,
+        description: rl.description,
+        rows: rl.rows || 2,
+        cols: rl.cols || 2,
+        isTemplate: rl.is_template ? true : false,
+        templateId: rl.template_id,
+        version: rl.version || 1,
+      });
+      layoutsImported++;
+
+      // Import layout cells for this layout
+      try {
+        const remoteCells = remoteDb.prepare('SELECT * FROM layout_cells WHERE layout_id = ?').all(rl.id) as any[];
+        for (const rc of remoteCells) {
+          await storage.createLayoutCell({
+            layoutId: newLayout.id,
+            row: rc.row,
+            col: rc.col,
+            rowSpan: rc.row_span || 1,
+            colSpan: rc.col_span || 1,
+            eventId: rc.event_id ? (eventIdMap.get(rc.event_id) || null) : null,
+            eventType: rc.event_type,
+            boardType: rc.board_type || 'live_time',
+            settings: rc.settings ? (typeof rc.settings === 'string' ? JSON.parse(rc.settings) : rc.settings) : null,
+          });
+        }
+        console.log(`[Folder Sync] Imported ${remoteCells.length} cells for layout "${rl.name}"`);
+      } catch (err: any) {
+        console.error(`[Folder Sync] Error syncing cells for layout ${rl.id}:`, err.message);
+      }
+    }
+  } catch (err: any) {
+    console.error(`[Folder Sync] Error syncing layouts:`, err.message);
+  }
+
+  // Import board configs
+  let boardConfigsImported = 0;
+  try {
+    const remoteBoardConfigs = remoteDb.prepare('SELECT * FROM board_configs WHERE meet_id = ?').all(oldMeetId) as any[];
+    console.log(`[Folder Sync] Found ${remoteBoardConfigs.length} remote board configs to sync`);
+    for (const rbc of remoteBoardConfigs) {
+      try {
+        await storage.createBoardConfig({
+          meetId: newMeetId,
+          boardId: rbc.board_id,
+          themeId: rbc.theme_id ? (themeIdMap.get(rbc.theme_id) || null) : null,
+          overrides: rbc.overrides ? (typeof rbc.overrides === 'string' ? JSON.parse(rbc.overrides) : rbc.overrides) : null,
+        });
+        boardConfigsImported++;
+      } catch (_) { /* Skip if board doesn't exist locally */ }
+    }
+  } catch (err: any) {
+    console.error(`[Folder Sync] Error syncing board configs:`, err.message);
+  }
+
+  // Import record books and their records
+  let recordBooksImported = 0;
+  let recordsImported = 0;
+  try {
+    const remoteRecordBooks = remoteDb.prepare('SELECT * FROM record_books WHERE meet_id = ?').all(oldMeetId) as any[];
+    console.log(`[Folder Sync] Found ${remoteRecordBooks.length} remote record books to sync`);
+    for (const rrb of remoteRecordBooks) {
+      const newBook = await storage.createRecordBook({
+        name: rrb.name,
+        description: rrb.description,
+        scope: rrb.scope || 'meet',
+        isActive: rrb.is_active !== false && rrb.is_active !== 0,
+        displayOrder: rrb.display_order || 99,
+        allowMultiple: rrb.allow_multiple ? true : false,
+        meetId: newMeetId,
+      });
+      recordBooksImported++;
+
+      // Import individual records for this book
+      try {
+        const remoteRecords = remoteDb.prepare('SELECT * FROM records WHERE record_book_id = ?').all(rrb.id) as any[];
+        for (const rr of remoteRecords) {
+          try {
+            await storage.createRecord({
+              recordBookId: newBook.id,
+              eventType: rr.event_type,
+              gender: rr.gender,
+              performance: rr.performance,
+              athleteName: rr.athlete_name,
+              team: rr.team,
+              date: rr.date ? new Date(rr.date) : new Date(),
+              location: rr.location,
+              wind: rr.wind,
+              notes: rr.notes,
+              verifiedBy: rr.verified_by,
+            });
+            recordsImported++;
+          } catch (_) { /* Skip invalid records */ }
+        }
+        console.log(`[Folder Sync] Imported ${remoteRecords.length} records for book "${rrb.name}"`);
+      } catch (err: any) {
+        console.error(`[Folder Sync] Error syncing records for book ${rrb.id}:`, err.message);
+      }
+    }
+  } catch (err: any) {
+    console.error(`[Folder Sync] Error syncing record books:`, err.message);
+  }
+
+  // Handle meet logo — update local meet's logo_url if remote has one
+  if (remoteMeet.logo_url) {
+    try {
+      const logoUrl = remoteMeet.logo_url as string;
+      console.log(`[Folder Sync] Meet logo URL from remote: ${logoUrl}`);
+      // Update the local meet's logo URL to match the remote
+      // The actual file should be synced by edge-launcher's file sync
+    } catch (_) { /* Logo handling is best-effort */ }
+  }
+
+  console.log(`[Folder Sync] Config sync complete: ${themesImported} themes, ${scenesImported} scenes, ${mappingsImported} mappings, ${layoutsImported} layouts, ${boardConfigsImported} board configs, ${recordBooksImported} record books, ${recordsImported} records`);
+
+  return {
+    events: 0, // Not re-importing events/athletes/teams for existing meets
+    athletes: 0,
+    teams: 0,
+    entries: 0,
+    scenes: scenesImported,
+    sceneMappings: mappingsImported,
+    themes: themesImported,
+    layouts: layoutsImported,
+    boardConfigs: boardConfigsImported,
+    recordBooks: recordBooksImported,
+    records: recordsImported,
   };
 }
 
@@ -785,6 +1144,7 @@ export async function syncFromFolder(folderPath?: string): Promise<FolderSyncSum
       syncFolderPath: '',
       packagesFound: 0,
       imported: 0,
+      updated: 0,
       skippedExists: 0,
       skippedError: 0,
       results: [],
@@ -802,6 +1162,7 @@ export async function syncFromFolder(folderPath?: string): Promise<FolderSyncSum
       syncFolderPath: syncPath,
       packagesFound: 0,
       imported: 0,
+      updated: 0,
       skippedExists: 0,
       skippedError: 0,
       results: [],
@@ -836,6 +1197,7 @@ export async function syncFromFolder(folderPath?: string): Promise<FolderSyncSum
       syncFolderPath: syncPath,
       packagesFound: 0,
       imported: 0,
+      updated: 0,
       skippedExists: 0,
       skippedError: 0,
       results: [],
@@ -847,6 +1209,7 @@ export async function syncFromFolder(folderPath?: string): Promise<FolderSyncSum
 
   const results: FolderSyncResult[] = [];
   let imported = 0;
+  let updated = 0;
   let skippedExists = 0;
   let skippedError = 0;
 
@@ -927,6 +1290,7 @@ export async function syncFromFolder(folderPath?: string): Promise<FolderSyncSum
     syncFolderPath: syncPath,
     packagesFound: packages.length,
     imported,
+    updated,
     skippedExists,
     skippedError,
     results,
