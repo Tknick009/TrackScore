@@ -350,7 +350,7 @@ export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingInt
                         } : {}),
                       }}
                     >
-                      {position}
+                      PL:{position}
                     </div>
                   ) : (
                     <span className="text-white/15" style={{ fontSize: '18px' }}>--</span>
