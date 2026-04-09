@@ -12,6 +12,7 @@ interface ProScoreboardProps {
   liveTime?: string;
   pagingSize?: number;
   pagingIntervalMs?: number;
+  displayType?: string;
 }
 
 function determineDisplayMode(event: EventWithEntries): 'track' | 'field' {
@@ -22,7 +23,8 @@ function determineDisplayMode(event: EventWithEntries): 'track' | 'field' {
   return checkIsTrackEvent(event.eventType) ? 'track' : 'field';
 }
 
-export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingIntervalMs = 8000 }: ProScoreboardProps) {
+export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingIntervalMs = 8000, displayType }: ProScoreboardProps) {
+  const showPlacePrefix = displayType === 'P10' || displayType === 'P6';
   const [clock, setClock] = useState("");
   const [currentPage, setCurrentPage] = useState(0);
   const [fadeState, setFadeState] = useState<'in' | 'out'>('in');
@@ -350,7 +352,7 @@ export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingInt
                         } : {}),
                       }}
                     >
-                      PL:{position}
+                      {showPlacePrefix ? `PL:${position}` : position}
                     </div>
                   ) : (
                     <span className="text-white/15" style={{ fontSize: '18px' }}>--</span>

@@ -2135,7 +2135,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
       if (isFieldResults || isFieldStandings) {
         return <SingleAthleteField event={eventWithLiveName as any} meet={meet} focusIndex={0} />;
       }
-      return <SingleAthleteTrack event={eventWithLiveName as any} meet={meet} focusIndex={0} />;
+      return <SingleAthleteTrack event={eventWithLiveName as any} meet={meet} focusIndex={0} displayType={displayType} />;
     }
 
     if (isRunningTimeTemplate) {
@@ -2232,9 +2232,9 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
           };
       // Check if ProScoreboard template is selected
       if (templateId === 'ProScoreboard' || templateId === 'pro-scoreboard') {
-        return <ProScoreboard event={eventWithLiveName as any} meet={meet} pagingSize={pagingSize} pagingIntervalMs={pagingInterval * 1000} />;
+        return <ProScoreboard event={eventWithLiveName as any} meet={meet} pagingSize={pagingSize} pagingIntervalMs={pagingInterval * 1000} displayType={displayType} />;
       }
-      return <BigBoard event={eventWithLiveName as any} meet={meet} pagingSize={pagingSize} pagingIntervalMs={pagingInterval * 1000} />;
+      return <BigBoard event={eventWithLiveName as any} meet={meet} pagingSize={pagingSize} pagingIntervalMs={pagingInterval * 1000} displayType={displayType} />;
     }
 
     if (!currentEvent && !liveEventData && (isTrackResults || isFieldResults || isStartList || isFieldStandings)) {

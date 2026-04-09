@@ -6,9 +6,11 @@ interface SingleAthleteTrackProps {
   meet?: Meet | null;
   liveTime?: string;
   focusIndex?: number;
+  displayType?: string;
 }
 
-export function SingleAthleteTrack({ event, meet, liveTime, focusIndex = 0 }: SingleAthleteTrackProps) {
+export function SingleAthleteTrack({ event, meet, liveTime, focusIndex = 0, displayType }: SingleAthleteTrackProps) {
+  const showPlacePrefix = displayType === 'P10' || displayType === 'P6';
   const [clock, setClock] = useState<string>("");
 
   useEffect(() => {
@@ -122,7 +124,7 @@ export function SingleAthleteTrack({ event, meet, liveTime, focusIndex = 0 }: Si
                 className="text-yellow-400 font-black"
                 style={{ fontSize: '72px', fontFamily: "'Bebas Neue', sans-serif" }}
               >
-                {athlete.finalPlace}
+                {showPlacePrefix ? `PL:${athlete.finalPlace}` : athlete.finalPlace}
               </span>
             )}
             <div className="flex flex-col items-center">

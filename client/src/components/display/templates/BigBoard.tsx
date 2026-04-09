@@ -9,9 +9,11 @@ interface BigBoardProps {
   liveTime?: string;
   pagingSize?: number;
   pagingIntervalMs?: number;
+  displayType?: string;
 }
 
-export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
+export function BigBoard({ event, meet, liveTime, displayType }: BigBoardProps) {
+  const showPlacePrefix = displayType === 'P10' || displayType === 'P6';
   const [clock, setClock] = useState<string>("");
   const [fadeIn, setFadeIn] = useState(true);
   const [displayedEntries, setDisplayedEntries] = useState<any[]>([]);
@@ -277,7 +279,7 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
                       className="text-white font-black w-20 text-center shrink-0"
                       style={{ fontSize: '56px', fontWeight: 900, fontFamily: "'Bebas Neue', sans-serif" }}
                     >
-                      {hasPlace ? placeVal : (entry.finalLane || index + 1)}
+                      {hasPlace ? (showPlacePrefix ? `PL:${placeVal}` : placeVal) : (entry.finalLane || index + 1)}
                     </span>
 
                     <div className="w-14 h-14 shrink-0 flex items-center justify-center">
