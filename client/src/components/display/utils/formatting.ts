@@ -160,15 +160,16 @@ export function formatSplitTime(seconds: number | null | undefined): string {
  */
 export function extractDistanceMeters(eventName: string | null | undefined, eventType?: string | null): number | null {
   const str = (eventName || eventType || '').toLowerCase();
+  // Exclude mile/heptathlon/decathlon/pentathlon FIRST — don't extract incidental numbers
+  if (/mile|heptathlon|decathlon|pentathlon/i.test(str)) return null;
+  // Also exclude the short event type codes for mile: '1m', '1mile'
+  if (/^1m(ile)?$/i.test(str.trim())) return null;
   // Relay: "4x100" or "4 x 200" — extract leg distance
   const relayMatch = str.match(/(\d+)\s*x\s*(\d+)/);
   if (relayMatch) return parseInt(relayMatch[2]);
   // Direct distance: "100m", "200 meters", "110m hurdles", "100 meter dash"
-  // Exclude "mile" events (e.g. "1 Mile", "2 Mile") — those are not 1m or 2m
   const distMatch = str.match(/(\d+)\s*m(?:eters?)?\b/);
-  if (distMatch && !/mile/i.test(str)) return parseInt(distMatch[1]);
-  // Exclude mile/heptathlon/decathlon — don't extract incidental numbers
-  if (/mile|heptathlon|decathlon|pentathlon/i.test(str)) return null;
+  if (distMatch) return parseInt(distMatch[1]);
   // Just a number at the start or after a space: "100 Dash", "200 Hurdles"
   const numMatch = str.match(/\b(\d+)\b/);
   if (numMatch) return parseInt(numMatch[1]);
