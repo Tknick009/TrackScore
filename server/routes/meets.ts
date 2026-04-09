@@ -164,8 +164,15 @@ export function registerMeetsRoutes(app: Express, ctx: RouteContext) {
 
   // ===== FOLDER SYNC API =====
 
+  // Guard: only allow folder sync endpoints from localhost (same check as log endpoints in index.ts)
+  const isLocalRequest = (req: import('express').Request): boolean => {
+    const ip = req.ip || req.socket.remoteAddress || '';
+    return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1' || ip === req.socket.localAddress;
+  };
+
   // Get folder sync config
   app.get("/api/folder-sync/config", async (req, res) => {
+    if (!isLocalRequest(req)) { return res.status(403).json({ error: 'Forbidden' }); }
     try {
       const { getFolderSyncConfig } = await import('../folder-sync');
       const config = getFolderSyncConfig();
@@ -177,6 +184,7 @@ export function registerMeetsRoutes(app: Express, ctx: RouteContext) {
 
   // Save folder sync config
   app.put("/api/folder-sync/config", async (req, res) => {
+    if (!isLocalRequest(req)) { return res.status(403).json({ error: 'Forbidden' }); }
     try {
       const { syncFolderPath, autoSyncOnBoot } = req.body;
       if (!syncFolderPath || typeof syncFolderPath !== 'string') {
@@ -192,6 +200,7 @@ export function registerMeetsRoutes(app: Express, ctx: RouteContext) {
 
   // Debug: list contents of sync folder (helps diagnose path issues)
   app.get("/api/folder-sync/debug", async (req, res) => {
+    if (!isLocalRequest(req)) { return res.status(403).json({ error: 'Forbidden' }); }
     try {
       const { getFolderSyncConfig } = await import('../folder-sync');
       const config = getFolderSyncConfig();
@@ -230,6 +239,7 @@ export function registerMeetsRoutes(app: Express, ctx: RouteContext) {
 
   // Trigger manual folder sync
   app.post("/api/folder-sync/sync", async (req, res) => {
+    if (!isLocalRequest(req)) { return res.status(403).json({ error: 'Forbidden' }); }
     try {
       const { syncFromFolder } = await import('../folder-sync');
       const { syncFolderPath } = req.body || {};
@@ -243,6 +253,7 @@ export function registerMeetsRoutes(app: Express, ctx: RouteContext) {
 
   // Export a meet to the sync folder
   app.post("/api/folder-sync/export/:meetId", async (req, res) => {
+    if (!isLocalRequest(req)) { return res.status(403).json({ error: 'Forbidden' }); }
     try {
       const { exportToSyncFolder } = await import('../folder-sync');
       const result = await exportToSyncFolder(req.params.meetId);
