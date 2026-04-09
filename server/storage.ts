@@ -1903,7 +1903,7 @@ export class DatabaseStorage implements IStorage {
       eq(recordBooks.isActive, true),
     ];
     if (meetId) {
-      conditions.push(eq(recordBooks.meetId, meetId));
+      conditions.push(or(eq(recordBooks.meetId, meetId), isNull(recordBooks.meetId))!);
     }
 
     const results = await db
