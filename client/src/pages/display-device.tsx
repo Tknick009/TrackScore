@@ -2234,7 +2234,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
       if (templateId === 'ProScoreboard' || templateId === 'pro-scoreboard') {
         return <ProScoreboard event={eventWithLiveName as any} meet={meet} pagingSize={pagingSize} pagingIntervalMs={pagingInterval * 1000} displayType={displayType} />;
       }
-      return <BigBoard event={eventWithLiveName as any} meet={meet} pagingSize={pagingSize} pagingIntervalMs={pagingInterval * 1000} displayType={displayType} />;
+      return <BigBoard event={eventWithLiveName as any} meet={meet} pagingSize={pagingSize} pagingIntervalMs={pagingInterval * 1000} />;
     }
 
     if (!currentEvent && !liveEventData && (isTrackResults || isFieldResults || isStartList || isFieldStandings)) {
