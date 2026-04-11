@@ -528,11 +528,15 @@ export function SceneObjectRenderer({
       } else if (isResultsMode) {
         // Results: 50% until they receive a time, then 100%
         // DNS/FS/Scratch stay at 50%
+        // FinishLynx sends "0.00" / "0:00.00" as placeholder for athletes who haven't finished
         if (isDimmedStatus) {
           contentFadeOpacity = 0.5;
         } else {
-          const hasTime = entry.time && String(entry.time).trim() !== '';
-          const hasPlace = entry.place && String(entry.place).trim() !== '' && entry.place !== '--';
+          const timeVal = entry.time ? String(entry.time).trim() : '';
+          const isZeroTime = timeVal !== '' && /^0*:?0*\.?0*$/.test(timeVal);
+          const hasTime = timeVal !== '' && !isZeroTime;
+          const placeVal = entry.place ? String(entry.place).trim() : '';
+          const hasPlace = placeVal !== '' && placeVal !== '--' && placeVal !== '0' && parseInt(placeVal) > 0;
           const hasResult = hasTime || hasPlace;
           contentFadeOpacity = hasResult ? 1 : 0.5;
         }
@@ -543,9 +547,12 @@ export function SceneObjectRenderer({
         } else {
           const hasLastSplit = entry.lastSplit && String(entry.lastSplit).trim() !== '';
           const hasCumulativeSplit = entry.cumulativeSplit && String(entry.cumulativeSplit).trim() !== '';
-          const hasTime = entry.time && String(entry.time).trim() !== '';
+          const timeVal = entry.time ? String(entry.time).trim() : '';
+          const isZeroTime = timeVal !== '' && /^0*:?0*\.?0*$/.test(timeVal);
+          const hasTime = timeVal !== '' && !isZeroTime;
           const hasRunningTime = entry.runningTime && String(entry.runningTime).trim() !== '';
-          const hasPlace = entry.place && String(entry.place).trim() !== '' && entry.place !== '--';
+          const placeVal = entry.place ? String(entry.place).trim() : '';
+          const hasPlace = placeVal !== '' && placeVal !== '--' && placeVal !== '0' && parseInt(placeVal) > 0;
           const hasTimingData = hasLastSplit || hasCumulativeSplit || hasTime || hasRunningTime || hasPlace;
           contentFadeOpacity = hasTimingData ? 1 : 0.5;
         }
@@ -1791,12 +1798,18 @@ export function SceneCanvas({
         });
       }
       
+      // FinishLynx sends "0.00" as placeholder for athletes who haven't finished
+      const isZeroTime = (t: any) => { const s = String(t || '').trim(); return s !== '' && /^0*:?0*\.?0*$/.test(s); };
       const sortedEntries = [...enrichedEntries].sort((a: any, b: any) => {
-        const hasTimeA = a.time && String(a.time).trim() !== '';
-        const hasPlaceA = a.place && String(a.place).trim() !== '';
+        const timeA = a.time ? String(a.time).trim() : '';
+        const hasTimeA = timeA !== '' && !isZeroTime(timeA);
+        const placeA = a.place ? String(a.place).trim() : '';
+        const hasPlaceA = placeA !== '' && placeA !== '0' && parseInt(placeA) > 0;
         const hasResultA = hasTimeA || hasPlaceA;
-        const hasTimeB = b.time && String(b.time).trim() !== '';
-        const hasPlaceB = b.place && String(b.place).trim() !== '';
+        const timeB = b.time ? String(b.time).trim() : '';
+        const hasTimeB = timeB !== '' && !isZeroTime(timeB);
+        const placeB = b.place ? String(b.place).trim() : '';
+        const hasPlaceB = placeB !== '' && placeB !== '0' && parseInt(placeB) > 0;
         const hasResultB = hasTimeB || hasPlaceB;
         if (hasResultA && !hasResultB) return -1;
         if (!hasResultA && hasResultB) return 1;

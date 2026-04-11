@@ -2056,26 +2056,24 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     acc.eventName = metadata?.eventName || acc.eventName;
     acc.distance = metadata?.distance || acc.distance;
     
-    // Accumulate new entries in arrival order (FinishLynx sends them in display order)
-    // Skip empty entries (blank lane, bib, name)
-    for (const entry of entries) {
-      const hasContent = entry.lane || entry.bib || entry.name;
-      if (hasContent) {
-        acc.entries.push(entry);
-      }
-    }
-    
     // === PERFORMANCE: Fingerprint-based deduplication ===
     // FinishLynx re-sends the same start list every ~2s. Compute a fingerprint
-    // of the accumulated entries and skip the ENTIRE enrichment+broadcast pipeline
-    // when nothing changed. This eliminates 5-6 DB queries per redundant cycle.
-    const fingerprint = `${eventNumber}:${heat}:${acc.entries.length}:${acc.entries.map((e: any) => `${e.bib||''}:${e.lane||''}:${e.name||''}:${e.time||''}`).join(',')}`;
+    // from the INCOMING entries BEFORE pushing to the accumulator, so we can detect
+    // when the same data arrives again and skip the entire enrichment+broadcast pipeline.
+    const filteredEntries = entries.filter((entry: any) => entry.lane || entry.bib || entry.name);
+    const wouldBeEntries = [...acc.entries, ...filteredEntries];
+    const fingerprint = `${eventNumber}:${heat}:${wouldBeEntries.length}:${wouldBeEntries.map((e: any) => `${e.bib||''}:${e.lane||''}:${e.name||''}:${e.time||''}`).join(',')}`;
     const lastFP = isBigBoard ? lastStartListFingerprintBig : lastStartListFingerprint;
     if (fingerprint === lastFP) {
       // Data unchanged — skip all DB queries, enrichment, and broadcast
       return;
     }
     if (isBigBoard) { lastStartListFingerprintBig = fingerprint; } else { lastStartListFingerprint = fingerprint; }
+    
+    // Accumulate new entries in arrival order (FinishLynx sends them in display order)
+    for (const entry of filteredEntries) {
+      acc.entries.push(entry);
+    }
     
     console.log(`[Lynx] Start list (${isBigBoard ? 'BIG BOARD' : 'standard'}): Event ${eventNumber}, Heat ${heat}, +${entries.length} entries, total: ${acc.entries.length}`);
     

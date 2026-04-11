@@ -249,8 +249,10 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
             const hasPlace = !isNaN(placeVal) && placeVal > 0;
             
             // Opacity: DNS/FS/Scratch = 50%, no data yet = 50%, has data = 100%
+            // FinishLynx sends "0.00" as placeholder for athletes who haven't finished
+            const isZeroTime = (t: string) => t !== '' && /^0*:?0*\.?0*$/.test(t);
             const dimmed = isDimmedEntry(entry);
-            const hasResultData = finalTime !== '' || splitTime !== '';
+            const hasResultData = (finalTime !== '' && !isZeroTime(finalTime)) || (splitTime !== '' && !isZeroTime(splitTime));
             let rowOpacity = 1;
             if (dimmed) {
               rowOpacity = 0.5;

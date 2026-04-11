@@ -302,8 +302,10 @@ export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingInt
               : 'transparent';
 
             // Opacity: DNS/FS/Scratch = 50%, no data yet = 50%, has data = 100%
+            // FinishLynx sends "0.00" as placeholder for athletes who haven't finished
+            const isZeroTime = (t: string) => t !== '' && /^0*:?0*\.?0*$/.test(t);
             const dimmed = isDimmedEntry(entry);
-            const hasResultData = resultText !== '' && resultText !== '--';
+            const hasResultData = resultText !== '' && resultText !== '--' && !isZeroTime(resultText);
             const isStartList = !isCompleted && !isLive;
             let rowOpacity = 1;
             if (dimmed) {
