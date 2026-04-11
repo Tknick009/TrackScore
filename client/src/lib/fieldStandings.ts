@@ -93,9 +93,10 @@ export function isEliminatedVertical(
   // misses tracked ACROSS heights, not just within a single height.
   // Example: 2 misses at 1.90m then 1 miss at 1.95m = eliminated.
   // A clear resets the counter; passes are neutral.
+  // Sort all marks chronologically: first by height (ascending), then by attempt within each height
   const sortedMarks = [...marks]
     .filter(m => m.heightIndex !== null && m.heightIndex !== undefined)
-    .sort((a, b) => a.attemptNumber - b.attemptNumber);
+    .sort((a, b) => (a.heightIndex! - b.heightIndex!) || (a.attemptNumber - b.attemptNumber));
 
   let consecutiveMisses = 0;
   

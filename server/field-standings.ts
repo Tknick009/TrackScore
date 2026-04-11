@@ -141,10 +141,10 @@ export function isEliminatedVertical(
 ): boolean {
   if (!marks.length) return false;
 
-  // Sort all marks by attemptNumber to track consecutive misses across heights
+  // Sort all marks chronologically: first by height (ascending), then by attempt within each height
   const sortedMarks = [...marks]
     .filter(m => m.heightIndex !== null && m.heightIndex !== undefined)
-    .sort((a, b) => a.attemptNumber - b.attemptNumber);
+    .sort((a, b) => (a.heightIndex! - b.heightIndex!) || (a.attemptNumber - b.attemptNumber));
 
   let consecutiveMisses = 0;
   
