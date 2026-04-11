@@ -2215,6 +2215,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
               roundName: liveEventData!.roundName ?? (currentEvent as any).roundName,
               wind: liveEventData!.wind ?? (currentEvent as any).wind,
               heat: liveEventData!.heat ?? (currentEvent as any).heat,
+              totalHeats: liveEventData!.totalHeats ?? (currentEvent as any).totalHeats,
               round: liveEventData!.round ?? (currentEvent as any).round,
             } : {}),
           }
@@ -2226,6 +2227,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             entries: mapLiveEntries(liveEventData?.entries || []),
             wind: liveEventData?.wind,
             heat: liveEventData?.heat,
+            totalHeats: liveEventData?.totalHeats,
             round: liveEventData?.round,
             roundName: liveEventData?.roundName,
             isMultiEvent: liveEventData?.isMultiEvent || false,

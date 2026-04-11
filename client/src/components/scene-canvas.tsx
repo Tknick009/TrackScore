@@ -886,12 +886,11 @@ export function SceneObjectRenderer({
           };
           
           // Use central formatter for heat display
-          // For HyTek results mode, show the round name (Prelims/Finals) instead of "Heat X of Y"
-          // since HyTek data is organized by round, not by heat
-          const isHytekResults = liveData.mode === 'results';
-          const heatDisplay = isHytekResults && liveData.roundName
-            ? liveData.roundName
-            : formatHeatDisplay(liveData.heat, liveData.totalHeats);
+          // When heat number is available (FinishLynx sends per-heat data), always show "Heat X of Y"
+          // Only fall back to round name for HyTek results (which combine all heats in a round, so no heat number)
+          const heatDisplay = liveData.heat
+            ? formatHeatDisplay(liveData.heat, liveData.totalHeats)
+            : (liveData.roundName || formatHeatDisplay(liveData.heat, liveData.totalHeats));
           
           // Filter wind - only show if valid numeric data (not NWI or empty)
           // Also strip out "M/S" unit and any other text after the number

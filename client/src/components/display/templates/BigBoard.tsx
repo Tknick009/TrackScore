@@ -89,11 +89,16 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
   // Detect multi-events (Pentathlon, Heptathlon, Decathlon) - show points instead of splits on results
   // Supports abbreviations: "Hept", "Pent", "Dec" as used in FinishLynx
   const isMultiEvent = (event as any).isMultiEvent === true || /\b(dec(athlon)?|hept(athlon)?|pent(athlon)?)\b/i.test(event.name || '');
-  // Use roundName from liveEventData if available (e.g., "Prelims", "Semis", "Finals")
+  // Use heat info from liveEventData when available for "Heat X of Y" display
+  // Fall back to roundName (e.g., "Prelims", "Finals") when no heat number
+  const heat = (event as any).heat;
+  const totalHeats = (event as any).totalHeats;
   const roundName = (event as any).roundName;
-  const status = roundName 
-    ? roundName.toUpperCase() 
-    : (isCompleted ? 'FINAL' : event.status === 'in_progress' ? 'IN PROGRESS' : 'SCHEDULED');
+  const status = (heat && totalHeats && totalHeats > 1)
+    ? `HEAT ${heat} OF ${totalHeats}`
+    : roundName 
+      ? roundName.toUpperCase() 
+      : (isCompleted ? 'FINAL' : event.status === 'in_progress' ? 'IN PROGRESS' : 'SCHEDULED');
   
   // Wind display - handle both numeric and string wind values
   // Only show wind for events 200m and under

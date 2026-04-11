@@ -109,11 +109,16 @@ export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingInt
     ? `${windReading > 0 ? '+' : ''}${windReading.toFixed(1)} m/s`
     : null;
 
-  // Use roundName from liveEventData if available (e.g., "Prelims", "Semis", "Finals")
+  // Use heat info from liveEventData when available for "Heat X of Y" display
+  // Fall back to roundName (e.g., "Prelims", "Finals") when no heat number
+  const heat = (event as any).heat;
+  const totalHeats = (event as any).totalHeats;
   const roundName = (event as any).roundName;
-  const statusLabel = roundName 
-    ? roundName.toUpperCase()
-    : (isCompleted ? 'OFFICIAL RESULTS' : isLive ? 'LIVE' : 'SCHEDULED');
+  const statusLabel = (heat && totalHeats && totalHeats > 1)
+    ? `HEAT ${heat} OF ${totalHeats}`
+    : roundName 
+      ? roundName.toUpperCase()
+      : (isCompleted ? 'OFFICIAL RESULTS' : isLive ? 'LIVE' : 'SCHEDULED');
 
   return (
     <div

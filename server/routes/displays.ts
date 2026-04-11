@@ -1050,9 +1050,9 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           const bGroup = qualifierPlaceSet.has(b.id) ? 0 : qualifierTimeSet.has(b.id) ? 1 : 2;
           if (aGroup !== bGroup) return aGroup - bGroup;
           
-          // Within group, sort by time ascending
-          const aMark = typeof aFields.mark === 'number' ? aFields.mark : 999999;
-          const bMark = typeof bFields.mark === 'number' ? bFields.mark : 999999;
+          // Within group, sort by time ascending (0 = no result, treat same as missing)
+          const aMark = (typeof aFields.mark === 'number' && aFields.mark > 0) ? aFields.mark : 999999;
+          const bMark = (typeof bFields.mark === 'number' && bFields.mark > 0) ? bFields.mark : 999999;
           return aMark - bMark;
         });
       }
@@ -1084,7 +1084,11 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         } else {
           const rawMark = fields.mark ?? entry.seedMark ?? '';
           if (typeof rawMark === 'number') {
-            if (isMultiEvent) {
+            // HyTek stores "no result" as 0 in the MDB database.
+            // Treat 0 as empty (no result) so entries without times are properly dimmed on displays.
+            if (rawMark === 0) {
+              markValue = '';
+            } else if (isMultiEvent) {
               // Multi-event marks are total points — display as integer
               markValue = Math.round(rawMark).toString();
             } else if (isTrackEvent) {
