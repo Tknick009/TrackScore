@@ -2058,17 +2058,18 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     
     // === PERFORMANCE: Fingerprint-based deduplication ===
     // FinishLynx re-sends the same start list every ~2s. Compute a fingerprint
-    // from the INCOMING entries BEFORE pushing to the accumulator, so we can detect
-    // when the same data arrives again and skip the entire enrichment+broadcast pipeline.
+    // from the INCOMING entries only — if the same chunk arrives again we skip
+    // the push, enrichment, and broadcast entirely. The layout-command handler
+    // clears acc.entries and resets the fingerprint on each new page, so a fresh
+    // page always broadcasts even if the entries look the same as a prior page.
     const filteredEntries = entries.filter((entry: any) => entry.lane || entry.bib || entry.name);
-    const wouldBeEntries = [...acc.entries, ...filteredEntries];
-    const fingerprint = `${eventNumber}:${heat}:${wouldBeEntries.length}:${wouldBeEntries.map((e: any) => `${e.bib||''}:${e.lane||''}:${e.name||''}:${e.time||''}`).join(',')}`;
+    const incomingFingerprint = `${eventNumber}:${heat}:${filteredEntries.map((e: any) => `${e.bib||''}:${e.lane||''}:${e.name||''}:${e.time||''}`).join(',')}`;
     const lastFP = isBigBoard ? lastStartListFingerprintBig : lastStartListFingerprint;
-    if (fingerprint === lastFP) {
-      // Data unchanged — skip all DB queries, enrichment, and broadcast
+    if (incomingFingerprint === lastFP) {
+      // Identical chunk already processed — skip push + enrichment + broadcast
       return;
     }
-    if (isBigBoard) { lastStartListFingerprintBig = fingerprint; } else { lastStartListFingerprint = fingerprint; }
+    if (isBigBoard) { lastStartListFingerprintBig = incomingFingerprint; } else { lastStartListFingerprint = incomingFingerprint; }
     
     // Accumulate new entries in arrival order (FinishLynx sends them in display order)
     for (const entry of filteredEntries) {
