@@ -511,8 +511,14 @@ export function SceneObjectRenderer({
       const isDimmedStatus = isDNS || isFS || isScratch;
       
       if (isPreRaceMode) {
-        // Start list: filled rows = 100%, DNS/FS/Scratch = 50%
-        contentFadeOpacity = isDimmedStatus ? 0.5 : 1;
+        // Start list: filled rows = 100%, empty/placeholder rows = 50%, DNS/FS/Scratch = 50%
+        // FinishLynx may send placeholder entries with no real data (empty name/bib)
+        const hasName = entry.name && String(entry.name).trim() !== '';
+        const hasLastName = entry.lastName && String(entry.lastName).trim() !== '';
+        const hasBib = entry.bib && String(entry.bib).trim() !== '';
+        const hasLane = entry.lane && String(entry.lane).trim() !== '';
+        const hasAnyContent = hasName || hasLastName || hasBib || hasLane;
+        contentFadeOpacity = (isDimmedStatus || !hasAnyContent) ? 0.5 : 1;
       } else if (isRunningMode) {
         // Running time: 50% until split data arrives, then 100%
         // DNS/FS/Scratch stay at 50%

@@ -257,7 +257,9 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
             if (dimmed) {
               rowOpacity = 0.5;
             } else if (isStartList) {
-              rowOpacity = 1; // Start list: filled rows at full opacity
+              // Start list: filled rows at full opacity, placeholder rows dimmed
+              const hasEntryContent = (entry.firstName || entry.lastName || entry.name || '').trim() !== '' || (entry.finalBib || '').toString().trim() !== '';
+              rowOpacity = hasEntryContent ? 1 : 0.5;
             } else if (!isCompleted && !hasResultData) {
               rowOpacity = 0.5; // Running: no split/time yet = dimmed
             } else if (isCompleted && !hasResultData) {
