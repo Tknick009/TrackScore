@@ -1,5 +1,5 @@
 import { storage } from "./storage";
-import { importCompleteMDB } from "./import-mdb-complete";
+import { importMDBInBackground } from "./import-mdb-background";
 import { existsSync, copyFileSync, mkdirSync, unlinkSync } from "fs";
 import * as path from "path";
 
@@ -68,7 +68,7 @@ export function startAutoRefresh() {
             console.log(`🧹 Pre-import clear: ${JSON.stringify(clearStats)}`);
             
             // Import from the copy, not the original
-            await importCompleteMDB(tempMdbPath, meet.id);
+            await importMDBInBackground(tempMdbPath, meet.id);
             
             // Use storage abstraction to update the meet
             await storage.updateMeet(meet.id, { lastImportAt: now });

@@ -9,7 +9,7 @@ import {
 } from "@shared/schema";
 import { APP_VERSION, VERSION_DATE, RELEASE_NOTES } from "@shared/version";
 import { generateMeetCSV } from "../export-utils";
-import { importCompleteMDB } from "../import-mdb-complete";
+import { importMDBInBackground } from "../import-mdb-background";
 import type { RouteContext } from "../route-context";
 
 export function registerMeetsRoutes(app: Express, ctx: RouteContext) {
@@ -731,7 +731,7 @@ export function registerMeetsRoutes(app: Express, ctx: RouteContext) {
       console.log(`🧹 Pre-import clear: ${JSON.stringify(clearStats)}`);
 
       // Run the import
-      const stats = await importCompleteMDB(filePath, meetId);
+      const stats = await importMDBInBackground(filePath, meetId);
 
       // Update meet with mdbPath and lastImportAt
       await storage.updateMeet(meetId, { 

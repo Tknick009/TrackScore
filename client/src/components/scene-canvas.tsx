@@ -58,7 +58,7 @@ function formatSecondsToClockDisplay(totalSeconds: number): string {
   
   // Get whole seconds and single tenth
   const wholeSeconds = Math.floor(secs);
-  const tenths = Math.floor((secs - wholeSeconds) * 10);
+  const tenths = Math.floor(secs * 10) % 10;
   
   if (hours > 0) {
     return `${hours}:${String(mins).padStart(2, '0')}:${String(wholeSeconds).padStart(2, '0')}.${tenths}`;
