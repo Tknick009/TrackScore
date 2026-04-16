@@ -290,6 +290,10 @@ export default function DisplayDevice() {
   // Subscribers that want clock updates (e.g., StaticRunningClock) register callbacks here.
   // This lets them update the DOM directly without going through React's render cycle.
   const clockSubscribersRef = useRef<Set<(time: string, command?: string) => void>>(new Set());
+  // Persistent flag: true while the race clock is running, false when armed/stopped.
+  // Set on 'start'/'running' command, cleared on 'armed'/'stop' command.
+  // Used by data handlers to preserve 'running' mode during paging.
+  const clockIsRunningRef = useRef<boolean>(false);
 
   const { data: meets } = useQuery<Meet[]>({
     queryKey: ['/api/meets'],
@@ -644,6 +648,13 @@ export default function DisplayDevice() {
               // Notify all direct-DOM clock subscribers (bypasses React render)
               clockSubscribersRef.current.forEach(cb => cb(newTime, newCommand));
               
+              // Track clock running state persistently across ticks
+              if (newCommand === 'start' || newCommand === 'running') {
+                clockIsRunningRef.current = true;
+              } else if (newCommand === 'armed' || newCommand === 'stop') {
+                clockIsRunningRef.current = false;
+              }
+              
               // Reset layout mode debouncing when system is armed
               if (newCommand === 'armed' && autoModeRef.current) {
                 console.log(`[Display] System ARMED - resetting layout mode for fresh scene switching`);
@@ -968,10 +979,11 @@ export default function DisplayDevice() {
                 const eventChanged = prev.liveEventData?.eventNumber !== data.eventNumber;
                 // When the clock is actively running (race in progress), preserve 'running'
                 // mode even if FinishLynx sends mode='start_list' during paging.
-                // Use clock command as the source of truth — not layout mode ref — so that
-                // re-arming (false start, fall) properly exits running mode.
-                const clockIsRunning = liveClockCommandRef.current === 'start' || liveClockCommandRef.current === 'running';
-                const effectiveMode = (data.mode === 'start_list' && clockIsRunning)
+                // clockIsRunningRef persists across ticks (set on 'start'/'running',
+                // cleared on 'armed'/'stop') so it correctly handles:
+                // - Paging during running time → clock still running → preserve 'running'
+                // - False start / re-arm → clock armed → let 'start_list' through
+                const effectiveMode = (data.mode === 'start_list' && clockIsRunningRef.current)
                   ? 'running'
                   : data.mode;
                 return {
@@ -1267,8 +1279,8 @@ export default function DisplayDevice() {
                     roundName: eventChanged ? (data.roundName ?? 'Finals') : (data.roundName ?? prev.liveEventData?.roundName),
                     // When the clock is actively running (race in progress), preserve
                     // 'running' mode so opacity dimming stays active during paging.
-                    // Use clock command (not layout ref) so re-arming properly exits running mode.
-                    mode: (liveClockCommandRef.current === 'start' || liveClockCommandRef.current === 'running') ? 'running' : 'start_list',
+                    // clockIsRunningRef persists across ticks so re-arming properly exits running mode.
+                    mode: clockIsRunningRef.current ? 'running' : 'start_list',
                     entries: data.entries || [],
                     wind: undefined,
                     distance: data.distance || prev.liveEventData?.distance,
