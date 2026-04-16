@@ -803,29 +803,38 @@ export default function DisplayDevice() {
                       console.log(`[Display] Mode changed during fetch, ignoring stale data`);
                       return;
                     }
-                    if (sceneRes.ok && objectsRes.ok) {
-                      const scene = await sceneRes.json();
-                      const objects = await objectsRes.json();
-                      // Hydrate React Query cache for instant SceneCanvas rendering
-                      queryClient.setQueryData(['/api/layout-scenes', sceneId], scene);
-                      queryClient.setQueryData(['/api/layout-objects', { sceneId }], objects);
-                      setState(prev => ({
-                        ...prev,
-                        currentLayoutMode: capturedMode,
-                        currentSceneId: sceneId,
-                        currentSceneData: { scene, objects },
-                        currentTemplate: null,
-                      }));
-                    }
-                  } catch (e) {
-                    console.warn('[Display] Failed to prefetch scene data:', e);
-                    if (currentLayoutModeRef.current === capturedMode) {
-                      setState(prev => ({
-                        ...prev,
-                        currentLayoutMode: capturedMode,
-                        currentSceneId: sceneId,
-                        currentTemplate: null,
-                      }));
+                        if (sceneRes.ok && objectsRes.ok) {
+                          const scene = await sceneRes.json();
+                          const objects = await objectsRes.json();
+                          // Hydrate React Query cache for instant SceneCanvas rendering
+                          queryClient.setQueryData(['/api/layout-scenes', sceneId], scene);
+                          queryClient.setQueryData(['/api/layout-objects', { sceneId }], objects);
+                          setState(prev => {
+                            const updates: any = {
+                              ...prev,
+                              currentLayoutMode: capturedMode,
+                              currentSceneId: sceneId,
+                              currentSceneData: { scene, objects },
+                              currentTemplate: null,
+                            };
+                            // When layout switches to running_time, update liveEventData.mode
+                            // so the opacity logic in SceneObjectRenderer dims rows correctly.
+                            // Without this, mode stays 'start_list' and all rows stay full opacity.
+                            if (capturedMode === 'running_time' && prev.liveEventData) {
+                              updates.liveEventData = { ...prev.liveEventData, mode: 'running' };
+                            }
+                            return updates;
+                          });
+                        }
+                      } catch (e) {
+                        console.warn('[Display] Failed to prefetch scene data:', e);
+                        if (currentLayoutModeRef.current === capturedMode) {
+                          setState(prev => ({
+                            ...prev,
+                            currentLayoutMode: capturedMode,
+                            currentSceneId: sceneId,
+                            currentTemplate: null,
+                          }));
                     }
                   }
                 })();
@@ -837,12 +846,19 @@ export default function DisplayDevice() {
                 else if (displayMode === 'start_list') fallbackTemplate = 'BigBoard';
                 
                 if (fallbackTemplate) {
-                  setState(prev => ({
-                    ...prev,
-                    currentLayoutMode: displayMode,
-                    currentTemplate: fallbackTemplate,
-                    currentSceneId: null,
-                  }));
+                  setState(prev => {
+                    const updates: any = {
+                      ...prev,
+                      currentLayoutMode: displayMode,
+                      currentTemplate: fallbackTemplate,
+                      currentSceneId: null,
+                    };
+                    // When layout switches to running_time, update liveEventData.mode
+                    if (displayMode === 'running_time' && prev.liveEventData) {
+                      updates.liveEventData = { ...prev.liveEventData, mode: 'running' };
+                    }
+                    return updates;
+                  });
                 }
               }
             }
@@ -1241,7 +1257,10 @@ export default function DisplayDevice() {
                     totalHeats: data.totalHeats || prev.liveEventData?.totalHeats,
                     round: data.round || prev.liveEventData?.round,
                     roundName: eventChanged ? (data.roundName ?? 'Finals') : (data.roundName ?? prev.liveEventData?.roundName),
-                    mode: 'start_list',
+                    // Respect current layout mode: if display is in running_time,
+                    // keep mode as 'running' so opacity dimming stays active.
+                    // FinishLynx re-sends start list data during running time.
+                    mode: currentLayoutModeRef.current === 'running_time' ? 'running' : 'start_list',
                     entries: data.entries || [],
                     wind: undefined,
                     distance: data.distance || prev.liveEventData?.distance,
