@@ -485,7 +485,16 @@ export class LynxListener extends EventEmitter {
           jsonBatch.length = 0;
         }
         lastLayoutCommand = layoutMatch[1].trim();
-        console.log(`[Lynx] Layout command from FinishLynx: ${lastLayoutCommand} (${config.portType})`);
+        // Update running state from layout command — this is the most reliable signal
+        // from FinishLynx. The clock port only sends "update" commands (never "start"
+        // or "running"), and the header status field S is often empty during running time.
+        const lcLayout = lastLayoutCommand.toLowerCase();
+        if (lcLayout.includes('running')) {
+          this.isRunning = true;
+        } else if (lcLayout.includes('start') || lcLayout.includes('result')) {
+          this.isRunning = false;
+        }
+        console.log(`[Lynx] Layout command from FinishLynx: ${lastLayoutCommand} (${config.portType}) → isRunning=${this.isRunning}`);
         this.emit('layout-command', lastLayoutCommand, config.portType);
       }
       
@@ -615,7 +624,14 @@ export class LynxListener extends EventEmitter {
     const layoutMatch = sanitized.match(/Command=LayoutDraw;Name=([^;]+)/i);
     if (layoutMatch) {
       const layoutName = layoutMatch[1].trim();
-      console.log(`[Lynx] Layout command from FinishLynx: ${layoutName} (${config.portType})`);
+      // Update running state from layout command (same logic as handleData batch path)
+      const lcLayout = layoutName.toLowerCase();
+      if (lcLayout.includes('running')) {
+        this.isRunning = true;
+      } else if (lcLayout.includes('start') || lcLayout.includes('result')) {
+        this.isRunning = false;
+      }
+      console.log(`[Lynx] Layout command from FinishLynx: ${layoutName} (${config.portType}) → isRunning=${this.isRunning}`);
       this.emit('layout-command', layoutName, config.portType);
       // Don't return - continue processing in case there's other data on this line
     }
