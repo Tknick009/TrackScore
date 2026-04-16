@@ -1718,6 +1718,7 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
           isMultiEvent, // For multi-event points display
           eventType, // For calculating multi-event points
           gender: eventGender, // For calculating multi-event points
+          isClockRunning: lynxListener.isClockRunning(), // Server's authoritative running state
           ...data, // Pass through all raw data from FinishLynx
         }
       } as any);
@@ -2206,6 +2207,7 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
         isMultiEvent, // For multi-event points display
         eventType, // For calculating multi-event points
         gender: eventGender, // For calculating multi-event points
+        isClockRunning: lynxListener.isClockRunning(), // Server's authoritative running state
         entries: acc.entries, // Arrival order = display order
         eventName: acc.eventName,
         distance: acc.distance,

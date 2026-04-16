@@ -979,11 +979,11 @@ export default function DisplayDevice() {
                 const eventChanged = prev.liveEventData?.eventNumber !== data.eventNumber;
                 // When the clock is actively running (race in progress), preserve 'running'
                 // mode even if FinishLynx sends mode='start_list' during paging.
-                // clockIsRunningRef persists across ticks (set on 'start'/'running',
-                // cleared on 'armed'/'stop') so it correctly handles:
-                // - Paging during running time → clock still running → preserve 'running'
-                // - False start / re-arm → clock armed → let 'start_list' through
-                const effectiveMode = (data.mode === 'start_list' && clockIsRunningRef.current)
+                // Use server's authoritative isClockRunning flag (from lynxListener.isClockRunning())
+                // which correctly tracks running state across all code paths.
+                // - Paging during running time → server clock still running → preserve 'running'
+                // - False start / re-arm → server clock stopped → let 'start_list' through
+                const effectiveMode = (data.mode === 'start_list' && data.isClockRunning)
                   ? 'running'
                   : data.mode;
                 return {
@@ -1279,8 +1279,8 @@ export default function DisplayDevice() {
                     roundName: eventChanged ? (data.roundName ?? 'Finals') : (data.roundName ?? prev.liveEventData?.roundName),
                     // When the clock is actively running (race in progress), preserve
                     // 'running' mode so opacity dimming stays active during paging.
-                    // clockIsRunningRef persists across ticks so re-arming properly exits running mode.
-                    mode: clockIsRunningRef.current ? 'running' : 'start_list',
+                    // Use server's authoritative isClockRunning flag so re-arming properly exits running mode.
+                    mode: data.isClockRunning ? 'running' : 'start_list',
                     entries: data.entries || [],
                     wind: undefined,
                     distance: data.distance || prev.liveEventData?.distance,
