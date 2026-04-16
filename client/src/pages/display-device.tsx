@@ -764,14 +764,6 @@ export default function DisplayDevice() {
               return; // Ignore duplicate - already on this mode
             }
             
-            // Don't let "Start List" layout commands reset running_time mode.
-            // FinishLynx sends "Start List" as a page boundary marker even during
-            // running time (for paging through athletes). Switching back to start_list
-            // would reset opacity dimming and cause all rows to go full opacity.
-            if (displayMode === 'start_list' && currentLayoutModeRef.current === 'running_time') {
-              return; // Stay in running_time mode
-            }
-            
             // Log the transition
             console.log(`[Display] Layout command: "${layoutName}" → mode: ${displayMode} (was: ${currentLayoutModeRef.current})`);
             
@@ -974,11 +966,12 @@ export default function DisplayDevice() {
               
               setState(prev => {
                 const eventChanged = prev.liveEventData?.eventNumber !== data.eventNumber;
-                // Respect current layout mode: if display is in running_time,
-                // keep mode as 'running' so opacity dimming stays active during paging.
-                // FinishLynx sends track_mode_change with mode='start_list' when paging
-                // entries during running time, which would reset dimming without this guard.
-                const effectiveMode = (data.mode === 'start_list' && currentLayoutModeRef.current === 'running_time')
+                // When the clock is actively running (race in progress), preserve 'running'
+                // mode even if FinishLynx sends mode='start_list' during paging.
+                // Use clock command as the source of truth — not layout mode ref — so that
+                // re-arming (false start, fall) properly exits running mode.
+                const clockIsRunning = liveClockCommandRef.current === 'start' || liveClockCommandRef.current === 'running';
+                const effectiveMode = (data.mode === 'start_list' && clockIsRunning)
                   ? 'running'
                   : data.mode;
                 return {
@@ -1272,10 +1265,10 @@ export default function DisplayDevice() {
                     totalHeats: data.totalHeats || prev.liveEventData?.totalHeats,
                     round: data.round || prev.liveEventData?.round,
                     roundName: eventChanged ? (data.roundName ?? 'Finals') : (data.roundName ?? prev.liveEventData?.roundName),
-                    // Respect current layout mode: if display is in running_time,
-                    // keep mode as 'running' so opacity dimming stays active.
-                    // FinishLynx re-sends start list data during running time.
-                    mode: currentLayoutModeRef.current === 'running_time' ? 'running' : 'start_list',
+                    // When the clock is actively running (race in progress), preserve
+                    // 'running' mode so opacity dimming stays active during paging.
+                    // Use clock command (not layout ref) so re-arming properly exits running mode.
+                    mode: (liveClockCommandRef.current === 'start' || liveClockCommandRef.current === 'running') ? 'running' : 'start_list',
                     entries: data.entries || [],
                     wind: undefined,
                     distance: data.distance || prev.liveEventData?.distance,
