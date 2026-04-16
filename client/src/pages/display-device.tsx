@@ -764,6 +764,14 @@ export default function DisplayDevice() {
               return; // Ignore duplicate - already on this mode
             }
             
+            // Don't let "Start List" layout commands reset running_time mode.
+            // FinishLynx sends "Start List" as a page boundary marker even during
+            // running time (for paging through athletes). Switching back to start_list
+            // would reset opacity dimming and cause all rows to go full opacity.
+            if (displayMode === 'start_list' && currentLayoutModeRef.current === 'running_time') {
+              return; // Stay in running_time mode
+            }
+            
             // Log the transition
             console.log(`[Display] Layout command: "${layoutName}" → mode: ${displayMode} (was: ${currentLayoutModeRef.current})`);
             

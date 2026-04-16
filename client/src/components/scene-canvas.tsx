@@ -483,12 +483,23 @@ export function SceneObjectRenderer({
   // Use same fallback as content rendering (line 866): athleteIndex || 0
   // Without this, objects with athleteIndex not explicitly set (common for line 1)
   // skip the opacity block entirely and stay at full opacity.
+  // IMPORTANT: Only apply fallback for per-athlete fields, NOT header/global fields
+  // like event-name, heat-number, running-time, wind, etc.
   const rawAthleteIndex = dataBinding.athleteIndex;
-  const hasFieldBinding = !!dataBinding.fieldKey;
+  const fieldKey = dataBinding.fieldKey as string | undefined;
+  const perAthleteFields = new Set([
+    'lane', 'place', 'name', 'first-name', 'last-name', 'school', 'time', 'bib',
+    'mark-converted', 'last-split', 'cumulative-split', 'reaction-time', 'qualifier',
+    'attempt', 'event-points', 'total-points', 'time-with-points', 'season-best',
+    'personal-best', 'sb', 'pb', 'name-qualifier', 'last-name-qualifier',
+    'name-qualifier-badge', 'last-name-qualifier-badge', 'record-tag', 'new-record-tag',
+    'name-record-tag', 'last-name-record-tag', 'school-logo', 'athlete-photo',
+  ]);
+  const isPerAthleteField = fieldKey ? perAthleteFields.has(fieldKey) : false;
   const pageOffset = (pageIndex || 0) * (pageSize || 8);
   const athleteIndex = rawAthleteIndex !== undefined
     ? rawAthleteIndex + pageOffset
-    : (hasFieldBinding ? 0 + pageOffset : undefined);
+    : (isPerAthleteField ? 0 + pageOffset : undefined);
   const mode = liveData?.mode || '';
   const isResultsMode = mode === 'results' || mode === 'finished';
   const isPreRaceMode = mode === 'armed' || mode === 'start_list' || mode === '';
