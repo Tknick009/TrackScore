@@ -974,6 +974,13 @@ export default function DisplayDevice() {
               
               setState(prev => {
                 const eventChanged = prev.liveEventData?.eventNumber !== data.eventNumber;
+                // Respect current layout mode: if display is in running_time,
+                // keep mode as 'running' so opacity dimming stays active during paging.
+                // FinishLynx sends track_mode_change with mode='start_list' when paging
+                // entries during running time, which would reset dimming without this guard.
+                const effectiveMode = (data.mode === 'start_list' && currentLayoutModeRef.current === 'running_time')
+                  ? 'running'
+                  : data.mode;
                 return {
                   ...prev,
                   liveEventData: {
@@ -983,7 +990,7 @@ export default function DisplayDevice() {
                     totalHeats: data.totalHeats ?? prev.liveEventData?.totalHeats,
                     round: data.round ?? prev.liveEventData?.round,
                     roundName: eventChanged ? (data.roundName ?? 'Finals') : (data.roundName ?? prev.liveEventData?.roundName),
-                    mode: data.mode,
+                    mode: effectiveMode,
                     wind: data.wind,
                     distance: data.distance || prev.liveEventData?.distance,
                     entries: entries.length > 0 ? entries : (prev.liveEventData?.entries || []),
