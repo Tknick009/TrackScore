@@ -655,10 +655,18 @@ export default function DisplayDevice() {
               // are handled via the ref + subscriber pattern above.
               if (newCommand !== liveClockCommandRef.current) {
                 liveClockCommandRef.current = newCommand;
-                setState(prev => ({
-                  ...prev,
-                  liveClockCommand: newCommand,
-                }));
+                setState(prev => {
+                  const updates: any = { ...prev, liveClockCommand: newCommand };
+                  // When clock transitions to running, update liveEventData mode so
+                  // the opacity logic in SceneObjectRenderer knows to dim rows.
+                  // Without this, mode stays 'start_list' until FinishLynx sends
+                  // result packets, and all rows stay at full opacity during running time.
+                  if ((newCommand === 'start' || newCommand === 'running') && prev.liveEventData && 
+                      (prev.liveEventData.mode === 'start_list' || prev.liveEventData.mode === 'armed' || prev.liveEventData.mode === '')) {
+                    updates.liveEventData = { ...prev.liveEventData, mode: 'running' };
+                  }
+                  return updates;
+                });
               }
             }
             return; // Early return — clock ticks don't need any other handling
