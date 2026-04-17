@@ -1434,6 +1434,7 @@ export default function DisplayDevice() {
                   <SelectItem value="P10" className="text-white hover:bg-gray-800">P10 (192x96)</SelectItem>
                   <SelectItem value="P6" className="text-white hover:bg-gray-800">P6 (288x144)</SelectItem>
                   <SelectItem value="BigBoard" className="text-white hover:bg-gray-800">BigBoard (1920x1080)</SelectItem>
+                  <SelectItem value="Broadcast" className="text-white hover:bg-gray-800">Broadcast (Ticker & Clock)</SelectItem>
                   <SelectItem value="Custom" className="text-white hover:bg-gray-800">Custom Resolution</SelectItem>
                 </SelectContent>
               </Select>
