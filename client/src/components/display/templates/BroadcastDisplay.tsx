@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type RefObject } from "react";
 import type { Meet } from "@shared/schema";
 import { formatHeatDisplay } from "@/lib/fieldBindings";
 import { getLogoEffectStyle } from "@/lib/logoEffects";
@@ -19,6 +19,7 @@ interface ResultEntry {
 interface BroadcastDisplayProps {
   meet?: Meet | null;
   liveClockTime?: string;
+  clockSubscribersRef?: RefObject<Set<(time: string, command?: string) => void>>;
   liveEventData?: {
     eventNumber?: number;
     eventName?: string;
@@ -32,9 +33,10 @@ interface BroadcastDisplayProps {
   } | null;
 }
 
-export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: BroadcastDisplayProps) {
+export function BroadcastDisplay({ meet, liveClockTime, clockSubscribersRef, liveEventData }: BroadcastDisplayProps) {
   const [displayClock, setDisplayClock] = useState("00:00:00");
   const lastSecondsRef = useRef<number>(-1);
+  const clockElRef = useRef<HTMLDivElement>(null);
   
   const rawEntries = liveEventData?.entries || (liveEventData as any)?.results || [];
   
@@ -97,18 +99,32 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
     return parts[0] || 0;
   };
   
+  // Subscribe to live clock updates via the subscriber pattern (bypasses React re-renders)
+  useEffect(() => {
+    if (!clockSubscribersRef?.current) return;
+    const subscribers = clockSubscribersRef.current;
+    
+    const handleClockUpdate = (time: string, _command?: string) => {
+      if (!time) return;
+      // Strip sub-second precision for broadcast display (show whole seconds only)
+      const dotIndex = time.indexOf('.');
+      const display = dotIndex !== -1 ? time.substring(0, dotIndex) : time;
+      // Direct DOM mutation for smooth updates without React re-renders
+      if (clockElRef.current) {
+        clockElRef.current.textContent = display;
+      }
+    };
+    
+    subscribers.add(handleClockUpdate);
+    return () => { subscribers.delete(handleClockUpdate); };
+  }, [clockSubscribersRef]);
+  
+  // Fallback: update from prop if no subscriber (e.g., initial render)
   useEffect(() => {
     if (liveClockTime) {
-      const currentSeconds = parseClockToSeconds(liveClockTime);
-      if (currentSeconds > lastSecondsRef.current || currentSeconds < lastSecondsRef.current - 5) {
-        lastSecondsRef.current = currentSeconds;
-        const dotIndex = liveClockTime.indexOf('.');
-        if (dotIndex !== -1) {
-          setDisplayClock(liveClockTime.substring(0, dotIndex));
-        } else {
-          setDisplayClock(liveClockTime);
-        }
-      }
+      const dotIndex = liveClockTime.indexOf('.');
+      const display = dotIndex !== -1 ? liveClockTime.substring(0, dotIndex) : liveClockTime;
+      setDisplayClock(display);
     }
   }, [liveClockTime]);
   
@@ -296,7 +312,7 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
                 </div>
               )}
               
-              <div className="text-5xl font-bold tracking-wider text-black">
+              <div ref={clockElRef} className="text-5xl font-bold tracking-wider text-black">
                 {displayClock}
               </div>
             </div>

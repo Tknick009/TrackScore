@@ -1856,6 +1856,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
           <BroadcastDisplay 
             meet={meet} 
             liveClockTime={liveClockTimeRef?.current || undefined}
+            clockSubscribersRef={clockSubscribersRef}
             liveEventData={liveEventData}
           />
         </div>
