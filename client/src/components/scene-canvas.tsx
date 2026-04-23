@@ -1227,7 +1227,7 @@ export function SceneObjectRenderer({
         // Includes qualifier fields so Q/q badge shows first, then record tag badge
         const isNameField = fieldKey === 'name' || fieldKey === 'last-name' 
           || fieldKey === 'name-qualifier' || fieldKey === 'last-name-qualifier'
-          || fieldKey === 'name-record-tag' || fieldKey === 'last-name-record-tag' || fieldKey === 'record-tag'
+          || fieldKey === 'name-record-tag' || fieldKey === 'last-name-record-tag'
           || fieldKey === 'new-record-tag';
         let recordTagBadges = (isNameField && hoistedRecordTags.length > 0) ? hoistedRecordTags : [];
         // 'new-record-tag' is intended for compact "NEW + badge" usage, so show only top-priority tag
