@@ -663,8 +663,9 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
   // Send Hytek Results to a display device (compiled results from database)
   app.post("/api/display-devices/:id/hytek-results", async (req, res) => {
     try {
-      const { eventId, pagingLines, round } = req.body;
+      const { eventId, pagingLines, pagingSeconds, round, maxPages } = req.body;
       const deviceId = req.params.id;
+      const effectiveMaxPages = Math.max(0, parseInt(maxPages) || 0);
       
       if (!eventId) {
         return res.status(400).json({ error: "eventId is required" });
@@ -956,8 +957,9 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         };
       });
       
-      // Use paging lines (lines = seconds)
+      // Use separate paging lines and seconds (no longer tied 1:1)
       const lines = Math.max(1, Math.min(20, parseInt(pagingLines) || 8));
+      const seconds = Math.max(1, Math.min(60, parseInt(pagingSeconds) || lines));
       
       // Determine display type and select appropriate template
       const displayType = device.displayType || 'P10';
@@ -973,9 +975,9 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       if (connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {
         // Lock device to hytek mode so FinishLynx broadcasts don't override it
         connectedDevice.contentMode = 'hytek';
-        // Update paging settings (lines = seconds)
+        // Update paging settings (lines per page and seconds per page independently)
         connectedDevice.pagingSize = lines;
-        connectedDevice.pagingInterval = lines;
+        connectedDevice.pagingInterval = seconds;
         
         let sceneId: number | null = null;
         let sceneData: { scene: any; objects: any[] } | null = null;
@@ -1024,15 +1026,16 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
             isMultiEvent,
           },
           pagingSize: lines,
-          pagingInterval: lines,
+          pagingInterval: seconds,
+          maxPages: effectiveMaxPages,
         }));
         
         await storage.updateDisplayDevice(deviceId, {
           pagingSize: lines,
-          pagingInterval: lines,
+          pagingInterval: seconds,
         });
         
-        console.log(`[Hytek Results] Sent ${enrichedEntries.length} entries (${roundLabel}) to ${device.deviceName} (${displayType}, paging: ${lines} lines/${lines}s)`);
+        console.log(`[Hytek Results] Sent ${enrichedEntries.length} entries (${roundLabel}) to ${device.deviceName} (${displayType}, paging: ${lines} lines/${seconds}s, maxPages: ${effectiveMaxPages || 'all'})`);
         res.json({ success: true, delivered: true, entryCount: enrichedEntries.length });
       } else {
         res.json({ success: false, delivered: false, message: "Device offline" });
@@ -1046,7 +1049,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
   // Send Team Scores to a display device
   app.post("/api/display-devices/:id/team-scores", async (req, res) => {
     try {
-      const { pagingLines, gender, maxPages } = req.body;
+      const { pagingLines, pagingSeconds, gender, maxPages } = req.body;
       const deviceId = req.params.id;
       const selectedGender: string = gender === 'W' ? 'W' : 'M';
       const effectiveMaxPages = Math.max(0, parseInt(maxPages) || 0);
@@ -1159,17 +1162,18 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           }));
       }
       
-      // Use paging lines (lines = seconds)
+      // Use separate paging lines and seconds (no longer tied 1:1)
       const lines = Math.max(1, Math.min(20, parseInt(pagingLines) || 8));
+      const seconds = Math.max(1, Math.min(60, parseInt(pagingSeconds) || lines));
       
       // Find the connected WebSocket for this device
       const connectedDevice = connectedDisplayDevices.get(deviceId);
       if (connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {
         // Lock device to team_scores mode so FinishLynx broadcasts don't override it
         connectedDevice.contentMode = 'team_scores';
-        // Update paging settings (lines = seconds)
+        // Update paging settings (lines per page and seconds per page independently)
         connectedDevice.pagingSize = lines;
-        connectedDevice.pagingInterval = lines;
+        connectedDevice.pagingInterval = seconds;
         
         // Look up custom scene mapping for team_scores mode
         const displayType = device.displayType || 'P10';
@@ -1207,17 +1211,17 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
             entries: teamEntries,
           },
           pagingSize: lines,
-          pagingInterval: lines,
+          pagingInterval: seconds,
           maxPages: effectiveMaxPages,
         }));
         
         // Update database with paging settings
         await storage.updateDisplayDevice(deviceId, {
           pagingSize: lines,
-          pagingInterval: lines,
+          pagingInterval: seconds,
         });
         
-        console.log(`[Team Scores] Sent ${teamEntries.length} ${genderLabel} teams to ${device.deviceName} (paging: ${lines} lines/${lines}s, maxPages: ${effectiveMaxPages || 'all'}, hasScores: ${hasScores})`);
+        console.log(`[Team Scores] Sent ${teamEntries.length} ${genderLabel} teams to ${device.deviceName} (paging: ${lines} lines/${seconds}s, maxPages: ${effectiveMaxPages || 'all'}, hasScores: ${hasScores})`);
         res.json({ 
           success: true, 
           delivered: true, 
