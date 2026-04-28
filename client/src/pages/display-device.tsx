@@ -8,6 +8,94 @@ import { Label } from "@/components/ui/label";
 import { Monitor, Tv, LayoutGrid, Calendar, Radio } from "lucide-react";
 import type { Meet, Event } from "@shared/schema";
 
+// Darken a hex or rgb color by reducing RGB channels
+function darkenColor(color: string, amount: number): string {
+  if (color.startsWith('#')) {
+    const hex = color.slice(1);
+    const num = parseInt(hex, 16);
+    const r = Math.max(0, ((num >> 16) & 0xff) - amount);
+    const g = Math.max(0, ((num >> 8) & 0xff) - amount);
+    const b = Math.max(0, (num & 0xff) - amount);
+    return `rgb(${r}, ${g}, ${b})`;
+  }
+  const match = color.match(/(\d+)/g);
+  if (match && match.length >= 3) {
+    const r = Math.max(0, parseInt(match[0]) - amount);
+    const g = Math.max(0, parseInt(match[1]) - amount);
+    const b = Math.max(0, parseInt(match[2]) - amount);
+    return `rgb(${r}, ${g}, ${b})`;
+  }
+  return color;
+}
+
+// Curtain-style logo background: diagonal gradient, stripe texture, vignette, edge bars
+function CurtainLogoBackground({
+  primaryColor,
+  secondaryColor,
+  accentColor,
+  width,
+  height,
+  style,
+  className,
+  children,
+}: {
+  primaryColor: string;
+  secondaryColor: string;
+  accentColor: string;
+  width?: number;
+  height?: number;
+  style?: React.CSSProperties;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const darkPrimary = darkenColor(primaryColor, 40);
+  const darkSecondary = darkenColor(secondaryColor, 30);
+  const gradient = `linear-gradient(135deg, ${darkPrimary} 0%, ${primaryColor} 35%, ${secondaryColor} 65%, ${darkSecondary} 100%)`;
+
+  const sizeStyle: React.CSSProperties = width && height
+    ? { width: `${width}px`, height: `${height}px` }
+    : {};
+
+  return (
+    <div
+      className={className || ''}
+      style={{
+        ...sizeStyle,
+        ...style,
+        background: gradient,
+        position: 'relative',
+        overflow: 'hidden',
+        fontFamily: "'Barlow Semi Condensed', sans-serif",
+      }}
+    >
+      {/* Diagonal stripe texture */}
+      <div style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none',
+        background: `repeating-linear-gradient(-45deg, transparent, transparent 8px, rgba(255,255,255,0.03) 8px, rgba(255,255,255,0.03) 16px)`,
+      }} />
+      {/* Soft vignette */}
+      <div style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none',
+        background: 'radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.35) 100%)',
+      }} />
+      {/* Top accent bar */}
+      <div style={{
+        position: 'absolute', top: 0, left: 0, right: 0, height: '3px', zIndex: 2, pointerEvents: 'none',
+        background: `linear-gradient(90deg, transparent 5%, ${accentColor}88 30%, ${accentColor}88 70%, transparent 95%)`,
+      }} />
+      {/* Bottom accent bar */}
+      <div style={{
+        position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px', zIndex: 2, pointerEvents: 'none',
+        background: `linear-gradient(90deg, transparent 5%, ${accentColor}88 30%, ${accentColor}88 70%, transparent 95%)`,
+      }} />
+      {/* Content */}
+      <div style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 // Transition duration in milliseconds - crisp and fast for live stadium use
 const TRANSITION_DURATION_MS = 150;
 
@@ -1539,25 +1627,20 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
       // Get color scheme from meet or use defaults
       const primaryColor = meet?.primaryColor || '#0066CC';
       const secondaryColor = meet?.secondaryColor || '#003366';
+      const accentColor = meet?.textColor || '#FFFFFF';
       const hasLogo = !!meet?.logoUrl;
-      
-      // Create radial gradient background using meet colors - more prominent colors
-      // Center spotlight with primary color, fading to secondary, with dark edges
-      const gradientBackground = `radial-gradient(ellipse 80% 60% at center, ${primaryColor} 0%, ${secondaryColor} 50%, #0a0a0a 100%)`;
       
       // For P10/P6, show a compact status display
       if (isSingleAthleteDisplay) {
-        // If logo exists, show logo with color scheme gradient
+        // If logo exists, show logo with curtain-style background
         if (hasLogo) {
           return (
-            <div 
-              className="flex items-center justify-center overflow-hidden"
-              style={{ 
-                width: `${effectiveResWidth}px`, 
-                height: `${effectiveResHeight}px`,
-                background: gradientBackground,
-                fontFamily: "'Barlow Semi Condensed', sans-serif"
-              }}
+            <CurtainLogoBackground
+              primaryColor={primaryColor}
+              secondaryColor={secondaryColor}
+              accentColor={accentColor}
+              width={effectiveResWidth}
+              height={effectiveResHeight}
             >
               <img 
                 src={meet.logoUrl!} 
@@ -1568,7 +1651,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
                   objectFit: 'contain',
                 }}
               />
-            </div>
+            </CurtainLogoBackground>
           );
         }
         
@@ -1591,16 +1674,15 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
       }
       
       // BigBoard uses full screen
-      // If logo exists, show logo with color scheme gradient
+      // If logo exists, show logo with curtain-style background
       if (hasLogo) {
         return (
-          <div 
-            className={`${containerClass} flex items-center justify-center overflow-hidden`}
-            style={{ 
-              ...containerStyle,
-              background: gradientBackground,
-              fontFamily: "'Barlow Semi Condensed', sans-serif" 
-            }}
+          <CurtainLogoBackground
+            primaryColor={primaryColor}
+            secondaryColor={secondaryColor}
+            accentColor={accentColor}
+            className={containerClass}
+            style={containerStyle}
           >
             <div className="flex items-center justify-center" style={{ width: '80%', height: '80%' }}>
               <img 
@@ -1609,7 +1691,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
                 style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
               />
             </div>
-          </div>
+          </CurtainLogoBackground>
         );
       }
       
@@ -1733,19 +1815,17 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     // Get color scheme from meet for waiting states
     const waitingPrimaryColor = meet?.primaryColor || '#0066CC';
     const waitingSecondaryColor = meet?.secondaryColor || '#003366';
+    const waitingAccentColor = meet?.textColor || '#FFFFFF';
     const waitingHasLogo = !!meet?.logoUrl;
-    const waitingGradient = `radial-gradient(ellipse 80% 60% at center, ${waitingPrimaryColor} 0%, ${waitingSecondaryColor} 50%, #0a0a0a 100%)`;
     
     const waitingState = isSingleAthleteDisplay ? (
       waitingHasLogo ? (
-        <div 
-          className="flex items-center justify-center overflow-hidden"
-          style={{ 
-            width: `${effectiveResWidth}px`, 
-            height: `${effectiveResHeight}px`,
-            background: waitingGradient,
-            fontFamily: "'Barlow Semi Condensed', sans-serif"
-          }}
+        <CurtainLogoBackground
+          primaryColor={waitingPrimaryColor}
+          secondaryColor={waitingSecondaryColor}
+          accentColor={waitingAccentColor}
+          width={effectiveResWidth}
+          height={effectiveResHeight}
         >
           <img 
             src={meet!.logoUrl!} 
@@ -1756,7 +1836,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
               objectFit: 'contain',
             }}
           />
-        </div>
+        </CurtainLogoBackground>
       ) : (
         <div 
           className="bg-black flex items-center justify-center"
@@ -1774,13 +1854,12 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
       )
     ) : (
       waitingHasLogo ? (
-        <div 
-          className={`${containerClass} flex items-center justify-center overflow-hidden`}
-          style={{ 
-            ...containerStyle,
-            background: waitingGradient,
-            fontFamily: "'Barlow Semi Condensed', sans-serif" 
-          }}
+        <CurtainLogoBackground
+          primaryColor={waitingPrimaryColor}
+          secondaryColor={waitingSecondaryColor}
+          accentColor={waitingAccentColor}
+          className={containerClass}
+          style={containerStyle}
         >
           <div className="flex flex-col items-center justify-center" style={{ width: '80%', height: '80%' }}>
             <img 
@@ -1795,7 +1874,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
               </div>
             </div>
           </div>
-        </div>
+        </CurtainLogoBackground>
       ) : (
         <div className={`${containerClass} bg-black flex items-center justify-center`} style={containerStyle}>
           <div className="text-white text-center" style={{ fontFamily: "'Barlow Semi Condensed', sans-serif" }}>
@@ -1929,21 +2008,20 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
       return waitingState;
     }
 
-    // Default fallback - show logo with color scheme or black screen with green dot
+    // Default fallback - show logo with curtain-style background or black screen with green dot
     const fallbackPrimaryColor = meet?.primaryColor || '#0066CC';
     const fallbackSecondaryColor = meet?.secondaryColor || '#003366';
+    const fallbackAccentColor = meet?.textColor || '#FFFFFF';
     const fallbackHasLogo = !!meet?.logoUrl;
-    const fallbackGradient = `radial-gradient(ellipse 80% 60% at center, ${fallbackPrimaryColor} 0%, ${fallbackSecondaryColor} 50%, #0a0a0a 100%)`;
     
     if (fallbackHasLogo) {
       return (
-        <div 
-          className={`${containerClass} flex items-center justify-center overflow-hidden`}
-          style={{ 
-            ...containerStyle,
-            background: fallbackGradient,
-            fontFamily: "'Barlow Semi Condensed', sans-serif" 
-          }}
+        <CurtainLogoBackground
+          primaryColor={fallbackPrimaryColor}
+          secondaryColor={fallbackSecondaryColor}
+          accentColor={fallbackAccentColor}
+          className={containerClass}
+          style={containerStyle}
         >
           <div className="flex items-center justify-center" style={{ width: '80%', height: '80%' }}>
             <img 
@@ -1952,7 +2030,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
               style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
             />
           </div>
-        </div>
+        </CurtainLogoBackground>
       );
     }
     
