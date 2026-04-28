@@ -96,6 +96,98 @@ function CurtainLogoBackground({
   );
 }
 
+// Sponsor Reel display - cycles through sponsor images with curtain-style background
+function SponsorReelDisplay({
+  meet,
+  sponsorImages,
+  pagingInterval,
+  isSingleAthleteDisplay,
+  effectiveResWidth,
+  effectiveResHeight,
+  containerClass,
+  containerStyle,
+}: {
+  meet: Meet | undefined;
+  sponsorImages: string[];
+  pagingInterval: number;
+  isSingleAthleteDisplay: boolean;
+  effectiveResWidth: number;
+  effectiveResHeight: number;
+  containerClass: string;
+  containerStyle: React.CSSProperties;
+}) {
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  useEffect(() => {
+    if (sponsorImages.length <= 1) return;
+    const timer = setInterval(() => {
+      setCurrentIndex(prev => (prev + 1) % sponsorImages.length);
+    }, pagingInterval * 1000);
+    return () => clearInterval(timer);
+  }, [sponsorImages.length, pagingInterval]);
+
+  useEffect(() => {
+    setCurrentIndex(0);
+  }, [sponsorImages]);
+
+  const primaryColor = meet?.primaryColor || '#0066CC';
+  const secondaryColor = meet?.secondaryColor || '#003366';
+  const accentColor = meet?.textColor || '#FFFFFF';
+  const currentImage = sponsorImages[currentIndex];
+
+  if (!currentImage) {
+    return (
+      <CurtainLogoBackground
+        primaryColor={primaryColor}
+        secondaryColor={secondaryColor}
+        accentColor={accentColor}
+        width={isSingleAthleteDisplay ? effectiveResWidth : undefined}
+        height={isSingleAthleteDisplay ? effectiveResHeight : undefined}
+        className={isSingleAthleteDisplay ? undefined : containerClass}
+        style={isSingleAthleteDisplay ? undefined : containerStyle}
+      >
+        <p style={{ color: accentColor, fontSize: isSingleAthleteDisplay ? '12px' : '24px' }}>No sponsor images</p>
+      </CurtainLogoBackground>
+    );
+  }
+
+  if (isSingleAthleteDisplay) {
+    return (
+      <CurtainLogoBackground
+        primaryColor={primaryColor}
+        secondaryColor={secondaryColor}
+        accentColor={accentColor}
+        width={effectiveResWidth}
+        height={effectiveResHeight}
+      >
+        <img
+          src={currentImage}
+          alt="Sponsor"
+          style={{ maxWidth: '85%', maxHeight: '85%', objectFit: 'contain', transition: 'opacity 0.5s ease' }}
+        />
+      </CurtainLogoBackground>
+    );
+  }
+
+  return (
+    <CurtainLogoBackground
+      primaryColor={primaryColor}
+      secondaryColor={secondaryColor}
+      accentColor={accentColor}
+      className={containerClass}
+      style={containerStyle}
+    >
+      <div className="flex items-center justify-center" style={{ width: '80%', height: '80%' }}>
+        <img
+          src={currentImage}
+          alt="Sponsor"
+          style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', transition: 'opacity 0.5s ease' }}
+        />
+      </div>
+    </CurtainLogoBackground>
+  );
+}
+
 // Transition duration in milliseconds - crisp and fast for live stadium use
 const TRANSITION_DURATION_MS = 150;
 
@@ -263,6 +355,7 @@ interface DisplayDeviceState {
   pagingSize: number;
   pagingInterval: number;
   maxPages: number;
+  sponsorImages: string[];
 }
 
 // Storage helpers for device identity - keyed by device name for persistence across type changes
@@ -329,6 +422,7 @@ export default function DisplayDevice() {
     pagingSize: 8,
     pagingInterval: 5,
     maxPages: 0,
+    sponsorImages: [],
   });
   const [selectedMeetId, setSelectedMeetId] = useState<string | null>(null);
   const [deviceName, setDeviceName] = useState<string>(getLastDeviceName());
@@ -568,6 +662,7 @@ export default function DisplayDevice() {
                 pagingSize: message.pagingSize ?? prev.pagingSize,
                 pagingInterval: message.pagingInterval ?? prev.pagingInterval,
                 maxPages: message.maxPages ?? prev.maxPages,
+                sponsorImages: message.sponsorImages ?? prev.sponsorImages,
               };
             });
           }
@@ -1464,6 +1559,7 @@ export default function DisplayDevice() {
       pagingSize={state.pagingSize}
       pagingInterval={state.pagingInterval}
       maxPages={state.maxPages}
+      sponsorImages={state.sponsorImages}
       customWidth={state.displayType === 'Custom' ? customWidth : undefined}
       customHeight={state.displayType === 'Custom' ? customHeight : undefined}
       fieldPort={fieldPort}
@@ -1487,6 +1583,7 @@ interface DisplayRendererProps {
   pagingSize: number;
   pagingInterval: number;
   maxPages: number;
+  sponsorImages: string[];
   customWidth?: number;
   customHeight?: number;
   fieldPort?: number;
@@ -1497,7 +1594,7 @@ interface EventWithEntries extends Event {
   entries: any[];
 }
 
-function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTime, liveEventData, liveEventDataByPort, pagingSize, pagingInterval, maxPages, customWidth, customHeight, fieldPort, onReturnToLogo }: DisplayRendererProps) {
+function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTime, liveEventData, liveEventDataByPort, pagingSize, pagingInterval, maxPages, sponsorImages, customWidth, customHeight, fieldPort, onReturnToLogo }: DisplayRendererProps) {
   const { data: meet } = useQuery<Meet>({
     queryKey: ['/api/meets', meetId],
     enabled: !!meetId,
@@ -1607,7 +1704,8 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     const isRunningTimeTemplate = templateId.includes('running-time');
     const isStartList = templateId.includes('start-list');
     const isTeamScores = templateId === 'team-scores' || templateId.includes('team-scores');
-    const isMeetLogo = templateId === 'meet-logo' || templateId.includes('meet-logo') || !effectiveTemplate;
+    const isSponsorReel = templateId === 'sponsor-reel';
+    const isMeetLogo = !isSponsorReel && (templateId === 'meet-logo' || templateId.includes('meet-logo') || !effectiveTemplate);
     const isBigBoard = templateId.includes('live-results') || templateId.includes('BigBoard');
     const isBroadcast = displayType === 'Broadcast';
 
@@ -1620,6 +1718,21 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             liveEventData={liveEventData}
           />
         </div>
+      );
+    }
+
+    if (isSponsorReel) {
+      return (
+        <SponsorReelDisplay
+          meet={meet}
+          sponsorImages={sponsorImages}
+          pagingInterval={pagingInterval}
+          isSingleAthleteDisplay={isSingleAthleteDisplay}
+          effectiveResWidth={effectiveResWidth}
+          effectiveResHeight={effectiveResHeight}
+          containerClass={containerClass}
+          containerStyle={containerStyle}
+        />
       );
     }
 

@@ -90,7 +90,7 @@ interface DisplayDevice {
 }
 
 // Display mode types
-type DisplayMode = 'finishlynx' | 'hytek' | 'teamscores' | 'field';
+type DisplayMode = 'finishlynx' | 'hytek' | 'teamscores' | 'field' | 'sponsor_reel';
 
 export default function DisplayControlPage() {
   const { currentMeetId, currentMeet } = useMeet();
@@ -109,6 +109,7 @@ export default function DisplayControlPage() {
   const [maxPages, setMaxPages] = useState<Record<string, number>>({});
   const [eventSearch, setEventSearch] = useState('');
   const [pendingFieldPort, setPendingFieldPort] = useState<Record<string, number>>({});
+  const [sponsorPagingSeconds, setSponsorPagingSeconds] = useState<Record<string, number>>({});
 
   const baseUrl = typeof window !== 'undefined' 
     ? `${window.location.protocol}//${window.location.host}` 
@@ -370,6 +371,27 @@ export default function DisplayControlPage() {
     onError: (error: Error) => {
       toast({
         title: 'Failed to send Team Scores',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Send Sponsor Reel mutation
+  const sendSponsorReelMutation = useMutation({
+    mutationFn: async ({ deviceId, pagingSeconds: ps }: { deviceId: string; pagingSeconds: number }) => {
+      const response = await apiRequest('POST', `/api/display-devices/${deviceId}/sponsor-reel`, { pagingSeconds: ps });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: 'Sponsor Reel started',
+        description: `Cycling through ${data.imageCount} sponsor images every ${data.pagingInterval}s.`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Failed to start Sponsor Reel',
         description: error.message,
         variant: 'destructive',
       });
@@ -738,7 +760,64 @@ export default function DisplayControlPage() {
                             <p className="text-xs text-muted-foreground">Send device back to the meet logo screen</p>
                           </div>
                         </button>
+                        {currentMeet?.sponsorDir && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDisplayMode(prev => ({ ...prev, [selectedDevice.id]: 'sponsor_reel' }));
+                              toggleAutoModeMutation.mutate({ deviceId: selectedDevice.id, enabled: false });
+                            }}
+                            className={`w-full p-3 rounded-lg border-2 transition-all text-left flex items-center gap-3 mt-2 ${
+                              displayMode[selectedDevice.id] === 'sponsor_reel'
+                                ? 'border-purple-500 bg-purple-500/10'
+                                : 'border-purple-500/50 bg-purple-500/10 hover:bg-purple-500/20'
+                            }`}
+                            data-testid="tile-sponsor-reel"
+                          >
+                            <Image className="w-5 h-5 text-purple-500" />
+                            <div>
+                              <span className="font-medium">Sponsor Reel</span>
+                              <p className="text-xs text-muted-foreground">Cycle through sponsor images with meet background</p>
+                            </div>
+                          </button>
+                        )}
                       </div>
+
+                      {/* Sponsor Reel Controls */}
+                      {displayMode[selectedDevice.id] === 'sponsor_reel' && (
+                        <div className="mb-3 p-3 rounded-lg border bg-muted/30 space-y-3">
+                          <div className="flex items-center gap-3">
+                            <div className="flex-1">
+                              <Label className="text-xs text-muted-foreground">Seconds per slide</Label>
+                              <Select
+                                value={String(sponsorPagingSeconds[selectedDevice.id] || 5)}
+                                onValueChange={(val) => setSponsorPagingSeconds(prev => ({ ...prev, [selectedDevice.id]: parseInt(val) }))}
+                              >
+                                <SelectTrigger className="h-8 text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {[2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 30].map(v => (
+                                    <SelectItem key={v} value={String(v)}>{v}s</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                sendSponsorReelMutation.mutate({
+                                  deviceId: selectedDevice.id,
+                                  pagingSeconds: sponsorPagingSeconds[selectedDevice.id] || 5,
+                                });
+                              }}
+                              disabled={sendSponsorReelMutation.isPending}
+                            >
+                              {sendSponsorReelMutation.isPending ? 'Starting...' : 'Start Reel'}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
 
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         <button

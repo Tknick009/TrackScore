@@ -292,6 +292,7 @@ export function registerMeetsRoutes(app: Express, ctx: RouteContext) {
         secondaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
         accentColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
         textColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+        sponsorDir: z.string().optional().nullable(),
       });
 
       const data = updateSchema.parse(req.body);

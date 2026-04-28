@@ -1,5 +1,7 @@
 import type { Express } from "express";
 import { z } from "zod";
+import * as fs from "fs";
+import * as path from "path";
 import { storage } from "../storage";
 import {
   isHeightEvent,
@@ -17,6 +19,8 @@ import {
 } from "../field-standings";
 import type { RouteContext } from "../route-context";
 import { getTotalHeatsFromCache } from '../track-heat-watcher';
+
+const SPONSOR_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.svg']);
 
 const overlayUpdateSchema = z.object({
   overlayType: z.enum(['lower-third', 'scorebug', 'athlete-spotlight', 'team-standings']),
@@ -1607,6 +1611,123 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       res.json({ success: true });
     } catch (error: any) {
       res.status(400).json({ error: "Invalid overlay update configuration" });
+    }
+  });
+
+  // ===== SPONSOR REEL =====
+
+  // List sponsor images from a meet's configured sponsor directory
+  app.get("/api/meets/:meetId/sponsor-images", async (req, res) => {
+    try {
+      const meet = await storage.getMeet(req.params.meetId);
+      if (!meet) {
+        return res.status(404).json({ error: "Meet not found" });
+      }
+      if (!meet.sponsorDir) {
+        return res.json({ images: [], directory: null });
+      }
+
+      const dirPath = meet.sponsorDir;
+      if (!fs.existsSync(dirPath)) {
+        return res.json({ images: [], directory: dirPath, error: "Directory not found" });
+      }
+
+      const files = fs.readdirSync(dirPath)
+        .filter(f => SPONSOR_IMAGE_EXTENSIONS.has(path.extname(f).toLowerCase()))
+        .sort();
+
+      const images = files.map(f => ({
+        filename: f,
+        path: path.join(dirPath, f),
+        url: `/api/meets/${req.params.meetId}/sponsor-images/${encodeURIComponent(f)}`,
+      }));
+
+      res.json({ images, directory: dirPath });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Serve a specific sponsor image file
+  app.get("/api/meets/:meetId/sponsor-images/:filename", async (req, res) => {
+    try {
+      const meet = await storage.getMeet(req.params.meetId);
+      if (!meet || !meet.sponsorDir) {
+        return res.status(404).json({ error: "Sponsor directory not configured" });
+      }
+
+      const filePath = path.join(meet.sponsorDir, req.params.filename);
+      const resolved = path.resolve(filePath);
+      if (!resolved.startsWith(path.resolve(meet.sponsorDir))) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      if (!fs.existsSync(resolved)) {
+        return res.status(404).json({ error: "Image not found" });
+      }
+
+      res.sendFile(resolved);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Push sponsor reel to a display device
+  app.post("/api/display-devices/:id/sponsor-reel", async (req, res) => {
+    try {
+      const { pagingSeconds } = req.body;
+      const deviceId = req.params.id;
+      const interval = Math.max(1, parseInt(pagingSeconds) || 5);
+
+      const device = await storage.getDisplayDevice(deviceId);
+      if (!device) {
+        return res.status(404).json({ error: "Display device not found" });
+      }
+      if (!device.meetId) {
+        return res.status(400).json({ error: "Device is not assigned to a meet" });
+      }
+
+      const meet = await storage.getMeet(device.meetId);
+      if (!meet || !meet.sponsorDir) {
+        return res.status(400).json({ error: "No sponsor directory configured for this meet" });
+      }
+
+      const dirPath = meet.sponsorDir;
+      if (!fs.existsSync(dirPath)) {
+        return res.status(400).json({ error: "Sponsor directory not found on disk" });
+      }
+
+      const files = fs.readdirSync(dirPath)
+        .filter(f => SPONSOR_IMAGE_EXTENSIONS.has(path.extname(f).toLowerCase()))
+        .sort();
+
+      if (files.length === 0) {
+        return res.status(400).json({ error: "No images found in sponsor directory" });
+      }
+
+      const imageUrls = files.map(f =>
+        `/api/meets/${device.meetId}/sponsor-images/${encodeURIComponent(f)}`
+      );
+
+      // Update the template in the database
+      await storage.updateDisplayTemplate(deviceId, 'sponsor-reel');
+
+      const connectedDevice = connectedDisplayDevices.get(deviceId);
+      if (connectedDevice && connectedDevice.ws.readyState === 1) {
+        connectedDevice.ws.send(JSON.stringify({
+          type: 'display_command',
+          template: 'sponsor-reel',
+          sponsorImages: imageUrls,
+          pagingInterval: interval,
+        }));
+      }
+
+      res.json({
+        success: true,
+        imageCount: imageUrls.length,
+        pagingInterval: interval,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
   });
 

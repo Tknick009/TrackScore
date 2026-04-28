@@ -288,6 +288,7 @@ export const meets = pgTable("meets", {
   secondaryColor: text("secondary_color").default("#003366"), // Secondary/gradient color
   accentColor: text("accent_color").default("#FFD700"), // Highlight/accent color (times, places)
   textColor: text("text_color").default("#FFFFFF"), // Primary text color
+  sponsorDir: text("sponsor_dir"), // Directory path containing sponsor images for Sponsor Reel
   indMaxScorersPerTeam: integer("ind_max_scorers_per_team").default(0),
   relMaxScorersPerTeam: integer("rel_max_scorers_per_team").default(0),
 }, (table) => ({

@@ -124,6 +124,10 @@ export default function MeetSetup() {
   const [headshotDir, setHeadshotDir] = useState("");
   const [hasHeadshotDirChanges, setHasHeadshotDirChanges] = useState(false);
 
+  // Sponsor directory state
+  const [sponsorDir, setSponsorDir] = useState("");
+  const [hasSponsorDirChanges, setHasSponsorDirChanges] = useState(false);
+
   // CSV import state for athlete bests
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [csvImportResult, setCsvImportResult] = useState<{
@@ -146,6 +150,7 @@ export default function MeetSetup() {
       setSecondaryColor(meet.secondaryColor || DEFAULT_COLORS.secondaryColor);
       setAccentColor(meet.accentColor || DEFAULT_COLORS.accentColor);
       setTextColor(meet.textColor || DEFAULT_COLORS.textColor);
+      setSponsorDir(meet.sponsorDir || "");
     }
   }, [meet]);
 
@@ -430,6 +435,24 @@ export default function MeetSetup() {
     onError: (error: Error) => {
       toast({
         title: "Failed to save headshot directory",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const saveSponsorDirMutation = useMutation({
+    mutationFn: async (data: { sponsorDir: string | null }) => {
+      return await apiRequest("PATCH", `/api/meets/${meetId}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/meets", meetId] });
+      toast({ title: "Sponsor directory saved" });
+      setHasSponsorDirChanges(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to save sponsor directory",
         description: error.message,
         variant: "destructive",
       });
@@ -1152,6 +1175,76 @@ export default function MeetSetup() {
               <ExternalLink className="w-4 h-4 mr-2" />
               Manage Team Logos
             </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Sponsor Reel Directory */}
+      <Card data-testid="card-sponsor-dir">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Image className="w-5 h-5" />
+            Sponsor Reel Directory
+          </CardTitle>
+          <CardDescription>
+            Directory containing sponsor images for the Sponsor Reel slideshow. Images will cycle on the display with the same background as the meet logo. Supported formats: PNG, JPG, GIF, BMP, WebP, SVG.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="sponsor-dir">Directory Path</Label>
+            <div className="flex gap-2">
+              <Input
+                id="sponsor-dir"
+                value={sponsorDir}
+                onChange={(e) => {
+                  setSponsorDir(e.target.value);
+                  setHasSponsorDirChanges(true);
+                }}
+                placeholder="/path/to/sponsor-images"
+                className="flex-1 font-mono text-sm"
+                data-testid="input-sponsor-dir"
+              />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Full path to the folder with sponsor logo images (e.g., C:\Sponsors or /Users/you/Sponsors)
+            </p>
+          </div>
+
+          {meet?.sponsorDir && (
+            <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+              <Check className="w-4 h-4" />
+              <span>Directory configured — use the Sponsor Reel button on the Display Control page to start the slideshow</span>
+            </div>
+          )}
+
+          <div className="flex gap-3">
+            <Button
+              onClick={() => {
+                if (sponsorDir) {
+                  saveSponsorDirMutation.mutate({ sponsorDir });
+                }
+              }}
+              disabled={!sponsorDir || saveSponsorDirMutation.isPending || (!hasSponsorDirChanges && !!meet?.sponsorDir)}
+              data-testid="button-save-sponsor-dir"
+            >
+              <Save className="w-4 h-4 mr-2" />
+              {saveSponsorDirMutation.isPending ? "Saving..." : "Save Directory"}
+            </Button>
+
+            {meet?.sponsorDir && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  saveSponsorDirMutation.mutate({ sponsorDir: null });
+                  setSponsorDir('');
+                }}
+                data-testid="button-clear-sponsor-dir"
+              >
+                <X className="w-4 h-4 mr-2" />
+                Clear
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
