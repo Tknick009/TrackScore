@@ -2047,6 +2047,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           gender: gender,
           eventType: evt.eventType || '',
           isFieldEvent: !!(evt.eventType && ['long_jump','triple_jump','high_jump','pole_vault','shot_put','discus','javelin','hammer','weight_throw'].includes(evt.eventType)),
+          sessionName: evt.sessionName || '',
         };
       });
 
@@ -2143,6 +2144,12 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
             custom: '#6b7280',    // gray
           };
 
+          // Build a proper event display name from the matching event or record data
+          const genderPrefix = normalizedGender === 'M' ? "Men's" : normalizedGender === 'F' ? "Women's" : '';
+          const eventDisplayName = matchingEvent
+            ? (matchingEvent.name || '').replace(/\s+/g, ' ').trim()
+            : '';
+
           recordEntries.push({
             place: matchingEvent ? String(matchingEvent.eventNumber || '') : '',
             name: rec.athleteName || 'Unknown',
@@ -2152,6 +2159,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
             time: rec.performance || '',
             mark: rec.performance || '',
             eventType: rec.eventType,
+            eventName: eventDisplayName || `${genderPrefix} ${(rec.eventType || '').replace(/_/g, ' ')}`.trim(),
             gender: normalizedGender,
             bookName: book.name,
             bookScope: book.scope,
