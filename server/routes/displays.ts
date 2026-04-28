@@ -1658,7 +1658,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
 
       const filePath = path.join(meet.sponsorDir, req.params.filename);
       const resolved = path.resolve(filePath);
-      if (!resolved.startsWith(path.resolve(meet.sponsorDir))) {
+      if (!resolved.startsWith(path.resolve(meet.sponsorDir) + path.sep)) {
         return res.status(403).json({ error: "Access denied" });
       }
       if (!fs.existsSync(resolved)) {
@@ -1713,6 +1713,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
 
       const connectedDevice = connectedDisplayDevices.get(deviceId);
       if (connectedDevice && connectedDevice.ws.readyState === 1) {
+        connectedDevice.contentMode = 'sponsor_reel';
         connectedDevice.ws.send(JSON.stringify({
           type: 'display_command',
           template: 'sponsor-reel',
