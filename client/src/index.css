@@ -1,0 +1,600 @@
+@font-face {
+  font-family: 'Oswald';
+  src: url('/fonts/Oswald.ttf') format('truetype');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   TRACKSCORE 2.0 DESIGN SYSTEM
+   Modern, professional track & field aesthetic
+   ============================================ */
+
+/* LIGHT MODE */
+:root {
+  --button-outline: rgba(0,0,0, .10);
+  --badge-outline: rgba(0,0,0, .05);
+  --opaque-button-border-intensity: -8;
+  --elevate-1: rgba(0,0,0, .03);
+  --elevate-2: rgba(0,0,0, .08);
+
+  /* Core palette - Clean slate with blue accent */
+  --background: 220 14% 98%;
+  --foreground: 220 20% 10%;
+  --border: 220 13% 91%;
+  --card: 0 0% 100%;
+  --card-foreground: 220 20% 10%;
+  --card-border: 220 13% 91%;
+
+  /* Sidebar - Subtle blue-gray */
+  --sidebar: 220 16% 96%;
+  --sidebar-foreground: 220 20% 12%;
+  --sidebar-border: 220 13% 90%;
+  --sidebar-primary: 222 80% 50%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 220 14% 92%;
+  --sidebar-accent-foreground: 220 15% 20%;
+  --sidebar-ring: 222 80% 50%;
+
+  /* Popover */
+  --popover: 0 0% 100%;
+  --popover-foreground: 220 20% 10%;
+  --popover-border: 220 13% 88%;
+
+  /* Primary - Professional blue */
+  --primary: 222 80% 50%;
+  --primary-foreground: 0 0% 100%;
+
+  /* Secondary - Neutral gray */
+  --secondary: 220 14% 93%;
+  --secondary-foreground: 220 14% 25%;
+
+  /* Muted */
+  --muted: 220 14% 95%;
+  --muted-foreground: 220 10% 46%;
+
+  /* Accent */
+  --accent: 220 14% 93%;
+  --accent-foreground: 220 14% 20%;
+
+  /* Destructive - Red */
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+
+  /* Form elements */
+  --input: 220 13% 78%;
+  --ring: 222 80% 50%;
+
+  /* Charts */
+  --chart-1: 222 80% 45%;
+  --chart-2: 25 95% 53%;
+  --chart-3: 152 76% 36%;
+  --chart-4: 280 68% 50%;
+  --chart-5: 340 75% 50%;
+
+  /* Typography */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* Spacing & Radius */
+  --radius: .625rem;
+
+  /* Shadows - Refined depth system */
+  --shadow-2xs: 0 1px 2px 0 rgb(0 0 0 / 0.03);
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.08), 0 1px 2px -1px rgb(0 0 0 / 0.05);
+  --shadow: 0 2px 6px -1px rgb(0 0 0 / 0.08), 0 1px 3px -1px rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 8px -2px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.04);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.04);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.08), 0 8px 10px -6px rgb(0 0 0 / 0.04);
+  --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.15);
+
+  --tracking-normal: 0em;
+  --spacing: 0.25rem;
+
+  /* Stadium Display Board Tokens - High Contrast Theme */
+  --display-bg: 222 25% 8%;
+  --display-fg: 0 0% 100%;
+  --display-accent: 217 91% 60%;
+  --display-success: 152 76% 48%;
+  --display-warning: 38 92% 50%;
+  --display-muted: 220 10% 60%;
+  --display-border: 222 20% 20%;
+
+  /* Status colors */
+  --status-live: 152 76% 36%;
+  --status-upcoming: 222 80% 50%;
+  --status-completed: 220 10% 46%;
+
+/* Fallback for older browsers */
+  --sidebar-primary-border: hsl(var(--sidebar-primary));
+  --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+
+  /* Fallback for older browsers */
+  --sidebar-accent-border: hsl(var(--sidebar-accent));
+  --sidebar-accent-border: hsl(from hsl(var(--sidebar-accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+
+  /* Fallback for older browsers */
+  --primary-border: hsl(var(--primary));
+  --primary-border: hsl(from hsl(var(--primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+
+  /* Fallback for older browsers */
+  --secondary-border: hsl(var(--secondary));
+  --secondary-border: hsl(from hsl(var(--secondary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+
+  /* Fallback for older browsers */
+  --muted-border: hsl(var(--muted));
+  --muted-border: hsl(from hsl(var(--muted)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+
+  /* Fallback for older browsers */
+  --accent-border: hsl(var(--accent));
+  --accent-border: hsl(from hsl(var(--accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+
+  /* Fallback for older browsers */
+  --destructive-border: hsl(var(--destructive));
+  --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+}
+
+.dark {
+  --button-outline: rgba(255,255,255, .10);
+  --badge-outline: rgba(255,255,255, .05);
+  --opaque-button-border-intensity: 9;
+  --elevate-1: rgba(255,255,255, .04);
+  --elevate-2: rgba(255,255,255, .09);
+
+  --background: 224 20% 6%;
+  --foreground: 220 14% 95%;
+  --border: 224 14% 16%;
+  --card: 224 18% 9%;
+  --card-foreground: 220 14% 95%;
+  --card-border: 224 14% 14%;
+
+  --sidebar: 224 20% 8%;
+  --sidebar-foreground: 220 14% 95%;
+  --sidebar-border: 224 14% 14%;
+  --sidebar-primary: 217 91% 60%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 224 14% 14%;
+  --sidebar-accent-foreground: 220 14% 90%;
+  --sidebar-ring: 217 91% 60%;
+
+  --popover: 224 18% 10%;
+  --popover-foreground: 220 14% 95%;
+  --popover-border: 224 14% 18%;
+
+  --primary: 217 91% 60%;
+  --primary-foreground: 0 0% 100%;
+  --muted: 224 14% 14%;
+  --muted-foreground: 220 10% 58%;
+  --secondary: 224 12% 16%;
+  --secondary-foreground: 220 14% 90%;
+  --accent: 224 14% 14%;
+  --accent-foreground: 220 14% 90%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --input: 224 14% 28%;
+  --ring: 217 91% 60%;
+
+  --chart-1: 217 91% 65%;
+  --chart-2: 25 95% 65%;
+  --chart-3: 152 70% 55%;
+  --chart-4: 280 68% 65%;
+  --chart-5: 340 75% 65%;
+
+  --shadow-2xs: 0 1px 2px 0 rgb(0 0 0 / 0.10);
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.15);
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.20), 0 1px 2px -1px rgb(0 0 0 / 0.15);
+  --shadow: 0 2px 6px -1px rgb(0 0 0 / 0.20), 0 1px 3px -1px rgb(0 0 0 / 0.15);
+  --shadow-md: 0 4px 8px -2px rgb(0 0 0 / 0.20), 0 2px 4px -2px rgb(0 0 0 / 0.12);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.20), 0 4px 6px -4px rgb(0 0 0 / 0.12);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.20), 0 8px 10px -6px rgb(0 0 0 / 0.12);
+  --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.35);
+
+  /* Stadium Display Board - consistent in dark mode */
+  --display-bg: 222 25% 8%;
+  --display-fg: 0 0% 100%;
+  --display-accent: 217 91% 60%;
+  --display-success: 152 76% 48%;
+  --display-warning: 38 92% 50%;
+  --display-muted: 220 10% 60%;
+  --display-border: 222 20% 20%;
+
+/* Fallback for older browsers */
+  --sidebar-primary-border: hsl(var(--sidebar-primary));
+  --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+
+  /* Fallback for older browsers */
+  --sidebar-accent-border: hsl(var(--sidebar-accent));
+  --sidebar-accent-border: hsl(from hsl(var(--sidebar-accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+
+  /* Fallback for older browsers */
+  --primary-border: hsl(var(--primary));
+  --primary-border: hsl(from hsl(var(--primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+
+  /* Fallback for older browsers */
+  --secondary-border: hsl(var(--secondary));
+  --secondary-border: hsl(from hsl(var(--secondary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+
+  /* Fallback for older browsers */
+  --muted-border: hsl(var(--muted));
+  --muted-border: hsl(from hsl(var(--muted)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+
+  /* Fallback for older browsers */
+  --accent-border: hsl(var(--accent));
+  --accent-border: hsl(from hsl(var(--accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+
+  /* Fallback for older browsers */
+  --destructive-border: hsl(var(--destructive));
+  --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-primary;
+  }
+}
+
+/**
+ * Using the elevate system.
+ * Automatic contrast adjustment.
+ *
+ * <element className="hover-elevate" />
+ * <element className="active-elevate-2" />
+ *
+ * // Using the tailwind utility when a data attribute is "on"
+ * <element className="toggle-elevate data-[state=on]:toggle-elevated" />
+ * // Or manually controlling the toggle state
+ * <element className="toggle-elevate toggle-elevated" />
+ *
+ * Elevation systems have to handle many states.
+ * - not-hovered, vs. hovered vs. active  (three mutually exclusive states)
+ * - toggled or not
+ * - focused or not (this is not handled with these utilities)
+ *
+ * Even without handling focused or not, this is six possible combinations that
+ * need to be distinguished from eachother visually.
+ */
+@layer utilities {
+
+  /* Hide ugly search cancel button in Chrome until we can style it properly */
+  input[type="search"]::-webkit-search-cancel-button {
+    @apply hidden;
+  }
+
+  /* Placeholder styling for contentEditable div */
+  [contenteditable][data-placeholder]:empty::before {
+    content: attr(data-placeholder);
+    color: hsl(var(--muted-foreground));
+    pointer-events: none;
+  }
+
+  /* .no-default-hover-elevate/no-default-active-elevate is an escape hatch so consumers of
+   * buttons/badges can remove the automatic brightness adjustment on interactions
+   * and program their own. */
+  .no-default-hover-elevate {}
+
+  .no-default-active-elevate {}
+
+  /* Stadium Display Board Typography */
+  .font-stadium {
+    font-family: 'Oswald', sans-serif;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  .font-stadium-numbers {
+    font-family: 'Oswald', sans-serif;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    text-transform: uppercase;
+  }
+
+  /* Global Display Layout Styling - Apply Oswald SemiBold font and uppercase to all display pages */
+  .display-layout,
+  .display-layout * {
+    font-family: 'Oswald', sans-serif !important;
+    font-weight: 600 !important;
+    text-transform: uppercase;
+  }
+  
+  /* Dark background for display pages to prevent white flash during scene transitions */
+  html:has(.display-layout),
+  body:has(.display-layout) {
+    background-color: hsl(var(--display-bg)) !important;
+  }
+
+  /* Gradient Edge Styling - Blue stadium aesthetic */
+  .gradient-edge-blue {
+    position: relative;
+    border: 2px solid transparent;
+    background-image: 
+      linear-gradient(hsl(var(--display-bg)), hsl(var(--display-bg))),
+      linear-gradient(135deg, #1e40af 0%, #3b82f6 25%, #60a5fa 50%, #3b82f6 75%, #1e40af 100%);
+    background-origin: padding-box, border-box;
+    background-clip: padding-box, border-box;
+  }
+  
+  .gradient-edge-blue-thick {
+    position: relative;
+    border: 4px solid transparent;
+    background-image: 
+      linear-gradient(hsl(var(--display-bg)), hsl(var(--display-bg))),
+      linear-gradient(135deg, #1e40af 0%, #3b82f6 25%, #60a5fa 50%, #3b82f6 75%, #1e40af 100%);
+    background-origin: padding-box, border-box;
+    background-clip: padding-box, border-box;
+  }
+  
+  .gradient-edge-blue-glow {
+    position: relative;
+    border: 3px solid transparent;
+    background-image: 
+      linear-gradient(hsl(var(--display-bg)), hsl(var(--display-bg))),
+      linear-gradient(135deg, #1e40af 0%, #3b82f6 25%, #60a5fa 50%, #3b82f6 75%, #1e40af 100%);
+    background-origin: padding-box, border-box;
+    background-clip: padding-box, border-box;
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
+  }
+
+  /* Yellow Accent Box - Highlights active/current data */
+  .accent-box-yellow {
+    border: 3px solid #fbbf24;
+    background-color: rgba(251, 191, 36, 0.1);
+    box-shadow: 0 0 15px rgba(251, 191, 36, 0.3);
+  }
+  
+  .accent-box-yellow-solid {
+    border: 3px solid #fbbf24;
+    background-color: #fbbf24;
+    color: #000;
+  }
+  
+  .accent-box-yellow-pulse {
+    border: 3px solid #fbbf24;
+    background-color: rgba(251, 191, 36, 0.15);
+    box-shadow: 0 0 20px rgba(251, 191, 36, 0.5);
+    animation: pulse-yellow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  
+  @keyframes pulse-yellow {
+    0%, 100% {
+      box-shadow: 0 0 20px rgba(251, 191, 36, 0.5);
+      border-color: #fbbf24;
+    }
+    50% {
+      box-shadow: 0 0 30px rgba(251, 191, 36, 0.8);
+      border-color: #f59e0b;
+    }
+  }
+  
+  /* Combine gradient edge + yellow accent */
+  .gradient-yellow-combo {
+    position: relative;
+    border: 4px solid transparent;
+    background-image: 
+      linear-gradient(rgba(251, 191, 36, 0.1), rgba(251, 191, 36, 0.1)),
+      linear-gradient(135deg, #f59e0b 0%, #fbbf24 25%, #fcd34d 50%, #fbbf24 75%, #f59e0b 100%);
+    background-origin: padding-box, border-box;
+    background-clip: padding-box, border-box;
+    box-shadow: 0 0 20px rgba(251, 191, 36, 0.4);
+  }
+
+  /**
+   * Toggleable backgrounds go behind the content. Hoverable/active goes on top.
+   * This way they can stack/compound. Both will overlap the parent's borders!
+   * So borders will be automatically adjusted both on toggle, and hover/active,
+   * and they will be compounded.
+   */
+  .toggle-elevate::before,
+  .toggle-elevate-2::before {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    inset: 0px;
+    /*border-radius: inherit;   match rounded corners */
+    border-radius: inherit;
+    z-index: -1;
+    /* sits behind content but above backdrop */
+  }
+
+  .toggle-elevate.toggle-elevated::before {
+    background-color: var(--elevate-2);
+  }
+
+  /* If there's a 1px border, adjust the inset so that it covers that parent's border */
+  .border.toggle-elevate::before {
+    inset: -1px;
+  }
+
+  /* Does not work on elements with overflow:hidden! */
+  .hover-elevate:not(.no-default-hover-elevate),
+  .active-elevate:not(.no-default-active-elevate),
+  .hover-elevate-2:not(.no-default-hover-elevate),
+  .active-elevate-2:not(.no-default-active-elevate) {
+    position: relative;
+    z-index: 0;
+  }
+
+  .hover-elevate:not(.no-default-hover-elevate)::after,
+  .active-elevate:not(.no-default-active-elevate)::after,
+  .hover-elevate-2:not(.no-default-hover-elevate)::after,
+  .active-elevate-2:not(.no-default-active-elevate)::after {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    inset: 0px;
+    /*border-radius: inherit;   match rounded corners */
+    border-radius: inherit;
+    z-index: 999;
+    /* sits in front of content */
+  }
+
+  .hover-elevate:hover:not(.no-default-hover-elevate)::after,
+  .active-elevate:active:not(.no-default-active-elevate)::after {
+    background-color: var(--elevate-1);
+  }
+
+  .hover-elevate-2:hover:not(.no-default-hover-elevate)::after,
+  .active-elevate-2:active:not(.no-default-active-elevate)::after {
+    background-color: var(--elevate-2);
+  }
+
+  /* If there's a 1px border, adjust the inset so that it covers that parent's border */
+  .border.hover-elevate:not(.no-hover-interaction-elevate)::after,
+  .border.active-elevate:not(.no-active-interaction-elevate)::after,
+  .border.hover-elevate-2:not(.no-hover-interaction-elevate)::after,
+  .border.active-elevate-2:not(.no-active-interaction-elevate)::after,
+  .border.hover-elevate:not(.no-hover-interaction-elevate)::after {
+    inset: -1px;
+  }
+
+  /* Overlay page transparent background for OBS */
+  body.overlay-page {
+    background: transparent !important;
+  }
+
+  body.overlay-page #root {
+    background: transparent !important;
+  }
+
+  .overlay-container {
+    background: transparent;
+  }
+
+  /* Print styles for results export */
+  @media print {
+    /* Hide navigation, controls, and interactive elements */
+    .no-print,
+    nav,
+    button,
+    .sidebar,
+    header,
+    footer:not(.print-footer),
+    [data-sidebar],
+    [role="navigation"] {
+      display: none !important;
+    }
+
+    /* Ensure content uses full page width */
+    body {
+      background: white !important;
+      color: black !important;
+    }
+
+    /* Optimize page breaks */
+    table {
+      page-break-inside: avoid;
+    }
+
+    tr {
+      page-break-inside: avoid;
+      page-break-after: auto;
+    }
+
+    thead {
+      display: table-header-group;
+    }
+
+    tfoot {
+      display: table-footer-group;
+    }
+
+    /* Force black text and borders for printing */
+    * {
+      color: black !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    /* Ensure tables have visible borders */
+    table,
+    th,
+    td {
+      border: 1px solid black !important;
+    }
+
+    /* Preserve podium colors for printing */
+    .bg-yellow-100,
+    .podium-1 {
+      background-color: #fef3c7 !important;
+    }
+
+    .bg-gray-100,
+    .podium-2 {
+      background-color: #f3f4f6 !important;
+    }
+
+    .bg-orange-100,
+    .podium-3 {
+      background-color: #ffedd5 !important;
+    }
+
+    /* Remove shadows and effects */
+    * {
+      box-shadow: none !important;
+      text-shadow: none !important;
+    }
+
+    /* Ensure images print correctly */
+    img {
+      max-width: 100% !important;
+      page-break-inside: avoid;
+    }
+
+    /* Make sure headings stay with content */
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+      page-break-after: avoid;
+    }
+  }
+}
+
+/* ========== Winners Board Confetti Animations ========== */
+@keyframes wb-confetti-fall {
+  0%   { transform: translateY(-20px); opacity: 1; }
+  80%  { opacity: 0.9; }
+  100% { transform: translateY(50vh); opacity: 0; }
+}
+@keyframes wb-confetti-sway {
+  0%, 100% { transform: translateX(0) rotate(0deg); }
+  25%      { transform: translateX(18px) rotate(180deg); }
+  75%      { transform: translateX(-18px) rotate(360deg); }
+}
+
+/* ========== Display Scale: condense text & logos only, keep backgrounds full-size ========== */
+.display-scale-active span,
+.display-scale-active h1,
+.display-scale-active h2,
+.display-scale-active h3,
+.display-scale-active p,
+.display-scale-active label {
+  transform: scaleX(var(--display-scale, 1));
+  transform-origin: left center;
+}
+.display-scale-active img {
+  transform: scale(var(--display-scale, 1));
+  transform-origin: center center;
+}

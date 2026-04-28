@@ -1,0 +1,285 @@
+import { useMemo } from "react";
+import { EventWithEntries, Meet, EntryWithDetails } from "@shared/schema";
+import { isTrackEvent as checkIsTrackEvent } from "@shared/event-catalog";
+import { EventHeader } from "../shared";
+import { 
+  formatResult, 
+  getTeamColor, 
+  getPodiumColor,
+} from "../utils";
+import { Trophy } from "lucide-react";
+import { getLogoEffectStyle } from "@/lib/logoEffects";
+import { shouldShowWind } from "../utils/formatting";
+
+interface ScrollingResultsBoardProps {
+  event: EventWithEntries;
+  meet?: Meet;
+  mode: string;
+}
+
+function determineDisplayMode(event: EventWithEntries): 'track' | 'field' {
+  const firstEntry = event.entries.find(e => e.resultType);
+  
+  if (firstEntry) {
+    return firstEntry.resultType === 'time' ? 'track' : 'field';
+  }
+  
+  return checkIsTrackEvent(event.eventType) ? 'track' : 'field';
+}
+
+export function ScrollingResultsBoard({ 
+  event, 
+  meet, 
+  mode,
+}: ScrollingResultsBoardProps) {
+  const displayMode = determineDisplayMode(event);
+  const showTrackResults = displayMode === 'track';
+  
+  const sortedResults = useMemo(() => {
+    return [...event.entries].sort((a, b) => {
+      const aPos = a.finalPlace ?? 999;
+      const bPos = b.finalPlace ?? 999;
+      return aPos - bPos;
+    });
+  }, [event.entries]);
+
+  return (
+    <div className="min-h-screen w-full bg-[hsl(var(--display-bg))] relative overflow-hidden display-layout">
+      {meet?.logoUrl && (
+        <img
+          src={meet.logoUrl}
+          alt="Meet logo"
+          className="absolute top-8 right-8 max-w-[120px] max-h-[80px] z-10"
+          style={getLogoEffectStyle(meet.logoEffect)}
+          data-testid="img-meet-logo"
+        />
+      )}
+
+      <div className="flex flex-col h-screen">
+        <EventHeader event={event} meet={meet} mode="results" />
+        
+        <div className="absolute top-8 left-8 flex items-center gap-3">
+          <Trophy className="w-10 h-10 text-[hsl(var(--display-accent))]" />
+          <span className="font-stadium text-[36px] font-[700] text-[hsl(var(--display-accent))]">
+            FINAL RESULTS
+          </span>
+        </div>
+
+        <div className="flex-1 p-8 relative">
+          <div className="animate-fade-in">
+            {showTrackResults ? (
+              <TrackResultsPage results={sortedResults} event={event} />
+            ) : (
+              <FieldResultsPage results={sortedResults} />
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TrackResultsPage({ results, event }: { results: EntryWithDetails[]; event?: EventWithEntries }) {
+  // Only show wind for events 200m and under
+  const windAllowed = event ? shouldShowWind(event.name || (event as any).eventName, event.eventType, (event as any).distance) : true;
+  return (
+    <div className="space-y-6">
+      {results.map((result, index) => {
+        const position = result.finalPlace ?? 0;
+        const isLeader = position === 1;
+        const isPodium = position <= 3;
+        const rowBg = isLeader
+          ? "bg-[hsl(var(--display-accent))]/12"
+          : index % 2 === 0
+          ? "bg-[hsl(var(--display-border))]/20"
+          : "";
+        const athleteName = result.athlete 
+          ? `${result.athlete.firstName} ${result.athlete.lastName}`
+          : "Unknown Athlete";
+
+        return (
+          <div
+            key={result.id}
+            className={`h-[120px] flex items-center gap-6 ${rowBg} animate-slide-in-right`}
+            style={{ animationDelay: `${index * 100}ms` }}
+            data-testid={`result-row-${result.id}`}
+          >
+            <div className="relative w-[100px] h-full flex items-center justify-center">
+              <div
+                className="absolute left-0 top-0 bottom-0 w-[12px]"
+                style={{
+                  backgroundColor: getTeamColor(result.team?.name),
+                }}
+              />
+              <div className="text-[72px] font-stadium-numbers font-[900] text-[hsl(var(--display-muted))] leading-none">
+                {result.finalLane || "-"}
+              </div>
+            </div>
+
+            {isPodium && (
+              <div
+                className={`w-[80px] h-[80px] rounded-full flex items-center justify-center font-stadium-numbers text-[52px] font-[900] text-[hsl(var(--display-bg))] ${
+                  isLeader ? 'animate-[pulse_600ms_ease-in-out_infinite]' : ''
+                }`}
+                style={{ backgroundColor: getPodiumColor(position) }}
+                data-testid={`text-position-${result.id}`}
+              >
+                {position}
+              </div>
+            )}
+            {!isPodium && (
+              <div
+                className="w-[80px] h-[80px] rounded-full border-4 border-[hsl(var(--display-muted))] flex items-center justify-center font-stadium-numbers text-[52px] font-[900] text-[hsl(var(--display-muted))]"
+                data-testid={`text-position-${result.id}`}
+              >
+                {position}
+              </div>
+            )}
+
+            <div className="flex-1">
+              <div className="flex items-center gap-4 mb-1">
+                <h2
+                  className="font-stadium text-[52px] font-[700] text-[hsl(var(--display-fg))] leading-none"
+                  data-testid={`text-athlete-name-${result.id}`}
+                >
+                  {athleteName}
+                </h2>
+                {/* Record tags (MR, FR, etc.) from server enrichment */}
+                {((result as any).recordTags || []).length > 0 && (
+                  <span 
+                    className="text-[36px] font-[900] px-3 py-1 rounded"
+                    style={{
+                      backgroundColor: 'rgba(255, 215, 0, 0.25)',
+                      color: '#ffd700',
+                      border: '2px solid rgba(255, 215, 0, 0.5)',
+                    }}
+                  >
+                    {((result as any).recordTags as string[])[0]}
+                  </span>
+                )}
+                {(() => {
+                  const notes = (result as any).notes;
+                  const statusCodes = ['DNF', 'DQ', 'DNS', 'SCR', 'NH', 'NM', 'FOUL', 'FS', 'NT'];
+                  const statusLabel = notes && statusCodes.includes(String(notes).toUpperCase()) 
+                    ? String(notes).toUpperCase() 
+                    : result.isDisqualified ? 'DQ' : null;
+                  return statusLabel ? (
+                    <span className="text-[40px] font-[700] text-[hsl(var(--display-warning))]">
+                      {statusLabel}
+                    </span>
+                  ) : null;
+                })()}
+              </div>
+              {result.team && (
+                <p className="text-[32px] text-[hsl(var(--display-muted))] leading-none whitespace-nowrap truncate">
+                  {result.team.name}
+                </p>
+              )}
+            </div>
+
+            <div className="text-right">
+              <div
+                className="font-stadium-numbers text-[96px] font-[900] text-[hsl(var(--display-fg))] leading-none"
+                data-testid={`text-time-${result.id}`}
+              >
+                {formatResult(result)}
+              </div>
+              {windAllowed && result.finalWind !== null && result.finalWind !== undefined && (
+                <p className="text-[28px] text-[hsl(var(--display-muted))] mt-1 leading-none">
+                  Wind: {result.finalWind > 0 ? '+' : ''}{result.finalWind.toFixed(1)}
+                </p>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function FieldResultsPage({ results }: { results: EntryWithDetails[] }) {
+  return (
+    <div className="space-y-6">
+      {results.map((result, index) => {
+        const position = result.finalPlace ?? 0;
+        const isLeader = position === 1;
+        const isPodium = position <= 3;
+        const rowBg = isLeader
+          ? "bg-[hsl(var(--display-accent))]/12"
+          : index % 2 === 0
+          ? "bg-[hsl(var(--display-border))]/20"
+          : "";
+        const athleteName = result.athlete 
+          ? `${result.athlete.firstName} ${result.athlete.lastName}`
+          : "Unknown Athlete";
+
+        return (
+          <div
+            key={result.id}
+            className={`h-[120px] flex items-center gap-6 p-4 ${rowBg} animate-slide-in-right`}
+            style={{ animationDelay: `${index * 100}ms` }}
+            data-testid={`result-row-${result.id}`}
+          >
+            {isPodium && (
+              <div
+                className={`w-[80px] h-[80px] rounded-full flex items-center justify-center font-stadium-numbers text-[52px] font-[900] text-[hsl(var(--display-bg))] ${
+                  isLeader ? 'animate-[pulse_600ms_ease-in-out_infinite]' : ''
+                }`}
+                style={{ backgroundColor: getPodiumColor(position) }}
+                data-testid={`text-position-${result.id}`}
+              >
+                {position}
+              </div>
+            )}
+            {!isPodium && (
+              <div
+                className="w-[80px] h-[80px] rounded-full border-4 border-[hsl(var(--display-muted))] flex items-center justify-center font-stadium-numbers text-[52px] font-[900] text-[hsl(var(--display-muted))]"
+                data-testid={`text-position-${result.id}`}
+              >
+                {position}
+              </div>
+            )}
+
+            <div className="flex-1">
+              <div className="flex items-center gap-4 mb-1">
+                <h2
+                  className="font-stadium text-[52px] font-[700] text-[hsl(var(--display-fg))] leading-none"
+                  data-testid={`text-athlete-name-${result.id}`}
+                >
+                  {athleteName}
+                </h2>
+                {/* Record tags (MR, FR, etc.) from server enrichment */}
+                {((result as any).recordTags || []).length > 0 && (
+                  <span 
+                    className="text-[36px] font-[900] px-3 py-1 rounded"
+                    style={{
+                      backgroundColor: 'rgba(255, 215, 0, 0.25)',
+                      color: '#ffd700',
+                      border: '2px solid rgba(255, 215, 0, 0.5)',
+                    }}
+                  >
+                    {((result as any).recordTags as string[])[0]}
+                  </span>
+                )}
+              </div>
+              {result.team && (
+                <p className="text-[32px] text-[hsl(var(--display-muted))] leading-none whitespace-nowrap truncate">
+                  {result.team.name}
+                </p>
+              )}
+            </div>
+
+            <div className="text-right">
+              <div
+                className="font-stadium-numbers text-[96px] font-[900] text-[hsl(var(--display-fg))] leading-none"
+                data-testid={`text-mark-${result.id}`}
+              >
+                {formatResult(result)}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}

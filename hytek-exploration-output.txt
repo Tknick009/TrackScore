@@ -1,0 +1,5062 @@
+📖 HyTek Database Explorer
+================================================================================
+File: uploads/8df8ab1108ac242e04c7ee9bcdc28bf1
+
+📊 Found 42 tables
+
+
+================================================================================
+TABLE: Agegroup
+================================================================================
+Rows: 0
+Columns: 2
+
+Column Names:
+  1. Low_age
+  2. High_age
+
+📊 Column Analysis:
+  Low_age:
+    Types: 
+  High_age:
+    Types: 
+
+================================================================================
+TABLE: Athlete
+================================================================================
+Rows: 8719
+Columns: 71
+
+Column Names:
+  1. Ath_no
+  2. Last_name
+  3. First_name
+  4. Initial
+  5. Ath_Sex
+  6. Birth_date
+  7. Team_no
+  8. Schl_yr
+  9. Ath_age
+  10. Reg_no
+  11. Ath_stat
+  12. Div_no
+  13. Comp_no
+  14. Pref_name
+  15. Home_addr1
+  16. Home_addr2
+  17. Home_city
+  18. Home_prov
+  19. Home_state
+  20. Home_zip
+  21. Home_cntry
+  22. Home_daytele
+  23. Home_evetele
+  24. Home_faxtele
+  25. Home_email
+  26. Citizen_of
+  27. Picture_bmp
+  28. Shirt_size
+  29. Fee1_no
+  30. Fee1_due
+  31. Fee1_pd
+  32. Fee2_no
+  33. Fee2_due
+  34. Fee2_pd
+  35. Fee3_no
+  36. Fee3_due
+  37. Fee3_pd
+  38. Fee4_no
+  39. Fee4_due
+  40. Fee4_pd
+  41. Fee5_no
+  42. Fee5_due
+  43. Fee5_pd
+  44. Fee6_no
+  45. Fee6_due
+  46. Fee6_pd
+  47. Fee7_no
+  48. Fee7_due
+  49. Fee7_pd
+  50. Fee8_no
+  51. Fee8_due
+  52. Fee8_pd
+  53. Fee9_no
+  54. Fee9_due
+  55. Fee9_pd
+  56. Fee10_no
+  57. Fee10_due
+  58. Fee10_pd
+  59. Logical_1
+  60. Logical_2
+  61. Logical_3
+  62. Logical_4
+  63. Club_name
+  64. DA_RegNo
+  65. Home_celltele
+  66. Home_emergcontact
+  67. Home_emergtele
+  68. Chip_id
+  69. AthGUID_strg
+  70. DIS_CLASS
+  71. Disab_SDMSID
+
+📝 Sample Row #1:
+{
+  "Ath_no": 54836,
+  "Last_name": "Kutner",
+  "First_name": "Lucia",
+  "Initial": " ",
+  "Ath_Sex": "F",
+  "Birth_date": null,
+  "Team_no": 1041,
+  "Schl_yr": "SO",
+  "Ath_age": 0,
+  "Reg_no": "LUC-KUT2279AFE",
+  "Ath_stat": null,
+  "Div_no": null,
+  "Comp_no": 10,
+  "Pref_name": null,
+  "Home_addr1": null,
+  "Home_addr2": null,
+  "Home_city": null,
+  "Home_prov": null,
+  "Home_state": null,
+  "Home_zip": null,
+  "Home_cntry": null,
+  "Home_daytele": null,
+  "Home_evetele": null,
+  "Home_faxtele": null,
+  "Home_email": null,
+  "Citizen_of": null,
+  "Picture_bmp": null,
+  "Shirt_size": null,
+  "Fee1_no": 0,
+  "Fee1_due": null,
+  "Fee1_pd": null,
+  "Fee2_no": 0,
+  "Fee2_due": null,
+  "Fee2_pd": null,
+  "Fee3_no": 0,
+  "Fee3_due": null,
+  "Fee3_pd": null,
+  "Fee4_no": 0,
+  "Fee4_due": null,
+  "Fee4_pd": null,
+  "Fee5_no": 0,
+  "Fee5_due": null,
+  "Fee5_pd": null,
+  "Fee6_no": 0,
+  "Fee6_due": null,
+  "Fee6_pd": null,
+  "Fee7_no": 0,
+  "Fee7_due": null,
+  "Fee7_pd": null,
+  "Fee8_no": 0,
+  "Fee8_due": null,
+  "Fee8_pd": null,
+  "Fee9_no": 0,
+  "Fee9_due": null,
+  "Fee9_pd": null,
+  "Fee10_no": 0,
+  "Fee10_due": null,
+  "Fee10_pd": null,
+  "Logical_1": false,
+  "Logical_2": false,
+  "Logical_3": false,
+  "Logical_4": false,
+  "Club_name": null,
+  "DA_RegNo": null,
+  "Home_celltele": null,
+  "Home_emergcontact": null,
+  "Home_emergtele": null,
+  "Chip_id": null,
+  "AthGUID_strg": "8B8E3159-E233-4599-EE75-C3131E80FDFD",
+  "DIS_CLASS": null,
+  "Disab_SDMSID": null
+}
+
+📊 Column Analysis:
+  Ath_no:
+    Types: number
+    Samples: 54836, 54837, 54838
+  Last_name:
+    Types: string
+    Samples: "Kutner", "Bacette", "Williams"
+  First_name:
+    Types: string
+    Samples: "Lucia", "Carl", "David"
+  Initial:
+    Types: string
+    Samples: " "
+  Ath_Sex:
+    Types: string
+    Samples: "F", "M"
+  Birth_date:
+    Types: null
+  Team_no:
+    Types: number
+    Samples: 1041
+  Schl_yr:
+    Types: string
+    Samples: "SO", "JR", "FR"
+  Ath_age:
+    Types: number
+    Samples: 0
+  Reg_no:
+    Types: string
+    Samples: "LUC-KUT2279AFE", "CAR-BAC1208425", "DAV-WIL8EFA498"
+  Ath_stat:
+    Types: null
+  Div_no:
+    Types: null
+  Comp_no:
+    Types: number
+    Samples: 10, 19, 39
+  Pref_name:
+    Types: null
+  Home_addr1:
+    Types: null
+  Home_addr2:
+    Types: null
+  Home_city:
+    Types: null
+  Home_prov:
+    Types: null
+  Home_state:
+    Types: null
+  Home_zip:
+    Types: null
+  Home_cntry:
+    Types: null
+  Home_daytele:
+    Types: null
+  Home_evetele:
+    Types: null
+  Home_faxtele:
+    Types: null
+  Home_email:
+    Types: null
+  Citizen_of:
+    Types: null
+  Picture_bmp:
+    Types: null
+  Shirt_size:
+    Types: null
+  Fee1_no:
+    Types: number
+    Samples: 0
+  Fee1_due:
+    Types: null
+  Fee1_pd:
+    Types: null
+  Fee2_no:
+    Types: number
+    Samples: 0
+  Fee2_due:
+    Types: null
+  Fee2_pd:
+    Types: null
+  Fee3_no:
+    Types: number
+    Samples: 0
+  Fee3_due:
+    Types: null
+  Fee3_pd:
+    Types: null
+  Fee4_no:
+    Types: number
+    Samples: 0
+  Fee4_due:
+    Types: null
+  Fee4_pd:
+    Types: null
+  Fee5_no:
+    Types: number
+    Samples: 0
+  Fee5_due:
+    Types: null
+  Fee5_pd:
+    Types: null
+  Fee6_no:
+    Types: number
+    Samples: 0
+  Fee6_due:
+    Types: null
+  Fee6_pd:
+    Types: null
+  Fee7_no:
+    Types: number
+    Samples: 0
+  Fee7_due:
+    Types: null
+  Fee7_pd:
+    Types: null
+  Fee8_no:
+    Types: number
+    Samples: 0
+  Fee8_due:
+    Types: null
+  Fee8_pd:
+    Types: null
+  Fee9_no:
+    Types: number
+    Samples: 0
+  Fee9_due:
+    Types: null
+  Fee9_pd:
+    Types: null
+  Fee10_no:
+    Types: number
+    Samples: 0
+  Fee10_due:
+    Types: null
+  Fee10_pd:
+    Types: null
+  Logical_1:
+    Types: boolean
+    Samples: false
+  Logical_2:
+    Types: boolean
+    Samples: false
+  Logical_3:
+    Types: boolean
+    Samples: false
+  Logical_4:
+    Types: boolean
+    Samples: false
+  Club_name:
+    Types: null
+  DA_RegNo:
+    Types: null
+  Home_celltele:
+    Types: null
+  Home_emergcontact:
+    Types: null
+  Home_emergtele:
+    Types: null
+  Chip_id:
+    Types: null
+  AthGUID_strg:
+    Types: string
+    Samples: "8B8E3159-E233-4599-EE75-C3131E80FDFD", "ACA9E71C-E037-4ECE-AAD1-AD97C9B2CB40", "AA0C434C-6E88-452B-168A-390A0DE4CA7C"
+  DIS_CLASS:
+    Types: null
+  Disab_SDMSID:
+    Types: null
+
+🔗 Potential Foreign Keys/Pointers:
+  Ath_no: 100 unique values (from first 100 rows)
+  Team_no: 4 unique values (from first 100 rows)
+  Reg_no: 100 unique values (from first 100 rows)
+  Div_no: 0 unique values (from first 100 rows)
+  Comp_no: 39 unique values (from first 100 rows)
+  Fee1_no: 1 unique values (from first 100 rows)
+  Fee2_no: 1 unique values (from first 100 rows)
+  Fee3_no: 1 unique values (from first 100 rows)
+  Fee4_no: 1 unique values (from first 100 rows)
+  Fee5_no: 1 unique values (from first 100 rows)
+  Fee6_no: 1 unique values (from first 100 rows)
+  Fee7_no: 1 unique values (from first 100 rows)
+  Fee8_no: 1 unique values (from first 100 rows)
+  Fee9_no: 1 unique values (from first 100 rows)
+  Fee10_no: 1 unique values (from first 100 rows)
+  Chip_id: 0 unique values (from first 100 rows)
+
+================================================================================
+TABLE: CCrank
+================================================================================
+Rows: 0
+Columns: 24
+
+Column Names:
+  1. Event_ptr
+  2. Ath_no
+  3. Ath_sex
+  4. Ath_stat
+  5. Team_no
+  6. Chute_rank
+  7. Chute_no
+  8. Div_no
+  9. Ev_score
+  10. JDEv_score
+  11. score_stat
+  12. multi_age
+  13. Fin_hand
+  14. Fin_stat
+  15. Fin_Time
+  16. Fin_course
+  17. Fin_place
+  18. Fin_jdplace
+  19. Fin_award
+  20. Fin_exh
+  21. Fin_points
+  22. Fin_agegrade
+  23. Fin_percent
+  24. Team_ltr
+
+📊 Column Analysis:
+  Event_ptr:
+    Types: 
+  Ath_no:
+    Types: 
+  Ath_sex:
+    Types: 
+  Ath_stat:
+    Types: 
+  Team_no:
+    Types: 
+  Chute_rank:
+    Types: 
+  Chute_no:
+    Types: 
+  Div_no:
+    Types: 
+  Ev_score:
+    Types: 
+  JDEv_score:
+    Types: 
+  score_stat:
+    Types: 
+  multi_age:
+    Types: 
+  Fin_hand:
+    Types: 
+  Fin_stat:
+    Types: 
+  Fin_Time:
+    Types: 
+  Fin_course:
+    Types: 
+  Fin_place:
+    Types: 
+  Fin_jdplace:
+    Types: 
+  Fin_award:
+    Types: 
+  Fin_exh:
+    Types: 
+  Fin_points:
+    Types: 
+  Fin_agegrade:
+    Types: 
+  Fin_percent:
+    Types: 
+  Team_ltr:
+    Types: 
+
+🔗 Potential Foreign Keys/Pointers:
+  Event_ptr: 0 unique values (from first 100 rows)
+  Ath_no: 0 unique values (from first 100 rows)
+  Team_no: 0 unique values (from first 100 rows)
+  Chute_no: 0 unique values (from first 100 rows)
+  Div_no: 0 unique values (from first 100 rows)
+
+================================================================================
+TABLE: CCtime
+================================================================================
+Rows: 0
+Columns: 7
+
+Column Names:
+  1. Event_ptr
+  2. Ath_no
+  3. Chute_rank
+  4. Chute_no
+  5. Fin_hand
+  6. Fin_stat
+  7. Fin_Time
+
+📊 Column Analysis:
+  Event_ptr:
+    Types: 
+  Ath_no:
+    Types: 
+  Chute_rank:
+    Types: 
+  Chute_no:
+    Types: 
+  Fin_hand:
+    Types: 
+  Fin_stat:
+    Types: 
+  Fin_Time:
+    Types: 
+
+🔗 Potential Foreign Keys/Pointers:
+  Event_ptr: 0 unique values (from first 100 rows)
+  Ath_no: 0 unique values (from first 100 rows)
+  Chute_no: 0 unique values (from first 100 rows)
+
+================================================================================
+TABLE: Conversions
+================================================================================
+Rows: 0
+Columns: 7
+
+Column Names:
+  1. Event_ptr
+  2. Conv_ltr
+  3. Conv_name
+  4. sign_1
+  5. factor_1
+  6. sign_2
+  7. factor_2
+
+📊 Column Analysis:
+  Event_ptr:
+    Types: 
+  Conv_ltr:
+    Types: 
+  Conv_name:
+    Types: 
+  sign_1:
+    Types: 
+  factor_1:
+    Types: 
+  sign_2:
+    Types: 
+  factor_2:
+    Types: 
+
+🔗 Potential Foreign Keys/Pointers:
+  Event_ptr: 0 unique values (from first 100 rows)
+
+================================================================================
+TABLE: CustomAlleys
+================================================================================
+Rows: 0
+Columns: 3
+
+Column Names:
+  1. event_ptr
+  2. order_no
+  3. alley_name
+
+📊 Column Analysis:
+  event_ptr:
+    Types: 
+  order_no:
+    Types: 
+  alley_name:
+    Types: 
+
+🔗 Potential Foreign Keys/Pointers:
+  event_ptr: 0 unique values (from first 100 rows)
+  order_no: 0 unique values (from first 100 rows)
+
+================================================================================
+TABLE: CustomLanes
+================================================================================
+Rows: 0
+Columns: 14
+
+Column Names:
+  1. event_ptr
+  2. tot_lanes
+  3. order_01
+  4. order_02
+  5. order_03
+  6. order_04
+  7. order_05
+  8. order_06
+  9. order_07
+  10. order_08
+  11. order_09
+  12. order_10
+  13. order_11
+  14. order_12
+
+📊 Column Analysis:
+  event_ptr:
+    Types: 
+  tot_lanes:
+    Types: 
+  order_01:
+    Types: 
+  order_02:
+    Types: 
+  order_03:
+    Types: 
+  order_04:
+    Types: 
+  order_05:
+    Types: 
+  order_06:
+    Types: 
+  order_07:
+    Types: 
+  order_08:
+    Types: 
+  order_09:
+    Types: 
+  order_10:
+    Types: 
+  order_11:
+    Types: 
+  order_12:
+    Types: 
+
+🔗 Potential Foreign Keys/Pointers:
+  event_ptr: 0 unique values (from first 100 rows)
+
+================================================================================
+TABLE: Divisions
+================================================================================
+Rows: 10
+Columns: 10
+
+Column Names:
+  1. Div_no
+  2. Div_name
+  3. low_age
+  4. high_age
+  5. low_yeardate
+  6. high_yeardate
+  7. beg_date
+  8. end_date
+  9. max_entries
+  10. Div_abbr
+
+📝 Sample Row #1:
+{
+  "Div_no": 1,
+  "Div_name": "Varsity",
+  "low_age": null,
+  "high_age": null,
+  "low_yeardate": null,
+  "high_yeardate": null,
+  "beg_date": null,
+  "end_date": null,
+  "max_entries": null,
+  "Div_abbr": "V"
+}
+
+📊 Column Analysis:
+  Div_no:
+    Types: number
+    Samples: 1, 2, 3
+  Div_name:
+    Types: string
+    Samples: "Varsity", "Junior Varsity", " "
+  low_age:
+    Types: null
+  high_age:
+    Types: null
+  low_yeardate:
+    Types: null
+  high_yeardate:
+    Types: null
+  beg_date:
+    Types: null
+  end_date:
+    Types: null
+  max_entries:
+    Types: null
+  Div_abbr:
+    Types: string
+    Samples: "V", "JV", " "
+
+🔗 Potential Foreign Keys/Pointers:
+  Div_no: 10 unique values (from first 100 rows)
+
+================================================================================
+TABLE: Dualteams
+================================================================================
+Rows: 0
+Columns: 3
+
+Column Names:
+  1. team_gender
+  2. ateam_no
+  3. bteam_no
+
+📊 Column Analysis:
+  team_gender:
+    Types: 
+  ateam_no:
+    Types: 
+  bteam_no:
+    Types: 
+
+🔗 Potential Foreign Keys/Pointers:
+  ateam_no: 0 unique values (from first 100 rows)
+  bteam_no: 0 unique values (from first 100 rows)
+
+================================================================================
+TABLE: Entry
+================================================================================
+Rows: 3355
+Columns: 107
+
+Column Names:
+  1. Event_ptr
+  2. Ath_no
+  3. ActSeed_course
+  4. ActualSeed_time
+  5. ConvSeed_course
+  6. ConvSeed_time
+  7. Hand_time
+  8. Team_age
+  9. Conv_ltr
+  10. Seed_place
+  11. Scr_stat
+  12. Spec_stat
+  13. Dec_stat
+  14. Alt_stat
+  15. Bonus_event
+  16. Div_no
+  17. Ev_score
+  18. JDEv_score
+  19. dq_type
+  20. Pre_heat
+  21. Pre_lane
+  22. unPre_heat
+  23. unPre_lane
+  24. Pre_hand
+  25. Pre_stat
+  26. Pre_Time
+  27. Pre_course
+  28. Pre_heatplace
+  29. Pre_jdheatplace
+  30. Pre_place
+  31. Pre_jdplace
+  32. Pre_exh
+  33. Pre_wind
+  34. Pre_points
+  35. Pre_agegrade
+  36. Pre_percent
+  37. Fin_heat
+  38. Fin_lane
+  39. unFin_heat
+  40. unFin_lane
+  41. Fin_hand
+  42. Fin_group
+  43. Fin_stat
+  44. Fin_Time
+  45. Fin_course
+  46. Fin_heatplace
+  47. Fin_jdheatplace
+  48. Fin_place
+  49. Fin_jdplace
+  50. Fin_ptsplace
+  51. Fin_award
+  52. Fin_exh
+  53. Fin_wind
+  54. Fin_points
+  55. Fin_agegrade
+  56. Fin_percent
+  57. Sem_heat
+  58. Sem_lane
+  59. unSem_heat
+  60. unSem_lane
+  61. Sem_hand
+  62. Sem_stat
+  63. Sem_Time
+  64. Sem_course
+  65. Sem_heatplace
+  66. sem_jdheatplace
+  67. Sem_place
+  68. Sem_jdplace
+  69. Sem_exh
+  70. Sem_wind
+  71. Sem_points
+  72. Sem_agegrade
+  73. Sem_percent
+  74. Qtr_heat
+  75. Qtr_lane
+  76. unQtr_heat
+  77. unQtr_lane
+  78. Qtr_hand
+  79. Qtr_stat
+  80. Qtr_Time
+  81. Qtr_course
+  82. Qtr_heatplace
+  83. Qtr_jdheatplace
+  84. Qtr_place
+  85. Qtr_jdplace
+  86. Qtr_exh
+  87. Qtr_wind
+  88. Qtr_points
+  89. Qtr_agegrade
+  90. Qtr_percent
+  91. entry_note
+  92. Team_ltr
+  93. Pre_note
+  94. Qtr_note
+  95. Sem_note
+  96. Fin_note
+  97. Video_time
+  98. Pre_video
+  99. Fin_video
+  100. Sem_video
+  101. Qtr_video
+  102. fin_dqofficial
+  103. pre_dqofficial
+  104. sem_dqofficial
+  105. qtr_dqofficial
+  106. ent_op_datetime
+  107. scr_op_datetime
+
+📝 Sample Row #1:
+{
+  "Event_ptr": 27,
+  "Ath_no": 54836,
+  "ActSeed_course": "M",
+  "ActualSeed_time": 671.2100219726562,
+  "ConvSeed_course": "M",
+  "ConvSeed_time": 671.2100219726562,
+  "Hand_time": false,
+  "Team_age": null,
+  "Conv_ltr": " ",
+  "Seed_place": 0,
+  "Scr_stat": false,
+  "Spec_stat": null,
+  "Dec_stat": "D",
+  "Alt_stat": false,
+  "Bonus_event": false,
+  "Div_no": null,
+  "Ev_score": null,
+  "JDEv_score": null,
+  "dq_type": null,
+  "Pre_heat": null,
+  "Pre_lane": null,
+  "unPre_heat": null,
+  "unPre_lane": null,
+  "Pre_hand": false,
+  "Pre_stat": null,
+  "Pre_Time": null,
+  "Pre_course": null,
+  "Pre_heatplace": null,
+  "Pre_jdheatplace": null,
+  "Pre_place": null,
+  "Pre_jdplace": null,
+  "Pre_exh": null,
+  "Pre_wind": null,
+  "Pre_points": null,
+  "Pre_agegrade": null,
+  "Pre_percent": null,
+  "Fin_heat": 2,
+  "Fin_lane": 9,
+  "unFin_heat": null,
+  "unFin_lane": null,
+  "Fin_hand": false,
+  "Fin_group": null,
+  "Fin_stat": null,
+  "Fin_Time": null,
+  "Fin_course": null,
+  "Fin_heatplace": null,
+  "Fin_jdheatplace": null,
+  "Fin_place": null,
+  "Fin_jdplace": null,
+  "Fin_ptsplace": null,
+  "Fin_award": null,
+  "Fin_exh": null,
+  "Fin_wind": null,
+  "Fin_points": null,
+  "Fin_agegrade": null,
+  "Fin_percent": null,
+  "Sem_heat": null,
+  "Sem_lane": null,
+  "unSem_heat": null,
+  "unSem_lane": null,
+  "Sem_hand": false,
+  "Sem_stat": null,
+  "Sem_Time": null,
+  "Sem_course": null,
+  "Sem_heatplace": null,
+  "sem_jdheatplace": null,
+  "Sem_place": null,
+  "Sem_jdplace": null,
+  "Sem_exh": null,
+  "Sem_wind": null,
+  "Sem_points": null,
+  "Sem_agegrade": null,
+  "Sem_percent": null,
+  "Qtr_heat": null,
+  "Qtr_lane": null,
+  "unQtr_heat": null,
+  "unQtr_lane": null,
+  "Qtr_hand": false,
+  "Qtr_stat": null,
+  "Qtr_Time": null,
+  "Qtr_course": null,
+  "Qtr_heatplace": null,
+  "Qtr_jdheatplace": null,
+  "Qtr_place": null,
+  "Qtr_jdplace": null,
+  "Qtr_exh": null,
+  "Qtr_wind": null,
+  "Qtr_points": null,
+  "Qtr_agegrade": null,
+  "Qtr_percent": null,
+  "entry_note": "Bison Outdoor Classic (4/14/2023)",
+  "Team_ltr": null,
+  "Pre_note": null,
+  "Qtr_note": null,
+  "Sem_note": null,
+  "Fin_note": null,
+  "Video_time": false,
+  "Pre_video": false,
+  "Fin_video": false,
+  "Sem_video": false,
+  "Qtr_video": false,
+  "fin_dqofficial": null,
+  "pre_dqofficial": null,
+  "sem_dqofficial": null,
+  "qtr_dqofficial": null,
+  "ent_op_datetime": "2024-04-10T11:10:37.000Z",
+  "scr_op_datetime": "2024-04-10T11:10:37.000Z"
+}
+
+📊 Column Analysis:
+  Event_ptr:
+    Types: number
+    Samples: 27, 20, 24
+  Ath_no:
+    Types: number
+    Samples: 54836, 54837, 54838
+  ActSeed_course:
+    Types: string
+    Samples: "M"
+  ActualSeed_time:
+    Types: number
+    Samples: 671.2100219726562, 11.279999732971191, 23.170000076293945
+  ConvSeed_course:
+    Types: string
+    Samples: "M"
+  ConvSeed_time:
+    Types: number
+    Samples: 671.2100219726562, 11.279999732971191, 23.170000076293945
+  Hand_time:
+    Types: boolean
+    Samples: false
+  Team_age:
+    Types: null
+  Conv_ltr:
+    Types: string
+    Samples: " "
+  Seed_place:
+    Types: number | null
+    Samples: 0
+  Scr_stat:
+    Types: boolean
+    Samples: false
+  Spec_stat:
+    Types: null
+  Dec_stat:
+    Types: string | null
+    Samples: "D"
+  Alt_stat:
+    Types: boolean
+    Samples: false
+  Bonus_event:
+    Types: boolean
+    Samples: false
+  Div_no:
+    Types: null | number
+    Samples: 0
+  Ev_score:
+    Types: null
+  JDEv_score:
+    Types: null
+  dq_type:
+    Types: null
+  Pre_heat:
+    Types: null
+  Pre_lane:
+    Types: null
+  unPre_heat:
+    Types: null
+  unPre_lane:
+    Types: null
+  Pre_hand:
+    Types: boolean
+    Samples: false
+  Pre_stat:
+    Types: null
+  Pre_Time:
+    Types: null
+  Pre_course:
+    Types: null
+  Pre_heatplace:
+    Types: null
+  Pre_jdheatplace:
+    Types: null
+  Pre_place:
+    Types: null
+  Pre_jdplace:
+    Types: null
+  Pre_exh:
+    Types: null
+  Pre_wind:
+    Types: null
+  Pre_points:
+    Types: null
+  Pre_agegrade:
+    Types: null
+  Pre_percent:
+    Types: null
+  Fin_heat:
+    Types: number | null
+    Samples: 2, 13, 1
+  Fin_lane:
+    Types: number | null
+    Samples: 9, 2, 1
+  unFin_heat:
+    Types: null
+  unFin_lane:
+    Types: null
+  Fin_hand:
+    Types: boolean
+    Samples: false
+  Fin_group:
+    Types: null
+  Fin_stat:
+    Types: null
+  Fin_Time:
+    Types: null
+  Fin_course:
+    Types: null
+  Fin_heatplace:
+    Types: null
+  Fin_jdheatplace:
+    Types: null
+  Fin_place:
+    Types: null
+  Fin_jdplace:
+    Types: null
+  Fin_ptsplace:
+    Types: null
+  Fin_award:
+    Types: null
+  Fin_exh:
+    Types: null
+  Fin_wind:
+    Types: null
+  Fin_points:
+    Types: null
+  Fin_agegrade:
+    Types: null
+  Fin_percent:
+    Types: null
+  Sem_heat:
+    Types: null
+  Sem_lane:
+    Types: null
+  unSem_heat:
+    Types: null
+  unSem_lane:
+    Types: null
+  Sem_hand:
+    Types: boolean
+    Samples: false
+  Sem_stat:
+    Types: null
+  Sem_Time:
+    Types: null
+  Sem_course:
+    Types: null
+  Sem_heatplace:
+    Types: null
+  sem_jdheatplace:
+    Types: null
+  Sem_place:
+    Types: null
+  Sem_jdplace:
+    Types: null
+  Sem_exh:
+    Types: null
+  Sem_wind:
+    Types: null
+  Sem_points:
+    Types: null
+  Sem_agegrade:
+    Types: null
+  Sem_percent:
+    Types: null
+  Qtr_heat:
+    Types: null
+  Qtr_lane:
+    Types: null
+  unQtr_heat:
+    Types: null
+  unQtr_lane:
+    Types: null
+  Qtr_hand:
+    Types: boolean
+    Samples: false
+  Qtr_stat:
+    Types: null
+  Qtr_Time:
+    Types: null
+  Qtr_course:
+    Types: null
+  Qtr_heatplace:
+    Types: null
+  Qtr_jdheatplace:
+    Types: null
+  Qtr_place:
+    Types: null
+  Qtr_jdplace:
+    Types: null
+  Qtr_exh:
+    Types: null
+  Qtr_wind:
+    Types: null
+  Qtr_points:
+    Types: null
+  Qtr_agegrade:
+    Types: null
+  Qtr_percent:
+    Types: null
+  entry_note:
+    Types: string | null
+    Samples: "Bison Outdoor Classic (4/14/2023)", "28th Annual Monmouth University Track & Field Seas", "Northeast-10 Indoor Track & Field Championships (2"
+  Team_ltr:
+    Types: null
+  Pre_note:
+    Types: null
+  Qtr_note:
+    Types: null
+  Sem_note:
+    Types: null
+  Fin_note:
+    Types: null
+  Video_time:
+    Types: boolean
+    Samples: false
+  Pre_video:
+    Types: boolean
+    Samples: false
+  Fin_video:
+    Types: boolean
+    Samples: false
+  Sem_video:
+    Types: boolean
+    Samples: false
+  Qtr_video:
+    Types: boolean
+    Samples: false
+  fin_dqofficial:
+    Types: null
+  pre_dqofficial:
+    Types: null
+  sem_dqofficial:
+    Types: null
+  qtr_dqofficial:
+    Types: null
+  ent_op_datetime:
+    Types: Date
+    Samples: 2024-04-10T11:10:37.000Z, 2024-04-11T14:30:11.000Z
+  scr_op_datetime:
+    Types: Date
+    Samples: 2024-04-10T11:10:37.000Z, 2024-04-11T14:30:11.000Z
+
+🔗 Potential Foreign Keys/Pointers:
+  Event_ptr: 36 unique values (from first 100 rows)
+  Ath_no: 82 unique values (from first 100 rows)
+  Div_no: 1 unique values (from first 100 rows)
+  entry_note: 44 unique values (from first 100 rows)
+  Pre_note: 0 unique values (from first 100 rows)
+  Qtr_note: 0 unique values (from first 100 rows)
+  Sem_note: 0 unique values (from first 100 rows)
+  Fin_note: 0 unique values (from first 100 rows)
+
+================================================================================
+TABLE: Entrymulti
+================================================================================
+Rows: 294
+Columns: 35
+
+Column Names:
+  1. Event_ptr
+  2. Mult_ptr
+  3. Ath_no
+  4. ActSeed_course
+  5. ActualSeed_time
+  6. ConvSeed_course
+  7. ConvSeed_time
+  8. Hand_time
+  9. Seed_place
+  10. dq_type
+  11. Fin_heat
+  12. Fin_lane
+  13. unFin_heat
+  14. unFin_lane
+  15. Fin_hand
+  16. Fin_group
+  17. Fin_stat
+  18. Fin_time
+  19. Fin_course
+  20. Fin_heatplace
+  21. Fin_jdheatplace
+  22. Fin_place
+  23. Fin_jdplace
+  24. Fin_ptsplace
+  25. Fin_award
+  26. Fin_exh
+  27. Fin_wind
+  28. Fin_points
+  29. Fin_agegrade
+  30. Fin_percent
+  31. Fin_note
+  32. Video_time
+  33. Fin_video
+  34. fin_dqofficial
+  35. Div_no
+
+📝 Sample Row #1:
+{
+  "Event_ptr": 75,
+  "Mult_ptr": 1,
+  "Ath_no": 56166,
+  "ActSeed_course": null,
+  "ActualSeed_time": null,
+  "ConvSeed_course": null,
+  "ConvSeed_time": null,
+  "Hand_time": false,
+  "Seed_place": null,
+  "dq_type": null,
+  "Fin_heat": 2,
+  "Fin_lane": 4,
+  "unFin_heat": null,
+  "unFin_lane": null,
+  "Fin_hand": false,
+  "Fin_group": null,
+  "Fin_stat": null,
+  "Fin_time": null,
+  "Fin_course": null,
+  "Fin_heatplace": null,
+  "Fin_jdheatplace": null,
+  "Fin_place": null,
+  "Fin_jdplace": null,
+  "Fin_ptsplace": null,
+  "Fin_award": null,
+  "Fin_exh": null,
+  "Fin_wind": null,
+  "Fin_points": null,
+  "Fin_agegrade": null,
+  "Fin_percent": null,
+  "Fin_note": null,
+  "Video_time": false,
+  "Fin_video": false,
+  "fin_dqofficial": null,
+  "Div_no": null
+}
+
+📊 Column Analysis:
+  Event_ptr:
+    Types: number
+    Samples: 75
+  Mult_ptr:
+    Types: number
+    Samples: 1
+  Ath_no:
+    Types: number
+    Samples: 56166, 56017, 60239
+  ActSeed_course:
+    Types: null
+  ActualSeed_time:
+    Types: null
+  ConvSeed_course:
+    Types: null
+  ConvSeed_time:
+    Types: null
+  Hand_time:
+    Types: boolean
+    Samples: false
+  Seed_place:
+    Types: null
+  dq_type:
+    Types: null
+  Fin_heat:
+    Types: number
+    Samples: 2, 1
+  Fin_lane:
+    Types: number
+    Samples: 4, 5, 3
+  unFin_heat:
+    Types: null
+  unFin_lane:
+    Types: null
+  Fin_hand:
+    Types: boolean
+    Samples: false
+  Fin_group:
+    Types: null
+  Fin_stat:
+    Types: null
+  Fin_time:
+    Types: null
+  Fin_course:
+    Types: null
+  Fin_heatplace:
+    Types: null
+  Fin_jdheatplace:
+    Types: null
+  Fin_place:
+    Types: null
+  Fin_jdplace:
+    Types: null
+  Fin_ptsplace:
+    Types: null
+  Fin_award:
+    Types: null
+  Fin_exh:
+    Types: null
+  Fin_wind:
+    Types: null
+  Fin_points:
+    Types: null
+  Fin_agegrade:
+    Types: null
+  Fin_percent:
+    Types: null
+  Fin_note:
+    Types: null
+  Video_time:
+    Types: boolean
+    Samples: false
+  Fin_video:
+    Types: boolean
+    Samples: false
+  fin_dqofficial:
+    Types: null
+  Div_no:
+    Types: null
+
+🔗 Potential Foreign Keys/Pointers:
+  Event_ptr: 1 unique values (from first 100 rows)
+  Mult_ptr: 8 unique values (from first 100 rows)
+  Ath_no: 14 unique values (from first 100 rows)
+  Fin_note: 0 unique values (from first 100 rows)
+  Div_no: 0 unique values (from first 100 rows)
+
+================================================================================
+TABLE: Event
+================================================================================
+Rows: 56
+Columns: 69
+
+Column Names:
+  1. Event_no
+  2. Event_ltr
+  3. Event_ptr
+  4. Ind_rel
+  5. Event_sex
+  6. Event_gender
+  7. Event_dist
+  8. Event_stroke
+  9. Low_age
+  10. High_Age
+  11. Multi_age
+  12. Event_stat
+  13. Unseeded_stat
+  14. Adv_How
+  15. Serp_Type
+  16. Trk_Field
+  17. Seed_Meas
+  18. Res_Meas
+  19. Event_rounds
+  20. Num_prelanes
+  21. Num_finlanes
+  22. Finals_setup
+  23. Heats_infinal
+  24. Heats_insemi
+  25. Heats_inqtr
+  26. Std_lanes
+  27. Auto_seed
+  28. Preheat_order
+  29. Finheat_order
+  30. Score_event
+  31. Div_no
+  32. Relay_size
+  33. Comm_1
+  34. Comm_2
+  35. Comm_3
+  36. Comm_4
+  37. Entry_fee
+  38. Is_locked
+  39. Locked_by
+  40. Event_Type
+  41. Locked_list
+  42. Rnd1_alleys
+  43. Rnd2_alleys
+  44. Rnd3_alleys
+  45. Rnd4_alleys
+  46. Pre_time
+  47. Qtr_time
+  48. Sem_time
+  49. Fin_time
+  50. event_note
+  51. Top_no1
+  52. Next_Best1
+  53. Heatsin_Rnd1
+  54. Top_no2
+  55. Next_Best2
+  56. Heatsin_Rnd2
+  57. Top_no3
+  58. Next_Best3
+  59. Heatsin_Rnd3
+  60. add_sponsor
+  61. Fin_AwardsPrinted
+  62. Pre_AwardsPrinted
+  63. Sem_AwardsPrinted
+  64. Qtr_AwardsPrinted
+  65. CCracestart_date
+  66. CCracestart_time
+  67. Num_semlanes
+  68. Num_qtrlanes
+  69. Event_Type2
+
+📝 Sample Row #1:
+{
+  "Event_no": 9,
+  "Event_ltr": " ",
+  "Event_ptr": 3,
+  "Ind_rel": "I",
+  "Event_sex": "W",
+  "Event_gender": "F",
+  "Event_dist": 1500,
+  "Event_stroke": "B",
+  "Low_age": 0,
+  "High_Age": 109,
+  "Multi_age": false,
+  "Event_stat": "1",
+  "Unseeded_stat": null,
+  "Adv_How": "1",
+  "Serp_Type": "1",
+  "Trk_Field": "T",
+  "Seed_Meas": "M",
+  "Res_Meas": "M",
+  "Event_rounds": 1,
+  "Num_prelanes": 22,
+  "Num_finlanes": 8,
+  "Finals_setup": "A",
+  "Heats_infinal": 1,
+  "Heats_insemi": 0,
+  "Heats_inqtr": 0,
+  "Std_lanes": "3",
+  "Auto_seed": true,
+  "Preheat_order": "B",
+  "Finheat_order": "A",
+  "Score_event": false,
+  "Div_no": 0,
+  "Relay_size": 0,
+  "Comm_1": "Heats 5, 6, 7 Invite Heats to be run at 8:10",
+  "Comm_2": " ",
+  "Comm_3": " ",
+  "Comm_4": " ",
+  "Entry_fee": "0.0000",
+  "Is_locked": false,
+  "Locked_by": " ",
+  "Event_Type": " ",
+  "Locked_list": "0",
+  "Rnd1_alleys": null,
+  "Rnd2_alleys": null,
+  "Rnd3_alleys": null,
+  "Rnd4_alleys": null,
+  "Pre_time": null,
+  "Qtr_time": null,
+  "Sem_time": null,
+  "Fin_time": null,
+  "event_note": "Invite      ",
+  "Top_no1": null,
+  "Next_Best1": null,
+  "Heatsin_Rnd1": null,
+  "Top_no2": null,
+  "Next_Best2": null,
+  "Heatsin_Rnd2": null,
+  "Top_no3": null,
+  "Next_Best3": null,
+  "Heatsin_Rnd3": null,
+  "add_sponsor": false,
+  "Fin_AwardsPrinted": false,
+  "Pre_AwardsPrinted": false,
+  "Sem_AwardsPrinted": false,
+  "Qtr_AwardsPrinted": false,
+  "CCracestart_date": null,
+  "CCracestart_time": null,
+  "Num_semlanes": 0,
+  "Num_qtrlanes": 0,
+  "Event_Type2": 0
+}
+
+📊 Column Analysis:
+  Event_no:
+    Types: number
+    Samples: 9, 5, 6
+  Event_ltr:
+    Types: string
+    Samples: " "
+  Event_ptr:
+    Types: number
+    Samples: 3, 5, 6
+  Ind_rel:
+    Types: string
+    Samples: "I", "R"
+  Event_sex:
+    Types: string
+    Samples: "W", "M"
+  Event_gender:
+    Types: string
+    Samples: "F", "M"
+  Event_dist:
+    Types: number
+    Samples: 1500, 3000, 5000
+  Event_stroke:
+    Types: string
+    Samples: "B", "H", "W"
+  Low_age:
+    Types: number
+    Samples: 0
+  High_Age:
+    Types: number
+    Samples: 109
+  Multi_age:
+    Types: boolean
+    Samples: false
+  Event_stat:
+    Types: string
+    Samples: "1"
+  Unseeded_stat:
+    Types: null
+  Adv_How:
+    Types: string
+    Samples: "1"
+  Serp_Type:
+    Types: string
+    Samples: "1"
+  Trk_Field:
+    Types: string
+    Samples: "T"
+  Seed_Meas:
+    Types: string
+    Samples: "M"
+  Res_Meas:
+    Types: string
+    Samples: "M"
+  Event_rounds:
+    Types: number
+    Samples: 1
+  Num_prelanes:
+    Types: number
+    Samples: 22, 19, 20
+  Num_finlanes:
+    Types: number
+    Samples: 8
+  Finals_setup:
+    Types: string
+    Samples: "A"
+  Heats_infinal:
+    Types: number
+    Samples: 1
+  Heats_insemi:
+    Types: number
+    Samples: 0
+  Heats_inqtr:
+    Types: number
+    Samples: 0
+  Std_lanes:
+    Types: string
+    Samples: "3", "6", "1"
+  Auto_seed:
+    Types: boolean
+    Samples: true
+  Preheat_order:
+    Types: string
+    Samples: "B", "A"
+  Finheat_order:
+    Types: string
+    Samples: "A"
+  Score_event:
+    Types: boolean
+    Samples: false
+  Div_no:
+    Types: number
+    Samples: 0
+  Relay_size:
+    Types: number
+    Samples: 0, 4
+  Comm_1:
+    Types: string | null
+    Samples: "Heats 5, 6, 7 Invite Heats to be run at 8:10", "Heat 3 Invite Heat to be run at 8:45", " "
+  Comm_2:
+    Types: string | null
+    Samples: " "
+  Comm_3:
+    Types: string | null
+    Samples: " "
+  Comm_4:
+    Types: string | null
+    Samples: " "
+  Entry_fee:
+    Types: string
+    Samples: "0.0000"
+  Is_locked:
+    Types: boolean
+    Samples: false
+  Locked_by:
+    Types: string
+    Samples: " "
+  Event_Type:
+    Types: string
+    Samples: " "
+  Locked_list:
+    Types: string
+    Samples: "0"
+  Rnd1_alleys:
+    Types: null
+  Rnd2_alleys:
+    Types: null
+  Rnd3_alleys:
+    Types: null
+  Rnd4_alleys:
+    Types: null
+  Pre_time:
+    Types: null
+  Qtr_time:
+    Types: null
+  Sem_time:
+    Types: null
+  Fin_time:
+    Types: null
+  event_note:
+    Types: string
+    Samples: "Invite      ", "            ", "Unseeded    "
+  Top_no1:
+    Types: null
+  Next_Best1:
+    Types: null
+  Heatsin_Rnd1:
+    Types: null
+  Top_no2:
+    Types: null
+  Next_Best2:
+    Types: null
+  Heatsin_Rnd2:
+    Types: null
+  Top_no3:
+    Types: null
+  Next_Best3:
+    Types: null
+  Heatsin_Rnd3:
+    Types: null
+  add_sponsor:
+    Types: boolean
+    Samples: false
+  Fin_AwardsPrinted:
+    Types: boolean
+    Samples: false
+  Pre_AwardsPrinted:
+    Types: boolean
+    Samples: false
+  Sem_AwardsPrinted:
+    Types: boolean
+    Samples: false
+  Qtr_AwardsPrinted:
+    Types: boolean
+    Samples: false
+  CCracestart_date:
+    Types: null
+  CCracestart_time:
+    Types: null
+  Num_semlanes:
+    Types: number
+    Samples: 0
+  Num_qtrlanes:
+    Types: number
+    Samples: 0
+  Event_Type2:
+    Types: number
+    Samples: 0
+
+🔗 Potential Foreign Keys/Pointers:
+  Event_no: 56 unique values (from first 100 rows)
+  Event_ptr: 56 unique values (from first 100 rows)
+  Div_no: 1 unique values (from first 100 rows)
+  event_note: 5 unique values (from first 100 rows)
+  Top_no1: 0 unique values (from first 100 rows)
+  Top_no2: 0 unique values (from first 100 rows)
+  Top_no3: 0 unique values (from first 100 rows)
+
+================================================================================
+TABLE: Eventmulti
+================================================================================
+Rows: 24
+Columns: 23
+
+Column Names:
+  1. MultiEvent_no
+  2. Event_ptr
+  3. Mult_ptr
+  4. Multi_table
+  5. Event_dist
+  6. Event_stroke
+  7. Event_stat
+  8. Serp_Type
+  9. Trk_Field
+  10. Res_Meas
+  11. Num_finlanes
+  12. Std_lanes
+  13. Finheat_order
+  14. Comm_1
+  15. Comm_2
+  16. Is_locked
+  17. Locked_by
+  18. Locked_list
+  19. event_note
+  20. Auto_seed
+  21. add_sponsor
+  22. Seed_Meas
+  23. Fin_AwardsPrinted
+
+📝 Sample Row #1:
+{
+  "MultiEvent_no": 1,
+  "Event_ptr": 75,
+  "Mult_ptr": 1,
+  "Multi_table": "1",
+  "Event_dist": 100,
+  "Event_stroke": "A",
+  "Event_stat": "1",
+  "Serp_Type": "1",
+  "Trk_Field": "T",
+  "Res_Meas": "M",
+  "Num_finlanes": 8,
+  "Std_lanes": "1",
+  "Finheat_order": "A",
+  "Comm_1": null,
+  "Comm_2": null,
+  "Is_locked": false,
+  "Locked_by": null,
+  "Locked_list": null,
+  "event_note": " ",
+  "Auto_seed": true,
+  "add_sponsor": false,
+  "Seed_Meas": null,
+  "Fin_AwardsPrinted": false
+}
+
+📊 Column Analysis:
+  MultiEvent_no:
+    Types: number
+    Samples: 1, 2, 3
+  Event_ptr:
+    Types: number
+    Samples: 75
+  Mult_ptr:
+    Types: number
+    Samples: 1, 2, 3
+  Multi_table:
+    Types: string
+    Samples: "1"
+  Event_dist:
+    Types: number
+    Samples: 100, 0, 400
+  Event_stroke:
+    Types: string
+    Samples: "A", "M", "R"
+  Event_stat:
+    Types: string
+    Samples: "1"
+  Serp_Type:
+    Types: string
+    Samples: "1", "3"
+  Trk_Field:
+    Types: string
+    Samples: "T", "F"
+  Res_Meas:
+    Types: string
+    Samples: "M"
+  Num_finlanes:
+    Types: number
+    Samples: 8, 16, 17
+  Std_lanes:
+    Types: string
+    Samples: "1"
+  Finheat_order:
+    Types: string
+    Samples: "A", "B"
+  Comm_1:
+    Types: null
+  Comm_2:
+    Types: null
+  Is_locked:
+    Types: boolean
+    Samples: false
+  Locked_by:
+    Types: null
+  Locked_list:
+    Types: null
+  event_note:
+    Types: string
+    Samples: " "
+  Auto_seed:
+    Types: boolean
+    Samples: true
+  add_sponsor:
+    Types: boolean
+    Samples: false
+  Seed_Meas:
+    Types: null
+  Fin_AwardsPrinted:
+    Types: boolean
+    Samples: false
+
+🔗 Potential Foreign Keys/Pointers:
+  MultiEvent_no: 10 unique values (from first 100 rows)
+  Event_ptr: 3 unique values (from first 100 rows)
+  Mult_ptr: 24 unique values (from first 100 rows)
+  event_note: 1 unique values (from first 100 rows)
+
+================================================================================
+TABLE: Meet
+================================================================================
+Rows: 1
+Columns: 173
+
+Column Names:
+  1. win_tfmm
+  2. Meet_location
+  3. Meet_start
+  4. Meet_end
+  5. Meet_kind
+  6. Meet_class
+  7. Meet_meettype
+  8. meet_meetstyle
+  9. usedivision_birthdateranges
+  10. fieldevent_relays
+  11. runningevent_relays
+  12. random_select
+  13. Enter_ages
+  14. Enter_birthdate
+  15. Calc_date
+  16. Enter_schoolyr
+  17. enter_middleinitial
+  18. show_initial
+  19. enter_athstat
+  20. showathlete_status
+  21. enter_regno
+  22. enter_citizenof
+  23. Use_hometown
+  24. Show_countrycode
+  25. Lastname_first
+  26. firstname_asinitial
+  27. showbirthyear_insteadofage
+  28. Punct_names
+  29. Punct_teams
+  30. ucase_names
+  31. ucase_teams
+  32. open_senior_none
+  33. Punct_recholders
+  34. ucase_recholders
+  35. language_choice
+  36. military_time
+  37. enterkey_astab
+  38. A_Relaysonly
+  39. allowsameevent_duprelaynames
+  40. anyone_onrelay
+  41. suppress_Arelay
+  42. score_Arelayonly
+  43. foreign_infinal
+  44. foreign_getteampoints
+  45. exh_infinal
+  46. seed_exhlast
+  47. exhibition_getfinalsrank
+  48. foreign_treatasexhibition
+  49. dual_evenodd
+  50. strict_evenodd
+  51. team_evenlanes
+  52. team_oddlanes
+  53. Scores_afterevt
+  54. useeventsex_teamscore
+  55. thrucurrentevt_teamscore
+  56. diffpts_malefemale
+  57. diffpts_eachdivision
+  58. scoreonly_ifexceedqualtime
+  59. score_fastestheatonly
+  60. addqtrrelaypts_toindscore
+  61. compno_uniqueness
+  62. use_compnumbers
+  63. autoinc_compno
+  64. entryqual_faster
+  65. indentryfee_surcharge
+  66. swimmer_surcharge
+  67. indmaxscorers_perteam
+  68. relmaxscorers_perteam
+  69. indtopmany_awards
+  70. reltopmany_awards
+  71. entrymax_total
+  72. trkmax_perath
+  73. fldmax_perath
+  74. entrylimits_warn
+  75. check_times
+  76. report_excludemeetname
+  77. report_excludemeetname2
+  78. report_excludelocation
+  79. under120_asseconds
+  80. showAlternate_EventNumbers
+  81. under_eventname
+  82. suppress_smallx
+  83. showFieldEvent_Conversions
+  84. record_windreadings
+  85. converthand_toFAT
+  86. use_declarationmethod
+  87. noteswith_eachentry
+  88. showfinishplace_withentry
+  89. roundresults_uptotenths
+  90. rounddown_toevencentimeter
+  91. rank_agegraded
+  92. stdevt_oneyragegrade
+  93. multievt_fiveyragegrade
+  94. show_AgeGrade
+  95. ccnonteam_displace
+  96. ccdynamic_scoring
+  97. xccminimum_onteam
+  98. xccmaxscorers_perteam
+  99. xccnumberdisplacers_perteam
+  100. xccpenalty_points
+  101. xrrnumber_teamscorers
+  102. fldrelnumber_teamscorers
+  103. runrelnumber_teamscorers
+  104. Meet_idformat
+  105. Meet_course
+  106. meet_numlanes
+  107. prelimheats_circle
+  108. timedfinal_circleseed
+  109. timedfinal_randrule
+  110. round1_randrule
+  111. round234_randrule
+  112. round1_closegaps
+  113. ncaa_rule105a
+  114. apnews_team
+  115. suppress_age
+  116. suppress_jd
+  117. linkteams_todivisions
+  118. team_surcharge
+  119. meet_arena
+  120. show_hometownandteam
+  121. incl_meetdate
+  122. Use_AltTeamAbbr
+  123. FieldRelayUnderSize_CanScore
+  124. suppress_UNATeamName
+  125. DA_meethandle
+  126. DA_unpubmeethandle
+  127. DA_meetsport
+  128. Read_Only
+  129. dualteam_lane1
+  130. dualteam_lane2
+  131. dualteam_lane3
+  132. dualteam_lane4
+  133. dualteam_lane5
+  134. dualteam_lane6
+  135. dualteam_lane7
+  136. dualteam_lane8
+  137. dualteam_lane9
+  138. dualteam_lane10
+  139. strict_evenoddfastestheatonly
+  140. dualseeding_altunusedlane
+  141. Display_ActualEntryTime
+  142. indmaxadvance_perteam
+  143. relmaxadvance_perteam
+  144. Facility_Surcharge
+  145. Suppress_X
+  146. Suppress_TimeStdAbbr
+  147. Dual_InLaneRacesOnly
+  148. xccPenaltyPts_LastPlusOne
+  149. xrrTopMany_ExcludeFromAgeResults
+  150. useX_forFoul
+  151. Show_ChipID
+  152. Enter_birthcentury
+  153. DisplayNTfor_TimesUnder5Sec
+  154. SortTeamCombos_ByTeamName
+  155. RelaysShow_TotalDistance
+  156. Meet_addr1
+  157. Meet_addr2
+  158. Meet_city
+  159. Meet_state
+  160. Meet_zip
+  161. Meet_country
+  162. CCRRroundUpTo_NearestSecond
+  163. Meet_Host
+  164. Meet_Director
+  165. Meet_Referee
+  166. Meet_Timer
+  167. Meet_Starter
+  168. Meet_name1
+  169. Meet_name2
+  170. special_parapoints
+  171. Competition_Code
+  172. RankDisabled_ByPoints
+  173. ccShowDNFWhenLess
+
+📝 Sample Row #1:
+{
+  "win_tfmm": false,
+  "Meet_location": "Bucknell University",
+  "Meet_start": "2024-04-12T00:00:00.000Z",
+  "Meet_end": "2024-04-14T00:00:00.000Z",
+  "Meet_kind": 1,
+  "Meet_class": 2,
+  "Meet_meettype": 1,
+  "meet_meetstyle": 1,
+  "usedivision_birthdateranges": false,
+  "fieldevent_relays": false,
+  "runningevent_relays": false,
+  "random_select": false,
+  "Enter_ages": false,
+  "Enter_birthdate": false,
+  "Calc_date": "2024-04-12T00:00:00.000Z",
+  "Enter_schoolyr": false,
+  "enter_middleinitial": false,
+  "show_initial": false,
+  "enter_athstat": false,
+  "showathlete_status": false,
+  "enter_regno": true,
+  "enter_citizenof": false,
+  "Use_hometown": false,
+  "Show_countrycode": false,
+  "Lastname_first": true,
+  "firstname_asinitial": false,
+  "showbirthyear_insteadofage": false,
+  "Punct_names": true,
+  "Punct_teams": true,
+  "ucase_names": false,
+  "ucase_teams": false,
+  "open_senior_none": "N",
+  "Punct_recholders": false,
+  "ucase_recholders": false,
+  "language_choice": "ENGLISH",
+  "military_time": false,
+  "enterkey_astab": false,
+  "A_Relaysonly": false,
+  "allowsameevent_duprelaynames": false,
+  "anyone_onrelay": false,
+  "suppress_Arelay": false,
+  "score_Arelayonly": true,
+  "foreign_infinal": true,
+  "foreign_getteampoints": true,
+  "exh_infinal": true,
+  "seed_exhlast": false,
+  "exhibition_getfinalsrank": false,
+  "foreign_treatasexhibition": false,
+  "dual_evenodd": false,
+  "strict_evenodd": false,
+  "team_evenlanes": 0,
+  "team_oddlanes": 0,
+  "Scores_afterevt": false,
+  "useeventsex_teamscore": false,
+  "thrucurrentevt_teamscore": false,
+  "diffpts_malefemale": false,
+  "diffpts_eachdivision": false,
+  "scoreonly_ifexceedqualtime": false,
+  "score_fastestheatonly": false,
+  "addqtrrelaypts_toindscore": false,
+  "compno_uniqueness": 0,
+  "use_compnumbers": true,
+  "autoinc_compno": true,
+  "entryqual_faster": true,
+  "indentryfee_surcharge": "0.0000",
+  "swimmer_surcharge": "0.0000",
+  "indmaxscorers_perteam": 0,
+  "relmaxscorers_perteam": 0,
+  "indtopmany_awards": 0,
+  "reltopmany_awards": 0,
+  "entrymax_total": 0,
+  "trkmax_perath": 0,
+  "fldmax_perath": 0,
+  "entrylimits_warn": true,
+  "check_times": true,
+  "report_excludemeetname": false,
+  "report_excludemeetname2": false,
+  "report_excludelocation": false,
+  "under120_asseconds": false,
+  "showAlternate_EventNumbers": false,
+  "under_eventname": false,
+  "suppress_smallx": false,
+  "showFieldEvent_Conversions": true,
+  "record_windreadings": true,
+  "converthand_toFAT": false,
+  "use_declarationmethod": false,
+  "noteswith_eachentry": false,
+  "showfinishplace_withentry": false,
+  "roundresults_uptotenths": false,
+  "rounddown_toevencentimeter": false,
+  "rank_agegraded": false,
+  "stdevt_oneyragegrade": false,
+  "multievt_fiveyragegrade": true,
+  "show_AgeGrade": false,
+  "ccnonteam_displace": false,
+  "ccdynamic_scoring": false,
+  "xccminimum_onteam": 5,
+  "xccmaxscorers_perteam": 5,
+  "xccnumberdisplacers_perteam": 2,
+  "xccpenalty_points": 100,
+  "xrrnumber_teamscorers": 3,
+  "fldrelnumber_teamscorers": 3,
+  "runrelnumber_teamscorers": 3,
+  "Meet_idformat": 1,
+  "Meet_course": 1,
+  "meet_numlanes": 8,
+  "prelimheats_circle": 3,
+  "timedfinal_circleseed": false,
+  "timedfinal_randrule": "A",
+  "round1_randrule": "A",
+  "round234_randrule": "A",
+  "round1_closegaps": false,
+  "ncaa_rule105a": false,
+  "apnews_team": "S",
+  "suppress_age": false,
+  "suppress_jd": true,
+  "linkteams_todivisions": false,
+  "team_surcharge": "0.0000",
+  "meet_arena": "O",
+  "show_hometownandteam": false,
+  "incl_meetdate": 0,
+  "Use_AltTeamAbbr": false,
+  "FieldRelayUnderSize_CanScore": false,
+  "suppress_UNATeamName": false,
+  "DA_meethandle": 0,
+  "DA_unpubmeethandle": 0,
+  "DA_meetsport": " ",
+  "Read_Only": false,
+  "dualteam_lane1": null,
+  "dualteam_lane2": null,
+  "dualteam_lane3": null,
+  "dualteam_lane4": null,
+  "dualteam_lane5": null,
+  "dualteam_lane6": null,
+  "dualteam_lane7": null,
+  "dualteam_lane8": null,
+  "dualteam_lane9": null,
+  "dualteam_lane10": null,
+  "strict_evenoddfastestheatonly": false,
+  "dualseeding_altunusedlane": false,
+  "Display_ActualEntryTime": false,
+  "indmaxadvance_perteam": 0,
+  "relmaxadvance_perteam": 0,
+  "Facility_Surcharge": "0.0000",
+  "Suppress_X": false,
+  "Suppress_TimeStdAbbr": false,
+  "Dual_InLaneRacesOnly": false,
+  "xccPenaltyPts_LastPlusOne": false,
+  "xrrTopMany_ExcludeFromAgeResults": 0,
+  "useX_forFoul": false,
+  "Show_ChipID": false,
+  "Enter_birthcentury": false,
+  "DisplayNTfor_TimesUnder5Sec": false,
+  "SortTeamCombos_ByTeamName": false,
+  "RelaysShow_TotalDistance": false,
+  "Meet_addr1": " ",
+  "Meet_addr2": " ",
+  "Meet_city": " ",
+  "Meet_state": " ",
+  "Meet_zip": " ",
+  "Meet_country": "USA",
+  "CCRRroundUpTo_NearestSecond": false,
+  "Meet_Host": null,
+  "Meet_Director": null,
+  "Meet_Referee": null,
+  "Meet_Timer": null,
+  "Meet_Starter": null,
+  "Meet_name1": "Bison Outdoor Classic",
+  "Meet_name2": " ",
+  "special_parapoints": -1,
+  "Competition_Code": null,
+  "RankDisabled_ByPoints": false,
+  "ccShowDNFWhenLess": false
+}
+
+📊 Column Analysis:
+  win_tfmm:
+    Types: boolean
+    Samples: false
+  Meet_location:
+    Types: string
+    Samples: "Bucknell University"
+  Meet_start:
+    Types: Date
+    Samples: 2024-04-12T00:00:00.000Z
+  Meet_end:
+    Types: Date
+    Samples: 2024-04-14T00:00:00.000Z
+  Meet_kind:
+    Types: number
+    Samples: 1
+  Meet_class:
+    Types: number
+    Samples: 2
+  Meet_meettype:
+    Types: number
+    Samples: 1
+  meet_meetstyle:
+    Types: number
+    Samples: 1
+  usedivision_birthdateranges:
+    Types: boolean
+    Samples: false
+  fieldevent_relays:
+    Types: boolean
+    Samples: false
+  runningevent_relays:
+    Types: boolean
+    Samples: false
+  random_select:
+    Types: boolean
+    Samples: false
+  Enter_ages:
+    Types: boolean
+    Samples: false
+  Enter_birthdate:
+    Types: boolean
+    Samples: false
+  Calc_date:
+    Types: Date
+    Samples: 2024-04-12T00:00:00.000Z
+  Enter_schoolyr:
+    Types: boolean
+    Samples: false
+  enter_middleinitial:
+    Types: boolean
+    Samples: false
+  show_initial:
+    Types: boolean
+    Samples: false
+  enter_athstat:
+    Types: boolean
+    Samples: false
+  showathlete_status:
+    Types: boolean
+    Samples: false
+  enter_regno:
+    Types: boolean
+    Samples: true
+  enter_citizenof:
+    Types: boolean
+    Samples: false
+  Use_hometown:
+    Types: boolean
+    Samples: false
+  Show_countrycode:
+    Types: boolean
+    Samples: false
+  Lastname_first:
+    Types: boolean
+    Samples: true
+  firstname_asinitial:
+    Types: boolean
+    Samples: false
+  showbirthyear_insteadofage:
+    Types: boolean
+    Samples: false
+  Punct_names:
+    Types: boolean
+    Samples: true
+  Punct_teams:
+    Types: boolean
+    Samples: true
+  ucase_names:
+    Types: boolean
+    Samples: false
+  ucase_teams:
+    Types: boolean
+    Samples: false
+  open_senior_none:
+    Types: string
+    Samples: "N"
+  Punct_recholders:
+    Types: boolean
+    Samples: false
+  ucase_recholders:
+    Types: boolean
+    Samples: false
+  language_choice:
+    Types: string
+    Samples: "ENGLISH"
+  military_time:
+    Types: boolean
+    Samples: false
+  enterkey_astab:
+    Types: boolean
+    Samples: false
+  A_Relaysonly:
+    Types: boolean
+    Samples: false
+  allowsameevent_duprelaynames:
+    Types: boolean
+    Samples: false
+  anyone_onrelay:
+    Types: boolean
+    Samples: false
+  suppress_Arelay:
+    Types: boolean
+    Samples: false
+  score_Arelayonly:
+    Types: boolean
+    Samples: true
+  foreign_infinal:
+    Types: boolean
+    Samples: true
+  foreign_getteampoints:
+    Types: boolean
+    Samples: true
+  exh_infinal:
+    Types: boolean
+    Samples: true
+  seed_exhlast:
+    Types: boolean
+    Samples: false
+  exhibition_getfinalsrank:
+    Types: boolean
+    Samples: false
+  foreign_treatasexhibition:
+    Types: boolean
+    Samples: false
+  dual_evenodd:
+    Types: boolean
+    Samples: false
+  strict_evenodd:
+    Types: boolean
+    Samples: false
+  team_evenlanes:
+    Types: number
+    Samples: 0
+  team_oddlanes:
+    Types: number
+    Samples: 0
+  Scores_afterevt:
+    Types: boolean
+    Samples: false
+  useeventsex_teamscore:
+    Types: boolean
+    Samples: false
+  thrucurrentevt_teamscore:
+    Types: boolean
+    Samples: false
+  diffpts_malefemale:
+    Types: boolean
+    Samples: false
+  diffpts_eachdivision:
+    Types: boolean
+    Samples: false
+  scoreonly_ifexceedqualtime:
+    Types: boolean
+    Samples: false
+  score_fastestheatonly:
+    Types: boolean
+    Samples: false
+  addqtrrelaypts_toindscore:
+    Types: boolean
+    Samples: false
+  compno_uniqueness:
+    Types: number
+    Samples: 0
+  use_compnumbers:
+    Types: boolean
+    Samples: true
+  autoinc_compno:
+    Types: boolean
+    Samples: true
+  entryqual_faster:
+    Types: boolean
+    Samples: true
+  indentryfee_surcharge:
+    Types: string
+    Samples: "0.0000"
+  swimmer_surcharge:
+    Types: string
+    Samples: "0.0000"
+  indmaxscorers_perteam:
+    Types: number
+    Samples: 0
+  relmaxscorers_perteam:
+    Types: number
+    Samples: 0
+  indtopmany_awards:
+    Types: number
+    Samples: 0
+  reltopmany_awards:
+    Types: number
+    Samples: 0
+  entrymax_total:
+    Types: number
+    Samples: 0
+  trkmax_perath:
+    Types: number
+    Samples: 0
+  fldmax_perath:
+    Types: number
+    Samples: 0
+  entrylimits_warn:
+    Types: boolean
+    Samples: true
+  check_times:
+    Types: boolean
+    Samples: true
+  report_excludemeetname:
+    Types: boolean
+    Samples: false
+  report_excludemeetname2:
+    Types: boolean
+    Samples: false
+  report_excludelocation:
+    Types: boolean
+    Samples: false
+  under120_asseconds:
+    Types: boolean
+    Samples: false
+  showAlternate_EventNumbers:
+    Types: boolean
+    Samples: false
+  under_eventname:
+    Types: boolean
+    Samples: false
+  suppress_smallx:
+    Types: boolean
+    Samples: false
+  showFieldEvent_Conversions:
+    Types: boolean
+    Samples: true
+  record_windreadings:
+    Types: boolean
+    Samples: true
+  converthand_toFAT:
+    Types: boolean
+    Samples: false
+  use_declarationmethod:
+    Types: boolean
+    Samples: false
+  noteswith_eachentry:
+    Types: boolean
+    Samples: false
+  showfinishplace_withentry:
+    Types: boolean
+    Samples: false
+  roundresults_uptotenths:
+    Types: boolean
+    Samples: false
+  rounddown_toevencentimeter:
+    Types: boolean
+    Samples: false
+  rank_agegraded:
+    Types: boolean
+    Samples: false
+  stdevt_oneyragegrade:
+    Types: boolean
+    Samples: false
+  multievt_fiveyragegrade:
+    Types: boolean
+    Samples: true
+  show_AgeGrade:
+    Types: boolean
+    Samples: false
+  ccnonteam_displace:
+    Types: boolean
+    Samples: false
+  ccdynamic_scoring:
+    Types: boolean
+    Samples: false
+  xccminimum_onteam:
+    Types: number
+    Samples: 5
+  xccmaxscorers_perteam:
+    Types: number
+    Samples: 5
+  xccnumberdisplacers_perteam:
+    Types: number
+    Samples: 2
+  xccpenalty_points:
+    Types: number
+    Samples: 100
+  xrrnumber_teamscorers:
+    Types: number
+    Samples: 3
+  fldrelnumber_teamscorers:
+    Types: number
+    Samples: 3
+  runrelnumber_teamscorers:
+    Types: number
+    Samples: 3
+  Meet_idformat:
+    Types: number
+    Samples: 1
+  Meet_course:
+    Types: number
+    Samples: 1
+  meet_numlanes:
+    Types: number
+    Samples: 8
+  prelimheats_circle:
+    Types: number
+    Samples: 3
+  timedfinal_circleseed:
+    Types: boolean
+    Samples: false
+  timedfinal_randrule:
+    Types: string
+    Samples: "A"
+  round1_randrule:
+    Types: string
+    Samples: "A"
+  round234_randrule:
+    Types: string
+    Samples: "A"
+  round1_closegaps:
+    Types: boolean
+    Samples: false
+  ncaa_rule105a:
+    Types: boolean
+    Samples: false
+  apnews_team:
+    Types: string
+    Samples: "S"
+  suppress_age:
+    Types: boolean
+    Samples: false
+  suppress_jd:
+    Types: boolean
+    Samples: true
+  linkteams_todivisions:
+    Types: boolean
+    Samples: false
+  team_surcharge:
+    Types: string
+    Samples: "0.0000"
+  meet_arena:
+    Types: string
+    Samples: "O"
+  show_hometownandteam:
+    Types: boolean
+    Samples: false
+  incl_meetdate:
+    Types: number
+    Samples: 0
+  Use_AltTeamAbbr:
+    Types: boolean
+    Samples: false
+  FieldRelayUnderSize_CanScore:
+    Types: boolean
+    Samples: false
+  suppress_UNATeamName:
+    Types: boolean
+    Samples: false
+  DA_meethandle:
+    Types: number
+    Samples: 0
+  DA_unpubmeethandle:
+    Types: number
+    Samples: 0
+  DA_meetsport:
+    Types: string
+    Samples: " "
+  Read_Only:
+    Types: boolean
+    Samples: false
+  dualteam_lane1:
+    Types: null
+  dualteam_lane2:
+    Types: null
+  dualteam_lane3:
+    Types: null
+  dualteam_lane4:
+    Types: null
+  dualteam_lane5:
+    Types: null
+  dualteam_lane6:
+    Types: null
+  dualteam_lane7:
+    Types: null
+  dualteam_lane8:
+    Types: null
+  dualteam_lane9:
+    Types: null
+  dualteam_lane10:
+    Types: null
+  strict_evenoddfastestheatonly:
+    Types: boolean
+    Samples: false
+  dualseeding_altunusedlane:
+    Types: boolean
+    Samples: false
+  Display_ActualEntryTime:
+    Types: boolean
+    Samples: false
+  indmaxadvance_perteam:
+    Types: number
+    Samples: 0
+  relmaxadvance_perteam:
+    Types: number
+    Samples: 0
+  Facility_Surcharge:
+    Types: string
+    Samples: "0.0000"
+  Suppress_X:
+    Types: boolean
+    Samples: false
+  Suppress_TimeStdAbbr:
+    Types: boolean
+    Samples: false
+  Dual_InLaneRacesOnly:
+    Types: boolean
+    Samples: false
+  xccPenaltyPts_LastPlusOne:
+    Types: boolean
+    Samples: false
+  xrrTopMany_ExcludeFromAgeResults:
+    Types: number
+    Samples: 0
+  useX_forFoul:
+    Types: boolean
+    Samples: false
+  Show_ChipID:
+    Types: boolean
+    Samples: false
+  Enter_birthcentury:
+    Types: boolean
+    Samples: false
+  DisplayNTfor_TimesUnder5Sec:
+    Types: boolean
+    Samples: false
+  SortTeamCombos_ByTeamName:
+    Types: boolean
+    Samples: false
+  RelaysShow_TotalDistance:
+    Types: boolean
+    Samples: false
+  Meet_addr1:
+    Types: string
+    Samples: " "
+  Meet_addr2:
+    Types: string
+    Samples: " "
+  Meet_city:
+    Types: string
+    Samples: " "
+  Meet_state:
+    Types: string
+    Samples: " "
+  Meet_zip:
+    Types: string
+    Samples: " "
+  Meet_country:
+    Types: string
+    Samples: "USA"
+  CCRRroundUpTo_NearestSecond:
+    Types: boolean
+    Samples: false
+  Meet_Host:
+    Types: null
+  Meet_Director:
+    Types: null
+  Meet_Referee:
+    Types: null
+  Meet_Timer:
+    Types: null
+  Meet_Starter:
+    Types: null
+  Meet_name1:
+    Types: string
+    Samples: "Bison Outdoor Classic"
+  Meet_name2:
+    Types: string
+    Samples: " "
+  special_parapoints:
+    Types: number
+    Samples: -1
+  Competition_Code:
+    Types: null
+  RankDisabled_ByPoints:
+    Types: boolean
+    Samples: false
+  ccShowDNFWhenLess:
+    Types: boolean
+    Samples: false
+
+🔗 Potential Foreign Keys/Pointers:
+  open_senior_none: 1 unique values (from first 100 rows)
+
+================================================================================
+TABLE: MemorizedReports
+================================================================================
+Rows: 0
+Columns: 99
+
+Column Names:
+  1. Mem_Name
+  2. Mem_Type
+  3. Mem_Ptr
+  4. Num_Columns
+  5. Sort_Order
+  6. Date_Time
+  7. ID_Type
+  8. Top_HowMany
+  9. Num_RelayNames
+  10. Show_StartTimes
+  11. Incl_Records
+  12. Incl_TimeStds
+  13. Incl_QualTimes
+  14. Incl_EvtComments
+  15. Line_ForResults
+  16. Incl_NoEntries
+  17. Incl_PriorResults
+  18. Incl_Rnd1Alt
+  19. Incl_EmptyLanes
+  20. Show_SeedTimes
+  21. Sep_ABFinal
+  22. OneEvent_PerPage
+  23. EntryDec_Format
+  24. OneHeat_PerPage
+  25. Dbl_Space
+  26. Show_Ranks
+  27. MultiAge_Split
+  28. Incl_QualifiedAlts
+  29. ScrAltExhSpec_Filters
+  30. Incl_Scratches
+  31. Ignore_Psych
+  32. Sess_Row
+  33. Evt_Gender
+  34. Evt_LowAge
+  35. Evt_HighAge
+  36. Team_Abbr
+  37. Evt_Round
+  38. Evt_IndivOrRelay
+  39. Report_Type
+  40. Sort_OrderAthAge
+  41. Incl_AthNoEntries
+  42. Incl_AthNoEntries4Col
+  43. AddApost_ClassYear
+  44. Incl_CompNo
+  45. Incl_CompNo4Col
+  46. AddrSort_ByTeam
+  47. AddrSort_ByZip
+  48. Incl_ScrInEntryCount
+  49. Incl_AltInEntryCount
+  50. Incl_BirthDate
+  51. Incl_TeamAddr
+  52. Incl_Coaches
+  53. AthUseAbbr_ForTeam
+  54. Div_Abbr
+  55. Report_Format
+  56. Incl_HeatLane
+  57. Add_LineSpace
+  58. Incl_RegID
+  59. Show_CheckIn
+  60. NumAth_PerPage
+  61. Splits_Choice
+  62. Results_ByHeat
+  63. Page_Break
+  64. Incl_SpecPts
+  65. Incl_TimeTrials
+  66. Incl_NoShows
+  67. Incl_TeamPts
+  68. Low_Lane
+  69. High_Lane
+  70. Score_Female
+  71. Score_Male
+  72. Score_Combined
+  73. Score_CombinedBoth
+  74. BAG_CATS
+  75. Flat_HTML
+  76. DotMatrix_LabelChoice
+  77. Laser_LabelChoice
+  78. Incl_TeamScore
+  79. Incl_FemaleTeamScore
+  80. Incl_MaleTeamScore
+  81. CombineDivisions_ForTeamPoints
+  82. Incl_DQCodes
+  83. Incl_ReactionTimes
+  84. Incl_Backups
+  85. UseLaser_Label
+  86. Region_Abbr
+  87. OneColumn_Only
+  88. InclIf_NoCompNo
+  89. Evt_StartTimes
+  90. Incl_EntryFee
+  91. Use_AltEvtNum
+  92. Incl_EntryStat
+  93. Incl_AdvFormula
+  94. Incl_SigLine
+  95. Sort_ByTeam
+  96. Landscape_Vertical
+  97. Incl_LogosinFooter
+  98. Incl_Splits
+  99. Incl_IndivRelCnt
+
+📊 Column Analysis:
+  Mem_Name:
+    Types: 
+  Mem_Type:
+    Types: 
+  Mem_Ptr:
+    Types: 
+  Num_Columns:
+    Types: 
+  Sort_Order:
+    Types: 
+  Date_Time:
+    Types: 
+  ID_Type:
+    Types: 
+  Top_HowMany:
+    Types: 
+  Num_RelayNames:
+    Types: 
+  Show_StartTimes:
+    Types: 
+  Incl_Records:
+    Types: 
+  Incl_TimeStds:
+    Types: 
+  Incl_QualTimes:
+    Types: 
+  Incl_EvtComments:
+    Types: 
+  Line_ForResults:
+    Types: 
+  Incl_NoEntries:
+    Types: 
+  Incl_PriorResults:
+    Types: 
+  Incl_Rnd1Alt:
+    Types: 
+  Incl_EmptyLanes:
+    Types: 
+  Show_SeedTimes:
+    Types: 
+  Sep_ABFinal:
+    Types: 
+  OneEvent_PerPage:
+    Types: 
+  EntryDec_Format:
+    Types: 
+  OneHeat_PerPage:
+    Types: 
+  Dbl_Space:
+    Types: 
+  Show_Ranks:
+    Types: 
+  MultiAge_Split:
+    Types: 
+  Incl_QualifiedAlts:
+    Types: 
+  ScrAltExhSpec_Filters:
+    Types: 
+  Incl_Scratches:
+    Types: 
+  Ignore_Psych:
+    Types: 
+  Sess_Row:
+    Types: 
+  Evt_Gender:
+    Types: 
+  Evt_LowAge:
+    Types: 
+  Evt_HighAge:
+    Types: 
+  Team_Abbr:
+    Types: 
+  Evt_Round:
+    Types: 
+  Evt_IndivOrRelay:
+    Types: 
+  Report_Type:
+    Types: 
+  Sort_OrderAthAge:
+    Types: 
+  Incl_AthNoEntries:
+    Types: 
+  Incl_AthNoEntries4Col:
+    Types: 
+  AddApost_ClassYear:
+    Types: 
+  Incl_CompNo:
+    Types: 
+  Incl_CompNo4Col:
+    Types: 
+  AddrSort_ByTeam:
+    Types: 
+  AddrSort_ByZip:
+    Types: 
+  Incl_ScrInEntryCount:
+    Types: 
+  Incl_AltInEntryCount:
+    Types: 
+  Incl_BirthDate:
+    Types: 
+  Incl_TeamAddr:
+    Types: 
+  Incl_Coaches:
+    Types: 
+  AthUseAbbr_ForTeam:
+    Types: 
+  Div_Abbr:
+    Types: 
+  Report_Format:
+    Types: 
+  Incl_HeatLane:
+    Types: 
+  Add_LineSpace:
+    Types: 
+  Incl_RegID:
+    Types: 
+  Show_CheckIn:
+    Types: 
+  NumAth_PerPage:
+    Types: 
+  Splits_Choice:
+    Types: 
+  Results_ByHeat:
+    Types: 
+  Page_Break:
+    Types: 
+  Incl_SpecPts:
+    Types: 
+  Incl_TimeTrials:
+    Types: 
+  Incl_NoShows:
+    Types: 
+  Incl_TeamPts:
+    Types: 
+  Low_Lane:
+    Types: 
+  High_Lane:
+    Types: 
+  Score_Female:
+    Types: 
+  Score_Male:
+    Types: 
+  Score_Combined:
+    Types: 
+  Score_CombinedBoth:
+    Types: 
+  BAG_CATS:
+    Types: 
+  Flat_HTML:
+    Types: 
+  DotMatrix_LabelChoice:
+    Types: 
+  Laser_LabelChoice:
+    Types: 
+  Incl_TeamScore:
+    Types: 
+  Incl_FemaleTeamScore:
+    Types: 
+  Incl_MaleTeamScore:
+    Types: 
+  CombineDivisions_ForTeamPoints:
+    Types: 
+  Incl_DQCodes:
+    Types: 
+  Incl_ReactionTimes:
+    Types: 
+  Incl_Backups:
+    Types: 
+  UseLaser_Label:
+    Types: 
+  Region_Abbr:
+    Types: 
+  OneColumn_Only:
+    Types: 
+  InclIf_NoCompNo:
+    Types: 
+  Evt_StartTimes:
+    Types: 
+  Incl_EntryFee:
+    Types: 
+  Use_AltEvtNum:
+    Types: 
+  Incl_EntryStat:
+    Types: 
+  Incl_AdvFormula:
+    Types: 
+  Incl_SigLine:
+    Types: 
+  Sort_ByTeam:
+    Types: 
+  Landscape_Vertical:
+    Types: 
+  Incl_LogosinFooter:
+    Types: 
+  Incl_Splits:
+    Types: 
+  Incl_IndivRelCnt:
+    Types: 
+
+================================================================================
+TABLE: Multiage
+================================================================================
+Rows: 0
+Columns: 4
+
+Column Names:
+  1. event_ptr
+  2. low_age
+  3. high_age
+  4. Heats_infinal
+
+📊 Column Analysis:
+  event_ptr:
+    Types: 
+  low_age:
+    Types: 
+  high_age:
+    Types: 
+  Heats_infinal:
+    Types: 
+
+🔗 Potential Foreign Keys/Pointers:
+  event_ptr: 0 unique values (from first 100 rows)
+
+================================================================================
+TABLE: RecordTags
+================================================================================
+Rows: 2
+Columns: 8
+
+Column Names:
+  1. tag_ptr
+  2. tag_order
+  3. tag_name
+  4. tag_flag
+  5. team_no
+  6. allow_exh
+  7. allow_foreigner
+  8. wind_notrequired
+
+📝 Sample Row #1:
+{
+  "tag_ptr": 3,
+  "tag_order": 3,
+  "tag_name": "Bucknell",
+  "tag_flag": "B",
+  "team_no": 909,
+  "allow_exh": false,
+  "allow_foreigner": false,
+  "wind_notrequired": false
+}
+
+📊 Column Analysis:
+  tag_ptr:
+    Types: number
+    Samples: 3, 4
+  tag_order:
+    Types: number
+    Samples: 3, 4
+  tag_name:
+    Types: string
+    Samples: "Bucknell", "Facility"
+  tag_flag:
+    Types: string
+    Samples: "B", "F"
+  team_no:
+    Types: number
+    Samples: 909, 0
+  allow_exh:
+    Types: boolean
+    Samples: false, true
+  allow_foreigner:
+    Types: boolean
+    Samples: false, true
+  wind_notrequired:
+    Types: boolean
+    Samples: false
+
+🔗 Potential Foreign Keys/Pointers:
+  tag_ptr: 2 unique values (from first 100 rows)
+  team_no: 2 unique values (from first 100 rows)
+  wind_notrequired: 1 unique values (from first 100 rows)
+
+================================================================================
+TABLE: Regions
+================================================================================
+Rows: 4
+Columns: 6
+
+Column Names:
+  1. Reg_no
+  2. Reg_abbr
+  3. Reg_name
+  4. fem_size
+  5. male_size
+  6. combined_size
+
+📝 Sample Row #1:
+{
+  "Reg_no": 1,
+  "Reg_abbr": "NE",
+  "Reg_name": "Northeast",
+  "fem_size": null,
+  "male_size": null,
+  "combined_size": null
+}
+
+📊 Column Analysis:
+  Reg_no:
+    Types: number
+    Samples: 1, 2, 3
+  Reg_abbr:
+    Types: string
+    Samples: "NE", "SE", "NW"
+  Reg_name:
+    Types: string
+    Samples: "Northeast", "Southeast", "Northwest"
+  fem_size:
+    Types: null
+  male_size:
+    Types: null
+  combined_size:
+    Types: null
+
+🔗 Potential Foreign Keys/Pointers:
+  Reg_no: 4 unique values (from first 100 rows)
+
+================================================================================
+TABLE: Relay
+================================================================================
+Rows: 128
+Columns: 102
+
+Column Names:
+  1. Event_ptr
+  2. Team_no
+  3. Team_ltr
+  4. Relay_no
+  5. Rel_age
+  6. Rel_sex
+  7. ActSeed_course
+  8. ActualSeed_time
+  9. ConvSeed_course
+  10. ConvSeed_time
+  11. Hand_time
+  12. Conv_ltr
+  13. Seed_place
+  14. Scr_stat
+  15. Spec_stat
+  16. Dec_stat
+  17. Alt_stat
+  18. Bonus_event
+  19. Div_no
+  20. Ev_score
+  21. JDEv_score
+  22. dq_type
+  23. entry_note
+  24. Pre_heat
+  25. Pre_lane
+  26. unPre_heat
+  27. unPre_lane
+  28. Pre_hand
+  29. Pre_stat
+  30. Pre_Time
+  31. Pre_course
+  32. Pre_heatplace
+  33. Pre_jdheatplace
+  34. Pre_place
+  35. Pre_jdplace
+  36. Pre_exh
+  37. Pre_wind
+  38. Pre_points
+  39. Fin_heat
+  40. Fin_lane
+  41. unFin_heat
+  42. unFin_lane
+  43. Fin_hand
+  44. Fin_group
+  45. Fin_stat
+  46. Fin_Time
+  47. Fin_course
+  48. Fin_heatplace
+  49. Fin_jdheatplace
+  50. Fin_place
+  51. Fin_jdplace
+  52. Fin_ptsplace
+  53. Fin_award
+  54. Fin_exh
+  55. Fin_wind
+  56. Fin_points
+  57. Sem_heat
+  58. Sem_lane
+  59. unSem_heat
+  60. unSem_lane
+  61. Sem_hand
+  62. Sem_stat
+  63. Sem_Time
+  64. Sem_course
+  65. Sem_heatplace
+  66. Sem_jdheatplace
+  67. Sem_place
+  68. Sem_jdplace
+  69. Sem_exh
+  70. Sem_wind
+  71. Sem_points
+  72. Qtr_heat
+  73. Qtr_lane
+  74. unQtr_heat
+  75. unQtr_lane
+  76. Qtr_hand
+  77. Qtr_stat
+  78. Qtr_Time
+  79. Qtr_course
+  80. Qtr_heatplace
+  81. Qtr_jdheatplace
+  82. Qtr_place
+  83. Qtr_jdplace
+  84. Qtr_exh
+  85. Qtr_wind
+  86. Qtr_points
+  87. Relay_Compno
+  88. Pre_note
+  89. Qtr_note
+  90. Sem_note
+  91. Fin_note
+  92. Video_time
+  93. Pre_video
+  94. Fin_video
+  95. Sem_video
+  96. Qtr_video
+  97. fin_dqofficial
+  98. pre_dqofficial
+  99. sem_dqofficial
+  100. qtr_dqofficial
+  101. ent_op_datetime
+  102. scr_op_datetime
+
+📝 Sample Row #1:
+{
+  "Event_ptr": 11,
+  "Team_no": 1068,
+  "Team_ltr": "A",
+  "Relay_no": 1220,
+  "Rel_age": 0,
+  "Rel_sex": "F",
+  "ActSeed_course": "M",
+  "ActualSeed_time": 47.529998779296875,
+  "ConvSeed_course": "M",
+  "ConvSeed_time": 47.529998779296875,
+  "Hand_time": false,
+  "Conv_ltr": " ",
+  "Seed_place": null,
+  "Scr_stat": false,
+  "Spec_stat": null,
+  "Dec_stat": null,
+  "Alt_stat": false,
+  "Bonus_event": false,
+  "Div_no": null,
+  "Ev_score": null,
+  "JDEv_score": null,
+  "dq_type": null,
+  "entry_note": null,
+  "Pre_heat": null,
+  "Pre_lane": null,
+  "unPre_heat": null,
+  "unPre_lane": null,
+  "Pre_hand": false,
+  "Pre_stat": null,
+  "Pre_Time": null,
+  "Pre_course": null,
+  "Pre_heatplace": null,
+  "Pre_jdheatplace": null,
+  "Pre_place": null,
+  "Pre_jdplace": null,
+  "Pre_exh": null,
+  "Pre_wind": null,
+  "Pre_points": null,
+  "Fin_heat": 2,
+  "Fin_lane": 7,
+  "unFin_heat": null,
+  "unFin_lane": null,
+  "Fin_hand": false,
+  "Fin_group": null,
+  "Fin_stat": null,
+  "Fin_Time": null,
+  "Fin_course": null,
+  "Fin_heatplace": null,
+  "Fin_jdheatplace": null,
+  "Fin_place": null,
+  "Fin_jdplace": null,
+  "Fin_ptsplace": null,
+  "Fin_award": null,
+  "Fin_exh": null,
+  "Fin_wind": null,
+  "Fin_points": null,
+  "Sem_heat": null,
+  "Sem_lane": null,
+  "unSem_heat": null,
+  "unSem_lane": null,
+  "Sem_hand": false,
+  "Sem_stat": null,
+  "Sem_Time": null,
+  "Sem_course": null,
+  "Sem_heatplace": null,
+  "Sem_jdheatplace": null,
+  "Sem_place": null,
+  "Sem_jdplace": null,
+  "Sem_exh": null,
+  "Sem_wind": null,
+  "Sem_points": null,
+  "Qtr_heat": null,
+  "Qtr_lane": null,
+  "unQtr_heat": null,
+  "unQtr_lane": null,
+  "Qtr_hand": false,
+  "Qtr_stat": null,
+  "Qtr_Time": null,
+  "Qtr_course": null,
+  "Qtr_heatplace": null,
+  "Qtr_jdheatplace": null,
+  "Qtr_place": null,
+  "Qtr_jdplace": null,
+  "Qtr_exh": null,
+  "Qtr_wind": null,
+  "Qtr_points": null,
+  "Relay_Compno": null,
+  "Pre_note": null,
+  "Qtr_note": null,
+  "Sem_note": null,
+  "Fin_note": null,
+  "Video_time": false,
+  "Pre_video": false,
+  "Fin_video": false,
+  "Sem_video": false,
+  "Qtr_video": false,
+  "fin_dqofficial": null,
+  "pre_dqofficial": null,
+  "sem_dqofficial": null,
+  "qtr_dqofficial": null,
+  "ent_op_datetime": "2024-04-10T14:51:19.000Z",
+  "scr_op_datetime": "2024-04-10T14:51:19.000Z"
+}
+
+📊 Column Analysis:
+  Event_ptr:
+    Types: number
+    Samples: 11, 12
+  Team_no:
+    Types: number
+    Samples: 1068, 1101, 1073
+  Team_ltr:
+    Types: string
+    Samples: "A", "B"
+  Relay_no:
+    Types: number
+    Samples: 1220, 1221, 1222
+  Rel_age:
+    Types: number
+    Samples: 0
+  Rel_sex:
+    Types: string
+    Samples: "F", "M"
+  ActSeed_course:
+    Types: string
+    Samples: "M"
+  ActualSeed_time:
+    Types: number
+    Samples: 47.529998779296875, 47.61000061035156, 49
+  ConvSeed_course:
+    Types: string
+    Samples: "M"
+  ConvSeed_time:
+    Types: number
+    Samples: 47.529998779296875, 47.61000061035156, 49
+  Hand_time:
+    Types: boolean
+    Samples: false
+  Conv_ltr:
+    Types: string
+    Samples: " "
+  Seed_place:
+    Types: null
+  Scr_stat:
+    Types: boolean
+    Samples: false
+  Spec_stat:
+    Types: null
+  Dec_stat:
+    Types: null
+  Alt_stat:
+    Types: boolean
+    Samples: false
+  Bonus_event:
+    Types: boolean
+    Samples: false
+  Div_no:
+    Types: null
+  Ev_score:
+    Types: null
+  JDEv_score:
+    Types: null
+  dq_type:
+    Types: null
+  entry_note:
+    Types: null
+  Pre_heat:
+    Types: null
+  Pre_lane:
+    Types: null
+  unPre_heat:
+    Types: null
+  unPre_lane:
+    Types: null
+  Pre_hand:
+    Types: boolean
+    Samples: false
+  Pre_stat:
+    Types: null
+  Pre_Time:
+    Types: null
+  Pre_course:
+    Types: null
+  Pre_heatplace:
+    Types: null
+  Pre_jdheatplace:
+    Types: null
+  Pre_place:
+    Types: null
+  Pre_jdplace:
+    Types: null
+  Pre_exh:
+    Types: null
+  Pre_wind:
+    Types: null
+  Pre_points:
+    Types: null
+  Fin_heat:
+    Types: number
+    Samples: 2, 4, 3
+  Fin_lane:
+    Types: number
+    Samples: 7, 1, 5
+  unFin_heat:
+    Types: null
+  unFin_lane:
+    Types: null
+  Fin_hand:
+    Types: boolean
+    Samples: false
+  Fin_group:
+    Types: null
+  Fin_stat:
+    Types: null
+  Fin_Time:
+    Types: null
+  Fin_course:
+    Types: null
+  Fin_heatplace:
+    Types: null
+  Fin_jdheatplace:
+    Types: null
+  Fin_place:
+    Types: null
+  Fin_jdplace:
+    Types: null
+  Fin_ptsplace:
+    Types: null
+  Fin_award:
+    Types: null
+  Fin_exh:
+    Types: null
+  Fin_wind:
+    Types: null
+  Fin_points:
+    Types: null
+  Sem_heat:
+    Types: null
+  Sem_lane:
+    Types: null
+  unSem_heat:
+    Types: null
+  unSem_lane:
+    Types: null
+  Sem_hand:
+    Types: boolean
+    Samples: false
+  Sem_stat:
+    Types: null
+  Sem_Time:
+    Types: null
+  Sem_course:
+    Types: null
+  Sem_heatplace:
+    Types: null
+  Sem_jdheatplace:
+    Types: null
+  Sem_place:
+    Types: null
+  Sem_jdplace:
+    Types: null
+  Sem_exh:
+    Types: null
+  Sem_wind:
+    Types: null
+  Sem_points:
+    Types: null
+  Qtr_heat:
+    Types: null
+  Qtr_lane:
+    Types: null
+  unQtr_heat:
+    Types: null
+  unQtr_lane:
+    Types: null
+  Qtr_hand:
+    Types: boolean
+    Samples: false
+  Qtr_stat:
+    Types: null
+  Qtr_Time:
+    Types: null
+  Qtr_course:
+    Types: null
+  Qtr_heatplace:
+    Types: null
+  Qtr_jdheatplace:
+    Types: null
+  Qtr_place:
+    Types: null
+  Qtr_jdplace:
+    Types: null
+  Qtr_exh:
+    Types: null
+  Qtr_wind:
+    Types: null
+  Qtr_points:
+    Types: null
+  Relay_Compno:
+    Types: null
+  Pre_note:
+    Types: null
+  Qtr_note:
+    Types: null
+  Sem_note:
+    Types: null
+  Fin_note:
+    Types: null
+  Video_time:
+    Types: boolean
+    Samples: false
+  Pre_video:
+    Types: boolean
+    Samples: false
+  Fin_video:
+    Types: boolean
+    Samples: false
+  Sem_video:
+    Types: boolean
+    Samples: false
+  Qtr_video:
+    Types: boolean
+    Samples: false
+  fin_dqofficial:
+    Types: null
+  pre_dqofficial:
+    Types: null
+  sem_dqofficial:
+    Types: null
+  qtr_dqofficial:
+    Types: null
+  ent_op_datetime:
+    Types: Date
+    Samples: 2024-04-10T14:51:19.000Z, 2024-04-10T14:51:37.000Z, 2024-04-10T14:51:55.000Z
+  scr_op_datetime:
+    Types: Date
+    Samples: 2024-04-10T14:51:19.000Z, 2024-04-10T14:51:37.000Z, 2024-04-10T14:51:55.000Z
+
+🔗 Potential Foreign Keys/Pointers:
+  Event_ptr: 4 unique values (from first 100 rows)
+  Team_no: 43 unique values (from first 100 rows)
+  Relay_no: 100 unique values (from first 100 rows)
+  Div_no: 0 unique values (from first 100 rows)
+  entry_note: 16 unique values (from first 100 rows)
+  Pre_note: 0 unique values (from first 100 rows)
+  Qtr_note: 0 unique values (from first 100 rows)
+  Sem_note: 0 unique values (from first 100 rows)
+  Fin_note: 0 unique values (from first 100 rows)
+
+================================================================================
+TABLE: RelayNames
+================================================================================
+Rows: 115
+Columns: 7
+
+Column Names:
+  1. Event_ptr
+  2. Team_no
+  3. Team_ltr
+  4. Ath_no
+  5. Pos_no
+  6. Event_round
+  7. Relay_no
+
+📝 Sample Row #1:
+{
+  "Event_ptr": 12,
+  "Team_no": 1055,
+  "Team_ltr": "A",
+  "Ath_no": 56094,
+  "Pos_no": 1,
+  "Event_round": "F",
+  "Relay_no": 1183
+}
+
+📊 Column Analysis:
+  Event_ptr:
+    Types: number
+    Samples: 12, 51
+  Team_no:
+    Types: number
+    Samples: 1055
+  Team_ltr:
+    Types: string
+    Samples: "A", "B"
+  Ath_no:
+    Types: number
+    Samples: 56094, 56013, 56049
+  Pos_no:
+    Types: number
+    Samples: 1, 2, 3
+  Event_round:
+    Types: string
+    Samples: "F"
+  Relay_no:
+    Types: number
+    Samples: 1183, 1184, 1185
+
+🔗 Potential Foreign Keys/Pointers:
+  Event_ptr: 4 unique values (from first 100 rows)
+  Team_no: 8 unique values (from first 100 rows)
+  Ath_no: 94 unique values (from first 100 rows)
+  Pos_no: 6 unique values (from first 100 rows)
+  Relay_no: 23 unique values (from first 100 rows)
+
+================================================================================
+TABLE: Scoring
+================================================================================
+Rows: 60
+Columns: 6
+
+Column Names:
+  1. score_divno
+  2. score_sex
+  3. score_place
+  4. ind_score
+  5. rel_score
+  6. combevt_score
+
+📝 Sample Row #1:
+{
+  "score_divno": 0,
+  "score_sex": "F",
+  "score_place": 1,
+  "ind_score": 10,
+  "rel_score": 10,
+  "combevt_score": 10
+}
+
+📊 Column Analysis:
+  score_divno:
+    Types: number
+    Samples: 0
+  score_sex:
+    Types: string
+    Samples: "F", "M"
+  score_place:
+    Types: number
+    Samples: 1, 2, 3
+  ind_score:
+    Types: number
+    Samples: 10, 8, 6
+  rel_score:
+    Types: number
+    Samples: 10, 8, 6
+  combevt_score:
+    Types: number
+    Samples: 10, 8, 6
+
+================================================================================
+TABLE: SeriesHoriz
+================================================================================
+Rows: 0
+Columns: 8
+
+Column Names:
+  1. Event_ptr
+  2. Mult_ptr
+  3. Ath_no
+  4. Rnd_ltr
+  5. Res_dist
+  6. Res_stat
+  7. Res_wind
+  8. Attempt_no
+
+📊 Column Analysis:
+  Event_ptr:
+    Types: 
+  Mult_ptr:
+    Types: 
+  Ath_no:
+    Types: 
+  Rnd_ltr:
+    Types: 
+  Res_dist:
+    Types: 
+  Res_stat:
+    Types: 
+  Res_wind:
+    Types: 
+  Attempt_no:
+    Types: 
+
+🔗 Potential Foreign Keys/Pointers:
+  Event_ptr: 0 unique values (from first 100 rows)
+  Mult_ptr: 0 unique values (from first 100 rows)
+  Ath_no: 0 unique values (from first 100 rows)
+  Attempt_no: 0 unique values (from first 100 rows)
+
+================================================================================
+TABLE: SeriesVertColumns
+================================================================================
+Rows: 0
+Columns: 44
+
+Column Names:
+  1. Event_ptr
+  2. Mult_ptr
+  3. flight_no
+  4. Rnd_ltr
+  5. h1_dist
+  6. h2_dist
+  7. h3_dist
+  8. h4_dist
+  9. h5_dist
+  10. h6_dist
+  11. h7_dist
+  12. h8_dist
+  13. h9_dist
+  14. h10_dist
+  15. h11_dist
+  16. h12_dist
+  17. h13_dist
+  18. h14_dist
+  19. h15_dist
+  20. h16_dist
+  21. h17_dist
+  22. h18_dist
+  23. h19_dist
+  24. h20_dist
+  25. h21_dist
+  26. h22_dist
+  27. h23_dist
+  28. h24_dist
+  29. h25_dist
+  30. h26_dist
+  31. h27_dist
+  32. h28_dist
+  33. h29_dist
+  34. h30_dist
+  35. h31_dist
+  36. h32_dist
+  37. h33_dist
+  38. h34_dist
+  39. h35_dist
+  40. h36_dist
+  41. h37_dist
+  42. h38_dist
+  43. h39_dist
+  44. h40_dist
+
+📊 Column Analysis:
+  Event_ptr:
+    Types: 
+  Mult_ptr:
+    Types: 
+  flight_no:
+    Types: 
+  Rnd_ltr:
+    Types: 
+  h1_dist:
+    Types: 
+  h2_dist:
+    Types: 
+  h3_dist:
+    Types: 
+  h4_dist:
+    Types: 
+  h5_dist:
+    Types: 
+  h6_dist:
+    Types: 
+  h7_dist:
+    Types: 
+  h8_dist:
+    Types: 
+  h9_dist:
+    Types: 
+  h10_dist:
+    Types: 
+  h11_dist:
+    Types: 
+  h12_dist:
+    Types: 
+  h13_dist:
+    Types: 
+  h14_dist:
+    Types: 
+  h15_dist:
+    Types: 
+  h16_dist:
+    Types: 
+  h17_dist:
+    Types: 
+  h18_dist:
+    Types: 
+  h19_dist:
+    Types: 
+  h20_dist:
+    Types: 
+  h21_dist:
+    Types: 
+  h22_dist:
+    Types: 
+  h23_dist:
+    Types: 
+  h24_dist:
+    Types: 
+  h25_dist:
+    Types: 
+  h26_dist:
+    Types: 
+  h27_dist:
+    Types: 
+  h28_dist:
+    Types: 
+  h29_dist:
+    Types: 
+  h30_dist:
+    Types: 
+  h31_dist:
+    Types: 
+  h32_dist:
+    Types: 
+  h33_dist:
+    Types: 
+  h34_dist:
+    Types: 
+  h35_dist:
+    Types: 
+  h36_dist:
+    Types: 
+  h37_dist:
+    Types: 
+  h38_dist:
+    Types: 
+  h39_dist:
+    Types: 
+  h40_dist:
+    Types: 
+
+🔗 Potential Foreign Keys/Pointers:
+  Event_ptr: 0 unique values (from first 100 rows)
+  Mult_ptr: 0 unique values (from first 100 rows)
+  flight_no: 0 unique values (from first 100 rows)
+
+================================================================================
+TABLE: SeriesVertical
+================================================================================
+Rows: 0
+Columns: 7
+
+Column Names:
+  1. Event_ptr
+  2. Mult_ptr
+  3. Ath_no
+  4. Rnd_ltr
+  5. Res_xx
+  6. Res_col
+  7. res_dist
+
+📊 Column Analysis:
+  Event_ptr:
+    Types: 
+  Mult_ptr:
+    Types: 
+  Ath_no:
+    Types: 
+  Rnd_ltr:
+    Types: 
+  Res_xx:
+    Types: 
+  Res_col:
+    Types: 
+  res_dist:
+    Types: 
+
+🔗 Potential Foreign Keys/Pointers:
+  Event_ptr: 0 unique values (from first 100 rows)
+  Mult_ptr: 0 unique values (from first 100 rows)
+  Ath_no: 0 unique values (from first 100 rows)
+
+================================================================================
+TABLE: Sessitem
+================================================================================
+Rows: 77
+Columns: 14
+
+Column Names:
+  1. Sess_order
+  2. Sess_ptr
+  3. Event_ptr
+  4. Multi_ptr
+  5. Sess_rnd
+  6. Rept_type
+  7. Start_time
+  8. am_pm
+  9. Timed_finalheats
+  10. Delay_seconds
+  11. Alt_With
+  12. AltEvent_no
+  13. AltEvent_ltr
+  14. Note_desc
+
+📝 Sample Row #1:
+{
+  "Sess_order": 5,
+  "Sess_ptr": 6,
+  "Event_ptr": 75,
+  "Multi_ptr": 5,
+  "Sess_rnd": "F",
+  "Rept_type": "H",
+  "Start_time": "02:05",
+  "am_pm": "PM",
+  "Timed_finalheats": 0,
+  "Delay_seconds": null,
+  "Alt_With": false,
+  "AltEvent_no": null,
+  "AltEvent_ltr": null,
+  "Note_desc": null
+}
+
+📊 Column Analysis:
+  Sess_order:
+    Types: number
+    Samples: 5, 6, 7
+  Sess_ptr:
+    Types: number
+    Samples: 6, 5
+  Event_ptr:
+    Types: number
+    Samples: 75, 78
+  Multi_ptr:
+    Types: number
+    Samples: 5, 6, 7
+  Sess_rnd:
+    Types: string
+    Samples: "F"
+  Rept_type:
+    Types: string
+    Samples: "H"
+  Start_time:
+    Types: string
+    Samples: "02:05", "08:30", "09:30"
+  am_pm:
+    Types: string
+    Samples: "PM", "AM"
+  Timed_finalheats:
+    Types: number
+    Samples: 0
+  Delay_seconds:
+    Types: null
+  Alt_With:
+    Types: boolean
+    Samples: false
+  AltEvent_no:
+    Types: null
+  AltEvent_ltr:
+    Types: null
+  Note_desc:
+    Types: null
+
+🔗 Potential Foreign Keys/Pointers:
+  Sess_ptr: 6 unique values (from first 100 rows)
+  Event_ptr: 56 unique values (from first 100 rows)
+  Multi_ptr: 25 unique values (from first 100 rows)
+  AltEvent_no: 0 unique values (from first 100 rows)
+
+================================================================================
+TABLE: StdAlleys
+================================================================================
+Rows: 12
+Columns: 13
+
+Column Names:
+  1. tot_lanes
+  2. order_01
+  3. order_02
+  4. order_03
+  5. order_04
+  6. order_05
+  7. order_06
+  8. order_07
+  9. order_08
+  10. order_09
+  11. order_10
+  12. order_11
+  13. order_12
+
+📝 Sample Row #1:
+{
+  "tot_lanes": 1,
+  "order_01": 1,
+  "order_02": 0,
+  "order_03": 0,
+  "order_04": 0,
+  "order_05": 0,
+  "order_06": 0,
+  "order_07": 0,
+  "order_08": 0,
+  "order_09": 0,
+  "order_10": 0,
+  "order_11": null,
+  "order_12": null
+}
+
+📊 Column Analysis:
+  tot_lanes:
+    Types: number
+    Samples: 1, 2, 3
+  order_01:
+    Types: number
+    Samples: 1, 2, 3
+  order_02:
+    Types: number
+    Samples: 0, 2, 3
+  order_03:
+    Types: number
+    Samples: 0, 1, 2
+  order_04:
+    Types: number
+    Samples: 0, 4, 5
+  order_05:
+    Types: number
+    Samples: 0, 1, 2
+  order_06:
+    Types: number
+    Samples: 0, 6, 7
+  order_07:
+    Types: number
+    Samples: 0, 1, 2
+  order_08:
+    Types: number
+    Samples: 0, 8, 9
+  order_09:
+    Types: number
+    Samples: 0, 1
+  order_10:
+    Types: number
+    Samples: 0, 10
+  order_11:
+    Types: null
+  order_12:
+    Types: null
+
+================================================================================
+TABLE: StdLanes
+================================================================================
+Rows: 12
+Columns: 13
+
+Column Names:
+  1. tot_lanes
+  2. order_01
+  3. order_02
+  4. order_03
+  5. order_04
+  6. order_05
+  7. order_06
+  8. order_07
+  9. order_08
+  10. order_09
+  11. order_10
+  12. order_11
+  13. order_12
+
+📝 Sample Row #1:
+{
+  "tot_lanes": 1,
+  "order_01": 1,
+  "order_02": 0,
+  "order_03": 0,
+  "order_04": 0,
+  "order_05": 0,
+  "order_06": 0,
+  "order_07": 0,
+  "order_08": 0,
+  "order_09": 0,
+  "order_10": 0,
+  "order_11": null,
+  "order_12": null
+}
+
+📊 Column Analysis:
+  tot_lanes:
+    Types: number
+    Samples: 1, 2, 3
+  order_01:
+    Types: number
+    Samples: 1, 2, 3
+  order_02:
+    Types: number
+    Samples: 0, 2, 3
+  order_03:
+    Types: number
+    Samples: 0, 1, 2
+  order_04:
+    Types: number
+    Samples: 0, 4, 5
+  order_05:
+    Types: number
+    Samples: 0, 1, 2
+  order_06:
+    Types: number
+    Samples: 0, 6, 7
+  order_07:
+    Types: number
+    Samples: 0, 1, 2
+  order_08:
+    Types: number
+    Samples: 0, 8, 9
+  order_09:
+    Types: number
+    Samples: 0, 1
+  order_10:
+    Types: number
+    Samples: 0, 10
+  order_11:
+    Types: null
+  order_12:
+    Types: null
+
+================================================================================
+TABLE: TagNames
+================================================================================
+Rows: 0
+Columns: 6
+
+Column Names:
+  1. tag_ptr
+  2. tag_name
+  3. for_scoring
+  4. for_entryqual
+  5. for_timestd
+  6. tag_desc
+
+📊 Column Analysis:
+  tag_ptr:
+    Types: 
+  tag_name:
+    Types: 
+  for_scoring:
+    Types: 
+  for_entryqual:
+    Types: 
+  for_timestd:
+    Types: 
+  tag_desc:
+    Types: 
+
+🔗 Potential Foreign Keys/Pointers:
+  tag_ptr: 0 unique values (from first 100 rows)
+
+================================================================================
+TABLE: Team
+================================================================================
+Rows: 139
+Columns: 35
+
+Column Names:
+  1. Team_no
+  2. Team_name
+  3. Team_short
+  4. Team_abbr
+  5. Team_stat
+  6. Team_div
+  7. Team_region
+  8. Team_head
+  9. Team_asst
+  10. Team_addr1
+  11. Team_addr2
+  12. Team_city
+  13. Team_prov
+  14. Team_state
+  15. Team_zip
+  16. Team_cntry
+  17. Team_daytele
+  18. Team_evetele
+  19. Team_faxtele
+  20. Team_email
+  21. Team_c3
+  22. Team_c4
+  23. Team_c5
+  24. Team_c6
+  25. Team_c7
+  26. Team_c8
+  27. Team_c9
+  28. Team_c10
+  29. Team_altabbr
+  30. Team_NoPoints
+  31. Team_Selected
+  32. TeamGUID_strg
+  33. Team_Code
+  34. Team_Gender
+  35. team_lsc
+
+📝 Sample Row #1:
+{
+  "Team_no": 1041,
+  "Team_name": "Adelphi",
+  "Team_short": "Adelphi",
+  "Team_abbr": "ADEL ",
+  "Team_stat": null,
+  "Team_div": null,
+  "Team_region": null,
+  "Team_head": null,
+  "Team_asst": null,
+  "Team_addr1": null,
+  "Team_addr2": null,
+  "Team_city": null,
+  "Team_prov": null,
+  "Team_state": null,
+  "Team_zip": null,
+  "Team_cntry": null,
+  "Team_daytele": null,
+  "Team_evetele": null,
+  "Team_faxtele": null,
+  "Team_email": null,
+  "Team_c3": null,
+  "Team_c4": null,
+  "Team_c5": null,
+  "Team_c6": null,
+  "Team_c7": null,
+  "Team_c8": null,
+  "Team_c9": null,
+  "Team_c10": null,
+  "Team_altabbr": null,
+  "Team_NoPoints": false,
+  "Team_Selected": false,
+  "TeamGUID_strg": "A711A268-FDDF-44F4-2778-C0A8B417E4C3",
+  "Team_Code": null,
+  "Team_Gender": null,
+  "team_lsc": null
+}
+
+📊 Column Analysis:
+  Team_no:
+    Types: number
+    Samples: 1041, 1043, 1044
+  Team_name:
+    Types: string
+    Samples: "Adelphi", "Allegheny", "Alvernia"
+  Team_short:
+    Types: string
+    Samples: "Adelphi", "Allegheny", "Alvernia"
+  Team_abbr:
+    Types: string
+    Samples: "ADEL ", "ALLE ", "ALVE "
+  Team_stat:
+    Types: null
+  Team_div:
+    Types: null
+  Team_region:
+    Types: null
+  Team_head:
+    Types: null
+  Team_asst:
+    Types: null
+  Team_addr1:
+    Types: null
+  Team_addr2:
+    Types: null
+  Team_city:
+    Types: null
+  Team_prov:
+    Types: null
+  Team_state:
+    Types: null
+  Team_zip:
+    Types: null
+  Team_cntry:
+    Types: null
+  Team_daytele:
+    Types: null
+  Team_evetele:
+    Types: null
+  Team_faxtele:
+    Types: null
+  Team_email:
+    Types: null
+  Team_c3:
+    Types: null
+  Team_c4:
+    Types: null
+  Team_c5:
+    Types: null
+  Team_c6:
+    Types: null
+  Team_c7:
+    Types: null
+  Team_c8:
+    Types: null
+  Team_c9:
+    Types: null
+  Team_c10:
+    Types: null
+  Team_altabbr:
+    Types: null
+  Team_NoPoints:
+    Types: boolean
+    Samples: false
+  Team_Selected:
+    Types: boolean
+    Samples: false
+  TeamGUID_strg:
+    Types: string
+    Samples: "A711A268-FDDF-44F4-2778-C0A8B417E4C3", "823B4F25-4810-43DF-4E95-4415DDC83554", "8C52D25F-5413-4D39-3340-ADED2666B56C"
+  Team_Code:
+    Types: null
+  Team_Gender:
+    Types: null
+  team_lsc:
+    Types: null
+
+🔗 Potential Foreign Keys/Pointers:
+  Team_no: 100 unique values (from first 100 rows)
+
+================================================================================
+TABLE: TimeStd
+================================================================================
+Rows: 0
+Columns: 8
+
+Column Names:
+  1. tag_ptr
+  2. tag_gender
+  3. event_ptr
+  4. low_age
+  5. high_Age
+  6. tag_time
+  7. tag_course
+  8. Div_abbr
+
+📊 Column Analysis:
+  tag_ptr:
+    Types: 
+  tag_gender:
+    Types: 
+  event_ptr:
+    Types: 
+  low_age:
+    Types: 
+  high_Age:
+    Types: 
+  tag_time:
+    Types: 
+  tag_course:
+    Types: 
+  Div_abbr:
+    Types: 
+
+🔗 Potential Foreign Keys/Pointers:
+  tag_ptr: 0 unique values (from first 100 rows)
+  event_ptr: 0 unique values (from first 100 rows)
+
+================================================================================
+TABLE: Waterfall
+================================================================================
+Rows: 160
+Columns: 2
+
+Column Names:
+  1. Pos_no
+  2. Rank_no
+
+📝 Sample Row #1:
+{
+  "Pos_no": 1,
+  "Rank_no": 1
+}
+
+📊 Column Analysis:
+  Pos_no:
+    Types: number
+    Samples: 1, 2, 3
+  Rank_no:
+    Types: number
+    Samples: 1, 2, 3
+
+🔗 Potential Foreign Keys/Pointers:
+  Pos_no: 100 unique values (from first 100 rows)
+  Rank_no: 100 unique values (from first 100 rows)
+
+================================================================================
+TABLE: Windreading
+================================================================================
+Rows: 0
+Columns: 5
+
+Column Names:
+  1. event_ptr
+  2. Mult_ptr
+  3. Heat_no
+  4. Rnd_ltr
+  5. wind_reading
+
+📊 Column Analysis:
+  event_ptr:
+    Types: 
+  Mult_ptr:
+    Types: 
+  Heat_no:
+    Types: 
+  Rnd_ltr:
+    Types: 
+  wind_reading:
+    Types: 
+
+🔗 Potential Foreign Keys/Pointers:
+  event_ptr: 0 unique values (from first 100 rows)
+  Mult_ptr: 0 unique values (from first 100 rows)
+  Heat_no: 0 unique values (from first 100 rows)
+
+================================================================================
+TABLE: TeamCoaches
+================================================================================
+Rows: 0
+Columns: 20
+
+Column Names:
+  1. Coach_no
+  2. Team_no
+  3. Coach_LastName
+  4. Coach_FirstName
+  5. Coach_Title
+  6. Primary_MaleHeadCoach
+  7. Primary_FemaleHeadCoach
+  8. MaleCoach_Only
+  9. FemaleCoach_Only
+  10. Coach_Phone
+  11. Coach_Cell
+  12. Coach_EMail
+  13. Coach_Cert1
+  14. Coach_Cert2
+  15. Coach_Cert3
+  16. Coach_Cert4
+  17. Coach_ExpDate1
+  18. Coach_ExpDate2
+  19. Coach_ExpDate3
+  20. Coach_ExpDate4
+
+📊 Column Analysis:
+  Coach_no:
+    Types: 
+  Team_no:
+    Types: 
+  Coach_LastName:
+    Types: 
+  Coach_FirstName:
+    Types: 
+  Coach_Title:
+    Types: 
+  Primary_MaleHeadCoach:
+    Types: 
+  Primary_FemaleHeadCoach:
+    Types: 
+  MaleCoach_Only:
+    Types: 
+  FemaleCoach_Only:
+    Types: 
+  Coach_Phone:
+    Types: 
+  Coach_Cell:
+    Types: 
+  Coach_EMail:
+    Types: 
+  Coach_Cert1:
+    Types: 
+  Coach_Cert2:
+    Types: 
+  Coach_Cert3:
+    Types: 
+  Coach_Cert4:
+    Types: 
+  Coach_ExpDate1:
+    Types: 
+  Coach_ExpDate2:
+    Types: 
+  Coach_ExpDate3:
+    Types: 
+  Coach_ExpDate4:
+    Types: 
+
+🔗 Potential Foreign Keys/Pointers:
+  Coach_no: 0 unique values (from first 100 rows)
+  Team_no: 0 unique values (from first 100 rows)
+
+================================================================================
+TABLE: CCNames
+================================================================================
+Rows: 0
+Columns: 7
+
+Column Names:
+  1. Event_ptr
+  2. Team_no
+  3. Team_ltr
+  4. Ath_no
+  5. Pos_no
+  6. Event_round
+  7. Relay_no
+
+📊 Column Analysis:
+  Event_ptr:
+    Types: 
+  Team_no:
+    Types: 
+  Team_ltr:
+    Types: 
+  Ath_no:
+    Types: 
+  Pos_no:
+    Types: 
+  Event_round:
+    Types: 
+  Relay_no:
+    Types: 
+
+🔗 Potential Foreign Keys/Pointers:
+  Event_ptr: 0 unique values (from first 100 rows)
+  Team_no: 0 unique values (from first 100 rows)
+  Ath_no: 0 unique values (from first 100 rows)
+  Pos_no: 0 unique values (from first 100 rows)
+  Relay_no: 0 unique values (from first 100 rows)
+
+================================================================================
+TABLE: ChipID
+================================================================================
+Rows: 0
+Columns: 5
+
+Column Names:
+  1. Ath_no
+  2. Comp_no
+  3. Chip_id1
+  4. Chip_id2
+  5. is_used
+
+📊 Column Analysis:
+  Ath_no:
+    Types: 
+  Comp_no:
+    Types: 
+  Chip_id1:
+    Types: 
+  Chip_id2:
+    Types: 
+  is_used:
+    Types: 
+
+🔗 Potential Foreign Keys/Pointers:
+  Ath_no: 0 unique values (from first 100 rows)
+  Comp_no: 0 unique values (from first 100 rows)
+
+================================================================================
+TABLE: Split
+================================================================================
+Rows: 0
+Columns: 7
+
+Column Names:
+  1. Event_ptr
+  2. Mult_ptr
+  3. Rnd_ltr
+  4. Ath_no
+  5. Relay_no
+  6. Split_no
+  7. Split_Time
+
+📊 Column Analysis:
+  Event_ptr:
+    Types: 
+  Mult_ptr:
+    Types: 
+  Rnd_ltr:
+    Types: 
+  Ath_no:
+    Types: 
+  Relay_no:
+    Types: 
+  Split_no:
+    Types: 
+  Split_Time:
+    Types: 
+
+🔗 Potential Foreign Keys/Pointers:
+  Event_ptr: 0 unique values (from first 100 rows)
+  Mult_ptr: 0 unique values (from first 100 rows)
+  Ath_no: 0 unique values (from first 100 rows)
+  Relay_no: 0 unique values (from first 100 rows)
+  Split_no: 0 unique values (from first 100 rows)
+
+================================================================================
+TABLE: SplitCC
+================================================================================
+Rows: 0
+Columns: 7
+
+Column Names:
+  1. Event_ptr
+  2. Mult_ptr
+  3. Rnd_ltr
+  4. Ath_no
+  5. Relay_no
+  6. Split_no
+  7. Split_Time
+
+📊 Column Analysis:
+  Event_ptr:
+    Types: 
+  Mult_ptr:
+    Types: 
+  Rnd_ltr:
+    Types: 
+  Ath_no:
+    Types: 
+  Relay_no:
+    Types: 
+  Split_no:
+    Types: 
+  Split_Time:
+    Types: 
+
+🔗 Potential Foreign Keys/Pointers:
+  Event_ptr: 0 unique values (from first 100 rows)
+  Mult_ptr: 0 unique values (from first 100 rows)
+  Ath_no: 0 unique values (from first 100 rows)
+  Relay_no: 0 unique values (from first 100 rows)
+  Split_no: 0 unique values (from first 100 rows)
+
+================================================================================
+TABLE: RecordsbyEvent
+================================================================================
+Rows: 100
+Columns: 17
+
+Column Names:
+  1. tag_ptr
+  2. event_ptr
+  3. low_age
+  4. high_Age
+  5. Record_month
+  6. Record_day
+  7. Record_year
+  8. Record_Holder
+  9. Record_Holderteam
+  10. Relay_Names
+  11. Record_Time
+  12. Record_course
+  13. Record_handtime
+  14. tag_gender
+  15. hide_me
+  16. Mult_ptr
+  17. Div_abbr
+
+📝 Sample Row #1:
+{
+  "tag_ptr": 3,
+  "event_ptr": 3,
+  "low_age": 0,
+  "high_Age": 109,
+  "Record_month": 0,
+  "Record_day": 0,
+  "Record_year": 2018,
+  "Record_Holder": "Chrissy Bendzinski",
+  "Record_Holderteam": " ",
+  "Relay_Names": " ",
+  "Record_Time": 256.5400085449219,
+  "Record_course": "M",
+  "Record_handtime": false,
+  "tag_gender": "F",
+  "hide_me": false,
+  "Mult_ptr": 0,
+  "Div_abbr": "  "
+}
+
+📊 Column Analysis:
+  tag_ptr:
+    Types: number
+    Samples: 3
+  event_ptr:
+    Types: number
+    Samples: 3, 6, 7
+  low_age:
+    Types: number
+    Samples: 0
+  high_Age:
+    Types: number
+    Samples: 109
+  Record_month:
+    Types: number
+    Samples: 0
+  Record_day:
+    Types: number
+    Samples: 0
+  Record_year:
+    Types: number
+    Samples: 2018, 1980, 2021
+  Record_Holder:
+    Types: string
+    Samples: "Chrissy Bendzinski", "Rick Sayre", "Ashlyn Ramos"
+  Record_Holderteam:
+    Types: string
+    Samples: " "
+  Relay_Names:
+    Types: string
+    Samples: " "
+  Record_Time:
+    Types: number
+    Samples: 256.5400085449219, 522.5399780273438, 977.6599731445312
+  Record_course:
+    Types: string
+    Samples: "M"
+  Record_handtime:
+    Types: boolean
+    Samples: false
+  tag_gender:
+    Types: string
+    Samples: "F", "M"
+  hide_me:
+    Types: boolean
+    Samples: false
+  Mult_ptr:
+    Types: number
+    Samples: 0
+  Div_abbr:
+    Types: string
+    Samples: "  "
+
+🔗 Potential Foreign Keys/Pointers:
+  tag_ptr: 2 unique values (from first 100 rows)
+  event_ptr: 51 unique values (from first 100 rows)
+  Mult_ptr: 1 unique values (from first 100 rows)
+
+================================================================================
+TABLE: CCTeamScores
+================================================================================
+Rows: 0
+Columns: 5
+
+Column Names:
+  1. Event_ptr
+  2. team_no
+  3. team_place
+  4. team_score
+  5. Fin_hand
+
+📊 Column Analysis:
+  Event_ptr:
+    Types: 
+  team_no:
+    Types: 
+  team_place:
+    Types: 
+  team_score:
+    Types: 
+  Fin_hand:
+    Types: 
+
+🔗 Potential Foreign Keys/Pointers:
+  Event_ptr: 0 unique values (from first 100 rows)
+  team_no: 0 unique values (from first 100 rows)
+
+================================================================================
+TABLE: MEETMOBILEOPTIONS
+================================================================================
+Rows: 1
+Columns: 33
+
+Column Names:
+  1. MeetMobileMeetID
+  2. AgencyID
+  3. EV5_uploaded
+  4. Heatpsych_uploaded
+  5. Heatsheet_amount
+  6. Teamscoring_choice
+  7. Contract_agreed
+  8. DoNotShow_timeline
+  9. HeatPsych_choice
+  10. Contract_PersonName
+  11. Contract_PersonBirth
+  12. LastName
+  13. FirstName
+  14. Phone
+  15. EMail
+  16. TeamName
+  17. Addr
+  18. SecAddr
+  19. City
+  20. State
+  21. Zip
+  22. Cntry
+  23. TimeZone
+  24. PayTo
+  25. Classification
+  26. WebSite
+  27. Token
+  28. OMEWebSite
+  29. License
+  30. NoShowActiveComSetup
+  31. NotInterestedIn_MeetMobile
+  32. HeatSheetsAre_Free
+  33. DoNotShow_MobileEntryMarks
+
+📝 Sample Row #1:
+{
+  "MeetMobileMeetID": 0,
+  "AgencyID": "0",
+  "EV5_uploaded": false,
+  "Heatpsych_uploaded": false,
+  "Heatsheet_amount": 0,
+  "Teamscoring_choice": 2,
+  "Contract_agreed": false,
+  "DoNotShow_timeline": false,
+  "HeatPsych_choice": 0,
+  "Contract_PersonName": null,
+  "Contract_PersonBirth": null,
+  "LastName": null,
+  "FirstName": null,
+  "Phone": null,
+  "EMail": null,
+  "TeamName": null,
+  "Addr": null,
+  "SecAddr": null,
+  "City": null,
+  "State": null,
+  "Zip": null,
+  "Cntry": null,
+  "TimeZone": null,
+  "PayTo": null,
+  "Classification": null,
+  "WebSite": null,
+  "Token": null,
+  "OMEWebSite": null,
+  "License": null,
+  "NoShowActiveComSetup": false,
+  "NotInterestedIn_MeetMobile": false,
+  "HeatSheetsAre_Free": false,
+  "DoNotShow_MobileEntryMarks": false
+}
+
+📊 Column Analysis:
+  MeetMobileMeetID:
+    Types: number
+    Samples: 0
+  AgencyID:
+    Types: string
+    Samples: "0"
+  EV5_uploaded:
+    Types: boolean
+    Samples: false
+  Heatpsych_uploaded:
+    Types: boolean
+    Samples: false
+  Heatsheet_amount:
+    Types: number
+    Samples: 0
+  Teamscoring_choice:
+    Types: number
+    Samples: 2
+  Contract_agreed:
+    Types: boolean
+    Samples: false
+  DoNotShow_timeline:
+    Types: boolean
+    Samples: false
+  HeatPsych_choice:
+    Types: number
+    Samples: 0
+  Contract_PersonName:
+    Types: null
+  Contract_PersonBirth:
+    Types: null
+  LastName:
+    Types: null
+  FirstName:
+    Types: null
+  Phone:
+    Types: null
+  EMail:
+    Types: null
+  TeamName:
+    Types: null
+  Addr:
+    Types: null
+  SecAddr:
+    Types: null
+  City:
+    Types: null
+  State:
+    Types: null
+  Zip:
+    Types: null
+  Cntry:
+    Types: null
+  TimeZone:
+    Types: null
+  PayTo:
+    Types: null
+  Classification:
+    Types: null
+  WebSite:
+    Types: null
+  Token:
+    Types: null
+  OMEWebSite:
+    Types: null
+  License:
+    Types: null
+  NoShowActiveComSetup:
+    Types: boolean
+    Samples: false
+  NotInterestedIn_MeetMobile:
+    Types: boolean
+    Samples: false
+  HeatSheetsAre_Free:
+    Types: boolean
+    Samples: false
+  DoNotShow_MobileEntryMarks:
+    Types: boolean
+    Samples: false
+
+================================================================================
+TABLE: Officials
+================================================================================
+Rows: 0
+Columns: 6
+
+Column Names:
+  1. Official_no
+  2. Last_name
+  3. First_name
+  4. Initial
+  5. Pref_name
+  6. Home_email
+
+📊 Column Analysis:
+  Official_no:
+    Types: 
+  Last_name:
+    Types: 
+  First_name:
+    Types: 
+  Initial:
+    Types: 
+  Pref_name:
+    Types: 
+  Home_email:
+    Types: 
+
+🔗 Potential Foreign Keys/Pointers:
+  Official_no: 0 unique values (from first 100 rows)
+
+================================================================================
+TABLE: Session
+================================================================================
+Rows: 6
+Columns: 11
+
+Column Names:
+  1. Sess_no
+  2. Sess_ltr
+  3. Sess_ptr
+  4. Sess_day
+  5. Sess_starttime
+  6. Sess_entrymax
+  7. Sess_name
+  8. Sess_interval
+  9. Sess_course
+  10. sess_entrymaxind
+  11. sess_entrymaxrel
+
+📝 Sample Row #1:
+{
+  "Sess_no": 5,
+  "Sess_ltr": " ",
+  "Sess_ptr": 1,
+  "Sess_day": 3,
+  "Sess_starttime": 37800,
+  "Sess_entrymax": 0,
+  "Sess_name": "Sunday Field",
+  "Sess_interval": null,
+  "Sess_course": null,
+  "sess_entrymaxind": 0,
+  "sess_entrymaxrel": 0
+}
+
+📊 Column Analysis:
+  Sess_no:
+    Types: number
+    Samples: 5, 4, 3
+  Sess_ltr:
+    Types: string
+    Samples: " "
+  Sess_ptr:
+    Types: number
+    Samples: 1, 2, 3
+  Sess_day:
+    Types: number
+    Samples: 3, 2, 1
+  Sess_starttime:
+    Types: number
+    Samples: 37800, 48600, 43200
+  Sess_entrymax:
+    Types: number
+    Samples: 0
+  Sess_name:
+    Types: string
+    Samples: "Sunday Field", "Saturday Track", "Saturday Field"
+  Sess_interval:
+    Types: null
+  Sess_course:
+    Types: null
+  sess_entrymaxind:
+    Types: number
+    Samples: 0
+  sess_entrymaxrel:
+    Types: number
+    Samples: 0
+
+🔗 Potential Foreign Keys/Pointers:
+  Sess_no: 6 unique values (from first 100 rows)
+  Sess_ptr: 6 unique values (from first 100 rows)
+
+================================================================================
+✅ Data dictionary saved to: hytek-data-dictionary.json
+================================================================================
+
+📋 KEY TABLES SUMMARY:
+  ✓ Session: 6 rows, 11 columns
+  ✓ Event: 56 rows, 69 columns
+  ✗ EventRound: NOT FOUND
+  ✗ Round: NOT FOUND
+  ✗ Heat: NOT FOUND
+  ✗ Lane: NOT FOUND
+  ✓ Entry: 3355 rows, 107 columns
+  ✗ Result: NOT FOUND
+  ✓ Athlete: 8719 rows, 71 columns
+  ✓ Team: 139 rows, 35 columns
+  ✓ Relay: 128 rows, 102 columns
+  ✗ Splits: NOT FOUND
+
+💡 Next Steps:
+1. Review hytek-data-dictionary.json for complete schema
+2. Identify the correct table relationships (pointer fields)
+3. Update shared/schema.ts to match HyTek structure
+4. Redesign import-mdb-complete.ts to extract from all relevant tables

@@ -1,0 +1,358 @@
+import { useState, useEffect, useRef, type RefObject } from "react";
+import type { Meet } from "@shared/schema";
+import { formatHeatDisplay } from "@/lib/fieldBindings";
+import { getLogoEffectStyle } from "@/lib/logoEffects";
+
+interface ResultEntry {
+  place?: string;
+  name?: string;
+  firstName?: string;
+  lastName?: string;
+  affiliation?: string;
+  time?: string;
+  mark?: string;
+  lane?: string;
+  bib?: string;
+  eventName?: string;
+}
+
+interface BroadcastDisplayProps {
+  meet?: Meet | null;
+  liveClockTime?: string;
+  clockSubscribersRef?: RefObject<Set<(time: string, command?: string) => void>>;
+  liveEventData?: {
+    eventNumber?: number;
+    eventName?: string;
+    heat?: number;
+    totalHeats?: number;
+    round?: number;
+    entries?: ResultEntry[];
+    wind?: string;
+    distance?: string;
+    mode?: string;
+  } | null;
+}
+
+export function BroadcastDisplay({ meet, liveClockTime, clockSubscribersRef, liveEventData }: BroadcastDisplayProps) {
+  const [displayClock, setDisplayClock] = useState("00:00:00");
+  const lastSecondsRef = useRef<number>(-1);
+  const clockElRef = useRef<HTMLDivElement>(null);
+  
+  const rawEntries = liveEventData?.entries || (liveEventData as any)?.results || [];
+  
+  const resultsWithTimes = rawEntries.filter(
+    (entry: ResultEntry) => entry.place && entry.name && (entry.time || entry.mark)
+  );
+  const resultsWithPlaces = rawEntries.filter(
+    (entry: ResultEntry) => entry.place && entry.name
+  );
+  
+  const hasTimesEntered = resultsWithTimes.length > 0;
+  const results = hasTimesEntered ? resultsWithPlaces : [];
+  const entriesForScrolling = rawEntries.filter((entry: ResultEntry) => 
+    entry.name || entry.firstName || entry.lastName || entry.bib || entry.lane
+  );
+  
+  useEffect(() => {
+    console.log(`[BroadcastDisplay] rawEntries: ${rawEntries.length}, scrolling: ${entriesForScrolling.length}, mode: ${liveEventData?.mode}, hasTimesEntered: ${hasTimesEntered}`);
+    if (rawEntries.length > 0) {
+      console.log('[BroadcastDisplay] Sample entries:', rawEntries.slice(0, 2).map((e: ResultEntry) => ({
+        lane: e.lane, bib: e.bib, name: e.name, affiliation: e.affiliation, time: e.time
+      })));
+    }
+  }, [rawEntries.length, liveEventData?.mode, entriesForScrolling.length, hasTimesEntered]);
+  
+  const getTimeToHundredths = (entry: ResultEntry) => {
+    const time = entry.time || entry.mark || '';
+    const match = time.match(/^(\d+:\d+\.\d{2})/);
+    if (match) return match[1];
+    const secMatch = time.match(/^(\d+\.\d{2})/);
+    if (secMatch) return secMatch[1];
+    return time;
+  };
+  
+  const timeCounts = new Map<string, number>();
+  results.forEach((entry: ResultEntry) => {
+    const timeHundredths = getTimeToHundredths(entry);
+    if (timeHundredths) {
+      timeCounts.set(timeHundredths, (timeCounts.get(timeHundredths) || 0) + 1);
+    }
+  });
+  
+  const tiedTimes = new Set<string>();
+  timeCounts.forEach((count, time) => {
+    if (count > 1) tiedTimes.add(time);
+  });
+  
+  const firstPlace = results.length > 0 ? results[0] : null;
+  const remainingResults = results.slice(1);
+  
+  const parseClockToSeconds = (clock: string): number => {
+    const dotIndex = clock.indexOf('.');
+    const timeOnly = dotIndex !== -1 ? clock.substring(0, dotIndex) : clock;
+    const parts = timeOnly.split(':').map(Number);
+    if (parts.length === 3) {
+      return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    } else if (parts.length === 2) {
+      return parts[0] * 60 + parts[1];
+    }
+    return parts[0] || 0;
+  };
+  
+  // Subscribe to live clock updates via the subscriber pattern (bypasses React re-renders)
+  useEffect(() => {
+    if (!clockSubscribersRef?.current) return;
+    const subscribers = clockSubscribersRef.current;
+    
+    const handleClockUpdate = (time: string, _command?: string) => {
+      if (!time) return;
+      // Strip sub-second precision for broadcast display (show whole seconds only)
+      const dotIndex = time.indexOf('.');
+      const display = dotIndex !== -1 ? time.substring(0, dotIndex) : time;
+      // Direct DOM mutation for smooth updates without React re-renders
+      if (clockElRef.current) {
+        clockElRef.current.textContent = display;
+      }
+    };
+    
+    subscribers.add(handleClockUpdate);
+    return () => { subscribers.delete(handleClockUpdate); };
+  }, [clockSubscribersRef]);
+  
+  // Fallback: update from prop if no subscriber (e.g., initial render)
+  useEffect(() => {
+    if (liveClockTime) {
+      const dotIndex = liveClockTime.indexOf('.');
+      const display = dotIndex !== -1 ? liveClockTime.substring(0, dotIndex) : liveClockTime;
+      setDisplayClock(display);
+    }
+  }, [liveClockTime]);
+  
+  const formatPlace = (place: string) => {
+    const num = parseInt(place);
+    if (isNaN(num)) return place;
+    const suffix = num === 1 ? 'st' : num === 2 ? 'nd' : num === 3 ? 'rd' : 'th';
+    return `${num}${suffix}`;
+  };
+  
+  const formatName = (entry: ResultEntry) => {
+    if (entry.firstName && entry.lastName) {
+      return `${entry.firstName.charAt(0)}. ${entry.lastName}`;
+    }
+    const name = entry.name?.trim();
+    if (name) {
+      const parts = name.split(/\s+/);
+      if (parts.length >= 2) {
+        const firstName = parts[0];
+        const lastName = parts.slice(1).join(' ');
+        return `${firstName.charAt(0)}. ${lastName}`;
+      }
+      return name;
+    }
+    if (entry.affiliation) {
+      return entry.affiliation;
+    }
+    if (entry.bib) {
+      return `#${entry.bib}`;
+    }
+    if (entry.lane) {
+      return `Lane ${entry.lane}`;
+    }
+    return '';
+  };
+  
+  const getPlaceColor = (place: string) => {
+    const num = parseInt(place);
+    if (num === 1) return 'text-yellow-600';
+    if (num === 2) return 'text-gray-500';
+    if (num === 3) return 'text-orange-600';
+    return 'text-black';
+  };
+  
+  const formatTimeToHundredths = (timeStr: string) => {
+    if (!timeStr) return timeStr;
+    
+    const match = timeStr.match(/^(\d+):(\d+)\.(\d+)$/);
+    if (match) {
+      const totalSeconds = parseInt(match[1]) * 60 + parseFloat(`${match[2]}.${match[3]}`);
+      const rounded = Math.round(totalSeconds * 100) / 100;
+      const mins = Math.floor(rounded / 60);
+      const secs = Math.round((rounded % 60) * 100) / 100;
+      return `${mins}:${secs.toFixed(2).padStart(5, '0')}`;
+    }
+    
+    const secMatch = timeStr.match(/^(\d+)\.(\d+)$/);
+    if (secMatch) {
+      const totalSeconds = parseFloat(`${secMatch[1]}.${secMatch[2]}`);
+      const rounded = Math.round(totalSeconds * 100) / 100;
+      if (rounded >= 60) {
+        const mins = Math.floor(rounded / 60);
+        const secs = Math.round((rounded % 60) * 100) / 100;
+        return `${mins}:${secs.toFixed(2).padStart(5, '0')}`;
+      }
+      return rounded.toFixed(2);
+    }
+    
+    return timeStr;
+  };
+  
+  const eventName = liveEventData?.eventName || '';
+  const heatInfo = formatHeatDisplay(liveEventData?.heat, liveEventData?.totalHeats);
+
+  const renderScrollingEntry = (entry: ResultEntry | null) => {
+    if (!entry) {
+      return (
+        <div className="flex-1 min-w-0 flex flex-col items-center justify-center px-2 py-3">
+          <span className="text-gray-300 text-lg">-</span>
+        </div>
+      );
+    }
+    
+    const displayName = formatName(entry);
+    const hasIndividualName = entry.name || entry.firstName || entry.lastName;
+    const showAffiliation = entry.affiliation && hasIndividualName;
+    
+    return (
+      <div className="flex-1 min-w-0 flex flex-col items-center justify-start px-1 py-1 uppercase">
+        <div className="flex items-center justify-center gap-2 w-full">
+          {entry.lane && (
+            <span className="text-2xl font-semibold text-gray-600">
+              {entry.lane}
+            </span>
+          )}
+          <span className="text-3xl font-bold text-black text-center truncate">
+            {displayName}
+          </span>
+        </div>
+        {showAffiliation && (
+          <span className="text-xl text-gray-600 truncate w-full text-center leading-tight">
+            {entry.affiliation}
+          </span>
+        )}
+      </div>
+    );
+  };
+
+  const renderAthleteColumn = (entry: ResultEntry | null) => {
+    if (!entry) {
+      return (
+        <div className="flex-1 min-w-0 flex flex-col items-center justify-center px-2 py-3">
+          <span className="text-gray-300 text-lg">-</span>
+        </div>
+      );
+    }
+    
+    const displayName = formatName(entry);
+    const hasIndividualName = entry.name || entry.firstName || entry.lastName;
+    const showAffiliation = entry.affiliation && hasIndividualName;
+    
+    return (
+      <div className="flex-1 min-w-0 flex flex-col items-center justify-start px-1 py-1 uppercase">
+        <div className="flex items-center justify-center gap-2 w-full">
+          <span className={`text-2xl font-semibold ${getPlaceColor(entry.place || '')}`}>
+            {entry.place}.
+          </span>
+          <span className="text-3xl font-bold text-black text-center truncate">
+            {displayName}
+          </span>
+        </div>
+        {showAffiliation && (
+          <span className="text-xl text-gray-600 truncate w-full text-center leading-tight">
+            {entry.affiliation}
+          </span>
+        )}
+        {(entry.time || entry.mark) && (() => {
+          const fullTime = entry.time || entry.mark || '';
+          const timeHundredths = getTimeToHundredths(entry);
+          const isTied = tiedTimes.has(timeHundredths) && fullTime.length > timeHundredths.length;
+          return (
+            <div className="relative flex-shrink-0 overflow-visible">
+              <span className="text-3xl font-bold text-black whitespace-nowrap block">
+                {formatTimeToHundredths(fullTime)}
+              </span>
+              {isTied && (
+                <span className="absolute left-1/2 -translate-x-1/2 top-full text-lg text-gray-500 whitespace-nowrap">
+                  {fullTime}
+                </span>
+              )}
+            </div>
+          );
+        })()}
+      </div>
+    );
+  };
+
+  return (
+    <div className="relative w-full h-full overflow-hidden" style={{ fontFamily: "'Oswald', sans-serif", backgroundColor: 'white' }}>
+      <div className="absolute inset-x-0 bottom-0 py-4 px-6 mx-4 mb-4 bg-white/95" style={{ border: '1px solid rgba(200, 200, 200, 0.5)' }}>
+        <div className="flex gap-6">
+          <div className="flex items-center gap-4 flex-shrink-0">
+            {meet?.logoUrl && (
+              <div className="h-32 w-48 flex items-center justify-center">
+                <img 
+                  src={meet.logoUrl} 
+                  alt={meet.name || 'Meet Logo'}
+                  className="max-h-full max-w-full object-contain"
+                  style={getLogoEffectStyle(meet.logoEffect)}
+                />
+              </div>
+            )}
+            
+            <div className="flex flex-col items-center justify-center">
+              {eventName && (
+                <div className="text-center mb-1">
+                  <div className="text-2xl font-bold uppercase tracking-wide text-black">
+                    {eventName}
+                  </div>
+                  {heatInfo && (
+                    <div className="text-xl text-gray-600">
+                      {heatInfo}
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              <div ref={clockElRef} className="text-5xl font-bold tracking-wider text-black">
+                {displayClock}
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex-1 flex gap-2 overflow-hidden">
+            {hasTimesEntered ? (
+              <>
+                {firstPlace && (
+                  <div className="flex-1 min-w-0">
+                    {renderAthleteColumn(firstPlace)}
+                  </div>
+                )}
+                
+                <div className="flex gap-2 flex-[5]">
+                  {remainingResults.map((entry: ResultEntry, idx: number) => (
+                    <div key={`col-${idx}`} className="flex-1 min-w-0">
+                      {renderAthleteColumn(entry)}
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : entriesForScrolling.length > 0 ? (
+              <div className="flex gap-2 flex-1">
+                {entriesForScrolling.map((entry: ResultEntry, idx: number) => (
+                  <div key={`scroll-${idx}`} className="flex-1 min-w-0">
+                    {renderScrollingEntry(entry)}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex-1 flex items-center justify-center py-8">
+                <span className="text-xl text-gray-500 uppercase">
+                  {eventName ? `${eventName} - Waiting for results...` : 'Waiting for results...'}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
