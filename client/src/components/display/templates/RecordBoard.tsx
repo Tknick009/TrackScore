@@ -253,7 +253,7 @@ export function RecordBoard({
                 className="font-black tabular-nums"
                 style={{
                   fontSize: `${timeSize}cqw`,
-                  fontFamily: "'Bebas Neue', 'Inter', sans-serif",
+                  fontFamily: "'Oswald', 'Inter', sans-serif",
                   color: '#ffffff',
                   lineHeight: 1,
                   textShadow: '0 1px 8px rgba(0,0,0,0.4)',
@@ -265,7 +265,7 @@ export function RecordBoard({
                 className="font-black uppercase rounded flex items-center justify-center"
                 style={{
                   fontSize: `${tagSize}cqw`,
-                  fontFamily: "'Bebas Neue', 'Inter', sans-serif",
+                  fontFamily: "'Oswald', 'Inter', sans-serif",
                   color: '#fff',
                   background: accent,
                   boxShadow: `0 0 10px ${accent}66`,
