@@ -832,7 +832,11 @@ export default function DisplayDevice() {
               console.log('Saved device ID for reconnection:', message.data.deviceId);
               const deviceData = message.data;
               if (deviceData.fieldPort !== undefined) {
-                setFieldPort(deviceData.fieldPort ?? 4560);
+                const newPort = deviceData.fieldPort ?? 4560;
+                // Update ref immediately so the very next incoming message uses the correct port
+                // (matching the pattern in device_config_update handler)
+                fieldPortRef.current = newPort;
+                setFieldPort(newPort);
               }
               if (deviceData.isBigBoard !== undefined) {
                 setIsBigBoard(!!deviceData.isBigBoard);
@@ -1401,8 +1405,8 @@ export default function DisplayDevice() {
                 return;
               }
               
-              // Mark that we've received data on our assigned port
-              if (!dataPort || dataPort === myPort) {
+              // Mark that we've received data on our assigned port (strict match only)
+              if (dataPort && dataPort === myPort) {
                 hasReceivedPortDataRef.current = true;
               }
               
@@ -1449,9 +1453,13 @@ export default function DisplayDevice() {
                 }
               }
               
-              // Update liveEventData for the primary port (backward compat for single-event displays)
-              // For multi-event displays, each scene object reads from liveEventDataByPort[port] instead
-              if (!dataPort || dataPort === myPort) {
+              // Update liveEventData ONLY when data is for this device's assigned port.
+              // Previously !dataPort would match all devices, causing wrong-port data to leak in.
+              // Now: strict match required. If dataPort is unknown, only update if device has no port set.
+              const isMyPortData = dataPort
+                ? dataPort === myPort
+                : !myPort; // unknown port → only if device also has no port
+              if (isMyPortData) {
                 setState(prev => ({
                   ...prev,
                   liveEventData: {
@@ -1561,9 +1569,11 @@ export default function DisplayDevice() {
                 }
               }
               
-              // Update liveEventData for the primary port (backward compat for single-event displays)
-              // For multi-event displays, each scene object reads from liveEventDataByPort[port] instead
-              if (!data.fieldPort || data.fieldPort === myPort) {
+              // Update liveEventData ONLY when standings data is for this device's assigned port.
+              const isMyStandingsPort = data.fieldPort
+                ? data.fieldPort === myPort
+                : !myPort;
+              if (isMyStandingsPort) {
                 const usedMode = currentLayoutModeRef.current || 'field_standings';
                 setState(prev => ({
                   ...prev,
