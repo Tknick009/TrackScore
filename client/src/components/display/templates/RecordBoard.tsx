@@ -23,6 +23,7 @@ interface RecordBoardProps {
   meetLogoEffect?: string | null;
   primaryColor?: string;
   secondaryColor?: string;
+  accentColor?: string;
 }
 
 // Derive a short tag from the full record label if no explicit tag is given
@@ -66,12 +67,14 @@ export function RecordBoard({
   meetLogoEffect,
   primaryColor,
   secondaryColor,
+  accentColor,
 }: RecordBoardProps) {
   const winner = entries[0];
   if (!winner) return null;
 
   const primary = primaryColor || '#0088DC';
   const secondary = secondaryColor || '#FFD700';
+  const accent = accentColor || secondary || '#FFD700';
   const tag = recordTag || deriveTag(recordLabel);
   const displayName = formatName(winner);
 
@@ -114,7 +117,7 @@ export function RecordBoard({
         className="absolute top-0 left-0 right-0 pointer-events-none z-20"
         style={{
           height: '2px',
-          background: `linear-gradient(90deg, transparent 5%, ${secondary}66 30%, ${secondary}66 70%, transparent 95%)`,
+          background: `linear-gradient(90deg, transparent 5%, ${accent}66 30%, ${accent}66 70%, transparent 95%)`,
         }}
       />
       {/* Bottom accent bar */}
@@ -122,7 +125,7 @@ export function RecordBoard({
         className="absolute bottom-0 left-0 right-0 pointer-events-none z-20"
         style={{
           height: '2px',
-          background: `linear-gradient(90deg, transparent 5%, ${secondary}66 30%, ${secondary}66 70%, transparent 95%)`,
+          background: `linear-gradient(90deg, transparent 5%, ${accent}66 30%, ${accent}66 70%, transparent 95%)`,
         }}
       />
 
@@ -145,7 +148,7 @@ export function RecordBoard({
           className="w-[70%] pointer-events-none"
           style={{
             height: '2px',
-            background: `linear-gradient(90deg, transparent 0%, ${secondary} 20%, ${secondary} 80%, transparent 100%)`,
+            background: `linear-gradient(90deg, transparent 0%, ${accent} 20%, ${accent} 80%, transparent 100%)`,
             marginBottom: '2cqh',
           }}
         />
@@ -203,8 +206,8 @@ export function RecordBoard({
             className="uppercase font-black"
             style={{
               fontSize: '4cqw',
-              color: secondary,
-              textShadow: `0 0 6px ${secondary}44`,
+              color: accent,
+              textShadow: `0 0 6px ${accent}44`,
             }}
           >
             {recordLabel}
@@ -252,8 +255,8 @@ export function RecordBoard({
               fontSize: '8.5cqw',
               fontFamily: "'Bebas Neue', 'Inter', sans-serif",
               color: '#fff',
-              background: secondary,
-              boxShadow: `0 0 10px ${secondary}66`,
+              background: accent,
+              boxShadow: `0 0 10px ${accent}66`,
               lineHeight: 1,
               padding: '0 2cqw',
             }}

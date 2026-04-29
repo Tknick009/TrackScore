@@ -1747,12 +1747,14 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       // Get meet colors and logo effect
       let primaryColor = '#FFD700';
       let secondaryColor = '#1a1a2e';
+      let accentColor = '#FFD700';
       let logoEffect: string | null = null;
       try {
         const meet = await storage.getMeet(meetId);
         if (meet) {
           primaryColor = meet.primaryColor || primaryColor;
           secondaryColor = meet.secondaryColor || secondaryColor;
+          accentColor = (meet as any).accentColor || accentColor;
           logoEffect = (meet as any).logoEffect || null;
         }
       } catch (err) { /* ok */ }
@@ -1779,6 +1781,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
             meetLogoEffect: logoEffect,
             primaryColor,
             secondaryColor,
+            accentColor,
           },
         }));
         

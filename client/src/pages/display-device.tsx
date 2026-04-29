@@ -2192,6 +2192,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
           meetLogoEffect={liveEventData.meetLogoEffect || (meet as any)?.logoEffect}
           primaryColor={liveEventData.primaryColor || undefined}
           secondaryColor={liveEventData.secondaryColor || undefined}
+          accentColor={liveEventData.accentColor || (meet as any)?.accentColor || undefined}
         />
       );
     }
