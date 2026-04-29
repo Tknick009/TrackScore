@@ -232,13 +232,12 @@ export function FieldTransitionRenderer({
       return;
     }
 
-    // Cooldown guard: prevent rapid re-triggering even if a new athlete is detected
+    // Cooldown guard: prevent rapid re-triggering even if a new athlete is detected.
+    // Do NOT update prevCalledBibRef or seenBibsRef during cooldown — the athlete
+    // should remain "unseen" and "not previously called" so they can be re-detected
+    // and trigger a curtain after cooldown expires.
     const now = Date.now();
     if (now - lastCurtainTimeRef.current < CURTAIN_COOLDOWN_MS) {
-      // Do NOT update seenBibsRef during cooldown — athletes appearing during
-      // cooldown should remain "unseen" so Strategy 2 can detect them after cooldown expires.
-      // BUT DO update prevCalledBibRef so the same athlete won't re-trigger after cooldown.
-      prevCalledBibRef.current = calledId;
       return;
     }
 
