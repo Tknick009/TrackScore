@@ -1769,6 +1769,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       } catch (err) { /* ok */ }
       
       // For relay events, fetch relay member last names from MDB
+      console.log(`[Record-Board] isRelay=${winner?.isRelay}, mdbPath=${mdbPath ? 'yes' : 'no'}, event=${evtNum}`);
       if (winner && winner.isRelay && mdbPath) {
         try {
           const MDBReader = (await import('mdb-reader')).default;
@@ -1781,12 +1782,14 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           const evtData = evtTable.getData();
           const evtRow = evtData.find((r: any) => Number(r.Event_no) === evtNum);
           const eventPtr = evtRow ? Number(evtRow.Event_ptr || evtRow.Event_no) : null;
+          console.log(`[Record-Board] Relay lookup: Event_no=${evtNum} → Event_ptr=${eventPtr}`);
           
           if (eventPtr) {
             // Find relay entry for winner's team
             const relayTable = reader.getTable("Relay");
             const relayData = relayTable.getData();
             const teamName = winner.affiliation || winner.team || '';
+            console.log(`[Record-Board] Looking for team: "${teamName}" / "${winner.team}"`);
             
             // Match relay by event and team
             const teamsTable = reader.getTable("Team");
@@ -1796,16 +1799,19 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
               (t.Team_abbr || '').trim().toUpperCase() === (winner.team || '').toUpperCase()
             );
             const teamNo = teamRow ? Number(teamRow.Team_no) : null;
+            console.log(`[Record-Board] Team match: teamNo=${teamNo}, teamRow=${teamRow ? (teamRow as any).Team_name : 'NOT FOUND'}`);
             
             if (teamNo) {
               const relayRow = relayData.find((r: any) => Number(r.Event_ptr) === eventPtr && Number(r.Team_no) === teamNo);
               const relayNo = relayRow ? Number(relayRow.Relay_no) : null;
+              console.log(`[Record-Board] Relay row: relayNo=${relayNo}, matching Event_ptr=${eventPtr} + Team_no=${teamNo}`);
               
               if (relayNo) {
                 // Get relay member names from RelayNames table
                 const relayNamesTable = reader.getTable("RelayNames");
                 const relayNamesData = relayNamesTable.getData();
                 const memberRows = relayNamesData.filter((rn: any) => Number(rn.Relay_no) === relayNo);
+                console.log(`[Record-Board] Found ${memberRows.length} relay members for Relay_no=${relayNo}`);
                 
                 // Get athlete info for each member
                 const athTable = reader.getTable("Athlete");
@@ -1821,6 +1827,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
                     }
                   }
                 }
+                console.log(`[Record-Board] Relay members: [${memberNames.join(', ')}]`);
                 if (memberNames.length > 0) {
                   (winner as any).relayMembers = memberNames;
                 }
@@ -1830,6 +1837,10 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         } catch (err) {
           console.warn('[Record-Board] Failed to fetch relay members from MDB:', err);
         }
+      } else if (winner && !winner.isRelay) {
+        console.log(`[Record-Board] Not a relay event (isRelay=false)`);
+      } else if (!mdbPath) {
+        console.log(`[Record-Board] No MDB path configured for relay lookup`);
       }
       
       const connectedDevice = connectedDisplayDevices.get(deviceId);
