@@ -167,7 +167,7 @@ export function RecordBoard({
           <div
             className="font-black uppercase rounded flex items-center justify-center px-4"
             style={{
-              fontSize: 'clamp(56px, 14vw, 180px)',
+              fontSize: 'clamp(48px, 12vw, 153px)',
               fontFamily: "'Bebas Neue', 'Inter', sans-serif",
               color: '#fff',
               background: primary,
