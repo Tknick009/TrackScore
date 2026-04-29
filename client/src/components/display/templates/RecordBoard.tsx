@@ -171,19 +171,6 @@ export function RecordBoard({
           className="flex items-center justify-center w-full"
           style={{ gap: '1.5cqw', marginBottom: '2.5cqh' }}
         >
-          {/* Affiliation logo in team line */}
-          {winner.teamLogoUrl && (
-            <img
-              src={winner.teamLogoUrl}
-              alt=""
-              style={{
-                height: '5cqw',
-                width: '5cqw',
-                objectFit: 'contain',
-                filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.5))',
-              }}
-            />
-          )}
           <span
             className="uppercase font-bold tracking-wide"
             style={{
@@ -214,14 +201,14 @@ export function RecordBoard({
           </span>
         </div>
 
-        {/* LOGO + TIME / MARK + TAG — side by side */}
+        {/* LOGO + TIME / MARK + TAG — side by side, larger */}
         <div className="flex items-stretch justify-center" style={{ gap: '2cqw' }}>
           {/* Affiliation logo — left of time */}
           {winner.teamLogoUrl && (
             <div
               className="flex items-center justify-center rounded overflow-hidden"
               style={{
-                width: '10cqw',
+                width: '14cqw',
                 background: 'rgba(255,255,255,0.08)',
               }}
             >
@@ -229,8 +216,8 @@ export function RecordBoard({
                 src={winner.teamLogoUrl}
                 alt=""
                 style={{
-                  height: '70%',
-                  width: '70%',
+                  height: '75%',
+                  width: '75%',
                   objectFit: 'contain',
                   filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.5))',
                 }}
@@ -240,7 +227,7 @@ export function RecordBoard({
           <div
             className="font-black tabular-nums"
             style={{
-              fontSize: '10cqw',
+              fontSize: '14cqw',
               fontFamily: "'Bebas Neue', 'Inter', sans-serif",
               color: '#ffffff',
               lineHeight: 1,
@@ -252,7 +239,7 @@ export function RecordBoard({
           <div
             className="font-black uppercase rounded flex items-center justify-center"
             style={{
-              fontSize: '8.5cqw',
+              fontSize: '12cqw',
               fontFamily: "'Bebas Neue', 'Inter', sans-serif",
               color: '#fff',
               background: accent,
