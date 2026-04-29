@@ -14,6 +14,7 @@ import { mergeFlightsForEvent, parseLFFFile, findLFFFilesForEvent } from "../par
 import { parseLIFFile, type NormalizedResult, type LIFEventHeader } from "../parsers/lif-parser";
 import * as fs from 'fs';
 import * as pathModule from 'path';
+import { getActiveHytekMdbWatchers } from "../hytek-mdb-watcher";
 import {
   calculateHorizontalStandings,
   calculateVerticalStandings,
@@ -1767,12 +1768,21 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           mdbPath = meet.mdbPath || null;
         }
       } catch (err) { /* ok */ }
-      // Fallback: get MDB path from ingestion settings if not on meet
+      // Fallback: get MDB path from ingestion settings or active watcher
       if (!mdbPath) {
         try {
           const ingestion = await storage.getIngestionSettings(meetId);
           if (ingestion && (ingestion as any).hytekMdbPath) {
             mdbPath = (ingestion as any).hytekMdbPath;
+          }
+        } catch (err) { /* ok */ }
+      }
+      if (!mdbPath) {
+        try {
+          const activeWatchers = getActiveHytekMdbWatchers();
+          const watcher = activeWatchers.find(w => w.meetId === meetId);
+          if (watcher?.mdbFilePath) {
+            mdbPath = watcher.mdbFilePath;
           }
         } catch (err) { /* ok */ }
       }
