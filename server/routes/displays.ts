@@ -1767,6 +1767,15 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           mdbPath = meet.mdbPath || null;
         }
       } catch (err) { /* ok */ }
+      // Fallback: get MDB path from ingestion settings if not on meet
+      if (!mdbPath) {
+        try {
+          const ingestion = await storage.getIngestionSettings(meetId);
+          if (ingestion && (ingestion as any).hytekMdbPath) {
+            mdbPath = (ingestion as any).hytekMdbPath;
+          }
+        } catch (err) { /* ok */ }
+      }
       
       // For relay events, fetch relay member last names from MDB
       console.log(`[Record-Board] isRelay=${winner?.isRelay}, mdbPath=${mdbPath ? 'yes' : 'no'}, event=${evtNum}`);
