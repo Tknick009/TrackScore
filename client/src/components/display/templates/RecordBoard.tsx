@@ -41,6 +41,21 @@ function deriveTag(label: string): string {
   return label.split(/\s+/).map(w => w[0]?.toUpperCase() || '').join('');
 }
 
+// Format name as "F. LASTNAME"
+function formatName(entry: RecordEntry): string {
+  if (entry.firstName && entry.lastName) {
+    return `${entry.firstName.charAt(0)}. ${entry.lastName}`.toUpperCase();
+  }
+  // Fallback: try to parse from full name
+  const parts = entry.name.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    const first = parts[0];
+    const last = parts.slice(1).join(' ');
+    return `${first.charAt(0)}. ${last}`.toUpperCase();
+  }
+  return entry.name.toUpperCase();
+}
+
 export function RecordBoard({
   eventName,
   recordLabel,
@@ -58,6 +73,7 @@ export function RecordBoard({
   const primary = primaryColor || '#0088DC';
   const secondary = secondaryColor || '#FFD700';
   const tag = recordTag || deriveTag(recordLabel);
+  const displayName = formatName(winner);
 
   // Curtain-style background colors (matches meet logo curtain)
   const shadeColor = (hex: string, amount: number) => {
@@ -69,7 +85,6 @@ export function RecordBoard({
   };
   const pDark = shadeColor(primary, -0.25);
   const pDeep = shadeColor(primary, -0.45);
-  const accent = secondary || '#FFD700';
 
   return (
     <div
@@ -99,7 +114,7 @@ export function RecordBoard({
         className="absolute top-0 left-0 right-0 pointer-events-none z-20"
         style={{
           height: '2px',
-          background: `linear-gradient(90deg, transparent 5%, ${accent}66 30%, ${accent}66 70%, transparent 95%)`,
+          background: `linear-gradient(90deg, transparent 5%, ${secondary}66 30%, ${secondary}66 70%, transparent 95%)`,
         }}
       />
       {/* Bottom accent bar */}
@@ -107,7 +122,7 @@ export function RecordBoard({
         className="absolute bottom-0 left-0 right-0 pointer-events-none z-20"
         style={{
           height: '2px',
-          background: `linear-gradient(90deg, transparent 5%, ${accent}66 30%, ${accent}66 70%, transparent 95%)`,
+          background: `linear-gradient(90deg, transparent 5%, ${secondary}66 30%, ${secondary}66 70%, transparent 95%)`,
         }}
       />
 
@@ -119,31 +134,41 @@ export function RecordBoard({
           style={{
             fontSize: '4.5cqw',
             color: 'rgba(255,255,255,0.8)',
-            marginBottom: '1.5cqh',
+            marginBottom: '1cqh',
           }}
         >
           {eventName}
         </div>
 
-        {/* ATHLETE NAME — the hero, biggest text */}
+        {/* Accent line under header — fades at edges */}
+        <div
+          className="w-[70%] pointer-events-none"
+          style={{
+            height: '2px',
+            background: `linear-gradient(90deg, transparent 0%, ${secondary} 20%, ${secondary} 80%, transparent 100%)`,
+            marginBottom: '2cqh',
+          }}
+        />
+
+        {/* ATHLETE NAME — First Initial. Last Name, hero text */}
         <div
           className="text-center uppercase font-black leading-[0.9] w-full"
           style={{
-            fontSize: '12cqw',
+            fontSize: '14cqw',
             color: '#ffffff',
             textShadow: '0 1px 8px rgba(0,0,0,0.6)',
-            marginBottom: '1cqh',
+            marginBottom: '1.5cqh',
           }}
         >
-          {winner.name}
+          {displayName}
         </div>
 
         {/* Team/affiliation + record label line */}
         <div
-          className="flex items-center justify-center gap-[1cqw] w-full"
-          style={{ marginBottom: '2cqh' }}
+          className="flex items-center justify-center w-full"
+          style={{ gap: '1.5cqw', marginBottom: '2.5cqh' }}
         >
-          {/* Affiliation logo */}
+          {/* Affiliation logo in team line */}
           {winner.teamLogoUrl && (
             <img
               src={winner.teamLogoUrl}
@@ -178,8 +203,8 @@ export function RecordBoard({
             className="uppercase font-black"
             style={{
               fontSize: '4cqw',
-              color: primary,
-              textShadow: `0 0 6px ${primary}44`,
+              color: secondary,
+              textShadow: `0 0 6px ${secondary}44`,
             }}
           >
             {recordLabel}
@@ -227,26 +252,14 @@ export function RecordBoard({
               fontSize: '8.5cqw',
               fontFamily: "'Bebas Neue', 'Inter', sans-serif",
               color: '#fff',
-              background: primary,
-              boxShadow: `0 0 10px ${primary}66`,
+              background: secondary,
+              boxShadow: `0 0 10px ${secondary}66`,
               lineHeight: 1,
               padding: '0 2cqw',
             }}
           >
             {tag}
           </div>
-        </div>
-
-        {/* Meet name — bottom, subtle */}
-        <div
-          className="text-center uppercase font-medium tracking-wider"
-          style={{
-            fontSize: '2.5cqw',
-            color: 'rgba(255,255,255,0.35)',
-            marginTop: '2cqh',
-          }}
-        >
-          {meetName}
         </div>
       </div>
     </div>
