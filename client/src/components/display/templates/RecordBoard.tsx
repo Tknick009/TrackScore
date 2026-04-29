@@ -142,16 +142,37 @@ export function RecordBoard({
             className="uppercase font-black"
             style={{
               fontSize: 'clamp(20px, 4.5vw, 44px)',
-              color: secondary,
-              textShadow: `0 0 12px ${secondary}44`,
+              color: primary,
+              textShadow: `0 0 12px ${primary}44`,
             }}
           >
             {recordLabel}
           </span>
         </div>
 
-        {/* TIME / MARK + TAG — side by side, tag matches full height of time */}
+        {/* LOGO + TIME / MARK + TAG — side by side, logo and tag match height of time */}
         <div className="flex items-stretch justify-center gap-4">
+          {/* Affiliation logo — left of time, same height as tag */}
+          {winner.teamLogoUrl && (
+            <div
+              className="flex items-center justify-center rounded overflow-hidden"
+              style={{
+                width: 'clamp(44px, 10vw, 140px)',
+                background: 'rgba(255,255,255,0.08)',
+              }}
+            >
+              <img
+                src={winner.teamLogoUrl}
+                alt=""
+                style={{
+                  height: '70%',
+                  width: '70%',
+                  objectFit: 'contain',
+                  filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.5))',
+                }}
+              />
+            </div>
+          )}
           <div
             className="font-black tabular-nums"
             style={{

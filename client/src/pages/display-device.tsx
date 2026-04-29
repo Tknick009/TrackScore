@@ -2718,13 +2718,15 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     </div>
   );
 
-  // Record Board, Winners Board, and pre-meet displays always render full-screen regardless of display type
-  const isFullScreenBoard = 
+  // Winners Board and pre-meet displays render full-screen on non-fixed displays
+  // Record Board should respect fixed-size displays (P10/P6) so it doesn't go full screen on LED boards
+  const isFullScreenBoard = !isFixedSizeDisplay && (
     (template === 'record-board' && liveEventData?.mode === 'record') ||
     (template === 'winners-board' && liveEventData?.mode === 'winners') ||
     (template === 'meet-schedule' && liveEventData?.mode === 'meet_schedule') ||
     (template === 'meet-records' && liveEventData?.mode === 'meet_records') ||
-    (template === 'sponsor-rotation' && liveEventData?.mode === 'sponsors');
+    (template === 'sponsor-rotation' && liveEventData?.mode === 'sponsors')
+  );
 
   // Display scale: set CSS custom property for text/logo condensing only (backgrounds stay full-size)
   const scaleClass = displayScale !== 100 ? 'display-scale-active' : '';
