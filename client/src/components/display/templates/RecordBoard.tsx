@@ -77,13 +77,13 @@ export function RecordBoard({
 
       <div className="relative z-10 flex-1 flex flex-col justify-center items-center px-[5%]">
 
-        {/* Event name — top line, smaller */}
+        {/* Event name — top line, prominent */}
         <div
           className="text-center uppercase font-bold tracking-wider w-full"
           style={{
-            fontSize: 'clamp(14px, 3vw, 36px)',
-            color: 'rgba(255,255,255,0.7)',
-            marginBottom: 'clamp(4px, 1vh, 12px)',
+            fontSize: 'clamp(20px, 4.5vw, 52px)',
+            color: 'rgba(255,255,255,0.8)',
+            marginBottom: 'clamp(8px, 2vh, 20px)',
           }}
         >
           {eventName}
@@ -102,15 +102,28 @@ export function RecordBoard({
           {winner.name}
         </div>
 
-        {/* Team + Record Tag line */}
+        {/* Team/affiliation + record label line */}
         <div
           className="flex items-center justify-center gap-3 w-full"
-          style={{ marginBottom: 'clamp(8px, 2vh, 24px)' }}
+          style={{ marginBottom: 'clamp(12px, 3vh, 32px)' }}
         >
+          {/* Affiliation logo */}
+          {winner.teamLogoUrl && (
+            <img
+              src={winner.teamLogoUrl}
+              alt=""
+              style={{
+                height: 'clamp(28px, 5vw, 56px)',
+                width: 'clamp(28px, 5vw, 56px)',
+                objectFit: 'contain',
+                filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.5))',
+              }}
+            />
+          )}
           <span
             className="uppercase font-semibold tracking-wide"
             style={{
-              fontSize: 'clamp(14px, 3vw, 32px)',
+              fontSize: 'clamp(16px, 3.5vw, 36px)',
               color: 'rgba(255,255,255,0.6)',
             }}
           >
@@ -119,8 +132,8 @@ export function RecordBoard({
           <span
             className="uppercase font-black"
             style={{
-              fontSize: 'clamp(14px, 3vw, 32px)',
-              color: 'rgba(255,255,255,0.6)',
+              fontSize: 'clamp(16px, 3.5vw, 36px)',
+              color: 'rgba(255,255,255,0.4)',
             }}
           >
             -
@@ -128,7 +141,7 @@ export function RecordBoard({
           <span
             className="uppercase font-black"
             style={{
-              fontSize: 'clamp(14px, 3vw, 32px)',
+              fontSize: 'clamp(16px, 3.5vw, 36px)',
               color: secondary,
               textShadow: `0 0 12px ${secondary}44`,
             }}
@@ -137,46 +150,31 @@ export function RecordBoard({
           </span>
         </div>
 
-        {/* NEW + Tag badge line */}
-        <div
-          className="flex items-center justify-center gap-3"
-          style={{ marginBottom: 'clamp(4px, 1vh, 12px)' }}
-        >
-          <span
-            className="font-black uppercase"
+        {/* TIME / MARK + TAG — side by side */}
+        <div className="flex items-baseline justify-center gap-4">
+          <div
+            className="font-black tabular-nums"
             style={{
-              fontSize: 'clamp(16px, 3.5vw, 40px)',
-              color: secondary,
-              textShadow: `0 0 16px ${secondary}55`,
+              fontSize: 'clamp(56px, 14vw, 180px)',
+              fontFamily: "'Bebas Neue', 'Inter', sans-serif",
+              color: '#ffffff',
+              lineHeight: 1,
+              textShadow: '0 2px 16px rgba(0,0,0,0.4)',
             }}
           >
-            NEW
-          </span>
-          <span
-            className="font-black uppercase px-3 py-0.5 rounded"
+            {winner.mark || winner.time}
+          </div>
+          <div
+            className="font-black uppercase px-3 py-1 rounded"
             style={{
-              fontSize: 'clamp(16px, 3.5vw, 40px)',
+              fontSize: 'clamp(20px, 4vw, 48px)',
               color: '#fff',
               background: primary,
               boxShadow: `0 0 20px ${primary}66`,
             }}
           >
             {tag}
-          </span>
-        </div>
-
-        {/* TIME / MARK — large, clean white */}
-        <div
-          className="text-center font-black tabular-nums"
-          style={{
-            fontSize: 'clamp(56px, 14vw, 180px)',
-            fontFamily: "'Bebas Neue', 'Inter', sans-serif",
-            color: '#ffffff',
-            lineHeight: 1,
-            textShadow: '0 2px 16px rgba(0,0,0,0.4)',
-          }}
-        >
-          {winner.mark || winner.time}
+          </div>
         </div>
 
         {/* Meet name — bottom, subtle */}
@@ -185,7 +183,7 @@ export function RecordBoard({
           style={{
             fontSize: 'clamp(10px, 2vw, 22px)',
             color: 'rgba(255,255,255,0.35)',
-            marginTop: 'clamp(8px, 2vh, 24px)',
+            marginTop: 'clamp(12px, 3vh, 32px)',
           }}
         >
           {meetName}
