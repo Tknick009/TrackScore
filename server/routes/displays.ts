@@ -1756,6 +1756,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       let secondaryColor = '#1a1a2e';
       let accentColor = '#FFD700';
       let logoEffect: string | null = null;
+      let mdbPath: string | null = null;
       try {
         const meet = await storage.getMeet(meetId);
         if (meet) {
@@ -1763,8 +1764,73 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           secondaryColor = meet.secondaryColor || secondaryColor;
           accentColor = (meet as any).accentColor || accentColor;
           logoEffect = (meet as any).logoEffect || null;
+          mdbPath = meet.mdbPath || null;
         }
       } catch (err) { /* ok */ }
+      
+      // For relay events, fetch relay member last names from MDB
+      if (winner && winner.isRelay && mdbPath) {
+        try {
+          const MDBReader = (await import('mdb-reader')).default;
+          const { readFileSync } = await import('fs');
+          const buf = readFileSync(mdbPath);
+          const reader = new MDBReader(buf);
+          
+          // Find the event pointer for this event number
+          const evtTable = reader.getTable("Event");
+          const evtData = evtTable.getData();
+          const evtRow = evtData.find((r: any) => Number(r.Event_no) === evtNum);
+          const eventPtr = evtRow ? Number(evtRow.Event_ptr || evtRow.Event_no) : null;
+          
+          if (eventPtr) {
+            // Find relay entry for winner's team
+            const relayTable = reader.getTable("Relay");
+            const relayData = relayTable.getData();
+            const teamName = winner.affiliation || winner.team || '';
+            
+            // Match relay by event and team
+            const teamsTable = reader.getTable("Team");
+            const teamsData = teamsTable.getData();
+            const teamRow = teamsData.find((t: any) => 
+              (t.Team_name || '').trim().toUpperCase() === teamName.toUpperCase() ||
+              (t.Team_abbr || '').trim().toUpperCase() === (winner.team || '').toUpperCase()
+            );
+            const teamNo = teamRow ? Number(teamRow.Team_no) : null;
+            
+            if (teamNo) {
+              const relayRow = relayData.find((r: any) => Number(r.Event_ptr) === eventPtr && Number(r.Team_no) === teamNo);
+              const relayNo = relayRow ? Number(relayRow.Relay_no) : null;
+              
+              if (relayNo) {
+                // Get relay member names from RelayNames table
+                const relayNamesTable = reader.getTable("RelayNames");
+                const relayNamesData = relayNamesTable.getData();
+                const memberRows = relayNamesData.filter((rn: any) => Number(rn.Relay_no) === relayNo);
+                
+                // Get athlete info for each member
+                const athTable = reader.getTable("Athlete");
+                const athData = athTable.getData();
+                const memberNames: string[] = [];
+                for (const member of memberRows) {
+                  const athNo = Number(member.Ath_no || 0);
+                  if (athNo > 0) {
+                    const ath = athData.find((a: any) => Number(a.Ath_no) === athNo);
+                    if (ath) {
+                      const lastName = (ath.Last_name || ath.Lastname || '').trim();
+                      if (lastName) memberNames.push(lastName.toUpperCase());
+                    }
+                  }
+                }
+                if (memberNames.length > 0) {
+                  (winner as any).relayMembers = memberNames;
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('[Record-Board] Failed to fetch relay members from MDB:', err);
+        }
+      }
       
       const connectedDevice = connectedDisplayDevices.get(deviceId);
       if (connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {

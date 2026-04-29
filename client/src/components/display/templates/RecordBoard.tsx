@@ -11,6 +11,8 @@ interface RecordEntry {
   mark: string;
   teamLogoUrl: string | null;
   headshotUrl: string | null;
+  isRelay?: boolean;
+  relayMembers?: string[];
 }
 
 interface RecordBoardProps {
@@ -166,39 +168,53 @@ export function RecordBoard({
           {displayName}
         </div>
 
-        {/* Team/affiliation + record label line */}
+        {/* Team/affiliation + record label line (or relay members for relays) */}
         <div
-          className="flex items-center justify-center w-full"
+          className="flex items-center justify-center w-full whitespace-nowrap"
           style={{ gap: '1.5cqw', marginBottom: '2.5cqh' }}
         >
-          <span
-            className="uppercase font-bold tracking-wide"
-            style={{
-              fontSize: '4cqw',
-              color: 'rgba(255,255,255,0.7)',
-            }}
-          >
-            {winner.affiliation || winner.team}
-          </span>
-          <span
-            className="uppercase font-black"
-            style={{
-              fontSize: '4cqw',
-              color: 'rgba(255,255,255,0.4)',
-            }}
-          >
-            -
-          </span>
-          <span
-            className="uppercase font-black"
-            style={{
-              fontSize: '4cqw',
-              color: accent,
-              textShadow: `0 0 6px ${accent}44`,
-            }}
-          >
-            {recordLabel}
-          </span>
+          {winner.isRelay && winner.relayMembers && winner.relayMembers.length > 0 ? (
+            <span
+              className="uppercase font-bold tracking-wide"
+              style={{
+                fontSize: winner.relayMembers.join(', ').length > 30 ? '3cqw' : '3.5cqw',
+                color: 'rgba(255,255,255,0.85)',
+              }}
+            >
+              {winner.relayMembers.join(', ')}
+            </span>
+          ) : (
+            <>
+              <span
+                className="uppercase font-bold tracking-wide"
+                style={{
+                  fontSize: '4cqw',
+                  color: 'rgba(255,255,255,0.7)',
+                }}
+              >
+                {winner.affiliation || winner.team}
+              </span>
+              <span
+                className="uppercase font-black"
+                style={{
+                  fontSize: '4cqw',
+                  color: 'rgba(255,255,255,0.4)',
+                }}
+              >
+                -
+              </span>
+              <span
+                className="uppercase font-black"
+                style={{
+                  fontSize: '4cqw',
+                  color: accent,
+                  textShadow: `0 0 6px ${accent}44`,
+                }}
+              >
+                {recordLabel}
+              </span>
+            </>
+          )}
         </div>
 
         {/* LOGO + TIME / MARK + TAG — side by side, auto-scale to fit */}
