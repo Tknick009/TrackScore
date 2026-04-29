@@ -1762,33 +1762,12 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         connectedDevice.contentMode = 'record';
         storage.updateDisplayContentMode(deviceId, 'record').catch(err => console.error('[Record] Failed to persist contentMode:', err));
         
-        // Check if user has a custom scene mapped for 'record' or 'winners' mode on this display type
-        const displayType = device.displayType || 'P10';
-        let sceneId: number | null = null;
-        let sceneData: { scene: any; objects: any[] } | null = null;
-        
-        try {
-          let mapping = await storage.getSceneTemplateMappingByTypeAndMode(meetId, displayType, 'record');
-          if (!mapping) {
-            mapping = await storage.getSceneTemplateMappingByTypeAndMode(meetId, displayType, 'winners');
-          }
-          if (!mapping) {
-            mapping = await storage.getSceneTemplateMappingByTypeAndMode(meetId, displayType, 'track_results');
-          }
-          if (mapping) {
-            sceneId = mapping.sceneId;
-            sceneData = await prefetchSceneData(sceneId);
-            console.log(`[Record-Board] Using custom scene ${sceneId} for ${displayType} record board`);
-          }
-        } catch (err) {
-          console.error(`[Record-Board] Error looking up scene mapping:`, err);
-        }
-        
+        // Always use the built-in RecordBoard template (no custom scene override)
         connectedDevice.ws.send(JSON.stringify({
           type: 'display_command',
-          template: sceneId ? null : 'record-board',
-          sceneId,
-          sceneData,
+          template: 'record-board',
+          sceneId: null,
+          sceneData: null,
           liveEventData: {
             eventName: result.displayEventName,
             mode: 'record',
@@ -1803,7 +1782,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           },
         }));
         
-        console.log(`[Record-Board] Sent record "${recordLabel}" for "${result.displayEventName}" (event ${evtNum}) to ${device.deviceName} (scene: ${sceneId || 'built-in'})`);
+        console.log(`[Record-Board] Sent record "${recordLabel}" for "${result.displayEventName}" (event ${evtNum}) to ${device.deviceName} (built-in template)`);
         res.json({ success: true, delivered: true, round: result.maxRound, source: result.source });
       } else {
         res.json({ success: false, delivered: false, message: "Device offline" });
