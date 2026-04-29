@@ -59,19 +59,54 @@ export function RecordBoard({
   const secondary = secondaryColor || '#FFD700';
   const tag = recordTag || deriveTag(recordLabel);
 
+  // Curtain-style background colors (matches meet logo curtain)
+  const shadeColor = (hex: string, amount: number) => {
+    const num = parseInt(hex.replace('#', ''), 16);
+    const r = Math.max(0, Math.min(255, Math.floor(((num >> 16) & 0xff) * (1 + amount))));
+    const g = Math.max(0, Math.min(255, Math.floor(((num >> 8) & 0xff) * (1 + amount))));
+    const b = Math.max(0, Math.min(255, Math.floor((num & 0xff) * (1 + amount))));
+    return `rgb(${r},${g},${b})`;
+  };
+  const pDark = shadeColor(primary, -0.25);
+  const pDeep = shadeColor(primary, -0.45);
+  const accent = secondary || '#FFD700';
+
   return (
     <div
       className="h-screen w-screen overflow-hidden flex flex-col relative"
       style={{
-        background: `linear-gradient(180deg, #0a0a0a 0%, ${primary}22 50%, #0a0a0a 100%)`,
+        background: `linear-gradient(135deg, ${pDeep} 0%, ${primary} 35%, ${pDark} 65%, ${pDeep} 100%)`,
         fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif",
       }}
     >
-      {/* Subtle radial glow behind center content */}
+      {/* Diagonal stripes texture */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
-          background: `radial-gradient(ellipse 80% 50% at 50% 50%, ${primary}30 0%, transparent 70%)`,
+          backgroundImage: `repeating-linear-gradient(-45deg, transparent, transparent 8px, rgba(255,255,255,0.03) 8px, rgba(255,255,255,0.03) 16px)`,
+        }}
+      />
+      {/* Vignette */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: 'radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.35) 100%)',
+        }}
+      />
+      {/* Top accent bar */}
+      <div
+        className="absolute top-0 left-0 right-0 pointer-events-none z-20"
+        style={{
+          height: '3px',
+          background: `linear-gradient(90deg, transparent 5%, ${accent}66 30%, ${accent}66 70%, transparent 95%)`,
+        }}
+      />
+      {/* Bottom accent bar */}
+      <div
+        className="absolute bottom-0 left-0 right-0 pointer-events-none z-20"
+        style={{
+          height: '3px',
+          background: `linear-gradient(90deg, transparent 5%, ${accent}66 30%, ${accent}66 70%, transparent 95%)`,
         }}
       />
 
