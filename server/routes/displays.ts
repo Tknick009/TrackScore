@@ -1718,7 +1718,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
   // Send Record Board to display — parse LIF/LFF files and push winner + record label to device
   app.post("/api/display-devices/:id/record-board", async (req, res) => {
     try {
-      const { eventNumber, recordLabel } = req.body;
+      const { eventNumber, recordLabel, recordTag } = req.body;
       const deviceId = req.params.id;
       
       if (!eventNumber) {
@@ -1794,6 +1794,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
             mode: 'record',
             entries: winner ? [winner] : [],
             recordLabel: recordLabel.trim(),
+            recordTag: recordTag?.trim() || undefined,
             meetName: result.meetName,
             meetLogoUrl: result.meetLogoUrl,
             meetLogoEffect: logoEffect,

@@ -318,6 +318,7 @@ interface LiveEventData {
   mode?: string;
   // Record Board fields (sent when mode === 'record')
   recordLabel?: string;
+  recordTag?: string;
   meetName?: string;
   meetLogoUrl?: string | null;
   meetLogoEffect?: string | null;
@@ -2184,6 +2185,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
         <RecordBoard
           eventName={liveEventData.eventName || ''}
           recordLabel={liveEventData.recordLabel || ''}
+          recordTag={liveEventData.recordTag || undefined}
           entries={liveEventData.entries || []}
           meetName={liveEventData.meetName || meet?.name || ''}
           meetLogoUrl={liveEventData.meetLogoUrl || meet?.logoUrl || null}

@@ -110,6 +110,7 @@ export default function DisplayControlPage() {
   const [selectedRecordEvent, setSelectedRecordEvent] = useState<Record<string, number>>({});
   const [recordPreview, setRecordPreview] = useState<Record<string, any>>({}); // deviceId -> record preview data
   const [recordLabel, setRecordLabel] = useState<Record<string, string>>({}); // deviceId -> record name
+  const [recordTag, setRecordTag] = useState<Record<string, string>>({}); // deviceId -> record tag (e.g. "MR", "AR")
   const [recordEventSearch, setRecordEventSearch] = useState('');
   const [pagingLines, setPagingLines] = useState<Record<string, number>>({});
   const [pagingSeconds, setPagingSeconds] = useState<Record<string, number>>({});
@@ -453,10 +454,10 @@ export default function DisplayControlPage() {
     },
   });
 
-  // Send Record Board mutation — pushes winner + record label to the display
+  // Send Record Board mutation — pushes winner + record label + tag to the display
   const sendRecordBoardMutation = useMutation({
-    mutationFn: async ({ deviceId, eventNumber, recordLabel: label }: { deviceId: string; eventNumber: number; recordLabel: string }) => {
-      const response = await apiRequest('POST', `/api/display-devices/${deviceId}/record-board`, { eventNumber, recordLabel: label });
+    mutationFn: async ({ deviceId, eventNumber, recordLabel: label, recordTag: tag }: { deviceId: string; eventNumber: number; recordLabel: string; recordTag?: string }) => {
+      const response = await apiRequest('POST', `/api/display-devices/${deviceId}/record-board`, { eventNumber, recordLabel: label, recordTag: tag });
       return response.json();
     },
     onSuccess: (data) => {
@@ -1677,7 +1678,7 @@ export default function DisplayControlPage() {
                                 </div>
                               </div>
 
-                              {/* Step 3: Record label — quick-select buttons + custom */}
+                              {/* Step 3: Record label — quick-select buttons + custom name/tag */}
                               <div className="space-y-2">
                                 <Label className="text-sm">Record Type</Label>
                                 <div className="grid grid-cols-3 gap-2">
@@ -1687,7 +1688,10 @@ export default function DisplayControlPage() {
                                       type="button"
                                       variant={recordLabel[selectedDevice.id] === label ? 'default' : 'outline'}
                                       size="sm"
-                                      onClick={() => setRecordLabel(prev => ({ ...prev, [selectedDevice.id]: label }))}
+                                      onClick={() => {
+                                        setRecordLabel(prev => ({ ...prev, [selectedDevice.id]: label }));
+                                        setRecordTag(prev => ({ ...prev, [selectedDevice.id]: '' }));
+                                      }}
                                     >
                                       {label.replace(' Record', '')}
                                     </Button>
@@ -1698,22 +1702,38 @@ export default function DisplayControlPage() {
                                       type="button"
                                       variant={recordLabel[selectedDevice.id] === label ? 'default' : 'outline'}
                                       size="sm"
-                                      onClick={() => setRecordLabel(prev => ({ ...prev, [selectedDevice.id]: label }))}
+                                      onClick={() => {
+                                        setRecordLabel(prev => ({ ...prev, [selectedDevice.id]: label }));
+                                        setRecordTag(prev => ({ ...prev, [selectedDevice.id]: '' }));
+                                      }}
                                     >
                                       {label.replace(' Record', '')}
                                     </Button>
                                   ))}
                                 </div>
-                                <Input
-                                  placeholder="Or type a custom record label..."
-                                  value={
-                                    ['Meet Record', 'Facility Record', 'Conference Record', 'School Record', 'National Record', 'All-Time Record'].includes(recordLabel[selectedDevice.id] || '')
-                                      ? ''
-                                      : recordLabel[selectedDevice.id] || ''
-                                  }
-                                  onChange={(e) => setRecordLabel(prev => ({ ...prev, [selectedDevice.id]: e.target.value }))}
-                                  data-testid="input-record-label"
-                                />
+                                {/* Custom record name + tag for records not in the presets */}
+                                <div className="flex gap-2">
+                                  <Input
+                                    placeholder="Custom record name..."
+                                    className="flex-1"
+                                    value={
+                                      ['Meet Record', 'Facility Record', 'Conference Record', 'School Record', 'National Record', 'All-Time Record'].includes(recordLabel[selectedDevice.id] || '')
+                                        ? ''
+                                        : recordLabel[selectedDevice.id] || ''
+                                    }
+                                    onChange={(e) => setRecordLabel(prev => ({ ...prev, [selectedDevice.id]: e.target.value }))}
+                                    data-testid="input-record-label"
+                                  />
+                                  <Input
+                                    placeholder="Tag (e.g. AR)"
+                                    className="w-24"
+                                    maxLength={5}
+                                    value={recordTag[selectedDevice.id] || ''}
+                                    onChange={(e) => setRecordTag(prev => ({ ...prev, [selectedDevice.id]: e.target.value.toUpperCase() }))}
+                                    data-testid="input-record-tag"
+                                  />
+                                </div>
+                                <p className="text-xs text-muted-foreground">Use custom inputs for records not in the list above (e.g. "Arena Record" / "AR")</p>
                               </div>
 
                               {/* Step 4: Send to Board */}
@@ -1721,11 +1741,13 @@ export default function DisplayControlPage() {
                                 onClick={() => {
                                   const evtNum = selectedRecordEvent[selectedDevice.id];
                                   const label = recordLabel[selectedDevice.id];
+                                  const tag = recordTag[selectedDevice.id];
                                   if (!evtNum || !label?.trim()) return;
                                   sendRecordBoardMutation.mutate({
                                     deviceId: selectedDevice.id,
                                     eventNumber: evtNum,
                                     recordLabel: label.trim(),
+                                    recordTag: tag?.trim() || undefined,
                                   });
                                 }}
                                 disabled={sendRecordBoardMutation.isPending || !recordLabel[selectedDevice.id]?.trim()}
