@@ -1807,23 +1807,43 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
             // Find relay entry for winner's team
             const relayTable = reader.getTable("Relay");
             const relayData = relayTable.getData();
-            const teamName = winner.affiliation || winner.team || '';
-            console.log(`[Record-Board] Looking for team: "${teamName}" / "${winner.team}"`);
+            const rawTeamName = winner.affiliation || winner.team || '';
+            // Strip relay letter suffix (e.g., "DUQ   A" → "DUQ", "Navy 'A'" → "Navy")
+            const cleanTeamName = rawTeamName.replace(/\s+['"]?[A-Z]['"]?\s*$/i, '').trim();
+            console.log(`[Record-Board] Looking for team: raw="${rawTeamName}" clean="${cleanTeamName}"`);
+            
+            // Determine relay letter from raw name (e.g., "A", "B")
+            const relayLetterMatch = rawTeamName.match(/\s+['"]?([A-Z])['"]?\s*$/i);
+            const relayLetter = relayLetterMatch ? relayLetterMatch[1].toUpperCase() : 'A';
             
             // Match relay by event and team
             const teamsTable = reader.getTable("Team");
             const teamsData = teamsTable.getData();
-            const teamRow = teamsData.find((t: any) => 
-              (t.Team_name || '').trim().toUpperCase() === teamName.toUpperCase() ||
-              (t.Team_abbr || '').trim().toUpperCase() === (winner.team || '').toUpperCase()
-            );
+            const teamRow = teamsData.find((t: any) => {
+              const tName = (t.Team_name || '').trim().toUpperCase();
+              const tAbbr = (t.Team_abbr || '').trim().toUpperCase();
+              const cleanUpper = cleanTeamName.toUpperCase();
+              return tName === cleanUpper || tAbbr === cleanUpper ||
+                tName.startsWith(cleanUpper) || tAbbr.startsWith(cleanUpper);
+            });
             const teamNo = teamRow ? Number(teamRow.Team_no) : null;
-            console.log(`[Record-Board] Team match: teamNo=${teamNo}, teamRow=${teamRow ? (teamRow as any).Team_name : 'NOT FOUND'}`);
+            console.log(`[Record-Board] Team match: teamNo=${teamNo}, teamRow=${teamRow ? (teamRow as any).Team_name || (teamRow as any).Team_abbr : 'NOT FOUND'}, relayLetter=${relayLetter}`);
             
             if (teamNo) {
-              const relayRow = relayData.find((r: any) => Number(r.Event_ptr) === eventPtr && Number(r.Team_no) === teamNo);
+              // Find relay for this team+event, filter by relay letter if multiple
+              const teamRelays = relayData.filter((r: any) => Number(r.Event_ptr) === eventPtr && Number(r.Team_no) === teamNo);
+              let relayRow = teamRelays.length === 1 ? teamRelays[0] : null;
+              if (!relayRow && teamRelays.length > 1) {
+                // Match by relay letter (Relay_letter field or sequential order)
+                relayRow = teamRelays.find((r: any) => (r.Relay_letter || '').toUpperCase() === relayLetter) || teamRelays[0];
+              }
+              if (!relayRow && teamRelays.length === 0) {
+                // Fallback: try without Event_ptr filter in case the field is different
+                const allTeamRelays = relayData.filter((r: any) => Number(r.Team_no) === teamNo);
+                console.log(`[Record-Board] No relay found for Event_ptr=${eventPtr}, trying all ${allTeamRelays.length} relays for team`);
+              }
               const relayNo = relayRow ? Number(relayRow.Relay_no) : null;
-              console.log(`[Record-Board] Relay row: relayNo=${relayNo}, matching Event_ptr=${eventPtr} + Team_no=${teamNo}`);
+              console.log(`[Record-Board] Relay row: relayNo=${relayNo}, matching Event_ptr=${eventPtr} + Team_no=${teamNo}, found ${teamRelays.length} relay(s)`);
               
               if (relayNo) {
                 // Get relay member names from RelayNames table
