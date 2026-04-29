@@ -167,10 +167,12 @@ export function RecordBoard({
           <div
             className="font-black uppercase rounded flex items-center justify-center px-4"
             style={{
-              fontSize: 'clamp(24px, 5vw, 60px)',
+              fontSize: 'clamp(56px, 14vw, 180px)',
+              fontFamily: "'Bebas Neue', 'Inter', sans-serif",
               color: '#fff',
               background: primary,
               boxShadow: `0 0 20px ${primary}66`,
+              lineHeight: 1,
             }}
           >
             {tag}
