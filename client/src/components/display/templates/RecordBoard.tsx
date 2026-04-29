@@ -25,15 +25,6 @@ interface RecordBoardProps {
   secondaryColor?: string;
 }
 
-// Darken a hex color by a percentage (0–1)
-function darkenColor(hex: string, amount: number): string {
-  const c = hex.replace('#', '');
-  const r = Math.max(0, Math.round(parseInt(c.substring(0, 2), 16) * (1 - amount)));
-  const g = Math.max(0, Math.round(parseInt(c.substring(2, 4), 16) * (1 - amount)));
-  const b = Math.max(0, Math.round(parseInt(c.substring(4, 6), 16) * (1 - amount)));
-  return `rgb(${r},${g},${b})`;
-}
-
 // Derive a short tag from the full record label if no explicit tag is given
 function deriveTag(label: string): string {
   const map: Record<string, string> = {
@@ -43,9 +34,10 @@ function deriveTag(label: string): string {
     'School Record': 'SR',
     'National Record': 'NR',
     'All-Time Record': 'ATR',
+    'World Record': 'WR',
+    'High School Record': 'HSR',
   };
   if (map[label]) return map[label];
-  // Abbreviate by taking first letter of each word
   return label.split(/\s+/).map(w => w[0]?.toUpperCase() || '').join('');
 }
 
@@ -71,209 +63,132 @@ export function RecordBoard({
     <div
       className="h-screen w-screen overflow-hidden flex flex-col relative"
       style={{
-        background: '#000000',
-        fontFamily: "'Barlow Semi Condensed', 'Inter', sans-serif",
+        background: `linear-gradient(180deg, #0a0a0a 0%, ${primary}22 50%, #0a0a0a 100%)`,
+        fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif",
       }}
     >
-      {/* Background glow using meet primary color */}
+      {/* Subtle radial glow behind center content */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
-          background: `
-            radial-gradient(ellipse 100% 60% at 50% 120%, ${primary}59 0%, transparent 60%),
-            radial-gradient(ellipse 60% 40% at 20% 80%, ${primary}33 0%, transparent 50%),
-            radial-gradient(ellipse 60% 40% at 80% 80%, ${primary}33 0%, transparent 50%)
-          `,
+          background: `radial-gradient(ellipse 80% 50% at 50% 50%, ${primary}30 0%, transparent 70%)`,
         }}
       />
 
-      <div className="relative z-10 flex-1 flex flex-col">
-        {/* ===== TOP SECTION: Record headline + tag badge ===== */}
-        <div className="flex flex-col items-center pt-6 pb-3">
-          {/* Meet logo */}
-          {meetLogoUrl && (
-            <img
-              src={meetLogoUrl}
-              alt={meetName || ''}
-              className="h-16 object-contain mb-3"
-              style={getLogoEffectStyle(meetLogoEffect)}
-            />
-          )}
+      <div className="relative z-10 flex-1 flex flex-col justify-center items-center px-[5%]">
 
-          {/* Record Tag badge */}
-          <div
-            className="flex items-center justify-center px-6 py-1 rounded-full mb-2"
+        {/* Event name — top line, smaller */}
+        <div
+          className="text-center uppercase font-bold tracking-wider w-full"
+          style={{
+            fontSize: 'clamp(14px, 3vw, 36px)',
+            color: 'rgba(255,255,255,0.7)',
+            marginBottom: 'clamp(4px, 1vh, 12px)',
+          }}
+        >
+          {eventName}
+        </div>
+
+        {/* ATHLETE NAME — the hero, biggest text */}
+        <div
+          className="text-center uppercase font-black leading-[0.9] w-full"
+          style={{
+            fontSize: 'clamp(48px, 12vw, 160px)',
+            color: '#ffffff',
+            textShadow: '0 2px 20px rgba(0,0,0,0.6)',
+            marginBottom: 'clamp(4px, 1.5vh, 16px)',
+          }}
+        >
+          {winner.name}
+        </div>
+
+        {/* Team + Record Tag line */}
+        <div
+          className="flex items-center justify-center gap-3 w-full"
+          style={{ marginBottom: 'clamp(8px, 2vh, 24px)' }}
+        >
+          <span
+            className="uppercase font-semibold tracking-wide"
             style={{
-              background: `linear-gradient(135deg, ${secondary}, ${darkenColor(secondary.replace('rgb(', '#').replace(')', ''), 0.3)})`,
-              boxShadow: `0 0 30px ${secondary}44`,
+              fontSize: 'clamp(14px, 3vw, 32px)',
+              color: 'rgba(255,255,255,0.6)',
             }}
           >
-            <span
-              className="font-black tracking-wider"
-              style={{
-                fontSize: 'clamp(20px, 3vw, 40px)',
-                color: '#000',
-              }}
-            >
-              {tag}
-            </span>
-          </div>
-
-          {/* Record Label — full name */}
-          <div
-            className="font-bold uppercase tracking-[0.15em] leading-none text-center"
+            {winner.affiliation || winner.team}
+          </span>
+          <span
+            className="uppercase font-black"
             style={{
-              fontSize: 'clamp(28px, 4vw, 56px)',
-              color: '#ffffff',
-              opacity: 0.8,
+              fontSize: 'clamp(14px, 3vw, 32px)',
+              color: 'rgba(255,255,255,0.6)',
+            }}
+          >
+            -
+          </span>
+          <span
+            className="uppercase font-black"
+            style={{
+              fontSize: 'clamp(14px, 3vw, 32px)',
+              color: secondary,
+              textShadow: `0 0 12px ${secondary}44`,
             }}
           >
             {recordLabel}
-          </div>
+          </span>
         </div>
 
-        {/* Accent divider using primary color */}
+        {/* NEW + Tag badge line */}
         <div
-          className="h-1"
-          style={{
-            background: `linear-gradient(90deg, transparent 0%, ${primary}99 50%, transparent 100%)`,
-          }}
-        />
-
-        {/* Event name bar */}
-        <div
-          className="flex items-center justify-center px-6"
-          style={{
-            background: 'linear-gradient(90deg, transparent 0%, rgba(30, 40, 50, 0.8) 20%, rgba(30, 40, 50, 0.8) 80%, transparent 100%)',
-            height: 'clamp(36px, 5vh, 56px)',
-          }}
+          className="flex items-center justify-center gap-3"
+          style={{ marginBottom: 'clamp(4px, 1vh, 12px)' }}
         >
           <span
-            className="text-white font-bold uppercase"
+            className="font-black uppercase"
             style={{
-              fontSize: 'clamp(20px, 3vw, 42px)',
-              fontWeight: 700,
-              letterSpacing: '0.08em',
+              fontSize: 'clamp(16px, 3.5vw, 40px)',
+              color: secondary,
+              textShadow: `0 0 16px ${secondary}55`,
             }}
           >
-            {eventName}
+            NEW
           </span>
-        </div>
-
-        {/* Accent divider */}
-        <div
-          className="h-1"
-          style={{
-            background: `linear-gradient(90deg, transparent 0%, ${primary}99 50%, transparent 100%)`,
-          }}
-        />
-
-        {/* ===== WINNER SECTION — name is the hero ===== */}
-        <div className="flex-1 flex flex-col justify-center px-8">
-          <div
-            className="flex items-center relative rounded-lg overflow-hidden"
-            style={{
-              background: `radial-gradient(ellipse 120% 100% at 5% 50%, 
-                ${primary}80 0%, 
-                ${primary}4D 20%,
-                ${primary}26 40%,
-                ${primary}14 60%,
-                transparent 80%
-              )`,
-              borderTop: `2px solid ${primary}4D`,
-              borderBottom: `2px solid ${primary}4D`,
-              padding: 'clamp(20px, 4vh, 48px) clamp(16px, 2vw, 32px)',
-              minHeight: 'clamp(140px, 30vh, 320px)',
-            }}
-          >
-            {/* Team logo */}
-            {winner.teamLogoUrl && (
-              <div
-                className="shrink-0 flex items-center justify-center mr-6"
-                style={{
-                  width: 'clamp(80px, 10vw, 160px)',
-                  height: 'clamp(80px, 10vw, 160px)',
-                }}
-              >
-                <img
-                  src={winner.teamLogoUrl}
-                  alt=""
-                  className="w-full h-full object-contain"
-                  style={{ filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.5))' }}
-                />
-              </div>
-            )}
-
-            {/* Headshot (if no team logo, use headshot) */}
-            {!winner.teamLogoUrl && winner.headshotUrl && (
-              <div
-                className="shrink-0 rounded-xl overflow-hidden mr-6"
-                style={{
-                  width: 'clamp(100px, 12vw, 180px)',
-                  height: 'clamp(120px, 15vw, 220px)',
-                  border: `3px solid ${primary}66`,
-                  boxShadow: `0 0 30px ${primary}33`,
-                }}
-              >
-                <img
-                  src={winner.headshotUrl}
-                  alt={winner.name}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            )}
-
-            {/* Athlete info — name is the HERO element */}
-            <div className="flex-1 min-w-0 flex flex-col justify-center">
-              {/* NAME — biggest element on screen */}
-              <div
-                className="text-white font-black leading-[0.95] uppercase"
-                style={{
-                  fontSize: 'clamp(56px, 8vw, 120px)',
-                  textShadow: '0 2px 20px rgba(0,0,0,0.5)',
-                }}
-              >
-                {winner.name}
-              </div>
-              {/* Team/affiliation below */}
-              <div
-                className="text-white/60 font-medium uppercase tracking-wider mt-2"
-                style={{ fontSize: 'clamp(20px, 3vw, 40px)' }}
-              >
-                {winner.affiliation || winner.team}
-              </div>
-            </div>
-
-            {/* Mark / Time — plain WHITE, not colored */}
-            <div className="shrink-0 text-right flex flex-col items-end justify-center">
-              <div
-                className="font-black tabular-nums text-white"
-                style={{
-                  fontSize: 'clamp(48px, 7vw, 96px)',
-                  fontFamily: "'Bebas Neue', 'Barlow Semi Condensed', sans-serif",
-                  textShadow: '0 2px 10px rgba(0,0,0,0.4)',
-                }}
-              >
-                {winner.mark || winner.time}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Footer accent + meet name */}
-        <div
-          className="h-1"
-          style={{
-            background: `linear-gradient(90deg, transparent 0%, ${primary}99 50%, transparent 100%)`,
-          }}
-        />
-        <div className="flex items-center justify-center px-8 py-3">
           <span
-            className="text-gray-500"
-            style={{ fontSize: '24px' }}
+            className="font-black uppercase px-3 py-0.5 rounded"
+            style={{
+              fontSize: 'clamp(16px, 3.5vw, 40px)',
+              color: '#fff',
+              background: primary,
+              boxShadow: `0 0 20px ${primary}66`,
+            }}
           >
-            {meetName}
+            {tag}
           </span>
+        </div>
+
+        {/* TIME / MARK — large, clean white */}
+        <div
+          className="text-center font-black tabular-nums"
+          style={{
+            fontSize: 'clamp(56px, 14vw, 180px)',
+            fontFamily: "'Bebas Neue', 'Inter', sans-serif",
+            color: '#ffffff',
+            lineHeight: 1,
+            textShadow: '0 2px 16px rgba(0,0,0,0.4)',
+          }}
+        >
+          {winner.mark || winner.time}
+        </div>
+
+        {/* Meet name — bottom, subtle */}
+        <div
+          className="text-center uppercase font-medium tracking-wider"
+          style={{
+            fontSize: 'clamp(10px, 2vw, 22px)',
+            color: 'rgba(255,255,255,0.35)',
+            marginTop: 'clamp(8px, 2vh, 24px)',
+          }}
+        >
+          {meetName}
         </div>
       </div>
     </div>
