@@ -201,56 +201,67 @@ export function RecordBoard({
           </span>
         </div>
 
-        {/* LOGO + TIME / MARK + TAG — side by side, larger */}
-        <div className="flex items-stretch justify-center" style={{ gap: '2cqw' }}>
-          {/* Affiliation logo — left of time */}
-          {winner.teamLogoUrl && (
-            <div
-              className="flex items-center justify-center rounded overflow-hidden"
-              style={{
-                width: '14cqw',
-                background: 'rgba(255,255,255,0.08)',
-              }}
-            >
-              <img
-                src={winner.teamLogoUrl}
-                alt=""
+        {/* LOGO + TIME / MARK + TAG — side by side, auto-scale to fit */}
+        {(() => {
+          const markText = winner.mark || winner.time || '';
+          // Estimate total "character width" of the row: mark chars + tag chars + logo placeholder
+          const hasLogo = !!winner.teamLogoUrl;
+          const totalChars = markText.length + tag.length + (hasLogo ? 3 : 0);
+          // Base size 14cqw fits ~6 chars comfortably; scale down for longer content
+          const timeSize = totalChars > 8 ? Math.max(8, 14 * (8 / totalChars)) : 14;
+          const tagSize = timeSize * 0.85;
+          const logoSize = timeSize;
+          return (
+            <div className="flex items-stretch justify-center" style={{ gap: '1.5cqw' }}>
+              {hasLogo && (
+                <div
+                  className="flex items-center justify-center rounded overflow-hidden"
+                  style={{
+                    width: `${logoSize}cqw`,
+                    background: 'rgba(255,255,255,0.08)',
+                  }}
+                >
+                  <img
+                    src={winner.teamLogoUrl!}
+                    alt=""
+                    style={{
+                      height: '75%',
+                      width: '75%',
+                      objectFit: 'contain',
+                      filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.5))',
+                    }}
+                  />
+                </div>
+              )}
+              <div
+                className="font-black tabular-nums"
                 style={{
-                  height: '75%',
-                  width: '75%',
-                  objectFit: 'contain',
-                  filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.5))',
+                  fontSize: `${timeSize}cqw`,
+                  fontFamily: "'Bebas Neue', 'Inter', sans-serif",
+                  color: '#ffffff',
+                  lineHeight: 1,
+                  textShadow: '0 1px 8px rgba(0,0,0,0.4)',
                 }}
-              />
+              >
+                {markText}
+              </div>
+              <div
+                className="font-black uppercase rounded flex items-center justify-center"
+                style={{
+                  fontSize: `${tagSize}cqw`,
+                  fontFamily: "'Bebas Neue', 'Inter', sans-serif",
+                  color: '#fff',
+                  background: accent,
+                  boxShadow: `0 0 10px ${accent}66`,
+                  lineHeight: 1,
+                  padding: '0 1.5cqw',
+                }}
+              >
+                {tag}
+              </div>
             </div>
-          )}
-          <div
-            className="font-black tabular-nums"
-            style={{
-              fontSize: '14cqw',
-              fontFamily: "'Bebas Neue', 'Inter', sans-serif",
-              color: '#ffffff',
-              lineHeight: 1,
-              textShadow: '0 1px 8px rgba(0,0,0,0.4)',
-            }}
-          >
-            {winner.mark || winner.time}
-          </div>
-          <div
-            className="font-black uppercase rounded flex items-center justify-center"
-            style={{
-              fontSize: '12cqw',
-              fontFamily: "'Bebas Neue', 'Inter', sans-serif",
-              color: '#fff',
-              background: accent,
-              boxShadow: `0 0 10px ${accent}66`,
-              lineHeight: 1,
-              padding: '0 2cqw',
-            }}
-          >
-            {tag}
-          </div>
-        </div>
+          );
+        })()}
       </div>
     </div>
   );

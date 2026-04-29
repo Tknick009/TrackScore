@@ -1782,7 +1782,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
             mode: 'record',
             entries: winner ? [winner] : [],
             recordLabel: recordLabel.trim(),
-            recordTag: recordTag?.trim() || undefined,
+            recordTag: recordTag?.trim() || '',
             meetName: result.meetName,
             meetLogoUrl: result.meetLogoUrl,
             meetLogoEffect: logoEffect,
