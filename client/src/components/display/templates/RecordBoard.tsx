@@ -73,8 +73,9 @@ export function RecordBoard({
 
   return (
     <div
-      className="h-screen w-screen overflow-hidden flex flex-col relative"
+      className="w-full h-full overflow-hidden flex flex-col relative"
       style={{
+        containerType: 'size',
         background: `linear-gradient(135deg, ${pDeep} 0%, ${primary} 35%, ${pDark} 65%, ${pDeep} 100%)`,
         fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif",
       }}
@@ -83,7 +84,7 @@ export function RecordBoard({
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
-          backgroundImage: `repeating-linear-gradient(-45deg, transparent, transparent 8px, rgba(255,255,255,0.03) 8px, rgba(255,255,255,0.03) 16px)`,
+          backgroundImage: `repeating-linear-gradient(-45deg, transparent, transparent 4px, rgba(255,255,255,0.03) 4px, rgba(255,255,255,0.03) 8px)`,
         }}
       />
       {/* Vignette */}
@@ -97,7 +98,7 @@ export function RecordBoard({
       <div
         className="absolute top-0 left-0 right-0 pointer-events-none z-20"
         style={{
-          height: '3px',
+          height: '2px',
           background: `linear-gradient(90deg, transparent 5%, ${accent}66 30%, ${accent}66 70%, transparent 95%)`,
         }}
       />
@@ -105,20 +106,20 @@ export function RecordBoard({
       <div
         className="absolute bottom-0 left-0 right-0 pointer-events-none z-20"
         style={{
-          height: '3px',
+          height: '2px',
           background: `linear-gradient(90deg, transparent 5%, ${accent}66 30%, ${accent}66 70%, transparent 95%)`,
         }}
       />
 
-      <div className="relative z-10 flex-1 flex flex-col justify-center items-center px-[5%]">
+      <div className="relative z-10 flex-1 flex flex-col justify-center items-center px-[3%]">
 
         {/* Event name — top line, prominent */}
         <div
           className="text-center uppercase font-bold tracking-wider w-full"
           style={{
-            fontSize: 'clamp(20px, 4.5vw, 52px)',
+            fontSize: '4.5cqw',
             color: 'rgba(255,255,255,0.8)',
-            marginBottom: 'clamp(8px, 2vh, 20px)',
+            marginBottom: '1.5cqh',
           }}
         >
           {eventName}
@@ -128,10 +129,10 @@ export function RecordBoard({
         <div
           className="text-center uppercase font-black leading-[0.9] w-full"
           style={{
-            fontSize: 'clamp(48px, 12vw, 160px)',
+            fontSize: '12cqw',
             color: '#ffffff',
-            textShadow: '0 2px 20px rgba(0,0,0,0.6)',
-            marginBottom: 'clamp(4px, 1.5vh, 16px)',
+            textShadow: '0 1px 8px rgba(0,0,0,0.6)',
+            marginBottom: '1cqh',
           }}
         >
           {winner.name}
@@ -139,8 +140,8 @@ export function RecordBoard({
 
         {/* Team/affiliation + record label line */}
         <div
-          className="flex items-center justify-center gap-3 w-full"
-          style={{ marginBottom: 'clamp(12px, 3vh, 32px)' }}
+          className="flex items-center justify-center gap-[1cqw] w-full"
+          style={{ marginBottom: '2cqh' }}
         >
           {/* Affiliation logo */}
           {winner.teamLogoUrl && (
@@ -148,17 +149,17 @@ export function RecordBoard({
               src={winner.teamLogoUrl}
               alt=""
               style={{
-                height: 'clamp(28px, 5vw, 56px)',
-                width: 'clamp(28px, 5vw, 56px)',
+                height: '5cqw',
+                width: '5cqw',
                 objectFit: 'contain',
-                filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.5))',
+                filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.5))',
               }}
             />
           )}
           <span
             className="uppercase font-bold tracking-wide"
             style={{
-              fontSize: 'clamp(20px, 4.5vw, 44px)',
+              fontSize: '4cqw',
               color: 'rgba(255,255,255,0.7)',
             }}
           >
@@ -167,7 +168,7 @@ export function RecordBoard({
           <span
             className="uppercase font-black"
             style={{
-              fontSize: 'clamp(20px, 4.5vw, 44px)',
+              fontSize: '4cqw',
               color: 'rgba(255,255,255,0.4)',
             }}
           >
@@ -176,23 +177,23 @@ export function RecordBoard({
           <span
             className="uppercase font-black"
             style={{
-              fontSize: 'clamp(20px, 4.5vw, 44px)',
+              fontSize: '4cqw',
               color: primary,
-              textShadow: `0 0 12px ${primary}44`,
+              textShadow: `0 0 6px ${primary}44`,
             }}
           >
             {recordLabel}
           </span>
         </div>
 
-        {/* LOGO + TIME / MARK + TAG — side by side, logo and tag match height of time */}
-        <div className="flex items-stretch justify-center gap-4">
-          {/* Affiliation logo — left of time, same height as tag */}
+        {/* LOGO + TIME / MARK + TAG — side by side */}
+        <div className="flex items-stretch justify-center" style={{ gap: '2cqw' }}>
+          {/* Affiliation logo — left of time */}
           {winner.teamLogoUrl && (
             <div
               className="flex items-center justify-center rounded overflow-hidden"
               style={{
-                width: 'clamp(44px, 10vw, 140px)',
+                width: '10cqw',
                 background: 'rgba(255,255,255,0.08)',
               }}
             >
@@ -203,7 +204,7 @@ export function RecordBoard({
                   height: '70%',
                   width: '70%',
                   objectFit: 'contain',
-                  filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.5))',
+                  filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.5))',
                 }}
               />
             </div>
@@ -211,24 +212,25 @@ export function RecordBoard({
           <div
             className="font-black tabular-nums"
             style={{
-              fontSize: 'clamp(44px, 10vw, 140px)',
+              fontSize: '10cqw',
               fontFamily: "'Bebas Neue', 'Inter', sans-serif",
               color: '#ffffff',
               lineHeight: 1,
-              textShadow: '0 2px 16px rgba(0,0,0,0.4)',
+              textShadow: '0 1px 8px rgba(0,0,0,0.4)',
             }}
           >
             {winner.mark || winner.time}
           </div>
           <div
-            className="font-black uppercase rounded flex items-center justify-center px-4"
+            className="font-black uppercase rounded flex items-center justify-center"
             style={{
-              fontSize: 'clamp(37px, 8.5vw, 119px)',
+              fontSize: '8.5cqw',
               fontFamily: "'Bebas Neue', 'Inter', sans-serif",
               color: '#fff',
               background: primary,
-              boxShadow: `0 0 20px ${primary}66`,
+              boxShadow: `0 0 10px ${primary}66`,
               lineHeight: 1,
+              padding: '0 2cqw',
             }}
           >
             {tag}
@@ -239,9 +241,9 @@ export function RecordBoard({
         <div
           className="text-center uppercase font-medium tracking-wider"
           style={{
-            fontSize: 'clamp(10px, 2vw, 22px)',
+            fontSize: '2.5cqw',
             color: 'rgba(255,255,255,0.35)',
-            marginTop: 'clamp(12px, 3vh, 32px)',
+            marginTop: '2cqh',
           }}
         >
           {meetName}
