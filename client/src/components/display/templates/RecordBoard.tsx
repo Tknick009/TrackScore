@@ -153,11 +153,11 @@ export function RecordBoard({
           }}
         />
 
-        {/* ATHLETE NAME — First Initial. Last Name, hero text */}
+        {/* ATHLETE NAME — First Initial. Last Name, hero text, always one line */}
         <div
-          className="text-center uppercase font-black leading-[0.9] w-full"
+          className="text-center uppercase font-black leading-[0.9] w-full whitespace-nowrap"
           style={{
-            fontSize: '14cqw',
+            fontSize: displayName.length > 12 ? `${Math.max(7, 14 * (10 / displayName.length))}cqw` : '14cqw',
             color: '#ffffff',
             textShadow: '0 1px 8px rgba(0,0,0,0.6)',
             marginBottom: '1.5cqh',

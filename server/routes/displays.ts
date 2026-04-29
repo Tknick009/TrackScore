@@ -1450,7 +1450,14 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         markValue = '';
       }
       
-      const teamLogoUrl = teamId ? teamLogoMap.get(teamId) : null;
+      let teamLogoUrl = teamId ? teamLogoMap.get(teamId) : null;
+      // Fallback: check public/logos/NCAA/{teamName}.png if no uploaded logo
+      if (!teamLogoUrl && teamName) {
+        const ncaaPath = pathModule.join(process.cwd(), 'public', 'logos', 'NCAA', `${teamName}.png`);
+        if (fs.existsSync(ncaaPath)) {
+          teamLogoUrl = `/logos/NCAA/${encodeURIComponent(teamName)}.png`;
+        }
+      }
       const headshotUrl = dbAthlete ? headshotMap.get(dbAthlete.id) : null;
       
       // For relay events, use the relay name from the LIF data (lastName field, e.g. "Navy 'A'")
