@@ -121,10 +121,10 @@ export function RecordBoard({
             />
           )}
           <span
-            className="uppercase font-semibold tracking-wide"
+            className="uppercase font-bold tracking-wide"
             style={{
-              fontSize: 'clamp(16px, 3.5vw, 36px)',
-              color: 'rgba(255,255,255,0.6)',
+              fontSize: 'clamp(20px, 4.5vw, 44px)',
+              color: 'rgba(255,255,255,0.7)',
             }}
           >
             {winner.affiliation || winner.team}
@@ -132,7 +132,7 @@ export function RecordBoard({
           <span
             className="uppercase font-black"
             style={{
-              fontSize: 'clamp(16px, 3.5vw, 36px)',
+              fontSize: 'clamp(20px, 4.5vw, 44px)',
               color: 'rgba(255,255,255,0.4)',
             }}
           >
@@ -141,7 +141,7 @@ export function RecordBoard({
           <span
             className="uppercase font-black"
             style={{
-              fontSize: 'clamp(16px, 3.5vw, 36px)',
+              fontSize: 'clamp(20px, 4.5vw, 44px)',
               color: secondary,
               textShadow: `0 0 12px ${secondary}44`,
             }}
@@ -155,7 +155,7 @@ export function RecordBoard({
           <div
             className="font-black tabular-nums"
             style={{
-              fontSize: 'clamp(56px, 14vw, 180px)',
+              fontSize: 'clamp(44px, 10vw, 140px)',
               fontFamily: "'Bebas Neue', 'Inter', sans-serif",
               color: '#ffffff',
               lineHeight: 1,
@@ -167,7 +167,7 @@ export function RecordBoard({
           <div
             className="font-black uppercase rounded flex items-center justify-center px-4"
             style={{
-              fontSize: 'clamp(48px, 12vw, 153px)',
+              fontSize: 'clamp(37px, 8.5vw, 119px)',
               fontFamily: "'Bebas Neue', 'Inter', sans-serif",
               color: '#fff',
               background: primary,
