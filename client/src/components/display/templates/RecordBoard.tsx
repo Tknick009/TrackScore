@@ -150,8 +150,8 @@ export function RecordBoard({
           </span>
         </div>
 
-        {/* TIME / MARK + TAG — side by side */}
-        <div className="flex items-baseline justify-center gap-4">
+        {/* TIME / MARK + TAG — side by side, tag matches full height of time */}
+        <div className="flex items-stretch justify-center gap-4">
           <div
             className="font-black tabular-nums"
             style={{
@@ -165,9 +165,9 @@ export function RecordBoard({
             {winner.mark || winner.time}
           </div>
           <div
-            className="font-black uppercase px-3 py-1 rounded"
+            className="font-black uppercase rounded flex items-center justify-center px-4"
             style={{
-              fontSize: 'clamp(20px, 4vw, 48px)',
+              fontSize: 'clamp(24px, 5vw, 60px)',
               color: '#fff',
               background: primary,
               boxShadow: `0 0 20px ${primary}66`,
