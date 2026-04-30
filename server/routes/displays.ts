@@ -1120,6 +1120,17 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           displayLastName = teamName;
         }
         
+        // For entries with status codes (DNS/DNF/DQ/etc.) and no numeric place,
+        // set place to the status code so the display shows status instead of empty "PL:"
+        let displayPlace: number | string | null | undefined = fields.place;
+        if ((displayPlace === null || displayPlace === undefined || displayPlace === 0) && isKnownStatus) {
+          displayPlace = dqCode;
+        } else if ((displayPlace === null || displayPlace === undefined || displayPlace === 0) && entry.isDisqualified) {
+          displayPlace = 'DQ';
+        } else if ((displayPlace === null || displayPlace === undefined || displayPlace === 0) && entry.isScratched) {
+          displayPlace = 'SCR';
+        }
+        
         return {
           position,
           lane: fields.lane || 0,
@@ -1133,7 +1144,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           time: markValue,
           mark: markValue,
           result: markValue,
-          place: fields.place,
+          place: displayPlace,
           qualifier,
           isScratched: entry.isScratched || false,
           isDisqualified: entry.isDisqualified || false,

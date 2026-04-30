@@ -796,13 +796,23 @@ export function SceneObjectRenderer({
         // Hoist recordTag so it's available for badge rendering outside the fieldMap block
         let hoistedRecordTags: string[] = [];
         
+        // Auto-apply hideWhenFieldNonNumeric for static "PL:" labels
+        // This ensures existing scene templates work correctly without manual updates
+        const effectiveHideWhenField = componentConfig.hideWhenFieldNonNumeric
+          || (dataBinding.sourceType === 'static' && textContent === 'PL:' ? 'place' : null);
+        
         // Check hideWhenFieldNonNumeric - hide this element if a related field has non-numeric data
         // Useful for hiding "PL:" label when place shows DNF, DNS, DQ, etc.
-        if (componentConfig.hideWhenFieldNonNumeric && liveData) {
-          const checkFieldKey = componentConfig.hideWhenFieldNonNumeric;
+        if (effectiveHideWhenField && liveData) {
+          const checkFieldKey = effectiveHideWhenField;
           const hideCheckIdx = (dataBinding.athleteIndex || 0) + pageOffset;
           const entriesForCheck = Array.isArray(liveData.entries) ? liveData.entries : [];
           const entryForCheck = entriesForCheck.length > hideCheckIdx ? entriesForCheck[hideCheckIdx] : null;
+          
+          // Hide if no entry exists for this row (empty row)
+          if (!entryForCheck) {
+            return null;
+          }
           
           const checkFieldMap: Record<string, any> = {
             'place': entryForCheck?.place,
@@ -812,13 +822,13 @@ export function SceneObjectRenderer({
           };
           const valueToCheck = checkFieldMap[checkFieldKey];
           
-          // Hide if value exists and is not a pure number
-          if (valueToCheck !== undefined && valueToCheck !== null && valueToCheck !== '') {
-            const strValue = String(valueToCheck).trim();
-            // Check if it's NOT a number (allows decimals and integers)
-            if (!/^[\d.]+$/.test(strValue)) {
-              return null; // Hide this element
-            }
+          // Hide if value is missing (null/undefined/empty) or is not a pure number
+          if (valueToCheck === undefined || valueToCheck === null || valueToCheck === '') {
+            return null; // Hide for empty entries
+          }
+          const strValue = String(valueToCheck).trim();
+          if (!/^[\d.]+$/.test(strValue)) {
+            return null; // Hide for non-numeric values (DNS, DNF, DQ, etc.)
           }
         }
         
