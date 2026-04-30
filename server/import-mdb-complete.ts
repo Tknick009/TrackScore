@@ -255,6 +255,8 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
   const multiEventPtrs = new Set<number>(); // Track which Event_ptrs are multi-events (heptathlon, pentathlon, etc.)
   const multiEventMetaMap = new Map<number, { name: string; gender: string; eventNum: number }>(); // Event_ptr → parent event metadata
   const subEventIdMap = new Map<string, string>(); // "eventPtr_multPtr" → child event ID (for Entrymulti import)
+  // Map for multi-event sub-event schedules: key = "eventPtr-multPtr" (populated from Sessitem Multi_ptr entries)
+  const subEventScheduleMap = new Map<string, { startTime: string | null; sessDay: number | null; sessName: string | null }>();
   
   // Statistics tracking
   const stats: ImportStatistics = {
@@ -632,8 +634,6 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
     const eventScheduleMap = new Map<number, { sessPtr: number; startTime: string | null; sessDay: number | null; sessName: string | null }>();
     const eventPrelimMap = new Map<number, RoundSchedule>();
     const eventFinalMap = new Map<number, RoundSchedule>();
-    // Map for multi-event sub-event schedules: key = "eventPtr-multPtr"
-    const subEventScheduleMap = new Map<string, { startTime: string | null; sessDay: number | null; sessName: string | null }>();
     let sessitemTimesFound = 0;
     try {
       console.log("\n📋 Attempting to read Sessitem table (event-to-session mapping)...");
