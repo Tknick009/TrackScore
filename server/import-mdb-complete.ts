@@ -29,13 +29,13 @@ export interface MDBEvent {
 
 const OUTDOOR_STROKE_MAP: Record<string, string> = {
   "K": "High Jump",
-  "L": "Long Jump",
-  "M": "Shot Put",
-  "N": "Discus",
-  "O": "Hammer",
-  "P": "Pole Vault",
+  "L": "Pole Vault",
+  "M": "Long Jump",
+  "N": "Triple Jump",
+  "O": "Discus",
+  "P": "Hammer",
   "Q": "Javelin",
-  "R": "Triple Jump",
+  "R": "Shot Put",
   "S": "Weight Throw",
 };
 
@@ -44,20 +44,19 @@ const INDOOR_STROKE_MAP: Record<string, string> = {
   "L": "Pole Vault",
   "M": "Long Jump",
   "N": "Triple Jump",
-  "O": "Shot Put",
-  "P": "Weight Throw",
-  "Q": "Hammer",
   "R": "Shot Put",
   "S": "Weight Throw",
 };
 
-// Multi-event sub-events (Decathlon/Heptathlon/Pentathlon) use DIFFERENT stroke codes
-// than regular standalone field events in HyTek's Eventmulti table
+// Multi-event sub-events use the SAME stroke codes as regular events
+// (verified against HyTek Session Report PDF)
 const MULTI_EVENT_OUTDOOR_STROKE_MAP: Record<string, string> = {
   "K": "High Jump",
   "L": "Pole Vault",
   "M": "Long Jump",
+  "N": "Triple Jump",
   "O": "Discus",
+  "P": "Hammer",
   "Q": "Javelin",
   "R": "Shot Put",
 };
@@ -66,9 +65,9 @@ const MULTI_EVENT_INDOOR_STROKE_MAP: Record<string, string> = {
   "K": "High Jump",
   "L": "Pole Vault",
   "M": "Long Jump",
-  "O": "Shot Put",
-  "Q": "Javelin",
+  "N": "Triple Jump",
   "R": "Shot Put",
+  "S": "Weight Throw",
 };
 
 const FIELD_EVENT_TYPE_MAP: Record<string, string> = {
