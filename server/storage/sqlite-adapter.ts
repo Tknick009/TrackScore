@@ -4686,6 +4686,11 @@ export class SQLiteStorage implements IStorage {
     return this.getDisplayDevice(id);
   }
 
+  async updateDisplayContentMode(id: string, contentMode: string): Promise<DisplayDevice | undefined> {
+    this.db.prepare('UPDATE display_devices SET content_mode = ? WHERE id = ?').run(contentMode, id);
+    return this.getDisplayDevice(id);
+  }
+
   async updateDisplayDevice(id: string, updates: Partial<{ pagingSize: number; pagingInterval: number; fieldPort: number | null; isBigBoard: boolean }>): Promise<DisplayDevice | undefined> {
     const setClause: string[] = [];
     const values: any[] = [];
