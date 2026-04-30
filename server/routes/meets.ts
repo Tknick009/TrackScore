@@ -11,6 +11,7 @@ import { APP_VERSION, VERSION_DATE, RELEASE_NOTES } from "@shared/version";
 import { generateMeetCSV } from "../export-utils";
 import { importCompleteMDB } from "../import-mdb-complete";
 import type { RouteContext } from "../route-context";
+import { getMonitorLog, getMonitorSummary, exportMonitorLog, listMonitorLogs, loadMonitorLog } from "../meet-monitor";
 
 export function registerMeetsRoutes(app: Express, ctx: RouteContext) {
   const { broadcastCurrentEvent, seedDefaultScenes, upload, imageUpload, fileStorage } = ctx;
@@ -622,5 +623,55 @@ export function registerMeetsRoutes(app: Express, ctx: RouteContext) {
       console.error("❌ Import error:", error);
       res.status(500).json({ error: error.message });
     }
+  });
+
+  // ===== MEET MONITORING =====
+  
+  // List all monitor logs (active + persisted)
+  app.get("/api/meet-monitor", (_req, res) => {
+    res.json(listMonitorLogs());
+  });
+
+  // Get monitor summary for a meet (compact stats)
+  app.get("/api/meet-monitor/:meetId/summary", (req, res) => {
+    const summary = getMonitorSummary(req.params.meetId);
+    if (!summary) {
+      // Try loading from disk
+      const loaded = loadMonitorLog(req.params.meetId);
+      if (!loaded) {
+        return res.json({ message: "No monitoring data available for this meet" });
+      }
+    }
+    res.json(summary || { message: "No monitoring data available" });
+  });
+
+  // Get full monitor log for a meet
+  app.get("/api/meet-monitor/:meetId/log", (req, res) => {
+    let log = getMonitorLog(req.params.meetId);
+    if (!log) {
+      log = loadMonitorLog(req.params.meetId);
+    }
+    if (!log) {
+      return res.json({ events: [], stats: {}, message: "No monitoring data available" });
+    }
+    res.json(log);
+  });
+
+  // Export full monitor log as downloadable JSON
+  app.get("/api/meet-monitor/:meetId/export", (req, res) => {
+    const json = exportMonitorLog(req.params.meetId);
+    if (!json) {
+      // Try loading from disk
+      const loaded = loadMonitorLog(req.params.meetId);
+      if (!loaded) {
+        return res.status(404).json({ error: "No monitoring data found" });
+      }
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename="meet-monitor-${req.params.meetId.substring(0, 8)}.json"`);
+      return res.send(JSON.stringify(loaded, null, 2));
+    }
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="meet-monitor-${req.params.meetId.substring(0, 8)}.json"`);
+    res.send(json);
   });
 }

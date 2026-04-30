@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as chokidar from 'chokidar';
 import { FSWatcher } from 'chokidar';
 import { importCompleteMDB } from './import-mdb-complete';
+import { logMonitorEvent, setMeetMonitorName } from './meet-monitor';
 
 interface HytekMdbWatcherState {
   meetId: string;
@@ -78,16 +79,29 @@ async function handleMdbChange(state: HytekMdbWatcherState, filePath: string): P
     state.importing = true;
 
     console.log(`[HyTek MDB Watcher] MDB file changed: ${filePath}, importing for meet ${state.meetId}`);
+    const importStart = Date.now();
     const stats = await importCompleteMDB(tempFile, state.meetId);
+    const importDuration = Date.now() - importStart;
     state.lastImportAt = new Date();
 
     console.log(`[HyTek MDB Watcher] Import complete for meet ${state.meetId}: ${stats.events} events, ${stats.athletes} athletes, ${stats.entries} entries`);
+    
+    logMonitorEvent(state.meetId, 'import', 'mdb_import_success', {
+      events: stats.events,
+      athletes: stats.athletes,
+      entries: stats.entries,
+      filePath: path.basename(filePath),
+    }, importDuration);
 
     if (importCallback) {
       importCallback(state.meetId);
     }
   } catch (error) {
     console.error(`[HyTek MDB Watcher] Error importing MDB for meet ${state.meetId}:`, error);
+    logMonitorEvent(state.meetId, 'error', 'mdb_import_failed', {
+      error: (error as Error).message,
+      filePath: path.basename(filePath),
+    });
   } finally {
     state.importing = false;
     try {

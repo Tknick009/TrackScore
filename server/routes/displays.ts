@@ -1909,6 +1909,18 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         }));
         
         console.log(`[Record-Board] Sent record "${recordLabel}" for "${result.displayEventName}" (event ${evtNum}) to ${device.deviceName} (built-in template)`);
+        
+        // Log record board send for meet monitoring
+        if (device.meetId) {
+          const { logMonitorEvent } = require('../meet-monitor');
+          logMonitorEvent(device.meetId, 'display', 'record_board_send', {
+            deviceName: device.deviceName,
+            recordLabel,
+            eventName: result.displayEventName,
+            eventNumber: evtNum,
+          });
+        }
+        
         res.json({ success: true, delivered: true, round: result.maxRound, source: result.source });
       } else {
         res.json({ success: false, delivered: false, message: "Device offline" });
@@ -2533,6 +2545,16 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         connectedDevice.contentMode = contentMode;
         storage.updateDisplayContentMode(deviceId, contentMode).catch(err => console.error('[Content Mode] Failed to persist contentMode:', err));
         console.log(`[Content Mode] Device ${connectedDevice.deviceName} switched to ${contentMode}`);
+        
+        // Log display transition for meet monitoring
+        if (connectedDevice.meetId) {
+          const { logMonitorEvent } = require('../meet-monitor');
+          logMonitorEvent(connectedDevice.meetId, 'display', 'content_mode_change', {
+            deviceName: connectedDevice.deviceName,
+            deviceId,
+            contentMode,
+          });
+        }
         
         // Notify the display device of the content mode change so it updates immediately
         if (connectedDevice.ws.readyState === WebSocket.OPEN) {

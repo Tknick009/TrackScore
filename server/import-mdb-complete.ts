@@ -5,6 +5,7 @@ import { meets, teams, divisions, athletes, events, entries, entrySplits, meetSc
 import { sql } from "drizzle-orm";
 import { parseComm1 } from "./parse-comm1";
 import { randomUUID } from "crypto";
+import { logMonitorEvent, setMeetMonitorName } from "./meet-monitor";
 
 export interface ImportStatistics {
   teams: number;
@@ -510,6 +511,12 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       const mdbMeet = meetData[0]; // Should only be 1 row
       console.log(`   📝 Meet table has ${meetData.length} row(s)`);
       
+      // Initialize meet monitor with meet name
+      const meetName1 = (mdbMeet as any).Meet_name1 || (mdbMeet as any).meet_name1 || '';
+      if (meetName1) {
+        setMeetMonitorName(meetId, String(meetName1).trim());
+      }
+      
       const arenaVal = ((mdbMeet as any).meet_arena || '').toString().trim().toUpperCase();
       if (arenaVal === 'I') {
         isIndoorMeet = true;
@@ -773,6 +780,16 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       
       if (eventNum > 0) {
         console.log(`   📊 Event ${eventNum}: Event_stat=${JSON.stringify(hytekStatusRaw)}, hytekStatus=${hytekStatus}, isScored=${isScored}`);
+        
+        // Log event status for monitoring
+        if (hytekStatus) {
+          logMonitorEvent(meetId, 'status', 'event_status_imported', {
+            eventNumber: eventNum,
+            status: hytekStatus,
+            rawStatus: hytekStatusRaw,
+            isScored,
+          });
+        }
       }
       
       // Get session info for this event (if available) - use Event_ptr to match Sess_ptr
