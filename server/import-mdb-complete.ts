@@ -1073,8 +1073,12 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         prelimTime = prelimSchedule.startTime;
         prelimSessionName = prelimSchedule.sessName;
         if (prelimSchedule.sessDay && meetStartDate) {
-          prelimDate = new Date(meetStartDate);
-          prelimDate.setDate(prelimDate.getDate() + (prelimSchedule.sessDay - 1));
+          prelimDate = new Date(Date.UTC(
+            meetStartDate.getUTCFullYear(),
+            meetStartDate.getUTCMonth(),
+            meetStartDate.getUTCDate() + (prelimSchedule.sessDay - 1),
+            12, 0, 0
+          ));
         }
       }
       
@@ -1082,8 +1086,12 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         finalTime = finalSchedule.startTime;
         finalSessionName = finalSchedule.sessName;
         if (finalSchedule.sessDay && meetStartDate) {
-          finalDate = new Date(meetStartDate);
-          finalDate.setDate(finalDate.getDate() + (finalSchedule.sessDay - 1));
+          finalDate = new Date(Date.UTC(
+            meetStartDate.getUTCFullYear(),
+            meetStartDate.getUTCMonth(),
+            meetStartDate.getUTCDate() + (finalSchedule.sessDay - 1),
+            12, 0, 0
+          ));
         }
       }
       
