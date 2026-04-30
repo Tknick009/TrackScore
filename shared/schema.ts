@@ -59,6 +59,10 @@ export function isHeightEvent(eventType: string): boolean {
   return EVENT_TYPE_CATEGORIES.HEIGHT_EVENTS.includes(eventType as any);
 }
 
+export function isPointsEvent(eventType: string): boolean {
+  return /\b(decathlon|heptathlon|pentathlon|multi)\b/i.test(eventType);
+}
+
 // Wind-affected events (IAAF rules: winds >+2.0 m/s make results ineligible for records)
 export const WIND_AFFECTED_EVENT_TYPES = [
   "60m",
