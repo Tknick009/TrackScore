@@ -1222,10 +1222,10 @@ export default function DisplayControlPage() {
                                   // For sub-events, show only the sub-event part after " - "
                                   const displayLabel = isSubEvent ? item.label.split(' - ').slice(1).join(' - ') : item.label;
 
-                                  // Show day header when date changes between items
-                                  const currentDate = item.event.eventDate ? new Date(item.event.eventDate).toDateString() : '';
+                                  // Show day header when date changes between items (use UTC to avoid timezone day-shift)
+                                  const currentDate = item.event.eventDate ? new Date(item.event.eventDate).toLocaleDateString('en-US', { timeZone: 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' }) : '';
                                   const prevDate = idx > 0 && hytekEventRoundItems[idx - 1].event.eventDate
-                                    ? new Date(hytekEventRoundItems[idx - 1].event.eventDate!).toDateString()
+                                    ? new Date(hytekEventRoundItems[idx - 1].event.eventDate!).toLocaleDateString('en-US', { timeZone: 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' })
                                     : '';
                                   const showDayHeader = currentDate && currentDate !== prevDate;
 
@@ -1233,7 +1233,7 @@ export default function DisplayControlPage() {
                                     <div key={item.key}>
                                       {showDayHeader && (
                                         <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 border-b border-t mt-1 first:mt-0 first:border-t-0">
-                                          {new Date(item.event.eventDate!).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
+                                          {new Date(item.event.eventDate!).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'UTC' })}
                                         </div>
                                       )}
                                       <button
@@ -1241,11 +1241,8 @@ export default function DisplayControlPage() {
                                         className={`flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded-md cursor-pointer hover-elevate ${isSelected ? 'bg-accent' : ''} ${isSubEvent ? 'pl-6' : ''}`}
                                         data-testid={`button-hytek-${item.key}`}
                                       >
-                                        {!isSubEvent && item.event.eventTime && (
+                                        {item.event.eventTime && (
                                           <span className="text-muted-foreground shrink-0 w-16 text-xs">{item.event.eventTime}</span>
-                                        )}
-                                        {isSubEvent && (
-                                          <span className="text-muted-foreground shrink-0 text-xs">↳</span>
                                         )}
                                         <span className="truncate">
                                           {displayLabel}

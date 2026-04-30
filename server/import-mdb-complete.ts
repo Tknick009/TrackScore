@@ -1391,8 +1391,8 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           eventDate: subEventDate,
           eventTime: subEventTime,
           sessionName: subSessionName,
-          hytekStatus: subHytekStatus,
-          isScored: subIsScored,
+          hytekStatus: null, // Sub-events don't use HyTek status — their parent tracks overall status
+          isScored: false,
           advanceByPlace: null,
           advanceByTime: null,
           isMultiEvent: false, // Sub-events themselves are not multi-events
