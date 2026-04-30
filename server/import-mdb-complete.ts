@@ -232,6 +232,12 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       try { sqliteDb.exec('ALTER TABLE events ADD COLUMN advance_by_place INTEGER'); } catch(e) {}
       try { sqliteDb.exec('ALTER TABLE events ADD COLUMN advance_by_time INTEGER'); } catch(e) {}
       try { sqliteDb.exec('ALTER TABLE events ADD COLUMN is_multi_event INTEGER DEFAULT 0'); } catch(e) {}
+      try { sqliteDb.exec('ALTER TABLE events ADD COLUMN prelim_date TEXT'); } catch(e) {}
+      try { sqliteDb.exec('ALTER TABLE events ADD COLUMN prelim_time TEXT'); } catch(e) {}
+      try { sqliteDb.exec('ALTER TABLE events ADD COLUMN prelim_session_name TEXT'); } catch(e) {}
+      try { sqliteDb.exec('ALTER TABLE events ADD COLUMN final_date TEXT'); } catch(e) {}
+      try { sqliteDb.exec('ALTER TABLE events ADD COLUMN final_time TEXT'); } catch(e) {}
+      try { sqliteDb.exec('ALTER TABLE events ADD COLUMN final_session_name TEXT'); } catch(e) {}
       try { sqliteDb.exec('ALTER TABLE entries ADD COLUMN preliminary_points REAL'); } catch(e) {}
       try { sqliteDb.exec('ALTER TABLE entries ADD COLUMN quarterfinal_points REAL'); } catch(e) {}
       try { sqliteDb.exec('ALTER TABLE entries ADD COLUMN semifinal_points REAL'); } catch(e) {}
@@ -598,9 +604,19 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       console.log("   ⚠️  Session table not found");
     }
     
-    // Step 2: Read Sessitem table to get Event_ptr → (Sess_ptr, Start_time) mapping
-    // This is the critical link between events and sessions with actual start times!
+    // Step 2: Read Sessitem table to get Event_ptr → round-specific schedule data
+    // Each event can have MULTIPLE Sessitem rows: one for Prelims ("P"), one for Finals ("F")
+    // Sess_rnd: "P" = Prelims, "F" = Finals, "S" = Semis, "Q" = Quarters
+    interface RoundSchedule {
+      sessPtr: number;
+      startTime: string | null;
+      sessDay: number | null;
+      sessName: string | null;
+      sessRnd: string; // P, F, S, Q
+    }
     const eventScheduleMap = new Map<number, { sessPtr: number; startTime: string | null; sessDay: number | null; sessName: string | null }>();
+    const eventPrelimMap = new Map<number, RoundSchedule>();
+    const eventFinalMap = new Map<number, RoundSchedule>();
     let sessitemTimesFound = 0;
     try {
       console.log("\n📋 Attempting to read Sessitem table (event-to-session mapping)...");
@@ -616,10 +632,11 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         console.log(`   📝 Sample first row:`, JSON.stringify(firstRow, null, 2));
       }
       
-      // Build Event_ptr → schedule info map
+      // Build Event_ptr → schedule info maps (separate for prelim and final)
       sessitemData.forEach((item) => {
         const eventPtr = item.Event_ptr ? Number(item.Event_ptr) : null;
         const sessPtr = item.Sess_ptr ? Number(item.Sess_ptr) : null;
+        const sessRnd = item.Sess_rnd ? String(item.Sess_rnd).trim().toUpperCase() : 'F';
         
         if (eventPtr && sessPtr) {
           // Get time from Sessitem (Start_time + am_pm)
@@ -639,8 +656,28 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           // Get session metadata
           const sessionMeta = sessionMetaMap.get(sessPtr);
           
-          // Only store the first (or best) entry per event
-          // If we already have this event, only update if this entry has a time and the existing one doesn't
+          const scheduleEntry: RoundSchedule = {
+            sessPtr,
+            startTime: startTime || sessionMeta?.defaultTime || null,
+            sessDay: sessionMeta?.sessDay || null,
+            sessName: sessionMeta?.name || null,
+            sessRnd,
+          };
+          
+          // Store in round-specific maps
+          if (sessRnd === 'P') {
+            // Prelim round
+            if (!eventPrelimMap.has(eventPtr)) {
+              eventPrelimMap.set(eventPtr, scheduleEntry);
+            }
+          } else if (sessRnd === 'F') {
+            // Final round — for multi-event sub-events, store the first F entry
+            if (!eventFinalMap.has(eventPtr)) {
+              eventFinalMap.set(eventPtr, scheduleEntry);
+            }
+          }
+          
+          // Also store in the general map (backward compat) - prefer prelim if available, otherwise final
           const existing = eventScheduleMap.get(eventPtr);
           if (!existing || (startTime && !existing.startTime)) {
             eventScheduleMap.set(eventPtr, {
@@ -655,6 +692,8 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       
       console.log(`   ✅ Sessitem table found, mapped ${eventScheduleMap.size} events to sessions`);
       console.log(`   ⏰ Events with explicit times from Sessitem: ${sessitemTimesFound}`);
+      console.log(`   📋 Events with prelim schedule: ${eventPrelimMap.size}`);
+      console.log(`   🏁 Events with final schedule: ${eventFinalMap.size}`);
     } catch (sessitemError) {
       console.log("   ⚠️  Sessitem table not found, falling back to Session table only");
       
@@ -686,7 +725,8 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       const gender = String(genderRaw);
       const trkField = row.Trk_Field || "T"; // T = Track, F = Field
       
-      const hytekStatusRaw = row.Event_stat || row.Event_status || row.Event_Status || null;
+      // Use ?? instead of || to avoid skipping falsy values like 0 or ""
+      const hytekStatusRaw = row.Event_stat ?? row.Event_status ?? row.Event_Status ?? null;
       let hytekStatus: string | null = null;
       // Score_event means "eligible for team scoring" (i.e. points are awarded for this event)
       // This is NOT the same as "event has been scored/completed" — don't use it as isScored
@@ -696,8 +736,11 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       if (hytekStatusRaw != null) {
         const statusStr = String(hytekStatusRaw).trim();
         switch (statusStr) {
+          case '':
+          case ' ':
           case 'U':
           case 'u':
+          case '0':
           case 'unseeded':
             hytekStatus = 'unseeded';
             break;
@@ -709,6 +752,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           case 'a':
           case 'D':
           case 'd':
+          case '2':
           case 'done':
             hytekStatus = 'done';
             break;
@@ -716,6 +760,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           case 's':
           case 'C':
           case 'c':
+          case '3':
           case 'scored':
             hytekStatus = 'scored';
             isScored = true;
@@ -923,6 +968,52 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         multiEventMetaMap.set(eventPtr, { name: eventName, gender, eventNum });
       }
       
+      // Compute prelim/final schedule from round-specific Sessitem data
+      const prelimSchedule = eventPrelimMap.get(eventPtr);
+      const finalSchedule = eventFinalMap.get(eventPtr);
+      
+      let prelimDate: Date | null = null;
+      let prelimTime: string | null = null;
+      let prelimSessionName: string | null = null;
+      let finalDate: Date | null = null;
+      let finalTime: string | null = null;
+      let finalSessionName: string | null = null;
+      
+      if (prelimSchedule) {
+        prelimTime = prelimSchedule.startTime;
+        prelimSessionName = prelimSchedule.sessName;
+        if (prelimSchedule.sessDay && meetStartDate) {
+          prelimDate = new Date(meetStartDate);
+          prelimDate.setDate(prelimDate.getDate() + (prelimSchedule.sessDay - 1));
+        }
+      }
+      
+      if (finalSchedule) {
+        finalTime = finalSchedule.startTime;
+        finalSessionName = finalSchedule.sessName;
+        if (finalSchedule.sessDay && meetStartDate) {
+          finalDate = new Date(meetStartDate);
+          finalDate.setDate(finalDate.getDate() + (finalSchedule.sessDay - 1));
+        }
+      }
+      
+      // For the main eventDate/eventTime: use first scheduled round
+      // If event has prelims, use prelim date/time as the main event date
+      // If finals only, use final date/time
+      if (!eventDate && !eventTime) {
+        if (prelimSchedule) {
+          eventDate = prelimDate;
+          eventTime = prelimTime;
+        } else if (finalSchedule) {
+          eventDate = finalDate;
+          eventTime = finalTime;
+        }
+      }
+      
+      if (numRounds > 1 && prelimSchedule && finalSchedule) {
+        console.log(`   📋 Event #${eventNum}: Prelim=${prelimTime} (Day ${prelimSchedule.sessDay}), Final=${finalTime} (Day ${finalSchedule.sessDay})`);
+      }
+      
       eventBatch.push({
         meetId,
         eventNumber: eventNum,
@@ -941,6 +1032,12 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         advanceByPlace, // Advancement by place (Q qualifiers)
         advanceByTime,  // Advancement by time (q qualifiers)
         isMultiEvent,   // Auto-detected from event name
+        prelimDate,
+        prelimTime,
+        prelimSessionName,
+        finalDate,
+        finalTime,
+        finalSessionName,
       });
     }
     
@@ -948,14 +1045,16 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       let insertedEvents: any[];
       if (isEdgeMode && sqliteDb) {
         const upsertStmt = sqliteDb.prepare(`
-          INSERT INTO events (id, meet_id, event_number, name, event_type, gender, distance, status, num_rounds, num_lanes, event_date, event_time, session_name, hytek_status, is_scored, advance_by_place, advance_by_time, is_multi_event)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO events (id, meet_id, event_number, name, event_type, gender, distance, status, num_rounds, num_lanes, event_date, event_time, session_name, hytek_status, is_scored, advance_by_place, advance_by_time, is_multi_event, prelim_date, prelim_time, prelim_session_name, final_date, final_time, final_session_name)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(meet_id, event_number) DO UPDATE SET
             name=excluded.name, event_type=excluded.event_type, gender=excluded.gender, distance=excluded.distance,
             status=excluded.status, num_rounds=excluded.num_rounds, num_lanes=excluded.num_lanes, event_date=excluded.event_date,
             event_time=excluded.event_time, session_name=excluded.session_name, hytek_status=excluded.hytek_status,
             is_scored=excluded.is_scored, advance_by_place=excluded.advance_by_place, advance_by_time=excluded.advance_by_time,
-            is_multi_event=excluded.is_multi_event
+            is_multi_event=excluded.is_multi_event,
+            prelim_date=excluded.prelim_date, prelim_time=excluded.prelim_time, prelim_session_name=excluded.prelim_session_name,
+            final_date=excluded.final_date, final_time=excluded.final_time, final_session_name=excluded.final_session_name
         `);
         const insertMany = sqliteDb.transaction((items: any[]) => {
           for (const item of items) {
@@ -964,7 +1063,11 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
               item.distance, item.status, item.numRounds, item.numLanes,
               item.eventDate instanceof Date ? item.eventDate.toISOString().split('T')[0] : item.eventDate,
               item.eventTime, item.sessionName, item.hytekStatus, item.isScored ? 1 : 0,
-              item.advanceByPlace, item.advanceByTime, item.isMultiEvent ? 1 : 0
+              item.advanceByPlace, item.advanceByTime, item.isMultiEvent ? 1 : 0,
+              item.prelimDate instanceof Date ? item.prelimDate.toISOString().split('T')[0] : item.prelimDate,
+              item.prelimTime, item.prelimSessionName,
+              item.finalDate instanceof Date ? item.finalDate.toISOString().split('T')[0] : item.finalDate,
+              item.finalTime, item.finalSessionName
             );
           }
         });
@@ -995,6 +1098,12 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
               advanceByPlace: sql`excluded.advance_by_place`,
               advanceByTime: sql`excluded.advance_by_time`,
               isMultiEvent: sql`excluded.is_multi_event`,
+              prelimDate: sql`excluded.prelim_date`,
+              prelimTime: sql`excluded.prelim_time`,
+              prelimSessionName: sql`excluded.prelim_session_name`,
+              finalDate: sql`excluded.final_date`,
+              finalTime: sql`excluded.final_time`,
+              finalSessionName: sql`excluded.final_session_name`,
             }
           })
           .returning();
@@ -1075,7 +1184,27 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           subEventType = `${distance}m`;
         }
         
-        console.log(`   📝 Sub-event: ${fullName} (eventNum=${subEventNumber}, type=${subEventType})`);
+        // Read Event_stat from the Eventmulti row (same mapping as main events)
+        const subStatusRaw = row.Event_stat ?? null;
+        let subHytekStatus: string | null = null;
+        let subIsScored = false;
+        if (subStatusRaw != null) {
+          const subStatusStr = String(subStatusRaw).trim();
+          switch (subStatusStr) {
+            case '': case ' ': case 'U': case 'u': case '0': case 'unseeded':
+              subHytekStatus = 'unseeded'; break;
+            case '1': case 'seeded':
+              subHytekStatus = 'seeded'; break;
+            case 'A': case 'a': case 'D': case 'd': case '2': case 'done':
+              subHytekStatus = 'done'; break;
+            case 'S': case 's': case 'C': case 'c': case '3': case 'scored':
+              subHytekStatus = 'scored'; subIsScored = true; break;
+            default:
+              subHytekStatus = subStatusStr; break;
+          }
+        }
+        
+        console.log(`   📝 Sub-event: ${fullName} (eventNum=${subEventNumber}, type=${subEventType}, Event_stat=${JSON.stringify(subStatusRaw)}, hytekStatus=${subHytekStatus})`);
         
         subEventBatch.push({
           meetId,
@@ -1090,11 +1219,17 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           eventDate: null,
           eventTime: null,
           sessionName: null,
-          hytekStatus: 'done',
-          isScored: false,
+          hytekStatus: subHytekStatus,
+          isScored: subIsScored,
           advanceByPlace: null,
           advanceByTime: null,
           isMultiEvent: false, // Sub-events themselves are not multi-events
+          prelimDate: null,
+          prelimTime: null,
+          prelimSessionName: null,
+          finalDate: null,
+          finalTime: null,
+          finalSessionName: null,
           // Extra metadata for mapping
           _eventPtr: eventPtr,
           _multPtr: multPtr,
@@ -1104,19 +1239,20 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       if (subEventBatch.length > 0) {
         if (isEdgeMode && sqliteDb) {
           const subUpsertStmt = sqliteDb.prepare(`
-            INSERT INTO events (id, meet_id, event_number, name, event_type, gender, distance, status, num_rounds, num_lanes, event_date, event_time, session_name, hytek_status, is_scored, advance_by_place, advance_by_time, is_multi_event)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO events (id, meet_id, event_number, name, event_type, gender, distance, status, num_rounds, num_lanes, event_date, event_time, session_name, hytek_status, is_scored, advance_by_place, advance_by_time, is_multi_event, prelim_date, prelim_time, prelim_session_name, final_date, final_time, final_session_name)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(meet_id, event_number) DO UPDATE SET
               name=excluded.name, event_type=excluded.event_type, gender=excluded.gender, distance=excluded.distance,
               status=excluded.status, num_rounds=excluded.num_rounds, num_lanes=excluded.num_lanes,
-              hytek_status=excluded.hytek_status, is_multi_event=excluded.is_multi_event
+              hytek_status=excluded.hytek_status, is_scored=excluded.is_scored, is_multi_event=excluded.is_multi_event
           `);
           const subInsertMany = sqliteDb.transaction((items: any[]) => {
             for (const item of items) {
               subUpsertStmt.run(
                 randomUUID(), item.meetId, item.eventNumber, item.name, item.eventType, item.gender,
                 item.distance, item.status, item.numRounds, item.numLanes,
-                null, null, null, item.hytekStatus, 0, null, null, 0
+                null, null, null, item.hytekStatus, item.isScored ? 1 : 0, null, null, 0,
+                null, null, null, null, null, null
               );
             }
           });

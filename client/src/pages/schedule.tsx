@@ -599,7 +599,88 @@ export default function Schedule() {
                 )}
                 <div className="space-y-2">
                   {groupEvents.map((event: Event) => {
-                    const isPrelim = (event.numRounds || 1) > 1;
+                    const hasMultipleRounds = (event.numRounds || 1) > 1;
+                    const hasPrelimData = !!(event as any).prelimTime || !!(event as any).prelimDate;
+                    const hasFinalData = !!(event as any).finalTime || !!(event as any).finalDate;
+                    const showSeparateRounds = hasMultipleRounds && (hasPrelimData || hasFinalData);
+                    
+                    if (showSeparateRounds) {
+                      // Show prelim and final as separate rows
+                      return (
+                        <div key={event.id} className="space-y-1">
+                          {/* Prelim row */}
+                          {hasPrelimData && (
+                            <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg border bg-background hover:bg-accent/50 transition-colors border-l-4 border-l-blue-400">
+                              <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-blue-500/10 text-blue-600`}>
+                                {isTrackEvent(event.eventType) ? (
+                                  <Timer className="w-4 h-4" />
+                                ) : (
+                                  <Target className="w-4 h-4" />
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="font-medium truncate text-sm">{event.name} <Badge variant="outline" className="text-xs ml-1 text-blue-600 border-blue-300">Prelims</Badge></div>
+                                <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
+                                  {(event as any).prelimTime && (
+                                    <span className="flex items-center gap-1">
+                                      <Clock className="w-3 h-3" />
+                                      {(event as any).prelimTime}
+                                    </span>
+                                  )}
+                                  {(event as any).prelimSessionName && (
+                                    <span>{(event as any).prelimSessionName}</span>
+                                  )}
+                                  {event.eventNumber != null && (
+                                    <span className="font-mono">#{event.eventNumber}</span>
+                                  )}
+                                  <span className="capitalize">{event.gender}</span>
+                                </div>
+                                {currentMeetId && (
+                                  <AdvancementFormulaEditor event={event} meetId={currentMeetId} />
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {currentMeetId && <EventStatusBadge event={event} />}
+                              </div>
+                            </div>
+                          )}
+                          {/* Final row */}
+                          {hasFinalData && (
+                            <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg border bg-background hover:bg-accent/50 transition-colors border-l-4 border-l-green-400">
+                              <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-green-500/10 text-green-600`}>
+                                {isTrackEvent(event.eventType) ? (
+                                  <Timer className="w-4 h-4" />
+                                ) : (
+                                  <Target className="w-4 h-4" />
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="font-medium truncate text-sm">{event.name} <Badge variant="outline" className="text-xs ml-1 text-green-600 border-green-300">Finals</Badge></div>
+                                <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
+                                  {(event as any).finalTime && (
+                                    <span className="flex items-center gap-1">
+                                      <Clock className="w-3 h-3" />
+                                      {(event as any).finalTime}
+                                    </span>
+                                  )}
+                                  {(event as any).finalSessionName && (
+                                    <span>{(event as any).finalSessionName}</span>
+                                  )}
+                                  {event.eventNumber != null && (
+                                    <span className="font-mono">#{event.eventNumber}</span>
+                                  )}
+                                  <span className="capitalize">{event.gender}</span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {currentMeetId && <EventStatusBadge event={event} />}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+                    
                     return (
                       <div key={event.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg border bg-background hover:bg-accent/50 transition-colors">
                               {/* Event type icon with color coding */}
@@ -630,7 +711,7 @@ export default function Schedule() {
                                   )}
                                   <span className="capitalize">{event.gender}</span>
                                 </div>
-                                {isPrelim && currentMeetId && (
+                                {hasMultipleRounds && currentMeetId && (
                                   <AdvancementFormulaEditor event={event} meetId={currentMeetId} />
                                 )}
                               </div>

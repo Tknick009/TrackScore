@@ -413,6 +413,12 @@ export const events = pgTable("events", {
   eventDate: timestamp("event_date"), // Scheduled date for this event
   eventTime: text("event_time"), // Scheduled time string (e.g., "2:30 PM")
   sessionName: text("session_name"), // Session name from HyTek (e.g., "Thursday AM", "Friday Finals")
+  prelimDate: timestamp("prelim_date"), // Prelim round date (for multi-round events)
+  prelimTime: text("prelim_time"), // Prelim round time string
+  prelimSessionName: text("prelim_session_name"), // Prelim session name
+  finalDate: timestamp("final_date"), // Final round date
+  finalTime: text("final_time"), // Final round time string
+  finalSessionName: text("final_session_name"), // Final session name
   hytekStatus: text("hytek_status"), // unseeded, seeded, done, scored from MDB
   isScored: boolean("is_scored").default(false), // Derived: true if hytekStatus = 'done' or 'scored'
   lastResultSource: text("last_result_source"), // port, lif, lff, manual
