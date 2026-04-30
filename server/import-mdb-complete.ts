@@ -528,15 +528,23 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       }
       
       if (mdbMeet.Meet_start) {
+        let rawDate: Date | null = null;
         if (mdbMeet.Meet_start instanceof Date) {
-          meetStartDate = mdbMeet.Meet_start;
+          rawDate = mdbMeet.Meet_start;
         } else if (typeof mdbMeet.Meet_start === 'string' || typeof mdbMeet.Meet_start === 'number') {
           const parsed = new Date(mdbMeet.Meet_start);
           if (!isNaN(parsed.getTime())) {
-            meetStartDate = parsed;
+            rawDate = parsed;
           }
         }
-        if (meetStartDate) {
+        if (rawDate) {
+          // Store as noon UTC to avoid timezone boundary issues
+          meetStartDate = new Date(Date.UTC(
+            rawDate.getUTCFullYear(),
+            rawDate.getUTCMonth(),
+            rawDate.getUTCDate(),
+            12, 0, 0
+          ));
           console.log(`   📅 Meet start date from MDB: ${meetStartDate.toISOString().split('T')[0]}`);
         }
       }
@@ -624,6 +632,8 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
     const eventScheduleMap = new Map<number, { sessPtr: number; startTime: string | null; sessDay: number | null; sessName: string | null }>();
     const eventPrelimMap = new Map<number, RoundSchedule>();
     const eventFinalMap = new Map<number, RoundSchedule>();
+    // Map for multi-event sub-event schedules: key = "eventPtr-multPtr"
+    const subEventScheduleMap = new Map<string, { startTime: string | null; sessDay: number | null; sessName: string | null }>();
     let sessitemTimesFound = 0;
     try {
       console.log("\n📋 Attempting to read Sessitem table (event-to-session mapping)...");
@@ -643,6 +653,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       sessitemData.forEach((item) => {
         const eventPtr = item.Event_ptr ? Number(item.Event_ptr) : null;
         const sessPtr = item.Sess_ptr ? Number(item.Sess_ptr) : null;
+        const multiPtr = item.Multi_ptr ? Number(item.Multi_ptr) : 0;
         const sessRnd = item.Sess_rnd ? String(item.Sess_rnd).trim().toUpperCase() : 'F';
         
         if (eventPtr && sessPtr) {
@@ -663,6 +674,17 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           // Get session metadata
           const sessionMeta = sessionMetaMap.get(sessPtr);
           
+          // Multi-event sub-event schedule (Multi_ptr != 0)
+          if (multiPtr > 0) {
+            const key = `${eventPtr}-${multiPtr}`;
+            subEventScheduleMap.set(key, {
+              startTime: startTime || sessionMeta?.defaultTime || null,
+              sessDay: sessionMeta?.sessDay || null,
+              sessName: sessionMeta?.name || null,
+            });
+            return; // Don't store sub-event schedules in the main event maps
+          }
+          
           const scheduleEntry: RoundSchedule = {
             sessPtr,
             startTime: startTime || sessionMeta?.defaultTime || null,
@@ -678,7 +700,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
               eventPrelimMap.set(eventPtr, scheduleEntry);
             }
           } else if (sessRnd === 'F') {
-            // Final round — for multi-event sub-events, store the first F entry
+            // Final round
             if (!eventFinalMap.has(eventPtr)) {
               eventFinalMap.set(eventPtr, scheduleEntry);
             }
@@ -697,10 +719,40 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         }
       });
       
+      // For multi-events (like Decathlon/Heptathlon), ALL Sessitem rows have Multi_ptr != 0
+      // so the parent event has no schedule. Set the parent's schedule to its earliest sub-event.
+      const multiEventFirstSchedule = new Map<number, { startTime: string | null; sessDay: number | null; sessName: string | null }>();
+      for (const [key, sched] of subEventScheduleMap) {
+        const eventPtr = Number(key.split('-')[0]);
+        const existing = multiEventFirstSchedule.get(eventPtr);
+        if (!existing || (sched.sessDay !== null && (existing.sessDay === null || sched.sessDay < existing.sessDay))) {
+          multiEventFirstSchedule.set(eventPtr, sched);
+        }
+      }
+      // Merge into the main event schedule maps for parent multi-events that have no schedule
+      for (const [eventPtr, sched] of multiEventFirstSchedule) {
+        if (!eventScheduleMap.has(eventPtr) && !eventFinalMap.has(eventPtr)) {
+          eventScheduleMap.set(eventPtr, {
+            sessPtr: 0,
+            startTime: sched.startTime,
+            sessDay: sched.sessDay,
+            sessName: sched.sessName,
+          });
+          eventFinalMap.set(eventPtr, {
+            sessPtr: 0,
+            startTime: sched.startTime,
+            sessDay: sched.sessDay,
+            sessName: sched.sessName,
+            sessRnd: 'F',
+          });
+        }
+      }
+      
       console.log(`   ✅ Sessitem table found, mapped ${eventScheduleMap.size} events to sessions`);
       console.log(`   ⏰ Events with explicit times from Sessitem: ${sessitemTimesFound}`);
       console.log(`   📋 Events with prelim schedule: ${eventPrelimMap.size}`);
       console.log(`   🏁 Events with final schedule: ${eventFinalMap.size}`);
+      console.log(`   🏅 Multi-event sub-event schedules: ${subEventScheduleMap.size}`);
     } catch (sessitemError) {
       console.log("   ⚠️  Sessitem table not found, falling back to Session table only");
       
@@ -821,15 +873,24 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       
       // Priority 1: Individual event date/time from CCracestart fields
       if (row.CCracestart_date) {
+        let rawCCDate: Date | null = null;
         if (row.CCracestart_date instanceof Date) {
-          eventDate = row.CCracestart_date;
-          datesFound++;
+          rawCCDate = row.CCracestart_date;
         } else if (typeof row.CCracestart_date === 'string' || typeof row.CCracestart_date === 'number') {
           const parsed = new Date(row.CCracestart_date);
           if (!isNaN(parsed.getTime())) {
-            eventDate = parsed;
-            datesFound++;
+            rawCCDate = parsed;
           }
+        }
+        if (rawCCDate) {
+          // Store as noon UTC to avoid timezone boundary issues
+          eventDate = new Date(Date.UTC(
+            rawCCDate.getUTCFullYear(),
+            rawCCDate.getUTCMonth(),
+            rawCCDate.getUTCDate(),
+            12, 0, 0
+          ));
+          datesFound++;
         }
       }
       
@@ -886,12 +947,22 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       if (!eventDate) {
         if (sessionInfo?.sessDay && meetStartDate) {
           // Calculate event date based on which day of the meet (Sess_day is 1-based)
-          eventDate = new Date(meetStartDate);
-          eventDate.setDate(eventDate.getDate() + (sessionInfo.sessDay - 1));
+          // Use UTC methods to avoid timezone shifts (noon UTC prevents day-boundary issues)
+          eventDate = new Date(Date.UTC(
+            meetStartDate.getUTCFullYear(),
+            meetStartDate.getUTCMonth(),
+            meetStartDate.getUTCDate() + (sessionInfo.sessDay - 1),
+            12, 0, 0
+          ));
           datesFound++;
         } else if (meetStartDate) {
-          // Fallback to meet start date if no session match
-          eventDate = meetStartDate;
+          // Fallback to meet start date if no session match (noon UTC)
+          eventDate = new Date(Date.UTC(
+            meetStartDate.getUTCFullYear(),
+            meetStartDate.getUTCMonth(),
+            meetStartDate.getUTCDate(),
+            12, 0, 0
+          ));
           datesFound++;
         }
       }
@@ -1221,7 +1292,33 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           }
         }
         
-        console.log(`   📝 Sub-event: ${fullName} (eventNum=${subEventNumber}, type=${subEventType}, Event_stat=${JSON.stringify(subStatusRaw)}, hytekStatus=${subHytekStatus})`);
+        // Look up sub-event schedule from Sessitem (Multi_ptr links)
+        const subScheduleKey = `${eventPtr}-${multPtr}`;
+        const subSchedule = subEventScheduleMap.get(subScheduleKey);
+        let subEventDate: Date | null = null;
+        let subEventTime: string | null = null;
+        let subSessionName: string | null = null;
+        if (subSchedule) {
+          subEventTime = subSchedule.startTime;
+          subSessionName = subSchedule.sessName;
+          if (subSchedule.sessDay && meetStartDate) {
+            subEventDate = new Date(Date.UTC(
+              meetStartDate.getUTCFullYear(),
+              meetStartDate.getUTCMonth(),
+              meetStartDate.getUTCDate() + (subSchedule.sessDay - 1),
+              12, 0, 0
+            ));
+          } else if (meetStartDate) {
+            subEventDate = new Date(Date.UTC(
+              meetStartDate.getUTCFullYear(),
+              meetStartDate.getUTCMonth(),
+              meetStartDate.getUTCDate(),
+              12, 0, 0
+            ));
+          }
+        }
+
+        console.log(`   📝 Sub-event: ${fullName} (eventNum=${subEventNumber}, type=${subEventType}, Event_stat=${JSON.stringify(subStatusRaw)}, hytekStatus=${subHytekStatus}, time=${subEventTime}, day=${subSchedule?.sessDay ?? 'none'})`);
         
         subEventBatch.push({
           meetId,
@@ -1233,9 +1330,9 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           status: "scheduled",
           numRounds: 1,
           numLanes: row.Num_finlanes ? Number(row.Num_finlanes) : 8,
-          eventDate: null,
-          eventTime: null,
-          sessionName: null,
+          eventDate: subEventDate,
+          eventTime: subEventTime,
+          sessionName: subSessionName,
           hytekStatus: subHytekStatus,
           isScored: subIsScored,
           advanceByPlace: null,
@@ -1261,6 +1358,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
             ON CONFLICT(meet_id, event_number) DO UPDATE SET
               name=excluded.name, event_type=excluded.event_type, gender=excluded.gender, distance=excluded.distance,
               status=excluded.status, num_rounds=excluded.num_rounds, num_lanes=excluded.num_lanes,
+              event_date=excluded.event_date, event_time=excluded.event_time, session_name=excluded.session_name,
               hytek_status=excluded.hytek_status, is_scored=excluded.is_scored, is_multi_event=excluded.is_multi_event
           `);
           const subInsertMany = sqliteDb.transaction((items: any[]) => {
@@ -1268,7 +1366,8 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
               subUpsertStmt.run(
                 randomUUID(), item.meetId, item.eventNumber, item.name, item.eventType, item.gender,
                 item.distance, item.status, item.numRounds, item.numLanes,
-                null, null, null, item.hytekStatus, item.isScored ? 1 : 0, null, null, 0,
+                item.eventDate instanceof Date ? item.eventDate.toISOString().split('T')[0] : item.eventDate,
+                item.eventTime, item.sessionName, item.hytekStatus, item.isScored ? 1 : 0, null, null, 0,
                 null, null, null, null, null, null
               );
             }
