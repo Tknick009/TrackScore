@@ -392,8 +392,8 @@ export function SceneObjectRenderer({
   // Projected points bar: renders behind content in team_scores/team_preview mode
   // Width = projectedBarPct (0-100), color = meet primary at 25% opacity
   let projectedBarPct = 0;
-  if (liveData && (liveData.mode === 'team_scores' || liveData.mode === 'team_preview')) {
-    const barIdx = (rawAthleteIndex || 0) + pageOffset;
+  if (liveData && rawAthleteIndex !== undefined && (liveData.mode === 'team_scores' || liveData.mode === 'team_preview')) {
+    const barIdx = rawAthleteIndex + pageOffset;
     const entries = Array.isArray(liveData.entries) ? liveData.entries : [];
     const barEntry = entries[barIdx];
     if (barEntry?.projectedBarPct) {
