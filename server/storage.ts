@@ -2501,9 +2501,7 @@ export class DatabaseStorage implements IStorage {
 
       // Sort by seed mark to get projected placement
       // Time events: lower is better (ascending). Field events: higher is better (descending).
-      const isTimeEvent = typeLower.includes('run') || typeLower.includes('dash') || typeLower.includes('hurdle') ||
-        typeLower.includes('steeplechase') || typeLower.includes('relay') || typeLower.includes('mile') ||
-        typeLower.includes('walk') || typeLower === 'time' ||
+      const isTime = isTimeEvent(evt.eventType) ||
         nameLower.includes('run') || nameLower.includes('dash') || nameLower.includes('hurdle') ||
         nameLower.includes('steeplechase') || nameLower.includes('relay') || nameLower.includes('mile') ||
         nameLower.includes('walk');
@@ -2511,7 +2509,7 @@ export class DatabaseStorage implements IStorage {
       const sorted = [...eventEntries].sort((a, b) => {
         const aVal = a.seedMark || 0;
         const bVal = b.seedMark || 0;
-        return isTimeEvent ? aVal - bVal : bVal - aVal;
+        return isTime ? aVal - bVal : bVal - aVal;
       });
 
       const teamScorerCount = new Map<string, number>();
