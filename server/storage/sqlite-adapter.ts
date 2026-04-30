@@ -2552,8 +2552,13 @@ export class SQLiteStorage implements IStorage {
     };
   }
 
-  async getRecordBooks(): Promise<SelectRecordBook[]> {
+  async getRecordBooks(_meetId?: string): Promise<SelectRecordBook[]> {
     const rows = this.db.prepare('SELECT * FROM record_books WHERE is_active = 1').all();
+    return rows.map((row: any) => this.mapRecordBookRow(row));
+  }
+
+  async getAllRecordBooks(_meetId?: string): Promise<SelectRecordBook[]> {
+    const rows = this.db.prepare('SELECT * FROM record_books').all();
     return rows.map((row: any) => this.mapRecordBookRow(row));
   }
 
