@@ -51,6 +51,26 @@ const INDOOR_STROKE_MAP: Record<string, string> = {
   "S": "Weight Throw",
 };
 
+// Multi-event sub-events (Decathlon/Heptathlon/Pentathlon) use DIFFERENT stroke codes
+// than regular standalone field events in HyTek's Eventmulti table
+const MULTI_EVENT_OUTDOOR_STROKE_MAP: Record<string, string> = {
+  "K": "High Jump",
+  "L": "Pole Vault",
+  "M": "Long Jump",
+  "O": "Discus",
+  "Q": "Javelin",
+  "R": "Shot Put",
+};
+
+const MULTI_EVENT_INDOOR_STROKE_MAP: Record<string, string> = {
+  "K": "High Jump",
+  "L": "Pole Vault",
+  "M": "Long Jump",
+  "O": "Shot Put",
+  "Q": "Javelin",
+  "R": "Shot Put",
+};
+
 const FIELD_EVENT_TYPE_MAP: Record<string, string> = {
   "High Jump": "high_jump",
   "Pole Vault": "pole_vault",
@@ -63,13 +83,18 @@ const FIELD_EVENT_TYPE_MAP: Record<string, string> = {
   "Weight Throw": "weight_throw",
 };
 
-export function getFieldEventFromStroke(stroke: string, isIndoor: boolean): string | null {
-  const map = isIndoor ? INDOOR_STROKE_MAP : OUTDOOR_STROKE_MAP;
+export function getFieldEventFromStroke(stroke: string, isIndoor: boolean, isMultiEvent: boolean = false): string | null {
+  let map: Record<string, string>;
+  if (isMultiEvent) {
+    map = isIndoor ? MULTI_EVENT_INDOOR_STROKE_MAP : MULTI_EVENT_OUTDOOR_STROKE_MAP;
+  } else {
+    map = isIndoor ? INDOOR_STROKE_MAP : OUTDOOR_STROKE_MAP;
+  }
   return map[stroke] || null;
 }
 
-export function getFieldEventType(stroke: string, isIndoor: boolean): string {
-  const eventName = getFieldEventFromStroke(stroke, isIndoor);
+export function getFieldEventType(stroke: string, isIndoor: boolean, isMultiEvent: boolean = false): string {
+  const eventName = getFieldEventFromStroke(stroke, isIndoor, isMultiEvent);
   if (eventName) {
     return FIELD_EVENT_TYPE_MAP[eventName] || "field_event";
   }
@@ -161,13 +186,14 @@ export function generateEventName(mdbEvent: MDBEvent, isIndoor: boolean = false)
 
 // Generate a sub-event name from Eventmulti row data (stroke + distance)
 // Used for pentathlon/heptathlon sub-events like "60m Hurdles", "High Jump", etc.
+// Multi-event sub-events use DIFFERENT stroke codes than regular events for field events
 export function generateSubEventName(distance: number, stroke: string, trkField: string, isIndoor: boolean): string {
   stroke = (stroke || '').trim();
   trkField = (trkField || 'T').trim().toUpperCase();
   
-  // Field events (Trk_Field = "F")
+  // Field events (Trk_Field = "F") — use multi-event stroke map
   if (trkField === 'F') {
-    const fieldName = getFieldEventFromStroke(stroke, isIndoor);
+    const fieldName = getFieldEventFromStroke(stroke, isIndoor, true);
     if (fieldName) return fieldName;
     return 'Field Event';
   }
@@ -1274,10 +1300,10 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         // Generate unique event number: parentEventNum * 1000 + sub-event sequence number
         const subEventNumber = parentMeta.eventNum * 1000 + multiEventNo;
         
-        // Determine event type for the sub-event
+        // Determine event type for the sub-event (use multi-event stroke map for field events)
         let subEventType = 'multi_sub';
         if (trkField === 'F') {
-          subEventType = getFieldEventType(stroke, isIndoorMeet);
+          subEventType = getFieldEventType(stroke, isIndoorMeet, true);
         } else if (distance > 0) {
           subEventType = `${distance}m`;
         }
