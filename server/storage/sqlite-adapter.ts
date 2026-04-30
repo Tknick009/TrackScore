@@ -3089,6 +3089,148 @@ export class SQLiteStorage implements IStorage {
     return standings;
   }
 
+  async getProjectedTeamStandings(meetId: string, scope?: { gender?: string; division?: string }): Promise<TeamStandingsEntry[]> {
+    let rules: any[] = [];
+    try {
+      rules = this.db.prepare(
+        'SELECT gender, place, ind_score, rel_score FROM meet_scoring_rules WHERE meet_id = ? ORDER BY place'
+      ).all(meetId) as any[];
+    } catch (e) {
+      return [];
+    }
+
+    const indPointsMap = new Map<string, Map<number, number>>();
+    const relPointsMap = new Map<string, Map<number, number>>();
+    for (const rule of rules) {
+      const g = rule.gender;
+      if (!indPointsMap.has(g)) indPointsMap.set(g, new Map());
+      if (!relPointsMap.has(g)) relPointsMap.set(g, new Map());
+      if (rule.ind_score > 0) indPointsMap.get(g)!.set(rule.place, rule.ind_score);
+      if (rule.rel_score > 0) relPointsMap.get(g)!.set(rule.place, rule.rel_score);
+    }
+
+    let indMaxScorers = 0;
+    let relMaxScorers = 0;
+    try {
+      const meetRow = this.db.prepare('SELECT ind_max_scorers_per_team, rel_max_scorers_per_team FROM meets WHERE id = ?').get(meetId) as any;
+      indMaxScorers = meetRow?.ind_max_scorers_per_team || 0;
+      relMaxScorers = meetRow?.rel_max_scorers_per_team || 0;
+    } catch (e) {}
+
+    let eventsQuery = 'SELECT id, name, gender, event_type FROM events WHERE meet_id = ? AND is_scored = 1';
+    const eventsParams: any[] = [meetId];
+    if (scope?.gender) {
+      eventsQuery += ' AND gender = ?';
+      eventsParams.push(scope.gender);
+    }
+    const scoredEventsList = this.db.prepare(eventsQuery).all(...eventsParams) as any[];
+    if (scoredEventsList.length === 0) return [];
+
+    const scoredEventIds = scoredEventsList.map((e: any) => e.id);
+    const placeholders = scoredEventIds.map(() => '?').join(',');
+
+    // Fetch entries with seed marks for projected placement
+    const allEntries = this.db.prepare(`
+      SELECT en.event_id, en.seed_mark, en.result_type, a.team_id, t.name as team_name
+      FROM entries en
+      INNER JOIN athletes a ON en.athlete_id = a.id
+      LEFT JOIN teams t ON a.team_id = t.id
+      WHERE en.event_id IN (${placeholders})
+        AND a.team_id IS NOT NULL
+        AND en.seed_mark IS NOT NULL
+        AND en.seed_mark > 0
+      ORDER BY en.event_id
+    `).all(...scoredEventIds) as any[];
+
+    const entriesByEvent = new Map<string, any[]>();
+    for (const entry of allEntries) {
+      const eventEntries = entriesByEvent.get(entry.event_id) || [];
+      eventEntries.push(entry);
+      entriesByEvent.set(entry.event_id, eventEntries);
+    }
+
+    const teamScores = new Map<string, { teamName: string; totalPoints: number; events: Map<string, { eventName: string; points: number }> }>();
+
+    for (const evt of scoredEventsList) {
+      const nameLower = (evt.name || '').toLowerCase();
+      const typeLower = (evt.event_type || '').toLowerCase();
+      const isRelay = nameLower.includes('relay') || typeLower.startsWith('4x') || typeLower.includes('relay') ||
+        /^\d+x\d+/.test(typeLower);
+      const genderRaw = (evt.gender || '').toUpperCase().charAt(0);
+      const evtGender = genderRaw === 'W' || genderRaw === 'F' ? 'F' : 'M';
+
+      let ptsMap: Map<number, number> | undefined;
+      if (isRelay) {
+        ptsMap = relPointsMap.get(evtGender) || relPointsMap.get('ALL');
+      } else {
+        ptsMap = indPointsMap.get(evtGender) || indPointsMap.get('ALL');
+      }
+      if (!ptsMap || ptsMap.size === 0) continue;
+
+      const maxScorers = isRelay ? relMaxScorers : indMaxScorers;
+      const eventEntries = entriesByEvent.get(evt.id) || [];
+      if (eventEntries.length === 0) continue;
+
+      // Sort by seed mark: time events ascending (lower=better), field events descending (higher=better)
+      const isTimeEvent = nameLower.includes('run') || nameLower.includes('dash') || nameLower.includes('hurdle') ||
+        nameLower.includes('steeplechase') || nameLower.includes('relay') || nameLower.includes('mile') ||
+        nameLower.includes('walk') || typeLower.includes('run') || typeLower.includes('dash') ||
+        typeLower.includes('hurdle') || typeLower.includes('steeplechase') || typeLower.includes('relay') ||
+        typeLower.includes('mile') || typeLower.includes('walk') || typeLower === 'time';
+
+      const sorted = [...eventEntries].sort((a: any, b: any) => {
+        const aVal = a.seed_mark || 0;
+        const bVal = b.seed_mark || 0;
+        return isTimeEvent ? aVal - bVal : bVal - aVal;
+      });
+
+      const teamScorerCount = new Map<string, number>();
+      for (let place = 0; place < sorted.length; place++) {
+        const entry = sorted[place];
+        if (!entry.team_id || !entry.team_name) continue;
+
+        const projectedPlace = place + 1;
+        if (maxScorers > 0) {
+          const count = teamScorerCount.get(entry.team_id) || 0;
+          if (count >= maxScorers) continue;
+          teamScorerCount.set(entry.team_id, count + 1);
+        }
+        const pts = ptsMap.get(projectedPlace) || 0;
+        if (pts === 0) continue;
+
+        if (!teamScores.has(entry.team_id)) {
+          teamScores.set(entry.team_id, { teamName: entry.team_name, totalPoints: 0, events: new Map() });
+        }
+        const team = teamScores.get(entry.team_id)!;
+        team.totalPoints += pts;
+
+        const existing = team.events.get(evt.id);
+        if (existing) {
+          existing.points += pts;
+        } else {
+          team.events.set(evt.id, { eventName: evt.name, points: pts });
+        }
+      }
+    }
+
+    const standings: TeamStandingsEntry[] = Array.from(teamScores.entries())
+      .sort((a, b) => b[1].totalPoints - a[1].totalPoints)
+      .map(([teamId, data], index) => ({
+        rank: index + 1,
+        teamId,
+        teamName: data.teamName,
+        totalPoints: data.totalPoints,
+        eventCount: data.events.size,
+        eventBreakdown: Array.from(data.events.entries()).map(([eventId, e]) => ({
+          eventId,
+          eventName: e.eventName,
+          points: e.points,
+        })),
+      }));
+
+    return standings;
+  }
+
   async recalculateTeamScoring(meetId: string): Promise<void> {
     console.log(`Recalculating team scoring for meet ${meetId}`);
   }

@@ -363,6 +363,7 @@ export interface IStorage {
 
   // Team Scoring - Queries
   getTeamStandings(meetId: string, scope?: { gender?: string; division?: string }): Promise<TeamStandingsEntry[]>;
+  getProjectedTeamStandings(meetId: string, scope?: { gender?: string; division?: string }): Promise<TeamStandingsEntry[]>;
   recalculateTeamScoring(meetId: string): Promise<void>;
   getEventPoints(eventId: string): Promise<EventPointsBreakdown>;
   
@@ -2371,6 +2372,175 @@ export class DatabaseStorage implements IStorage {
       }
     } catch (e) {
       console.warn('[getTeamStandings] Could not read score override columns (schema may need migration):', (e as any)?.message);
+    }
+
+    const standings: TeamStandingsEntry[] = Array.from(teamScores.entries())
+      .sort((a, b) => b[1].totalPoints - a[1].totalPoints)
+      .map(([teamId, data], index) => ({
+        rank: index + 1,
+        teamId,
+        teamName: data.teamName,
+        totalPoints: data.totalPoints,
+        eventCount: data.events.size,
+        eventBreakdown: Array.from(data.events.entries()).map(([eventId, e]) => ({
+          eventId,
+          eventName: e.eventName,
+          points: e.points,
+        })),
+      }));
+
+    return standings;
+  }
+
+  // Projected Team Standings - uses seed marks to project placements and score
+  async getProjectedTeamStandings(
+    meetId: string,
+    scope?: { gender?: string; division?: string }
+  ): Promise<TeamStandingsEntry[]> {
+    const rules = await db
+      .select({
+        gender: meetScoringRules.gender,
+        place: meetScoringRules.place,
+        indScore: meetScoringRules.indScore,
+        relScore: meetScoringRules.relScore,
+      })
+      .from(meetScoringRules)
+      .where(eq(meetScoringRules.meetId, meetId))
+      .orderBy(meetScoringRules.place);
+
+    if (rules.length === 0) return [];
+
+    const indPointsMap = new Map<string, Map<number, number>>();
+    const relPointsMap = new Map<string, Map<number, number>>();
+    for (const rule of rules) {
+      const g = rule.gender;
+      if (!indPointsMap.has(g)) indPointsMap.set(g, new Map());
+      if (!relPointsMap.has(g)) relPointsMap.set(g, new Map());
+      if (rule.indScore > 0) indPointsMap.get(g)!.set(rule.place, rule.indScore);
+      if (rule.relScore > 0) relPointsMap.get(g)!.set(rule.place, rule.relScore);
+    }
+
+    let indMaxScorers = 0;
+    let relMaxScorers = 0;
+    try {
+      const meetRecord = await db.select({
+        indMaxScorersPerTeam: meets.indMaxScorersPerTeam,
+        relMaxScorersPerTeam: meets.relMaxScorersPerTeam,
+      }).from(meets).where(eq(meets.id, meetId)).limit(1);
+      indMaxScorers = meetRecord[0]?.indMaxScorersPerTeam || 0;
+      relMaxScorers = meetRecord[0]?.relMaxScorersPerTeam || 0;
+    } catch (e) {
+      console.warn('[getProjectedTeamStandings] Could not read max scorers:', (e as any)?.message);
+    }
+
+    const scoredEventsConditions = [
+      eq(events.meetId, meetId),
+      eq(events.isScored, true),
+    ];
+    if (scope?.gender) {
+      scoredEventsConditions.push(eq(events.gender, scope.gender));
+    }
+
+    const scoredEventsList = await db
+      .select({ id: events.id, name: events.name, gender: events.gender, eventType: events.eventType })
+      .from(events)
+      .where(and(...scoredEventsConditions));
+
+    if (scoredEventsList.length === 0) return [];
+
+    const scoredEventIds = scoredEventsList.map(e => e.id);
+
+    // Fetch all entries with seed marks for projected placement
+    const allEntries = await db
+      .select({
+        eventId: entries.eventId,
+        seedMark: entries.seedMark,
+        resultType: entries.resultType,
+        teamId: athletes.teamId,
+        teamName: teams.name,
+      })
+      .from(entries)
+      .innerJoin(athletes, eq(entries.athleteId, athletes.id))
+      .leftJoin(teams, eq(athletes.teamId, teams.id))
+      .where(and(
+        inArray(entries.eventId, scoredEventIds),
+        isNotNull(athletes.teamId),
+        isNotNull(entries.seedMark),
+        gt(entries.seedMark, 0),
+      ))
+      .orderBy(entries.eventId);
+
+    const entriesByEvent = new Map<string, typeof allEntries>();
+    for (const entry of allEntries) {
+      const eventEntries = entriesByEvent.get(entry.eventId) || [];
+      eventEntries.push(entry);
+      entriesByEvent.set(entry.eventId, eventEntries);
+    }
+
+    const teamScores = new Map<string, { teamName: string; totalPoints: number; events: Map<string, { eventName: string; points: number }> }>();
+
+    for (const evt of scoredEventsList) {
+      const nameLower = evt.name.toLowerCase();
+      const typeLower = evt.eventType.toLowerCase();
+      const isRelay = nameLower.includes('relay') || typeLower.startsWith('4x') || typeLower.includes('relay') ||
+        /^\d+x\d+/.test(typeLower);
+      const genderRaw = (evt.gender || "").toUpperCase().charAt(0);
+      const evtGender = genderRaw === "W" || genderRaw === "F" ? "F" : "M";
+
+      let ptsMap: Map<number, number> | undefined;
+      if (isRelay) {
+        ptsMap = relPointsMap.get(evtGender) || relPointsMap.get("ALL");
+      } else {
+        ptsMap = indPointsMap.get(evtGender) || indPointsMap.get("ALL");
+      }
+      if (!ptsMap || ptsMap.size === 0) continue;
+
+      const maxScorers = isRelay ? relMaxScorers : indMaxScorers;
+      const eventEntries = entriesByEvent.get(evt.id) || [];
+      if (eventEntries.length === 0) continue;
+
+      // Sort by seed mark to get projected placement
+      // Time events: lower is better (ascending). Field events: higher is better (descending).
+      const isTimeEvent = typeLower.includes('run') || typeLower.includes('dash') || typeLower.includes('hurdle') ||
+        typeLower.includes('steeplechase') || typeLower.includes('relay') || typeLower.includes('mile') ||
+        typeLower.includes('walk') || typeLower === 'time' ||
+        nameLower.includes('run') || nameLower.includes('dash') || nameLower.includes('hurdle') ||
+        nameLower.includes('steeplechase') || nameLower.includes('relay') || nameLower.includes('mile') ||
+        nameLower.includes('walk');
+
+      const sorted = [...eventEntries].sort((a, b) => {
+        const aVal = a.seedMark || 0;
+        const bVal = b.seedMark || 0;
+        return isTimeEvent ? aVal - bVal : bVal - aVal;
+      });
+
+      const teamScorerCount = new Map<string, number>();
+      for (let place = 0; place < sorted.length; place++) {
+        const entry = sorted[place];
+        if (!entry.teamId || !entry.teamName) continue;
+
+        const projectedPlace = place + 1;
+        if (maxScorers > 0) {
+          const count = teamScorerCount.get(entry.teamId) || 0;
+          if (count >= maxScorers) continue;
+          teamScorerCount.set(entry.teamId, count + 1);
+        }
+        const pts = ptsMap.get(projectedPlace) || 0;
+        if (pts === 0) continue;
+
+        if (!teamScores.has(entry.teamId)) {
+          teamScores.set(entry.teamId, { teamName: entry.teamName, totalPoints: 0, events: new Map() });
+        }
+        const team = teamScores.get(entry.teamId)!;
+        team.totalPoints += pts;
+
+        const existing = team.events.get(evt.id);
+        if (existing) {
+          existing.points += pts;
+        } else {
+          team.events.set(evt.id, { eventName: evt.name, points: pts });
+        }
+      }
     }
 
     const standings: TeamStandingsEntry[] = Array.from(teamScores.entries())
