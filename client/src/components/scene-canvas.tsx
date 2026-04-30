@@ -1110,7 +1110,7 @@ export function SceneObjectRenderer({
             'school': schoolDisplay,
             'time': firstEntry?.time || firstEntry?.mark,
             'mark-converted': firstEntry?.markConverted || '',
-            'last-split': isMultiEvent && eventPoints > 0 ? `${eventPoints}` : firstEntry?.lastSplit,
+            'last-split': firstEntry?.lastSplit,
             'cumulative-split': firstEntry?.cumulativeSplit,
             'reaction-time': firstEntry?.reactionTime,
             'bib': firstEntry?.bib,
