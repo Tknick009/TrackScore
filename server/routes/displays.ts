@@ -1116,6 +1116,20 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         }
       } catch {}
       
+      // Fetch projected standings for Fantasy T&F bar visualization
+      const projectedMap = new Map<string, number>();
+      let maxProjectedPoints = 0;
+      try {
+        const projectedStandings = await storage.getProjectedTeamStandings(device.meetId, { gender: selectedGender });
+        for (const ps of projectedStandings) {
+          const pts = ps.totalPoints || 0;
+          projectedMap.set(ps.teamId, pts);
+          if (pts > maxProjectedPoints) maxProjectedPoints = pts;
+        }
+      } catch (err) {
+        console.log('[Team Scores] getProjectedTeamStandings failed, projected points unavailable');
+      }
+
       // Build team entries from standings (getTeamStandings is the canonical source)
       let teamEntries: any[];
       if (standings.length > 0) {
@@ -1130,6 +1144,8 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
             time: String(s.totalPoints || 0),
             mark: String(s.totalPoints || 0),
             points: s.totalPoints || 0,
+            projectedPoints: projectedMap.get(s.teamId) || 0,
+            projectedBarPct: maxProjectedPoints > 0 ? Math.round(((projectedMap.get(s.teamId) || 0) / maxProjectedPoints) * 100) : 0,
             logoUrl: logoMap.get(s.teamId) || null,
             eventCount: s.eventCount || 0,
             eventBreakdown: s.eventBreakdown || [],

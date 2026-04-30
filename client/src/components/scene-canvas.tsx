@@ -389,6 +389,18 @@ export function SceneObjectRenderer({
     }
   }
   
+  // Projected points bar: renders behind content in team_scores/team_preview mode
+  // Width = projectedBarPct (0-100), color = meet primary at 25% opacity
+  let projectedBarPct = 0;
+  if (liveData && (liveData.mode === 'team_scores' || liveData.mode === 'team_preview')) {
+    const barIdx = (rawAthleteIndex || 0) + pageOffset;
+    const entries = Array.isArray(liveData.entries) ? liveData.entries : [];
+    const barEntry = entries[barIdx];
+    if (barEntry?.projectedBarPct) {
+      projectedBarPct = barEntry.projectedBarPct;
+    }
+  }
+
   // Background/container always stays at full configured opacity
   const baseOpacity = styleConfig.opacity ?? 1;
   const effectiveOpacity = shouldHide ? 0 : baseOpacity;
@@ -907,6 +919,7 @@ export function SceneObjectRenderer({
             'total-points': totalPoints,
             'time-with-points': timeWithPoints,
             'total-events-scored': liveData.totalEventsScored != null ? `Events Scored: ${liveData.totalEventsScored}` : '',
+            'projected-points': firstEntry?.projectedPoints != null ? String(firstEntry.projectedPoints) : '',
             // Season best / Personal best from CSV import
             'season-best': athleteSB,
             'personal-best': athletePB,
@@ -1499,9 +1512,28 @@ export function SceneObjectRenderer({
     }
   };
   
+  const barColor = meet?.primaryColor || '#0066CC';
+
   return (
     <div style={objectStyle} data-testid={`scene-object-${object.id}`}>
-      {renderContent()}
+      {projectedBarPct > 0 && (
+        <div
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            bottom: 0,
+            width: `${projectedBarPct}%`,
+            backgroundColor: barColor,
+            opacity: 0.25,
+            pointerEvents: 'none',
+            zIndex: 0,
+          }}
+        />
+      )}
+      <div style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%' }}>
+        {renderContent()}
+      </div>
     </div>
   );
 }

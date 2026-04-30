@@ -902,6 +902,7 @@ export default function SimpleSceneEditor() {
       case 'event-points': return athleteData.eventPoints;
       case 'total-points': return athleteData.totalPoints;
       case 'time-with-points': return `${athleteData.time} = ${athleteData.eventPoints} pts`;
+      case 'projected-points': return '120';
       default: return binding.label.toUpperCase();
     }
   };

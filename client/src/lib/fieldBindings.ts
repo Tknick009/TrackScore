@@ -268,6 +268,14 @@ export const FIELD_BINDINGS: Record<string, FieldBinding> = {
     dataKey: 'timeWithPoints',
     category: 'result',
   },
+  'projected-points': {
+    key: 'projected-points',
+    label: 'Projected Points',
+    type: 'text',
+    description: 'Seed-based projected team points (Fantasy T&F)',
+    dataKey: 'projectedPoints',
+    category: 'result',
+  },
 };
 
 export const TEXT_FIELD_BINDINGS = Object.values(FIELD_BINDINGS).filter(f => f.type === 'text');
