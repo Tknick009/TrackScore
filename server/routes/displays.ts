@@ -1250,14 +1250,165 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
     }
   });
 
-  // Switch device content mode (lynx, hytek, team_scores, field)
+  // Send Fantasy T&F (Team Preview) — projected standings based on seed marks
+  app.post("/api/display-devices/:id/team-preview", async (req, res) => {
+    try {
+      const { pagingLines, pagingSeconds, gender, maxPages } = req.body;
+      const deviceId = req.params.id;
+      const selectedGender: string = gender === 'W' ? 'W' : 'M';
+      const effectiveMaxPages = Math.max(0, parseInt(maxPages) || 0);
+      const genderLabel = selectedGender === 'W' ? "Women's" : "Men's";
+
+      const device = await storage.getDisplayDevice(deviceId);
+      if (!device) {
+        return res.status(404).json({ error: "Display device not found" });
+      }
+      if (!device.meetId) {
+        return res.status(400).json({ error: "Device has no assigned meet" });
+      }
+
+      // Get team logos
+      const logoMap = new Map<string, string>();
+      try {
+        const allLogos = await storage.getTeamLogosByMeet(device.meetId);
+        for (const logo of allLogos) {
+          logoMap.set(logo.teamId, fileStorage.publicUrlForKey(logo.storageKey));
+        }
+      } catch {}
+
+      // Get team abbreviations
+      const teamAbbrMap = new Map<string, string>();
+      try {
+        const allTeams = await storage.getTeamsByMeetId(device.meetId);
+        for (const t of allTeams) {
+          if (t.abbreviation) teamAbbrMap.set(t.id, t.abbreviation);
+        }
+      } catch {}
+
+      // Use getProjectedTeamStandings for seed-based projections
+      let standings: any[] = [];
+      let hasScores = false;
+      try {
+        standings = await storage.getProjectedTeamStandings(device.meetId, { gender: selectedGender });
+        hasScores = standings.some((s: any) => (s.totalPoints || 0) > 0);
+      } catch (err) {
+        console.log('[Fantasy T&F] getProjectedTeamStandings failed, falling back');
+      }
+
+      // Find max projected points for bar width calculation
+      const maxProjPts = standings.reduce((max: number, s: any) => Math.max(max, s.totalPoints || 0), 0);
+
+      let teamEntries: any[];
+      if (standings.length > 0) {
+        teamEntries = standings
+          .map((s: any, index: number) => ({
+            place: String(index + 1),
+            name: s.teamName || 'Unknown',
+            lastName: s.teamName || 'Unknown',
+            affiliation: teamAbbrMap.get(s.teamId) || s.teamName || '',
+            team: teamAbbrMap.get(s.teamId) || s.teamName || '',
+            time: String(s.totalPoints || 0),
+            mark: String(s.totalPoints || 0),
+            points: s.totalPoints || 0,
+            projectedPoints: s.totalPoints || 0,
+            projectedBarPct: maxProjPts > 0 ? Math.round(((s.totalPoints || 0) / maxProjPts) * 100) : 0,
+            logoUrl: logoMap.get(s.teamId) || null,
+          }));
+      } else {
+        // Fallback: list teams alphabetically
+        const teams = await storage.getTeamsByMeetId(device.meetId);
+        teamEntries = teams
+          .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+          .map((team, index: number) => ({
+            place: String(index + 1),
+            name: team.name || team.shortName || 'Unknown',
+            lastName: team.name || team.shortName || 'Unknown',
+            affiliation: team.abbreviation || team.name || team.shortName || '',
+            team: team.abbreviation || team.name || team.shortName || '',
+            time: '0',
+            mark: '0',
+            points: 0,
+            projectedPoints: 0,
+            projectedBarPct: 0,
+            logoUrl: logoMap.get(team.id) || null,
+          }));
+      }
+
+      const lines = Math.max(1, Math.min(20, parseInt(pagingLines) || 8));
+
+      const connectedDevice = connectedDisplayDevices.get(deviceId);
+      if (connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {
+        connectedDevice.contentMode = 'team_preview';
+
+        connectedDevice.pagingSize = lines;
+        connectedDevice.pagingInterval = lines;
+
+        // Look up custom scene mapping for team_preview mode
+        const displayType = device.displayType || 'P10';
+        let sceneId: number | null = null;
+        let sceneData: { scene: any; objects: any[] } | null = null;
+
+        if (device.meetId) {
+          try {
+            const mapping = await storage.getSceneTemplateMappingByTypeAndMode(
+              device.meetId,
+              displayType,
+              'team_preview'
+            );
+            if (mapping) {
+              sceneId = mapping.sceneId;
+              sceneData = await prefetchSceneData(sceneId);
+            }
+          } catch (err) {
+            console.error(`[Fantasy T&F] Error looking up scene mapping:`, err);
+          }
+        }
+
+        connectedDevice.ws.send(JSON.stringify({
+          type: 'display_command',
+          template: sceneId ? null : 'team-scores',
+          sceneId,
+          sceneData,
+          liveEventData: {
+            mode: 'team_preview',
+            eventName: `${genderLabel} Fantasy T&F`,
+            gender: selectedGender,
+            entries: teamEntries,
+          },
+          pagingSize: lines,
+          pagingInterval: lines,
+          maxPages: effectiveMaxPages,
+        }));
+
+        await storage.updateDisplayDevice(deviceId, {
+          pagingSize: lines,
+          pagingInterval: lines,
+        });
+
+        console.log(`[Fantasy T&F] Sent ${teamEntries.length} ${genderLabel} projected teams to ${device.deviceName}`);
+        res.json({
+          success: true,
+          delivered: true,
+          teamCount: teamEntries.length,
+          hasScores,
+        });
+      } else {
+        res.json({ success: false, delivered: false, message: "Device offline" });
+      }
+    } catch (error: any) {
+      console.error(`[Fantasy T&F] Error:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Switch device content mode (lynx, hytek, team_scores, field, team_preview)
   // Used to unlock a device back to FinishLynx mode after showing HyTek/team scores/field
   app.patch("/api/display-devices/:id/content-mode", async (req, res) => {
     try {
       const { contentMode } = req.body;
       const deviceId = req.params.id;
       
-      const validModes = ['lynx', 'hytek', 'team_scores', 'field'];
+      const validModes = ['lynx', 'hytek', 'team_scores', 'field', 'team_preview'];
       if (!contentMode || !validModes.includes(contentMode)) {
         return res.status(400).json({ error: `contentMode must be one of: ${validModes.join(', ')}` });
       }
