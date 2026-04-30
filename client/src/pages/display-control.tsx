@@ -1219,8 +1219,19 @@ export default function DisplayControlPage() {
                                   const isSelected = selectedHytekItem[selectedDevice.id] === item.key;
                                   // Detect sub-events: event number >= 1000 and name contains " - " (e.g., "Women's Pentathlon - 60m Hurdles")
                                   const isSubEvent = (item.event.eventNumber || 0) >= 1000 && item.label.includes(' - ');
-                                  // For sub-events, show only the sub-event part after " - "
-                                  const displayLabel = isSubEvent ? item.label.split(' - ').slice(1).join(' - ') : item.label;
+                                  // For sub-events, show abbreviated prefix + sub-event name
+                                  // e.g., "Men's Decathlon - Shot Put" → "Dec Shot Put", "Women's Heptathlon - High Jump" → "Hept High Jump"
+                                  let displayLabel = item.label;
+                                  if (isSubEvent) {
+                                    const parts = item.label.split(' - ');
+                                    const parentName = parts[0].toLowerCase();
+                                    const subName = parts.slice(1).join(' - ');
+                                    let prefix = '';
+                                    if (parentName.includes('decathlon')) prefix = 'Dec';
+                                    else if (parentName.includes('heptathlon')) prefix = 'Hept';
+                                    else if (parentName.includes('pentathlon')) prefix = 'Pent';
+                                    displayLabel = prefix ? `${prefix} ${subName}` : subName;
+                                  }
 
                                   // Show day header when date changes between items (use UTC to avoid timezone day-shift)
                                   const currentDate = item.event.eventDate ? new Date(item.event.eventDate).toLocaleDateString('en-US', { timeZone: 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' }) : '';
@@ -1238,7 +1249,7 @@ export default function DisplayControlPage() {
                                       )}
                                       <button
                                         onClick={() => setSelectedHytekItem(prev => ({ ...prev, [selectedDevice.id]: item.key }))}
-                                        className={`flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded-md cursor-pointer hover-elevate ${isSelected ? 'bg-accent' : ''} ${isSubEvent ? 'pl-6' : ''}`}
+                                        className={`flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded-md cursor-pointer hover-elevate ${isSelected ? 'bg-accent' : ''}`}
                                         data-testid={`button-hytek-${item.key}`}
                                       >
                                         {item.event.eventTime && (
