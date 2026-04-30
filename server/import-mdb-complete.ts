@@ -653,7 +653,9 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       sessitemData.forEach((item) => {
         const eventPtr = item.Event_ptr ? Number(item.Event_ptr) : null;
         const sessPtr = item.Sess_ptr ? Number(item.Sess_ptr) : null;
-        const multiPtr = item.Multi_ptr ? Number(item.Multi_ptr) : 0;
+        // Handle possible column name variations for Multi_ptr
+        const multiPtrRaw = item.Multi_ptr ?? item.multi_ptr ?? item.MULTI_PTR ?? item.Mult_ptr ?? 0;
+        const multiPtr = Number(multiPtrRaw) || 0;
         const sessRnd = item.Sess_rnd ? String(item.Sess_rnd).trim().toUpperCase() : 'F';
         
         if (eventPtr && sessPtr) {
@@ -1298,6 +1300,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         let subEventDate: Date | null = null;
         let subEventTime: string | null = null;
         let subSessionName: string | null = null;
+        
         if (subSchedule) {
           subEventTime = subSchedule.startTime;
           subSessionName = subSchedule.sessName;
@@ -1308,17 +1311,38 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
               meetStartDate.getUTCDate() + (subSchedule.sessDay - 1),
               12, 0, 0
             ));
-          } else if (meetStartDate) {
-            subEventDate = new Date(Date.UTC(
-              meetStartDate.getUTCFullYear(),
-              meetStartDate.getUTCMonth(),
-              meetStartDate.getUTCDate(),
-              12, 0, 0
-            ));
+          }
+        }
+        
+        // Fallback: if no direct sub-event schedule, inherit from parent event
+        if (!subEventDate || !subEventTime) {
+          const parentSchedule = eventScheduleMap.get(eventPtr) || eventFinalMap.get(eventPtr);
+          if (parentSchedule && !subEventDate) {
+            if (parentSchedule.sessDay && meetStartDate) {
+              subEventDate = new Date(Date.UTC(
+                meetStartDate.getUTCFullYear(),
+                meetStartDate.getUTCMonth(),
+                meetStartDate.getUTCDate() + (parentSchedule.sessDay - 1),
+                12, 0, 0
+              ));
+            } else if (meetStartDate) {
+              subEventDate = new Date(Date.UTC(
+                meetStartDate.getUTCFullYear(),
+                meetStartDate.getUTCMonth(),
+                meetStartDate.getUTCDate(),
+                12, 0, 0
+              ));
+            }
+          }
+          if (parentSchedule && !subEventTime) {
+            subEventTime = parentSchedule.startTime;
+          }
+          if (parentSchedule && !subSessionName) {
+            subSessionName = parentSchedule.sessName;
           }
         }
 
-        console.log(`   📝 Sub-event: ${fullName} (eventNum=${subEventNumber}, type=${subEventType}, Event_stat=${JSON.stringify(subStatusRaw)}, hytekStatus=${subHytekStatus}, time=${subEventTime}, day=${subSchedule?.sessDay ?? 'none'})`);
+        console.log(`   📝 Sub-event: ${fullName} (eventNum=${subEventNumber}, type=${subEventType}, Event_stat=${JSON.stringify(subStatusRaw)}, hytekStatus=${subHytekStatus}, time=${subEventTime}, day=${subSchedule?.sessDay ?? 'parent'}, scheduleKey=${subScheduleKey}, mapSize=${subEventScheduleMap.size})`);
         
         subEventBatch.push({
           meetId,
