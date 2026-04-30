@@ -1882,19 +1882,19 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
       fieldPort,
     };
     
-    // PORT-FILTERED broadcast: only send to devices that should see this port's data.
+    // PORT-FILTERED broadcast: only send to field-mode devices on the matching port.
     // Matching logic (same as field_standings):
+    //   - device must be in field content mode
     //   - device has no fieldPort set → accepts all (backward compat)
     //   - device.fieldPort matches this data's port → direct match
-    //   - device is in field content mode → needs data for multi-field scene support
     // This prevents curtain animations from firing on devices assigned to other ports.
     const fieldMsg = JSON.stringify({ type: `field_mode_change_${fieldPort}`, data: fieldBroadcastData });
     let fieldRecipients = 0;
     for (const [, dev] of connectedDisplayDevices) {
       if (dev.ws.readyState === dev.ws.OPEN) {
+        const isFieldMode = dev.contentMode === 'field';
         const portMatch = !dev.fieldPort || dev.fieldPort === fieldPort;
-        const needsAllPorts = dev.contentMode === 'field';
-        if (portMatch || needsAllPorts) {
+        if (isFieldMode && portMatch) {
           dev.ws.send(fieldMsg);
           fieldRecipients++;
         }
@@ -1940,9 +1940,9 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
           const correctedMsg = JSON.stringify({ type: `field_mode_change_${fieldPort}`, data: correctedData });
           for (const [, dev] of connectedDisplayDevices) {
             if (dev.ws.readyState === dev.ws.OPEN) {
+              const isFieldMode = dev.contentMode === 'field';
               const portMatch = !dev.fieldPort || dev.fieldPort === fieldPort;
-              const needsAllPorts = dev.contentMode === 'field';
-              if (portMatch || needsAllPorts) {
+              if (isFieldMode && portMatch) {
                 dev.ws.send(correctedMsg);
               }
             }
