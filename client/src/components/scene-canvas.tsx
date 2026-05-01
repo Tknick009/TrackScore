@@ -58,7 +58,7 @@ function formatSecondsToClockDisplay(totalSeconds: number): string {
   
   // Get whole seconds and single tenth
   const wholeSeconds = Math.floor(secs);
-  const tenths = Math.floor(secs * 10) % 10;
+  const tenths = Math.floor((secs - wholeSeconds) * 10);
   
   if (hours > 0) {
     return `${hours}:${String(mins).padStart(2, '0')}:${String(wholeSeconds).padStart(2, '0')}.${tenths}`;
@@ -480,26 +480,12 @@ export function SceneObjectRenderer({
   // - Results: all rows start at 50%, rows with a time → 100%
   // - Field modes: always 100% (no timing-based fade)
   let contentFadeOpacity = 1;
-  // Use same fallback as content rendering (line 866): athleteIndex || 0
-  // Without this, objects with athleteIndex not explicitly set (common for line 1)
-  // skip the opacity block entirely and stay at full opacity.
-  // IMPORTANT: Only apply fallback for per-athlete fields, NOT header/global fields
-  // like event-name, heat-number, running-time, wind, etc.
   const rawAthleteIndex = dataBinding.athleteIndex;
-  const fieldKey = dataBinding.fieldKey as string | undefined;
-  const perAthleteFields = new Set([
-    'lane', 'place', 'name', 'first-name', 'last-name', 'school', 'time', 'bib',
-    'mark-converted', 'last-split', 'cumulative-split', 'reaction-time', 'qualifier',
-    'attempt', 'event-points', 'total-points', 'time-with-points', 'season-best',
-    'personal-best', 'sb', 'pb', 'name-qualifier', 'last-name-qualifier',
-    'name-qualifier-badge', 'last-name-qualifier-badge', 'record-tag', 'new-record-tag',
-    'name-record-tag', 'last-name-record-tag', 'school-logo', 'athlete-photo',
-  ]);
-  const isPerAthleteField = fieldKey ? perAthleteFields.has(fieldKey) : false;
-  const pageOffset = (pageIndex || 0) * (pageSize || 8);
-  const athleteIndex = rawAthleteIndex !== undefined
-    ? rawAthleteIndex + pageOffset
-    : (isPerAthleteField ? 0 + pageOffset : undefined);
+  const effectivePageSize = pageSize || 8;
+  const pageOffset = (pageIndex || 0) * effectivePageSize;
+  const athleteIndex = rawAthleteIndex !== undefined ? rawAthleteIndex + pageOffset : undefined;
+  // Hide rows beyond pagingSize (e.g. scene has 8 rows but user wants 6 per page)
+  const isRowBeyondPageSize = rawAthleteIndex !== undefined && rawAthleteIndex >= effectivePageSize;
   const mode = liveData?.mode || '';
   const isResultsMode = mode === 'results' || mode === 'finished';
   const isPreRaceMode = mode === 'armed' || mode === 'start_list' || mode === '';
@@ -507,7 +493,9 @@ export function SceneObjectRenderer({
   // Field event modes always show content — no timing-based fade
   const isFieldMode = mode === 'standings' || mode === 'athlete_up' || mode === 'field_results' || mode === 'multi_field';
   
-  if (athleteIndex !== undefined && athleteIndex >= 0 && liveData) {
+  if (isRowBeyondPageSize) {
+    contentFadeOpacity = 0;
+  } else if (athleteIndex !== undefined && athleteIndex >= 0 && liveData) {
     const entries = Array.isArray(liveData.entries) ? liveData.entries : [];
     const entry = entries[athleteIndex];
     if (!entry) {
@@ -528,7 +516,7 @@ export function SceneObjectRenderer({
       const isDimmedStatus = isDNS || isFS || isScratch;
       
       if (isPreRaceMode) {
-        // Start list: all filled rows = 100%, DNS/FS/Scratch = 50%
+        // Start list: filled rows = 100%, DNS/FS/Scratch = 50%
         contentFadeOpacity = isDimmedStatus ? 0.5 : 1;
       } else if (isRunningMode) {
         // Running time: 50% until split data arrives, then 100%
@@ -545,15 +533,11 @@ export function SceneObjectRenderer({
       } else if (isResultsMode) {
         // Results: 50% until they receive a time, then 100%
         // DNS/FS/Scratch stay at 50%
-        // FinishLynx sends "0.00" / "0:00.00" as placeholder for athletes who haven't finished
         if (isDimmedStatus) {
           contentFadeOpacity = 0.5;
         } else {
-          const timeVal = entry.time ? String(entry.time).trim() : '';
-          const isZeroTime = timeVal !== '' && /^0*:?0*\.?0*$/.test(timeVal);
-          const hasTime = timeVal !== '' && !isZeroTime;
-          const placeVal = entry.place ? String(entry.place).trim() : '';
-          const hasPlace = placeVal !== '' && placeVal !== '--' && placeVal !== '0' && parseInt(placeVal) > 0;
+          const hasTime = entry.time && String(entry.time).trim() !== '';
+          const hasPlace = entry.place && String(entry.place).trim() !== '' && entry.place !== '--';
           const hasResult = hasTime || hasPlace;
           contentFadeOpacity = hasResult ? 1 : 0.5;
         }
@@ -564,12 +548,9 @@ export function SceneObjectRenderer({
         } else {
           const hasLastSplit = entry.lastSplit && String(entry.lastSplit).trim() !== '';
           const hasCumulativeSplit = entry.cumulativeSplit && String(entry.cumulativeSplit).trim() !== '';
-          const timeVal = entry.time ? String(entry.time).trim() : '';
-          const isZeroTime = timeVal !== '' && /^0*:?0*\.?0*$/.test(timeVal);
-          const hasTime = timeVal !== '' && !isZeroTime;
+          const hasTime = entry.time && String(entry.time).trim() !== '';
           const hasRunningTime = entry.runningTime && String(entry.runningTime).trim() !== '';
-          const placeVal = entry.place ? String(entry.place).trim() : '';
-          const hasPlace = placeVal !== '' && placeVal !== '--' && placeVal !== '0' && parseInt(placeVal) > 0;
+          const hasPlace = entry.place && String(entry.place).trim() !== '' && entry.place !== '--';
           const hasTimingData = hasLastSplit || hasCumulativeSplit || hasTime || hasRunningTime || hasPlace;
           contentFadeOpacity = hasTimingData ? 1 : 0.5;
         }
@@ -820,13 +801,24 @@ export function SceneObjectRenderer({
         // Hoist recordTag so it's available for badge rendering outside the fieldMap block
         let hoistedRecordTags: string[] = [];
         
+        // Auto-apply hideWhenFieldNonNumeric for static "PL" / "PL:" labels
+        // This ensures existing scene templates work correctly without manual updates
+        const staticTextUpper = (dataBinding.sourceType === 'static' && textContent) ? textContent.trim().toUpperCase() : '';
+        const effectiveHideWhenField = componentConfig.hideWhenFieldNonNumeric
+          || ((staticTextUpper === 'PL' || staticTextUpper === 'PL:') ? 'place' : null);
+        
         // Check hideWhenFieldNonNumeric - hide this element if a related field has non-numeric data
         // Useful for hiding "PL:" label when place shows DNF, DNS, DQ, etc.
-        if (componentConfig.hideWhenFieldNonNumeric && liveData) {
-          const checkFieldKey = componentConfig.hideWhenFieldNonNumeric;
+        if (effectiveHideWhenField && liveData) {
+          const checkFieldKey = effectiveHideWhenField;
           const hideCheckIdx = (dataBinding.athleteIndex || 0) + pageOffset;
           const entriesForCheck = Array.isArray(liveData.entries) ? liveData.entries : [];
           const entryForCheck = entriesForCheck.length > hideCheckIdx ? entriesForCheck[hideCheckIdx] : null;
+          
+          // Hide if no entry exists for this row (empty row)
+          if (!entryForCheck) {
+            return null;
+          }
           
           const checkFieldMap: Record<string, any> = {
             'place': entryForCheck?.place,
@@ -836,13 +828,13 @@ export function SceneObjectRenderer({
           };
           const valueToCheck = checkFieldMap[checkFieldKey];
           
-          // Hide if value exists and is not a pure number
-          if (valueToCheck !== undefined && valueToCheck !== null && valueToCheck !== '') {
-            const strValue = String(valueToCheck).trim();
-            // Check if it's NOT a number (allows decimals and integers)
-            if (!/^[\d.]+$/.test(strValue)) {
-              return null; // Hide this element
-            }
+          // Hide if value is missing (null/undefined/empty) or is not a pure number
+          if (valueToCheck === undefined || valueToCheck === null || valueToCheck === '') {
+            return null; // Hide for empty entries
+          }
+          const strValue = String(valueToCheck).trim();
+          if (!/^[\d.]+$/.test(strValue)) {
+            return null; // Hide for non-numeric values (DNS, DNF, DQ, etc.)
           }
         }
         
@@ -910,8 +902,8 @@ export function SceneObjectRenderer({
           };
           
           // Use central formatter for heat display
-          // When heat number is available (FinishLynx sends per-heat data), always show "Heat X of Y"
-          // Only fall back to round name for HyTek results (which combine all heats in a round, so no heat number)
+          // If heat number is present (from FinishLynx), always show "Heat X of Y"
+          // Only fall back to roundName for HyTek compiled results (no specific heat)
           const heatDisplay = liveData.heat
             ? formatHeatDisplay(liveData.heat, liveData.totalHeats)
             : (liveData.roundName || formatHeatDisplay(liveData.heat, liveData.totalHeats));
@@ -1676,15 +1668,16 @@ export function SceneObjectRenderer({
         
       case "field-transition": {
         const ftColor = bgColor !== 'transparent' && bgColor ? bgColor : '#001e57';
-        // Pass live data directly — FieldTransitionRenderer now reacts to data changes
-        // instead of trying to listen on a WebSocket (which was the wrong WS before)
+        // Use the object-level fieldPort (from dataBinding) when set, otherwise fall back to device-level port.
+        // This ensures curtains in multi-field scenes only trigger for their bound port.
+        const transitionPort = dataBinding.fieldPort || deviceFieldPort;
         return (
           <FieldTransitionRenderer
             curtainColor={ftColor}
             meetId={meetId}
             liveData={liveData}
             liveEventDataByPort={liveEventDataByPort}
-            deviceFieldPort={deviceFieldPort}
+            deviceFieldPort={transitionPort}
             canvasWidth={canvasWidth}
             canvasHeight={canvasHeight}
           />
@@ -1815,18 +1808,12 @@ export function SceneCanvas({
         });
       }
       
-      // FinishLynx sends "0.00" as placeholder for athletes who haven't finished
-      const isZeroTime = (t: any) => { const s = String(t || '').trim(); return s !== '' && /^0*:?0*\.?0*$/.test(s); };
       const sortedEntries = [...enrichedEntries].sort((a: any, b: any) => {
-        const timeA = a.time ? String(a.time).trim() : '';
-        const hasTimeA = timeA !== '' && !isZeroTime(timeA);
-        const placeA = a.place ? String(a.place).trim() : '';
-        const hasPlaceA = placeA !== '' && placeA !== '0' && parseInt(placeA) > 0;
+        const hasTimeA = a.time && String(a.time).trim() !== '';
+        const hasPlaceA = a.place && String(a.place).trim() !== '';
         const hasResultA = hasTimeA || hasPlaceA;
-        const timeB = b.time ? String(b.time).trim() : '';
-        const hasTimeB = timeB !== '' && !isZeroTime(timeB);
-        const placeB = b.place ? String(b.place).trim() : '';
-        const hasPlaceB = placeB !== '' && placeB !== '0' && parseInt(placeB) > 0;
+        const hasTimeB = b.time && String(b.time).trim() !== '';
+        const hasPlaceB = b.place && String(b.place).trim() !== '';
         const hasResultB = hasTimeB || hasPlaceB;
         if (hasResultA && !hasResultB) return -1;
         if (!hasResultA && hasResultB) return 1;

@@ -14,6 +14,7 @@ import { mergeFlightsForEvent, parseLFFFile, findLFFFilesForEvent } from "../par
 import { parseLIFFile, type NormalizedResult, type LIFEventHeader } from "../parsers/lif-parser";
 import * as fs from 'fs';
 import * as pathModule from 'path';
+import { getActiveHytekMdbWatchers } from "../hytek-mdb-watcher";
 import {
   calculateHorizontalStandings,
   calculateVerticalStandings,
@@ -679,9 +680,8 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
   // Send Hytek Results to a display device (compiled results from database)
   app.post("/api/display-devices/:id/hytek-results", async (req, res) => {
     try {
-      const { eventId, pagingLines, pagingSeconds, round, maxPages } = req.body;
+      const { eventId, pagingLines, pagingSeconds, round, maxPages: reqMaxPages } = req.body;
       const deviceId = req.params.id;
-      const effectiveMaxPages = Math.max(0, parseInt(maxPages) || 0);
       
       if (!eventId) {
         return res.status(400).json({ error: "eventId is required" });
@@ -776,8 +776,8 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       
       const entriesToShow = relevantEntries.length > 0 ? relevantEntries : allEntries;
       
-      // Detect multi-event early for sorting (multi-events sort by points descending)
-      const isMultiEventForSort = (event as any).isMultiEvent === true || /\b(decathlon|heptathlon|pentathlon)\b/i.test(event.name || '');
+      // Detect multi-event PARENT early for sorting (multi-events sort by points descending)
+      const isMultiEventForSort = (event as any).isMultiEvent === true;
       
       const sortedEntries = entriesToShow.sort((a, b) => {
         const aFields = getRoundFields(a);
@@ -863,9 +863,10 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       
       const isTrackEvent = event.eventType ? !['high_jump','pole_vault','long_jump','triple_jump','shot_put','discus','hammer','javelin','weight_throw'].some(ft => event.eventType!.toLowerCase().includes(ft.replace('_',''))) : true;
       
-      // Detect multi-event (heptathlon, pentathlon, decathlon)
-      // Multi-event marks are total points (integer), not times or distances
-      const isMultiEvent = (event as any).isMultiEvent === true || /\b(decathlon|heptathlon|pentathlon)\b/i.test(event.name || '');
+      // Detect multi-event PARENT (heptathlon, pentathlon, decathlon) — NOT sub-events
+      // Sub-events like "Dec Discus" have isMultiEvent=false and should format marks as times/distances
+      // Only the parent event (e.g., "Men's Decathlon") should format marks as total points
+      const isMultiEvent = (event as any).isMultiEvent === true;
       
       // Detect relay events for proper name display
       const eventNameLower = (event.name || '').toLowerCase();
@@ -1051,9 +1052,9 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           const bGroup = qualifierPlaceSet.has(b.id) ? 0 : qualifierTimeSet.has(b.id) ? 1 : 2;
           if (aGroup !== bGroup) return aGroup - bGroup;
           
-          // Within group, sort by time ascending (0 = no result, treat same as missing)
-          const aMark = (typeof aFields.mark === 'number' && aFields.mark > 0) ? aFields.mark : 999999;
-          const bMark = (typeof bFields.mark === 'number' && bFields.mark > 0) ? bFields.mark : 999999;
+          // Within group, sort by time ascending
+          const aMark = typeof aFields.mark === 'number' ? aFields.mark : 999999;
+          const bMark = typeof bFields.mark === 'number' ? bFields.mark : 999999;
           return aMark - bMark;
         });
       }
@@ -1085,11 +1086,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         } else {
           const rawMark = fields.mark ?? entry.seedMark ?? '';
           if (typeof rawMark === 'number') {
-            // HyTek stores "no result" as 0 in the MDB database.
-            // Treat 0 as empty (no result) so entries without times are properly dimmed on displays.
-            if (rawMark === 0) {
-              markValue = '';
-            } else if (isMultiEvent) {
+            if (isMultiEvent) {
               // Multi-event marks are total points — display as integer
               markValue = Math.round(rawMark).toString();
             } else if (isTrackEvent) {
@@ -1124,6 +1121,17 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           displayLastName = teamName;
         }
         
+        // For entries with status codes (DNS/DNF/DQ/etc.) and no numeric place,
+        // set place to the status code so the display shows status instead of empty "PL:"
+        let displayPlace: number | string | null | undefined = fields.place;
+        if ((displayPlace === null || displayPlace === undefined || displayPlace === 0) && isKnownStatus) {
+          displayPlace = dqCode;
+        } else if ((displayPlace === null || displayPlace === undefined || displayPlace === 0) && entry.isDisqualified) {
+          displayPlace = 'DQ';
+        } else if ((displayPlace === null || displayPlace === undefined || displayPlace === 0) && entry.isScratched) {
+          displayPlace = 'SCR';
+        }
+        
         return {
           position,
           lane: fields.lane || 0,
@@ -1137,7 +1145,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           time: markValue,
           mark: markValue,
           result: markValue,
-          place: fields.place,
+          place: displayPlace,
           qualifier,
           isScratched: entry.isScratched || false,
           isDisqualified: entry.isDisqualified || false,
@@ -1156,9 +1164,8 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         };
       });
       
-      // Use separate paging lines and seconds (no longer tied 1:1)
       const lines = Math.max(1, Math.min(20, parseInt(pagingLines) || 8));
-      const seconds = Math.max(1, Math.min(60, parseInt(pagingSeconds) || lines));
+      const seconds = Math.max(1, parseInt(pagingSeconds) || lines);
       
       // Determine display type and select appropriate template
       const displayType = device.displayType || 'P10';
@@ -1175,7 +1182,6 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         // Lock device to hytek mode so FinishLynx broadcasts don't override it
         connectedDevice.contentMode = 'hytek';
         storage.updateDisplayContentMode(deviceId, 'hytek').catch(err => console.error('[Hytek] Failed to persist contentMode:', err));
-        // Update paging settings (lines per page and seconds per page independently)
         connectedDevice.pagingSize = lines;
         connectedDevice.pagingInterval = seconds;
         
@@ -1227,7 +1233,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           },
           pagingSize: lines,
           pagingInterval: seconds,
-          maxPages: effectiveMaxPages,
+          maxPages: parseInt(reqMaxPages) || 0,
         }));
         
         await storage.updateDisplayDevice(deviceId, {
@@ -1235,7 +1241,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           pagingInterval: seconds,
         });
         
-        console.log(`[Hytek Results] Sent ${enrichedEntries.length} entries (${roundLabel}) to ${device.deviceName} (${displayType}, paging: ${lines} lines/${seconds}s, maxPages: ${effectiveMaxPages || 'all'})`);
+        console.log(`[Hytek Results] Sent ${enrichedEntries.length} entries (${roundLabel}) to ${device.deviceName} (${displayType}, paging: ${lines} lines/${seconds}s)`);
         res.json({ success: true, delivered: true, entryCount: enrichedEntries.length });
       } else {
         res.json({ success: false, delivered: false, message: "Device offline" });
@@ -1457,7 +1463,14 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         markValue = '';
       }
       
-      const teamLogoUrl = teamId ? teamLogoMap.get(teamId) : null;
+      let teamLogoUrl = teamId ? teamLogoMap.get(teamId) : null;
+      // Fallback: check public/logos/NCAA/{teamName}.png if no uploaded logo
+      if (!teamLogoUrl && teamName) {
+        const ncaaPath = pathModule.join(process.cwd(), 'public', 'logos', 'NCAA', `${teamName}.png`);
+        if (fs.existsSync(ncaaPath)) {
+          teamLogoUrl = `/logos/NCAA/${encodeURIComponent(teamName)}.png`;
+        }
+      }
       const headshotUrl = dbAthlete ? headshotMap.get(dbAthlete.id) : null;
       
       // For relay events, use the relay name from the LIF data (lastName field, e.g. "Navy 'A'")
@@ -1725,7 +1738,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
   // Send Record Board to display — parse LIF/LFF files and push winner + record label to device
   app.post("/api/display-devices/:id/record-board", async (req, res) => {
     try {
-      const { eventNumber, recordLabel } = req.body;
+      const { eventNumber, recordLabel, recordTag } = req.body;
       const deviceId = req.params.id;
       
       if (!eventNumber) {
@@ -1754,62 +1767,162 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       // Get meet colors and logo effect
       let primaryColor = '#FFD700';
       let secondaryColor = '#1a1a2e';
+      let accentColor = '#FFD700';
       let logoEffect: string | null = null;
+      let mdbPath: string | null = null;
       try {
         const meet = await storage.getMeet(meetId);
         if (meet) {
           primaryColor = meet.primaryColor || primaryColor;
           secondaryColor = meet.secondaryColor || secondaryColor;
+          accentColor = (meet as any).accentColor || accentColor;
           logoEffect = (meet as any).logoEffect || null;
+          mdbPath = meet.mdbPath || null;
         }
       } catch (err) { /* ok */ }
+      // Fallback: get MDB path from ingestion settings or active watcher
+      if (!mdbPath) {
+        try {
+          const ingestion = await storage.getIngestionSettings(meetId);
+          if (ingestion && (ingestion as any).hytekMdbPath) {
+            mdbPath = (ingestion as any).hytekMdbPath;
+          }
+        } catch (err) { /* ok */ }
+      }
+      if (!mdbPath) {
+        try {
+          const activeWatchers = getActiveHytekMdbWatchers();
+          const watcher = activeWatchers.find(w => w.meetId === meetId);
+          if (watcher?.mdbFilePath) {
+            mdbPath = watcher.mdbFilePath;
+          }
+        } catch (err) { /* ok */ }
+      }
+      
+      // For relay events, fetch relay member last names from MDB
+      console.log(`[Record-Board] isRelay=${winner?.isRelay}, mdbPath=${mdbPath ? 'yes' : 'no'}, event=${evtNum}`);
+      if (winner && winner.isRelay && mdbPath) {
+        try {
+          const MDBReader = (await import('mdb-reader')).default;
+          const { readFileSync } = await import('fs');
+          const buf = readFileSync(mdbPath);
+          const reader = new MDBReader(buf);
+          
+          // Find the event pointer for this event number
+          const evtTable = reader.getTable("Event");
+          const evtData = evtTable.getData();
+          const evtRow = evtData.find((r: any) => Number(r.Event_no) === evtNum);
+          const eventPtr = evtRow ? Number(evtRow.Event_ptr || evtRow.Event_no) : null;
+          console.log(`[Record-Board] Relay lookup: Event_no=${evtNum} → Event_ptr=${eventPtr}`);
+          
+          if (eventPtr) {
+            // Find relay entry for winner's team
+            const relayTable = reader.getTable("Relay");
+            const relayData = relayTable.getData();
+            const rawTeamName = winner.affiliation || winner.team || '';
+            // Strip relay letter suffix (e.g., "DUQ   A" → "DUQ", "Navy 'A'" → "Navy")
+            const cleanTeamName = rawTeamName.replace(/\s+['"]?[A-Z]['"]?\s*$/i, '').trim();
+            console.log(`[Record-Board] Looking for team: raw="${rawTeamName}" clean="${cleanTeamName}"`);
+            
+            // Determine relay letter from raw name (e.g., "A", "B")
+            const relayLetterMatch = rawTeamName.match(/\s+['"]?([A-Z])['"]?\s*$/i);
+            const relayLetter = relayLetterMatch ? relayLetterMatch[1].toUpperCase() : 'A';
+            
+            // Match relay by event and team
+            const teamsTable = reader.getTable("Team");
+            const teamsData = teamsTable.getData();
+            const teamRow = teamsData.find((t: any) => {
+              const tName = (t.Team_name || '').trim().toUpperCase();
+              const tAbbr = (t.Team_abbr || '').trim().toUpperCase();
+              const cleanUpper = cleanTeamName.toUpperCase();
+              return tName === cleanUpper || tAbbr === cleanUpper ||
+                tName.startsWith(cleanUpper) || tAbbr.startsWith(cleanUpper);
+            });
+            const teamNo = teamRow ? Number(teamRow.Team_no) : null;
+            console.log(`[Record-Board] Team match: teamNo=${teamNo}, teamRow=${teamRow ? (teamRow as any).Team_name || (teamRow as any).Team_abbr : 'NOT FOUND'}, relayLetter=${relayLetter}`);
+            
+            if (teamNo) {
+              // Find relay for this team+event, filter by relay letter if multiple
+              const teamRelays = relayData.filter((r: any) => Number(r.Event_ptr) === eventPtr && Number(r.Team_no) === teamNo);
+              let relayRow = teamRelays.length === 1 ? teamRelays[0] : null;
+              if (!relayRow && teamRelays.length > 1) {
+                // Match by relay letter (Relay_letter field or sequential order)
+                relayRow = teamRelays.find((r: any) => (r.Relay_letter || '').toUpperCase() === relayLetter) || teamRelays[0];
+              }
+              if (!relayRow && teamRelays.length === 0) {
+                // Fallback: try without Event_ptr filter in case the field is different
+                const allTeamRelays = relayData.filter((r: any) => Number(r.Team_no) === teamNo);
+                console.log(`[Record-Board] No relay found for Event_ptr=${eventPtr}, trying all ${allTeamRelays.length} relays for team`);
+              }
+              const relayNo = relayRow ? Number(relayRow.Relay_no) : null;
+              console.log(`[Record-Board] Relay row: relayNo=${relayNo}, matching Event_ptr=${eventPtr} + Team_no=${teamNo}, found ${teamRelays.length} relay(s)`);
+              
+              if (relayNo) {
+                // Get relay member names from RelayNames table
+                const relayNamesTable = reader.getTable("RelayNames");
+                const relayNamesData = relayNamesTable.getData();
+                const memberRows = relayNamesData.filter((rn: any) => Number(rn.Relay_no) === relayNo);
+                console.log(`[Record-Board] Found ${memberRows.length} relay members for Relay_no=${relayNo}`);
+                
+                // Get athlete info for each member
+                const athTable = reader.getTable("Athlete");
+                const athData = athTable.getData();
+                const memberNames: string[] = [];
+                for (const member of memberRows) {
+                  const athNo = Number(member.Ath_no || 0);
+                  if (athNo > 0) {
+                    const ath = athData.find((a: any) => Number(a.Ath_no) === athNo);
+                    if (ath) {
+                      const lastName = (ath.Last_name || ath.Lastname || '').trim();
+                      if (lastName) memberNames.push(lastName.toUpperCase());
+                    }
+                  }
+                }
+                console.log(`[Record-Board] Relay members: [${memberNames.join(', ')}]`);
+                if (memberNames.length > 0) {
+                  (winner as any).relayMembers = memberNames;
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('[Record-Board] Failed to fetch relay members from MDB:', err);
+        }
+      } else if (winner && !winner.isRelay) {
+        console.log(`[Record-Board] Not a relay event (isRelay=false)`);
+      } else if (!mdbPath) {
+        console.log(`[Record-Board] No MDB path configured for relay lookup`);
+      }
       
       const connectedDevice = connectedDisplayDevices.get(deviceId);
       if (connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {
         connectedDevice.contentMode = 'record';
         storage.updateDisplayContentMode(deviceId, 'record').catch(err => console.error('[Record] Failed to persist contentMode:', err));
         
-        // Check if user has a custom scene mapped for 'record' or 'winners' mode on this display type
-        const displayType = device.displayType || 'P10';
-        let sceneId: number | null = null;
-        let sceneData: { scene: any; objects: any[] } | null = null;
-        
-        try {
-          let mapping = await storage.getSceneTemplateMappingByTypeAndMode(meetId, displayType, 'record');
-          if (!mapping) {
-            mapping = await storage.getSceneTemplateMappingByTypeAndMode(meetId, displayType, 'winners');
-          }
-          if (!mapping) {
-            mapping = await storage.getSceneTemplateMappingByTypeAndMode(meetId, displayType, 'track_results');
-          }
-          if (mapping) {
-            sceneId = mapping.sceneId;
-            sceneData = await prefetchSceneData(sceneId);
-            console.log(`[Record-Board] Using custom scene ${sceneId} for ${displayType} record board`);
-          }
-        } catch (err) {
-          console.error(`[Record-Board] Error looking up scene mapping:`, err);
-        }
-        
+        // Always use the built-in RecordBoard template (no custom scene override)
         connectedDevice.ws.send(JSON.stringify({
           type: 'display_command',
-          template: sceneId ? null : 'record-board',
-          sceneId,
-          sceneData,
+          template: 'record-board',
+          sceneId: null,
+          sceneData: null,
           liveEventData: {
             eventName: result.displayEventName,
             mode: 'record',
             entries: winner ? [winner] : [],
             recordLabel: recordLabel.trim(),
+            recordTag: recordTag?.trim() || '',
             meetName: result.meetName,
             meetLogoUrl: result.meetLogoUrl,
             meetLogoEffect: logoEffect,
             primaryColor,
             secondaryColor,
+            accentColor,
           },
         }));
         
-        console.log(`[Record-Board] Sent record "${recordLabel}" for "${result.displayEventName}" (event ${evtNum}) to ${device.deviceName} (scene: ${sceneId || 'built-in'})`);
+        console.log(`[Record-Board] Sent record "${recordLabel}" for "${result.displayEventName}" (event ${evtNum}) to ${device.deviceName} (built-in template)`);
+        
+        
         res.json({ success: true, delivered: true, round: result.maxRound, source: result.source });
       } else {
         res.json({ success: false, delivered: false, message: "Device offline" });
@@ -1937,9 +2050,8 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           }));
       }
       
-      // Use separate paging lines and seconds (no longer tied 1:1)
       const lines = Math.max(1, Math.min(20, parseInt(pagingLines) || 8));
-      const seconds = Math.max(1, Math.min(60, parseInt(pagingSeconds) || lines));
+      const seconds = Math.max(1, parseInt(pagingSeconds) || lines);
       
       // Find the connected WebSocket for this device
       const connectedDevice = connectedDisplayDevices.get(deviceId);
@@ -1947,7 +2059,6 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         // Lock device to team_scores mode so FinishLynx broadcasts don't override it
         connectedDevice.contentMode = 'team_scores';
         storage.updateDisplayContentMode(deviceId, 'team_scores').catch(err => console.error('[Team Scores] Failed to persist contentMode:', err));
-        // Update paging settings (lines per page and seconds per page independently)
         connectedDevice.pagingSize = lines;
         connectedDevice.pagingInterval = seconds;
         
@@ -2019,7 +2130,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
   // Send Meet Schedule Board to a display device
   app.post("/api/display-devices/:id/meet-schedule", async (req, res) => {
     try {
-      const { pagingLines, maxPages: reqMaxPages } = req.body;
+      const { pagingLines, pagingSeconds, maxPages: reqMaxPages } = req.body;
       const deviceId = req.params.id;
       const effectiveMaxPages = Math.max(0, parseInt(reqMaxPages) || 0);
 
@@ -2055,6 +2166,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           gender: gender,
           eventType: evt.eventType || '',
           isFieldEvent: !!(evt.eventType && ['long_jump','triple_jump','high_jump','pole_vault','shot_put','discus','javelin','hammer','weight_throw'].includes(evt.eventType)),
+          sessionName: evt.sessionName || '',
         };
       });
 
@@ -2088,7 +2200,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
             entries: scheduleEntries,
           },
           pagingSize: lines,
-          pagingInterval: lines,
+          pagingInterval: Math.max(1, parseInt(pagingSeconds) || lines),
           maxPages: effectiveMaxPages,
         }));
 
@@ -2106,7 +2218,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
   // Send Meet Records Board to a display device
   app.post("/api/display-devices/:id/meet-records", async (req, res) => {
     try {
-      const { pagingLines, maxPages: reqMaxPages, bookId } = req.body;
+      const { pagingLines, pagingSeconds, maxPages: reqMaxPages, bookId } = req.body;
       const deviceId = req.params.id;
       const effectiveMaxPages = Math.max(0, parseInt(reqMaxPages) || 0);
 
@@ -2151,6 +2263,12 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
             custom: '#6b7280',    // gray
           };
 
+          // Build a proper event display name from the matching event or record data
+          const genderPrefix = normalizedGender === 'M' ? "Men's" : normalizedGender === 'F' ? "Women's" : '';
+          const eventDisplayName = matchingEvent
+            ? (matchingEvent.name || '').replace(/\s+/g, ' ').trim()
+            : '';
+
           recordEntries.push({
             place: matchingEvent ? String(matchingEvent.eventNumber || '') : '',
             name: rec.athleteName || 'Unknown',
@@ -2160,6 +2278,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
             time: rec.performance || '',
             mark: rec.performance || '',
             eventType: rec.eventType,
+            eventName: eventDisplayName || `${genderPrefix} ${(rec.eventType || '').replace(/_/g, ' ')}`.trim(),
             gender: normalizedGender,
             bookName: book.name,
             bookScope: book.scope,
@@ -2200,7 +2319,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
             entries: recordEntries,
           },
           pagingSize: lines,
-          pagingInterval: lines,
+          pagingInterval: Math.max(1, parseInt(pagingSeconds) || lines),
           maxPages: effectiveMaxPages,
         }));
 
@@ -2289,7 +2408,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
   // Send Team Points Preview to a display device
   app.post("/api/display-devices/:id/team-preview", async (req, res) => {
     try {
-      const { pagingLines, gender, maxPages: reqMaxPages } = req.body;
+      const { pagingLines, pagingSeconds, gender, maxPages: reqMaxPages } = req.body;
       const deviceId = req.params.id;
       const selectedGender: string = gender === 'W' ? 'W' : 'M';
       const effectiveMaxPages = Math.max(0, parseInt(reqMaxPages) || 0);
@@ -2390,7 +2509,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
             entries: teamEntries,
           },
           pagingSize: lines,
-          pagingInterval: lines,
+          pagingInterval: Math.max(1, parseInt(pagingSeconds) || lines),
           maxPages: effectiveMaxPages,
         }));
 
@@ -2417,7 +2536,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       const { contentMode } = req.body;
       const deviceId = req.params.id;
       
-      const validModes = ['lynx', 'hytek', 'team_scores', 'field', 'winners', 'record', 'meet_schedule', 'meet_records', 'sponsors', 'team_preview'];
+      const validModes = ['lynx', 'hytek', 'team_scores', 'field', 'winners', 'record', 'meet_schedule', 'meet_records', 'sponsors', 'sponsor_reel', 'team_preview'];
       if (!contentMode || !validModes.includes(contentMode)) {
         return res.status(400).json({ error: `contentMode must be one of: ${validModes.join(', ')}` });
       }
@@ -2427,6 +2546,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         connectedDevice.contentMode = contentMode;
         storage.updateDisplayContentMode(deviceId, contentMode).catch(err => console.error('[Content Mode] Failed to persist contentMode:', err));
         console.log(`[Content Mode] Device ${connectedDevice.deviceName} switched to ${contentMode}`);
+        
         
         // Notify the display device of the content mode change so it updates immediately
         if (connectedDevice.ws.readyState === WebSocket.OPEN) {
@@ -2780,6 +2900,122 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       res.json({ success: true });
     } catch (error: any) {
       res.status(400).json({ error: "Invalid overlay update configuration" });
+    }
+  });
+
+  // ===== SPONSOR REEL (directory-based) =====
+
+  const SPONSOR_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.svg']);
+
+  app.get("/api/meets/:meetId/sponsor-images", async (req, res) => {
+    try {
+      const meet = await storage.getMeet(req.params.meetId);
+      if (!meet) {
+        return res.status(404).json({ error: "Meet not found" });
+      }
+      if (!meet.sponsorDir) {
+        return res.json({ images: [], directory: null });
+      }
+
+      const dirPath = meet.sponsorDir;
+      if (!fs.existsSync(dirPath)) {
+        return res.json({ images: [], directory: dirPath, error: "Directory not found" });
+      }
+
+      const files = fs.readdirSync(dirPath)
+        .filter(f => SPONSOR_IMAGE_EXTENSIONS.has(pathModule.extname(f).toLowerCase()))
+        .sort();
+
+      const images = files.map(f => ({
+        filename: f,
+        path: pathModule.join(dirPath, f),
+        url: `/api/meets/${req.params.meetId}/sponsor-images/${encodeURIComponent(f)}`,
+      }));
+
+      res.json({ images, directory: dirPath });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/meets/:meetId/sponsor-images/:filename", async (req, res) => {
+    try {
+      const meet = await storage.getMeet(req.params.meetId);
+      if (!meet || !meet.sponsorDir) {
+        return res.status(404).json({ error: "Sponsor directory not configured" });
+      }
+
+      const filePath = pathModule.join(meet.sponsorDir, req.params.filename);
+      const resolved = pathModule.resolve(filePath);
+      if (!resolved.startsWith(pathModule.resolve(meet.sponsorDir) + pathModule.sep)) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      if (!fs.existsSync(resolved)) {
+        return res.status(404).json({ error: "Image not found" });
+      }
+
+      res.sendFile(resolved);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/display-devices/:id/sponsor-reel", async (req, res) => {
+    try {
+      const { pagingSeconds } = req.body;
+      const deviceId = req.params.id;
+      const interval = Math.max(1, parseInt(pagingSeconds) || 5);
+
+      const device = await storage.getDisplayDevice(deviceId);
+      if (!device) {
+        return res.status(404).json({ error: "Display device not found" });
+      }
+      if (!device.meetId) {
+        return res.status(400).json({ error: "Device is not assigned to a meet" });
+      }
+
+      const meet = await storage.getMeet(device.meetId);
+      if (!meet || !meet.sponsorDir) {
+        return res.status(400).json({ error: "No sponsor directory configured for this meet" });
+      }
+
+      const dirPath = meet.sponsorDir;
+      if (!fs.existsSync(dirPath)) {
+        return res.status(400).json({ error: "Sponsor directory not found on disk" });
+      }
+
+      const files = fs.readdirSync(dirPath)
+        .filter(f => SPONSOR_IMAGE_EXTENSIONS.has(pathModule.extname(f).toLowerCase()))
+        .sort();
+
+      if (files.length === 0) {
+        return res.status(400).json({ error: "No images found in sponsor directory" });
+      }
+
+      const imageUrls = files.map(f =>
+        `/api/meets/${device.meetId}/sponsor-images/${encodeURIComponent(f)}`
+      );
+
+      await storage.updateDisplayTemplate(deviceId, 'sponsor-reel');
+
+      const connectedDevice = connectedDisplayDevices.get(deviceId);
+      if (connectedDevice && connectedDevice.ws.readyState === 1) {
+        connectedDevice.contentMode = 'sponsor_reel';
+        connectedDevice.ws.send(JSON.stringify({
+          type: 'display_command',
+          template: 'sponsor-reel',
+          sponsorImages: imageUrls,
+          pagingInterval: interval,
+        }));
+      }
+
+      res.json({
+        success: true,
+        imageCount: imageUrls.length,
+        pagingInterval: interval,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
   });
 

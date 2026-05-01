@@ -110,6 +110,7 @@ export default function DisplayControlPage() {
   const [selectedRecordEvent, setSelectedRecordEvent] = useState<Record<string, number>>({});
   const [recordPreview, setRecordPreview] = useState<Record<string, any>>({}); // deviceId -> record preview data
   const [recordLabel, setRecordLabel] = useState<Record<string, string>>({}); // deviceId -> record name
+  const [recordTag, setRecordTag] = useState<Record<string, string>>({}); // deviceId -> record tag (e.g. "MR", "AR")
   const [recordEventSearch, setRecordEventSearch] = useState('');
   const [pagingLines, setPagingLines] = useState<Record<string, number>>({});
   const [pagingSeconds, setPagingSeconds] = useState<Record<string, number>>({});
@@ -153,8 +154,8 @@ export default function DisplayControlPage() {
   const sortedFilteredEvents = useMemo(() => {
     const sorted = [...events].sort((a, b) => {
       // Sort by date first so multi-day meets show events in day order
-      const dateA = a.eventDate ? new Date(a.eventDate).getTime() : 0;
-      const dateB = b.eventDate ? new Date(b.eventDate).getTime() : 0;
+      const dateA = a.eventDate ? new Date(String(a.eventDate).split('T')[0] + 'T12:00:00').getTime() : 0;
+      const dateB = b.eventDate ? new Date(String(b.eventDate).split('T')[0] + 'T12:00:00').getTime() : 0;
       if (dateA !== dateB) return dateA - dateB;
       // Then by time within the same day
       const timeDiff = parseEventTime(a.eventTime) - parseEventTime(b.eventTime);
@@ -453,10 +454,10 @@ export default function DisplayControlPage() {
     },
   });
 
-  // Send Record Board mutation — pushes winner + record label to the display
+  // Send Record Board mutation — pushes winner + record label + tag to the display
   const sendRecordBoardMutation = useMutation({
-    mutationFn: async ({ deviceId, eventNumber, recordLabel: label }: { deviceId: string; eventNumber: number; recordLabel: string }) => {
-      const response = await apiRequest('POST', `/api/display-devices/${deviceId}/record-board`, { eventNumber, recordLabel: label });
+    mutationFn: async ({ deviceId, eventNumber, recordLabel: label, recordTag: tag }: { deviceId: string; eventNumber: number; recordLabel: string; recordTag?: string }) => {
+      const response = await apiRequest('POST', `/api/display-devices/${deviceId}/record-board`, { eventNumber, recordLabel: label, recordTag: tag });
       return response.json();
     },
     onSuccess: (data) => {
@@ -473,16 +474,16 @@ export default function DisplayControlPage() {
   // Scene Template Mappings - for assigning custom scenes to display types/modes
   // Pre-meet display mutations
   const sendMeetScheduleMutation = useMutation({
-    mutationFn: async ({ deviceId, pagingLines, maxPages }: { deviceId: string; pagingLines: number; maxPages: number }) => {
-      return apiRequest('POST', `/api/display-devices/${deviceId}/meet-schedule`, { pagingLines, maxPages });
+    mutationFn: async ({ deviceId, pagingLines, pagingSeconds, maxPages }: { deviceId: string; pagingLines: number; pagingSeconds: number; maxPages: number }) => {
+      return apiRequest('POST', `/api/display-devices/${deviceId}/meet-schedule`, { pagingLines, pagingSeconds, maxPages });
     },
     onSuccess: () => toast({ title: 'Meet Schedule sent to display' }),
     onError: (error: Error) => toast({ title: 'Failed to send schedule', description: error.message, variant: 'destructive' }),
   });
 
   const sendMeetRecordsMutation = useMutation({
-    mutationFn: async ({ deviceId, pagingLines, maxPages, bookId }: { deviceId: string; pagingLines: number; maxPages: number; bookId?: string }) => {
-      return apiRequest('POST', `/api/display-devices/${deviceId}/meet-records`, { pagingLines, maxPages, bookId });
+    mutationFn: async ({ deviceId, pagingLines, pagingSeconds, maxPages, bookId }: { deviceId: string; pagingLines: number; pagingSeconds: number; maxPages: number; bookId?: string }) => {
+      return apiRequest('POST', `/api/display-devices/${deviceId}/meet-records`, { pagingLines, pagingSeconds, maxPages, bookId });
     },
     onSuccess: () => toast({ title: 'Meet Records sent to display' }),
     onError: (error: Error) => toast({ title: 'Failed to send records', description: error.message, variant: 'destructive' }),
@@ -496,9 +497,29 @@ export default function DisplayControlPage() {
     onError: (error: Error) => toast({ title: 'Failed to send sponsors', description: error.message, variant: 'destructive' }),
   });
 
+  const sendSponsorReelMutation = useMutation({
+    mutationFn: async ({ deviceId, pagingSeconds }: { deviceId: string; pagingSeconds: number }) => {
+      const response = await apiRequest('POST', `/api/display-devices/${deviceId}/sponsor-reel`, { pagingSeconds });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: 'Sponsor Reel started',
+        description: `Cycling through ${data.imageCount} sponsor images every ${data.pagingInterval}s.`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Failed to start Sponsor Reel',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
   const sendTeamPreviewMutation = useMutation({
-    mutationFn: async ({ deviceId, pagingLines, gender, maxPages }: { deviceId: string; pagingLines: number; gender: string; maxPages: number }) => {
-      return apiRequest('POST', `/api/display-devices/${deviceId}/team-preview`, { pagingLines, gender, maxPages });
+    mutationFn: async ({ deviceId, pagingLines, pagingSeconds, gender, maxPages }: { deviceId: string; pagingLines: number; pagingSeconds: number; gender: string; maxPages: number }) => {
+      return apiRequest('POST', `/api/display-devices/${deviceId}/team-preview`, { pagingLines, pagingSeconds, gender, maxPages });
     },
     onSuccess: () => toast({ title: 'Team preview sent to display' }),
     onError: (error: Error) => toast({ title: 'Failed to send team preview', description: error.message, variant: 'destructive' }),
@@ -1113,7 +1134,7 @@ export default function DisplayControlPage() {
                           onClick={() => {
                             setDisplayMode(prev => ({ ...prev, [selectedDevice.id]: 'sponsors' }));
                             toggleAutoModeMutation.mutate({ deviceId: selectedDevice.id, enabled: false });
-                            apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}/content-mode`, { contentMode: 'sponsors' });
+                            apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}/content-mode`, { contentMode: 'sponsors' }).catch(() => {});
                           }}
                           className={`p-4 rounded-lg border-2 transition-all text-left ${
                             displayMode[selectedDevice.id] === 'sponsors' && !autoModeStatus?.autoMode
@@ -1198,13 +1219,25 @@ export default function DisplayControlPage() {
                                   const isSelected = selectedHytekItem[selectedDevice.id] === item.key;
                                   // Detect sub-events: event number >= 1000 and name contains " - " (e.g., "Women's Pentathlon - 60m Hurdles")
                                   const isSubEvent = (item.event.eventNumber || 0) >= 1000 && item.label.includes(' - ');
-                                  // For sub-events, show only the sub-event part after " - "
-                                  const displayLabel = isSubEvent ? item.label.split(' - ').slice(1).join(' - ') : item.label;
+                                  // For sub-events, show abbreviated prefix + sub-event name
+                                  // e.g., "Men's Decathlon - Shot Put" → "Dec Shot Put"
+                                  let displayLabel = item.label;
+                                  if (isSubEvent) {
+                                    const parts = item.label.split(' - ');
+                                    const parentName = parts[0];
+                                    const subName = parts.slice(1).join(' - ');
+                                    let prefix = '';
+                                    if (/decathlon/i.test(parentName)) prefix = 'Dec';
+                                    else if (/heptathlon/i.test(parentName)) prefix = 'Hept';
+                                    else if (/pentathlon/i.test(parentName)) prefix = 'Pent';
+                                    else prefix = parentName.replace(/^(Men's|Women's)\s+/i, '').substring(0, 4);
+                                    displayLabel = `${prefix} ${subName}`;
+                                  }
 
                                   // Show day header when date changes between items
-                                  const currentDate = item.event.eventDate ? new Date(item.event.eventDate).toDateString() : '';
+                                  const currentDate = item.event.eventDate ? String(item.event.eventDate).split('T')[0] : '';
                                   const prevDate = idx > 0 && hytekEventRoundItems[idx - 1].event.eventDate
-                                    ? new Date(hytekEventRoundItems[idx - 1].event.eventDate!).toDateString()
+                                    ? String(hytekEventRoundItems[idx - 1].event.eventDate!).split('T')[0]
                                     : '';
                                   const showDayHeader = currentDate && currentDate !== prevDate;
 
@@ -1212,19 +1245,16 @@ export default function DisplayControlPage() {
                                     <div key={item.key}>
                                       {showDayHeader && (
                                         <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 border-b border-t mt-1 first:mt-0 first:border-t-0">
-                                          {new Date(item.event.eventDate!).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
+                                          {new Date(String(item.event.eventDate!).split('T')[0] + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
                                         </div>
                                       )}
                                       <button
                                         onClick={() => setSelectedHytekItem(prev => ({ ...prev, [selectedDevice.id]: item.key }))}
-                                        className={`flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded-md cursor-pointer hover-elevate ${isSelected ? 'bg-accent' : ''} ${isSubEvent ? 'pl-6' : ''}`}
+                                        className={`flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded-md cursor-pointer hover-elevate ${isSelected ? 'bg-accent' : ''}`}
                                         data-testid={`button-hytek-${item.key}`}
                                       >
-                                        {!isSubEvent && item.event.eventTime && (
+                                        {item.event.eventTime && (
                                           <span className="text-muted-foreground shrink-0 w-16 text-xs">{item.event.eventTime}</span>
-                                        )}
-                                        {isSubEvent && (
-                                          <span className="text-muted-foreground shrink-0 text-xs">↳</span>
                                         )}
                                         <span className="truncate">
                                           {displayLabel}
@@ -1250,7 +1280,7 @@ export default function DisplayControlPage() {
                                   setPagingLines(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }));
                                 }}
                               >
-                                <SelectTrigger className="w-24" data-testid="select-hytek-paging-lines">
+                                <SelectTrigger className="w-24" data-testid="select-hytek-paging">
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -1259,36 +1289,30 @@ export default function DisplayControlPage() {
                                   ))}
                                 </SelectContent>
                               </Select>
-                              <span className="text-sm text-muted-foreground">
-                                lines per page
-                              </span>
+                              <span className="text-sm text-muted-foreground">lines</span>
                             </div>
                           </div>
-
                           <div className="space-y-2">
                             <Label>Seconds per page</Label>
                             <div className="flex items-center gap-2">
                               <Select
-                                value={String(pagingSeconds[selectedDevice.id] || 8)}
+                                value={String(pagingSeconds[selectedDevice.id] || pagingLines[selectedDevice.id] || 8)}
                                 onValueChange={(value) => {
                                   setPagingSeconds(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }));
                                 }}
                               >
-                                <SelectTrigger className="w-24" data-testid="select-hytek-paging-seconds">
+                                <SelectTrigger className="w-24">
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {[2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 30].map(n => (
-                                    <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                                  {[1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 30].map(n => (
+                                    <SelectItem key={n} value={String(n)}>{n}s</SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
-                              <span className="text-sm text-muted-foreground">
-                                seconds per page
-                              </span>
+                              <span className="text-sm text-muted-foreground">seconds</span>
                             </div>
                           </div>
-
                           <div className="space-y-2">
                             <Label>Max Pages</Label>
                             <div className="flex items-center gap-2">
@@ -1298,18 +1322,17 @@ export default function DisplayControlPage() {
                                   setMaxPages(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }));
                                 }}
                               >
-                                <SelectTrigger className="w-24" data-testid="select-hytek-maxpages">
+                                <SelectTrigger className="w-24">
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {[0, 1, 2, 3, 5, 10].map(n => (
-                                    <SelectItem key={n} value={String(n)}>{n === 0 ? 'All' : String(n)}</SelectItem>
+                                  <SelectItem value="0">All</SelectItem>
+                                  {[1, 2, 3, 4, 5, 6, 8, 10].map(n => (
+                                    <SelectItem key={n} value={String(n)}>{n}</SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
-                              <span className="text-sm text-muted-foreground">
-                                {(maxPages[selectedDevice.id] || 0) === 0 ? 'show all pages' : `only show first ${maxPages[selectedDevice.id]} page${maxPages[selectedDevice.id] === 1 ? '' : 's'}`}
-                              </span>
+                              <span className="text-sm text-muted-foreground">pages (0 = all)</span>
                             </div>
                           </div>
 
@@ -1320,13 +1343,12 @@ export default function DisplayControlPage() {
                               const item = hytekEventRoundItems.find(i => i.key === itemKey);
                               if (!item) return;
                               const lines = pagingLines[selectedDevice.id] || 8;
-                              const seconds = pagingSeconds[selectedDevice.id] || 8;
                               const mp = maxPages[selectedDevice.id] || 0;
                               sendHytekResultsMutation.mutate({
                                 deviceId: selectedDevice.id,
                                 eventId: item.eventId,
                                 pagingLines: lines,
-                                pagingSeconds: seconds,
+                                pagingSeconds: pagingSeconds[selectedDevice.id] || lines,
                                 round: item.round,
                                 maxPages: mp,
                               });
@@ -1372,7 +1394,7 @@ export default function DisplayControlPage() {
                                   setPagingLines(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }));
                                 }}
                               >
-                                <SelectTrigger className="w-24" data-testid="select-teamscores-paging-lines">
+                                <SelectTrigger className="w-24" data-testid="select-teamscores-paging">
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -1381,33 +1403,28 @@ export default function DisplayControlPage() {
                                   ))}
                                 </SelectContent>
                               </Select>
-                              <span className="text-sm text-muted-foreground">
-                                teams per page
-                              </span>
+                              <span className="text-sm text-muted-foreground">teams</span>
                             </div>
                           </div>
-
                           <div className="space-y-2">
                             <Label>Seconds per page</Label>
                             <div className="flex items-center gap-2">
                               <Select
-                                value={String(pagingSeconds[selectedDevice.id] || 8)}
+                                value={String(pagingSeconds[selectedDevice.id] || pagingLines[selectedDevice.id] || 8)}
                                 onValueChange={(value) => {
                                   setPagingSeconds(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }));
                                 }}
                               >
-                                <SelectTrigger className="w-24" data-testid="select-teamscores-paging-seconds">
+                                <SelectTrigger className="w-24">
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {[2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 30].map(n => (
-                                    <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                                  {[1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 30].map(n => (
+                                    <SelectItem key={n} value={String(n)}>{n}s</SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
-                              <span className="text-sm text-muted-foreground">
-                                seconds per page
-                              </span>
+                              <span className="text-sm text-muted-foreground">seconds</span>
                             </div>
                           </div>
 
@@ -1438,13 +1455,12 @@ export default function DisplayControlPage() {
                           <Button
                             onClick={() => {
                               const lines = pagingLines[selectedDevice.id] || 8;
-                              const seconds = pagingSeconds[selectedDevice.id] || 8;
                               const gender = teamScoreGender[selectedDevice.id] || 'M';
                               const mp = maxPages[selectedDevice.id] || 0;
                               sendTeamScoresMutation.mutate({
                                 deviceId: selectedDevice.id,
                                 pagingLines: lines,
-                                pagingSeconds: seconds,
+                                pagingSeconds: pagingSeconds[selectedDevice.id] || lines,
                                 gender,
                                 maxPages: mp,
                               });
@@ -1589,7 +1605,7 @@ export default function DisplayControlPage() {
                         <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
                           {/* Step 1: Select event from available LIF/LFF files */}
                           <div className="space-y-2">
-                            <Label>Select Event (events with result files)</Label>
+                            <Label>Select Event</Label>
                             <div className="relative">
                               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                               <Input
@@ -1611,8 +1627,12 @@ export default function DisplayControlPage() {
                                         key={evt.eventNumber}
                                         onClick={() => {
                                           setSelectedRecordEvent(prev => ({ ...prev, [selectedDevice.id]: evt.eventNumber }));
-                                          // Clear any previous preview when selecting a new event
                                           setRecordPreview(prev => { const next = { ...prev }; delete next[selectedDevice.id]; return next; });
+                                          // Auto-load preview
+                                          previewRecordMutation.mutate({
+                                            deviceId: selectedDevice.id,
+                                            eventNumber: evt.eventNumber,
+                                          });
                                         }}
                                         className={`flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded-md cursor-pointer hover-elevate ${isSelected ? 'bg-accent' : ''}`}
                                         data-testid={`button-record-${evt.eventNumber}`}
@@ -1626,78 +1646,121 @@ export default function DisplayControlPage() {
                                     );
                                   })}
                                 {availableWinnersEvents.length === 0 && (
-                                  <p className="text-xs text-muted-foreground text-center py-4">No events with LIF/LFF result files found. Make sure your Lynx files directory is configured in Ingestion Settings.</p>
+                                  <p className="text-xs text-muted-foreground text-center py-4">No events with LIF/LFF result files found.</p>
                                 )}
                               </div>
                             </ScrollArea>
                           </div>
 
-                          {/* Step 2: Preview button */}
-                          <Button
-                            onClick={() => {
-                              const evtNum = selectedRecordEvent[selectedDevice.id];
-                              if (!evtNum) return;
-                              previewRecordMutation.mutate({
-                                deviceId: selectedDevice.id,
-                                eventNumber: evtNum,
-                              });
-                            }}
-                            disabled={!selectedRecordEvent[selectedDevice.id] || previewRecordMutation.isPending}
-                            variant="outline"
-                            className="w-full"
-                            data-testid="button-preview-record"
-                          >
-                            <Search className="w-4 h-4 mr-2" />
-                            {previewRecordMutation.isPending ? 'Loading Preview...' : 'Preview Winner'}
-                          </Button>
+                          {/* Loading indicator */}
+                          {previewRecordMutation.isPending && (
+                            <div className="text-center text-sm text-muted-foreground py-2">Loading preview...</div>
+                          )}
 
-                          {/* Step 3: Preview card — shows only the winner */}
+                          {/* Step 2: Preview card — shows the data that will be displayed */}
                           {recordPreview[selectedDevice.id]?.entry && (
                             <div className="space-y-3">
-                              <div className="flex items-center justify-between">
-                                <Label className="text-sm font-semibold">{recordPreview[selectedDevice.id].eventName}</Label>
-                                <Badge variant="outline" className="text-xs">Round {recordPreview[selectedDevice.id].round} • {recordPreview[selectedDevice.id].source?.toUpperCase()}</Badge>
-                              </div>
-                              <div className="border rounded-md p-3 bg-background">
-                                {(() => {
-                                  const entry = recordPreview[selectedDevice.id].entry;
-                                  return (
-                                    <div className="flex items-center gap-3">
-                                      {entry.headshotUrl && <img src={entry.headshotUrl} alt="" className="w-10 h-10 rounded-full object-cover" />}
-                                      <div className="flex-1 min-w-0">
-                                        <div className="font-semibold truncate">{entry.name}</div>
-                                        <div className="text-sm text-muted-foreground flex items-center gap-1">
-                                          {entry.teamLogoUrl && <img src={entry.teamLogoUrl} alt="" className="w-4 h-4 object-contain" />}
-                                          <span>{entry.affiliation || entry.team}</span>
+                              <div className="border rounded-lg overflow-hidden bg-background">
+                                {/* Preview header */}
+                                <div className="bg-muted px-3 py-2 flex items-center justify-between">
+                                  <span className="font-semibold text-sm">{recordPreview[selectedDevice.id].eventName}</span>
+                                  <Badge variant="outline" className="text-xs">Round {recordPreview[selectedDevice.id].round} • {recordPreview[selectedDevice.id].source?.toUpperCase()}</Badge>
+                                </div>
+                                {/* Winner details */}
+                                <div className="p-4">
+                                  {(() => {
+                                    const entry = recordPreview[selectedDevice.id].entry;
+                                    return (
+                                      <div className="flex items-center gap-4">
+                                        {entry.headshotUrl && (
+                                          <img src={entry.headshotUrl} alt="" className="w-14 h-14 rounded-lg object-cover border" />
+                                        )}
+                                        <div className="flex-1 min-w-0">
+                                          <div className="font-bold text-lg truncate">{entry.name}</div>
+                                          <div className="text-sm text-muted-foreground flex items-center gap-1.5">
+                                            {entry.teamLogoUrl && <img src={entry.teamLogoUrl} alt="" className="w-5 h-5 object-contain" />}
+                                            <span>{entry.affiliation || entry.team}</span>
+                                          </div>
+                                        </div>
+                                        <div className="text-right">
+                                          <div className="font-mono font-black text-2xl">{entry.mark || entry.time}</div>
                                         </div>
                                       </div>
-                                      <div className="font-mono font-bold text-lg">{entry.mark || entry.time}</div>
-                                    </div>
-                                  );
-                                })()}
+                                    );
+                                  })()}
+                                </div>
                               </div>
 
-                              {/* Step 4: Record label input */}
-                              <div className="space-y-1">
-                                <Label className="text-sm">Record Name</Label>
-                                <Input
-                                  placeholder="e.g. Meet Record, Facility Record, School Record..."
-                                  value={recordLabel[selectedDevice.id] || ''}
-                                  onChange={(e) => setRecordLabel(prev => ({ ...prev, [selectedDevice.id]: e.target.value }))}
-                                  data-testid="input-record-label"
-                                />
+                              {/* Step 3: Record label — quick-select buttons + custom name/tag */}
+                              <div className="space-y-2">
+                                <Label className="text-sm">Record Type</Label>
+                                <div className="grid grid-cols-3 gap-2">
+                                  {['Meet Record', 'Facility Record', 'Conference Record'].map(label => (
+                                    <Button
+                                      key={label}
+                                      type="button"
+                                      variant={recordLabel[selectedDevice.id] === label ? 'default' : 'outline'}
+                                      size="sm"
+                                      onClick={() => {
+                                        setRecordLabel(prev => ({ ...prev, [selectedDevice.id]: label }));
+                                        setRecordTag(prev => ({ ...prev, [selectedDevice.id]: '' }));
+                                      }}
+                                    >
+                                      {label.replace(' Record', '')}
+                                    </Button>
+                                  ))}
+                                  {['School Record', 'National Record', 'All-Time Record'].map(label => (
+                                    <Button
+                                      key={label}
+                                      type="button"
+                                      variant={recordLabel[selectedDevice.id] === label ? 'default' : 'outline'}
+                                      size="sm"
+                                      onClick={() => {
+                                        setRecordLabel(prev => ({ ...prev, [selectedDevice.id]: label }));
+                                        setRecordTag(prev => ({ ...prev, [selectedDevice.id]: '' }));
+                                      }}
+                                    >
+                                      {label.replace(' Record', '')}
+                                    </Button>
+                                  ))}
+                                </div>
+                                {/* Custom record name + tag for records not in the presets */}
+                                <div className="flex gap-2">
+                                  <Input
+                                    placeholder="Custom record name..."
+                                    className="flex-1"
+                                    value={
+                                      ['Meet Record', 'Facility Record', 'Conference Record', 'School Record', 'National Record', 'All-Time Record'].includes(recordLabel[selectedDevice.id] || '')
+                                        ? ''
+                                        : recordLabel[selectedDevice.id] || ''
+                                    }
+                                    onChange={(e) => setRecordLabel(prev => ({ ...prev, [selectedDevice.id]: e.target.value }))}
+                                    data-testid="input-record-label"
+                                  />
+                                  <Input
+                                    placeholder="Tag (e.g. AR)"
+                                    className="w-24"
+                                    maxLength={5}
+                                    value={recordTag[selectedDevice.id] || ''}
+                                    onChange={(e) => setRecordTag(prev => ({ ...prev, [selectedDevice.id]: e.target.value.toUpperCase() }))}
+                                    data-testid="input-record-tag"
+                                  />
+                                </div>
+                                <p className="text-xs text-muted-foreground">Use custom inputs for records not in the list above (e.g. "Arena Record" / "AR")</p>
                               </div>
 
-                              {/* Step 5: Send to Board */}
+                              {/* Step 4: Send to Board */}
                               <Button
                                 onClick={() => {
                                   const evtNum = selectedRecordEvent[selectedDevice.id];
                                   const label = recordLabel[selectedDevice.id];
+                                  const tag = recordTag[selectedDevice.id];
                                   if (!evtNum || !label?.trim()) return;
                                   sendRecordBoardMutation.mutate({
                                     deviceId: selectedDevice.id,
                                     eventNumber: evtNum,
                                     recordLabel: label.trim(),
+                                    recordTag: tag?.trim() || undefined,
                                   });
                                 }}
                                 disabled={sendRecordBoardMutation.isPending || !recordLabel[selectedDevice.id]?.trim()}
@@ -1713,7 +1776,7 @@ export default function DisplayControlPage() {
                       ) : displayMode[selectedDevice.id] === 'meet_schedule' ? (
                         <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
                           <div className="space-y-2">
-                            <Label>Paging (lines = seconds)</Label>
+                            <Label>Lines per page</Label>
                             <div className="flex items-center gap-2">
                               <Select
                                 value={String(pagingLines[selectedDevice.id] || 8)}
@@ -1721,14 +1784,28 @@ export default function DisplayControlPage() {
                               >
                                 <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
                                 <SelectContent>
-                                  {[4, 6, 8, 10, 12, 16, 20].map(n => (
+                                  {[1, 2, 4, 6, 8, 10, 12, 16, 20].map(n => (
                                     <SelectItem key={n} value={String(n)}>{n}</SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
-                              <span className="text-sm text-muted-foreground">
-                                events per page, {pagingLines[selectedDevice.id] || 8}s per page
-                              </span>
+                              <span className="text-sm text-muted-foreground">events per page</span>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Seconds per page</Label>
+                            <div className="flex items-center gap-2">
+                              <Select
+                                value={String(pagingSeconds[selectedDevice.id] || 8)}
+                                onValueChange={(value) => setPagingSeconds(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }))}
+                              >
+                                <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  {[2, 3, 5, 8, 10, 15, 20, 30].map(n => (
+                                    <SelectItem key={n} value={String(n)}>{n}s</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                             </div>
                           </div>
                           <div className="space-y-2">
@@ -1752,6 +1829,7 @@ export default function DisplayControlPage() {
                               sendMeetScheduleMutation.mutate({
                                 deviceId: selectedDevice.id,
                                 pagingLines: pagingLines[selectedDevice.id] || 8,
+                                pagingSeconds: pagingSeconds[selectedDevice.id] || 8,
                                 maxPages: maxPages[selectedDevice.id] || 0,
                               });
                             }}
@@ -1781,7 +1859,7 @@ export default function DisplayControlPage() {
                             </Select>
                           </div>
                           <div className="space-y-2">
-                            <Label>Paging (lines = seconds)</Label>
+                            <Label>Lines per page</Label>
                             <div className="flex items-center gap-2">
                               <Select
                                 value={String(pagingLines[selectedDevice.id] || 8)}
@@ -1789,14 +1867,28 @@ export default function DisplayControlPage() {
                               >
                                 <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
                                 <SelectContent>
-                                  {[4, 6, 8, 10, 12, 16, 20].map(n => (
+                                  {[1, 2, 4, 6, 8, 10, 12, 16, 20].map(n => (
                                     <SelectItem key={n} value={String(n)}>{n}</SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
-                              <span className="text-sm text-muted-foreground">
-                                records per page
-                              </span>
+                              <span className="text-sm text-muted-foreground">records per page</span>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Seconds per page</Label>
+                            <div className="flex items-center gap-2">
+                              <Select
+                                value={String(pagingSeconds[selectedDevice.id] || 8)}
+                                onValueChange={(value) => setPagingSeconds(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }))}
+                              >
+                                <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  {[2, 3, 5, 8, 10, 15, 20, 30].map(n => (
+                                    <SelectItem key={n} value={String(n)}>{n}s</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                             </div>
                           </div>
                           <div className="space-y-2">
@@ -1821,6 +1913,7 @@ export default function DisplayControlPage() {
                               sendMeetRecordsMutation.mutate({
                                 deviceId: selectedDevice.id,
                                 pagingLines: pagingLines[selectedDevice.id] || 8,
+                                pagingSeconds: pagingSeconds[selectedDevice.id] || 8,
                                 maxPages: maxPages[selectedDevice.id] || 0,
                                 bookId: bookVal && bookVal !== 'all' ? bookVal : undefined,
                               });
@@ -1835,59 +1928,45 @@ export default function DisplayControlPage() {
                         </div>
                       ) : displayMode[selectedDevice.id] === 'sponsors' ? (
                         <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
-                          <div className="space-y-2">
-                            <Label>Sponsor Image URLs (one per line)</Label>
-                            <textarea
-                              className="w-full h-32 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                              placeholder={"https://example.com/sponsor1.png\nhttps://example.com/sponsor2.png"}
-                              value={sponsorUrls[selectedDevice.id] || ''}
-                              onChange={(e) => setSponsorUrls(prev => ({ ...prev, [selectedDevice.id]: e.target.value }))}
-                              data-testid="textarea-sponsor-urls"
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              Enter one image URL per line. These can be logos, banners, or ads.
-                            </p>
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Rotation Interval (seconds per sponsor)</Label>
-                            <div className="flex items-center gap-2">
-                              <Select
-                                value={String(sponsorInterval[selectedDevice.id] || 8)}
-                                onValueChange={(value) => setSponsorInterval(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }))}
+                          {currentMeet?.sponsorDir ? (
+                            <div className="space-y-2">
+                              <Label className="font-semibold">Sponsor Reel</Label>
+                              <p className="text-xs text-muted-foreground">
+                                Directory: <code className="text-purple-300">{currentMeet.sponsorDir}</code>
+                              </p>
+                              <div className="flex items-center gap-2">
+                                <Select
+                                  value={String(sponsorInterval[selectedDevice.id] || 8)}
+                                  onValueChange={(value) => setSponsorInterval(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }))}
+                                >
+                                  <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    {[2, 3, 5, 8, 10, 15, 20, 30].map(n => (
+                                      <SelectItem key={n} value={String(n)}>{n}s</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <span className="text-sm text-muted-foreground">seconds per slide</span>
+                              </div>
+                              <Button
+                                onClick={() => {
+                                  sendSponsorReelMutation.mutate({
+                                    deviceId: selectedDevice.id,
+                                    pagingSeconds: sponsorInterval[selectedDevice.id] || 8,
+                                  });
+                                }}
+                                disabled={sendSponsorReelMutation.isPending}
+                                className="w-full bg-purple-600 hover:bg-purple-700"
                               >
-                                <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                  {[3, 5, 8, 10, 15, 20, 30].map(n => (
-                                    <SelectItem key={n} value={String(n)}>{n}s</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <span className="text-sm text-muted-foreground">
-                                seconds per sponsor
-                              </span>
+                                <Send className="w-4 h-4 mr-2" />
+                                Start Sponsor Reel
+                              </Button>
                             </div>
-                          </div>
-                          <Button
-                            onClick={() => {
-                              const urlText = sponsorUrls[selectedDevice.id] || '';
-                              const urls = urlText.split('\n').map(u => u.trim()).filter(u => u.length > 0);
-                              if (urls.length === 0) {
-                                toast({ title: 'No sponsors', description: 'Enter at least one image URL', variant: 'destructive' });
-                                return;
-                              }
-                              sendSponsorRotationMutation.mutate({
-                                deviceId: selectedDevice.id,
-                                sponsors: urls.map(url => ({ imageUrl: url })),
-                                interval: sponsorInterval[selectedDevice.id] || 8,
-                              });
-                            }}
-                            disabled={sendSponsorRotationMutation.isPending}
-                            className="w-full"
-                            data-testid="button-send-sponsors"
-                          >
-                            <Send className="w-4 h-4 mr-2" />
-                            Start Sponsor Rotation
-                          </Button>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">
+                              No sponsor directory configured. Set a folder path in <strong>Meet Setup → Sponsor Reel Directory</strong> first.
+                            </p>
+                          )}
                         </div>
                       ) : displayMode[selectedDevice.id] === 'team_preview' ? (
                         <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
@@ -1911,7 +1990,7 @@ export default function DisplayControlPage() {
                             </div>
                           </div>
                           <div className="space-y-2">
-                            <Label>Paging (lines = seconds)</Label>
+                            <Label>Lines per page</Label>
                             <div className="flex items-center gap-2">
                               <Select
                                 value={String(pagingLines[selectedDevice.id] || 8)}
@@ -1919,14 +1998,28 @@ export default function DisplayControlPage() {
                               >
                                 <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
                                 <SelectContent>
-                                  {[4, 6, 8, 10, 12, 16, 20].map(n => (
+                                  {[1, 2, 4, 6, 8, 10, 12, 16, 20].map(n => (
                                     <SelectItem key={n} value={String(n)}>{n}</SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
-                              <span className="text-sm text-muted-foreground">
-                                teams per page
-                              </span>
+                              <span className="text-sm text-muted-foreground">teams per page</span>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Seconds per page</Label>
+                            <div className="flex items-center gap-2">
+                              <Select
+                                value={String(pagingSeconds[selectedDevice.id] || 8)}
+                                onValueChange={(value) => setPagingSeconds(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }))}
+                              >
+                                <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  {[2, 3, 5, 8, 10, 15, 20, 30].map(n => (
+                                    <SelectItem key={n} value={String(n)}>{n}s</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                             </div>
                           </div>
                           <div className="space-y-2">
@@ -1950,6 +2043,7 @@ export default function DisplayControlPage() {
                               sendTeamPreviewMutation.mutate({
                                 deviceId: selectedDevice.id,
                                 pagingLines: pagingLines[selectedDevice.id] || 8,
+                                pagingSeconds: pagingSeconds[selectedDevice.id] || 8,
                                 gender: teamPreviewGender[selectedDevice.id] || 'M',
                                 maxPages: maxPages[selectedDevice.id] || 0,
                               });
