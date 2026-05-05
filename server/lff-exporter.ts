@@ -49,7 +49,9 @@ export function generateHorizontalLFF(
   // Use evtEventName for EVT sessions, fall back to event name
   const eventName = session.evtEventName || session.event?.name || "Field Event";
   
-  lines.push(`${eventNumber},${roundNumber},${flightNumber},${eventName},${options.measurementSystem}`);
+  // Use lowercase measurement system and trailing comma as per FieldLynx spec
+  const measurementSystem = options.measurementSystem.toLowerCase();
+  lines.push(`${eventNumber},${roundNumber},${flightNumber},${eventName},${measurementSystem},`);
   
   for (const standing of standings) {
     const athlete = athletes.find(a => a.id === standing.athleteId);
@@ -75,7 +77,7 @@ export function generateHorizontalLFF(
           attemptParts.push("F");
           attemptParts.push(formatWind(mark.wind));
         } else if (mark.markType === 'pass') {
-          attemptParts.push("PASS");
+          attemptParts.push("P");
           attemptParts.push(formatWind(mark.wind));
         } else if (mark.markType === 'scratch') {
           attemptParts.push("DNS");

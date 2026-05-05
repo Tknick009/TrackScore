@@ -108,6 +108,11 @@ export function registerFieldEventsRoutes(app: Express, ctx: RouteContext) {
           updates.totalAttempts = prelimAttempts + finalAttempts;
         }
         
+        // Auto-enable wind recording for eligible events (LJ, TJ)
+        if (isWindEligibleEvent(eventName) && !session.recordWind) {
+          updates.recordWind = true;
+        }
+        
         if (Object.keys(updates).length > 0) {
           await storage.updateFieldEventSession(session.id, updates);
           updatedCount++;
@@ -142,6 +147,13 @@ export function registerFieldEventsRoutes(app: Express, ctx: RouteContext) {
   // Detect if an event is a horizontal event (throws and jumps except vertical)
   function isHorizontalEventName(eventName: string): boolean {
     return isFieldEventName(eventName) && !isVerticalEventName(eventName);
+  }
+
+  // Detect if an event requires wind recording (long jump, triple jump)
+  function isWindEligibleEvent(eventName: string): boolean {
+    const name = eventName.toLowerCase();
+    const windKeywords = ['long jump', 'triple jump', 'lj', 'tj'];
+    return windKeywords.some(keyword => name.includes(keyword));
   }
   
   app.get("/api/evt-events", async (req, res) => {
@@ -305,12 +317,15 @@ export function registerFieldEventsRoutes(app: Express, ctx: RouteContext) {
           }
         }
         
+        // Auto-detect wind-eligible events (long jump, triple jump)
+        const needsWind = isWindEligibleEvent(evt.eventName);
+        
         // Create session with in_progress status (immediately active and configurable)
         const sessionData = {
           eventId: null,
           status: "in_progress" as const,
           measurementUnit: "metric" as const,
-          recordWind: false,
+          recordWind: needsWind,
           hasFinals: isHorizontal, // Enable finals for horizontal events by default
           prelimAttempts,
           finalsAttempts,
@@ -1106,7 +1121,10 @@ export function registerFieldEventsRoutes(app: Express, ctx: RouteContext) {
       
       // Handle vertical event progression (high_jump, pole_vault)
       const session = await storage.getFieldEventSession(mark.sessionId);
-      if (session && isHeightEvent(session.eventType)) {
+      const sessionEvtName = (session?.evtEventName || '').toLowerCase();
+      const isSessionVertical = sessionEvtName.includes('high jump') || sessionEvtName.includes('pole vault') ||
+        sessionEvtName.includes('hj') || sessionEvtName.includes('pv');
+      if (session && isSessionVertical) {
         const [allMarks, heights, athletes] = await Promise.all([
           storage.getFieldEventMarks(mark.sessionId),
           storage.getFieldHeights(mark.sessionId),

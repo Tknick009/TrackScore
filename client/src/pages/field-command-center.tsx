@@ -52,8 +52,38 @@ import type {
 } from "@shared/schema";
 import { isHeightEvent } from "@shared/schema";
 import { useFieldSession, type EnrichedAthlete, getAthleteDisplayInfo } from "@/hooks/useFieldSession";
+import { useOfflineMarkQueue, type ConnectionStatus } from "@/hooks/useOfflineMarkQueue";
 import HorizontalEventPanel from "@/components/field/HorizontalEventPanel";
 import VerticalEventPanel from "@/components/field/VerticalEventPanel";
+
+// Connection status indicator component
+function ConnectionStatusBadge({ status, pendingCount }: { status: ConnectionStatus; pendingCount: number }) {
+  if (status === "connected" && pendingCount === 0) {
+    return (
+      <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-green-500/10 text-green-600 text-xs font-medium">
+        <div className="w-2 h-2 rounded-full bg-green-500" />
+        Connected
+      </div>
+    );
+  }
+  if (status === "reconnecting") {
+    return (
+      <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-yellow-500/10 text-yellow-600 text-xs font-medium animate-pulse">
+        <div className="w-2 h-2 rounded-full bg-yellow-500" />
+        Syncing {pendingCount}...
+      </div>
+    );
+  }
+  if (status === "offline" || pendingCount > 0) {
+    return (
+      <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-red-500/10 text-red-600 text-xs font-medium">
+        <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+        Offline{pendingCount > 0 ? ` (${pendingCount} queued)` : ""}
+      </div>
+    );
+  }
+  return null;
+}
 
 const SESSION_STORAGE_KEY = "field_official_session";
 const DEVICE_NAME_KEY = "fieldDeviceName";
@@ -790,13 +820,24 @@ export default function FieldCommandCenter() {
   // Current active session data for header controls
   const activeFs = activeSessionId ? useFieldSession(activeSessionId) : null;
 
+  // Offline mark queue — keeps working when tablet disconnects
+  const offlineQueue = useOfflineMarkQueue(activeSessionId);
+
+  // Cache session data for offline use
+  useEffect(() => {
+    if (activeFs?.session) {
+      offlineQueue.cacheSession(activeFs.session);
+    }
+  }, [activeFs?.session]);
+
   // WebSocket listener for session list updates
   useEffect(() => {
     if (!ws) return;
     const handleMessage = (event: MessageEvent) => {
       try {
         const data = JSON.parse(event.data);
-        if (data.type === "field_session_update" || data.type === "field_session_created" || data.type === "field_session_deleted") {
+        if (data.type === "field_session_update" || data.type === "field_session_created" || data.type === "field_session_deleted" ||
+            data.type === "field_event_update" || data.type === "field_mark_update" || data.type === "field_athlete_update") {
           queryClient.invalidateQueries({ queryKey: ["/api/field-sessions"] });
         }
       } catch {
@@ -894,8 +935,9 @@ export default function FieldCommandCenter() {
             </div>
           </div>
 
-          {/* Action buttons - always visible */}
+          {/* Connection status + Action buttons */}
           <div className="flex items-center gap-1 px-2 shrink-0">
+            <ConnectionStatusBadge status={offlineQueue.connectionStatus} pendingCount={offlineQueue.pendingCount} />
             <Button
               variant="ghost"
               size="sm"

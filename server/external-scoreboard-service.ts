@@ -308,12 +308,17 @@ export function buildFieldScoreboardPayload(
     };
   }
 
-  const eventType = session.event?.eventType || 'horizontal';
+  // For EVT sessions, detect event type from name since there's no linked database event
+  let eventType = session.event?.eventType || 'horizontal';
+  const evtName = (session.evtEventName || '').toLowerCase();
+  if (!session.event && (evtName.includes('high jump') || evtName.includes('pole vault') || evtName.includes('hj') || evtName.includes('pv'))) {
+    eventType = evtName.includes('high jump') || evtName.includes('hj') ? 'high_jump' : 'pole_vault';
+  }
 
   return {
     currentAthlete,
     lastMark: lastMarkPayload,
-    eventName: session.event?.name || 'Unknown Event',
+    eventName: session.event?.name || session.evtEventName || 'Unknown Event',
     eventType,
     sessionId: session.id,
   };

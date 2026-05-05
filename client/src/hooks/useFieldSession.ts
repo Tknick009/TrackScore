@@ -350,8 +350,47 @@ export function useFieldSession(sessionId: number) {
   // ==================== MUTATIONS ====================
 
   const submitMarkMutation = useMutation({
-    mutationFn: async (mark: InsertFieldEventMark) =>
-      apiRequest("POST", "/api/field-marks", { ...mark, deviceName }),
+    mutationFn: async (mark: InsertFieldEventMark) => {
+      try {
+        return await apiRequest("POST", "/api/field-marks", { ...mark, deviceName });
+      } catch (err: any) {
+        // If network error (server unreachable), queue locally in IndexedDB
+        if (err?.message?.includes('fetch') || err?.message?.includes('network') || !navigator.onLine) {
+          const DB_NAME = "TrackScoreFieldOffline";
+          const STORE_NAME = "queuedMarks";
+          const db = await new Promise<IDBDatabase>((resolve, reject) => {
+            const req = indexedDB.open(DB_NAME, 1);
+            req.onupgradeneeded = (e) => {
+              const db = (e.target as IDBOpenDBRequest).result;
+              if (!db.objectStoreNames.contains(STORE_NAME)) {
+                const store = db.createObjectStore(STORE_NAME, { keyPath: "id" });
+                store.createIndex("sessionId", "sessionId", { unique: false });
+                store.createIndex("synced", "synced", { unique: false });
+                store.createIndex("queuedAt", "queuedAt", { unique: false });
+              }
+            };
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+          });
+          const queuedMark = {
+            id: `${mark.sessionId}-${mark.athleteId}-${mark.attemptNumber}-${Date.now()}`,
+            ...mark,
+            deviceName,
+            queuedAt: Date.now(),
+            synced: false,
+          };
+          await new Promise<void>((resolve, reject) => {
+            const tx = db.transaction(STORE_NAME, "readwrite");
+            tx.objectStore(STORE_NAME).put(queuedMark);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+          });
+          toast({ title: "Mark queued offline", description: "Will sync when reconnected" });
+          return { queued: true };
+        }
+        throw err;
+      }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "marks"] });
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "athletes"] });

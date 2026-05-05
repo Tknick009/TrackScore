@@ -408,6 +408,13 @@ async function broadcastCurrentEvent() {
   });
 }
 
+// Detect vertical event from event name (for EVT sessions without a database event)
+function isVerticalEventByName(eventName: string): boolean {
+  const name = (eventName || '').toLowerCase();
+  return name.includes('high jump') || name.includes('pole vault') ||
+         name.includes('hj') || name.includes('pv');
+}
+
 // Broadcast field event update to subscribers and all displays
 // deviceName is optional - used for device-specific scoreboard routing
 async function broadcastFieldEventUpdate(sessionId: number, deviceName?: string) {
@@ -418,13 +425,25 @@ async function broadcastFieldEventUpdate(sessionId: number, deviceName?: string)
       return;
     }
 
-    const event = await storage.getEvent(session.eventId);
-    if (!event) {
-      console.log(`[Field Broadcast] Event ${session.eventId} not found`);
-      return;
+    // For EVT-provisioned sessions, eventId may be null — use evtEventName to detect type
+    let event: any = null;
+    let meetId: string | null = null;
+    if (session.eventId) {
+      event = await storage.getEvent(session.eventId);
+      meetId = event?.meetId || null;
     }
 
-    const isVertical = isHeightEvent(event.eventType);
+    // Determine if vertical: use database event type if available, otherwise detect from name
+    const isVertical = event
+      ? isHeightEvent(event.eventType)
+      : isVerticalEventByName(session.evtEventName || '');
+
+    // If no meetId from event, try to find the active meet
+    if (!meetId) {
+      const allMeets = await storage.getMeets();
+      const activeMeet = allMeets.find(m => m.status === 'in_progress') || allMeets.find(m => m.status === 'upcoming');
+      meetId = activeMeet?.id || null;
+    }
     
     let standings: any[] = [];
     if (session.athletes && session.marks) {
@@ -466,7 +485,7 @@ async function broadcastFieldEventUpdate(sessionId: number, deviceName?: string)
       type: 'field_event_update',
       sessionId: sessionId,
       eventId: session.eventId,
-      meetId: event.meetId,
+      meetId: meetId,
       update
     };
 
@@ -628,6 +647,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Register sync routes
   app.use('/api/sync', syncRouter);
+
+  // Health check endpoint for offline detection
+  app.get('/api/health', (_req, res) => {
+    res.json({ status: 'ok', timestamp: Date.now() });
+  });
 
   // Build shared route context
   const ctx: RouteContext = {
