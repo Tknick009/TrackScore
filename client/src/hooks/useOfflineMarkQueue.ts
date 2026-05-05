@@ -206,7 +206,8 @@ export function useOfflineMarkQueue(sessionId: number | null) {
           await markAsSynced(qm.id);
         } catch (err: any) {
           // If it's a duplicate (409) or validation error (400), mark as synced to avoid infinite retry
-          if (err?.status === 409 || err?.status === 400) {
+          // apiRequest throws Error with message like "409: ..." so check message prefix
+          if (err?.message?.startsWith('409') || err?.message?.startsWith('400')) {
             await markAsSynced(qm.id);
           } else {
             await markSyncError(qm.id, err?.message || "Unknown error");

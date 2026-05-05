@@ -186,10 +186,11 @@ export function useFieldSession(sessionId: number) {
 
   // ==================== DERIVED STATE ====================
 
+  const evtNameLower = session?.evtEventName?.toLowerCase() || '';
   const isVertical = session
     ? isHeightEvent(session.event?.eventType || '') ||
-      (session.evtEventName?.toLowerCase().includes('high jump')) ||
-      (session.evtEventName?.toLowerCase().includes('pole vault'))
+      evtNameLower.includes('high jump') || evtNameLower.includes('pole vault') ||
+      evtNameLower.includes('hj') || evtNameLower.includes('pv')
     : false;
 
   const showBibNumbers = session?.showBibNumbers !== false;
