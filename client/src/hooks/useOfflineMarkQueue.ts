@@ -154,6 +154,7 @@ export type ConnectionStatus = "connected" | "reconnecting" | "offline";
 export function useOfflineMarkQueue(sessionId: number | null) {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("connected");
   const [pendingCount, setPendingCount] = useState(0);
+  const [isSyncing, setIsSyncing] = useState(false);
   const syncingRef = useRef(false);
   const syncIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastPingRef = useRef<number>(Date.now());
@@ -184,6 +185,7 @@ export function useOfflineMarkQueue(sessionId: number | null) {
       if (unsynced.length === 0) return;
 
       syncingRef.current = true;
+      setIsSyncing(true);
       
       // Sort by queuedAt to maintain order
       const sorted = unsynced.sort((a, b) => a.queuedAt - b.queuedAt);
@@ -233,6 +235,7 @@ export function useOfflineMarkQueue(sessionId: number | null) {
       console.error("[OfflineQueue] Sync error:", err);
     } finally {
       syncingRef.current = false;
+      setIsSyncing(false);
     }
   }, [sessionId]);
 
@@ -262,9 +265,13 @@ export function useOfflineMarkQueue(sessionId: number | null) {
           deviceName: mark.deviceName,
         });
         return await response.json();
-      } catch {
-        // Network error — fall through to queue
-        setConnectionStatus("offline");
+      } catch (err: any) {
+        // Only treat network errors as offline — server errors (400, 500) should propagate
+        if (err?.message?.includes('fetch') || err?.message?.includes('network') || !navigator.onLine) {
+          setConnectionStatus("offline");
+        } else {
+          throw err;
+        }
       }
     }
     
@@ -320,7 +327,7 @@ export function useOfflineMarkQueue(sessionId: number | null) {
   return {
     connectionStatus,
     pendingCount,
-    isSyncing: syncingRef.current,
+    isSyncing,
     queueMark,
     syncQueuedMarks,
     cacheSession,
