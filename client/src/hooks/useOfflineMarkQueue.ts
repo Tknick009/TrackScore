@@ -154,7 +154,7 @@ export type ConnectionStatus = "connected" | "reconnecting" | "offline";
 export function useOfflineMarkQueue(sessionId: number | null) {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("connected");
   const [pendingCount, setPendingCount] = useState(0);
-  const [isSyncing, setIsSyncing] = useState(false);
+  const syncingRef = useRef(false);
   const syncIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastPingRef = useRef<number>(Date.now());
 
@@ -177,13 +177,13 @@ export function useOfflineMarkQueue(sessionId: number | null) {
 
   // Sync all queued marks to server
   const syncQueuedMarks = useCallback(async () => {
-    if (isSyncing || !sessionId) return;
+    if (syncingRef.current || !sessionId) return;
     
     try {
       const unsynced = await getUnsynced();
       if (unsynced.length === 0) return;
 
-      setIsSyncing(true);
+      syncingRef.current = true;
       
       // Sort by queuedAt to maintain order
       const sorted = unsynced.sort((a, b) => a.queuedAt - b.queuedAt);
@@ -232,9 +232,9 @@ export function useOfflineMarkQueue(sessionId: number | null) {
     } catch (err) {
       console.error("[OfflineQueue] Sync error:", err);
     } finally {
-      setIsSyncing(false);
+      syncingRef.current = false;
     }
-  }, [isSyncing, sessionId]);
+  }, [sessionId]);
 
   // Queue a mark (called instead of direct API when we might be offline)
   const queueMark = useCallback(async (markData: Omit<QueuedMark, "id" | "queuedAt" | "synced">) => {

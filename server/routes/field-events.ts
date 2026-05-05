@@ -1120,10 +1120,18 @@ export function registerFieldEventsRoutes(app: Express, ctx: RouteContext) {
       const mark = await storage.createFieldEventMark(validated);
       
       // Handle vertical event progression (high_jump, pole_vault)
+      // Check linked database event type first, fall back to name-based detection
       const session = await storage.getFieldEventSession(mark.sessionId);
-      const sessionEvtName = (session?.evtEventName || '').toLowerCase();
-      const isSessionVertical = sessionEvtName.includes('high jump') || sessionEvtName.includes('pole vault') ||
-        sessionEvtName.includes('hj') || sessionEvtName.includes('pv');
+      let isSessionVertical = false;
+      if (session?.eventId) {
+        const linkedEvent = await storage.getEvent(session.eventId);
+        if (linkedEvent) {
+          isSessionVertical = isHeightEvent(linkedEvent.eventType);
+        }
+      }
+      if (!isSessionVertical && session) {
+        isSessionVertical = isVerticalEventName(session.evtEventName || '');
+      }
       if (session && isSessionVertical) {
         const [allMarks, heights, athletes] = await Promise.all([
           storage.getFieldEventMarks(mark.sessionId),

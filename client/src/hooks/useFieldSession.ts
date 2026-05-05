@@ -359,6 +359,7 @@ export function useFieldSession(sessionId: number) {
         if (err?.message?.includes('fetch') || err?.message?.includes('network') || !navigator.onLine) {
           const DB_NAME = "TrackScoreFieldOffline";
           const STORE_NAME = "queuedMarks";
+          const SESSION_CACHE_STORE = "sessionCache";
           const db = await new Promise<IDBDatabase>((resolve, reject) => {
             const req = indexedDB.open(DB_NAME, 1);
             req.onupgradeneeded = (e) => {
@@ -368,6 +369,9 @@ export function useFieldSession(sessionId: number) {
                 store.createIndex("sessionId", "sessionId", { unique: false });
                 store.createIndex("synced", "synced", { unique: false });
                 store.createIndex("queuedAt", "queuedAt", { unique: false });
+              }
+              if (!db.objectStoreNames.contains(SESSION_CACHE_STORE)) {
+                db.createObjectStore(SESSION_CACHE_STORE, { keyPath: "sessionId" });
               }
             };
             req.onsuccess = () => resolve(req.result);
