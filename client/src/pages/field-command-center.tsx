@@ -75,10 +75,13 @@ function ConnectionStatusBadge({ status, pendingCount }: { status: ConnectionSta
     );
   }
   if (status === "offline" || pendingCount > 0) {
+    const isActuallyOffline = status === "offline";
     return (
-      <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-red-500/10 text-red-600 text-xs font-medium">
-        <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-        Offline{pendingCount > 0 ? ` (${pendingCount} queued)` : ""}
+      <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+        isActuallyOffline ? 'bg-red-500/10 text-red-600' : 'bg-yellow-500/10 text-yellow-600'
+      }`}>
+        <div className={`w-2 h-2 rounded-full animate-pulse ${isActuallyOffline ? 'bg-red-500' : 'bg-yellow-500'}`} />
+        {isActuallyOffline ? 'Offline' : 'Syncing'}{pendingCount > 0 ? ` (${pendingCount} queued)` : ""}
       </div>
     );
   }

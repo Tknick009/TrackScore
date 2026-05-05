@@ -319,10 +319,15 @@ export function useOfflineMarkQueue(sessionId: number | null) {
     return () => clearInterval(interval);
   }, [connectionStatus, checkConnection, syncQueuedMarks]);
 
-  // Load pending count on mount
+  // Load pending count on mount and sync any leftover marks from previous session
   useEffect(() => {
-    getUnsynced().then(marks => setPendingCount(marks.length)).catch(() => {});
-  }, []);
+    getUnsynced().then(marks => {
+      setPendingCount(marks.length);
+      if (marks.length > 0 && sessionId) {
+        syncQueuedMarks();
+      }
+    }).catch(() => {});
+  }, [sessionId]);
 
   return {
     connectionStatus,
