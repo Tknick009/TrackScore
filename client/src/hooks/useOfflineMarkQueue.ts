@@ -179,12 +179,12 @@ export function useOfflineMarkQueue(sessionId: number | null) {
   // Sync all queued marks to server
   const syncQueuedMarks = useCallback(async () => {
     if (syncingRef.current || !sessionId) return;
+    syncingRef.current = true;
     
     try {
       const unsynced = await getUnsynced();
       if (unsynced.length === 0) return;
 
-      syncingRef.current = true;
       setIsSyncing(true);
       
       // Sort by queuedAt to maintain order
