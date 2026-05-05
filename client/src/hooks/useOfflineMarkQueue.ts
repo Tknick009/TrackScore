@@ -320,7 +320,7 @@ export function useOfflineMarkQueue(sessionId: number | null) {
   return {
     connectionStatus,
     pendingCount,
-    isSyncing,
+    isSyncing: syncingRef.current,
     queueMark,
     syncQueuedMarks,
     cacheSession,
