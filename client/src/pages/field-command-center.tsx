@@ -43,6 +43,8 @@ import {
   LogOut,
   Activity,
   Send,
+  ArrowLeft,
+  Plus,
 } from "lucide-react";
 import type {
   FieldEventSession,
@@ -910,49 +912,54 @@ export default function FieldCommandCenter() {
 
   return (
     <div className="flex flex-col h-screen bg-slate-950 text-slate-100">
-      {/* PERSISTENT EVENT TABS BAR */}
+      {/* EVENT HEADER BAR */}
       <div className="bg-slate-900 border-b border-slate-800 shrink-0">
         <div className="flex items-center">
-          {/* Event tabs */}
-          <div className="flex-1 overflow-x-auto">
-            <div className="flex items-stretch min-w-max">
-              {openTabs.map((tabSessionId) => {
-                const isActive = tabSessionId === activeSessionId;
-                const name = getSessionName(tabSessionId);
-                return (
-                  <div
-                    key={tabSessionId}
-                    className={`group flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 border-r border-slate-800 cursor-pointer transition-colors ${
-                      isActive
-                        ? "bg-slate-950 border-b-2 border-b-emerald-500 font-semibold text-emerald-400"
-                        : "hover:bg-slate-800/50 text-slate-400"
-                    }`}
-                    onClick={() => {
-                      setActiveSessionId(tabSessionId);
-                      sessionStorage.setItem(SESSION_STORAGE_KEY, String(tabSessionId));
-                    }}
-                  >
-                    <span className="text-xs sm:text-sm truncate max-w-[120px] sm:max-w-[200px]">{name}</span>
+          {/* Return to events + current event name */}
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <button
+              className="flex items-center gap-1.5 px-3 sm:px-4 py-2.5 text-xs sm:text-sm text-slate-400 hover:text-emerald-400 transition-colors shrink-0"
+              onClick={() => {
+                setOpenTabs([]);
+                setActiveSessionId(null);
+                sessionStorage.removeItem(SESSION_STORAGE_KEY);
+              }}
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Return to Events</span>
+              <span className="sm:hidden">Back</span>
+            </button>
+
+            {openTabs.length > 1 && (
+              <div className="flex items-center gap-0.5 border-l border-slate-800 pl-2 overflow-x-auto">
+                {openTabs.map((tabSessionId) => {
+                  const isActive = tabSessionId === activeSessionId;
+                  const name = getSessionName(tabSessionId);
+                  return (
                     <button
-                      className="opacity-0 group-hover:opacity-100 hover:text-red-400 transition-opacity p-0.5 rounded"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        closeTab(tabSessionId);
+                      key={tabSessionId}
+                      className={`px-2.5 py-1 rounded text-[11px] transition-colors whitespace-nowrap ${
+                        isActive
+                          ? "bg-emerald-500/15 text-emerald-400 font-semibold"
+                          : "text-slate-500 hover:text-slate-300 hover:bg-slate-800/50"
+                      }`}
+                      onClick={() => {
+                        setActiveSessionId(tabSessionId);
+                        sessionStorage.setItem(SESSION_STORAGE_KEY, String(tabSessionId));
                       }}
                     >
-                      <X className="h-3 w-3" />
+                      {name}
                     </button>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
+            )}
 
-              {/* "+" button to add more event tabs */}
-              <DropdownAddTab
-                allSessions={allSessions || []}
-                openTabs={openTabs}
-                onAdd={openSession}
-              />
-            </div>
+            {openTabs.length === 1 && (
+              <span className="text-sm font-semibold text-emerald-400 truncate">
+                {getSessionName(activeSessionId!)}
+              </span>
+            )}
           </div>
 
           {/* Action buttons - always visible */}

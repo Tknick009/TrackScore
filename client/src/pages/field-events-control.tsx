@@ -63,9 +63,13 @@ import {
   CheckCircle2,
   Clock,
   Zap,
+  Ruler,
+  ChevronDown,
+  ChevronUp,
+  X as XIcon,
 
 } from "lucide-react";
-import type { ExternalScoreboard, InsertExternalScoreboard, FieldEventSession } from "@shared/schema";
+import type { ExternalScoreboard, InsertExternalScoreboard, FieldEventSession, FieldHeight } from "@shared/schema";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -749,6 +753,8 @@ function StatCard({
 function EventCard({ session }: { session: FieldEventSession }) {
   const { toast } = useToast();
   const [isSending, setIsSending] = useState(false);
+  const [showHeights, setShowHeights] = useState(false);
+  const [newHeight, setNewHeight] = useState("");
 
   const handleSendResults = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -835,6 +841,17 @@ function EventCard({ session }: { session: FieldEventSession }) {
         )}
       </div>
 
+      {/* Vertical heights progression */}
+      {eventType === "vertical" && (
+        <VerticalHeightsSection
+          sessionId={session.id}
+          showHeights={showHeights}
+          setShowHeights={setShowHeights}
+          newHeight={newHeight}
+          setNewHeight={setNewHeight}
+        />
+      )}
+
       {/* Send Results button */}
       <div className="mt-3 pt-3 border-t border-slate-700/50">
         <Button
@@ -848,6 +865,126 @@ function EventCard({ session }: { session: FieldEventSession }) {
           Send Results
         </Button>
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Vertical Heights Section (inline in event card)
+// ---------------------------------------------------------------------------
+
+function VerticalHeightsSection({
+  sessionId,
+  showHeights,
+  setShowHeights,
+  newHeight,
+  setNewHeight,
+}: {
+  sessionId: number;
+  showHeights: boolean;
+  setShowHeights: (v: boolean) => void;
+  newHeight: string;
+  setNewHeight: (v: string) => void;
+}) {
+  const { toast } = useToast();
+
+  const { data: heights = [], isLoading } = useQuery<FieldHeight[]>({
+    queryKey: ["/api/field-sessions", sessionId, "heights"],
+    enabled: showHeights,
+  });
+
+  const sortedHeights = [...heights].sort((a, b) => a.heightIndex - b.heightIndex);
+
+  const handleAddHeight = async () => {
+    const val = parseFloat(newHeight);
+    if (isNaN(val) || val <= 0) {
+      toast({ title: "Enter a valid height", variant: "destructive" });
+      return;
+    }
+    const maxIndex = heights.length > 0 ? Math.max(...heights.map(h => h.heightIndex)) : -1;
+    try {
+      await apiRequest("POST", `/api/field-sessions/${sessionId}/heights`, {
+        heightMeters: val,
+        heightIndex: maxIndex + 1,
+        isActive: true,
+        isJumpOff: false,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "heights"] });
+      setNewHeight("");
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Failed to add height";
+      toast({ title: msg, variant: "destructive" });
+    }
+  };
+
+  const handleDeleteHeight = async (heightId: number) => {
+    try {
+      await apiRequest("DELETE", `/api/field-heights/${heightId}`);
+      queryClient.invalidateQueries({ queryKey: ["/api/field-sessions", sessionId, "heights"] });
+    } catch {
+      toast({ title: "Failed to delete height", variant: "destructive" });
+    }
+  };
+
+  return (
+    <div className="mt-3 pt-3 border-t border-slate-700/50">
+      <button
+        className="flex items-center justify-between w-full text-[11px] text-violet-400 hover:text-violet-300 transition-colors"
+        onClick={() => setShowHeights(!showHeights)}
+      >
+        <span className="flex items-center gap-1.5">
+          <Ruler className="h-3 w-3" />
+          Height Progression {sortedHeights.length > 0 && `(${sortedHeights.length})`}
+        </span>
+        {showHeights ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+      </button>
+
+      {showHeights && (
+        <div className="mt-2 space-y-2">
+          {isLoading ? (
+            <div className="flex justify-center py-2"><Loader2 className="h-4 w-4 animate-spin text-slate-400" /></div>
+          ) : (
+            <>
+              {sortedHeights.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {sortedHeights.map((h) => (
+                    <span
+                      key={h.id}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-300 text-[10px] font-mono"
+                    >
+                      {h.heightMeters.toFixed(2)}m
+                      <button
+                        onClick={() => handleDeleteHeight(h.id)}
+                        className="hover:text-red-400 transition-colors"
+                      >
+                        <XIcon className="h-2.5 w-2.5" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-1.5">
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={newHeight}
+                  onChange={(e) => setNewHeight(e.target.value)}
+                  placeholder="Height (m)"
+                  className="h-7 text-[11px] bg-slate-800 border-slate-700 text-slate-200 flex-1"
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddHeight()}
+                />
+                <Button
+                  size="sm"
+                  className="h-7 px-2 text-[10px] bg-violet-600 hover:bg-violet-500"
+                  onClick={handleAddHeight}
+                >
+                  <Plus className="h-3 w-3" />
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
