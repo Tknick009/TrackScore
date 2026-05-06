@@ -1,9 +1,6 @@
 /**
- * Field Events — professional dashboard for managing field event sessions,
- * EVT configuration, and external scoreboard connections.
- *
- * This page lives inside the main app layout (sidebar visible).
- * Officials open the Officiate view (field-command) from here.
+ * Field Events Dashboard — dark-themed professional timing interface.
+ * Designed to feel like AthleticFIELD / professional sports management software.
  */
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -12,17 +9,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 
 import { Separator } from "@/components/ui/separator";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
@@ -49,10 +37,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
 import {
   Loader2,
   Save,
@@ -65,12 +55,15 @@ import {
   Play,
   Square,
   Send,
-  ChevronDown,
-  ChevronRight,
   Settings2,
-  Wifi,
-  WifiOff,
+
   Wind,
+  Activity,
+  Users,
+  CheckCircle2,
+  Clock,
+  Zap,
+
 } from "lucide-react";
 import type { ExternalScoreboard, InsertExternalScoreboard, FieldEventSession } from "@shared/schema";
 
@@ -111,35 +104,27 @@ const emptyScoreboardForm: ScoreboardFormData = {
 };
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Event type detection helpers
 // ---------------------------------------------------------------------------
 
-function StatusDot({ status }: { status: string | null }) {
-  const colors: Record<string, string> = {
-    in_progress: "bg-emerald-500",
-    completed: "bg-slate-400",
-    check_in: "bg-amber-500",
-    setup: "bg-blue-400",
-  };
-  const color = colors[status || "setup"] || colors.setup;
-  return (
-    <span className="relative flex h-2.5 w-2.5">
-      {status === "in_progress" && (
-        <span className={`absolute inline-flex h-full w-full animate-ping rounded-full ${color} opacity-75`} />
-      )}
-      <span className={`relative inline-flex h-2.5 w-2.5 rounded-full ${color}`} />
-    </span>
-  );
+function getEventType(name: string): "horizontal" | "vertical" | "unknown" {
+  const n = name.toLowerCase();
+  if (/high\s*jump|hj|pole\s*vault|pv/.test(n)) return "vertical";
+  if (/long\s*jump|lj|triple\s*jump|tj|shot\s*put|sp|discus|disc|javelin|jav|hammer|weight\s*throw|wt/.test(n)) return "horizontal";
+  return "unknown";
 }
 
-function StatusLabel({ status }: { status: string | null }) {
-  const labels: Record<string, string> = {
-    in_progress: "Live",
-    completed: "Complete",
-    check_in: "Check-In",
-    setup: "Setup",
-  };
-  return <span className="text-xs capitalize">{labels[status || "setup"] || "Setup"}</span>;
+function getEventEmoji(name: string): string {
+  const n = name.toLowerCase();
+  if (/shot\s*put|sp/.test(n)) return "🏋️";
+  if (/discus|disc/.test(n)) return "🥏";
+  if (/javelin|jav/.test(n)) return "🪃";
+  if (/hammer|weight/.test(n)) return "⚒️";
+  if (/high\s*jump|hj/.test(n)) return "⬆️";
+  if (/pole\s*vault|pv/.test(n)) return "📐";
+  if (/long\s*jump|lj/.test(n)) return "➡️";
+  if (/triple\s*jump|tj/.test(n)) return "🔄";
+  return "🎯";
 }
 
 // ---------------------------------------------------------------------------
@@ -156,14 +141,15 @@ export default function FieldEventsControl() {
   const [finalists, setFinalists] = useState(8);
   const [finalsAttempts, setFinalsAttempts] = useState(3);
   const [isSaving, setIsSaving] = useState(false);
-  const [configOpen, setConfigOpen] = useState(false);
+
+  // Settings drawer
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Scoreboard state
   const [sbModalOpen, setSbModalOpen] = useState(false);
   const [editingSb, setEditingSb] = useState<ExternalScoreboard | null>(null);
   const [deletingSb, setDeletingSb] = useState<ExternalScoreboard | null>(null);
   const [sbForm, setSbForm] = useState<ScoreboardFormData>(emptyScoreboardForm);
-  const [scoreboardsOpen, setScoreboardsOpen] = useState(false);
 
   // -----------------------------------------------------------------------
   // Queries
@@ -253,9 +239,7 @@ export default function FieldEventsControl() {
       queryClient.invalidateQueries({ queryKey: ["/api/field-sessions"] });
       toast({
         title: "Configuration saved",
-        description: result.updatedSessions > 0
-          ? `Updated ${result.updatedSessions} session(s).`
-          : undefined,
+        description: result.updatedSessions > 0 ? `Updated ${result.updatedSessions} session(s).` : undefined,
       });
     } catch (err: any) {
       toast({ title: "Save failed", description: err.message, variant: "destructive" });
@@ -346,11 +330,15 @@ export default function FieldEventsControl() {
 
   const sbSubmitting = createSb.isPending || updateSb.isPending;
 
-  const getSessionName = (id: number | null) => {
-    if (!id) return "—";
-    const s = sessions.find((x) => x.id === id);
-    return s?.evtEventName || `#${id}`;
-  };
+  // -----------------------------------------------------------------------
+  // Computed
+  // -----------------------------------------------------------------------
+
+  const liveSessions = sessions.filter((s) => s.status === "in_progress");
+  const checkInSessions = sessions.filter((s) => s.status === "check_in");
+  const completedSessions = sessions.filter((s) => s.status === "completed");
+  const setupSessions = sessions.filter((s) => s.status === "setup" || !s.status);
+  const activeSb = scoreboards.filter((s) => s.isActive);
 
   // -----------------------------------------------------------------------
   // Render
@@ -358,292 +346,295 @@ export default function FieldEventsControl() {
 
   if (configLoading) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      <div className="h-full flex items-center justify-center bg-slate-950">
+        <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
       </div>
     );
   }
 
-  const liveSessions = sessions.filter((s) => s.status === "in_progress");
-  const activeSb = scoreboards.filter((s) => s.isActive);
-
   return (
-    <div className="p-6 space-y-6 max-w-6xl mx-auto">
-      {/* ── Header ──────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Field Events</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {sessions.length} session{sessions.length !== 1 ? "s" : ""}
-            {liveSessions.length > 0 && <> · <span className="text-emerald-600 font-medium">{liveSessions.length} live</span></>}
-            {activeSb.length > 0 && <> · {activeSb.length} scoreboard{activeSb.length !== 1 ? "s" : ""} active</>}
-          </p>
+    <div className="min-h-screen bg-slate-950 text-slate-100">
+      {/* ═══════════════════════════════════════════════════════════════════
+          TOP BAR
+          ═══════════════════════════════════════════════════════════════════ */}
+      <div className="border-b border-slate-800 bg-slate-900/80 backdrop-blur-sm sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+              <Activity className="h-4 w-4 text-emerald-400" />
+            </div>
+            <div>
+              <h1 className="text-base font-semibold text-slate-100 leading-tight">Field Events</h1>
+              <p className="text-[11px] text-slate-500 leading-tight">
+                {sessions.length === 0 ? "No sessions" : `${sessions.length} event${sessions.length !== 1 ? "s" : ""} loaded`}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="bg-transparent border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+              onClick={() => setSettingsOpen(true)}
+            >
+              <Settings2 className="h-3.5 w-3.5 mr-1.5" />
+              Settings
+            </Button>
+            <Button
+              size="sm"
+              className="bg-emerald-600 hover:bg-emerald-500 text-white"
+              onClick={() => window.open("/field-command", "_blank")}
+            >
+              <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+              Officiate
+            </Button>
+          </div>
         </div>
-        <Button onClick={() => window.open("/field-command", "_blank")} data-testid="button-officiate">
-          <ExternalLink className="h-4 w-4 mr-2" />
-          Officiate
-        </Button>
       </div>
 
-      {/* ── Sessions Table ──────────────────────────────────────── */}
-      <div className="border rounded-lg">
-        <div className="px-4 py-3 border-b bg-muted/30">
-          <h2 className="text-sm font-medium">Event Sessions</h2>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5 space-y-5">
+        {/* ═══════════════════════════════════════════════════════════════
+            STAT CARDS
+            ═══════════════════════════════════════════════════════════════ */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <StatCard
+            label="Live"
+            value={liveSessions.length}
+            icon={<Zap className="h-4 w-4" />}
+            color="emerald"
+            pulse={liveSessions.length > 0}
+          />
+          <StatCard
+            label="Check-In"
+            value={checkInSessions.length}
+            icon={<Users className="h-4 w-4" />}
+            color="amber"
+          />
+          <StatCard
+            label="Setup"
+            value={setupSessions.length}
+            icon={<Clock className="h-4 w-4" />}
+            color="blue"
+          />
+          <StatCard
+            label="Complete"
+            value={completedSessions.length}
+            icon={<CheckCircle2 className="h-4 w-4" />}
+            color="slate"
+          />
         </div>
+
+        {/* ═══════════════════════════════════════════════════════════════
+            SCOREBOARD STATUS BAR
+            ═══════════════════════════════════════════════════════════════ */}
+        {scoreboards.length > 0 && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-900 border border-slate-800">
+            <Monitor className="h-3.5 w-3.5 text-slate-500" />
+            <span className="text-xs text-slate-400">Scoreboards:</span>
+            {scoreboards.map((sb) => (
+              <span key={sb.id} className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${sb.isActive ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-slate-800 text-slate-500 border border-slate-700"}`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${sb.isActive ? "bg-emerald-400" : "bg-slate-600"}`} />
+                {sb.name}
+              </span>
+            ))}
+            <button
+              className="ml-auto text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
+              onClick={() => setSettingsOpen(true)}
+            >
+              Manage →
+            </button>
+          </div>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════
+            EVENT CARDS GRID
+            ═══════════════════════════════════════════════════════════════ */}
         {sessionsLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="h-6 w-6 animate-spin text-slate-500" />
           </div>
         ) : sessions.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            <p className="text-sm">No field event sessions.</p>
-            <p className="text-xs mt-1">Configure the EVT directory below to auto-provision from FinishLynx.</p>
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="h-16 w-16 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center mb-4">
+              <Activity className="h-8 w-8 text-slate-600" />
+            </div>
+            <h2 className="text-lg font-medium text-slate-300 mb-1">No Field Events</h2>
+            <p className="text-sm text-slate-500 max-w-md mb-4">
+              Configure your EVT directory in Settings to auto-provision events from FinishLynx, or sessions will appear here once created.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="bg-transparent border-slate-700 text-slate-300 hover:bg-slate-800"
+              onClick={() => setSettingsOpen(true)}
+            >
+              <Settings2 className="h-3.5 w-3.5 mr-1.5" />
+              Open Settings
+            </Button>
           </div>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="w-[40px]"></TableHead>
-                <TableHead>Event</TableHead>
-                <TableHead className="w-[80px]">Event #</TableHead>
-                <TableHead className="w-[90px]">Status</TableHead>
-                <TableHead className="w-[70px]">Wind</TableHead>
-                <TableHead className="w-[80px]">Unit</TableHead>
-                <TableHead className="w-[80px]">Access</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sessions.map((s) => (
-                <TableRow key={s.id}>
-                  <TableCell className="py-2.5">
-                    <StatusDot status={s.status} />
-                  </TableCell>
-                  <TableCell className="py-2.5 font-medium">
-                    {s.evtEventName || `Session #${s.id}`}
-                  </TableCell>
-                  <TableCell className="py-2.5 text-muted-foreground text-xs tabular-nums">
-                    {s.evtEventNumber || "—"}
-                  </TableCell>
-                  <TableCell className="py-2.5">
-                    <StatusLabel status={s.status} />
-                  </TableCell>
-                  <TableCell className="py-2.5">
-                    {s.recordWind ? (
-                      <Wind className="h-3.5 w-3.5 text-blue-500" />
-                    ) : (
-                      <span className="text-muted-foreground text-xs">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="py-2.5 text-xs text-muted-foreground">
-                    {s.measurementUnit === "english" ? "Imperial" : "Metric"}
-                  </TableCell>
-                  <TableCell className="py-2.5">
-                    {s.accessCode ? (
-                      <code className="text-[11px] font-mono bg-muted px-1.5 py-0.5 rounded">{s.accessCode}</code>
-                    ) : (
-                      <span className="text-muted-foreground text-xs">—</span>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {sessions.map((s) => (
+              <EventCard key={s.id} session={s} />
+            ))}
+          </div>
         )}
       </div>
 
-      {/* ── EVT Configuration (collapsible) ─────────────────────── */}
-      <Collapsible open={configOpen} onOpenChange={setConfigOpen}>
-        <div className="border rounded-lg">
-          <CollapsibleTrigger asChild>
-            <button className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors">
-              <div className="flex items-center gap-2">
-                <Settings2 className="h-4 w-4 text-muted-foreground" />
-                <h2 className="text-sm font-medium">EVT Configuration</h2>
-                {evtEvents.length > 0 && (
-                  <Badge variant="secondary" className="text-[10px] h-5">{evtEvents.length} EVT files</Badge>
-                )}
-              </div>
-              {configOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-            </button>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <Separator />
-            <div className="p-4 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* ═══════════════════════════════════════════════════════════════════
+          SETTINGS DRAWER
+          ═══════════════════════════════════════════════════════════════════ */}
+      <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <SheetContent className="bg-slate-900 border-slate-800 text-slate-100 w-full sm:max-w-lg overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="text-slate-100">Field Event Settings</SheetTitle>
+            <SheetDescription className="text-slate-400">EVT configuration and external scoreboard connections.</SheetDescription>
+          </SheetHeader>
+
+          <div className="mt-6 space-y-6">
+            {/* EVT Config */}
+            <section>
+              <h3 className="text-sm font-medium text-slate-200 mb-3 flex items-center gap-2">
+                <Settings2 className="h-4 w-4 text-slate-500" />
+                EVT Configuration
+              </h3>
+              <div className="space-y-3">
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">EVT Directory Path</Label>
+                  <Label className="text-xs text-slate-400">EVT Directory Path</Label>
                   <div className="flex gap-2">
                     <Input
                       placeholder="/path/to/lynx/evt"
                       value={evtDir}
                       onChange={(e) => setEvtDir(e.target.value)}
-                      className="text-sm"
-                      data-testid="input-evt-directory"
+                      className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600 text-sm"
                     />
-                    <Button variant="outline" size="icon" className="shrink-0" onClick={() => refetchEvt()} data-testid="button-refresh-evt">
+                    <Button variant="outline" size="icon" className="shrink-0 bg-transparent border-slate-700 text-slate-400 hover:bg-slate-800 hover:text-slate-200" onClick={() => refetchEvt()}>
                       <RefreshCw className="h-3.5 w-3.5" />
                     </Button>
                   </div>
+                  {evtEvents.length > 0 && (
+                    <p className="text-[11px] text-emerald-400">{evtEvents.length} EVT files detected</p>
+                  )}
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Results Directory (LFF Export)</Label>
+                  <Label className="text-xs text-slate-400">Results Directory (LFF Export)</Label>
                   <Input
                     placeholder="/path/to/results"
                     value={resultsDir}
                     onChange={(e) => setResultsDir(e.target.value)}
-                    className="text-sm"
-                    data-testid="input-results-directory"
+                    className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600 text-sm"
                   />
                 </div>
-              </div>
-
-              <div>
-                <Label className="text-xs text-muted-foreground mb-2 block">Horizontal Event Defaults</Label>
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-[11px] text-muted-foreground">Prelim Attempts</Label>
-                    <Input type="number" min={1} max={10} value={prelimAttempts} onChange={(e) => setPrelimAttempts(parseInt(e.target.value) || 3)} className="text-sm h-9" data-testid="input-prelim-attempts" />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-[11px] text-muted-foreground">To Finals</Label>
-                    <Input type="number" min={1} max={24} value={finalists} onChange={(e) => setFinalists(parseInt(e.target.value) || 8)} className="text-sm h-9" data-testid="input-finalists" />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-[11px] text-muted-foreground">Finals Attempts</Label>
-                    <Input type="number" min={1} max={10} value={finalsAttempts} onChange={(e) => setFinalsAttempts(parseInt(e.target.value) || 3)} className="text-sm h-9" data-testid="input-finals-attempts" />
+                <div>
+                  <Label className="text-xs text-slate-400 mb-2 block">Horizontal Event Defaults</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] text-slate-500 uppercase tracking-wider">Prelim</Label>
+                      <Input type="number" min={1} max={10} value={prelimAttempts} onChange={(e) => setPrelimAttempts(parseInt(e.target.value) || 3)} className="bg-slate-800 border-slate-700 text-slate-100 text-sm h-8" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] text-slate-500 uppercase tracking-wider">To Finals</Label>
+                      <Input type="number" min={1} max={24} value={finalists} onChange={(e) => setFinalists(parseInt(e.target.value) || 8)} className="bg-slate-800 border-slate-700 text-slate-100 text-sm h-8" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] text-slate-500 uppercase tracking-wider">Finals</Label>
+                      <Input type="number" min={1} max={10} value={finalsAttempts} onChange={(e) => setFinalsAttempts(parseInt(e.target.value) || 3)} className="bg-slate-800 border-slate-700 text-slate-100 text-sm h-8" />
+                    </div>
                   </div>
                 </div>
-              </div>
-
-              <div className="flex justify-end">
-                <Button size="sm" onClick={handleSaveConfig} disabled={isSaving} data-testid="button-save-evt-config">
-                  {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Save className="h-3.5 w-3.5 mr-1.5" />Save</>}
+                <Button size="sm" onClick={handleSaveConfig} disabled={isSaving} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white">
+                  {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Save className="h-3.5 w-3.5 mr-1.5" />}
+                  Save Configuration
                 </Button>
               </div>
-            </div>
-          </CollapsibleContent>
-        </div>
-      </Collapsible>
+            </section>
 
-      {/* ── External Scoreboards (collapsible) ─────────────────── */}
-      <Collapsible open={scoreboardsOpen} onOpenChange={setScoreboardsOpen}>
-        <div className="border rounded-lg">
-          <CollapsibleTrigger asChild>
-            <button className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors">
-              <div className="flex items-center gap-2">
-                <Monitor className="h-4 w-4 text-muted-foreground" />
-                <h2 className="text-sm font-medium">External Scoreboards</h2>
-                {scoreboards.length > 0 && (
-                  <Badge variant="secondary" className="text-[10px] h-5">
-                    {activeSb.length}/{scoreboards.length} active
-                  </Badge>
-                )}
+            <Separator className="bg-slate-800" />
+
+            {/* External Scoreboards */}
+            <section>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-medium text-slate-200 flex items-center gap-2">
+                  <Monitor className="h-4 w-4 text-slate-500" />
+                  External Scoreboards
+                </h3>
+                <Button variant="outline" size="sm" className="h-7 bg-transparent border-slate-700 text-slate-400 hover:bg-slate-800 hover:text-slate-200 text-xs" onClick={openCreateSb} disabled={scoreboards.length >= 20}>
+                  <Plus className="h-3 w-3 mr-1" />Add
+                </Button>
               </div>
-              {scoreboardsOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-            </button>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <Separator />
-            <div className="p-4">
+
               {sbLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 className="h-4 w-4 animate-spin text-slate-500" />
                 </div>
               ) : scoreboards.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-sm text-muted-foreground">No scoreboards configured.</p>
-                  <Button variant="outline" size="sm" className="mt-3" onClick={openCreateSb}>
-                    <Plus className="h-3.5 w-3.5 mr-1.5" />Add Scoreboard
-                  </Button>
+                <div className="text-center py-6 text-sm text-slate-500">
+                  No scoreboards configured.
                 </div>
               ) : (
-                <>
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="hover:bg-transparent">
-                        <TableHead>Name</TableHead>
-                        <TableHead>Target</TableHead>
-                        <TableHead>Session</TableHead>
-                        <TableHead className="w-[80px]">Status</TableHead>
-                        <TableHead className="w-[140px] text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {scoreboards.map((sb) => (
-                        <TableRow key={sb.id}>
-                          <TableCell className="py-2 font-medium text-sm">{sb.name}</TableCell>
-                          <TableCell className="py-2 text-xs text-muted-foreground font-mono">{sb.targetIp}:{sb.targetPort}</TableCell>
-                          <TableCell className="py-2 text-xs text-muted-foreground">{getSessionName(sb.sessionId)}</TableCell>
-                          <TableCell className="py-2">
-                            {sb.isActive ? (
-                              <span className="inline-flex items-center gap-1.5 text-xs text-emerald-600 font-medium">
-                                <Wifi className="h-3 w-3" />On
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                                <WifiOff className="h-3 w-3" />Off
-                              </span>
-                            )}
-                          </TableCell>
-                          <TableCell className="py-2 text-right">
-                            <div className="inline-flex items-center gap-0.5">
-                              {sb.isActive ? (
-                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => stopSb.mutate(sb.id)} title="Stop"><Square className="h-3 w-3" /></Button>
-                              ) : (
-                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => startSb.mutate(sb.id)} title="Start"><Play className="h-3 w-3" /></Button>
-                              )}
-                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => sendSb.mutate(sb.id)} title="Send"><Send className="h-3 w-3" /></Button>
-                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditSb(sb)} title="Edit"><Pencil className="h-3 w-3" /></Button>
-                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setDeletingSb(sb)} title="Delete"><Trash2 className="h-3 w-3" /></Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                  <div className="mt-3 flex justify-end">
-                    <Button variant="outline" size="sm" onClick={openCreateSb} disabled={scoreboards.length >= 20}>
-                      <Plus className="h-3.5 w-3.5 mr-1.5" />Add
-                    </Button>
-                  </div>
-                </>
+                <div className="space-y-2">
+                  {scoreboards.map((sb) => (
+                    <div key={sb.id} className="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/50 border border-slate-700/50">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className={`h-2 w-2 rounded-full ${sb.isActive ? "bg-emerald-400" : "bg-slate-600"}`} />
+                          <span className="text-sm font-medium text-slate-200 truncate">{sb.name}</span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 font-mono mt-0.5 ml-4">{sb.targetIp}:{sb.targetPort}</p>
+                      </div>
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        {sb.isActive ? (
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-red-400 hover:bg-red-500/10" onClick={() => stopSb.mutate(sb.id)} title="Stop"><Square className="h-3 w-3" /></Button>
+                        ) : (
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/10" onClick={() => startSb.mutate(sb.id)} title="Start"><Play className="h-3 w-3" /></Button>
+                        )}
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10" onClick={() => sendSb.mutate(sb.id)} title="Send"><Send className="h-3 w-3" /></Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-slate-200" onClick={() => openEditSb(sb)} title="Edit"><Pencil className="h-3 w-3" /></Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-red-400" onClick={() => setDeletingSb(sb)} title="Delete"><Trash2 className="h-3 w-3" /></Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
-            </div>
-          </CollapsibleContent>
-        </div>
-      </Collapsible>
+            </section>
+          </div>
+        </SheetContent>
+      </Sheet>
 
-      {/* ── Scoreboard Create/Edit Dialog ────────────────────────── */}
+      {/* ═══════════════════════════════════════════════════════════════════
+          SCOREBOARD CREATE / EDIT DIALOG
+          ═══════════════════════════════════════════════════════════════════ */}
       <Dialog open={sbModalOpen} onOpenChange={(open) => !open && closeSbModal()}>
-        <DialogContent>
+        <DialogContent className="bg-slate-900 border-slate-700 text-slate-100">
           <DialogHeader>
-            <DialogTitle>{editingSb ? "Edit Scoreboard" : "Add Scoreboard"}</DialogTitle>
-            <DialogDescription>Configure an LSS output connection for field event data.</DialogDescription>
+            <DialogTitle className="text-slate-100">{editingSb ? "Edit Scoreboard" : "Add Scoreboard"}</DialogTitle>
+            <DialogDescription className="text-slate-400">Configure an LSS output connection for field event data.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label className="text-xs">Name *</Label>
-              <Input placeholder="e.g. High Jump Display" value={sbForm.name} onChange={(e) => setSbForm({ ...sbForm, name: e.target.value })} className="text-sm" data-testid="input-scoreboard-name" />
+              <Label className="text-xs text-slate-400">Name *</Label>
+              <Input placeholder="e.g. High Jump Display" value={sbForm.name} onChange={(e) => setSbForm({ ...sbForm, name: e.target.value })} className="bg-slate-800 border-slate-700 text-slate-100 text-sm" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">LSS Directory</Label>
-              <Input placeholder="/path/to/lss" value={sbForm.lssDirectory} onChange={(e) => setSbForm({ ...sbForm, lssDirectory: e.target.value })} className="text-sm" data-testid="input-lss-directory" />
+              <Label className="text-xs text-slate-400">LSS Directory</Label>
+              <Input placeholder="/path/to/lss" value={sbForm.lssDirectory} onChange={(e) => setSbForm({ ...sbForm, lssDirectory: e.target.value })} className="bg-slate-800 border-slate-700 text-slate-100 text-sm" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-xs">Target IP *</Label>
-                <Input placeholder="192.168.1.100" value={sbForm.targetIp} onChange={(e) => setSbForm({ ...sbForm, targetIp: e.target.value })} className="text-sm" data-testid="input-target-ip" />
+                <Label className="text-xs text-slate-400">Target IP *</Label>
+                <Input placeholder="192.168.1.100" value={sbForm.targetIp} onChange={(e) => setSbForm({ ...sbForm, targetIp: e.target.value })} className="bg-slate-800 border-slate-700 text-slate-100 text-sm" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Target Port *</Label>
-                <Input type="number" placeholder="5000" min={1} max={65535} value={sbForm.targetPort} onChange={(e) => setSbForm({ ...sbForm, targetPort: e.target.value })} className="text-sm" data-testid="input-target-port" />
+                <Label className="text-xs text-slate-400">Target Port *</Label>
+                <Input type="number" placeholder="5000" min={1} max={65535} value={sbForm.targetPort} onChange={(e) => setSbForm({ ...sbForm, targetPort: e.target.value })} className="bg-slate-800 border-slate-700 text-slate-100 text-sm" />
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Field Event Session</Label>
+              <Label className="text-xs text-slate-400">Field Event Session</Label>
               <Select value={sbForm.sessionId || "none"} onValueChange={(v) => setSbForm({ ...sbForm, sessionId: v === "none" ? "" : v })}>
-                <SelectTrigger className="text-sm" data-testid="select-session"><SelectValue placeholder="None" /></SelectTrigger>
-                <SelectContent>
+                <SelectTrigger className="bg-slate-800 border-slate-700 text-slate-100 text-sm"><SelectValue placeholder="None" /></SelectTrigger>
+                <SelectContent className="bg-slate-800 border-slate-700">
                   <SelectItem value="none">None</SelectItem>
                   {sessions.map((s) => (
                     <SelectItem key={s.id} value={String(s.id)}>{s.evtEventName || `Session #${s.id}`}</SelectItem>
@@ -652,14 +643,14 @@ export default function FieldEventsControl() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Follow Device</Label>
-              <Input placeholder="e.g. Throws" value={sbForm.followDeviceName} onChange={(e) => setSbForm({ ...sbForm, followDeviceName: e.target.value })} className="text-sm" data-testid="input-follow-device" />
-              <p className="text-[11px] text-muted-foreground">Leave empty for all devices.</p>
+              <Label className="text-xs text-slate-400">Follow Device</Label>
+              <Input placeholder="e.g. Throws" value={sbForm.followDeviceName} onChange={(e) => setSbForm({ ...sbForm, followDeviceName: e.target.value })} className="bg-slate-800 border-slate-700 text-slate-100 text-sm" />
+              <p className="text-[11px] text-slate-500">Leave empty for all devices.</p>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" size="sm" onClick={closeSbModal}>Cancel</Button>
-            <Button size="sm" onClick={handleSbSubmit} disabled={sbSubmitting}>
+            <Button variant="outline" size="sm" className="bg-transparent border-slate-700 text-slate-300 hover:bg-slate-800" onClick={closeSbModal}>Cancel</Button>
+            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-500 text-white" onClick={handleSbSubmit} disabled={sbSubmitting}>
               {sbSubmitting && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
               {editingSb ? "Save" : "Create"}
             </Button>
@@ -667,21 +658,164 @@ export default function FieldEventsControl() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Delete Confirmation ──────────────────────────────────── */}
+      {/* ═══════════════════════════════════════════════════════════════════
+          DELETE CONFIRMATION
+          ═══════════════════════════════════════════════════════════════════ */}
       <AlertDialog open={deletingSb !== null} onOpenChange={(open) => !open && setDeletingSb(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="bg-slate-900 border-slate-700 text-slate-100">
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete "{deletingSb?.name}"?</AlertDialogTitle>
-            <AlertDialogDescription>This will permanently remove the scoreboard connection.</AlertDialogDescription>
+            <AlertDialogTitle className="text-slate-100">Delete "{deletingSb?.name}"?</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-400">This will permanently remove the scoreboard connection.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => deletingSb && deleteSb.mutate(deletingSb.id)} disabled={deleteSb.isPending}>
+            <AlertDialogCancel className="bg-transparent border-slate-700 text-slate-300 hover:bg-slate-800">Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-red-600 hover:bg-red-500 text-white" onClick={() => deletingSb && deleteSb.mutate(deletingSb.id)} disabled={deleteSb.isPending}>
               {deleteSb.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Stat Card
+// ---------------------------------------------------------------------------
+
+function StatCard({
+  label,
+  value,
+  icon,
+  color,
+  pulse,
+}: {
+  label: string;
+  value: number;
+  icon: React.ReactNode;
+  color: "emerald" | "amber" | "blue" | "slate";
+  pulse?: boolean;
+}) {
+  const colorMap = {
+    emerald: {
+      bg: "bg-emerald-500/5 border-emerald-500/20",
+      icon: "text-emerald-400 bg-emerald-500/10",
+      value: "text-emerald-400",
+    },
+    amber: {
+      bg: "bg-amber-500/5 border-amber-500/20",
+      icon: "text-amber-400 bg-amber-500/10",
+      value: "text-amber-400",
+    },
+    blue: {
+      bg: "bg-blue-500/5 border-blue-500/20",
+      icon: "text-blue-400 bg-blue-500/10",
+      value: "text-blue-400",
+    },
+    slate: {
+      bg: "bg-slate-500/5 border-slate-500/20",
+      icon: "text-slate-400 bg-slate-500/10",
+      value: "text-slate-400",
+    },
+  };
+
+  const c = colorMap[color];
+
+  return (
+    <div className={`relative rounded-xl border p-3 ${c.bg}`}>
+      {pulse && value > 0 && (
+        <span className="absolute top-2.5 right-2.5 flex h-2 w-2">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+        </span>
+      )}
+      <div className="flex items-center gap-2.5">
+        <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${c.icon}`}>
+          {icon}
+        </div>
+        <div>
+          <p className={`text-xl font-bold tabular-nums leading-none ${c.value}`}>{value}</p>
+          <p className="text-[11px] text-slate-500 mt-0.5">{label}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Event Card
+// ---------------------------------------------------------------------------
+
+function EventCard({ session }: { session: FieldEventSession }) {
+  const statusConfig: Record<string, { label: string; color: string; bg: string; border: string }> = {
+    in_progress: {
+      label: "LIVE",
+      color: "text-emerald-400",
+      bg: "bg-emerald-500/10",
+      border: "border-emerald-500/30",
+    },
+    check_in: {
+      label: "CHECK-IN",
+      color: "text-amber-400",
+      bg: "bg-amber-500/10",
+      border: "border-amber-500/30",
+    },
+    setup: {
+      label: "SETUP",
+      color: "text-blue-400",
+      bg: "bg-blue-500/10",
+      border: "border-blue-500/30",
+    },
+    completed: {
+      label: "COMPLETE",
+      color: "text-slate-400",
+      bg: "bg-slate-500/10",
+      border: "border-slate-500/30",
+    },
+  };
+
+  const status = statusConfig[session.status || "setup"] || statusConfig.setup;
+  const name = session.evtEventName || `Session #${session.id}`;
+  const eventType = getEventType(name);
+
+  return (
+    <div className={`rounded-xl border ${status.border} ${status.bg} p-4 transition-all hover:scale-[1.01] hover:shadow-lg hover:shadow-black/20`}>
+      {/* Top row: emoji + name + status */}
+      <div className="flex items-start justify-between gap-2 mb-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className="text-xl leading-none">{getEventEmoji(name)}</span>
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-slate-100 truncate">{name}</h3>
+            {session.evtEventNumber && (
+              <p className="text-[11px] text-slate-500 font-mono">Event #{session.evtEventNumber}</p>
+            )}
+          </div>
+        </div>
+        <span className={`shrink-0 text-[10px] font-bold tracking-wider px-2 py-0.5 rounded-full ${status.color} ${status.bg} border ${status.border}`}>
+          {status.label}
+        </span>
+      </div>
+
+      {/* Meta row */}
+      <div className="flex items-center gap-3 text-[11px] text-slate-500">
+        <span className="capitalize">{eventType}</span>
+        <span>·</span>
+        <span>{session.measurementUnit === "english" ? "Imperial" : "Metric"}</span>
+        {session.recordWind && (
+          <>
+            <span>·</span>
+            <span className="inline-flex items-center gap-0.5 text-blue-400">
+              <Wind className="h-3 w-3" />Wind
+            </span>
+          </>
+        )}
+        {session.accessCode && (
+          <>
+            <span>·</span>
+            <code className="font-mono text-slate-400">{session.accessCode}</code>
+          </>
+        )}
+      </div>
     </div>
   );
 }
