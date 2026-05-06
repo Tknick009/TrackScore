@@ -384,7 +384,7 @@ export default function FieldEventsControl() {
             <Button
               size="sm"
               className="bg-emerald-600 hover:bg-emerald-500 text-white"
-              onClick={() => window.open("/field-command", "_blank")}
+              onClick={() => window.open("/Officiate", "_blank")}
             >
               <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
               Officiate

@@ -142,7 +142,7 @@ function Router() {
       <Route path="/preset-display/:templateId" component={PresetDisplay} />
       <Route path="/display" component={DisplayDevice} />
       <Route path="/field-app" component={FieldApp} />
-      <Route path="/field-command" component={FieldCommandCenter} />
+      <Route path="/Officiate" component={FieldCommandCenter} />
       <Route path="/field/:accessCode" component={FieldOfficialPage} />
       <Route path="/field" component={FieldOfficialPage} />
       <Route path="/lap-counter/display" component={LapCounterDisplay} />

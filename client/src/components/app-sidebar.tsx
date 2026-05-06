@@ -40,7 +40,7 @@ export function AppSidebar() {
   ];
 
   // Officiate opens in a new tab (full-screen for tablet use)
-  const officiateHref = '/field-command';
+  const officiateHref = '/Officiate';
 
   return (
     <Sidebar>
