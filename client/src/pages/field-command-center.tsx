@@ -88,13 +88,17 @@ function JoinSession({ onJoin }: { onJoin: (sessionId: number) => void }) {
     onJoin(sessionId);
   };
 
-  const getEventEmoji = (name: string) => {
+  const getEventBadge = (name: string): { abbr: string; color: string } => {
     const n = name.toLowerCase();
-    if (n.includes('high jump') || n.includes('pole vault') || n.includes('hj') || n.includes('pv')) return '⬆️';
-    if (n.includes('long jump') || n.includes('triple jump') || n.includes('lj') || n.includes('tj')) return '🔄';
-    if (n.includes('shot') || n.includes('hammer') || n.includes('weight') || n.includes('sp') || n.includes('ht') || n.includes('wt')) return '🏋️';
-    if (n.includes('discus') || n.includes('javelin') || n.includes('dt') || n.includes('jt')) return '🥏';
-    return '🏟️';
+    if (/shot\s*put|sp/.test(n)) return { abbr: "SP", color: "bg-orange-600" };
+    if (/discus|disc/.test(n)) return { abbr: "DT", color: "bg-blue-600" };
+    if (/javelin|jav/.test(n)) return { abbr: "JT", color: "bg-red-600" };
+    if (/hammer|weight/.test(n)) return { abbr: "HT", color: "bg-amber-600" };
+    if (/high\s*jump|hj/.test(n)) return { abbr: "HJ", color: "bg-violet-600" };
+    if (/pole\s*vault|pv/.test(n)) return { abbr: "PV", color: "bg-indigo-600" };
+    if (/long\s*jump|lj/.test(n)) return { abbr: "LJ", color: "bg-emerald-600" };
+    if (/triple\s*jump|tj/.test(n)) return { abbr: "TJ", color: "bg-teal-600" };
+    return { abbr: "FE", color: "bg-slate-600" };
   };
 
   const getEventType = (name: string) => {
@@ -152,7 +156,7 @@ function JoinSession({ onJoin }: { onJoin: (sessionId: number) => void }) {
             <div className="space-y-3">
               {sessions.map((s) => {
                 const name = s.evtEventName || "Unnamed Event";
-                const emoji = getEventEmoji(name);
+                const badge = getEventBadge(name);
                 const eventType = getEventType(name);
                 const statusColor = s.status === 'in_progress' ? 'bg-emerald-500' : s.status === 'completed' ? 'bg-blue-500' : 'bg-amber-500';
                 return (
@@ -161,8 +165,8 @@ function JoinSession({ onJoin }: { onJoin: (sessionId: number) => void }) {
                     onClick={() => handleSelectEvent(s.id)}
                     className="w-full p-4 rounded-xl bg-slate-900/80 border border-slate-800 hover:border-emerald-500/40 hover:bg-slate-800/80 active:bg-slate-800 transition-all text-left flex items-center gap-4 group"
                   >
-                    <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-xl">
-                      {emoji}
+                    <div className={`flex-shrink-0 w-12 h-12 rounded-full ${badge.color} flex items-center justify-center text-sm font-bold text-white`}>
+                      {badge.abbr}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">

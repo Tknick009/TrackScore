@@ -114,17 +114,17 @@ function getEventType(name: string): "horizontal" | "vertical" | "unknown" {
   return "unknown";
 }
 
-function getEventEmoji(name: string): string {
+function getEventBadge(name: string): { abbr: string; color: string } {
   const n = name.toLowerCase();
-  if (/shot\s*put|sp/.test(n)) return "🏋️";
-  if (/discus|disc/.test(n)) return "🥏";
-  if (/javelin|jav/.test(n)) return "🪃";
-  if (/hammer|weight/.test(n)) return "⚒️";
-  if (/high\s*jump|hj/.test(n)) return "⬆️";
-  if (/pole\s*vault|pv/.test(n)) return "📐";
-  if (/long\s*jump|lj/.test(n)) return "➡️";
-  if (/triple\s*jump|tj/.test(n)) return "🔄";
-  return "🎯";
+  if (/shot\s*put|sp/.test(n)) return { abbr: "SP", color: "bg-orange-600" };
+  if (/discus|disc/.test(n)) return { abbr: "DT", color: "bg-blue-600" };
+  if (/javelin|jav/.test(n)) return { abbr: "JT", color: "bg-red-600" };
+  if (/hammer|weight/.test(n)) return { abbr: "HT", color: "bg-amber-600" };
+  if (/high\s*jump|hj/.test(n)) return { abbr: "HJ", color: "bg-violet-600" };
+  if (/pole\s*vault|pv/.test(n)) return { abbr: "PV", color: "bg-indigo-600" };
+  if (/long\s*jump|lj/.test(n)) return { abbr: "LJ", color: "bg-emerald-600" };
+  if (/triple\s*jump|tj/.test(n)) return { abbr: "TJ", color: "bg-teal-600" };
+  return { abbr: "FE", color: "bg-slate-600" };
 }
 
 // ---------------------------------------------------------------------------
@@ -783,7 +783,7 @@ function EventCard({ session }: { session: FieldEventSession }) {
       {/* Top row: emoji + name + status */}
       <div className="flex items-start justify-between gap-2 mb-3">
         <div className="flex items-center gap-2.5 min-w-0">
-          <span className="text-xl leading-none">{getEventEmoji(name)}</span>
+          <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${getEventBadge(name).color} text-white text-xs font-bold`}>{getEventBadge(name).abbr}</span>
           <div className="min-w-0">
             <h3 className="text-sm font-semibold text-slate-100 truncate">{name}</h3>
             {session.evtEventNumber && (
