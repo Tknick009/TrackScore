@@ -954,46 +954,46 @@ export default function FieldCommandCenter() {
           </div>
 
           {/* Action buttons - always visible */}
-          <div className="flex items-center gap-1 px-2 shrink-0">
+          <div className="flex items-center gap-1.5 px-2 shrink-0">
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 px-2 text-xs text-slate-400 hover:text-emerald-400 hover:bg-slate-800"
+              className="h-8 px-3 text-xs text-slate-400 hover:text-emerald-400 hover:bg-slate-800 gap-1.5"
               onClick={() => setShowAddAthlete(true)}
-              title="Add Athlete"
             >
               <UserPlus className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Add</span>
             </Button>
             {!isActiveVertical && (
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 px-2 text-xs text-slate-400 hover:text-amber-400 hover:bg-slate-800"
+                className="h-8 px-3 text-xs text-slate-400 hover:text-amber-400 hover:bg-slate-800 gap-1.5"
                 onClick={() => setShowGenerateFinals(true)}
-                title="Generate Finals"
               >
                 <Star className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Generate Finals</span>
               </Button>
             )}
             {isActiveVertical && (
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 px-2 text-xs text-slate-400 hover:text-blue-400 hover:bg-slate-800"
+                className="h-8 px-3 text-xs text-slate-400 hover:text-blue-400 hover:bg-slate-800 gap-1.5"
                 onClick={() => setShowHeightsDialog(true)}
-                title="Manage Heights"
               >
                 <Ruler className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Heights</span>
               </Button>
             )}
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 px-2 text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+              className="h-8 px-3 text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800 gap-1.5"
               onClick={() => setShowSettings(true)}
-              title="Settings"
             >
               <Settings className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Settings</span>
             </Button>
           </div>
         </div>

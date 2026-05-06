@@ -76,13 +76,13 @@ function InlineVerticalEntry({
   const hasCleared = currentAttempts.includes('O');
 
   return (
-    <div className="bg-muted/80 border-y-2 border-primary/30 animate-in slide-in-from-top duration-150">
+    <div className="bg-slate-800/80 border-y-2 border-primary/30 animate-in slide-in-from-top duration-150">
       {/* Compact header */}
-      <div className="flex items-center justify-between px-3 py-2 sm:px-4 border-b border-border/50">
+      <div className="flex items-center justify-between px-3 py-2 sm:px-4 border-b border-slate-700/50">
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="font-mono text-xs sm:text-sm">{info.bib}</Badge>
-          <span className="font-semibold text-sm sm:text-base">{info.name}</span>
-          <span className="text-xs sm:text-sm text-muted-foreground">
+          <span className="font-semibold text-sm sm:text-base text-white">{info.name}</span>
+          <span className="text-xs sm:text-sm text-slate-400">
             @ {currentHeight ? formatHeightMark(currentHeight.heightMeters) : "-"} - Attempt {attemptNumber}/3
           </span>
         </div>
@@ -113,16 +113,16 @@ function InlineVerticalEntry({
             <span
               key={i}
               className={
-                char === 'O' ? 'text-green-600' :
+                char === 'O' ? 'text-emerald-400' :
                 char === 'X' ? 'text-red-500' :
-                'text-yellow-600'
+                'text-amber-400'
               }
             >
               {char}
             </span>
           ))}
           {!hasCleared && attemptNumber <= 3 && (
-            <span className="text-muted-foreground/30">_</span>
+            <span className="text-slate-400/30">_</span>
           )}
         </div>
 
@@ -204,10 +204,10 @@ function VerticalAthleteRow({
 
   return (
     <div
-      className={`border-b border-border transition-colors ${
-        isExpanded ? "bg-blue-50 dark:bg-blue-950/20" :
-        isUp ? "bg-green-50 dark:bg-green-950/30 hover:bg-green-100 dark:hover:bg-green-950/50" :
-        "hover:bg-muted/30 active:bg-muted/50"
+      className={`border-b border-slate-700 transition-colors ${
+        isExpanded ? "bg-slate-800/60" :
+        isUp ? "bg-emerald-950/30 hover:bg-emerald-950/50" :
+        "hover:bg-slate-800/30 active:bg-slate-800/50"
       } ${eliminated ? "opacity-50" : ""} ${allPasses ? "opacity-60" : ""}`}
     >
       <div
@@ -225,7 +225,7 @@ function VerticalAthleteRow({
           ) : hasCleared ? (
             <Badge variant="secondary" className="text-xs px-1.5 py-0.5">CLR</Badge>
           ) : (
-            <span className="text-xs sm:text-sm text-muted-foreground font-mono">{currentHeightAttempts || "-"}</span>
+            <span className="text-xs sm:text-sm text-slate-400 font-mono">{currentHeightAttempts || "-"}</span>
           )}
         </div>
 
@@ -233,9 +233,9 @@ function VerticalAthleteRow({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
             {showBibNumbers && (
-              <span className="font-mono text-xs sm:text-sm text-muted-foreground">{info.bib}</span>
+              <span className="font-mono text-xs sm:text-sm text-slate-400">{info.bib}</span>
             )}
-            <span className={`font-semibold text-sm sm:text-base ${eliminated ? "line-through" : ""}`}>{info.name}</span>
+            <span className={`font-semibold text-sm sm:text-base text-slate-100 ${eliminated ? "line-through" : ""}`}>{info.name}</span>
             {!isDns && !eliminated && (athlete.startingHeightIndex === null || athlete.startingHeightIndex === undefined) && heights.length > 0 && (
               <Button
                 variant="outline"
@@ -255,7 +255,7 @@ function VerticalAthleteRow({
             )}
           </div>
           {info.team && (
-            <p className="text-xs sm:text-sm text-muted-foreground truncate">{info.team}</p>
+            <p className="text-xs sm:text-sm text-slate-400 truncate">{info.team}</p>
           )}
         </div>
 
@@ -279,7 +279,7 @@ function VerticalAthleteRow({
             );
           })}
           {!eliminated && !hasCleared && heightMarks.length < 3 && heightMarks.length > 0 && (
-            <div className="min-w-[2rem] h-7 rounded bg-muted text-muted-foreground font-mono text-xs flex items-center justify-center">
+            <div className="min-w-[2rem] h-7 rounded bg-slate-800 text-slate-400 font-mono text-xs flex items-center justify-center">
               _
             </div>
           )}
@@ -290,7 +290,7 @@ function VerticalAthleteRow({
           {highestCleared ? (
             <span className="font-mono font-semibold text-sm sm:text-base">{formatHeightMark(highestCleared.heightMeters)}</span>
           ) : (
-            <span className="text-muted-foreground text-sm">-</span>
+            <span className="text-slate-400 text-sm">-</span>
           )}
         </div>
 
@@ -421,15 +421,15 @@ function VerticalStandingsView({
               {item.place ?? "-"}
             </div>
             <div className="flex-1 min-w-0">
-              <p className={`font-semibold text-base ${item.eliminated ? 'line-through' : ''}`}>{info.name}</p>
-              <p className="text-sm text-muted-foreground">{info.team || info.bib}</p>
+              <p className={`font-semibold text-base text-slate-100 ${item.eliminated ? 'line-through' : ''}`}>{info.name}</p>
+              <p className="text-sm text-slate-400">{info.team || info.bib}</p>
             </div>
             <div className="text-right shrink-0">
               <p className="font-mono font-bold text-lg">
                 {item.highestCleared ? formatHeightMark(item.highestCleared.heightMeters) : "-"}
               </p>
               {item.highestCleared && (
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-slate-400">
                   {item.missesAtBest}x @ best, {item.totalMisses} total
                 </p>
               )}
@@ -463,14 +463,14 @@ function VerticalReviewView({
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b">
-            <th className="text-left p-3 sticky left-0 bg-background">Athlete</th>
+          <tr className="border-b border-slate-700">
+            <th className="text-left p-3 sticky left-0 bg-slate-900 text-slate-300">Athlete</th>
             {sortedHeights.map((height) => (
-              <th key={height.id} className="text-center p-3 min-w-16">
+              <th key={height.id} className="text-center p-3 min-w-16 text-slate-400">
                 {formatHeightMark(height.heightMeters)}
               </th>
             ))}
-            <th className="text-center p-3">Best</th>
+            <th className="text-center p-3 text-slate-300">Best</th>
           </tr>
         </thead>
         <tbody>
@@ -480,18 +480,18 @@ function VerticalReviewView({
             const eliminated = isAthleteEliminated(athlete.id, marks, heights);
 
             return (
-              <tr key={athlete.id} className={`border-b ${eliminated ? 'opacity-50' : ''}`}>
-                <td className="p-3 sticky left-0 bg-background min-w-[120px]">
-                  <div className={`font-semibold text-sm ${eliminated ? 'line-through' : ''}`}>{info.name}</div>
+              <tr key={athlete.id} className={`border-b border-slate-800 ${eliminated ? 'opacity-50' : ''}`}>
+                <td className="p-3 sticky left-0 bg-slate-900 min-w-[120px]">
+                  <div className={`font-semibold text-sm text-slate-100 ${eliminated ? 'line-through' : ''}`}>{info.name}</div>
                 </td>
                 {sortedHeights.map((height) => {
                   const heightMarks = getAthleteHeightAttempts(athlete.id, height.heightIndex, marks);
                   const attempts = getAthleteAttemptsAtHeight(athlete.id, height.heightIndex, marks);
 
-                  let className = "text-muted-foreground";
-                  if (attempts.includes('O')) className = "text-green-600 font-bold";
+                  let className = "text-slate-400";
+                  if (attempts.includes('O')) className = "text-emerald-400 font-bold";
                   else if (attempts.includes('X')) className = "text-red-500";
-                  else if (attempts.includes('P')) className = "text-yellow-600";
+                  else if (attempts.includes('P')) className = "text-amber-400";
 
                   return (
                     <td key={height.id} className={`text-center p-3 font-mono ${className}`}>
@@ -499,13 +499,13 @@ function VerticalReviewView({
                         <div className="space-y-0.5">
                           {heightMarks.map((m) => {
                             const symbol = m.markType === 'cleared' ? 'O' : m.markType === 'missed' ? 'X' : 'P';
-                            const symbolClass = m.markType === 'cleared' ? 'text-green-600' :
-                              m.markType === 'missed' ? 'text-red-500' : 'text-yellow-600';
+                            const symbolClass = m.markType === 'cleared' ? 'text-emerald-400' :
+                              m.markType === 'missed' ? 'text-red-500' : 'text-amber-400';
                             return (
                               <button
                                 key={m.id}
                                 onClick={() => onEditMark(m)}
-                                className={`inline-flex items-center gap-0.5 px-1 py-0.5 rounded hover:bg-muted ${symbolClass}`}
+                                className={`inline-flex items-center gap-0.5 px-1 py-0.5 rounded hover:bg-slate-800 ${symbolClass}`}
                               >
                                 {symbol}
                                 <Pencil className="h-2.5 w-2.5 opacity-40" />
@@ -589,7 +589,7 @@ export default function VerticalEventPanel({ fs }: { fs: FieldSession }) {
   return (
     <div className="flex flex-col h-full">
       {/* Height Selector Bar */}
-      <div className="bg-muted/50 border-b shrink-0">
+      <div className="bg-slate-800/50 border-b shrink-0">
         <div className="p-2 sm:p-3 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Button
@@ -643,16 +643,16 @@ export default function VerticalEventPanel({ fs }: { fs: FieldSession }) {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 min-h-0 flex flex-col">
-        <TabsList className="w-full rounded-none border-b h-10 sm:h-12 bg-background shrink-0">
-          <TabsTrigger value="officiate" className="flex-1 gap-1.5 text-xs sm:text-sm data-[state=active]:bg-muted">
+        <TabsList className="w-full rounded-none border-b h-10 sm:h-12 bg-slate-900 shrink-0">
+          <TabsTrigger value="officiate" className="flex-1 gap-1.5 text-xs sm:text-sm data-[state=active]:bg-slate-800">
             <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Officiate
           </TabsTrigger>
-          <TabsTrigger value="standings" className="flex-1 gap-1.5 text-xs sm:text-sm data-[state=active]:bg-muted">
+          <TabsTrigger value="standings" className="flex-1 gap-1.5 text-xs sm:text-sm data-[state=active]:bg-slate-800">
             <Trophy className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Standings
           </TabsTrigger>
-          <TabsTrigger value="review" className="flex-1 gap-1.5 text-xs sm:text-sm data-[state=active]:bg-muted">
+          <TabsTrigger value="review" className="flex-1 gap-1.5 text-xs sm:text-sm data-[state=active]:bg-slate-800">
             <Grid3X3 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Review
           </TabsTrigger>
@@ -701,15 +701,15 @@ export default function VerticalEventPanel({ fs }: { fs: FieldSession }) {
             </div>
           ) : (
             <div className="p-8 text-center">
-              <p className="text-muted-foreground">No athletes checked in</p>
+              <p className="text-slate-400">No athletes checked in</p>
             </div>
           )}
 
           {/* DNS Athletes */}
           {dnsAthletes.length > 0 && (
             <div className="border-t">
-              <div className="bg-muted/50 px-3 py-1.5 flex items-center gap-2">
-                <X className="h-3.5 w-3.5 text-muted-foreground" />
+              <div className="bg-slate-800/50 px-3 py-1.5 flex items-center gap-2">
+                <X className="h-3.5 w-3.5 text-slate-400" />
                 <span className="font-medium text-xs">No Shows ({dnsAthletes.length})</span>
               </div>
               <div className="divide-y opacity-60">
