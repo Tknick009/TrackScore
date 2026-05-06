@@ -10,6 +10,7 @@ import {
   Target,
   Send,
   Zap,
+  ClipboardCheck,
 } from "lucide-react";
 import {
   Sidebar,
@@ -37,6 +38,9 @@ export function AppSidebar() {
     { href: `${basePath}/schedule`, icon: Calendar, label: 'Schedule', testId: 'link-schedule', active: location === `${basePath}/schedule` || location.includes('/events/') },
     { href: `${basePath}/field-events`, icon: Target, label: 'Field Events', testId: 'link-field-events', active: location === `${basePath}/field-events` },
   ];
+
+  // Officiate opens in a new tab (full-screen for tablet use)
+  const officiateHref = '/field-command';
 
   return (
     <Sidebar>
@@ -76,6 +80,14 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <a href={officiateHref} target="_blank" rel="noopener noreferrer" data-testid="link-officiate">
+                    <ClipboardCheck />
+                    <span>Officiate</span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

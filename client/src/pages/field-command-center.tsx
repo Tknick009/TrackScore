@@ -92,8 +92,8 @@ function JoinSession({ onJoin }: { onJoin: (sessionId: number) => void }) {
     <div className="max-w-lg mx-auto p-4 sm:p-6 space-y-6">
       <div className="text-center">
         <Activity className="h-10 w-10 mx-auto text-primary mb-3" />
-        <h1 className="text-2xl font-bold">Field Command Center</h1>
-        <p className="text-muted-foreground mt-1">Select an event to begin officiating</p>
+        <h1 className="text-2xl font-bold">Officiate</h1>
+        <p className="text-muted-foreground mt-1">Select an event to begin</p>
       </div>
 
       <div className="space-y-2">
