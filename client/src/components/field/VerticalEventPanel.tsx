@@ -658,7 +658,7 @@ export default function VerticalEventPanel({ fs }: { fs: FieldSession }) {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="officiate" className="flex-1 m-0 min-h-0 flex flex-col">
+        <TabsContent value="officiate" className="flex-1 m-0 mt-0 min-h-0 flex flex-col data-[state=inactive]:hidden">
           {/* Inline vertical entry - sticky at top so it stays visible while scrolling */}
           {selectedAthlete && (
             <div className="sticky top-0 z-10 shrink-0">
@@ -742,7 +742,7 @@ export default function VerticalEventPanel({ fs }: { fs: FieldSession }) {
           </div>
         </TabsContent>
 
-        <TabsContent value="standings" className="flex-1 m-0 min-h-0 overflow-auto">
+        <TabsContent value="standings" className="flex-1 m-0 mt-0 min-h-0 overflow-auto data-[state=inactive]:hidden">
           <VerticalStandingsView
             athletes={sortedAthletes}
             marks={marks}
@@ -750,7 +750,7 @@ export default function VerticalEventPanel({ fs }: { fs: FieldSession }) {
           />
         </TabsContent>
 
-        <TabsContent value="review" className="flex-1 m-0 min-h-0 overflow-auto">
+        <TabsContent value="review" className="flex-1 m-0 mt-0 min-h-0 overflow-auto data-[state=inactive]:hidden">
           <VerticalReviewView
             athletes={sortedAthletes}
             marks={marks}
