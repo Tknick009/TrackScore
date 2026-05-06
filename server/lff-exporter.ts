@@ -74,11 +74,18 @@ function generateHorizontalFlightLFF(
   const flightMarks = allMarks.filter(m => flightAthleteIds.has(m.athleteId));
   const flightStandings = calculateHorizontalStandings(flightAthletes, flightMarks);
 
+  // Compute local competePosition within this flight (1-based)
+  const flightOrders = flightAthletes.map(a => (a.orderInFlight || 0));
+  const minOrder = flightOrders.length > 0 ? Math.min(...flightOrders) : 0;
+
   for (const standing of flightStandings) {
     const athlete = flightAthletes.find(a => a.id === standing.athleteId);
     if (!athlete) continue;
 
     const info = getAthleteInfo(athlete);
+
+    // CompetePosition = local position within this flight (1-based)
+    const localCompetePos = (info.orderInFlight - minOrder) + 1;
 
     // Get all marks for this athlete (including finals), sorted by attempt number
     const athleteMarks = allMarks
@@ -90,12 +97,20 @@ function generateHorizontalFlightLFF(
     // Determine if athlete has any valid marks (non-foul)
     const hasValidMark = standing.bestMark !== null && standing.bestMark > 0;
 
-    // Flight place = place within this flight's standings
-    const flightPlace = hasValidMark ? (standing.place || "") : "";
+    // Check if this athlete is a finalist (has more marks than prelim attempts)
+    const isFinalist = athlete.isFinalist === true;
+
+    // Within-flight place from flight standings
+    const withinFlightPlace = hasValidMark ? (standing.place || "") : "";
 
     // Overall event place from the full standings
     const overallStanding = overallStandings.find(s => s.athleteId === standing.athleteId);
-    const eventPlace = (hasValidMark && overallStanding) ? (overallStanding.place || "") : "";
+    const overallPlace = (hasValidMark && overallStanding) ? (overallStanding.place || "") : "";
+
+    // Column 1 (place): finalists get overall event place, non-finalists get within-flight place
+    // Column 4 (eventPlace): same as column 1 (matches FieldLynx behavior)
+    const place = isFinalist ? overallPlace : withinFlightPlace;
+    const eventPlace = place;
 
     // Build attempt parts - only include attempts that exist
     const attemptParts: string[] = [];
@@ -124,9 +139,9 @@ function generateHorizontalFlightLFF(
     }
 
     const line = [
-      flightPlace,
+      place,
       info.bib,
-      info.orderInFlight,
+      localCompetePos,
       eventPlace,
       info.lastName,
       info.firstName,
@@ -172,19 +187,29 @@ function generateVerticalFlightLFF(
   const flightMarks = allMarks.filter(m => flightAthleteIds.has(m.athleteId));
   const flightStandings = calculateVerticalStandings(flightAthletes, flightMarks, heights);
 
+  // Compute local competePosition within this flight (1-based)
+  const flightOrders = flightAthletes.map(a => (a.orderInFlight || 0));
+  const minOrder = flightOrders.length > 0 ? Math.min(...flightOrders) : 0;
+
   for (const standing of flightStandings) {
     const athlete = flightAthletes.find(a => a.id === standing.athleteId);
     if (!athlete) continue;
 
     const info = getAthleteInfo(athlete);
+    const localCompetePos = (info.orderInFlight - minOrder) + 1;
     const athleteMarks = allMarks.filter(m => m.athleteId === standing.athleteId);
 
     if (athleteMarks.length === 0) continue;
 
     const hasCleared = standing.highestCleared !== null && standing.highestCleared !== undefined;
-    const flightPlace = hasCleared ? (standing.place || "") : "";
+    const isFinalist = athlete.isFinalist === true;
+
+    const withinFlightPlace = hasCleared ? (standing.place || "") : "";
     const overallStanding = overallStandings.find(s => s.athleteId === standing.athleteId);
-    const eventPlace = (hasCleared && overallStanding) ? (overallStanding.place || "") : "";
+    const overallPlace = (hasCleared && overallStanding) ? (overallStanding.place || "") : "";
+
+    const place = isFinalist ? overallPlace : withinFlightPlace;
+    const eventPlace = place;
 
     // Find the last height index where athlete has marks
     const athleteHeightIndices = athleteMarks.map(m => m.heightIndex ?? -1).filter(h => h >= 0);
@@ -220,7 +245,7 @@ function generateVerticalFlightLFF(
     }
 
     const line = [
-      flightPlace, info.bib, info.orderInFlight, eventPlace,
+      place, info.bib, localCompetePos, eventPlace,
       info.lastName, info.firstName, `"${info.affiliation}"`,
       ...attemptParts
     ].join(",");
