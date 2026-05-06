@@ -87,17 +87,24 @@ function generateHorizontalFlightLFF(
     // CompetePosition = local position within this flight (1-based)
     const localCompetePos = (info.orderInFlight - minOrder) + 1;
 
-    // Get all marks for this athlete (including finals), sorted by attempt number
+    // Get all marks for this athlete: prelim marks first, then finals marks
+    // Both prelim and finals marks use attemptNumber 1,2,3 — so we sort by
+    // isFinalsRound first to get prelims before finals, then by attemptNumber
     const athleteMarks = allMarks
       .filter(m => m.athleteId === standing.athleteId)
-      .sort((a, b) => a.attemptNumber - b.attemptNumber);
+      .sort((a, b) => {
+        const aFinals = (a.isFinalsRound ? 1 : 0);
+        const bFinals = (b.isFinalsRound ? 1 : 0);
+        if (aFinals !== bFinals) return aFinals - bFinals;
+        return a.attemptNumber - b.attemptNumber;
+      });
 
     if (athleteMarks.length === 0) continue;
 
     // Determine if athlete has any valid marks (non-foul)
     const hasValidMark = standing.bestMark !== null && standing.bestMark > 0;
 
-    // Check if this athlete is a finalist (has more marks than prelim attempts)
+    // Check if this athlete is a finalist
     const isFinalist = athlete.isFinalist === true;
 
     // Within-flight place from flight standings
@@ -112,29 +119,21 @@ function generateHorizontalFlightLFF(
     const place = isFinalist ? overallPlace : withinFlightPlace;
     const eventPlace = place;
 
-    // Build attempt parts - only include attempts that exist
+    // Build attempt parts — iterate through all marks in order (prelim then finals)
     const attemptParts: string[] = [];
-    const maxAttempt = Math.max(...athleteMarks.map(m => m.attemptNumber));
-
-    for (let i = 1; i <= maxAttempt; i++) {
-      const mark = athleteMarks.find(m => m.attemptNumber === i);
-      if (mark) {
-        if (mark.markType === 'foul') {
-          attemptParts.push("F");
-          attemptParts.push(formatWind(mark.wind));
-        } else if (mark.markType === 'pass') {
-          attemptParts.push("P");
-          attemptParts.push(formatWind(mark.wind));
-        } else if (mark.markType === 'scratch') {
-          attemptParts.push("DNS");
-          attemptParts.push("");
-        } else {
-          attemptParts.push(formatMark(mark.measurement, options.measurementSystem));
-          attemptParts.push(formatWind(mark.wind));
-        }
+    for (const mark of athleteMarks) {
+      if (mark.markType === 'foul') {
+        attemptParts.push("F");
+        attemptParts.push(formatWind(mark.wind));
+      } else if (mark.markType === 'pass') {
+        attemptParts.push("P");
+        attemptParts.push(formatWind(mark.wind));
+      } else if (mark.markType === 'scratch') {
+        attemptParts.push("DNS");
+        attemptParts.push("");
       } else {
-        attemptParts.push("");
-        attemptParts.push("");
+        attemptParts.push(formatMark(mark.measurement, options.measurementSystem));
+        attemptParts.push(formatWind(mark.wind));
       }
     }
 
