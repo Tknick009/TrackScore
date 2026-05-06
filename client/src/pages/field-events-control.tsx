@@ -5,7 +5,7 @@
  * 1. Active Sessions — live overview of all field event sessions with status
  * 2. EVT Configuration — FinishLynx EVT directory, results directory, horizontal defaults
  * 3. External Scoreboards — configure LSS output connections (inline, not a separate page)
- * 4. Launch Command Center — opens the full-screen officiating interface for tablets
+ * 4. Officiate — opens the full-screen officiating interface for tablets
  */
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -415,7 +415,7 @@ export default function FieldEventsControl() {
           data-testid="button-open-command-center"
         >
           <ExternalLink className="h-4 w-4 mr-2" />
-          Open Command Center
+          Officiate
         </Button>
       </div>
 
