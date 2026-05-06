@@ -740,16 +740,16 @@ export default function HorizontalEventPanel({ fs }: { fs: FieldSession }) {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 min-h-0 flex flex-col">
-        <TabsList className="w-full rounded-none border-b h-10 sm:h-12 bg-slate-900 shrink-0">
-          <TabsTrigger value="officiate" className="flex-1 gap-1.5 text-xs sm:text-sm data-[state=active]:bg-slate-800">
+        <TabsList className="w-full rounded-none border-b border-slate-700 h-10 sm:h-12 bg-slate-900 shrink-0">
+          <TabsTrigger value="officiate" className="flex-1 gap-1.5 text-xs sm:text-sm text-slate-400 data-[state=active]:text-emerald-400 data-[state=active]:bg-slate-800 data-[state=active]:border-b-2 data-[state=active]:border-b-emerald-500">
             <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Officiate
           </TabsTrigger>
-          <TabsTrigger value="standings" className="flex-1 gap-1.5 text-xs sm:text-sm data-[state=active]:bg-slate-800">
+          <TabsTrigger value="standings" className="flex-1 gap-1.5 text-xs sm:text-sm text-slate-400 data-[state=active]:text-emerald-400 data-[state=active]:bg-slate-800 data-[state=active]:border-b-2 data-[state=active]:border-b-emerald-500">
             <Trophy className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Standings
           </TabsTrigger>
-          <TabsTrigger value="review" className="flex-1 gap-1.5 text-xs sm:text-sm data-[state=active]:bg-slate-800">
+          <TabsTrigger value="review" className="flex-1 gap-1.5 text-xs sm:text-sm text-slate-400 data-[state=active]:text-emerald-400 data-[state=active]:bg-slate-800 data-[state=active]:border-b-2 data-[state=active]:border-b-emerald-500">
             <Grid3X3 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Review
           </TabsTrigger>
