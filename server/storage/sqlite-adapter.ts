@@ -913,6 +913,126 @@ export class SQLiteStorage implements IStorage {
         UNIQUE(meet_id, display_type, display_mode)
       );
       CREATE INDEX IF NOT EXISTS scene_template_mappings_meet_id_idx ON scene_template_mappings(meet_id);
+
+      -- Field Event Sessions
+      CREATE TABLE IF NOT EXISTS field_event_sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id TEXT REFERENCES events(id) ON DELETE CASCADE,
+        status TEXT DEFAULT 'setup',
+        measurement_unit TEXT DEFAULT 'metric',
+        record_wind INTEGER DEFAULT 0,
+        show_bib_numbers INTEGER DEFAULT 1,
+        has_finals INTEGER DEFAULT 0,
+        prelim_attempts INTEGER DEFAULT 3,
+        finals_attempts INTEGER DEFAULT 3,
+        athletes_to_finals INTEGER DEFAULT 8,
+        total_attempts INTEGER DEFAULT 6,
+        alive_group_size INTEGER,
+        stop_alive_at_count INTEGER,
+        current_flight_number INTEGER DEFAULT 1,
+        current_athlete_index INTEGER DEFAULT 0,
+        current_attempt_number INTEGER DEFAULT 1,
+        current_height_index INTEGER DEFAULT 0,
+        is_in_finals INTEGER DEFAULT 0,
+        access_code TEXT,
+        lff_export_path TEXT,
+        evt_file_path TEXT,
+        evt_event_number INTEGER,
+        evt_event_name TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS field_event_sessions_event_idx ON field_event_sessions(event_id);
+      CREATE INDEX IF NOT EXISTS field_event_sessions_access_code_idx ON field_event_sessions(access_code);
+
+      -- Field Heights
+      CREATE TABLE IF NOT EXISTS field_heights (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id INTEGER NOT NULL REFERENCES field_event_sessions(id) ON DELETE CASCADE,
+        height_index INTEGER NOT NULL,
+        height_meters REAL NOT NULL,
+        is_active INTEGER DEFAULT 1,
+        is_jump_off INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT (datetime('now')),
+        UNIQUE(session_id, height_index)
+      );
+      CREATE INDEX IF NOT EXISTS field_heights_session_idx ON field_heights(session_id);
+
+      -- Field Event Flights
+      CREATE TABLE IF NOT EXISTS field_event_flights (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id INTEGER NOT NULL REFERENCES field_event_sessions(id) ON DELETE CASCADE,
+        flight_number INTEGER NOT NULL,
+        status TEXT DEFAULT 'pending',
+        created_at TEXT DEFAULT (datetime('now')),
+        UNIQUE(session_id, flight_number)
+      );
+
+      -- Field Event Athletes
+      CREATE TABLE IF NOT EXISTS field_event_athletes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id INTEGER NOT NULL REFERENCES field_event_sessions(id) ON DELETE CASCADE,
+        entry_id TEXT REFERENCES entries(id) ON DELETE CASCADE,
+        flight_number INTEGER DEFAULT 1,
+        order_in_flight INTEGER NOT NULL,
+        check_in_status TEXT DEFAULT 'pending',
+        checked_in_at TEXT,
+        competition_status TEXT DEFAULT 'waiting',
+        checked_out_at TEXT,
+        retired_at TEXT,
+        starting_height_index INTEGER DEFAULT 0,
+        best_mark REAL,
+        current_place INTEGER,
+        evt_bib_number TEXT,
+        evt_first_name TEXT,
+        evt_last_name TEXT,
+        evt_team TEXT,
+        is_finalist INTEGER DEFAULT 0,
+        finals_order INTEGER,
+        notes TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS field_event_athletes_session_idx ON field_event_athletes(session_id);
+      CREATE INDEX IF NOT EXISTS field_event_athletes_entry_idx ON field_event_athletes(entry_id);
+
+      -- Field Event Marks
+      CREATE TABLE IF NOT EXISTS field_event_marks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id INTEGER NOT NULL REFERENCES field_event_sessions(id) ON DELETE CASCADE,
+        athlete_id INTEGER NOT NULL REFERENCES field_event_athletes(id) ON DELETE CASCADE,
+        attempt_number INTEGER NOT NULL,
+        height_index INTEGER,
+        attempt_at_height INTEGER,
+        mark_type TEXT NOT NULL,
+        measurement REAL,
+        measurement_display TEXT,
+        wind REAL,
+        is_best INTEGER DEFAULT 0,
+        is_dark_mark INTEGER DEFAULT 0,
+        dark_measurement REAL,
+        is_finals_round INTEGER DEFAULT 0,
+        recorded_at TEXT DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS field_event_marks_session_idx ON field_event_marks(session_id);
+      CREATE INDEX IF NOT EXISTS field_event_marks_athlete_idx ON field_event_marks(athlete_id);
+
+      -- External Scoreboards
+      CREATE TABLE IF NOT EXISTS external_scoreboards (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        lss_directory TEXT,
+        target_ip TEXT NOT NULL,
+        target_port INTEGER NOT NULL,
+        session_id INTEGER REFERENCES field_event_sessions(id) ON DELETE SET NULL,
+        follow_device_name TEXT,
+        is_active INTEGER DEFAULT 0,
+        last_status TEXT,
+        last_sent_at TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS external_scoreboards_session_idx ON external_scoreboards(session_id);
     `);
   }
 
@@ -4587,51 +4707,66 @@ export class SQLiteStorage implements IStorage {
     this.db.prepare('DELETE FROM processed_ingestion_files WHERE meet_id = ?').run(meetId);
   }
 
-  // ============= EXTERNAL SCOREBOARDS (in-memory) =============
+  // ============= EXTERNAL SCOREBOARDS =============
+
+  private mapExternalScoreboard(row: any): ExternalScoreboard {
+    return {
+      id: row.id,
+      name: row.name,
+      lssDirectory: row.lss_directory ?? null,
+      targetIp: row.target_ip,
+      targetPort: row.target_port,
+      sessionId: row.session_id ?? null,
+      followDeviceName: row.follow_device_name ?? null,
+      isActive: this.toBoolean(row.is_active),
+      lastStatus: row.last_status ?? null,
+      lastSentAt: row.last_sent_at ? new Date(row.last_sent_at) : null,
+      createdAt: row.created_at ? new Date(row.created_at) : new Date(),
+      updatedAt: row.updated_at ? new Date(row.updated_at) : new Date(),
+    };
+  }
+
   async getExternalScoreboards(): Promise<ExternalScoreboard[]> {
-    return Array.from(this.externalScoreboards.values());
+    const rows = this.db.prepare('SELECT * FROM external_scoreboards ORDER BY id').all() as any[];
+    return rows.map((r) => this.mapExternalScoreboard(r));
   }
 
   async getExternalScoreboard(id: number): Promise<ExternalScoreboard | undefined> {
-    return this.externalScoreboards.get(id);
+    const row = this.db.prepare('SELECT * FROM external_scoreboards WHERE id = ?').get(id) as any;
+    return row ? this.mapExternalScoreboard(row) : undefined;
   }
 
   async createExternalScoreboard(data: InsertExternalScoreboard): Promise<ExternalScoreboard> {
-    const id = this.externalScoreboardIdCounter++;
-    const now = new Date();
-    const scoreboard: ExternalScoreboard = {
-      id,
-      name: data.name,
-      lssDirectory: data.lssDirectory ?? null,
-      targetIp: data.targetIp,
-      targetPort: data.targetPort,
-      sessionId: data.sessionId ?? null,
-      followDeviceName: data.followDeviceName ?? null,
-      isActive: false,
-      lastStatus: null,
-      lastSentAt: null,
-      createdAt: now,
-      updatedAt: now,
-    };
-    this.externalScoreboards.set(id, scoreboard);
-    return scoreboard;
+    const result = this.db.prepare(`
+      INSERT INTO external_scoreboards (name, lss_directory, target_ip, target_port, session_id, follow_device_name)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(data.name, data.lssDirectory ?? null, data.targetIp, data.targetPort, data.sessionId ?? null, data.followDeviceName ?? null);
+    const row = this.db.prepare('SELECT * FROM external_scoreboards WHERE id = ?').get(result.lastInsertRowid as number) as any;
+    return this.mapExternalScoreboard(row);
   }
 
   async updateExternalScoreboard(id: number, data: Partial<ExternalScoreboard>): Promise<ExternalScoreboard | undefined> {
-    const existing = this.externalScoreboards.get(id);
-    if (!existing) return undefined;
-    const updated: ExternalScoreboard = {
-      ...existing,
-      ...data,
-      id: existing.id,
-      updatedAt: new Date(),
-    };
-    this.externalScoreboards.set(id, updated);
-    return updated;
+    const setClauses: string[] = [];
+    const values: any[] = [];
+    if (data.name !== undefined) { setClauses.push('name = ?'); values.push(data.name); }
+    if (data.lssDirectory !== undefined) { setClauses.push('lss_directory = ?'); values.push(data.lssDirectory); }
+    if (data.targetIp !== undefined) { setClauses.push('target_ip = ?'); values.push(data.targetIp); }
+    if (data.targetPort !== undefined) { setClauses.push('target_port = ?'); values.push(data.targetPort); }
+    if (data.sessionId !== undefined) { setClauses.push('session_id = ?'); values.push(data.sessionId); }
+    if (data.followDeviceName !== undefined) { setClauses.push('follow_device_name = ?'); values.push(data.followDeviceName); }
+    if (data.isActive !== undefined) { setClauses.push('is_active = ?'); values.push(this.fromBoolean(data.isActive)); }
+    if (data.lastStatus !== undefined) { setClauses.push('last_status = ?'); values.push(data.lastStatus); }
+    if (data.lastSentAt !== undefined) { setClauses.push('last_sent_at = ?'); values.push(data.lastSentAt ? data.lastSentAt.toISOString() : null); }
+    if (setClauses.length === 0) return this.getExternalScoreboard(id);
+    setClauses.push("updated_at = datetime('now')");
+    values.push(id);
+    this.db.prepare(`UPDATE external_scoreboards SET ${setClauses.join(', ')} WHERE id = ?`).run(...values);
+    return this.getExternalScoreboard(id);
   }
 
   async deleteExternalScoreboard(id: number): Promise<boolean> {
-    return this.externalScoreboards.delete(id);
+    const changes = this.db.prepare('DELETE FROM external_scoreboards WHERE id = ?').run(id).changes;
+    return changes > 0;
   }
 
   // ============= MISSING STUB IMPLEMENTATIONS =============
@@ -4688,209 +4823,387 @@ export class SQLiteStorage implements IStorage {
   }
 
   // ============= FIELD EVENT SESSIONS =============
+
+  private mapFieldSession(row: any): FieldEventSession {
+    return {
+      id: row.id,
+      eventId: row.event_id ?? null,
+      status: row.status ?? 'setup',
+      measurementUnit: row.measurement_unit ?? 'metric',
+      recordWind: this.toBoolean(row.record_wind),
+      showBibNumbers: this.toBoolean(row.show_bib_numbers),
+      hasFinals: this.toBoolean(row.has_finals),
+      prelimAttempts: row.prelim_attempts ?? 3,
+      finalsAttempts: row.finals_attempts ?? 3,
+      athletesToFinals: row.athletes_to_finals ?? 8,
+      totalAttempts: row.total_attempts ?? 6,
+      aliveGroupSize: row.alive_group_size ?? null,
+      stopAliveAtCount: row.stop_alive_at_count ?? null,
+      currentFlightNumber: row.current_flight_number ?? 1,
+      currentAthleteIndex: row.current_athlete_index ?? 0,
+      currentAttemptNumber: row.current_attempt_number ?? 1,
+      currentHeightIndex: row.current_height_index ?? 0,
+      isInFinals: this.toBoolean(row.is_in_finals),
+      accessCode: row.access_code ?? null,
+      lffExportPath: row.lff_export_path ?? null,
+      evtFilePath: row.evt_file_path ?? null,
+      evtEventNumber: row.evt_event_number ?? null,
+      evtEventName: row.evt_event_name ?? null,
+      createdAt: row.created_at ? new Date(row.created_at) : new Date(),
+      updatedAt: row.updated_at ? new Date(row.updated_at) : new Date(),
+    };
+  }
+
   async getAllFieldEventSessions(): Promise<FieldEventSession[]> {
-    return [];
+    const rows = this.db.prepare('SELECT * FROM field_event_sessions ORDER BY id').all() as any[];
+    return rows.map((r) => this.mapFieldSession(r));
   }
 
   async getFieldEventSessionsByMeetId(meetId: string): Promise<FieldEventSession[]> {
-    return [];
+    const rows = this.db.prepare('SELECT * FROM field_event_sessions WHERE event_id IN (SELECT id FROM events WHERE meet_id = ?) ORDER BY id').all(meetId) as any[];
+    return rows.map((r) => this.mapFieldSession(r));
   }
 
   async getFieldEventSession(id: number): Promise<FieldEventSession | null> {
-    return null;
+    const row = this.db.prepare('SELECT * FROM field_event_sessions WHERE id = ?').get(id) as any;
+    return row ? this.mapFieldSession(row) : null;
   }
 
   async getFieldEventSessionByEvent(eventId: string): Promise<FieldEventSession | null> {
-    return null;
+    const row = this.db.prepare('SELECT * FROM field_event_sessions WHERE event_id = ?').get(eventId) as any;
+    return row ? this.mapFieldSession(row) : null;
   }
 
   async getFieldEventSessionByAccessCode(code: string): Promise<FieldEventSession | null> {
-    return null;
+    const row = this.db.prepare('SELECT * FROM field_event_sessions WHERE access_code = ?').get(code) as any;
+    return row ? this.mapFieldSession(row) : null;
   }
 
   async createFieldEventSession(session: InsertFieldEventSession): Promise<FieldEventSession> {
-    const now = new Date();
-    return {
-      id: 0,
-      eventId: session.eventId ?? null,
-      status: session.status ?? 'setup',
-      measurementUnit: session.measurementUnit ?? 'metric',
-      recordWind: session.recordWind ?? false,
-      showBibNumbers: session.showBibNumbers ?? true,
-      hasFinals: session.hasFinals ?? false,
-      prelimAttempts: session.prelimAttempts ?? 3,
-      finalsAttempts: session.finalsAttempts ?? 3,
-      athletesToFinals: session.athletesToFinals ?? 8,
-      totalAttempts: session.totalAttempts ?? 6,
-      aliveGroupSize: session.aliveGroupSize ?? null,
-      stopAliveAtCount: session.stopAliveAtCount ?? null,
-      currentFlightNumber: session.currentFlightNumber ?? 1,
-      currentAthleteIndex: session.currentAthleteIndex ?? 0,
-      currentAttemptNumber: session.currentAttemptNumber ?? 1,
-      currentHeightIndex: session.currentHeightIndex ?? 0,
-      isInFinals: session.isInFinals ?? false,
-      accessCode: session.accessCode ?? null,
-      lffExportPath: session.lffExportPath ?? null,
-      evtFilePath: session.evtFilePath ?? null,
-      evtEventNumber: session.evtEventNumber ?? null,
-      evtEventName: session.evtEventName ?? null,
-      createdAt: now,
-      updatedAt: now,
-    };
+    const result = this.db.prepare(`
+      INSERT INTO field_event_sessions (event_id, status, measurement_unit, record_wind, show_bib_numbers,
+        has_finals, prelim_attempts, finals_attempts, athletes_to_finals, total_attempts,
+        alive_group_size, stop_alive_at_count, current_flight_number, current_athlete_index,
+        current_attempt_number, current_height_index, is_in_finals, access_code,
+        lff_export_path, evt_file_path, evt_event_number, evt_event_name)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      session.eventId ?? null, session.status ?? 'setup', session.measurementUnit ?? 'metric',
+      this.fromBoolean(session.recordWind ?? false), this.fromBoolean(session.showBibNumbers ?? true),
+      this.fromBoolean(session.hasFinals ?? false), session.prelimAttempts ?? 3, session.finalsAttempts ?? 3,
+      session.athletesToFinals ?? 8, session.totalAttempts ?? 6,
+      session.aliveGroupSize ?? null, session.stopAliveAtCount ?? null,
+      session.currentFlightNumber ?? 1, session.currentAthleteIndex ?? 0,
+      session.currentAttemptNumber ?? 1, session.currentHeightIndex ?? 0,
+      this.fromBoolean(session.isInFinals ?? false), session.accessCode ?? null,
+      session.lffExportPath ?? null, session.evtFilePath ?? null,
+      session.evtEventNumber ?? null, session.evtEventName ?? null,
+    );
+    return (await this.getFieldEventSession(result.lastInsertRowid as number))!;
   }
 
   async updateFieldEventSession(id: number, updates: Partial<InsertFieldEventSession>): Promise<FieldEventSession | null> {
-    return null;
+    const setClauses: string[] = [];
+    const values: any[] = [];
+    if (updates.eventId !== undefined) { setClauses.push('event_id = ?'); values.push(updates.eventId); }
+    if (updates.status !== undefined) { setClauses.push('status = ?'); values.push(updates.status); }
+    if (updates.measurementUnit !== undefined) { setClauses.push('measurement_unit = ?'); values.push(updates.measurementUnit); }
+    if (updates.recordWind !== undefined) { setClauses.push('record_wind = ?'); values.push(this.fromBoolean(updates.recordWind)); }
+    if (updates.showBibNumbers !== undefined) { setClauses.push('show_bib_numbers = ?'); values.push(this.fromBoolean(updates.showBibNumbers)); }
+    if (updates.hasFinals !== undefined) { setClauses.push('has_finals = ?'); values.push(this.fromBoolean(updates.hasFinals)); }
+    if (updates.prelimAttempts !== undefined) { setClauses.push('prelim_attempts = ?'); values.push(updates.prelimAttempts); }
+    if (updates.finalsAttempts !== undefined) { setClauses.push('finals_attempts = ?'); values.push(updates.finalsAttempts); }
+    if (updates.athletesToFinals !== undefined) { setClauses.push('athletes_to_finals = ?'); values.push(updates.athletesToFinals); }
+    if (updates.totalAttempts !== undefined) { setClauses.push('total_attempts = ?'); values.push(updates.totalAttempts); }
+    if (updates.aliveGroupSize !== undefined) { setClauses.push('alive_group_size = ?'); values.push(updates.aliveGroupSize); }
+    if (updates.stopAliveAtCount !== undefined) { setClauses.push('stop_alive_at_count = ?'); values.push(updates.stopAliveAtCount); }
+    if (updates.currentFlightNumber !== undefined) { setClauses.push('current_flight_number = ?'); values.push(updates.currentFlightNumber); }
+    if (updates.currentAthleteIndex !== undefined) { setClauses.push('current_athlete_index = ?'); values.push(updates.currentAthleteIndex); }
+    if (updates.currentAttemptNumber !== undefined) { setClauses.push('current_attempt_number = ?'); values.push(updates.currentAttemptNumber); }
+    if (updates.currentHeightIndex !== undefined) { setClauses.push('current_height_index = ?'); values.push(updates.currentHeightIndex); }
+    if (updates.isInFinals !== undefined) { setClauses.push('is_in_finals = ?'); values.push(this.fromBoolean(updates.isInFinals)); }
+    if (updates.accessCode !== undefined) { setClauses.push('access_code = ?'); values.push(updates.accessCode); }
+    if (updates.lffExportPath !== undefined) { setClauses.push('lff_export_path = ?'); values.push(updates.lffExportPath); }
+    if (updates.evtFilePath !== undefined) { setClauses.push('evt_file_path = ?'); values.push(updates.evtFilePath); }
+    if (updates.evtEventNumber !== undefined) { setClauses.push('evt_event_number = ?'); values.push(updates.evtEventNumber); }
+    if (updates.evtEventName !== undefined) { setClauses.push('evt_event_name = ?'); values.push(updates.evtEventName); }
+    if (setClauses.length === 0) return this.getFieldEventSession(id);
+    setClauses.push("updated_at = datetime('now')");
+    values.push(id);
+    this.db.prepare(`UPDATE field_event_sessions SET ${setClauses.join(', ')} WHERE id = ?`).run(...values);
+    return this.getFieldEventSession(id);
   }
 
   async deleteFieldEventSession(id: number): Promise<void> {
-    // stub: no-op
+    this.db.prepare('DELETE FROM field_event_sessions WHERE id = ?').run(id);
   }
 
   async getFieldEventSessionWithDetails(id: number): Promise<FieldEventSessionWithDetails | null> {
-    return null;
+    const session = await this.getFieldEventSession(id);
+    if (!session) return null;
+    const heights = await this.getFieldHeights(id);
+    const athletes = await this.getFieldEventAthletes(id);
+    const marks = await this.getFieldEventMarks(id);
+    return { ...session, heights, athletes, marks };
   }
 
   // ============= FIELD HEIGHTS =============
+
+  private mapFieldHeight(row: any): FieldHeight {
+    return {
+      id: row.id,
+      sessionId: row.session_id,
+      heightIndex: row.height_index,
+      heightMeters: row.height_meters,
+      isActive: this.toBoolean(row.is_active),
+      isJumpOff: this.toBoolean(row.is_jump_off),
+      createdAt: row.created_at ? new Date(row.created_at) : new Date(),
+    };
+  }
+
   async getFieldHeights(sessionId: number): Promise<FieldHeight[]> {
-    return [];
+    const rows = this.db.prepare('SELECT * FROM field_heights WHERE session_id = ? ORDER BY height_index').all(sessionId) as any[];
+    return rows.map((r) => this.mapFieldHeight(r));
   }
 
   async createFieldHeight(height: InsertFieldHeight): Promise<FieldHeight> {
-    return {
-      id: 0,
-      sessionId: height.sessionId,
-      heightIndex: height.heightIndex,
-      heightMeters: height.heightMeters,
-      isActive: height.isActive ?? true,
-      isJumpOff: height.isJumpOff ?? false,
-      createdAt: new Date(),
-    };
+    const result = this.db.prepare(
+      'INSERT INTO field_heights (session_id, height_index, height_meters, is_active, is_jump_off) VALUES (?, ?, ?, ?, ?)'
+    ).run(height.sessionId, height.heightIndex, height.heightMeters, this.fromBoolean(height.isActive ?? true), this.fromBoolean(height.isJumpOff ?? false));
+    const row = this.db.prepare('SELECT * FROM field_heights WHERE id = ?').get(result.lastInsertRowid as number) as any;
+    return this.mapFieldHeight(row);
   }
 
   async updateFieldHeight(id: number, updates: Partial<InsertFieldHeight>): Promise<FieldHeight | null> {
-    return null;
+    const setClauses: string[] = [];
+    const values: any[] = [];
+    if (updates.heightIndex !== undefined) { setClauses.push('height_index = ?'); values.push(updates.heightIndex); }
+    if (updates.heightMeters !== undefined) { setClauses.push('height_meters = ?'); values.push(updates.heightMeters); }
+    if (updates.isActive !== undefined) { setClauses.push('is_active = ?'); values.push(this.fromBoolean(updates.isActive)); }
+    if (updates.isJumpOff !== undefined) { setClauses.push('is_jump_off = ?'); values.push(this.fromBoolean(updates.isJumpOff)); }
+    if (setClauses.length === 0) return null;
+    values.push(id);
+    this.db.prepare(`UPDATE field_heights SET ${setClauses.join(', ')} WHERE id = ?`).run(...values);
+    const row = this.db.prepare('SELECT * FROM field_heights WHERE id = ?').get(id) as any;
+    return row ? this.mapFieldHeight(row) : null;
   }
 
   async deleteFieldHeight(id: number): Promise<void> {
-    // stub: no-op
+    this.db.prepare('DELETE FROM field_heights WHERE id = ?').run(id);
   }
 
   async setFieldHeights(sessionId: number, heights: InsertFieldHeight[]): Promise<FieldHeight[]> {
-    return [];
+    this.db.prepare('DELETE FROM field_heights WHERE session_id = ?').run(sessionId);
+    const results: FieldHeight[] = [];
+    for (const h of heights) {
+      results.push(await this.createFieldHeight({ ...h, sessionId }));
+    }
+    return results;
   }
 
   // ============= FIELD EVENT FLIGHTS =============
+
+  private mapFieldFlight(row: any): FieldEventFlight {
+    return {
+      id: row.id,
+      sessionId: row.session_id,
+      flightNumber: row.flight_number,
+      status: row.status ?? 'pending',
+      createdAt: row.created_at ? new Date(row.created_at) : new Date(),
+    };
+  }
+
   async getFieldEventFlights(sessionId: number): Promise<FieldEventFlight[]> {
-    return [];
+    const rows = this.db.prepare('SELECT * FROM field_event_flights WHERE session_id = ? ORDER BY flight_number').all(sessionId) as any[];
+    return rows.map((r) => this.mapFieldFlight(r));
   }
 
   async createFieldEventFlight(flight: InsertFieldEventFlight): Promise<FieldEventFlight> {
-    return {
-      id: 0,
-      sessionId: flight.sessionId,
-      flightNumber: flight.flightNumber,
-      status: flight.status ?? 'pending',
-      createdAt: new Date(),
-    };
+    const result = this.db.prepare(
+      'INSERT INTO field_event_flights (session_id, flight_number, status) VALUES (?, ?, ?)'
+    ).run(flight.sessionId, flight.flightNumber, flight.status ?? 'pending');
+    const row = this.db.prepare('SELECT * FROM field_event_flights WHERE id = ?').get(result.lastInsertRowid as number) as any;
+    return this.mapFieldFlight(row);
   }
 
   async updateFieldEventFlight(id: number, updates: Partial<InsertFieldEventFlight>): Promise<FieldEventFlight | null> {
-    return null;
+    const setClauses: string[] = [];
+    const values: any[] = [];
+    if (updates.flightNumber !== undefined) { setClauses.push('flight_number = ?'); values.push(updates.flightNumber); }
+    if (updates.status !== undefined) { setClauses.push('status = ?'); values.push(updates.status); }
+    if (setClauses.length === 0) return null;
+    values.push(id);
+    this.db.prepare(`UPDATE field_event_flights SET ${setClauses.join(', ')} WHERE id = ?`).run(...values);
+    const row = this.db.prepare('SELECT * FROM field_event_flights WHERE id = ?').get(id) as any;
+    return row ? this.mapFieldFlight(row) : null;
   }
 
   // ============= FIELD EVENT ATHLETES =============
+
+  private mapFieldAthlete(row: any): FieldEventAthlete {
+    return {
+      id: row.id,
+      sessionId: row.session_id,
+      entryId: row.entry_id ?? null,
+      flightNumber: row.flight_number ?? 1,
+      orderInFlight: row.order_in_flight,
+      checkInStatus: row.check_in_status ?? 'pending',
+      checkedInAt: row.checked_in_at ? new Date(row.checked_in_at) : null,
+      competitionStatus: row.competition_status ?? 'waiting',
+      checkedOutAt: row.checked_out_at ? new Date(row.checked_out_at) : null,
+      retiredAt: row.retired_at ? new Date(row.retired_at) : null,
+      startingHeightIndex: row.starting_height_index ?? 0,
+      bestMark: row.best_mark ?? null,
+      currentPlace: row.current_place ?? null,
+      evtBibNumber: row.evt_bib_number ?? null,
+      evtFirstName: row.evt_first_name ?? null,
+      evtLastName: row.evt_last_name ?? null,
+      evtTeam: row.evt_team ?? null,
+      isFinalist: this.toBoolean(row.is_finalist),
+      finalsOrder: row.finals_order ?? null,
+      notes: row.notes ?? null,
+      createdAt: row.created_at ? new Date(row.created_at) : new Date(),
+      updatedAt: row.updated_at ? new Date(row.updated_at) : new Date(),
+    };
+  }
+
   async getFieldEventAthletes(sessionId: number): Promise<FieldEventAthlete[]> {
-    return [];
+    const rows = this.db.prepare('SELECT * FROM field_event_athletes WHERE session_id = ? ORDER BY flight_number, order_in_flight').all(sessionId) as any[];
+    return rows.map((r) => this.mapFieldAthlete(r));
   }
 
   async getFieldEventAthlete(id: number): Promise<FieldEventAthlete | null> {
-    return null;
+    const row = this.db.prepare('SELECT * FROM field_event_athletes WHERE id = ?').get(id) as any;
+    return row ? this.mapFieldAthlete(row) : null;
   }
 
   async createFieldEventAthlete(athlete: InsertFieldEventAthlete): Promise<FieldEventAthlete> {
-    const now = new Date();
-    return {
-      id: 0,
-      sessionId: athlete.sessionId,
-      entryId: athlete.entryId ?? null,
-      flightNumber: athlete.flightNumber ?? 1,
-      orderInFlight: athlete.orderInFlight,
-      checkInStatus: athlete.checkInStatus ?? 'pending',
-      checkedInAt: null,
-      competitionStatus: athlete.competitionStatus ?? 'waiting',
-      checkedOutAt: null,
-      retiredAt: null,
-      startingHeightIndex: athlete.startingHeightIndex ?? 0,
-      bestMark: athlete.bestMark ?? null,
-      currentPlace: athlete.currentPlace ?? null,
-      evtBibNumber: athlete.evtBibNumber ?? null,
-      evtFirstName: athlete.evtFirstName ?? null,
-      evtLastName: athlete.evtLastName ?? null,
-      evtTeam: athlete.evtTeam ?? null,
-      isFinalist: athlete.isFinalist ?? false,
-      finalsOrder: athlete.finalsOrder ?? null,
-      notes: athlete.notes ?? null,
-      createdAt: now,
-      updatedAt: now,
-    };
+    const result = this.db.prepare(`
+      INSERT INTO field_event_athletes (session_id, entry_id, flight_number, order_in_flight,
+        check_in_status, competition_status, starting_height_index, best_mark, current_place,
+        evt_bib_number, evt_first_name, evt_last_name, evt_team, is_finalist, finals_order, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      athlete.sessionId, athlete.entryId ?? null, athlete.flightNumber ?? 1, athlete.orderInFlight,
+      athlete.checkInStatus ?? 'pending', athlete.competitionStatus ?? 'waiting',
+      athlete.startingHeightIndex ?? 0, athlete.bestMark ?? null, athlete.currentPlace ?? null,
+      athlete.evtBibNumber ?? null, athlete.evtFirstName ?? null, athlete.evtLastName ?? null,
+      athlete.evtTeam ?? null, this.fromBoolean(athlete.isFinalist ?? false),
+      athlete.finalsOrder ?? null, athlete.notes ?? null,
+    );
+    return (await this.getFieldEventAthlete(result.lastInsertRowid as number))!;
   }
 
   async updateFieldEventAthlete(id: number, updates: Partial<InsertFieldEventAthlete>): Promise<FieldEventAthlete | null> {
-    return null;
+    const setClauses: string[] = [];
+    const values: any[] = [];
+    if (updates.entryId !== undefined) { setClauses.push('entry_id = ?'); values.push(updates.entryId); }
+    if (updates.flightNumber !== undefined) { setClauses.push('flight_number = ?'); values.push(updates.flightNumber); }
+    if (updates.orderInFlight !== undefined) { setClauses.push('order_in_flight = ?'); values.push(updates.orderInFlight); }
+    if (updates.checkInStatus !== undefined) { setClauses.push('check_in_status = ?'); values.push(updates.checkInStatus); }
+    if (updates.competitionStatus !== undefined) { setClauses.push('competition_status = ?'); values.push(updates.competitionStatus); }
+    if (updates.startingHeightIndex !== undefined) { setClauses.push('starting_height_index = ?'); values.push(updates.startingHeightIndex); }
+    if (updates.bestMark !== undefined) { setClauses.push('best_mark = ?'); values.push(updates.bestMark); }
+    if (updates.currentPlace !== undefined) { setClauses.push('current_place = ?'); values.push(updates.currentPlace); }
+    if (updates.isFinalist !== undefined) { setClauses.push('is_finalist = ?'); values.push(this.fromBoolean(updates.isFinalist)); }
+    if (updates.finalsOrder !== undefined) { setClauses.push('finals_order = ?'); values.push(updates.finalsOrder); }
+    if (updates.notes !== undefined) { setClauses.push('notes = ?'); values.push(updates.notes); }
+    if (setClauses.length === 0) return this.getFieldEventAthlete(id);
+    setClauses.push("updated_at = datetime('now')");
+    values.push(id);
+    this.db.prepare(`UPDATE field_event_athletes SET ${setClauses.join(', ')} WHERE id = ?`).run(...values);
+    return this.getFieldEventAthlete(id);
   }
 
   async deleteFieldEventAthlete(id: number): Promise<void> {
-    // stub: no-op
+    this.db.prepare('DELETE FROM field_event_athletes WHERE id = ?').run(id);
   }
 
   async checkInFieldAthlete(id: number): Promise<FieldEventAthlete | null> {
-    return null;
+    this.db.prepare("UPDATE field_event_athletes SET check_in_status = 'checked_in', checked_in_at = datetime('now'), updated_at = datetime('now') WHERE id = ?").run(id);
+    return this.getFieldEventAthlete(id);
   }
 
   async scratchFieldAthlete(id: number): Promise<FieldEventAthlete | null> {
-    return null;
+    this.db.prepare("UPDATE field_event_athletes SET check_in_status = 'scratched', updated_at = datetime('now') WHERE id = ?").run(id);
+    return this.getFieldEventAthlete(id);
   }
 
   // ============= FIELD EVENT MARKS =============
-  async getFieldEventMark(id: number): Promise<FieldEventMark | null> {
-    return null;
-  }
 
-  async getFieldEventMarks(sessionId: number): Promise<FieldEventMark[]> {
-    return [];
-  }
-
-  async getFieldEventMarksByAthlete(athleteId: number): Promise<FieldEventMark[]> {
-    return [];
-  }
-
-  async createFieldEventMark(mark: InsertFieldEventMark): Promise<FieldEventMark> {
+  private mapFieldMark(row: any): FieldEventMark {
     return {
-      id: 0,
-      sessionId: mark.sessionId,
-      athleteId: mark.athleteId,
-      attemptNumber: mark.attemptNumber,
-      heightIndex: mark.heightIndex ?? null,
-      attemptAtHeight: mark.attemptAtHeight ?? null,
-      markType: mark.markType,
-      measurement: mark.measurement ?? null,
-      measurementDisplay: mark.measurementDisplay ?? null,
-      wind: mark.wind ?? null,
-      isBest: mark.isBest ?? false,
-      isDarkMark: mark.isDarkMark ?? false,
-      darkMeasurement: mark.darkMeasurement ?? null,
-      isFinalsRound: mark.isFinalsRound ?? false,
-      recordedAt: new Date(),
+      id: row.id,
+      sessionId: row.session_id,
+      athleteId: row.athlete_id,
+      attemptNumber: row.attempt_number,
+      heightIndex: row.height_index ?? null,
+      attemptAtHeight: row.attempt_at_height ?? null,
+      markType: row.mark_type,
+      measurement: row.measurement ?? null,
+      measurementDisplay: row.measurement_display ?? null,
+      wind: row.wind ?? null,
+      isBest: this.toBoolean(row.is_best),
+      isDarkMark: this.toBoolean(row.is_dark_mark),
+      darkMeasurement: row.dark_measurement ?? null,
+      isFinalsRound: this.toBoolean(row.is_finals_round),
+      recordedAt: row.recorded_at ? new Date(row.recorded_at) : new Date(),
     };
   }
 
+  async getFieldEventMark(id: number): Promise<FieldEventMark | null> {
+    const row = this.db.prepare('SELECT * FROM field_event_marks WHERE id = ?').get(id) as any;
+    return row ? this.mapFieldMark(row) : null;
+  }
+
+  async getFieldEventMarks(sessionId: number): Promise<FieldEventMark[]> {
+    const rows = this.db.prepare('SELECT * FROM field_event_marks WHERE session_id = ? ORDER BY attempt_number, id').all(sessionId) as any[];
+    return rows.map((r) => this.mapFieldMark(r));
+  }
+
+  async getFieldEventMarksByAthlete(athleteId: number): Promise<FieldEventMark[]> {
+    const rows = this.db.prepare('SELECT * FROM field_event_marks WHERE athlete_id = ? ORDER BY attempt_number, id').all(athleteId) as any[];
+    return rows.map((r) => this.mapFieldMark(r));
+  }
+
+  async createFieldEventMark(mark: InsertFieldEventMark): Promise<FieldEventMark> {
+    const result = this.db.prepare(`
+      INSERT INTO field_event_marks (session_id, athlete_id, attempt_number, height_index,
+        attempt_at_height, mark_type, measurement, measurement_display, wind,
+        is_best, is_dark_mark, dark_measurement, is_finals_round)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      mark.sessionId, mark.athleteId, mark.attemptNumber, mark.heightIndex ?? null,
+      mark.attemptAtHeight ?? null, mark.markType, mark.measurement ?? null,
+      mark.measurementDisplay ?? null, mark.wind ?? null,
+      this.fromBoolean(mark.isBest ?? false), this.fromBoolean(mark.isDarkMark ?? false),
+      mark.darkMeasurement ?? null, this.fromBoolean(mark.isFinalsRound ?? false),
+    );
+    return (await this.getFieldEventMark(result.lastInsertRowid as number))!;
+  }
+
   async updateFieldEventMark(id: number, updates: Partial<InsertFieldEventMark>): Promise<FieldEventMark | null> {
-    return null;
+    const setClauses: string[] = [];
+    const values: any[] = [];
+    if (updates.attemptNumber !== undefined) { setClauses.push('attempt_number = ?'); values.push(updates.attemptNumber); }
+    if (updates.heightIndex !== undefined) { setClauses.push('height_index = ?'); values.push(updates.heightIndex); }
+    if (updates.attemptAtHeight !== undefined) { setClauses.push('attempt_at_height = ?'); values.push(updates.attemptAtHeight); }
+    if (updates.markType !== undefined) { setClauses.push('mark_type = ?'); values.push(updates.markType); }
+    if (updates.measurement !== undefined) { setClauses.push('measurement = ?'); values.push(updates.measurement); }
+    if (updates.measurementDisplay !== undefined) { setClauses.push('measurement_display = ?'); values.push(updates.measurementDisplay); }
+    if (updates.wind !== undefined) { setClauses.push('wind = ?'); values.push(updates.wind); }
+    if (updates.isBest !== undefined) { setClauses.push('is_best = ?'); values.push(this.fromBoolean(updates.isBest)); }
+    if (updates.isDarkMark !== undefined) { setClauses.push('is_dark_mark = ?'); values.push(this.fromBoolean(updates.isDarkMark)); }
+    if (updates.darkMeasurement !== undefined) { setClauses.push('dark_measurement = ?'); values.push(updates.darkMeasurement); }
+    if (updates.isFinalsRound !== undefined) { setClauses.push('is_finals_round = ?'); values.push(this.fromBoolean(updates.isFinalsRound)); }
+    if (setClauses.length === 0) return this.getFieldEventMark(id);
+    values.push(id);
+    this.db.prepare(`UPDATE field_event_marks SET ${setClauses.join(', ')} WHERE id = ?`).run(...values);
+    return this.getFieldEventMark(id);
   }
 
   async deleteFieldEventMark(id: number): Promise<void> {
-    // stub: no-op
+    this.db.prepare('DELETE FROM field_event_marks WHERE id = ?').run(id);
   }
 
   // ============= SCENE TEMPLATE MAPPINGS =============
