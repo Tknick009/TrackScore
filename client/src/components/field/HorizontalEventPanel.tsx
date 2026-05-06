@@ -704,7 +704,7 @@ export default function HorizontalEventPanel({ fs }: { fs: FieldSession }) {
                       }
                     }}
                   >
-                    Flt {flightNum} ({athletesInFlight.length})
+                    Flight {flightNum} ({athletesInFlight.length})
                   </Badge>
                 );
               })}
