@@ -658,25 +658,28 @@ export default function VerticalEventPanel({ fs }: { fs: FieldSession }) {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="officiate" className="flex-1 m-0 min-h-0 overflow-auto">
-          {/* Inline vertical entry - shows when athlete is selected */}
+        <TabsContent value="officiate" className="flex-1 m-0 min-h-0 flex flex-col">
+          {/* Inline vertical entry - sticky at top so it stays visible while scrolling */}
           {selectedAthlete && (
-            <InlineVerticalEntry
-              athlete={selectedAthlete}
-              heights={heights}
-              currentHeightIndex={currentHeightIndex}
-              marks={marks}
-              onRecordMark={(markType) => {
-                recordVerticalMark(selectedAthlete, markType);
-              }}
-              onDeleteLastMark={() => handleDeleteLastVerticalMark(selectedAthlete.id)}
-              onClose={() => setSelectedAthleteId(null)}
-              isPending={submitMarkMutation.isPending || deleteMarkMutation.isPending}
-              canDeleteLast={!!getLastVerticalMarkForAthlete(selectedAthlete.id)}
-            />
+            <div className="sticky top-0 z-10 shrink-0">
+              <InlineVerticalEntry
+                athlete={selectedAthlete}
+                heights={heights}
+                currentHeightIndex={currentHeightIndex}
+                marks={marks}
+                onRecordMark={(markType) => {
+                  recordVerticalMark(selectedAthlete, markType);
+                }}
+                onDeleteLastMark={() => handleDeleteLastVerticalMark(selectedAthlete.id)}
+                onClose={() => setSelectedAthleteId(null)}
+                isPending={submitMarkMutation.isPending || deleteMarkMutation.isPending}
+                canDeleteLast={!!getLastVerticalMarkForAthlete(selectedAthlete.id)}
+              />
+            </div>
           )}
 
-          {/* Athlete list */}
+          {/* Athlete list - scrollable */}
+          <div className="flex-1 min-h-0 overflow-auto">
           {sortedAthletes.length > 0 ? (
             <div className="divide-y w-full">
               {sortedAthletes.map((athlete) => (
@@ -736,6 +739,7 @@ export default function VerticalEventPanel({ fs }: { fs: FieldSession }) {
               </div>
             </div>
           )}
+          </div>
         </TabsContent>
 
         <TabsContent value="standings" className="flex-1 m-0 min-h-0 overflow-auto">

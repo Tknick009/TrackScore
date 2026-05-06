@@ -42,6 +42,7 @@ import {
   Ruler,
   LogOut,
   Activity,
+  Send,
 } from "lucide-react";
 import type {
   FieldEventSession,
@@ -843,6 +844,7 @@ export default function FieldCommandCenter() {
   const [showGenerateFinals, setShowGenerateFinals] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showHeightsDialog, setShowHeightsDialog] = useState(false);
+  const [isSendingResults, setIsSendingResults] = useState(false);
 
   // Current active session data for header controls
   // Always call the hook (React rules) — use -1 as a sentinel when no session is active
@@ -986,6 +988,29 @@ export default function FieldCommandCenter() {
                 <span className="hidden sm:inline">Heights</span>
               </Button>
             )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-3 text-xs text-slate-400 hover:text-cyan-400 hover:bg-slate-800 gap-1.5"
+              disabled={isSendingResults || !activeSessionId}
+              onClick={async () => {
+                if (!activeSessionId) return;
+                setIsSendingResults(true);
+                try {
+                  const res = await apiRequest("POST", `/api/field-sessions/${activeSessionId}/export-lff`, {});
+                  const data = await res.json();
+                  toast({ title: "Results sent", description: data.filePath || "LFF exported successfully" });
+                } catch (error: unknown) {
+                  const msg = error instanceof Error ? error.message : "Failed to export LFF";
+                  toast({ title: msg, variant: "destructive" });
+                } finally {
+                  setIsSendingResults(false);
+                }
+              }}
+            >
+              {isSendingResults ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+              <span className="hidden sm:inline">Send Results</span>
+            </Button>
             <Button
               variant="ghost"
               size="sm"

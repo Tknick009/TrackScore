@@ -755,27 +755,30 @@ export default function HorizontalEventPanel({ fs }: { fs: FieldSession }) {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="officiate" className="flex-1 m-0 min-h-0 overflow-auto">
-          {/* Inline mark entry - shows when athlete is selected */}
+        <TabsContent value="officiate" className="flex-1 m-0 min-h-0 flex flex-col">
+          {/* Inline mark entry - sticky at top so it stays visible while scrolling */}
           {selectedAthlete && (
-            <InlineMarkEntry
-              athlete={selectedAthlete}
-              attemptNumber={nextAttemptNumber}
-              totalAttempts={officiateAttempts}
-              onRecordMark={(markType, measurement, wind) => {
-                recordMark(selectedAthlete, markType, measurement, wind);
-                // Don't auto-close - let user continue entering marks
-              }}
-              onDeleteLastMark={() => handleDeleteLastMark(selectedAthlete.id)}
-              onClose={() => setSelectedAthleteId(null)}
-              isPending={submitMarkMutation.isPending || deleteMarkMutation.isPending}
-              canDeleteLast={!!getLastMarkForAthlete(selectedAthlete.id)}
-              recordWind={session?.recordWind || false}
-              measurementUnit={(session?.measurementUnit as 'metric' | 'english') || 'metric'}
-            />
+            <div className="sticky top-0 z-10 shrink-0">
+              <InlineMarkEntry
+                athlete={selectedAthlete}
+                attemptNumber={nextAttemptNumber}
+                totalAttempts={officiateAttempts}
+                onRecordMark={(markType, measurement, wind) => {
+                  recordMark(selectedAthlete, markType, measurement, wind);
+                  // Don't auto-close - let user continue entering marks
+                }}
+                onDeleteLastMark={() => handleDeleteLastMark(selectedAthlete.id)}
+                onClose={() => setSelectedAthleteId(null)}
+                isPending={submitMarkMutation.isPending || deleteMarkMutation.isPending}
+                canDeleteLast={!!getLastMarkForAthlete(selectedAthlete.id)}
+                recordWind={session?.recordWind || false}
+                measurementUnit={(session?.measurementUnit as 'metric' | 'english') || 'metric'}
+              />
+            </div>
           )}
 
-          {/* Athlete list */}
+          {/* Athlete list - scrollable */}
+          <div className="flex-1 min-h-0 overflow-auto">
           {displayAthletes.length > 0 ? (
             <div className="divide-y w-full">
               {displayAthletes.map((athlete) => (
@@ -837,6 +840,7 @@ export default function HorizontalEventPanel({ fs }: { fs: FieldSession }) {
               </div>
             </div>
           )}
+          </div>
         </TabsContent>
 
         <TabsContent value="standings" className="flex-1 m-0 min-h-0 overflow-auto">
