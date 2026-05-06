@@ -88,56 +88,109 @@ function JoinSession({ onJoin }: { onJoin: (sessionId: number) => void }) {
     onJoin(sessionId);
   };
 
+  const getEventEmoji = (name: string) => {
+    const n = name.toLowerCase();
+    if (n.includes('high jump') || n.includes('pole vault') || n.includes('hj') || n.includes('pv')) return '⬆️';
+    if (n.includes('long jump') || n.includes('triple jump') || n.includes('lj') || n.includes('tj')) return '🔄';
+    if (n.includes('shot') || n.includes('hammer') || n.includes('weight') || n.includes('sp') || n.includes('ht') || n.includes('wt')) return '🏋️';
+    if (n.includes('discus') || n.includes('javelin') || n.includes('dt') || n.includes('jt')) return '🥏';
+    return '🏟️';
+  };
+
+  const getEventType = (name: string) => {
+    const n = name.toLowerCase();
+    if (n.includes('high jump') || n.includes('pole vault') || n.includes('hj') || n.includes('pv')) return 'Vertical';
+    return 'Horizontal';
+  };
+
   return (
-    <div className="max-w-lg mx-auto p-4 sm:p-6 space-y-6">
-      <div className="text-center">
-        <Activity className="h-10 w-10 mx-auto text-primary mb-3" />
-        <h1 className="text-2xl font-bold">Officiate</h1>
-        <p className="text-muted-foreground mt-1">Select an event to begin</p>
-      </div>
+    <div className="min-h-screen bg-slate-950 text-slate-100">
+      <div className="max-w-2xl mx-auto p-4 sm:p-6 space-y-8">
+        {/* Header */}
+        <div className="text-center pt-6">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 mb-4">
+            <Activity className="h-8 w-8 text-emerald-400" />
+          </div>
+          <h1 className="text-3xl font-bold text-white">Officiate</h1>
+          <p className="text-slate-400 mt-2">Select a field event to begin officiating</p>
+        </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="device-name">Device Name</Label>
-        <Input
-          id="device-name"
-          value={deviceName}
-          onChange={(e) => handleDeviceNameChange(e.target.value)}
-          placeholder="e.g., iPad #1"
-          className="text-base"
-        />
-        <p className="text-xs text-muted-foreground">Identifies this device in activity logs</p>
-      </div>
+        {/* Device Name */}
+        <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-2">
+          <Label htmlFor="device-name" className="text-slate-300 text-sm font-medium">Device Name</Label>
+          <Input
+            id="device-name"
+            value={deviceName}
+            onChange={(e) => handleDeviceNameChange(e.target.value)}
+            placeholder="e.g., iPad #1"
+            className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 text-base focus:border-emerald-500 focus:ring-emerald-500/20"
+          />
+          <p className="text-xs text-slate-500">Identifies this device in activity logs</p>
+        </div>
 
-      <div className="space-y-3">
-        <h2 className="font-semibold text-lg">Active Events</h2>
-        {sessionsLoading ? (
-          <div className="flex items-center justify-center p-8">
-            <Loader2 className="h-6 w-6 animate-spin" />
+        {/* Active Events */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-lg text-white">Active Events</h2>
+            {sessions && sessions.length > 0 && (
+              <span className="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-full font-medium">
+                {sessions.length} available
+              </span>
+            )}
           </div>
-        ) : !sessions || sessions.length === 0 ? (
-          <div className="p-6 text-center border rounded-lg">
-            <p className="text-muted-foreground">No active field events. Create one from the meet control page.</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {sessions.map((s) => {
-              const name = s.evtEventName || "Unnamed Event";
-              return (
-                <button
-                  key={s.id}
-                  onClick={() => handleSelectEvent(s.id)}
-                  className="w-full p-4 rounded-lg border hover:bg-muted/50 active:bg-muted transition-colors text-left flex items-center justify-between"
-                >
-                  <div>
-                    <p className="font-semibold text-base">{name}</p>
-                    <p className="text-sm text-muted-foreground">Session #{s.id}</p>
-                  </div>
-                  <ChevronDown className="h-4 w-4 text-muted-foreground -rotate-90" />
-                </button>
-              );
-            })}
-          </div>
-        )}
+          {sessionsLoading ? (
+            <div className="flex items-center justify-center p-12">
+              <Loader2 className="h-8 w-8 animate-spin text-emerald-400" />
+            </div>
+          ) : !sessions || sessions.length === 0 ? (
+            <div className="p-8 text-center bg-slate-900/50 border border-slate-800 rounded-xl">
+              <Activity className="h-10 w-10 mx-auto text-slate-600 mb-3" />
+              <p className="text-slate-400">No active field events</p>
+              <p className="text-sm text-slate-500 mt-1">Create events from the Field Events control page</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {sessions.map((s) => {
+                const name = s.evtEventName || "Unnamed Event";
+                const emoji = getEventEmoji(name);
+                const eventType = getEventType(name);
+                const statusColor = s.status === 'in_progress' ? 'bg-emerald-500' : s.status === 'completed' ? 'bg-blue-500' : 'bg-amber-500';
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => handleSelectEvent(s.id)}
+                    className="w-full p-4 rounded-xl bg-slate-900/80 border border-slate-800 hover:border-emerald-500/40 hover:bg-slate-800/80 active:bg-slate-800 transition-all text-left flex items-center gap-4 group"
+                  >
+                    <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-xl">
+                      {emoji}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-base text-white truncate">{name}</p>
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider text-white ${statusColor}`}>
+                          <span className="w-1.5 h-1.5 rounded-full bg-white/60 animate-pulse" />
+                          {s.status === 'in_progress' ? 'LIVE' : s.status?.toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs text-slate-500">{eventType}</span>
+                        <span className="text-slate-700">·</span>
+                        <span className="text-xs text-slate-500">{s.measurementUnit === 'english' ? 'English' : 'Metric'}</span>
+                        {s.accessCode && (
+                          <>
+                            <span className="text-slate-700">·</span>
+                            <code className="text-xs text-emerald-400 font-mono">{s.accessCode}</code>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <ChevronDown className="h-5 w-5 text-slate-600 -rotate-90 group-hover:text-emerald-400 transition-colors" />
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -735,18 +788,18 @@ function EventTabContent({ sessionId }: { sessionId: number }) {
 
   if (fs.isLoading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex items-center justify-center h-full bg-slate-950">
+        <Loader2 className="h-8 w-8 animate-spin text-emerald-400" />
       </div>
     );
   }
 
   if (fs.sessionError) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex items-center justify-center h-full bg-slate-950">
         <div className="text-center">
-          <p className="text-destructive font-semibold">Failed to load session</p>
-          <p className="text-sm text-muted-foreground mt-1">Session may have been deleted</p>
+          <p className="text-red-400 font-semibold">Failed to load session</p>
+          <p className="text-sm text-slate-500 mt-1">Session may have been deleted</p>
         </div>
       </div>
     );
@@ -788,7 +841,9 @@ export default function FieldCommandCenter() {
   const [showHeightsDialog, setShowHeightsDialog] = useState(false);
 
   // Current active session data for header controls
-  const activeFs = activeSessionId ? useFieldSession(activeSessionId) : null;
+  // Always call the hook (React rules) — use -1 as a sentinel when no session is active
+  const activeFsRaw = useFieldSession(activeSessionId ?? -1);
+  const activeFs = activeSessionId ? activeFsRaw : null;
 
   // WebSocket listener for session list updates
   useEffect(() => {
@@ -848,9 +903,9 @@ export default function FieldCommandCenter() {
   const isActiveVertical = activeFs?.isVertical || false;
 
   return (
-    <div className="flex flex-col h-screen bg-background">
+    <div className="flex flex-col h-screen bg-slate-950 text-slate-100">
       {/* PERSISTENT EVENT TABS BAR */}
-      <div className="bg-muted border-b shrink-0">
+      <div className="bg-slate-900 border-b border-slate-800 shrink-0">
         <div className="flex items-center">
           {/* Event tabs */}
           <div className="flex-1 overflow-x-auto">
@@ -861,10 +916,10 @@ export default function FieldCommandCenter() {
                 return (
                   <div
                     key={tabSessionId}
-                    className={`group flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 border-r cursor-pointer transition-colors ${
+                    className={`group flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 border-r border-slate-800 cursor-pointer transition-colors ${
                       isActive
-                        ? "bg-background border-b-2 border-b-primary font-semibold text-primary"
-                        : "hover:bg-background/50 text-muted-foreground"
+                        ? "bg-slate-950 border-b-2 border-b-emerald-500 font-semibold text-emerald-400"
+                        : "hover:bg-slate-800/50 text-slate-400"
                     }`}
                     onClick={() => {
                       setActiveSessionId(tabSessionId);
@@ -873,7 +928,7 @@ export default function FieldCommandCenter() {
                   >
                     <span className="text-xs sm:text-sm truncate max-w-[120px] sm:max-w-[200px]">{name}</span>
                     <button
-                      className="opacity-0 group-hover:opacity-100 hover:text-destructive transition-opacity p-0.5 rounded"
+                      className="opacity-0 group-hover:opacity-100 hover:text-red-400 transition-opacity p-0.5 rounded"
                       onClick={(e) => {
                         e.stopPropagation();
                         closeTab(tabSessionId);
@@ -899,7 +954,7 @@ export default function FieldCommandCenter() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 px-2 text-xs"
+              className="h-8 px-2 text-xs text-slate-400 hover:text-emerald-400 hover:bg-slate-800"
               onClick={() => setShowAddAthlete(true)}
               title="Add Athlete"
             >
@@ -909,7 +964,7 @@ export default function FieldCommandCenter() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 px-2 text-xs"
+                className="h-8 px-2 text-xs text-slate-400 hover:text-amber-400 hover:bg-slate-800"
                 onClick={() => setShowGenerateFinals(true)}
                 title="Generate Finals"
               >
@@ -920,7 +975,7 @@ export default function FieldCommandCenter() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 px-2 text-xs"
+                className="h-8 px-2 text-xs text-slate-400 hover:text-blue-400 hover:bg-slate-800"
                 onClick={() => setShowHeightsDialog(true)}
                 title="Manage Heights"
               >
@@ -930,7 +985,7 @@ export default function FieldCommandCenter() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 px-2 text-xs"
+              className="h-8 px-2 text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800"
               onClick={() => setShowSettings(true)}
               title="Settings"
             >
@@ -941,7 +996,7 @@ export default function FieldCommandCenter() {
       </div>
 
       {/* EVENT CONTENT */}
-      <div className="flex-1 min-h-0 overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-hidden bg-slate-950">
         {/* Only render the active tab's content */}
         {activeSessionId && <EventTabContent key={activeSessionId} sessionId={activeSessionId} />}
       </div>
@@ -1009,7 +1064,7 @@ function DropdownAddTab({
   return (
     <div className="relative">
       <button
-        className="flex items-center justify-center px-3 py-2 sm:py-2.5 border-r hover:bg-background/50 text-muted-foreground transition-colors"
+        className="flex items-center justify-center px-3 py-2 sm:py-2.5 border-r border-slate-800 hover:bg-slate-800/50 text-slate-400 hover:text-emerald-400 transition-colors"
         onClick={() => setIsOpen(!isOpen)}
       >
         <span className="text-lg font-bold">+</span>
@@ -1018,14 +1073,14 @@ function DropdownAddTab({
       {isOpen && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-          <div className="absolute top-full left-0 z-50 mt-1 bg-background border rounded-md shadow-lg min-w-[200px] max-h-64 overflow-y-auto">
+          <div className="absolute top-full left-0 z-50 mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl min-w-[220px] max-h-64 overflow-y-auto">
             {unopenedSessions.length === 0 ? (
-              <div className="p-3 text-sm text-muted-foreground">No more events available</div>
+              <div className="p-3 text-sm text-slate-500">No more events available</div>
             ) : (
               unopenedSessions.map((s) => (
                 <button
                   key={s.id}
-                  className="w-full px-3 py-2 text-left hover:bg-muted transition-colors text-sm"
+                  className="w-full px-3 py-2.5 text-left hover:bg-slate-800 transition-colors text-sm text-slate-300 hover:text-white border-b border-slate-800 last:border-0"
                   onClick={() => {
                     onAdd(s.id);
                     setIsOpen(false);
