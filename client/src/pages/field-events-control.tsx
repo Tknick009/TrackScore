@@ -747,6 +747,24 @@ function StatCard({
 // ---------------------------------------------------------------------------
 
 function EventCard({ session }: { session: FieldEventSession }) {
+  const { toast } = useToast();
+  const [isSending, setIsSending] = useState(false);
+
+  const handleSendResults = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsSending(true);
+    try {
+      const res = await apiRequest("POST", `/api/field-sessions/${session.id}/export-lff`, {});
+      const data = await res.json();
+      toast({ title: "Results sent", description: data.filePath || "LFF exported successfully" });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Failed to export LFF";
+      toast({ title: msg, variant: "destructive" });
+    } finally {
+      setIsSending(false);
+    }
+  };
+
   const statusConfig: Record<string, { label: string; color: string; bg: string; border: string }> = {
     in_progress: {
       label: "LIVE",
@@ -815,6 +833,20 @@ function EventCard({ session }: { session: FieldEventSession }) {
             <code className="font-mono text-slate-400">{session.accessCode}</code>
           </>
         )}
+      </div>
+
+      {/* Send Results button */}
+      <div className="mt-3 pt-3 border-t border-slate-700/50">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2.5 text-[11px] text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10 gap-1.5 w-full justify-center"
+          disabled={isSending}
+          onClick={handleSendResults}
+        >
+          {isSending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+          Send Results
+        </Button>
       </div>
     </div>
   );
