@@ -35,7 +35,8 @@ import {
   Search,
   Target,
   Settings,
-  Image
+  Image,
+  Radio,
 } from 'lucide-react';
 import { DISPLAY_CONTENT_TYPES } from '@shared/layout-templates';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -841,6 +842,33 @@ export default function DisplayControlPage() {
                             Results from Athletic Field App
                           </p>
                           {displayMode[selectedDevice.id] === 'field' && !autoModeStatus?.autoMode && (
+                            <Badge variant="default" className="mt-2">Active</Badge>
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDisplayMode(prev => ({ ...prev, [selectedDevice.id]: 'broadcast' }));
+                            toggleAutoModeMutation.mutate({ deviceId: selectedDevice.id, enabled: false });
+                            apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}/content-mode`, { contentMode: 'broadcast' });
+                            apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}`, { displayType: 'Broadcast' });
+                          }}
+                          className={`p-4 rounded-lg border-2 transition-all text-left ${
+                            displayMode[selectedDevice.id] === 'broadcast' && !autoModeStatus?.autoMode
+                              ? 'border-primary bg-primary/10'
+                              : 'border-border hover-elevate'
+                          }`}
+                          data-testid="tile-broadcast"
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <Radio className="w-5 h-5 text-red-500" />
+                            <span className="font-medium">Broadcast</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Ticker & clock overlay for streaming
+                          </p>
+                          {displayMode[selectedDevice.id] === 'broadcast' && !autoModeStatus?.autoMode && (
                             <Badge variant="default" className="mt-2">Active</Badge>
                           )}
                         </button>
