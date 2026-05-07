@@ -1299,9 +1299,10 @@ export default function DisplayDevice() {
                   <SelectValue placeholder="Choose display type..." />
                 </SelectTrigger>
                 <SelectContent className="bg-gray-900 border-gray-700">
-                  <SelectItem value="P10" className="text-white hover:bg-gray-800">P10 (192x96)</SelectItem>
-                  <SelectItem value="P6" className="text-white hover:bg-gray-800">P6 (288x144)</SelectItem>
-                  <SelectItem value="BigBoard" className="text-white hover:bg-gray-800">BigBoard (1920x1080)</SelectItem>
+                  <SelectItem value="P10" className="text-white hover:bg-gray-800">P10 (192×96)</SelectItem>
+                  <SelectItem value="P6" className="text-white hover:bg-gray-800">P6 (288×144)</SelectItem>
+                  <SelectItem value="BigBoard" className="text-white hover:bg-gray-800">BigBoard (1920×1080)</SelectItem>
+                  <SelectItem value="Broadcast" className="text-white hover:bg-gray-800">Broadcast (Ticker & Clock)</SelectItem>
                   <SelectItem value="Custom" className="text-white hover:bg-gray-800">Custom Resolution</SelectItem>
                 </SelectContent>
               </Select>
