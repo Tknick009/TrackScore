@@ -140,10 +140,10 @@ async function prefetchSceneData(sceneId: number): Promise<{ scene: any; objects
 }
 
 // FinishLynx-specific message types that should NOT override non-lynx displays
+// NOTE: clock_update is intentionally NOT here — all displays need the clock
 const LYNX_ONLY_MESSAGE_TYPES = new Set([
   'track_mode_change', 'track_mode_change_big',
   'start_list', 'start_list_big',
-  'clock_update',
   'layout_command', 'layout_command_big',
   'lynx_clock', 'lynx_wind', 'lynx_page',
   'layout-command',
