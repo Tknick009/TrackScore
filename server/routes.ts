@@ -141,10 +141,10 @@ async function prefetchSceneData(sceneId: number): Promise<{ scene: any; objects
 }
 
 // FinishLynx-specific message types that should NOT override non-lynx displays
+// NOTE: clock_update is intentionally NOT here — all displays need the clock
 const LYNX_ONLY_MESSAGE_TYPES = new Set([
   'track_mode_change', 'track_mode_change_big',
   'start_list', 'start_list_big',
-  'clock_update',
   'layout_command', 'layout_command_big',
   'lynx_clock', 'lynx_wind', 'lynx_page',
   'layout-command',
@@ -180,7 +180,7 @@ function broadcastToDisplays(message: WSMessage) {
 // Clock ticks must never be delayed by start-list DB queries, field data broadcasts, or
 // record tag enrichment. This function does the absolute minimum work:
 // 1. Pre-serialize the JSON string ONCE
-// 2. Send directly to each open WebSocket client (only lynx-mode devices)
+// 2. Send directly to ALL open WebSocket clients (clock is universal — every display needs it)
 // 3. Zero async operations, zero DB queries, zero object allocation per tick
 function broadcastClockUpdate(eventNumber: number, time: string, command: string) {
   // Sanitize strings to prevent malformed JSON from garbled serial data
@@ -190,18 +190,9 @@ function broadcastClockUpdate(eventNumber: number, time: string, command: string
   const safeCmd = (command || '').replace(/[\\"\x00-\x1f\x7f{}]/g, '');
   const messageStr = `{"type":"clock_update","data":{"eventNumber":${safeEventNumber},"time":"${safeTime}","command":"${safeCmd}"}}`;
   
-  // Build skip-set ONCE (O(M)) instead of nested forEach (O(N*M))
-  let skipWs: Set<WebSocket> | null = null;
-  connectedDisplayDevices.forEach((device) => {
-    if (device.contentMode !== 'lynx') {
-      if (!skipWs) skipWs = new Set();
-      skipWs.add(device.ws);
-    }
-  });
-  
-  // Send to all open clients, skipping non-lynx devices
+  // Send to ALL open clients — clock is universal, not filtered by content mode
   displayClients.forEach((client) => {
-    if (client.readyState === 1 && !(skipWs && skipWs.has(client))) { // 1 = WebSocket.OPEN
+    if (client.readyState === 1) { // 1 = WebSocket.OPEN
       client.send(messageStr);
     }
   });
