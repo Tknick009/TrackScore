@@ -132,13 +132,13 @@ function InlineMarkEntry({
   };
 
   return (
-    <div className="bg-muted/80 border-y-2 border-primary/30 animate-in slide-in-from-top duration-150">
+    <div className="bg-slate-800/80 border-y-2 border-primary/30 animate-in slide-in-from-top duration-150">
       {/* Compact header */}
-      <div className="flex items-center justify-between px-3 py-2 sm:px-4 border-b border-border/50">
+      <div className="flex items-center justify-between px-3 py-2 sm:px-4 border-b border-slate-700/50">
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="font-mono text-xs sm:text-sm">{info.bib}</Badge>
-          <span className="font-semibold text-sm sm:text-base">{info.name}</span>
-          <span className="text-xs sm:text-sm text-muted-foreground">
+          <span className="font-semibold text-sm sm:text-base text-white">{info.name}</span>
+          <span className="text-xs sm:text-sm text-slate-400">
             Attempt {attemptNumber}/{totalAttempts}
           </span>
         </div>
@@ -173,10 +173,10 @@ function InlineMarkEntry({
                 placeholder="FT"
                 value={feet}
                 onChange={(e) => handleFeetChange(e.target.value)}
-                className="h-10 sm:h-12 w-16 sm:w-20 text-lg sm:text-xl text-center font-mono"
+                className="h-10 sm:h-12 w-16 sm:w-20 text-lg sm:text-xl text-center font-mono bg-slate-900 border-slate-600 text-white"
                 autoFocus
               />
-              <span className="text-xl font-bold text-muted-foreground">'</span>
+              <span className="text-xl font-bold text-slate-400">'</span>
               <Input
                 ref={inchesInputRef}
                 type="text"
@@ -184,9 +184,9 @@ function InlineMarkEntry({
                 placeholder="IN"
                 value={inches}
                 onChange={(e) => handleInchesChange(e.target.value)}
-                className="h-10 sm:h-12 w-16 sm:w-20 text-lg sm:text-xl text-center font-mono"
+                className="h-10 sm:h-12 w-16 sm:w-20 text-lg sm:text-xl text-center font-mono bg-slate-900 border-slate-600 text-white"
               />
-              <span className="text-xl font-bold text-muted-foreground">"</span>
+              <span className="text-xl font-bold text-slate-400">"</span>
             </>
           ) : (
             <>
@@ -196,10 +196,10 @@ function InlineMarkEntry({
                 placeholder="M"
                 value={meters}
                 onChange={(e) => handleMetersChange(e.target.value)}
-                className="h-10 sm:h-12 w-14 sm:w-16 text-lg sm:text-xl text-center font-mono"
+                className="h-10 sm:h-12 w-14 sm:w-16 text-lg sm:text-xl text-center font-mono bg-slate-900 border-slate-600 text-white"
                 autoFocus
               />
-              <span className="text-xl font-bold text-muted-foreground">.</span>
+              <span className="text-xl font-bold text-slate-400">.</span>
               <Input
                 ref={cmInputRef}
                 type="text"
@@ -207,7 +207,7 @@ function InlineMarkEntry({
                 placeholder="CM"
                 value={centimeters}
                 onChange={(e) => handleCentimetersChange(e.target.value)}
-                className="h-10 sm:h-12 w-14 sm:w-16 text-lg sm:text-xl text-center font-mono"
+                className="h-10 sm:h-12 w-14 sm:w-16 text-lg sm:text-xl text-center font-mono bg-slate-900 border-slate-600 text-white"
               />
             </>
           )}
@@ -216,7 +216,7 @@ function InlineMarkEntry({
         {/* Wind input (if applicable) */}
         {recordWind && (
           <div className="flex items-center gap-1.5">
-            <span className="text-sm text-muted-foreground">W:</span>
+            <span className="text-sm text-slate-400">W:</span>
             <Button
               type="button"
               variant={windSign === "+" ? "default" : "outline"}
@@ -232,7 +232,7 @@ function InlineMarkEntry({
               placeholder="0.0"
               value={windValue}
               onChange={(e) => setWindValue(e.target.value.replace(/[^0-9.]/g, ''))}
-              className="h-10 w-14 text-base text-center font-mono"
+              className="h-10 w-14 text-base text-center font-mono bg-slate-900 border-slate-600 text-white"
             />
           </div>
         )}
@@ -259,7 +259,7 @@ function InlineMarkEntry({
             variant="secondary"
             onClick={() => handleSubmit("pass")}
             disabled={isPending}
-            className="h-10 sm:h-12 px-4 sm:px-6 text-sm sm:text-base"
+            className="h-10 sm:h-12 px-4 sm:px-6 text-sm sm:text-base bg-slate-700 hover:bg-slate-600 text-white border-slate-600"
           >
             PASS
           </Button>
@@ -309,10 +309,10 @@ function AthleteRow({
 
   return (
     <div
-      className={`border-b border-border transition-colors ${
-        isExpanded ? "bg-blue-50 dark:bg-blue-950/20" : 
-        isUp ? "bg-green-50 dark:bg-green-950/30 hover:bg-green-100 dark:hover:bg-green-950/50" : 
-        "hover:bg-muted/30 active:bg-muted/50"
+      className={`border-b border-slate-700 transition-colors ${
+        isExpanded ? "bg-slate-800/60" : 
+        isUp ? "bg-emerald-950/30 hover:bg-emerald-950/50" : 
+        "hover:bg-slate-800/30 active:bg-slate-800/50"
       }`}
     >
       <div
@@ -324,7 +324,7 @@ function AthleteRow({
           {isUp ? (
             <Badge className="bg-green-600 text-white font-bold px-2 sm:px-3 py-1 text-xs sm:text-sm">UP</Badge>
           ) : (
-            <span className="text-xs sm:text-sm text-muted-foreground">
+            <span className="text-xs sm:text-sm text-slate-400">
               {roundMarks.length}/{totalAttempts}
             </span>
           )}
@@ -334,12 +334,12 @@ function AthleteRow({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             {showBibNumbers && (
-              <span className="font-mono text-xs sm:text-sm text-muted-foreground">{info.bib}</span>
+              <span className="font-mono text-xs sm:text-sm text-slate-400">{info.bib}</span>
             )}
-            <span className="font-semibold text-sm sm:text-base">{info.name}</span>
+            <span className="font-semibold text-sm sm:text-base text-slate-100">{info.name}</span>
           </div>
           {info.team && (
-            <p className="text-xs sm:text-sm text-muted-foreground truncate">{info.team}</p>
+            <p className="text-xs sm:text-sm text-slate-400 truncate">{info.team}</p>
           )}
         </div>
 
@@ -353,7 +353,7 @@ function AthleteRow({
               let textColor: string;
               if (mark.markType === "mark" && mark.measurement) {
                 content = mark.measurement.toFixed(2);
-                bgColor = "bg-green-600";
+                bgColor = "bg-emerald-600";
                 textColor = "text-white";
               } else if (mark.markType === "foul") {
                 content = "X";
@@ -361,7 +361,7 @@ function AthleteRow({
                 textColor = "text-white";
               } else {
                 content = "P";
-                bgColor = "bg-yellow-400";
+                bgColor = "bg-amber-500";
                 textColor = "text-black";
               }
               return (
@@ -381,7 +381,7 @@ function AthleteRow({
               );
             }
             return (
-              <div key={i} className="min-w-[2.5rem] px-1 py-0.5 rounded bg-muted text-muted-foreground font-mono text-xs text-center">
+              <div key={i} className="min-w-[2.5rem] px-1 py-0.5 rounded bg-slate-800 text-slate-400 font-mono text-xs text-center">
                 -
               </div>
             );
@@ -391,9 +391,9 @@ function AthleteRow({
         {/* Best mark */}
         <div className="w-14 sm:w-16 text-right shrink-0">
           {bestMark !== null ? (
-            <span className="font-mono font-semibold text-sm sm:text-base">{bestMark.toFixed(2)}</span>
+            <span className="font-mono font-semibold text-sm sm:text-base text-slate-100">{bestMark.toFixed(2)}</span>
           ) : (
-            <span className="text-muted-foreground text-sm">-</span>
+            <span className="text-slate-400 text-sm">-</span>
           )}
         </div>
 
@@ -495,11 +495,11 @@ function StandingsView({
               {item.best !== null ? currentPlace : "-"}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-base">{info.name}</p>
-              <p className="text-sm text-muted-foreground">{info.team || info.bib}</p>
+              <p className="font-semibold text-base text-slate-100">{info.name}</p>
+              <p className="text-sm text-slate-400">{info.team || info.bib}</p>
             </div>
             <div className="text-right shrink-0">
-              <p className="font-mono font-bold text-lg">
+              <p className="font-mono font-bold text-lg text-slate-100">
                 {item.best !== null ? item.best.toFixed(2) : "-"}
               </p>
             </div>
@@ -530,12 +530,12 @@ function ReviewView({
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b">
-            <th className="text-left p-3 sticky left-0 bg-background">Athlete</th>
+          <tr className="border-b border-slate-700">
+            <th className="text-left p-3 sticky left-0 bg-slate-900 text-slate-300">Athlete</th>
             {Array.from({ length: totalAttempts }, (_, i) => (
-              <th key={i} className="text-center p-3 min-w-16">#{i + 1}</th>
+              <th key={i} className="text-center p-3 min-w-16 text-slate-400">#{i + 1}</th>
             ))}
-            <th className="text-center p-3">Best</th>
+            <th className="text-center p-3 text-slate-300">Best</th>
           </tr>
         </thead>
         <tbody>
@@ -546,26 +546,26 @@ function ReviewView({
             const best = validMarks.length > 0 ? Math.max(...validMarks) : null;
 
             return (
-              <tr key={athlete.id} className="border-b">
-                <td className="p-3 sticky left-0 bg-background min-w-[120px]">
-                  <div className="font-semibold">{info.name}</div>
-                  {info.team && <div className="text-xs text-muted-foreground">{info.team}</div>}
+              <tr key={athlete.id} className="border-b border-slate-800">
+                <td className="p-3 sticky left-0 bg-slate-900 min-w-[120px]">
+                  <div className="font-semibold text-slate-100">{info.name}</div>
+                  {info.team && <div className="text-xs text-slate-500">{info.team}</div>}
                 </td>
                 {Array.from({ length: totalAttempts }, (_, i) => {
                   const mark = athleteMarks[i];
-                  if (!mark) return <td key={i} className="text-center p-3 text-muted-foreground">-</td>;
+                  if (!mark) return <td key={i} className="text-center p-3 text-slate-600">-</td>;
 
                   let content: string;
                   let className = "font-mono";
                   if (mark.markType === "mark" && mark.measurement) {
                     content = mark.measurement.toFixed(2);
-                    className += " text-green-600 font-bold";
+                    className += " text-emerald-400 font-bold";
                   } else if (mark.markType === "foul") {
                     content = "X";
-                    className += " text-red-500";
+                    className += " text-red-400";
                   } else {
                     content = "P";
-                    className += " text-yellow-600";
+                    className += " text-amber-400";
                   }
 
                   return (
@@ -580,7 +580,7 @@ function ReviewView({
                     </td>
                   );
                 })}
-                <td className="text-center p-3 font-mono font-bold">
+                <td className="text-center p-3 font-mono font-bold text-slate-100">
                   {best !== null ? best.toFixed(2) : "-"}
                 </td>
               </tr>
@@ -679,11 +679,11 @@ export default function HorizontalEventPanel({ fs }: { fs: FieldSession }) {
   return (
     <div className="flex flex-col h-full">
       {/* Flight Selector Bar */}
-      <div className="bg-muted/50 border-b shrink-0">
+      <div className="bg-slate-800/50 border-b shrink-0">
         <div className="p-2 sm:p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div className="w-full overflow-x-auto">
             <div className="flex items-center gap-2 min-w-max sm:flex-wrap">
-              <span className="text-sm text-muted-foreground shrink-0">Flight:</span>
+              <span className="text-sm text-slate-400 shrink-0">Flight:</span>
               {Array.from({ length: totalFlights }, (_, i) => i + 1).map((flightNum) => {
                 const athletesInFlight = sortedAthletes.filter(a => (a.flightNumber || 1) === flightNum);
                 const isSelected = !session.isInFinals && currentFlight === flightNum;
@@ -704,7 +704,7 @@ export default function HorizontalEventPanel({ fs }: { fs: FieldSession }) {
                       }
                     }}
                   >
-                    Flt {flightNum} ({athletesInFlight.length})
+                    Flight {flightNum} ({athletesInFlight.length})
                   </Badge>
                 );
               })}
@@ -729,7 +729,7 @@ export default function HorizontalEventPanel({ fs }: { fs: FieldSession }) {
               )}
             </div>
           </div>
-          <span className="text-xs text-muted-foreground shrink-0">
+          <span className="text-xs text-slate-400 shrink-0">
             {session.isInFinals
               ? `${session.finalsAttempts || 3} attempts per finalist`
               : `${session.prelimAttempts || 3} prelim attempts`
@@ -740,42 +740,45 @@ export default function HorizontalEventPanel({ fs }: { fs: FieldSession }) {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 min-h-0 flex flex-col">
-        <TabsList className="w-full rounded-none border-b h-10 sm:h-12 bg-background shrink-0">
-          <TabsTrigger value="officiate" className="flex-1 gap-1.5 text-xs sm:text-sm data-[state=active]:bg-muted">
+        <TabsList className="w-full rounded-none border-b border-slate-700 h-10 sm:h-12 bg-slate-900 shrink-0">
+          <TabsTrigger value="officiate" className="flex-1 gap-1.5 text-xs sm:text-sm text-slate-400 data-[state=active]:text-emerald-400 data-[state=active]:bg-slate-800 data-[state=active]:border-b-2 data-[state=active]:border-b-emerald-500">
             <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Officiate
           </TabsTrigger>
-          <TabsTrigger value="standings" className="flex-1 gap-1.5 text-xs sm:text-sm data-[state=active]:bg-muted">
+          <TabsTrigger value="standings" className="flex-1 gap-1.5 text-xs sm:text-sm text-slate-400 data-[state=active]:text-emerald-400 data-[state=active]:bg-slate-800 data-[state=active]:border-b-2 data-[state=active]:border-b-emerald-500">
             <Trophy className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Standings
           </TabsTrigger>
-          <TabsTrigger value="review" className="flex-1 gap-1.5 text-xs sm:text-sm data-[state=active]:bg-muted">
+          <TabsTrigger value="review" className="flex-1 gap-1.5 text-xs sm:text-sm text-slate-400 data-[state=active]:text-emerald-400 data-[state=active]:bg-slate-800 data-[state=active]:border-b-2 data-[state=active]:border-b-emerald-500">
             <Grid3X3 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Review
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="officiate" className="flex-1 m-0 min-h-0 overflow-auto">
-          {/* Inline mark entry - shows when athlete is selected */}
+        <TabsContent value="officiate" className="flex-1 m-0 mt-0 min-h-0 flex flex-col data-[state=inactive]:hidden">
+          {/* Inline mark entry - sticky at top so it stays visible while scrolling */}
           {selectedAthlete && (
-            <InlineMarkEntry
-              athlete={selectedAthlete}
-              attemptNumber={nextAttemptNumber}
-              totalAttempts={officiateAttempts}
-              onRecordMark={(markType, measurement, wind) => {
-                recordMark(selectedAthlete, markType, measurement, wind);
-                // Don't auto-close - let user continue entering marks
-              }}
-              onDeleteLastMark={() => handleDeleteLastMark(selectedAthlete.id)}
-              onClose={() => setSelectedAthleteId(null)}
-              isPending={submitMarkMutation.isPending || deleteMarkMutation.isPending}
-              canDeleteLast={!!getLastMarkForAthlete(selectedAthlete.id)}
-              recordWind={session?.recordWind || false}
-              measurementUnit={(session?.measurementUnit as 'metric' | 'english') || 'metric'}
-            />
+            <div className="sticky top-0 z-10 shrink-0">
+              <InlineMarkEntry
+                athlete={selectedAthlete}
+                attemptNumber={nextAttemptNumber}
+                totalAttempts={officiateAttempts}
+                onRecordMark={(markType, measurement, wind) => {
+                  recordMark(selectedAthlete, markType, measurement, wind);
+                  // Don't auto-close - let user continue entering marks
+                }}
+                onDeleteLastMark={() => handleDeleteLastMark(selectedAthlete.id)}
+                onClose={() => setSelectedAthleteId(null)}
+                isPending={submitMarkMutation.isPending || deleteMarkMutation.isPending}
+                canDeleteLast={!!getLastMarkForAthlete(selectedAthlete.id)}
+                recordWind={session?.recordWind || false}
+                measurementUnit={(session?.measurementUnit as 'metric' | 'english') || 'metric'}
+              />
+            </div>
           )}
 
-          {/* Athlete list */}
+          {/* Athlete list - scrollable */}
+          <div className="flex-1 min-h-0 overflow-auto">
           {displayAthletes.length > 0 ? (
             <div className="divide-y w-full">
               {displayAthletes.map((athlete) => (
@@ -800,7 +803,7 @@ export default function HorizontalEventPanel({ fs }: { fs: FieldSession }) {
             </div>
           ) : (
             <div className="p-8 text-center">
-              <p className="text-muted-foreground">
+              <p className="text-slate-400">
                 {session.isInFinals ? "No finalists yet" : `No athletes in Flight ${currentFlight}`}
               </p>
             </div>
@@ -809,8 +812,8 @@ export default function HorizontalEventPanel({ fs }: { fs: FieldSession }) {
           {/* DNS Athletes */}
           {dnsAthletes.length > 0 && (
             <div className="border-t">
-              <div className="bg-muted/50 px-3 py-1.5 flex items-center gap-2">
-                <X className="h-3.5 w-3.5 text-muted-foreground" />
+              <div className="bg-slate-800/50 px-3 py-1.5 flex items-center gap-2">
+                <X className="h-3.5 w-3.5 text-slate-400" />
                 <span className="font-medium text-xs">No Shows ({dnsAthletes.length})</span>
               </div>
               <div className="divide-y opacity-60">
@@ -837,9 +840,10 @@ export default function HorizontalEventPanel({ fs }: { fs: FieldSession }) {
               </div>
             </div>
           )}
+          </div>
         </TabsContent>
 
-        <TabsContent value="standings" className="flex-1 m-0 min-h-0 overflow-auto">
+        <TabsContent value="standings" className="flex-1 m-0 mt-0 min-h-0 overflow-auto data-[state=inactive]:hidden">
           <StandingsView
             athletes={sortedAthletes}
             marks={marks}
@@ -847,7 +851,7 @@ export default function HorizontalEventPanel({ fs }: { fs: FieldSession }) {
           />
         </TabsContent>
 
-        <TabsContent value="review" className="flex-1 m-0 min-h-0 overflow-auto">
+        <TabsContent value="review" className="flex-1 m-0 mt-0 min-h-0 overflow-auto data-[state=inactive]:hidden">
           <ReviewView
             athletes={sortedAthletes}
             marks={marks}

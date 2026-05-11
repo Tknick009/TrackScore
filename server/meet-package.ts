@@ -88,9 +88,9 @@ export async function exportMeetPackage(meetId: string): Promise<ExportResult> {
     ] = await Promise.all([
       storage.getEventsByMeetId(meetId),
       storage.getAthletesByMeetId(meetId),
-      storage.getEntries(),
+      storage.getEntries(), // filtered below by eventIds
       storage.getTeamsByMeetId(meetId),
-      storage.getDivisions(),
+      storage.getDivisions(), // filtered below by meetId
       storage.getLayoutScenes(meetId),
       storage.getSceneTemplateMappings(meetId),
       storage.getDisplayThemes(meetId),

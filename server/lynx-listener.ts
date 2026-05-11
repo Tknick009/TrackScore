@@ -103,6 +103,22 @@ function cleanEventName(name: string | undefined): string | undefined {
   let cleaned = name.replace(/(\d)\s*Meters?\b/gi, '$1M');
   // Remove trailing "Run" or "Dash" (case-insensitive, with optional leading space)
   cleaned = cleaned.replace(/\s*(Run|Dash)\s*$/i, '').trim();
+  // For multi-event names, FinishLynx sends gender-first format like "Men Hept 60M Hurdles".
+  // Display headers should strip gender ("Hept 60M Hurdles"), but parseMultiEventName()
+  // needs the format "Hept Men 60M Hurdles" for scoring. We reposition gender after the
+  // multi-event type so both display (can strip later) and scoring work.
+  // For standalone multi-event headers (e.g. "Men Pent", "Women Hept") with no sub-event,
+  // just strip the gender since there's nothing to score.
+  const multiMatch = cleaned.match(/^(Men'?s?|Women'?s?)\s+((?:Pent|Hept|Dec)(?:athlon)?)\s+(.+)/i);
+  if (multiMatch) {
+    // Reposition: "Men Hept 60M Hurdles" → "Hept Men 60M Hurdles"
+    // Normalize all variants (Men's, Mens, Women's, Womens) to canonical "Men" or "Women"
+    const gender = /^women/i.test(multiMatch[1]) ? 'Women' : 'Men';
+    cleaned = `${multiMatch[2]} ${gender} ${multiMatch[3]}`.trim();
+  } else if (/\b(pent|hept|dec(athlon)?|combined)/i.test(cleaned)) {
+    // Standalone header like "Men Pent" or "Women Heptathlon" — strip gender for display
+    cleaned = cleaned.replace(/^(Men'?s?|Women'?s?)\s+/i, '').trim();
+  }
   return cleaned;
 }
 
@@ -270,6 +286,20 @@ export class LynxListener extends EventEmitter {
             entries: sortedEntries,
             sourcePortType: event.sourcePortType, // Pass through for big board routing
           });
+        } else if (hasAnyTimes) {
+          // Entries have times but no places — this is running mode (or DNS-only before race start).
+          // Emit all entries so the client can display them (DNS at 50% opacity, others waiting for data).
+          const mode = this.isRunning ? 'running' : 'start_list';
+          this.emit('track-mode-change', event.eventNumber, mode, {
+            eventNumber: event.eventNumber,
+            heat: event.heat,
+            round: event.round,
+            distance: event.distance,
+            wind: event.wind,
+            eventName: event.eventName,
+            entries: sortedEntries,
+            sourcePortType: event.sourcePortType,
+          });
         }
         break;
       case 'F':
@@ -423,7 +453,16 @@ export class LynxListener extends EventEmitter {
 
   private handleData(socket: net.Socket, data: Buffer, config: PortConfig) {
     let buffer = this.buffers.get(socket) || '';
-    buffer += data.toString();
+    const rawStr = data.toString();
+    buffer += rawStr;
+    
+    // Log clock port data for diagnostics (first 100 chars, throttled)
+    if (config.portType === 'clock') {
+      const preview = rawStr.replace(/[\x00-\x1f]/g, '').substring(0, 100);
+      if (preview.trim()) {
+        console.log(`[Lynx:Clock] Raw data on port ${config.port}: ${preview}`);
+      }
+    }
     
     const { objects, remaining } = this.extractJsonObjects(buffer);
     this.buffers.set(socket, remaining);
@@ -446,7 +485,16 @@ export class LynxListener extends EventEmitter {
           jsonBatch.length = 0;
         }
         lastLayoutCommand = layoutMatch[1].trim();
-        console.log(`[Lynx] Layout command from FinishLynx: ${lastLayoutCommand} (${config.portType})`);
+        // Update running state from layout command — this is the most reliable signal
+        // from FinishLynx. The clock port only sends "update" commands (never "start"
+        // or "running"), and the header status field S is often empty during running time.
+        const lcLayout = lastLayoutCommand.toLowerCase();
+        if (lcLayout.includes('running')) {
+          this.isRunning = true;
+        } else if (lcLayout.includes('start') || lcLayout.includes('result')) {
+          this.isRunning = false;
+        }
+        console.log(`[Lynx] Layout command from FinishLynx: ${lastLayoutCommand} (${config.portType}) → isRunning=${this.isRunning}`);
         this.emit('layout-command', lastLayoutCommand, config.portType);
       }
       
@@ -576,7 +624,14 @@ export class LynxListener extends EventEmitter {
     const layoutMatch = sanitized.match(/Command=LayoutDraw;Name=([^;]+)/i);
     if (layoutMatch) {
       const layoutName = layoutMatch[1].trim();
-      console.log(`[Lynx] Layout command from FinishLynx: ${layoutName} (${config.portType})`);
+      // Update running state from layout command (same logic as handleData batch path)
+      const lcLayout = layoutName.toLowerCase();
+      if (lcLayout.includes('running')) {
+        this.isRunning = true;
+      } else if (lcLayout.includes('start') || lcLayout.includes('result')) {
+        this.isRunning = false;
+      }
+      console.log(`[Lynx] Layout command from FinishLynx: ${layoutName} (${config.portType}) → isRunning=${this.isRunning}`);
       this.emit('layout-command', layoutName, config.portType);
       // Don't return - continue processing in case there's other data on this line
     }
@@ -793,9 +848,36 @@ export class LynxListener extends EventEmitter {
       
       // Handle clock data without type (passthrough immediately)
       if (!msgType && config.portType === 'clock') {
-        const timeValue = data.t || data.time;
-        const command = data.c;
-        this.emit('clock-update', this.currentEventNumber, timeValue || '', command || '');
+        const rawTime = data.t || data.time;
+        const timeValue = typeof rawTime === 'string' ? rawTime.trim() : '';
+        const command = (data.c || '').trim();
+        
+        // Skip time_of_day ticks — those are wall clock, not race time
+        // time_of_day is sent when armed/idle, we don't display it as race time
+        if (command === 'time_of_day') {
+          continue;
+        }
+        
+        // Track running state from clock commands — emit once per packet to avoid
+        // double-emission (e.g. armed + timeValue would cause a brief flash)
+        if (command === 'armed') {
+          this.isRunning = false;
+          this.emit('clock-update', this.currentEventNumber, '', 'armed');
+        } else if (command === 'start' || command === 'running') {
+          this.isRunning = true;
+          if (timeValue) {
+            this.emit('clock-update', this.currentEventNumber, timeValue, command);
+          }
+        } else if (command === 'stop') {
+          this.isRunning = false;
+          if (timeValue) {
+            this.emit('clock-update', this.currentEventNumber, timeValue, command);
+          }
+        } else if (timeValue) {
+          // Normal time tick — no state command
+          console.log(`[Lynx:Clock] Emitting clock-update: time="${timeValue}" command="${command}"`);
+          this.emit('clock-update', this.currentEventNumber, timeValue, command);
+        }
         continue;
       }
       
@@ -944,12 +1026,12 @@ export class LynxListener extends EventEmitter {
         const lastSplit = data.LS?.trim() || '';
         const lapsToGo = data.L2G?.trim() || '';
         
-        // FILTER: Skip entries without any timing data (time, split, or place)
-        // Only show athletes who have crossed a timing point
-        const hasTimingData = time !== '' || cumulativeSplit !== '' || lastSplit !== '' || place !== '';
-        if (!hasTimingData) {
-          continue; // Skip this entry - no data yet
-        }
+        // Include ALL entries — the client handles opacity for athletes without
+        // timing data yet (50% opacity). Previously this filter skipped entries
+        // without timing data, but that caused a bug: when FinishLynx marks an
+        // athlete as DNS before the race starts, the DNS entry has T:"DNS" (passes)
+        // while all other athletes have empty fields (filtered out). This meant
+        // only DNS athletes appeared during the running time transition.
         
         entries.push({
           place: place,
@@ -999,7 +1081,7 @@ export class LynxListener extends EventEmitter {
       };
       // Create sorted copy to determine places
       const sorted = [...entries]
-        .map((e, idx) => ({ idx, time: parseTime(e.time) }))
+        .map((e, idx) => ({ idx, time: parseTime(e.time || '') }))
         .filter(e => e.time !== Infinity)
         .sort((a, b) => a.time - b.time);
       sorted.forEach((item, rank) => {
@@ -1047,13 +1129,36 @@ export class LynxListener extends EventEmitter {
       }
 
       // Handle clock data without a type field (e.g., {t: "0:12.34"} or {time: "0:12.34"})
-      // NO SMART LOGIC - just pass through exactly what FinishLynx sends
       if (!msgType && config.portType === 'clock') {
-        const timeValue = data.t || data.time;
-        const command = data.c;
+        const rawTime = data.t || data.time;
+        const timeValue = typeof rawTime === 'string' ? rawTime.trim() : '';
+        const command = (data.c || '').trim();
         
-        // Pass through raw clock data - no state tracking, no mode transitions
-        this.emit('clock-update', this.currentEventNumber, timeValue || '', command || '');
+        // Skip time_of_day ticks — wall clock, not race time
+        if (command === 'time_of_day') {
+          return;
+        }
+        
+        // Track running state from clock commands — emit state change only (no time)
+        // to avoid double-emission when a packet has both a time value and a state command
+        if (command === 'armed') {
+          this.isRunning = false;
+          this.emit('clock-update', this.currentEventNumber, '', 'armed');
+        } else if (command === 'start' || command === 'running') {
+          this.isRunning = true;
+          if (timeValue) {
+            this.emit('clock-update', this.currentEventNumber, timeValue, command);
+          }
+        } else if (command === 'stop') {
+          this.isRunning = false;
+          if (timeValue) {
+            this.emit('clock-update', this.currentEventNumber, timeValue, command);
+          }
+        } else if (timeValue) {
+          // Normal time tick — no state command
+          console.log(`[Lynx:Clock] processJsonData clock-update: time="${timeValue}" command="${command}"`);
+          this.emit('clock-update', this.currentEventNumber, timeValue, command);
+        }
         return;
       }
 

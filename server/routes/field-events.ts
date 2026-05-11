@@ -1289,8 +1289,8 @@ export function registerFieldEventsRoutes(app: Express, ctx: RouteContext) {
         return res.status(404).json({ error: "Session not found" });
       }
       
-      const outputDir = req.body.outputDir || './exports/lff';
-      const measurementSystem = (req.body.units === 'english' ? 'English' : 'Metric') as 'Metric' | 'English';
+      const outputDir = req.body.outputDir || session.lffExportPath || './exports/lff';
+      const measurementSystem = (req.body.units === 'english' ? 'English' : (session.measurementUnit === 'english' ? 'English' : 'Metric')) as 'Metric' | 'English';
       
       const filePath = await exportSessionToLFF(session, {
         outputDir,

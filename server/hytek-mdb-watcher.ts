@@ -78,11 +78,13 @@ async function handleMdbChange(state: HytekMdbWatcherState, filePath: string): P
     state.importing = true;
 
     console.log(`[HyTek MDB Watcher] MDB file changed: ${filePath}, importing for meet ${state.meetId}`);
+    const importStart = Date.now();
     const stats = await importCompleteMDB(tempFile, state.meetId);
+    const importDuration = Date.now() - importStart;
     state.lastImportAt = new Date();
 
     console.log(`[HyTek MDB Watcher] Import complete for meet ${state.meetId}: ${stats.events} events, ${stats.athletes} athletes, ${stats.entries} entries`);
-
+    
     if (importCallback) {
       importCallback(state.meetId);
     }

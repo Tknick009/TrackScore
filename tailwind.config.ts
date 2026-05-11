@@ -84,9 +84,9 @@ export default {
       },
       fontFamily: {
         sans: ["var(--font-sans)"],
-        serif: ["var(--font-serif)"],
         mono: ["var(--font-mono)"],
         display: ["Roboto Condensed", "sans-serif"],
+        stadium: ["Oswald", "sans-serif"],
       },
       keyframes: {
         "accordion-down": {
@@ -109,6 +109,22 @@ export default {
           from: { opacity: "0" },
           to: { opacity: "1" },
         },
+        "fade-in-up": {
+          from: { opacity: "0", transform: "translateY(8px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
+        "scale-in": {
+          from: { opacity: "0", transform: "scale(0.95)" },
+          to: { opacity: "1", transform: "scale(1)" },
+        },
+        shimmer: {
+          "0%": { backgroundPosition: "-200% 0" },
+          "100%": { backgroundPosition: "200% 0" },
+        },
+        "live-pulse": {
+          "0%, 100%": { opacity: "1", transform: "scale(1)" },
+          "50%": { opacity: "0.6", transform: "scale(0.95)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -116,6 +132,10 @@ export default {
         pulse: "pulse 2s ease-in-out infinite",
         "slide-in-right": "slide-in-right 400ms ease-out",
         "fade-in": "fade-in 500ms ease-out",
+        "fade-in-up": "fade-in-up 400ms ease-out",
+        "scale-in": "scale-in 300ms ease-out",
+        shimmer: "shimmer 2s linear infinite",
+        "live-pulse": "live-pulse 2s ease-in-out infinite",
       },
     },
   },

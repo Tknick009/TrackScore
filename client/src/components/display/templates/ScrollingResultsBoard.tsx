@@ -8,6 +8,8 @@ import {
   getPodiumColor,
 } from "../utils";
 import { Trophy } from "lucide-react";
+import { getLogoEffectStyle } from "@/lib/logoEffects";
+import { shouldShowWind } from "../utils/formatting";
 
 interface ScrollingResultsBoardProps {
   event: EventWithEntries;
@@ -48,6 +50,7 @@ export function ScrollingResultsBoard({
           src={meet.logoUrl}
           alt="Meet logo"
           className="absolute top-8 right-8 max-w-[120px] max-h-[80px] z-10"
+          style={getLogoEffectStyle(meet.logoEffect)}
           data-testid="img-meet-logo"
         />
       )}
@@ -65,7 +68,7 @@ export function ScrollingResultsBoard({
         <div className="flex-1 p-8 relative">
           <div className="animate-fade-in">
             {showTrackResults ? (
-              <TrackResultsPage results={sortedResults} />
+              <TrackResultsPage results={sortedResults} event={event} />
             ) : (
               <FieldResultsPage results={sortedResults} />
             )}
@@ -76,7 +79,9 @@ export function ScrollingResultsBoard({
   );
 }
 
-function TrackResultsPage({ results }: { results: EntryWithDetails[] }) {
+function TrackResultsPage({ results, event }: { results: EntryWithDetails[]; event?: EventWithEntries }) {
+  // Only show wind for events 200m and under
+  const windAllowed = event ? shouldShowWind(event.name || (event as any).eventName, event.eventType, (event as any).distance) : true;
   return (
     <div className="space-y-6">
       {results.map((result, index) => {
@@ -139,6 +144,19 @@ function TrackResultsPage({ results }: { results: EntryWithDetails[] }) {
                 >
                   {athleteName}
                 </h2>
+                {/* Record tags (MR, FR, etc.) from server enrichment */}
+                {((result as any).recordTags || []).length > 0 && (
+                  <span 
+                    className="text-[36px] font-[900] px-3 py-1 rounded"
+                    style={{
+                      backgroundColor: 'rgba(255, 215, 0, 0.25)',
+                      color: '#ffd700',
+                      border: '2px solid rgba(255, 215, 0, 0.5)',
+                    }}
+                  >
+                    {((result as any).recordTags as string[])[0]}
+                  </span>
+                )}
                 {(() => {
                   const notes = (result as any).notes;
                   const statusCodes = ['DNF', 'DQ', 'DNS', 'SCR', 'NH', 'NM', 'FOUL', 'FS', 'NT'];
@@ -166,7 +184,7 @@ function TrackResultsPage({ results }: { results: EntryWithDetails[] }) {
               >
                 {formatResult(result)}
               </div>
-              {result.finalWind !== null && result.finalWind !== undefined && (
+              {windAllowed && result.finalWind !== null && result.finalWind !== undefined && (
                 <p className="text-[28px] text-[hsl(var(--display-muted))] mt-1 leading-none">
                   Wind: {result.finalWind > 0 ? '+' : ''}{result.finalWind.toFixed(1)}
                 </p>
@@ -230,6 +248,19 @@ function FieldResultsPage({ results }: { results: EntryWithDetails[] }) {
                 >
                   {athleteName}
                 </h2>
+                {/* Record tags (MR, FR, etc.) from server enrichment */}
+                {((result as any).recordTags || []).length > 0 && (
+                  <span 
+                    className="text-[36px] font-[900] px-3 py-1 rounded"
+                    style={{
+                      backgroundColor: 'rgba(255, 215, 0, 0.25)',
+                      color: '#ffd700',
+                      border: '2px solid rgba(255, 215, 0, 0.5)',
+                    }}
+                  >
+                    {((result as any).recordTags as string[])[0]}
+                  </span>
+                )}
               </div>
               {result.team && (
                 <p className="text-[32px] text-[hsl(var(--display-muted))] leading-none whitespace-nowrap truncate">

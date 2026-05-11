@@ -5,6 +5,8 @@ import { getPodiumColor, getTeamColor } from "../utils";
 import { isTrackEvent as checkIsTrackEvent } from "@shared/event-catalog";
 import { formatHeatDisplay } from "@/lib/fieldBindings";
 import { Star } from "lucide-react";
+import { getLogoEffectStyle } from "@/lib/logoEffects";
+import { shouldShowWind } from "../utils/formatting";
 
 interface SingleResultBoardProps {
   event: EventWithEntries;
@@ -46,6 +48,7 @@ export function SingleResultBoard({ event, meet, mode, athleteId }: SingleResult
             src={meet.logoUrl}
             alt={meet.name}
             className="h-20 w-auto object-contain opacity-80"
+            style={getLogoEffectStyle(meet.logoEffect)}
             data-testid="img-meet-logo"
           />
         </div>
@@ -111,7 +114,7 @@ export function SingleResultBoard({ event, meet, mode, athleteId }: SingleResult
             )}
           </div>
 
-          {targetResult.finalWind && (
+          {shouldShowWind(event.name, event.eventType, (event as any).distance) && targetResult.finalWind && (
             <p className="text-[40px] text-[hsl(var(--display-muted))] mt-6" data-testid="text-wind">
               Wind: {targetResult.finalWind > 0 ? '+' : ''}{targetResult.finalWind.toFixed(1)}
             </p>

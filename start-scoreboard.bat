@@ -47,6 +47,23 @@ if not exist "node_modules" (
 :: Create data directory if it doesn't exist
 if not exist "data" mkdir data
 
+:: Check for app file updates from sync folder (configured via UI or SOURCE_DIR)
+:: To override, uncomment one of the lines below:
+:: SET SOURCE_DIR=C:\Users\%USERNAME%\Dropbox\scoreboard
+:: SET SOURCE_DIR=C:\Users\%USERNAME%\Google Drive\TrackScore
+echo.
+echo [SYNC] Checking for app updates from configured sync folder...
+if defined SOURCE_DIR (
+    call npx tsx tools/edge-launcher.ts --source "%SOURCE_DIR%" --sync-only
+) else (
+    call npx tsx tools/edge-launcher.ts --sync-only
+)
+if %errorlevel% neq 0 (
+    echo [WARN] Sync had issues, but continuing with server start...
+) else (
+    echo [OK] Sync check complete
+)
+
 echo.
 echo [STARTING] Launching scoreboard on port 6000...
 echo.

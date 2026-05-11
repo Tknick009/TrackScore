@@ -15,7 +15,7 @@ export default function FieldOfficialPage() {
   const [, setLocation] = useLocation();
 
   useEffect(() => {
-    setLocation("/field-command", { replace: true });
+    setLocation("/Officiate", { replace: true });
   }, [setLocation]);
 
   return (

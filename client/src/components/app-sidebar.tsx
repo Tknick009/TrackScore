@@ -2,7 +2,6 @@ import {
   Calendar, 
   Users, 
   Monitor,
-  Activity,
   Upload,
   Building2,
   Home,
@@ -10,10 +9,8 @@ import {
   LayoutTemplate,
   Target,
   Send,
-  Trophy,
   Zap,
-  ChevronDown,
-  ChevronRight,
+  ClipboardCheck,
 } from "lucide-react";
 import {
   Sidebar,
@@ -29,24 +26,21 @@ import {
 } from "@/components/ui/sidebar";
 import { Link, useLocation } from "wouter";
 import { useMeet } from "@/contexts/MeetContext";
-import { Badge } from "@/components/ui/badge";
-import { useState } from "react";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 export function AppSidebar() {
   const [location] = useLocation();
   const { currentMeetId, currentMeet } = useMeet();
-  const [displaysOpen, setDisplaysOpen] = useState(
-    location.includes('/displays/') || location.includes('/scene-editor') || location.includes('/external-scoreboards')
-  );
   
   const basePath = `/control/${currentMeetId}`;
 
   // Quick access items — the most-used pages during a live meet
   const quickAccessItems = [
     { href: `${basePath}/schedule`, icon: Calendar, label: 'Schedule', testId: 'link-schedule', active: location === `${basePath}/schedule` || location.includes('/events/') },
-    { href: '/field-command', icon: Target, label: 'Field Events', testId: 'link-field-events', active: location === '/field-command' || location === `${basePath}/field-events` },
+    { href: `${basePath}/field-events`, icon: Target, label: 'Field Events', testId: 'link-field-events', active: location === `${basePath}/field-events` },
   ];
+
+  // Officiate opens in a new tab (full-screen for tablet use)
+  const officiateHref = '/Officiate';
 
   return (
     <Sidebar>
@@ -86,6 +80,14 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <a href={officiateHref} target="_blank" rel="noopener noreferrer" data-testid="link-officiate">
+                    <ClipboardCheck />
+                    <span>Officiate</span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -115,46 +117,37 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Displays — collapsible since it has sub-items */}
+        {/* Displays */}
         <SidebarGroup>
-          <Collapsible open={displaysOpen} onOpenChange={setDisplaysOpen}>
-            <CollapsibleTrigger className="w-full">
-              <SidebarGroupLabel className="text-[11px] uppercase tracking-wider text-muted-foreground/60 flex items-center justify-between w-full cursor-pointer hover:text-muted-foreground transition-colors">
-                <span>Displays</span>
-                {displaysOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-              </SidebarGroupLabel>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={location === `${basePath}/displays/control` || location.startsWith(`${basePath}/displays/`)}>
-                      <Link href={`${basePath}/displays/control`} data-testid="link-display-control">
-                        <Monitor />
-                        <span>Display Control</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={location === `${basePath}/scene-editor`}>
-                      <Link href={`${basePath}/scene-editor`} data-testid="link-scene-editor">
-                        <LayoutTemplate />
-                        <span>Layout Designer</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={location === `${basePath}/external-scoreboards`}>
-                      <Link href={`${basePath}/external-scoreboards`} data-testid="link-external-scoreboards">
-                        <Send />
-                        <span>External Scoreboards</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </CollapsibleContent>
-          </Collapsible>
+          <SidebarGroupLabel className="text-[11px] uppercase tracking-wider text-muted-foreground/60">Displays</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location === `${basePath}/displays/control` || location.startsWith(`${basePath}/displays/`)}>
+                  <Link href={`${basePath}/displays/control`} data-testid="link-display-control">
+                    <Monitor />
+                    <span>Display Control</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location === `${basePath}/scene-editor`}>
+                  <Link href={`${basePath}/scene-editor`} data-testid="link-scene-editor">
+                    <LayoutTemplate />
+                    <span>Layout Designer</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location === `${basePath}/external-scoreboards`}>
+                  <Link href={`${basePath}/external-scoreboards`} data-testid="link-external-scoreboards">
+                    <Send />
+                    <span>External Scoreboards</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
         </SidebarGroup>
 
         {/* Data & Config — grouped together to reduce clutter */}
