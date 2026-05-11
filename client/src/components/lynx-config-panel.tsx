@@ -54,7 +54,7 @@ export function LynxConfigPanel({ meetId }: LynxConfigPanelProps) {
 
   const { data: connectionStatus } = useQuery<LynxConnectionStatus>({
     queryKey: ["/api/lynx/status"],
-    refetchInterval: 5000,
+    refetchInterval: 15000, // WS lynx_connection handles real-time; polling is fallback
   });
 
   const updateConfigMutation = useMutation({

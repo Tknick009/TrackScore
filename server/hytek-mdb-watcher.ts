@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as chokidar from 'chokidar';
 import { FSWatcher } from 'chokidar';
-import { importCompleteMDB } from './import-mdb-complete';
+import { importMDBInBackground } from './import-mdb-background';
 
 interface HytekMdbWatcherState {
   meetId: string;
@@ -79,7 +79,7 @@ async function handleMdbChange(state: HytekMdbWatcherState, filePath: string): P
 
     console.log(`[HyTek MDB Watcher] MDB file changed: ${filePath}, importing for meet ${state.meetId}`);
     const importStart = Date.now();
-    const stats = await importCompleteMDB(tempFile, state.meetId);
+    const stats = await importMDBInBackground(tempFile, state.meetId);
     const importDuration = Date.now() - importStart;
     state.lastImportAt = new Date();
 
@@ -239,7 +239,7 @@ export async function triggerManualImport(meetId: string): Promise<{ success: bo
   try {
     state.importing = true;
     state.lastHash = null;
-    const stats = await importCompleteMDB(mdbFile, meetId);
+    const stats = await importMDBInBackground(mdbFile, meetId);
     state.lastImportAt = new Date();
     return { success: true, stats };
   } catch (error: any) {

@@ -5,7 +5,7 @@ import * as crypto from 'crypto';
 import { storage } from './storage';
 import { ingestLIFResults } from './finishlynx-ingestion';
 import { parseLFFFile, type NormalizedFieldResult } from './parsers/lff-parser';
-import { importCompleteMDB } from './import-mdb-complete';
+import { importMDBInBackground } from './import-mdb-background';
 import type { MeetIngestionSettings } from '@shared/schema';
 
 interface WatcherState {
@@ -295,7 +295,7 @@ class IngestionManager {
       console.log(`[Ingestion] 🧹 Pre-import clear: ${JSON.stringify(clearStats)}`);
       
       // Import from the copy, not the original
-      const stats = await importCompleteMDB(tempMdbPath, meetId);
+      const stats = await importMDBInBackground(tempMdbPath, meetId);
       console.log(`[Ingestion] MDB import complete:`, stats);
 
       await storage.updateIngestionSettings(meetId, {

@@ -1709,7 +1709,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
   const { data: currentEventData } = useQuery<EventWithEntries>({
     queryKey: ['/api/events/current', meetId],
     enabled: !!meetId,
-    refetchInterval: 5000,
+    refetchInterval: 30000, // WebSocket board_update handles real-time; polling is fallback only
   });
 
   const { data: specificEvent } = useQuery<EventWithEntries>({
@@ -1720,7 +1720,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
   const { data: teamStandings } = useQuery({
     queryKey: [`/api/meets/${meetId}/scoring/standings`],
     enabled: !!meetId,
-    refetchInterval: 10000,
+    refetchInterval: 30000, // WebSocket pushes standings updates; polling is fallback only
   });
 
   const currentEvent = specificEvent || currentEventData;

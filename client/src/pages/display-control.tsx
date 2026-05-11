@@ -282,7 +282,7 @@ export default function DisplayControlPage() {
   const { data: autoModeStatus } = useQuery<{ connected: boolean; autoMode: boolean }>({
     queryKey: ['/api/display-devices', selectedDeviceId, 'auto-mode'],
     enabled: !!selectedDeviceId,
-    refetchInterval: 5000, // Poll every 5 seconds to keep status updated
+    refetchInterval: 10000, // Fallback poll; auto-mode toggles are infrequent
   });
 
   // Auto-mode: Toggle mutation

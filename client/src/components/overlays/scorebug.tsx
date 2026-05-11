@@ -35,7 +35,7 @@ export function ScoreBugOverlay({ config }: ScoreBugProps) {
   const { data: event } = useQuery<any>({
     queryKey: ["/api/events", currentConfig.eventId, "with-entries"],
     enabled: !!currentConfig.eventId && visible,
-    refetchInterval: visible ? 2000 : false
+    refetchInterval: visible ? 10000 : false // WS pushes real-time; polling is fallback
   });
   
   if (!visible || !event) return null;

@@ -9,7 +9,7 @@ export function SpectatorStandings() {
   const { data: teamStandingsData } = useQuery<{ men: any[]; women: any[] }>({
     queryKey: ["/api/public/meets", currentMeetId, "team-standings"],
     enabled: !!currentMeetId,
-    refetchInterval: 15000
+    refetchInterval: 30000 // WS pushes standings; polling is fallback
   });
   const teamStandings = [
     ...(teamStandingsData?.men ?? []),
@@ -19,7 +19,7 @@ export function SpectatorStandings() {
   const { data: medalStandings } = useQuery<any[]>({
     queryKey: ["/api/public/meets", currentMeetId, "medal-standings"],
     enabled: !!currentMeetId,
-    refetchInterval: 15000
+    refetchInterval: 30000 // WS pushes medals; polling is fallback
   });
   
   return (

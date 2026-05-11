@@ -67,7 +67,7 @@ export function DataIngestionPanel({ meetId }: DataIngestionPanelProps) {
   const { data: status, refetch: refetchStatus } = useQuery<IngestionStatus>({
     queryKey: ["/api/meets", meetId, "ingestion-status"],
     queryFn: () => fetch(`/api/meets/${meetId}/ingestion-status`).then(r => r.json()),
-    refetchInterval: 10000,
+    refetchInterval: 30000, // WS hytek_import_complete handles real-time; polling is fallback
     enabled: !!meetId,
   });
 

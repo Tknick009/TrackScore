@@ -283,8 +283,8 @@ export function registerAthletesTeamsRoutes(app: Express, ctx: RouteContext) {
       const meet = await storage.getMeet(meetId);
       if (meet?.mdbPath) {
         try {
-          const { importCompleteMDB } = await import('../import-mdb-complete');
-          await importCompleteMDB(meet.mdbPath, meetId);
+          const { importMDBInBackground } = await import('../import-mdb-background');
+          await importMDBInBackground(meet.mdbPath, meetId);
           console.log(`[Refresh Team Scores] Re-imported MDB for meet ${meetId}`);
         } catch (err) {
           console.log(`[Refresh Team Scores] MDB re-import failed:`, err);

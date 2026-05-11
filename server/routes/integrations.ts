@@ -52,7 +52,7 @@ import { externalScoreboardService, buildFieldScoreboardPayload } from "../exter
 import { captureManager, type CaptureChunk } from "../capture-manager";
 import { mergeFlightsForEvent, type MergedFieldStandings } from '../parsers/lff-parser';
 import { getResulTVParser } from '../parsers/resultv-parser';
-import { importCompleteMDB } from '../import-mdb-complete';
+import { importMDBInBackground, isMDBImportRunning } from '../import-mdb-background';
 import { insertExternalScoreboardSchema } from '@shared/schema';
 import { calculateEventPoints, parseMultiEventName, parsePerformance } from '../combined-events-scoring';
 import type { RouteContext } from "../route-context";
@@ -1450,7 +1450,7 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
       const clearStats = await storage.clearMeetImportData(meetId);
       console.log(`🧹 Pre-import clear: ${JSON.stringify(clearStats)}`);
       
-      const stats = await importCompleteMDB(settings.hytekMdbPath, meetId);
+      const stats = await importMDBInBackground(settings.hytekMdbPath, meetId);
       
       await storage.updateIngestionSettings(meetId, {
         hytekMdbLastImportAt: new Date(),

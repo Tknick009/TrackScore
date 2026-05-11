@@ -19,7 +19,7 @@ export function ConnectionStatus() {
   
   const { data: status, isLoading } = useQuery<SyncStatus>({
     queryKey: ['/api/sync/status'],
-    refetchInterval: 5000,
+    refetchInterval: 15000, // Sync status changes infrequently; polling is fallback
   });
 
   if (isLoading || !status) {
@@ -127,7 +127,7 @@ export function ConnectionStatus() {
 export function ConnectionStatusMinimal() {
   const { data: status } = useQuery<SyncStatus>({
     queryKey: ['/api/sync/status'],
-    refetchInterval: 10000,
+    refetchInterval: 30000, // Sync status changes infrequently
   });
 
   if (!status) return null;

@@ -16,7 +16,7 @@ export function SpectatorResults() {
   const { data: results } = useQuery<any>({
     queryKey: ["/api/public/events", selectedEventId, "results"],
     enabled: !!selectedEventId,
-    refetchInterval: 5000
+    refetchInterval: 15000 // WS pushes results; polling is fallback
   });
   
   const completedEvents = events?.filter(e => 

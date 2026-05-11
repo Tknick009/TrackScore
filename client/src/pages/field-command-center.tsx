@@ -79,7 +79,7 @@ function JoinSession({ onJoin }: { onJoin: (sessionId: number) => void }) {
 
   const { data: sessions, isLoading: sessionsLoading } = useQuery<FieldEventSession[]>({
     queryKey: ["/api/field-sessions"],
-    refetchInterval: 10000,
+    refetchInterval: 15000, // WS field_event_update handles real-time; polling is fallback
   });
 
   const handleSelectEvent = (sessionId: number) => {
@@ -828,7 +828,7 @@ export default function FieldCommandCenter() {
   // All active sessions
   const { data: allSessions } = useQuery<FieldEventSession[]>({
     queryKey: ["/api/field-sessions"],
-    refetchInterval: 15000,
+    refetchInterval: 30000, // WS field_event_update handles real-time; polling is fallback
   });
 
   // Active tab state — stores session IDs that the user has opened
