@@ -70,7 +70,7 @@ export function LiveFieldEventBoard({ sessionId, event, meet, mode = "live" }: L
         const message = JSON.parse(messageEvent.data);
         
         if (message.type === 'field_event_update' && message.sessionId === sessionId) {
-          processUpdate(message.data);
+          processUpdate(message.update);
         }
       } catch (error) {
         console.error("Failed to parse WebSocket message:", error);
@@ -80,7 +80,7 @@ export function LiveFieldEventBoard({ sessionId, event, meet, mode = "live" }: L
     ws.addEventListener('message', handleMessage);
 
     ws.send(JSON.stringify({
-      type: 'subscribe_field_event',
+      type: 'subscribe_field_session',
       sessionId,
     }));
 
@@ -91,7 +91,7 @@ export function LiveFieldEventBoard({ sessionId, event, meet, mode = "live" }: L
       
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({
-          type: 'unsubscribe_field_event',
+          type: 'unsubscribe_field_session',
           sessionId,
         }));
       }

@@ -3,7 +3,7 @@ import type { WSMessage } from "@shared/schema";
 import type multer from "multer";
 import type { FileStorage } from "./file-storage";
 
-export type ContentMode = 'lynx' | 'hytek' | 'team_scores' | 'field';
+export type ContentMode = 'lynx' | 'hytek' | 'team_scores' | 'field' | 'winners' | 'record';
 
 export interface ConnectedDisplayDevice {
   ws: WebSocket;
@@ -16,10 +16,12 @@ export interface ConnectedDisplayDevice {
   pagingInterval: number;
   fieldPort?: number;
   contentMode: ContentMode;
+  displayMode?: string; // 'track' | 'field' — used to filter layout commands server-side
 }
 
 export interface RouteContext {
   broadcastToDisplays: (message: WSMessage) => void;
+  broadcastClockUpdate: (eventNumber: number, time: string, command: string) => void;
   broadcastCurrentEvent: () => Promise<void>;
   broadcastFieldEventUpdate: (sessionId: number, deviceName?: string) => Promise<void>;
   sendToDisplayDevice: (deviceId: string, message: WSMessage) => boolean;
@@ -36,4 +38,6 @@ export interface RouteContext {
   abbreviateEventName: (name: string) => string;
   prefetchSceneData: (sceneId: number) => Promise<{ scene: any; objects: any[] } | null>;
   getDisplayModeFromTemplate: (template: string) => string | null;
+  enrichEntriesWithRecordTags: (eventType: string, gender: string, entries: any[], meetId?: string) => Promise<void>;
+  autoUpdateAthleteBests: (eventType: string, entries: any[]) => Promise<void>;
 }

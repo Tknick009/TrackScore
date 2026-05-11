@@ -1,10 +1,10 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format, isPast, isToday, isFuture } from "date-fns";
-import { Calendar as CalendarIcon, MapPin, Plus, Calendar, Settings, Monitor, Copy, Check, Search, Filter, Trash2, MoreVertical, FolderDown } from "lucide-react";
+import { Calendar as CalendarIcon, MapPin, Plus, Calendar, Settings, Monitor, Copy, Check, Search, Filter, Trash2, MoreVertical, FolderDown, FolderSync, RefreshCw, ChevronDown, ChevronRight, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { insertMeetSchema, type Meet } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -263,20 +263,21 @@ function MeetRow({ meet }: { meet: Meet }) {
 
   return (
     <div 
-      className="flex items-center gap-4 px-4 py-3 hover:bg-accent/50 transition-colors rounded-md border-b last:border-b-0" 
+      className="flex items-center gap-4 px-5 py-4 hover:bg-accent/50 transition-all rounded-lg border-b last:border-b-0 group" 
       data-testid={`row-meet-${meet.id}`}
     >
       {/* Date column */}
-      <div className="flex-shrink-0 w-16 text-center">
-        <div className="text-base font-semibold text-foreground">{format(meetDate, "MMM d")}</div>
-        <div className="text-xs text-muted-foreground">{format(meetDate, "yyyy")}</div>
+      <div className="flex-shrink-0 w-14 text-center">
+        <div className="text-sm font-bold text-foreground leading-tight">{format(meetDate, "MMM")}</div>
+        <div className="text-2xl font-bold text-foreground leading-tight">{format(meetDate, "d")}</div>
+        <div className="text-[10px] text-muted-foreground">{format(meetDate, "yyyy")}</div>
       </div>
       
       {/* Main info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <Link href={`/control/${meet.id}`}>
-            <span className="font-medium text-foreground hover:text-primary transition-colors cursor-pointer" data-testid={`text-meet-name-${meet.id}`}>
+            <span className="font-semibold text-foreground hover:text-primary transition-colors cursor-pointer group-hover:text-primary" data-testid={`text-meet-name-${meet.id}`}>
               {meet.name}
             </span>
           </Link>
@@ -378,6 +379,193 @@ function MeetRowSkeleton() {
   );
 }
 
+function FolderSyncPanel() {
+  const { toast } = useToast();
+  const [isOpen, setIsOpen] = useState(false);
+  const [folderPath, setFolderPath] = useState('');
+  const [autoSync, setAutoSync] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const { data: syncConfig, isLoading: configLoading } = useQuery<{
+    syncFolderPath: string;
+    autoSyncOnBoot: boolean;
+    lastSyncTime?: string;
+    lastSyncResults?: Array<{
+      packageName: string;
+      meetName: string;
+      meetCode: string;
+      action: 'imported' | 'skipped_exists' | 'skipped_error';
+      error?: string;
+    }>;
+  }>({
+    queryKey: ['/api/folder-sync/config'],
+  });
+
+  // Keep local state in sync with server config when it loads
+  useEffect(() => {
+    if (syncConfig?.syncFolderPath && folderPath === '') {
+      setFolderPath(syncConfig.syncFolderPath);
+      setAutoSync(syncConfig.autoSyncOnBoot ?? true);
+    }
+  }, [syncConfig?.syncFolderPath]);
+
+  const saveConfigMutation = useMutation({
+    mutationFn: async (data: { syncFolderPath: string; autoSyncOnBoot: boolean }) => {
+      const response = await apiRequest('PUT', '/api/folder-sync/config', data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/folder-sync/config'] });
+      toast({ title: 'Sync folder saved', description: `Folder path: ${folderPath}` });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Error saving config', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  const syncNowMutation = useMutation({
+    mutationFn: async () => {
+      setIsSyncing(true);
+      const response = await apiRequest('POST', '/api/folder-sync/sync', { syncFolderPath: folderPath || undefined });
+      return response.json();
+    },
+    onSuccess: (data: any) => {
+      setIsSyncing(false);
+      queryClient.invalidateQueries({ queryKey: ['/api/meets'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/folder-sync/config'] });
+      if (data.error) {
+        toast({ title: 'Sync issue', description: data.error, variant: 'destructive' });
+      } else if (data.imported > 0) {
+        toast({ title: 'Sync complete', description: `Imported ${data.imported} new meet(s)` });
+      } else if (data.skippedExists > 0) {
+        toast({ title: 'Sync complete', description: `All ${data.packagesFound} meet(s) already imported` });
+      } else if (data.packagesFound > 0) {
+        toast({ title: 'Sync complete', description: `All ${data.packagesFound} meet(s) already imported` });
+      } else {
+        toast({
+          title: 'No meets found',
+          description: `Searched: ${data.syncFolderPath || folderPath}. No scoreboard.db or meet packages found in this folder.`,
+          variant: 'destructive',
+        });
+      }
+    },
+    onError: (error: Error) => {
+      setIsSyncing(false);
+      toast({ title: 'Sync failed', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  const handleSave = () => {
+    if (!folderPath.trim()) {
+      toast({ title: 'Error', description: 'Please enter a folder path', variant: 'destructive' });
+      return;
+    }
+    saveConfigMutation.mutate({ syncFolderPath: folderPath.trim(), autoSyncOnBoot: autoSync });
+  };
+
+  const lastResults = syncConfig?.lastSyncResults;
+  const lastSyncTime = syncConfig?.lastSyncTime;
+
+  return (
+    <Card className="border-primary/20">
+      <div
+        className="flex items-center justify-between px-5 py-3 cursor-pointer hover:bg-accent/30 transition-colors rounded-t-lg"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <div className="flex items-center gap-3">
+          <FolderSync className="w-5 h-5 text-primary" />
+          <div>
+            <h3 className="text-sm font-semibold">Folder Sync</h3>
+            <p className="text-xs text-muted-foreground">
+              {syncConfig?.syncFolderPath
+                ? `Syncing from: ${syncConfig.syncFolderPath}`
+                : 'Configure a shared folder to auto-sync app updates and meets on boot'}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {syncConfig?.syncFolderPath && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(e) => { e.stopPropagation(); syncNowMutation.mutate(); }}
+              disabled={isSyncing}
+              className="gap-1.5"
+            >
+              <RefreshCw className={cn("w-3.5 h-3.5", isSyncing && "animate-spin")} />
+              {isSyncing ? 'Syncing...' : 'Sync Now'}
+            </Button>
+          )}
+          {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+        </div>
+      </div>
+
+      {isOpen && (
+        <CardContent className="pt-0 pb-4 space-y-4">
+          <div className="space-y-3">
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Sync Folder Path</label>
+              <div className="flex gap-2">
+                <Input
+                  value={folderPath}
+                  onChange={(e) => setFolderPath(e.target.value)}
+                  placeholder="/path/to/shared/meets or C:\\Shared\\Meets"
+                  className="flex-1"
+                />
+                <Button onClick={handleSave} disabled={saveConfigMutation.isPending} size="sm">
+                  {saveConfigMutation.isPending ? 'Saving...' : 'Save'}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Path to a shared folder (local, network drive, or cloud-synced like OneDrive/Google Drive).
+                On startup, the app will pull any updated files (code, configs, meets) from this folder
+                before launching the server. Put your TrackScore files here to keep all computers in sync.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="auto-sync"
+                checked={autoSync}
+                onChange={(e) => setAutoSync(e.target.checked)}
+                className="rounded border-gray-300"
+              />
+              <label htmlFor="auto-sync" className="text-sm">Auto-sync on boot</label>
+            </div>
+          </div>
+
+          {lastSyncTime && (
+            <div className="border-t pt-3">
+              <div className="text-xs text-muted-foreground mb-2">
+                Last sync: {format(new Date(lastSyncTime), 'PPp')}
+              </div>
+              {lastResults && lastResults.length > 0 && (
+                <div className="space-y-1">
+                  {lastResults.map((r, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs">
+                      {r.action === 'imported' && <CheckCircle className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />}
+                      {r.action === 'skipped_exists' && <AlertCircle className="w-3.5 h-3.5 text-yellow-500 flex-shrink-0" />}
+                      {r.action === 'skipped_error' && <XCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />}
+                      <span className="font-medium">{r.meetName}</span>
+                      <span className="text-muted-foreground">({r.meetCode})</span>
+                      <span className="text-muted-foreground">
+                        {r.action === 'imported' && '— imported'}
+                        {r.action === 'skipped_exists' && '— already exists'}
+                        {r.action === 'skipped_error' && `— error: ${r.error}`}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
 function EmptyState() {
   return (
     <Card className="border-dashed">
@@ -468,17 +656,24 @@ export default function MeetsList() {
 
   return (
     <div className="min-h-screen w-full">
-      <div className="max-w-7xl mx-auto px-6 py-8 space-y-6">
+      <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
         {/* Hero Section */}
-        <div className="space-y-5">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight text-foreground" data-testid="heading-meets-list">
-                Track & Field Meets
-              </h1>
-              <p className="text-sm text-muted-foreground mt-1">
-                Manage competitions and scoreboard control
-              </p>
+        <div className="space-y-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div className="space-y-1">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-sm">
+                  <Calendar className="w-5 h-5 text-primary-foreground" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold tracking-tight text-foreground" data-testid="heading-meets-list">
+                    Track & Field Meets
+                  </h1>
+                  <p className="text-sm text-muted-foreground">
+                    Manage competitions and scoreboard control
+                  </p>
+                </div>
+              </div>
             </div>
             <div className="flex gap-3 flex-wrap">
               <CreateMeetDialog />
@@ -491,32 +686,35 @@ export default function MeetsList() {
             </div>
           </div>
 
+          {/* Folder Sync Panel */}
+          <FolderSyncPanel />
+
           {/* Stats Cards */}
           {meets && meets.length > 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="rounded-lg border bg-background px-4 py-3">
-                <div className="text-2xl font-bold text-foreground" data-testid="stat-total-meets">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="rounded-xl border bg-card px-5 py-4 shadow-sm transition-all hover:shadow-md">
+                <div className="text-xs font-medium text-muted-foreground mb-1">Total Meets</div>
+                <div className="text-3xl font-bold text-foreground tracking-tight" data-testid="stat-total-meets">
                   {stats.total}
                 </div>
-                <div className="text-xs text-muted-foreground">Total Meets</div>
               </div>
-              <div className="rounded-lg border bg-background px-4 py-3">
-                <div className="text-2xl font-bold text-primary" data-testid="stat-active-meets">
+              <div className="rounded-xl border border-primary/20 bg-primary/5 px-5 py-4 shadow-sm transition-all hover:shadow-md">
+                <div className="text-xs font-medium text-primary mb-1">Active Today</div>
+                <div className="text-3xl font-bold text-primary tracking-tight" data-testid="stat-active-meets">
                   {stats.active}
                 </div>
-                <div className="text-xs text-muted-foreground">Active Today</div>
               </div>
-              <div className="rounded-lg border bg-background px-4 py-3">
-                <div className="text-2xl font-bold text-foreground" data-testid="stat-upcoming-meets">
+              <div className="rounded-xl border bg-card px-5 py-4 shadow-sm transition-all hover:shadow-md">
+                <div className="text-xs font-medium text-muted-foreground mb-1">Upcoming</div>
+                <div className="text-3xl font-bold text-foreground tracking-tight" data-testid="stat-upcoming-meets">
                   {stats.upcoming}
                 </div>
-                <div className="text-xs text-muted-foreground">Upcoming</div>
               </div>
-              <div className="rounded-lg border bg-background px-4 py-3">
-                <div className="text-2xl font-bold text-muted-foreground" data-testid="stat-past-meets">
+              <div className="rounded-xl border bg-card px-5 py-4 shadow-sm transition-all hover:shadow-md">
+                <div className="text-xs font-medium text-muted-foreground mb-1">Past</div>
+                <div className="text-3xl font-bold text-muted-foreground tracking-tight" data-testid="stat-past-meets">
                   {stats.past}
                 </div>
-                <div className="text-xs text-muted-foreground">Past</div>
               </div>
             </div>
           )}

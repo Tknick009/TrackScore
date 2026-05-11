@@ -55,11 +55,13 @@ export function isFieldEvent(eventType: string): boolean {
 }
 
 // Wind-affected event types per IAAF/World Athletics rules
+// Note: 60m and 60m_hurdles are indoor events — no wind measurement applies
 export const WIND_AFFECTED_EVENT_TYPES = [
   "100m",
-  "200m", 
+  "200m",
   "100m_hurdles",
   "110m_hurdles",
+  "4x100m",
   "long_jump",
   "triple_jump",
 ] as const;

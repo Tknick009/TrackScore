@@ -27,6 +27,7 @@ export function FieldTransitionRenderer({
   meetId,
   liveData,
   liveEventDataByPort,
+  deviceFieldPort,
   canvasWidth,
   canvasHeight,
 }: {
@@ -37,8 +38,11 @@ export function FieldTransitionRenderer({
   // WebSocket context directly, but that's a SEPARATE unregistered connection that never receives
   // field_mode_change messages from the server.
   liveData?: { entries?: any[]; results?: any[] } | null;
-  // All field port data — so the curtain triggers on ANY field port, not just the device's primary port
+  // All field port data keyed by port number
   liveEventDataByPort?: Record<number, { entries?: any[]; results?: any[] }> | null;
+  // The device's assigned field port — curtain ONLY triggers for data on this port.
+  // Without this, the curtain fires for ANY port (causing wrong-school curtains on wrong boards).
+  deviceFieldPort?: number | null;
   // Canvas dimensions for responsive scaling — the curtain scales text/logo relative to
   // a 1080p reference so it looks correct on P10 (192x96) through BigBoard (1920x1080).
   canvasWidth?: number;
@@ -51,6 +55,23 @@ export function FieldTransitionRenderer({
   const prevCalledBibRef = useRef<string>('');
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const versionRef = useRef(0);
+  // Ref that tracks current phase so async team-data fetch can check
+  // whether the curtain is still active before updating colors.
+  const phaseRef = useRef<CurtainPhase>('idle');
+  // Track all bibs/names we've seen so far to detect newly appeared athletes
+  // (needed for vertical events where ALL entries have marks)
+  const seenBibsRef = useRef<Set<string>>(new Set());
+  // Skip Strategy 2 on the very first data load — seenBibsRef is empty so every
+  // entry looks "new", which would cause a spurious curtain animation.
+  const initialLoadRef = useRef(true);
+  // Cache fetched team colors/logos by school name so subsequent curtain animations
+  // for the same school start with the correct color instead of the default blue.
+  const teamCacheRef = useRef<Map<string, { primary: string; secondary: string; logo: string | null }>>(new Map());
+  // Cooldown: prevent curtain from firing more than once every 5 seconds.
+  // The full animation cycle takes ~2.3s; this adds buffer to prevent rapid re-triggers
+  // from data fluctuations even if standings filtering misses an edge case.
+  const lastCurtainTimeRef = useRef<number>(0);
+  const CURTAIN_COOLDOWN_MS = 5000;
 
   const clearTimers = useCallback(() => {
     timersRef.current.forEach(clearTimeout);
@@ -67,79 +88,180 @@ export function FieldTransitionRenderer({
     setLogoSrc(newLogoSrc);
     setPrimaryColor(primary);
     setSecondaryColor(secondary);
-    setPhase('coverStart');
+    setPhase('coverStart'); phaseRef.current = 'coverStart';
 
     timersRef.current.push(setTimeout(() => {
       if (versionRef.current !== version) return;
-      setPhase('covering');
+      setPhase('covering'); phaseRef.current = 'covering';
 
       timersRef.current.push(setTimeout(() => {
         if (versionRef.current !== version) return;
-        setPhase('paused');
+        setPhase('paused'); phaseRef.current = 'paused';
 
         timersRef.current.push(setTimeout(() => {
           if (versionRef.current !== version) return;
-          setPhase('reveal');
+          setPhase('reveal'); phaseRef.current = 'reveal';
 
           timersRef.current.push(setTimeout(() => {
             if (versionRef.current !== version) return;
-            setPhase('idle');
+            setPhase('idle'); phaseRef.current = 'idle';
           }, 700));
-        }, 1400));
+        }, 1000));  // 1000ms pause — snappy feel
       }, 600));
     }, 30));
   }, [clearTimers]);
 
   useEffect(() => () => clearTimers(), [clearTimers]);
 
-  // Merge all data sources: primary liveData + all port-specific data
-  // This ensures the curtain triggers for ANY field port, not just the device's primary port
+  // Get live data ONLY from the device's assigned field port.
+  // Previously this merged ALL port data, causing the curtain to fire on wrong boards
+  // when data arrived on a port assigned to a different device.
+  // Skip auto-standings data (isStandings=true / mode="field_standings") — those are from
+  // the server-side LFF parser, not live FieldLynx call-ups.
   const mergedLiveData = useMemo(() => {
     const allSources: Array<{ entries?: any[]; results?: any[] }> = [];
-    if (liveData) allSources.push(liveData);
-    if (liveEventDataByPort) {
-      for (const portData of Object.values(liveEventDataByPort)) {
-        if (portData) allSources.push(portData);
+    
+    // If device has an assigned port, ONLY use data from that specific port
+    if (deviceFieldPort && liveEventDataByPort) {
+      const portData = liveEventDataByPort[deviceFieldPort];
+      if (portData) {
+        const pd = portData as any;
+        if (!pd.isStandings && pd.mode !== 'field_standings') {
+          allSources.push(portData);
+        }
       }
+    } else if (liveData) {
+      // Fallback: no specific port assigned, use primary liveData only
+      const ld = liveData as any;
+      if (!ld.isStandings && ld.mode !== 'field_standings') allSources.push(liveData);
     }
+    
     return allSources;
-  }, [liveData, liveEventDataByPort]);
+  }, [liveData, liveEventDataByPort, deviceFieldPort]);
 
-  // React to live data changes — detect when a new athlete is "called up" (entry with no mark).
-  // Scans ALL field port data so the curtain fires for any field event, not just the primary port.
+  // React to live data changes — detect when a new athlete is "called up".
+  // For horizontal events (long jump, shot put): the called-up athlete has no mark yet.
+  // For vertical events (high jump, pole vault): ALL entries have marks (the bar height),
+  // so we also detect newly appeared bibs/names that weren't in the previous data set.
   useEffect(() => {
     if (mergedLiveData.length === 0) return;
 
-    // Search all data sources for a called-up athlete
-    let calledUp: any = null;
+    // Detect event switch: if the set of entries changes drastically (< 30% overlap),
+    // treat it as a new event and reset state to avoid spurious curtain animations.
+    const currentBibs = new Set<string>();
     for (const source of mergedLiveData) {
-      const entries: any[] = source.entries || source.results || [];
-      const found = entries.find((r: any) => !r.mark || String(r.mark).trim() === '');
-      if (found) {
-        calledUp = found;
-        break;
+      const entries: any[] = (source as any).entries || (source as any).results || [];
+      for (const r of entries) {
+        const id = r.bib ? String(r.bib) : r.name ? String(r.name) : '';
+        if (id) currentBibs.add(id);
       }
     }
-    if (!calledUp) return;
+    if (seenBibsRef.current.size > 0 && currentBibs.size > 0) {
+      let overlap = 0;
+      for (const id of currentBibs) {
+        if (seenBibsRef.current.has(id)) overlap++;
+      }
+      const overlapRatio = overlap / Math.max(seenBibsRef.current.size, currentBibs.size);
+      if (overlapRatio < 0.3) {
+        // Looks like a different event — reset tracking to avoid spurious curtain
+        seenBibsRef.current = currentBibs;
+        initialLoadRef.current = false;
+        prevCalledBibRef.current = '';
+        lastCurtainTimeRef.current = 0; // Reset cooldown so first athlete in new event gets curtain
+        return;
+      }
+    }
+
+    let calledUp: any = null;
+
+    for (const source of mergedLiveData) {
+      const entries: any[] = (source as any).entries || (source as any).results || [];
+
+      // Strategy 1: Horizontal events — find entry with no mark (athlete is "up")
+      // Skip entries that have orderOfDraw/orderOfDrawName — those come from FieldLynx's
+      // cycling standings display (port 4561) which rotates through athletes every ~10s.
+      // Real call-up entries (port 4560) don't have these fields.
+      if (!calledUp) {
+        const found = entries.find((r: any) =>
+          (!r.mark || String(r.mark).trim() === '') && !r.orderOfDraw && !r.orderOfDrawName
+        );
+        if (found) calledUp = found;
+      }
+
+      // Strategy 2: Vertical events — find a newly appeared bib/name
+      // (FieldLynx adds the "up" athlete to the list when their turn starts)
+      // Skip on initial load: seenBibsRef is empty so ALL entries look new.
+      // Also skip entries with orderOfDraw (cycling standings data from port 4561).
+      if (!calledUp && !initialLoadRef.current) {
+        for (const r of entries) {
+          if (r.orderOfDraw || r.orderOfDrawName) continue;
+          const id = r.bib ? String(r.bib) : r.name ? String(r.name) : '';
+          if (id && !seenBibsRef.current.has(id)) {
+            calledUp = r;
+            break;
+          }
+        }
+      }
+    }
+
+    if (!calledUp) {
+      // No athlete called up — still update seen bibs for next comparison
+      seenBibsRef.current = currentBibs;
+      initialLoadRef.current = false;
+      return;
+    }
 
     const calledId = calledUp.bib
       ? String(calledUp.bib)
       : calledUp.name
       ? String(calledUp.name)
       : '';
-    if (!calledId || calledId === prevCalledBibRef.current) return;
+    if (!calledId || calledId === prevCalledBibRef.current) {
+      // Only add the known calledId to seenBibs — do NOT replace with all currentBibs.
+      // If we replaced with currentBibs here, any truly new athlete (C) that appeared
+      // alongside a cooldown-suppressed athlete (B) would be permanently marked "seen"
+      // without ever triggering a curtain.
+      if (calledId) seenBibsRef.current = new Set([...seenBibsRef.current, calledId]);
+      initialLoadRef.current = false;
+      return;
+    }
+
+    // Cooldown guard: prevent rapid re-triggering even if a new athlete is detected
+    const now = Date.now();
+    if (now - lastCurtainTimeRef.current < CURTAIN_COOLDOWN_MS) {
+      // Do NOT update seenBibsRef during cooldown — athletes appearing during
+      // cooldown should remain "unseen" so Strategy 2 can detect them after cooldown expires.
+      // BUT DO update prevCalledBibRef so the same athlete won't re-trigger after cooldown.
+      prevCalledBibRef.current = calledId;
+      return;
+    }
+
+    // Update seen bibs and refs ONLY when we actually fire the curtain.
+    // This ensures athletes appearing during cooldown aren't permanently
+    // marked as "seen" — they'll be detected again after cooldown expires.
+    seenBibsRef.current = currentBibs;
+    initialLoadRef.current = false;
     prevCalledBibRef.current = calledId;
+    lastCurtainTimeRef.current = now;
 
     const school = calledUp.affiliation || calledUp.team || '';
-    const name = calledUp.name || '';
 
-    // Fetch team colors and logo asynchronously, then trigger curtain
-    (async () => {
-      let logoUrl: string | null = null;
-      let primary = curtainColor;
-      let secondary = curtainColor;
+    // Use cached team colors if available — eliminates the blue flash on repeat visits.
+    // Falls back to default curtainColor only on first appearance of a school.
+    const cached = school ? teamCacheRef.current.get(school) : undefined;
+    const startPrimary = cached?.primary || curtainColor;
+    const startSecondary = cached?.secondary || curtainColor;
+    const startLogo = cached?.logo || null;
+    runCurtain(startLogo, startPrimary, startSecondary);
 
-      if (school) {
+    // Capture current version BEFORE async fetch — used to discard stale responses
+    // if a new athlete triggers a curtain before this fetch completes.
+    const fetchVersion = versionRef.current;
+
+    // Fetch team colors/logo in parallel — update curtain colors if data arrives
+    // during the covering or paused phase (before reveal starts).
+    if (school) {
+      (async () => {
         try {
           const meetParam = meetId
             ? `&meetId=${encodeURIComponent(meetId)}`
@@ -149,19 +271,32 @@ export function FieldTransitionRenderer({
           );
           if (res.ok) {
             const teamData = await res.json();
-            if (teamData?.logoUrl) logoUrl = teamData.logoUrl;
-            if (teamData?.primaryColor) {
-              primary = teamData.primaryColor;
-              secondary = teamData.secondaryColor || teamData.primaryColor;
+            // Discard stale response if a newer curtain has started
+            if (versionRef.current !== fetchVersion) return;
+            // Only update if curtain is still active (not yet revealing/idle)
+            const currentPhase = phaseRef.current;
+            if (currentPhase === 'coverStart' || currentPhase === 'covering' || currentPhase === 'paused') {
+                const fetchedPrimary = teamData?.primaryColor || '';
+                const fetchedSecondary = teamData?.secondaryColor || fetchedPrimary;
+                const fetchedLogo = teamData?.logoUrl || null;
+                // Cache for future curtain animations
+                if (fetchedPrimary && school) {
+                  teamCacheRef.current.set(school, { primary: fetchedPrimary, secondary: fetchedSecondary, logo: fetchedLogo });
+                }
+                if (fetchedPrimary) {
+                  setPrimaryColor(fetchedPrimary);
+                  setSecondaryColor(fetchedSecondary);
+                }
+                if (fetchedLogo) {
+                  setLogoSrc(fetchedLogo);
+                }
             }
           }
         } catch {
-          /* ignore */
+          /* ignore — curtain already running with default colors */
         }
-      }
-
-      runCurtain(logoUrl, primary, secondary);
-    })();
+      })();
+    }
   }, [mergedLiveData, curtainColor, meetId, runCurtain]);
 
   if (phase === 'idle') return null;
@@ -212,7 +347,7 @@ export function FieldTransitionRenderer({
     overflow: 'hidden',
     background: gradient,
     zIndex: 50,
-    transition: panelTransition,
+    transition: `${panelTransition}, background 0.3s ease`,
   };
 
   // Subtle diagonal stripe texture — scale stripe width with display size

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import type { Meet } from "@shared/schema";
 import { formatHeatDisplay } from "@/lib/fieldBindings";
+import { getLogoEffectStyle } from "@/lib/logoEffects";
 
 interface ResultEntry {
   place?: string;
@@ -157,23 +158,23 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
     
     const match = timeStr.match(/^(\d+):(\d+)\.(\d+)$/);
     if (match) {
-      const mins = match[1];
-      const secs = match[2];
-      const fraction = match[3];
-      const decimalValue = parseFloat(`0.${fraction}`);
-      const roundedUp = Math.ceil(decimalValue * 100) / 100;
-      const hundredths = roundedUp.toFixed(2).substring(2);
-      return `${mins}:${secs}.${hundredths}`;
+      const totalSeconds = parseInt(match[1]) * 60 + parseFloat(`${match[2]}.${match[3]}`);
+      const rounded = Math.round(totalSeconds * 100) / 100;
+      const mins = Math.floor(rounded / 60);
+      const secs = Math.round((rounded % 60) * 100) / 100;
+      return `${mins}:${secs.toFixed(2).padStart(5, '0')}`;
     }
     
     const secMatch = timeStr.match(/^(\d+)\.(\d+)$/);
     if (secMatch) {
-      const secs = secMatch[1];
-      const fraction = secMatch[2];
-      const decimalValue = parseFloat(`0.${fraction}`);
-      const roundedUp = Math.ceil(decimalValue * 100) / 100;
-      const hundredths = roundedUp.toFixed(2).substring(2);
-      return `${secs}.${hundredths}`;
+      const totalSeconds = parseFloat(`${secMatch[1]}.${secMatch[2]}`);
+      const rounded = Math.round(totalSeconds * 100) / 100;
+      if (rounded >= 60) {
+        const mins = Math.floor(rounded / 60);
+        const secs = Math.round((rounded % 60) * 100) / 100;
+        return `${mins}:${secs.toFixed(2).padStart(5, '0')}`;
+      }
+      return rounded.toFixed(2);
     }
     
     return timeStr;
@@ -276,6 +277,7 @@ export function BroadcastDisplay({ meet, liveClockTime, liveEventData }: Broadca
                   src={meet.logoUrl} 
                   alt={meet.name || 'Meet Logo'}
                   className="max-h-full max-w-full object-contain"
+                  style={getLogoEffectStyle(meet.logoEffect)}
                 />
               </div>
             )}

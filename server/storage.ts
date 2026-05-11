@@ -261,7 +261,8 @@ export interface IStorage {
   updateDisplayDeviceMode(id: string, displayMode: 'track' | 'field'): Promise<DisplayDevice | undefined>;
   updateDisplayDeviceType(id: string, displayType: string, deviceName?: string, displayWidth?: number, displayHeight?: number): Promise<DisplayDevice | undefined>;
   updateDisplayAutoMode(id: string, autoMode: boolean): Promise<DisplayDevice | undefined>;
-  updateDisplayDevice(id: string, updates: Partial<{ pagingSize: number; pagingInterval: number; fieldPort: number | null; isBigBoard: boolean }>): Promise<DisplayDevice | undefined>;
+  updateDisplayContentMode(id: string, contentMode: string): Promise<DisplayDevice | undefined>;
+  updateDisplayDevice(id: string, updates: Partial<{ pagingSize: number; pagingInterval: number; fieldPort: number | null; isBigBoard: boolean; displayScale: number }>): Promise<DisplayDevice | undefined>;
   assignEventToDisplay(displayId: string, eventId: string | null): Promise<DisplayDevice | undefined>;
   updateDisplayTemplate(displayId: string, template: string | null): Promise<DisplayDevice | undefined>;
   deleteDisplayDevice(id: string): Promise<boolean>;
@@ -320,7 +321,8 @@ export interface IStorage {
   getZonesByLayout(layoutId: number): Promise<SelectLayoutZone[]>;
 
   // Record Books
-  getRecordBooks(): Promise<SelectRecordBook[]>;
+  getRecordBooks(meetId?: string): Promise<SelectRecordBook[]>;
+  getAllRecordBooks(meetId?: string): Promise<SelectRecordBook[]>;
   getRecordBook(id: number): Promise<RecordBookWithRecords | null>;
   createRecordBook(book: InsertRecordBook): Promise<SelectRecordBook>;
   updateRecordBook(id: number, updates: Partial<InsertRecordBook>): Promise<SelectRecordBook | undefined>;
@@ -328,7 +330,7 @@ export interface IStorage {
 
   // Records
   getRecords(recordBookId: number): Promise<SelectRecord[]>;
-  getRecordsByEvent(eventType: string, gender: string): Promise<SelectRecord[]>;
+  getRecordsByEvent(eventType: string, gender: string, meetId?: string): Promise<SelectRecord[]>;
   getRecord(id: number): Promise<SelectRecord | undefined>;
   getRecordForEvent(bookId: number, eventType: string, gender: string): Promise<SelectRecord | undefined>;
   createRecord(record: InsertRecord): Promise<SelectRecord>;
@@ -336,7 +338,7 @@ export interface IStorage {
   deleteRecord(id: number): Promise<void>;
 
   // Record Checking
-  checkForRecords(eventType: string, gender: string, performance: string, windSpeed?: number): Promise<RecordCheck[]>;
+  checkForRecords(eventType: string, gender: string, performance: string, windSpeed?: number, meetId?: string): Promise<RecordCheck[]>;
 
   // Team Scoring - Presets
   getScoringPresets(): Promise<ScoringPreset[]>;
@@ -363,6 +365,8 @@ export interface IStorage {
 
   // Team Scoring - Queries
   getTeamStandings(meetId: string, scope?: { gender?: string; division?: string }): Promise<TeamStandingsEntry[]>;
+  // Pre-meet projections based on seeds (no scored events required)
+  getProjectedTeamStandings(meetId: string, scope?: { gender?: string; division?: string }): Promise<TeamStandingsEntry[]>;
   recalculateTeamScoring(meetId: string): Promise<void>;
   getEventPoints(eventId: string): Promise<EventPointsBreakdown>;
   
@@ -1355,6 +1359,15 @@ export class DatabaseStorage implements IStorage {
     return updated || undefined;
   }
 
+  async updateDisplayContentMode(id: string, contentMode: string): Promise<DisplayDevice | undefined> {
+    const [updated] = await db
+      .update(displayDevices)
+      .set({ contentMode })
+      .where(eq(displayDevices.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
   async updateDisplayDevice(id: string, updates: Partial<{ pagingSize: number; pagingInterval: number; fieldPort: number | null; isBigBoard: boolean }>): Promise<DisplayDevice | undefined> {
     const [updated] = await db
       .update(displayDevices)
@@ -1812,8 +1825,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Record Books
-  async getRecordBooks(): Promise<SelectRecordBook[]> {
+  async getRecordBooks(meetId?: string): Promise<SelectRecordBook[]> {
+    if (meetId) {
+      return db.select().from(recordBooks).where(and(eq(recordBooks.isActive, true), or(eq(recordBooks.meetId, meetId), isNull(recordBooks.meetId))));
+    }
     return db.select().from(recordBooks).where(eq(recordBooks.isActive, true));
+  }
+
+  async getAllRecordBooks(meetId?: string): Promise<SelectRecordBook[]> {
+    if (meetId) {
+      return db.select().from(recordBooks).where(or(eq(recordBooks.meetId, meetId), isNull(recordBooks.meetId)));
+    }
+    return db.select().from(recordBooks);
   }
 
   async getRecordBook(id: number): Promise<RecordBookWithRecords | null> {
@@ -1861,17 +1884,34 @@ export class DatabaseStorage implements IStorage {
       .where(eq(records.recordBookId, recordBookId));
   }
 
-  async getRecordsByEvent(eventType: string, gender: string): Promise<SelectRecord[]> {
+  async getRecordsByEvent(eventType: string, gender: string, meetId?: string): Promise<SelectRecord[]> {
+    // Normalize gender for matching: events use 'M'/'F', records may have 'M'/'F'/'W'/'male'/'female'
+    // Query with all possible variants to handle legacy data
+    const genderVariants = [gender];
+    if (gender === 'F' || gender === 'female') {
+      genderVariants.push('F', 'W', 'female');
+    } else if (gender === 'W') {
+      genderVariants.push('F', 'W', 'female');
+    } else if (gender === 'M' || gender === 'male') {
+      genderVariants.push('M', 'male');
+    }
+    const uniqueVariants = [...new Set(genderVariants)];
+
+    const conditions = [
+      eq(records.eventType, eventType),
+      inArray(records.gender, uniqueVariants),
+      eq(recordBooks.isActive, true),
+    ];
+    if (meetId) {
+      conditions.push(eq(recordBooks.meetId, meetId));
+    }
+
     const results = await db
       .select()
       .from(records)
       .innerJoin(recordBooks, eq(records.recordBookId, recordBooks.id))
-      .where(and(
-        eq(records.eventType, eventType),
-        eq(records.gender, gender),
-        eq(recordBooks.isActive, true)
-      ));
-    
+      .where(and(...conditions));
+
     return results.map(r => r.records);
   }
 
@@ -1919,7 +1959,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Record Checking
-  async checkForRecords(eventType: string, gender: string, performance: string, windSpeed?: number): Promise<RecordCheck[]> {
+  async checkForRecords(eventType: string, gender: string, performance: string, windSpeed?: number, meetId?: string): Promise<RecordCheck[]> {
     const newPerf = parsePerformanceToSeconds(performance);
     if (newPerf === null) return [];
     
@@ -1927,7 +1967,7 @@ export class DatabaseStorage implements IStorage {
     const isWindLegal = windSpeed === undefined || windSpeed <= 2.0;
     if (!isWindLegal) return []; // Don't compare wind-illegal performances
     
-    const matchingRecords = await this.getRecordsByEvent(eventType, gender);
+    const matchingRecords = await this.getRecordsByEvent(eventType, gender, meetId);
     const checks: RecordCheck[] = [];
     
     for (const record of matchingRecords) {
@@ -2321,6 +2361,11 @@ export class DatabaseStorage implements IStorage {
 
         let pts = 0;
         if (entry.scoredPoints != null && entry.scoredPoints > 0) {
+          if (maxScorers > 0) {
+            const count = teamScorerCount.get(entry.teamId) || 0;
+            if (count >= maxScorers) continue;
+            teamScorerCount.set(entry.teamId, count + 1);
+          }
           pts = entry.scoredPoints;
         } else if (entry.finalPlace && ptsMap && ptsMap.size > 0) {
           if (maxScorers > 0) {
@@ -2389,6 +2434,15 @@ export class DatabaseStorage implements IStorage {
       }));
 
     return standings;
+  }
+
+  async getProjectedTeamStandings(
+    meetId: string,
+    scope?: { gender?: string; division?: string }
+  ): Promise<TeamStandingsEntry[]> {
+    // Postgres path doesn't currently implement seed-based projections.
+    // Fallback to scored standings so callers remain type-safe.
+    return this.getTeamStandings(meetId, scope);
   }
 
   // Recalculate Team Scoring

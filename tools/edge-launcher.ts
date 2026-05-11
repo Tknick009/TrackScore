@@ -19,6 +19,7 @@ import * as crypto from 'crypto';
 import { spawn, execSync } from 'child_process';
 
 const CONFIG_PATH = './data/edge-launcher-config.json';
+const UNIFIED_CONFIG_PATH = './data/edge-config.json';
 const SYNC_LOG_PATH = './data/sync-log.json';
 
 interface LauncherConfig {
@@ -83,9 +84,22 @@ const SYNC_PATHS = [
 
 function loadConfig(): LauncherConfig {
   try {
+    // First try the dedicated edge-launcher config
     if (fs.existsSync(CONFIG_PATH)) {
       const data = fs.readFileSync(CONFIG_PATH, 'utf-8');
       return { ...DEFAULT_CONFIG, ...JSON.parse(data) };
+    }
+    // Fall back to unified edge-config.json (set via the UI)
+    if (fs.existsSync(UNIFIED_CONFIG_PATH)) {
+      const data = JSON.parse(fs.readFileSync(UNIFIED_CONFIG_PATH, 'utf-8'));
+      if (data.syncFolderPath) {
+        return {
+          ...DEFAULT_CONFIG,
+          sourceDirectory: data.syncFolderPath,
+          autoSync: data.autoSyncOnBoot ?? true,
+          lastSyncAt: data.lastSyncTime || null,
+        };
+      }
     }
   } catch (error) {
     console.error('Error loading config:', error);
@@ -99,6 +113,22 @@ function saveConfig(config: LauncherConfig): void {
     fs.mkdirSync(dir, { recursive: true });
   }
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+
+  // Also save to unified edge-config.json so the UI stays in sync
+  try {
+    let unifiedConfig: Record<string, any> = {};
+    if (fs.existsSync(UNIFIED_CONFIG_PATH)) {
+      unifiedConfig = JSON.parse(fs.readFileSync(UNIFIED_CONFIG_PATH, 'utf-8'));
+    }
+    unifiedConfig.syncFolderPath = config.sourceDirectory;
+    unifiedConfig.autoSyncOnBoot = config.autoSync;
+    if (config.lastSyncAt) {
+      unifiedConfig.lastSyncTime = config.lastSyncAt;
+    }
+    fs.writeFileSync(UNIFIED_CONFIG_PATH, JSON.stringify(unifiedConfig, null, 2));
+  } catch (err) {
+    console.error('Warning: could not update unified config:', err);
+  }
 }
 
 function saveSyncLog(log: SyncLog): void {
@@ -398,7 +428,12 @@ Excluded by default:
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   
-  if (args.includes('--help') || args.length === 0) {
+  if (args.includes('--help')) {
+    printHelp();
+    return;
+  }
+  
+  if (args.length === 0) {
     printHelp();
     return;
   }
@@ -421,15 +456,24 @@ async function main(): Promise<void> {
   const syncOnly = args.includes('--sync-only');
   
   if (!config.sourceDirectory) {
-    console.error('❌ No source directory configured.');
-    console.error('   Use: --source /path/to/source');
-    process.exit(1);
+    console.log('ℹ️  No source directory configured.');
+    console.log('   Set it via: --source /path/to/source');
+    console.log('   Or configure it in the TrackScore UI under Folder Sync.');
+    if (shouldLaunch) {
+      console.log('\n🚀 Launching server without sync...');
+      launchServer(targetDir);
+    }
+    return;
   }
   
   if (!fs.existsSync(config.sourceDirectory)) {
-    console.error(`❌ Source directory not found: ${config.sourceDirectory}`);
-    console.error('   Make sure the network share is mounted or folder exists.');
-    process.exit(1);
+    console.log(`⚠️  Source directory not found: ${config.sourceDirectory}`);
+    console.log('   Make sure the network share is mounted or folder exists.');
+    console.log('   Skipping sync.');
+    if (shouldLaunch) {
+      launchServer(targetDir);
+    }
+    return;
   }
   
   console.log('=== Edge Mode Launcher ===');

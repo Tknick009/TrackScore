@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import type { EventWithEntries, Meet } from "@shared/schema";
+import { getLogoEffectStyle } from "@/lib/logoEffects";
+import { shouldShowWind } from "../utils/formatting";
 
 interface BigBoardProps {
   event: EventWithEntries;
@@ -7,13 +9,15 @@ interface BigBoardProps {
   liveTime?: string;
   pagingSize?: number;
   pagingIntervalMs?: number;
+  maxPages?: number;
 }
 
-export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
+export function BigBoard({ event, meet, liveTime, pagingSize = 8, pagingIntervalMs = 8000, maxPages = 0 }: BigBoardProps) {
   const [clock, setClock] = useState<string>("");
   const [fadeIn, setFadeIn] = useState(true);
   const [displayedEntries, setDisplayedEntries] = useState<any[]>([]);
   const prevEntriesRef = useRef<string>("");
+  const [currentPage, setCurrentPage] = useState(0);
   
   // Smooth fade transition when entries change
   useEffect(() => {
@@ -78,14 +82,58 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
     });
   }, [displayedEntries]);
 
-  const isRelay = event.eventType?.toLowerCase().includes('relay');
+  // Paging
+  const rawTotalPages = Math.max(1, Math.ceil(sortedEntries.length / pagingSize));
+  const totalPages = maxPages > 0 ? Math.min(rawTotalPages, maxPages) : rawTotalPages;
+
+  useEffect(() => {
+    if (totalPages <= 1) return;
+    const interval = setInterval(() => {
+      setFadeIn(false);
+      setTimeout(() => {
+        setCurrentPage(prev => (prev + 1) % totalPages);
+        setFadeIn(true);
+      }, 400);
+    }, pagingIntervalMs);
+    return () => clearInterval(interval);
+  }, [totalPages, pagingIntervalMs]);
+
+  // Reset page when entries change significantly
+  useEffect(() => {
+    setCurrentPage(0);
+  }, [sortedEntries.length]);
+
+  const pagedEntries = sortedEntries.slice(
+    currentPage * pagingSize,
+    (currentPage + 1) * pagingSize
+  );
+
+  // Detect relay events — check server flag, eventType, AND event name for comprehensive detection
+  const eventNameLower = (event.name || '').toLowerCase();
+  const eventTypeLower = (event.eventType || '').toLowerCase();
+  const isRelay = (event as any).isRelay === true || eventTypeLower.includes('relay') || eventTypeLower.startsWith('4x') || /^\d+x\d+/.test(eventTypeLower) || eventNameLower.includes('relay') || eventNameLower.includes('medley');
   const isCompleted = event.status === 'completed';
   const isStartList = event.status === 'scheduled' || event.status === 'upcoming';
-  const status = isCompleted ? 'FINAL' : event.status === 'in_progress' ? 'IN PROGRESS' : 'SCHEDULED';
+  // Detect multi-events (Pentathlon, Heptathlon, Decathlon) - show points instead of splits on results
+  // Supports abbreviations: "Hept", "Pent", "Dec" as used in FinishLynx
+  const isMultiEvent = (event as any).isMultiEvent === true || /\b(dec(athlon)?|hept(athlon)?|pent(athlon)?)\b/i.test(event.name || '');
+  // Use heat info from liveEventData when available for "Heat X of Y" display
+  // Fall back to roundName (e.g., "Prelims", "Finals") when no heat number
+  const heat = (event as any).heat;
+  const totalHeats = (event as any).totalHeats;
+  const roundName = (event as any).roundName;
+  const status = (heat && totalHeats && totalHeats > 1)
+    ? `HEAT ${heat} OF ${totalHeats}`
+    : roundName 
+      ? roundName.toUpperCase() 
+      : (isCompleted ? 'FINAL' : event.status === 'in_progress' ? 'IN PROGRESS' : 'SCHEDULED');
   
   // Wind display - handle both numeric and string wind values
+  // Only show wind for events 200m and under
+  const windAllowed = shouldShowWind(event.name || (event as any).eventName, event.eventType, (event as any).distance);
   const windReading = (event as any).wind ?? event.entries?.[0]?.finalWind;
   const windDisplay = (() => {
+    if (!windAllowed) return '';
     if (windReading === null || windReading === undefined) return 'WIND: nwi';
     if (typeof windReading === 'string') {
       const trimmed = windReading.trim();
@@ -96,6 +144,10 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
 
   // Format time - handles both string times from live data ("10.23", "1:45.67") 
   // and numeric times from database (seconds — HyTek MDB stores as seconds)
+  // Standard rounding — HyTek data is already correctly rounded; Math.ceil caused
+  // float precision errors from Access DB (e.g. 8.09 stored as 8.0900005 → ceiled to 8.10)
+  const roundHundredths = (val: number): number => Math.round(val * 100) / 100;
+
   const formatTime = (mark: any): string => {
     if (mark === null || mark === undefined || mark === '') return '';
     // If it's already a string (from live FinishLynx data), return as-is
@@ -105,12 +157,13 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
     }
     // Numeric value from database — HyTek stores times in seconds (e.g. 10.23, 128.59)
     if (typeof mark === 'number') {
-      if (mark >= 60) {
-        const minutes = Math.floor(mark / 60);
-        const seconds = (mark % 60).toFixed(2);
+      const rounded = roundHundredths(mark);
+      if (rounded >= 60) {
+        const minutes = Math.floor(rounded / 60);
+        const seconds = roundHundredths(rounded % 60).toFixed(2);
         return `${minutes}:${seconds.padStart(5, '0')}`;
       }
-      return mark.toFixed(2);
+      return rounded.toFixed(2);
     }
     return String(mark);
   };
@@ -160,6 +213,7 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
                 src={meet.logoUrl} 
                 alt={meet.name} 
                 className="h-16 object-contain"
+                style={getLogoEffectStyle(meet.logoEffect)}
               />
             )}
             <h1 
@@ -208,7 +262,7 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
             transition: 'opacity 300ms ease-in-out',
           }}
         >
-          {sortedEntries.map((entry, index) => {
+          {pagedEntries.map((entry, index) => {
             const teamLogo = entry.team?.logoUrl;
             const displayName = isRelay 
               ? entry.team?.name || 'Unknown Team'
@@ -223,8 +277,10 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
             const hasPlace = !isNaN(placeVal) && placeVal > 0;
             
             // Opacity: DNS/FS/Scratch = 50%, no data yet = 50%, has data = 100%
+            // FinishLynx sends "0.00" as placeholder for athletes who haven't finished
+            const isZeroTime = (t: string) => t !== '' && /^0*:?0*\.?0*$/.test(t);
             const dimmed = isDimmedEntry(entry);
-            const hasResultData = finalTime !== '' || splitTime !== '';
+            const hasResultData = (finalTime !== '' && !isZeroTime(finalTime)) || (splitTime !== '' && !isZeroTime(splitTime));
             let rowOpacity = 1;
             if (dimmed) {
               rowOpacity = 0.5;
@@ -278,14 +334,44 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
                       {displayName}
                     </span>
 
-                    {splitTime && (
+                    {/* Record/Best Tags - next to athlete name */}
+                    {((entry as any).recordTags || []).length > 0 && (
+                      <div className="flex gap-2 shrink-0">
+                        {((entry as any).recordTags as string[]).map((tag: string) => (
+                          <span
+                            key={tag}
+                            className="font-bold uppercase rounded"
+                            style={{
+                              fontSize: '28px',
+                              padding: '2px 10px',
+                              backgroundColor: tag.includes('MR') || tag.includes('FR') ? 'rgba(255, 215, 0, 0.25)' : 'rgba(0, 200, 255, 0.2)',
+                              color: tag.includes('MR') || tag.includes('FR') ? '#ffd700' : '#00e5ff',
+                              border: `2px solid ${tag.includes('MR') || tag.includes('FR') ? 'rgba(255, 215, 0, 0.5)' : 'rgba(0, 200, 255, 0.4)'}`,
+                            }}
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* For multi-events, show calculated points (server computes from WA scoring tables) */}
+                    {/* Fallback: if multi-event but points not calculated, still show the split */}
+                    {isMultiEvent && (entry as any).eventPoints ? (
+                      <span 
+                        className="text-cyan-300 font-bold tabular-nums shrink-0"
+                        style={{ fontSize: '48px', fontFamily: "'Bebas Neue', sans-serif" }}
+                      >
+                        {(entry as any).eventPoints}
+                      </span>
+                    ) : splitTime ? (
                       <span 
                         className="text-yellow-400 font-bold tabular-nums shrink-0"
                         style={{ fontSize: '48px', fontFamily: "'Bebas Neue', sans-serif" }}
                       >
                         {splitTime}
                       </span>
-                    )}
+                    ) : null}
 
                     <span 
                       className="text-white font-bold tabular-nums shrink-0 min-w-[200px] text-right"
@@ -294,25 +380,22 @@ export function BigBoard({ event, meet, liveTime }: BigBoardProps) {
                       {finalTime}
                     </span>
 
-                    {/* Record/Best Tags */}
-                    {((entry as any).recordTags || []).length > 0 && (
-                      <div className="flex gap-1 shrink-0 ml-3">
-                        {((entry as any).recordTags as string[]).map((tag: string) => (
-                          <span
-                            key={tag}
-                            className="font-bold uppercase rounded"
-                            style={{
-                              fontSize: '0.3em',
-                              padding: '0.15em 0.4em',
-                              backgroundColor: tag.includes('MR') || tag.includes('FR') ? 'rgba(255, 215, 0, 0.25)' : 'rgba(0, 200, 255, 0.2)',
-                              color: tag.includes('MR') || tag.includes('FR') ? '#ffd700' : '#00e5ff',
-                              border: `1px solid ${tag.includes('MR') || tag.includes('FR') ? 'rgba(255, 215, 0, 0.5)' : 'rgba(0, 200, 255, 0.4)'}`,
-                            }}
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
+                    {/* Q/q Qualifier Badge */}
+                    {(entry as any).qualifier && (
+                      <span
+                        className="font-bold shrink-0 rounded"
+                        style={{
+                          fontSize: '36px',
+                          padding: '2px 10px',
+                          backgroundColor: 'rgba(21, 128, 61, 0.35)',
+                          color: '#4ade80',
+                          border: '1px solid rgba(74, 222, 128, 0.5)',
+                          minWidth: '44px',
+                          textAlign: 'center' as const,
+                        }}
+                      >
+                        {(entry as any).qualifier}
+                      </span>
                     )}
                   </div>
                 </div>

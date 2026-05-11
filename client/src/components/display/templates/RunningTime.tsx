@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import type { EventWithEntries, Meet } from "@shared/schema";
+import { getLogoEffectStyle } from "@/lib/logoEffects";
 
 interface RunningTimeProps {
   event?: EventWithEntries | null;
@@ -60,6 +61,7 @@ export function RunningTime({ event, meet, liveTime }: RunningTimeProps) {
                 src={meet.logoUrl} 
                 alt={meet.name} 
                 className="h-20 object-contain"
+                style={getLogoEffectStyle(meet.logoEffect)}
               />
             )}
             <h1 

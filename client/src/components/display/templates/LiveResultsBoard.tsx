@@ -7,6 +7,8 @@ import {
   getPodiumColor,
   generateAttemptHeaders
 } from "../utils";
+import { getLogoEffectStyle } from "@/lib/logoEffects";
+import { shouldShowWind } from "../utils/formatting";
 
 interface LiveResultsBoardProps {
   event: EventWithEntries;
@@ -36,6 +38,7 @@ export function LiveResultsBoard({ event, meet, mode }: LiveResultsBoardProps) {
           src={meet.logoUrl}
           alt="Meet logo"
           className="absolute top-8 right-8 max-w-[120px] max-h-[80px] z-10"
+          style={getLogoEffectStyle(meet.logoEffect)}
           data-testid="img-meet-logo"
         />
       )}
@@ -58,6 +61,8 @@ export function LiveResultsBoard({ event, meet, mode }: LiveResultsBoardProps) {
 }
 
 function TrackResultsDisplay({ event, mode }: { event: EventWithEntries; mode: string }) {
+  // Only show wind for events 200m and under
+  const windAllowed = shouldShowWind(event.name || (event as any).eventName, event.eventType, (event as any).distance);
   const sortedResults = [...event.entries].sort((a, b) => {
     const aPos = a.finalPlace ?? 999;
     const bPos = b.finalPlace ?? 999;
@@ -128,6 +133,19 @@ function TrackResultsDisplay({ event, mode }: { event: EventWithEntries; mode: s
                 >
                   {athleteName}
                 </h2>
+                {/* Record tags (MR, FR, etc.) from server enrichment */}
+                {((result as any).recordTags || []).length > 0 && (
+                  <span 
+                    className="text-[40px] font-[900] px-3 py-1 rounded"
+                    style={{
+                      backgroundColor: 'rgba(255, 215, 0, 0.25)',
+                      color: '#ffd700',
+                      border: '2px solid rgba(255, 215, 0, 0.5)',
+                    }}
+                  >
+                    {((result as any).recordTags as string[])[0]}
+                  </span>
+                )}
                 {(() => {
                   const notes = (result as any).notes;
                   const statusCodes = ['DNF', 'DQ', 'DNS', 'SCR', 'NH', 'NM', 'FOUL', 'FS', 'NT'];
@@ -157,8 +175,8 @@ function TrackResultsDisplay({ event, mode }: { event: EventWithEntries; mode: s
               >
                 {formatResult(result)}
               </div>
-              {/* Wind reading - 36px below */}
-              {result.finalWind && (
+              {/* Wind reading - 36px below, only for events 200m and under */}
+              {windAllowed && result.finalWind && (
                 <p className="text-[36px] text-[hsl(var(--display-muted))] mt-2 leading-none">
                   Wind: {result.finalWind > 0 ? '+' : ''}{result.finalWind.toFixed(1)}
                 </p>

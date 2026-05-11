@@ -39,7 +39,15 @@ export function registerAthletesTeamsRoutes(app: Express, ctx: RouteContext) {
         
         return res.json(athletesWithTeams);
       }
-      athletes = await storage.getAthletes();
+      // When no meetId provided, try to scope to the active meet to prevent cross-meet data leakage
+      const allMeets = await storage.getMeets();
+      const activeMeet = allMeets.find(m => m.status === 'in_progress') || allMeets.find(m => m.status === 'upcoming');
+      if (activeMeet) {
+        athletes = await storage.getAthletesByMeetId(activeMeet.id);
+      } else {
+        // No active meet found — return empty array to prevent cross-meet data leakage
+        athletes = [];
+      }
       
       // Filter by search if provided
       if (search && typeof search === 'string' && search.trim()) {
@@ -125,8 +133,15 @@ export function registerAthletesTeamsRoutes(app: Express, ctx: RouteContext) {
         const teams = await storage.getTeamsByMeetId(meetId as string);
         return res.json(teams);
       }
-      const teams = await storage.getTeams();
-      res.json(teams);
+      // When no meetId provided, try to scope to the active meet to prevent cross-meet data leakage
+      const allMeets = await storage.getMeets();
+      const activeMeet = allMeets.find(m => m.status === 'in_progress') || allMeets.find(m => m.status === 'upcoming');
+      if (activeMeet) {
+        const teams = await storage.getTeamsByMeetId(activeMeet.id);
+        return res.json(teams);
+      }
+      // No active meet found — return empty array to prevent cross-meet data leakage
+      res.json([]);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -144,7 +159,8 @@ export function registerAthletesTeamsRoutes(app: Express, ctx: RouteContext) {
 
   // Look up team by affiliation name — returns logo URL + colors for curtain use.
   // Logo: exact-match against /public/logos/NCAA/{name}.png (no fuzzy matching).
-  // Colors: manually set team colors take priority; otherwise extracted from the logo.
+  // Colors: DB-cached colors (from import or manual edit) take priority.
+  // Only falls back to on-the-fly image extraction if no DB colors exist.
   app.get("/api/teams/by-affiliation", async (req, res) => {
     try {
       const { name, meetId } = req.query;
@@ -160,7 +176,36 @@ export function registerAthletesTeamsRoutes(app: Express, ctx: RouteContext) {
       const logoExists = await import('fs/promises').then(fs => fs.access(ncaaLogoPath).then(() => true).catch(() => false));
       if (logoExists) {
         logoUrl = `/logos/NCAA/${encodeURIComponent(nameStr)}.png`;
-        // Extract dominant colors from the logo
+      }
+
+      // 2. Look up team in DB — use cached colors (set during import or manually edited)
+      // Meet isolation: auto-scope to active meet if no meetId provided
+      try {
+        let effectiveMeetId = meetId ? String(meetId) : undefined;
+        if (!effectiveMeetId) {
+          const allMeets = await storage.getMeets();
+          const activeMeet = allMeets.find(m => m.status === 'in_progress') || allMeets.find(m => m.status === 'upcoming');
+          if (activeMeet) effectiveMeetId = activeMeet.id;
+        }
+        const teamsToSearch = effectiveMeetId
+          ? await storage.getTeamsByMeetId(effectiveMeetId)
+          : []; // No meet context — return empty to prevent cross-meet data leakage
+        const match = teamsToSearch.find(t =>
+          t.name.trim() === nameStr ||
+          (t.shortName && t.shortName.trim() === nameStr) ||
+          (t.abbreviation && t.abbreviation.trim() === nameStr)
+        );
+        if (match) {
+          if (match.primaryColor) primaryColor = match.primaryColor;
+          if (match.secondaryColor) secondaryColor = match.secondaryColor;
+          // Uploaded logo overrides NCAA static logo
+          const uploadedLogo = await storage.getTeamLogo(match.id);
+          if (uploadedLogo) logoUrl = fileStorage.publicUrlForKey(uploadedLogo.storageKey);
+        }
+      } catch { /* DB lookup is best-effort */ }
+
+      // 3. Fallback: extract colors on-the-fly only if no DB colors found
+      if (!primaryColor && !secondaryColor && logoExists) {
         try {
           const fs = await import('fs/promises');
           const buf = await fs.readFile(ncaaLogoPath);
@@ -169,26 +214,6 @@ export function registerAthletesTeamsRoutes(app: Express, ctx: RouteContext) {
           secondaryColor = colors.secondaryColor;
         } catch { /* use defaults if extraction fails */ }
       }
-
-      // 2. Look up team in DB for manually overridden colors
-      try {
-        const teamsToSearch = meetId
-          ? await storage.getTeamsByMeetId(String(meetId))
-          : await storage.getTeams();
-        const match = teamsToSearch.find(t =>
-          t.name.trim() === nameStr ||
-          (t.shortName && t.shortName.trim() === nameStr) ||
-          (t.abbreviation && t.abbreviation.trim() === nameStr)
-        );
-        if (match) {
-          // Manually set colors override extracted colors
-          if (match.primaryColor) primaryColor = match.primaryColor;
-          if (match.secondaryColor) secondaryColor = match.secondaryColor;
-          // Uploaded logo overrides NCAA static logo
-          const uploadedLogo = await storage.getTeamLogo(match.id);
-          if (uploadedLogo) logoUrl = fileStorage.publicUrlForKey(uploadedLogo.storageKey);
-        }
-      } catch { /* DB lookup is best-effort */ }
 
       res.json({ name: nameStr, logoUrl, primaryColor, secondaryColor });
     } catch (error: any) {
@@ -279,9 +304,26 @@ export function registerAthletesTeamsRoutes(app: Express, ctx: RouteContext) {
   });
 
   // Divisions
+  // Meet isolation: auto-scopes to active meet when no meetId provided
   app.get("/api/divisions", async (req, res) => {
-    const divisions = await storage.getDivisions();
-    res.json(divisions);
+    try {
+      let { meetId } = req.query;
+      if (!meetId) {
+        // Auto-scope to active meet to prevent cross-meet data leakage
+        const allMeets = await storage.getMeets();
+        const activeMeet = allMeets.find(m => m.status === 'in_progress') || allMeets.find(m => m.status === 'upcoming');
+        if (activeMeet) meetId = activeMeet.id;
+      }
+      if (meetId) {
+        const divisions = await storage.getDivisions();
+        const filtered = divisions.filter((d: any) => d.meetId === meetId);
+        return res.json(filtered);
+      }
+      // No meetId and no active meet — return empty array to prevent cross-meet data leakage
+      res.json([]);
+    } catch (error: any) {
+      res.status(500).json({ error: (error as Error).message });
+    }
   });
 
   app.post("/api/divisions", async (req, res) => {
@@ -885,10 +927,22 @@ export function registerAthletesTeamsRoutes(app: Express, ctx: RouteContext) {
         normalizedFileMap.set(normalize(nameWithoutExt), f);
       }
 
-      // Get all teams for this meet
+      // Get all teams for this meet, filtered to only teams with athletes that have competitor numbers
       const teams = await storage.getTeamsByMeetId(meetId);
+      const allAthletes = await storage.getAthletesByMeetId(meetId);
+      
+      // Build set of team IDs that have at least one athlete with a bib/competitor number
+      const teamsWithCompetitors = new Set<string>();
+      for (const athlete of allAthletes) {
+        if (athlete.bibNumber && athlete.teamId) {
+          teamsWithCompetitors.add(athlete.teamId);
+        }
+      }
+      
+      // Filter teams to only those with competing athletes
+      const filteredTeams = teams.filter(team => teamsWithCompetitors.has(team.id));
 
-      const results = teams.map(team => {
+      const results = filteredTeams.map(team => {
         const teamName = (team.name || '').trim();
         const lowerName = teamName.toLowerCase();
 
@@ -903,12 +957,14 @@ export function registerAthletesTeamsRoutes(app: Express, ctx: RouteContext) {
         return {
           teamId: team.id,
           teamName,
-          affiliation: team.affiliation || '',
+          affiliation: team.abbreviation || '',
           expectedFilename: teamName,
           matchedFile,
           hasLogo: !!matchedFile,
           logoUrl: matchedFile ? `/logos/NCAA/${matchedFile}` : null,
           suggestedFile: null as string | null,
+          primaryColor: team.primaryColor || null,
+          secondaryColor: team.secondaryColor || null,
         };
       });
 
