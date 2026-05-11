@@ -1446,6 +1446,10 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
         return res.status(400).json({ error: 'No MDB path configured' });
       }
       
+      if (isMDBImportRunning()) {
+        return res.status(409).json({ error: 'An MDB import is already in progress. Please wait and try again.' });
+      }
+      
       // Clear existing import data before re-importing
       const clearStats = await storage.clearMeetImportData(meetId);
       console.log(`🧹 Pre-import clear: ${JSON.stringify(clearStats)}`);

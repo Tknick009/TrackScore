@@ -238,6 +238,7 @@ import {
   isTemplateCompatible,
 } from "@/lib/displayCapabilities";
 import { SceneCanvas } from "@/components/scene-canvas";
+import { FieldTransitionRenderer } from "@/components/display/FieldTransitionRenderer";
 
 interface LiveEventData {
   eventNumber: number;
@@ -1776,6 +1777,28 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
           deviceFieldPort={fieldPort}
         />
       );
+
+      // When field mode is active, overlay the curtain transition so it works
+      // even if the scene doesn't have a field-transition object
+      const isFieldScene = currentLayoutModeRef.current === 'field_results' || currentLayoutModeRef.current === 'multi_field';
+      if (isFieldScene) {
+        return (
+          <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+            {sceneCanvasElement}
+            <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 9999 }}>
+              <FieldTransitionRenderer
+                curtainColor="#001e57"
+                meetId={meetId || undefined}
+                liveData={liveEventData}
+                liveEventDataByPort={liveEventDataByPort}
+                deviceFieldPort={fieldPort}
+                canvasWidth={effectiveWidth}
+                canvasHeight={effectiveHeight}
+              />
+            </div>
+          </div>
+        );
+      }
 
       // When winners mode is active, overlay confetti on top of the custom scene
       if (liveEventData?.mode === 'winners') {

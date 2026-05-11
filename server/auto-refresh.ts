@@ -1,5 +1,5 @@
 import { storage } from "./storage";
-import { importMDBInBackground } from "./import-mdb-background";
+import { importMDBInBackground, isMDBImportRunning } from "./import-mdb-background";
 import { existsSync, copyFileSync, mkdirSync, unlinkSync } from "fs";
 import * as path from "path";
 
@@ -59,6 +59,12 @@ export function startAutoRefresh() {
                 continue;
               }
               throw copyError;
+            }
+            
+            // Skip if another import is already running to avoid clearing data without repopulating
+            if (isMDBImportRunning()) {
+              console.log(`⏳ Import already in progress, skipping auto-refresh for ${meet.name}`);
+              continue;
             }
             
             console.log(`🔄 Auto-refreshing meet: ${meet.name} (${meet.id})`);
