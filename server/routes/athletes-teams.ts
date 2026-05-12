@@ -169,12 +169,17 @@ export function registerAthletesTeamsRoutes(app: Express, ctx: RouteContext) {
       const nameStr = String(name).trim();
 
       // 1. Check for NCAA logo by exact name match
-      const ncaaLogoPath = path.join(process.cwd(), 'public', 'logos', 'NCAA', `${nameStr}.png`);
+      // Validate the filename doesn't contain path traversal characters
+      const safeName = nameStr.replace(/[\/\\]/g, '');
+      const ncaaLogoPath = path.join(process.cwd(), 'public', 'logos', 'NCAA', `${safeName}.png`);
+      const resolvedLogoPath = path.resolve(ncaaLogoPath);
+      const resolvedLogosDir = path.resolve(path.join(process.cwd(), 'public', 'logos', 'NCAA'));
       let logoUrl: string | null = null;
       let primaryColor: string | null = null;
       let secondaryColor: string | null = null;
 
-      const logoExists = await import('fs/promises').then(fs => fs.access(ncaaLogoPath).then(() => true).catch(() => false));
+      const pathIsSafe = resolvedLogoPath.startsWith(resolvedLogosDir);
+      const logoExists = pathIsSafe && await import('fs/promises').then(fs => fs.access(ncaaLogoPath).then(() => true).catch(() => false));
       if (logoExists) {
         logoUrl = `/logos/NCAA/${encodeURIComponent(nameStr)}.png`;
       }
