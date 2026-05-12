@@ -1,20 +1,24 @@
 /**
- * Background MDB import wrapper.
+ * Background MDB import using child_process.fork().
  *
- * Provides a mutex (one import at a time) and a queue so that when multiple
- * MDB watchers fire simultaneously, imports run sequentially instead of
- * being dropped.
+ * Spawns a separate Node.js process with tsx for each import, so the main
+ * event loop (clock ticks, FinishLynx data, WebSocket broadcasts) is never
+ * blocked by MDB parsing or SQLite writes.
  *
- * Note: Worker Threads are not used because tsx (TypeScript Execute) does not
- * reliably propagate its ESM loader to worker threads on Windows. The import
- * runs on the main thread using async/await, which yields to the event loop
- * between database operations so clock ticks and WebSocket broadcasts continue.
+ * Includes a queue so when multiple MDB watchers fire simultaneously,
+ * imports run sequentially instead of being dropped.
  *
  * Usage:
  *   import { importMDBInBackground } from './import-mdb-background';
  *   const stats = await importMDBInBackground(mdbPath, meetId);
  */
-import { importCompleteMDB, type ImportStatistics } from './import-mdb-complete';
+import { fork } from 'child_process';
+import { fileURLToPath } from 'url';
+import path from 'path';
+import type { ImportStatistics } from './import-mdb-complete';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /** Track whether any import is currently running (only one at a time). */
 let activeImport = false;
@@ -28,28 +32,59 @@ const importQueue: Array<{
 }> = [];
 
 /** Process the next item in the queue, if any. */
-async function processQueue() {
+function processQueue() {
   if (activeImport || importQueue.length === 0) return;
 
   activeImport = true;
   const { mdbPath, meetId, resolve, reject } = importQueue.shift()!;
 
-  try {
-    console.log(`[MDB Import] Starting import: ${mdbPath} for meet ${meetId}`);
-    const stats = await importCompleteMDB(mdbPath, meetId);
-    resolve(stats);
-  } catch (err: any) {
-    reject(err instanceof Error ? err : new Error(String(err)));
-  } finally {
+  const workerPath = path.resolve(__dirname, 'import-mdb-worker.ts');
+
+  // fork() spawns a new Node.js process. We pass --import tsx so the child
+  // process can load TypeScript files directly, just like the main process.
+  const child = fork(workerPath, [], {
+    execArgv: ['--import', 'tsx'],
+    env: { ...process.env },
+    stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
+  });
+
+  let settled = false;
+
+  child.on('message', (msg: { type: string; stats?: ImportStatistics; error?: string }) => {
+    if (settled) return;
+    settled = true;
+
+    if (msg.type === 'complete') {
+      resolve(msg.stats!);
+    } else if (msg.type === 'error') {
+      reject(new Error(msg.error || 'Unknown worker error'));
+    }
+  });
+
+  child.on('error', (err) => {
+    if (settled) return;
+    settled = true;
+    reject(err);
+  });
+
+  child.on('exit', (code) => {
+    if (!settled) {
+      settled = true;
+      if (code !== 0) {
+        reject(new Error(`MDB import process exited with code ${code}`));
+      }
+    }
     activeImport = false;
-    // Process next queued import
     processQueue();
-  }
+  });
+
+  // Send the import parameters to the child process
+  child.send({ mdbPath, meetId });
 }
 
 /**
- * Run an MDB import. If another import is already running, this one is
- * queued and will execute as soon as the current import finishes.
+ * Run an MDB import in a separate process. If another import is already
+ * running, this one is queued and will execute when the current one finishes.
  * Returns the same ImportStatistics that importCompleteMDB returns.
  */
 export function importMDBInBackground(
@@ -62,7 +97,7 @@ export function importMDBInBackground(
   });
 }
 
-/** Check if an import is currently running. */
+/** Check if an import is currently running in the background. */
 export function isMDBImportRunning(): boolean {
   return activeImport;
 }

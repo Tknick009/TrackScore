@@ -1,28 +1,23 @@
 /**
- * Worker Thread script for HyTek MDB imports.
- * Runs importCompleteMDB in a separate thread so the main event loop
+ * Child process script for HyTek MDB imports.
+ * Spawned via child_process.fork() so the main event loop
  * (clock ticks, FinishLynx data, WebSocket broadcasts) stays responsive.
  *
- * Receives { mdbPath, meetId } via workerData, posts back { type, stats | error }.
+ * Receives { mdbPath, meetId } via IPC message, sends back { type, stats | error }.
  */
-import { workerData, parentPort } from 'worker_threads';
-import { importCompleteMDB } from './import-mdb-complete.ts';
+import { importCompleteMDB } from './import-mdb-complete';
 
-interface WorkerInput {
-  mdbPath: string;
-  meetId: string;
-}
-
-async function run() {
-  const { mdbPath, meetId } = workerData as WorkerInput;
+process.on('message', async (msg: { mdbPath: string; meetId: string }) => {
+  const { mdbPath, meetId } = msg;
 
   try {
-    parentPort?.postMessage({ type: 'log', message: `[MDB Worker] Starting import: ${mdbPath} for meet ${meetId}` });
+    console.log(`[MDB Worker] Starting import: ${mdbPath} for meet ${meetId}`);
     const stats = await importCompleteMDB(mdbPath, meetId);
-    parentPort?.postMessage({ type: 'complete', stats });
+    process.send?.({ type: 'complete', stats });
   } catch (err: any) {
-    parentPort?.postMessage({ type: 'error', error: err.message || String(err) });
+    process.send?.({ type: 'error', error: err.message || String(err) });
   }
-}
 
-run();
+  // Exit cleanly after the import finishes
+  process.exit(0);
+});
