@@ -762,7 +762,7 @@ export function SceneObjectRenderer({
             // For relays/medleys this serves as a secondary fallback
             const fallbackSchool = school || photoEntry.name || photoEntry.team || '';
             if (fallbackSchool) {
-              logoFallbackUrl = `/logos/NCAA/${fallbackSchool}.png`;
+              logoFallbackUrl = `/logos/NCAA/${encodeURIComponent(fallbackSchool)}.png`;
             }
           }
         } else if (logoFieldKey === "school-logo" && liveData) {
@@ -782,7 +782,7 @@ export function SceneObjectRenderer({
                 ? (firstEntry?.name || firstEntry?.affiliation || firstEntry?.team)
                 : (firstEntry?.affiliation || firstEntry?.team);
             if (schoolName) {
-              logoUrl = `/logos/NCAA/${schoolName}.png`;
+              logoUrl = `/logos/NCAA/${encodeURIComponent(schoolName)}.png`;
             }
           }
         } else {

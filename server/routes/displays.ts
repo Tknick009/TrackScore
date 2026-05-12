@@ -1466,8 +1466,11 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       let teamLogoUrl = teamId ? teamLogoMap.get(teamId) : null;
       // Fallback: check public/logos/NCAA/{teamName}.png if no uploaded logo
       if (!teamLogoUrl && teamName) {
-        const ncaaPath = pathModule.join(process.cwd(), 'public', 'logos', 'NCAA', `${teamName}.png`);
-        if (fs.existsSync(ncaaPath)) {
+        const safeName = teamName.replace(/[\/\\]/g, '');
+        const ncaaPath = pathModule.join(process.cwd(), 'public', 'logos', 'NCAA', `${safeName}.png`);
+        const resolvedNcaaPath = pathModule.resolve(ncaaPath);
+        const resolvedNcaaDir = pathModule.resolve(pathModule.join(process.cwd(), 'public', 'logos', 'NCAA'));
+        if (resolvedNcaaPath.startsWith(resolvedNcaaDir) && fs.existsSync(ncaaPath)) {
           teamLogoUrl = `/logos/NCAA/${encodeURIComponent(teamName)}.png`;
         }
       }

@@ -56,6 +56,7 @@ import { getResulTVParser } from '../parsers/resultv-parser';
 import { importMDBInBackground, isMDBImportRunning } from '../import-mdb-background';
 import { insertExternalScoreboardSchema } from '@shared/schema';
 import { calculateEventPoints, parseMultiEventName, parsePerformance } from '../combined-events-scoring';
+import { headshotBaseNames, normalizeForFilename, normalizeLookupKey } from '../name-utils';
 import type { RouteContext } from "../route-context";
 
 export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
@@ -2817,15 +2818,17 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
       const meetTeams = await storage.getTeamsByMeetId(meetId);
       
       // Build a lookup map: "lastname_firstname_school" -> athleteId
+      // Uses normalizeLookupKey to strip diacritics, apostrophes, periods so
+      // "O'Brien" matches "OBrien", "José" matches "Jose", etc.
       const athleteLookup = new Map<string, string>();
       const teamNameMap = new Map<string, string>(); // teamId -> teamName
       for (const team of meetTeams) {
         teamNameMap.set(team.id, team.name);
       }
       for (const athlete of meetAthletes) {
-        const lastName = (athlete.lastName || '').trim().toLowerCase();
-        const firstName = (athlete.firstName || '').trim().toLowerCase();
-        const teamName = (athlete.teamId ? teamNameMap.get(athlete.teamId) || '' : '').toLowerCase();
+        const lastName = normalizeLookupKey(athlete.lastName || '');
+        const firstName = normalizeLookupKey(athlete.firstName || '');
+        const teamName = normalizeLookupKey(athlete.teamId ? teamNameMap.get(athlete.teamId) || '' : '');
         // Multiple keys for flexible matching
         athleteLookup.set(`${lastName}_${firstName}`, athlete.id);
         if (teamName) {
@@ -2883,9 +2886,9 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
           continue;
         }
         
-        // Try to match athlete
-        const lookupKey1 = `${lastName.toLowerCase()}_${firstName.toLowerCase()}_${school.toLowerCase()}`;
-        const lookupKey2 = `${lastName.toLowerCase()}_${firstName.toLowerCase()}`;
+        // Try to match athlete (normalize the CSV values the same way as the lookup map)
+        const lookupKey1 = `${normalizeLookupKey(lastName)}_${normalizeLookupKey(firstName)}_${normalizeLookupKey(school)}`;
+        const lookupKey2 = `${normalizeLookupKey(lastName)}_${normalizeLookupKey(firstName)}`;
         const athleteId = athleteLookup.get(lookupKey1) || athleteLookup.get(lookupKey2);
         
         if (!athleteId) {
@@ -2981,20 +2984,13 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
       const fsPromises = await import('fs/promises');
       const pathModule = await import('path');
       
-      // Build filename patterns.
-      // Headshot files may use either spaces or underscores in school name.
-      // Sanitize inputs to prevent path traversal
-      const sanitize = (s: any) => String(s || '').replace(/[\/\\]/g, '').trim();
-      
-      const schoolStrRaw = sanitize(school);
-      const schoolStrUnderscore = schoolStrRaw.replace(/\s+/g, '_');
-      const firstStr = sanitize(firstName);
-      const lastStr = sanitize(lastName);
-
-      const baseFilenames = Array.from(new Set([
-        `${schoolStrRaw}_${firstStr}_${lastStr}`,
-        `${schoolStrUnderscore}_${firstStr}_${lastStr}`,
-      ]));
+      // Build filename patterns using the shared normalizer.
+      // headshotBaseNames produces: fully-normalized, underscored-spaces, and raw variants.
+      const baseFilenames = headshotBaseNames(
+        String(school || ''),
+        String(firstName || ''),
+        String(lastName || ''),
+      );
 
       // Try multiple extensions
       const extensions = ['.png', '.jpg', '.jpeg', '.PNG', '.JPG', '.JPEG'];
@@ -3004,7 +3000,7 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
       for (const baseFilename of baseFilenames) {
         for (const ext of extensions) {
           const filePath = pathModule.default.join(headshotDir, `${baseFilename}${ext}`);
-          // Verify path is within headshot directory
+          // Verify path is within headshot directory (prevents path traversal)
           const resolvedPath = pathModule.default.resolve(filePath);
           if (!resolvedPath.startsWith(resolvedHeadshotDir)) continue;
           
@@ -3019,14 +3015,17 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
         if (foundPath) break;
       }
 
-      // Also try case-insensitive match by listing directory
+      // Also try case-insensitive + normalized match by listing directory
       if (!foundPath) {
         try {
           const files = await fsPromises.readdir(headshotDir);
-          const lowerBases = baseFilenames.map(b => b.toLowerCase());
+          // Normalize both the expected bases and the actual filenames for comparison
+          const normalizedBases = baseFilenames.map(b => normalizeForFilename(b).toLowerCase());
           const match = files.find(f => {
-            const name = f.substring(0, f.lastIndexOf('.'));
-            return lowerBases.includes(name.toLowerCase());
+            const nameWithoutExt = f.substring(0, f.lastIndexOf('.'));
+            const normalizedFile = normalizeForFilename(nameWithoutExt).toLowerCase();
+            return normalizedBases.includes(normalizedFile) ||
+                   baseFilenames.map(b => b.toLowerCase()).includes(nameWithoutExt.toLowerCase());
           });
           if (match) {
             const filePath = pathModule.default.join(headshotDir, match);
@@ -3161,25 +3160,40 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
       const teams = await storage.getTeamsByMeetId(meetId);
       const teamMap = new Map(teams.map(t => [t.id, t]));
 
+      // Also build a normalized file lookup map for fuzzy matching
+      const normalizedFileMap = new Map<string, string>();
+      for (const f of imageFiles) {
+        const nameWithoutExt = f.substring(0, f.lastIndexOf('.'));
+        const normalized = normalizeForFilename(nameWithoutExt).toLowerCase();
+        if (!normalizedFileMap.has(normalized)) {
+          normalizedFileMap.set(normalized, f);
+        }
+      }
+
       // For each athlete, check if a headshot file exists
       const results = athletes.map(athlete => {
         const team = athlete.teamId ? teamMap.get(athlete.teamId) : null;
-        // Use team name (or affiliation) as the school part of the filename.
-        // Headshot filenames are from a scraper that replaces spaces with underscores.
         const school = (team?.name || team?.affiliation || '').trim();
-        const schoolForFilename = school.replace(/\s+/g, '_');
         const firstName = (athlete.firstName || '').trim();
         const lastName = (athlete.lastName || '').trim();
-        const expectedFilename = `${schoolForFilename}_${firstName}_${lastName}`;
-        const expectedFilenameWithSpaces = `${school}_${firstName}_${lastName}`;
 
-        const matchKey = expectedFilename.toLowerCase();
-        const matchKeyWithSpaces = expectedFilenameWithSpaces.toLowerCase();
+        // Build all plausible base filenames (normalized, underscored, raw)
+        const bases = headshotBaseNames(school, firstName, lastName);
+        const expectedFilename = bases[0] || `${normalizeForFilename(school)}_${normalizeForFilename(firstName)}_${normalizeForFilename(lastName)}`;
 
-        const matchedFile =
-          fileMap.get(matchKey) ||
-          fileMap.get(matchKeyWithSpaces) ||
-          null;
+        // Try exact match, then raw lowercase, then fully-normalized
+        let matchedFile: string | null = null;
+        for (const base of bases) {
+          matchedFile = fileMap.get(base.toLowerCase()) || null;
+          if (matchedFile) break;
+        }
+        if (!matchedFile) {
+          // Try normalized match
+          for (const base of bases) {
+            matchedFile = normalizedFileMap.get(normalizeForFilename(base).toLowerCase()) || null;
+            if (matchedFile) break;
+          }
+        }
 
         return {
           athleteId: athlete.id,

@@ -118,7 +118,7 @@ export function PictureBoardTransition({
     if (!athlete) return null;
     const teamCode = athlete.teamCode || athlete.team?.code || athlete.team?.teamCode;
     if (teamCode) {
-      return `/logos/NCAA/${teamCode}.png`;
+      return `/logos/NCAA/${encodeURIComponent(teamCode)}.png`;
     }
     return null;
   };

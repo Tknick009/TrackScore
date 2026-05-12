@@ -1808,8 +1808,8 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
         // Try uploaded logo first, then fall back to NCAA logo path (same as scene-canvas.tsx)
         const winnerLogoUrl = winnerEntry?.teamLogoUrl
           || winnerEntry?.logoUrl
-          || (winnerEntry?.affiliation ? `/logos/NCAA/${winnerEntry.affiliation}.png` : null)
-          || (winnerEntry?.team ? `/logos/NCAA/${winnerEntry.team}.png` : null);
+          || (winnerEntry?.affiliation ? `/logos/NCAA/${encodeURIComponent(winnerEntry.affiliation)}.png` : null)
+          || (winnerEntry?.team ? `/logos/NCAA/${encodeURIComponent(winnerEntry.team)}.png` : null);
         return <ConfettiOverlay teamLogoUrl={winnerLogoUrl}>{sceneCanvasElement}</ConfettiOverlay>;
       }
 
@@ -2232,7 +2232,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
                 },
                 team: {
                   name: teamName,
-                  logoUrl: teamName ? `/logos/NCAA/${teamName}.png` : null,
+                  logoUrl: teamName ? `/logos/NCAA/${encodeURIComponent(teamName)}.png` : null,
                 },
               };
             }),
@@ -2298,7 +2298,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
           },
           team: {
             name: teamName,
-            logoUrl: teamName ? `/logos/NCAA/${teamName}.png` : null,
+            logoUrl: teamName ? `/logos/NCAA/${encodeURIComponent(teamName)}.png` : null,
           },
         };
       });
