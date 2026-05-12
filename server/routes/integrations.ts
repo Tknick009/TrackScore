@@ -4,6 +4,7 @@ import { z } from "zod";
 import * as fs from "fs";
 import * as path from "path";
 import { storage } from "../storage";
+import { asyncHandler } from "../async-handler";
 import {
   isHeightEvent,
   insertRecordBookSchema,
@@ -71,25 +72,25 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
   // ===== MEDAL TRACKING =====
 
   // Get medal standings for meet
-  app.get("/api/meets/:meetId/medal-standings", async (req, res) => {
+  app.get("/api/meets/:meetId/medal-standings", asyncHandler(async (req, res) => {
     const standings = await storage.getMedalStandings(req.params.meetId);
     res.json(standings);
-  });
+  }));
 
   // Get medal awards for meet
-  app.get("/api/meets/:meetId/medal-awards", async (req, res) => {
+  app.get("/api/meets/:meetId/medal-awards", asyncHandler(async (req, res) => {
     const awards = await storage.getMedalAwards(req.params.meetId);
     res.json(awards);
-  });
+  }));
 
   // Get medal awards for event
-  app.get("/api/events/:eventId/medal-awards", async (req, res) => {
+  app.get("/api/events/:eventId/medal-awards", asyncHandler(async (req, res) => {
     const awards = await storage.getEventMedalAwards(req.params.eventId);
     res.json(awards);
-  });
+  }));
 
   // Recompute medals for event
-  app.post("/api/events/:eventId/medal-recompute", async (req, res) => {
+  app.post("/api/events/:eventId/medal-recompute", asyncHandler(async (req, res) => {
     const event = await storage.getEvent(req.params.eventId);
     if (!event) {
       return res.status(404).json({ error: "Event not found" });
@@ -108,10 +109,10 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     });
     
     res.json({ success: true, standings });
-  });
+  }));
 
   // Recompute medals for entire meet
-  app.post("/api/meets/:meetId/medal-recompute-all", async (req, res) => {
+  app.post("/api/meets/:meetId/medal-recompute-all", asyncHandler(async (req, res) => {
     const meet = await storage.getMeet(req.params.meetId);
     if (!meet) {
       return res.status(404).json({ error: "Meet not found" });
@@ -135,26 +136,26 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     });
     
     res.json({ success: true, standings });
-  });
+  }));
 
 
-  // ===== COMBINED EVENTS =====
+  // ===== COMBINED EVENTS ===
   // ===== COMBINED EVENTS (Decathlon/Heptathlon) =====
 
   // Get combined events for meet
-  app.get("/api/meets/:meetId/combined-events", async (req, res) => {
+  app.get("/api/meets/:meetId/combined-events", asyncHandler(async (req, res) => {
     const events = await storage.getCombinedEvents(req.params.meetId);
     res.json(events);
-  });
+  }));
 
   // Get combined event
-  app.get("/api/combined-events/:id", async (req, res) => {
+  app.get("/api/combined-events/:id", asyncHandler(async (req, res) => {
     const event = await storage.getCombinedEvent(parseInt(req.params.id));
     if (!event) {
       return res.status(404).json({ error: "Combined event not found" });
     }
     res.json(event);
-  });
+  }));
 
   // Create combined event
   app.post("/api/combined-events", async (req, res) => {
@@ -171,10 +172,10 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
   });
 
   // Get combined event components
-  app.get("/api/combined-events/:id/components", async (req, res) => {
+  app.get("/api/combined-events/:id/components", asyncHandler(async (req, res) => {
     const components = await storage.getCombinedEventComponents(parseInt(req.params.id));
     res.json(components);
-  });
+  }));
 
   // Add component to combined event
   app.post("/api/combined-events/:id/components", async (req, res) => {
@@ -194,13 +195,13 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
   });
 
   // Get combined event standings
-  app.get("/api/combined-events/:id/standings", async (req, res) => {
+  app.get("/api/combined-events/:id/standings", asyncHandler(async (req, res) => {
     const standings = await storage.getCombinedEventStandings(parseInt(req.params.id));
     res.json(standings);
-  });
+  }));
 
   // Recompute combined event totals
-  app.post("/api/combined-events/:id/recompute", async (req, res) => {
+  app.post("/api/combined-events/:id/recompute", asyncHandler(async (req, res) => {
     const event = await storage.getCombinedEvent(parseInt(req.params.id));
     if (!event) {
       return res.status(404).json({ error: "Combined event not found" });
@@ -217,7 +218,7 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     });
     
     res.json({ success: true, standings });
-  });
+  }));
   
   // Add athlete to combined event
   app.post("/api/combined-events/:id/athletes", async (req, res) => {
@@ -279,10 +280,10 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
   });
   
   // Get scoring coefficients for reference
-  app.get("/api/combined-events/scoring-tables", async (req, res) => {
+  app.get("/api/combined-events/scoring-tables", asyncHandler(async (req, res) => {
     const { SCORING_TABLES, COMBINED_EVENT_DEFINITIONS } = await import('../combined-events-scoring');
     res.json({ scoringTables: SCORING_TABLES, eventDefinitions: COMBINED_EVENT_DEFINITIONS });
-  });
+  }));
   
   // Calculate points for a single performance
   app.post("/api/combined-events/calculate-points", async (req, res) => {
@@ -412,16 +413,16 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
   // Note: Social media posts are stored in-memory without meetId scoping.
   // Posts are already inherently scoped because they're generated from meet-specific events.
   // The event_result posts reference eventId which belongs to a specific meet.
-  app.get("/api/social-media/posts", async (req, res) => {
+  app.get("/api/social-media/posts", asyncHandler(async (req, res) => {
     const posts = await storage.getSocialMediaPosts();
     res.json(posts);
-  });
+  }));
 
   // Delete social media post
-  app.delete("/api/social-media/posts/:id", async (req, res) => {
+  app.delete("/api/social-media/posts/:id", asyncHandler(async (req, res) => {
     await storage.deleteSocialMediaPost(req.params.id);
     res.status(204).send();
-  });
+  }));
 
 
   // ===== FINISHLYNX =====
@@ -457,11 +458,11 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
   });
 
   // Clear old signatures (cleanup)
-  app.post("/api/finishlynx/cleanup", async (req, res) => {
+  app.post("/api/finishlynx/cleanup", asyncHandler(async (req, res) => {
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     await storage.clearOldSignatures(oneDayAgo);
     res.json({ success: true });
-  });
+  }));
 
 
   // ===== RTV IMPORT =====
@@ -518,7 +519,7 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
   // ===== WEATHER STATION =====
 
   // Get weather config (don't expose API key)
-  app.get("/api/weather/config/:meetId", async (req, res) => {
+  app.get("/api/weather/config/:meetId", asyncHandler(async (req, res) => {
     const config = await storage.getWeatherConfig(req.params.meetId);
     if (!config) {
       return res.json(null);
@@ -527,7 +528,7 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     // Return config without API key
     const { apiKey, ...safeConfig } = config;
     res.json({ ...safeConfig, hasApiKey: !!apiKey });
-  });
+  }));
 
   // Set weather config and start polling
   app.post("/api/weather/config", async (req, res) => {
@@ -542,27 +543,27 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
   });
 
   // Delete weather config and stop polling
-  app.delete("/api/weather/config/:meetId", async (req, res) => {
+  app.delete("/api/weather/config/:meetId", asyncHandler(async (req, res) => {
     await storage.deleteWeatherConfig(req.params.meetId);
     stopWeatherPolling(req.params.meetId);
     res.json({ success: true });
-  });
+  }));
 
   // Get current weather
-  app.get("/api/weather/current/:meetId", async (req, res) => {
+  app.get("/api/weather/current/:meetId", asyncHandler(async (req, res) => {
     const reading = await storage.getLatestWeatherReading(req.params.meetId);
     res.json(reading);
-  });
+  }));
 
   // Get weather history
-  app.get("/api/weather/history/:meetId", async (req, res) => {
+  app.get("/api/weather/history/:meetId", asyncHandler(async (req, res) => {
     const hours = parseInt(req.query.hours as string) || 2;
     const history = await storage.getWeatherHistory(req.params.meetId, hours);
     res.json(history);
-  });
+  }));
 
   // Manual refresh
-  app.post("/api/weather/refresh/:meetId", async (req, res) => {
+  app.post("/api/weather/refresh/:meetId", asyncHandler(async (req, res) => {
     const config = await storage.getWeatherConfig(req.params.meetId);
     if (!config) {
       return res.status(404).json({ error: "Weather config not found" });
@@ -571,7 +572,7 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     // Restart polling (triggers immediate fetch)
     startWeatherPolling(config.meetId, broadcastToDisplays);
     res.json({ success: true });
-  });
+  }));
 
 
   // ===== LAP COUNTER =====
@@ -1228,19 +1229,19 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
   });
 
   // Diagnostic endpoint to view recent field data
-  app.get("/api/field-diagnostics", async (req, res) => {
+  app.get("/api/field-diagnostics", asyncHandler(async (req, res) => {
     res.json({
       count: fieldDataDiagnostics.length,
       messages: fieldDataDiagnostics,
       hint: "Look for 'Device', 'Target', 'Scoreboard', or 'Board' fields in parsedFields",
     });
-  });
+  }));
 
   // Clear diagnostics buffer
-  app.delete("/api/field-diagnostics", async (req, res) => {
+  app.delete("/api/field-diagnostics", asyncHandler(async (req, res) => {
     fieldDataDiagnostics.length = 0;
     res.json({ success: true, message: "Diagnostics buffer cleared" });
-  });
+  }));
 
   // Get live event data by event number
   app.get("/api/live-events/:eventNumber", async (req, res) => {

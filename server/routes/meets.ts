@@ -3,6 +3,7 @@ import { z } from "zod";
 import * as fs from "fs";
 import { unlink } from "fs/promises";
 import { storage } from "../storage";
+import { asyncHandler } from "../async-handler";
 import {
   insertMeetSchema,
   insertSeasonSchema,
@@ -257,13 +258,13 @@ export function registerMeetsRoutes(app: Express, ctx: RouteContext) {
     }
   });
 
-  app.get("/api/meets/:id", async (req, res) => {
+  app.get("/api/meets/:id", asyncHandler(async (req, res) => {
     const meet = await storage.getMeet(req.params.id);
     if (!meet) {
       return res.status(404).json({ error: "Meet not found" });
     }
     res.json(meet);
-  });
+  }));
 
   app.post("/api/meets", async (req, res) => {
     try {

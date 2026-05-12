@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { z } from "zod";
 import { storage } from "../storage";
+import { asyncHandler } from "../async-handler";
 import {
   insertEventSchema,
   insertEntrySchema,
@@ -51,22 +52,22 @@ export function registerEventsRoutes(app: Express, ctx: RouteContext) {
     }
   });
 
-  app.get("/api/events/current", async (req, res) => {
+  app.get("/api/events/current", asyncHandler(async (req, res) => {
     const { meetId } = req.query;
     const event = await storage.getCurrentEvent(meetId as string | undefined);
     if (!event) {
       return res.status(404).json({ error: "No current event" });
     }
     res.json(event);
-  });
+  }));
 
-  app.get("/api/events/:id", async (req, res) => {
+  app.get("/api/events/:id", asyncHandler(async (req, res) => {
     const event = await storage.getEvent(req.params.id);
     if (!event) {
       return res.status(404).json({ error: "Event not found" });
     }
     res.json(event);
-  });
+  }));
 
   app.post("/api/events", async (req, res) => {
     try {
@@ -120,13 +121,13 @@ export function registerEventsRoutes(app: Express, ctx: RouteContext) {
     }
   });
 
-  app.get("/api/events/:id/entries", async (req, res) => {
+  app.get("/api/events/:id/entries", asyncHandler(async (req, res) => {
     const eventWithEntries = await storage.getEventWithEntries(req.params.id);
     if (!eventWithEntries) {
       return res.status(404).json({ error: "Event not found" });
     }
     res.json(eventWithEntries);
-  });
+  }));
 
   // Export endpoints for events
   app.get("/api/events/:id/export", async (req, res) => {
@@ -208,13 +209,13 @@ export function registerEventsRoutes(app: Express, ctx: RouteContext) {
     }
   });
 
-  app.get("/api/athletes/:id", async (req, res) => {
+  app.get("/api/athletes/:id", asyncHandler(async (req, res) => {
     const athlete = await storage.getAthlete(req.params.id);
     if (!athlete) {
       return res.status(404).json({ error: "Athlete not found" });
     }
     res.json(athlete);
-  });
+  }));
 
   // Get events for an athlete
   app.get("/api/athletes/:id/events", async (req, res) => {
@@ -297,15 +298,15 @@ export function registerEventsRoutes(app: Express, ctx: RouteContext) {
     }
   });
 
-  app.get("/api/entries/event/:eventId", async (req, res) => {
+  app.get("/api/entries/event/:eventId", asyncHandler(async (req, res) => {
     const entries = await storage.getEntriesByEvent(req.params.eventId);
     res.json(entries);
-  });
+  }));
 
-  app.get("/api/entries/event/:eventId/details", async (req, res) => {
+  app.get("/api/entries/event/:eventId/details", asyncHandler(async (req, res) => {
     const entries = await storage.getEntriesWithDetails(req.params.eventId);
     res.json(entries);
-  });
+  }));
 
   app.post("/api/entries", async (req, res) => {
     try {
@@ -428,10 +429,10 @@ export function registerEventsRoutes(app: Express, ctx: RouteContext) {
   });
 
   // Split Times
-  app.get("/api/events/:eventId/splits/config", async (req, res) => {
+  app.get("/api/events/:eventId/splits/config", asyncHandler(async (req, res) => {
     const configs = await storage.getSplitConfigs(req.params.eventId);
     res.json(configs);
-  });
+  }));
 
   app.put("/api/events/:eventId/splits/config", async (req, res) => {
     try {
@@ -514,14 +515,14 @@ export function registerEventsRoutes(app: Express, ctx: RouteContext) {
     }
   });
 
-  app.get("/api/events/:eventId/splits", async (req, res) => {
+  app.get("/api/events/:eventId/splits", asyncHandler(async (req, res) => {
     const splits = await storage.getEntrySplits(req.params.eventId);
     const obj: Record<string, EntrySplit[]> = {};
     splits.forEach((value, key) => { obj[key] = value; });
     res.json(obj);
-  });
+  }));
 
-  app.delete("/api/entries/:entryId/splits/:splitIndex", async (req, res) => {
+  app.delete("/api/entries/:entryId/splits/:splitIndex", asyncHandler(async (req, res) => {
     const entry = await storage.getEntry(req.params.entryId);
     if (!entry) {
       return res.status(404).json({ error: "Entry not found" });
@@ -539,7 +540,7 @@ export function registerEventsRoutes(app: Express, ctx: RouteContext) {
     });
     
     res.status(204).send();
-  });
+  }));
 
   // Wind Readings
   app.post("/api/events/:eventId/wind-readings", async (req, res) => {
@@ -576,10 +577,10 @@ export function registerEventsRoutes(app: Express, ctx: RouteContext) {
     }
   });
 
-  app.get("/api/events/:eventId/wind-readings", async (req, res) => {
+  app.get("/api/events/:eventId/wind-readings", asyncHandler(async (req, res) => {
     const readings = await storage.getWindReadings(req.params.eventId);
     res.json(readings);
-  });
+  }));
 
   app.patch("/api/wind-readings/:id", async (req, res) => {
     try {
@@ -610,10 +611,10 @@ export function registerEventsRoutes(app: Express, ctx: RouteContext) {
     }
   });
 
-  app.delete("/api/wind-readings/:id", async (req, res) => {
+  app.delete("/api/wind-readings/:id", asyncHandler(async (req, res) => {
     await storage.deleteWindReading(req.params.id);
     res.status(204).send();
-  });
+  }));
 
   // ARCHIVED: Judge token system
 
@@ -686,18 +687,18 @@ export function registerEventsRoutes(app: Express, ctx: RouteContext) {
   });
 
   // Get attempts for entry
-  app.get("/api/entries/:entryId/field-attempts", async (req, res) => {
+  app.get("/api/entries/:entryId/field-attempts", asyncHandler(async (req, res) => {
     const attempts = await storage.getFieldAttempts(req.params.entryId);
     res.json(attempts);
-  });
+  }));
 
   // Get all attempts for event
-  app.get("/api/events/:eventId/field-attempts", async (req, res) => {
+  app.get("/api/events/:eventId/field-attempts", asyncHandler(async (req, res) => {
     const attempts = await storage.getEventFieldAttempts(req.params.eventId);
     const obj: Record<string, FieldAttempt[]> = {};
     attempts.forEach((value, key) => { obj[key] = value; });
     res.json(obj);
-  });
+  }));
 
   // Update field attempt
   app.patch("/api/field-attempts/:id", async (req, res) => {
@@ -732,9 +733,9 @@ export function registerEventsRoutes(app: Express, ctx: RouteContext) {
   });
 
   // Delete field attempt
-  app.delete("/api/field-attempts/:id", async (req, res) => {
+  app.delete("/api/field-attempts/:id", asyncHandler(async (req, res) => {
     await storage.deleteFieldAttempt(req.params.id);
     res.status(204).send();
-  });
+  }));
 
 }

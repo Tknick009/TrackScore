@@ -11,3 +11,23 @@ attached_assets/
 # Old update/fix zip bundles
 *.zip
 !public/**/*.zip
+
+# Environment / secrets
+.env
+.env.*
+
+# SQLite database files
+data/scoreboard.db
+data/scoreboard.db-shm
+data/scoreboard.db-wal
+
+# Local config files (contain machine-specific paths / tokens)
+hytek-mdb-config.json
+evt-config.json
+track-heat-config.json
+data/edge-config.json
+data/edge-launcher-config.json
+rtrt-config.json
+
+# Sync log
+data/sync-log.json

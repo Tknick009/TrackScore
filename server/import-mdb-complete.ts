@@ -1,4 +1,4 @@
-import { readFileSync } from "fs";
+import { readFile } from "fs/promises";
 import MDBReader from "mdb-reader";
 import { db } from "./db";
 import { meets, teams, divisions, athletes, events, entries, entrySplits, meetScoringRules, recordBooks, records } from "@shared/schema";
@@ -202,7 +202,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
   console.log(`\n=== IMPORTING MDB FILE: ${filePath} ===\n`);
   console.log(`📍 Target Meet ID: ${meetId}\n`);
   
-  const buffer = readFileSync(filePath);
+  const buffer = await readFile(filePath);
   const reader = new MDBReader(buffer);
   
   const isEdgeMode = process.env.EDGE_MODE === 'true';

@@ -143,9 +143,19 @@ const StaticRunningClock = memo(function StaticRunningClock({
       }
       
       if (!isNaN(seconds) && seconds > 0) {
-        // Valid running time — snap to server value and continue interpolating
-        lastServerSecondsRef.current = seconds;
-        lastTickTsRef.current = performance.now();
+        // Valid running time — update server reference and continue interpolating.
+        // To prevent jitter (clock jumping backwards when a server tick arrives
+        // behind the local interpolation), never set the reference below where
+        // the interpolation currently is.
+        const now = performance.now();
+        if (isRunningRef.current && lastTickTsRef.current > 0) {
+          const currentInterpolated = lastServerSecondsRef.current +
+            (now - lastTickTsRef.current) / 1000;
+          lastServerSecondsRef.current = Math.max(seconds, currentInterpolated);
+        } else {
+          lastServerSecondsRef.current = seconds;
+        }
+        lastTickTsRef.current = now;
         
         if (!isRunningRef.current) {
           // Start the interpolation loop

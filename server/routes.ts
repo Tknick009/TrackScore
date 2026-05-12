@@ -37,62 +37,65 @@ import { registerLayoutsScenesRoutes } from './routes/layouts-scenes';
 import { registerFieldEventsRoutes } from './routes/field-events';
 import { registerIntegrationsRoutes } from './routes/integrations';
 
+// Pre-compiled regexes for abbreviateEventName (avoids re-creating ~30 RegExp objects per call)
+const TAIL = '(\\s+(Dash|Run|Race))?';
+const ABBREV_RULES: Array<[RegExp, string]> = [
+  [/Shuttle\s+Hurdle\s+Relay/i, 'SHR'],
+  [/Distance\s+Medley\s+Relay|^DMR$/i, 'DMR'],
+  [/Sprint\s+Medley\s+Relay|^SMR$/i, 'SMR'],
+  [/4\s*x\s*100/i, '4x1'],
+  [/4\s*x\s*200/i, '4x2'],
+  [/4\s*x\s*400/i, '4x4'],
+  [/4\s*x\s*800/i, '4x8'],
+  [new RegExp('^(2[,.]?000|2000)\\s*m?(eters?)?\\s+(Steeplechase|SC)', 'i'), '2KSC'],
+  [new RegExp('^(3[,.]?000|3000)\\s*m?(eters?)?\\s+(Steeplechase|SC)', 'i'), '3KSC'],
+  [new RegExp('^55\\s*m?(eters?)?\\s*H(urdles)?' + TAIL + '$', 'i'), '55H'],
+  [new RegExp('^60\\s*m?(eters?)?\\s*H(urdles)?' + TAIL + '$', 'i'), '60H'],
+  [new RegExp('^100\\s*m?(eters?)?\\s*H(urdles)?' + TAIL + '$', 'i'), '100H'],
+  [new RegExp('^110\\s*m?(eters?)?\\s*H(urdles)?' + TAIL + '$', 'i'), '110H'],
+  [new RegExp('^300\\s*m?(eters?)?\\s*H(urdles)?' + TAIL + '$', 'i'), '300H'],
+  [new RegExp('^400\\s*m?(eters?)?\\s*H(urdles)?' + TAIL + '$', 'i'), '400H'],
+  [new RegExp('^55\\s*(Meters?|m)?' + TAIL + '$', 'i'), '55'],
+  [new RegExp('^60\\s*(Meters?|m)?' + TAIL + '$', 'i'), '60'],
+  [new RegExp('^100\\s*(Meters?|m)?' + TAIL + '$', 'i'), '100'],
+  [new RegExp('^200\\s*(Meters?|m)?' + TAIL + '$', 'i'), '200'],
+  [new RegExp('^300\\s*(Meters?|m)?' + TAIL + '$', 'i'), '300'],
+  [new RegExp('^400\\s*(Meters?|m)?' + TAIL + '$', 'i'), '400'],
+  [new RegExp('^500\\s*(Meters?|m)?' + TAIL + '$', 'i'), '500'],
+  [new RegExp('^600\\s*(Meters?|m)?' + TAIL + '$', 'i'), '600'],
+  [new RegExp('^800\\s*(Meters?|m)?' + TAIL + '$', 'i'), '800'],
+  [new RegExp('^(1[,.]?000|1000)\\s*(Meters?|m)?' + TAIL + '$', 'i'), '1K'],
+  [new RegExp('^(1[,.]?500|1500)\\s*(Meters?|m)?' + TAIL + '$', 'i'), '1500'],
+  [new RegExp('^(1[,.]?600|1600)\\s*(Meters?|m)?' + TAIL + '$', 'i'), '1600'],
+  [/^(1\s+)?Mile$/i, 'MILE'],
+  [new RegExp('^(3[,.]?000|3000)\\s*(Meters?|m)?' + TAIL + '$', 'i'), '3K'],
+  [new RegExp('^(3[,.]?200|3200)\\s*(Meters?|m)?' + TAIL + '$', 'i'), '3200'],
+  [new RegExp('^(5[,.]?000|5000)\\s*(Meters?|m)?' + TAIL + '$', 'i'), '5K'],
+  [new RegExp('^(10[,.]?000|10000)\\s*(Meters?|m)?' + TAIL + '$', 'i'), '10K'],
+  [/High\s+Jump|^HJ$/i, 'HJ'],
+  [/Pole\s+Vault|^PV$/i, 'PV'],
+  [/Long\s+Jump|^LJ$/i, 'LJ'],
+  [/Triple\s+Jump|^TJ$/i, 'TJ'],
+  [/Shot\s+Put|^SP$/i, 'SP'],
+  [/Discus/i, 'DIS'],
+  [/Javelin/i, 'JAV'],
+  [/Hammer/i, 'HT'],
+  [/Weight\s+Throw|^WT$/i, 'WT'],
+  [/\bDec(athlon)?\b/i, 'DEC'],
+  [/\bHept(athlon)?\b/i, 'HEP'],
+  [/\bPent(athlon)?\b/i, 'PEN'],
+];
+const RACE_WALK_RE = /^(\d+[,.]?\d*)\s*(km|k|m)?\s*Race\s+Walk$/i;
+const RACE_WALK_GENERIC_RE = /Race\s+Walk/i;
+
 function abbreviateEventName(name: string): string {
   const n = name.trim();
-  const tail = '(\\s+(Dash|Run|Race))?';
 
-  if (/Shuttle\s+Hurdle\s+Relay/i.test(n)) return 'SHR';
-  if (/Distance\s+Medley\s+Relay|^DMR$/i.test(n)) return 'DMR';
-  if (/Sprint\s+Medley\s+Relay|^SMR$/i.test(n)) return 'SMR';
+  for (const [re, abbr] of ABBREV_RULES) {
+    if (re.test(n)) return abbr;
+  }
 
-  if (/4\s*x\s*100/i.test(n)) return '4x1';
-  if (/4\s*x\s*200/i.test(n)) return '4x2';
-  if (/4\s*x\s*400/i.test(n)) return '4x4';
-  if (/4\s*x\s*800/i.test(n)) return '4x8';
-
-  if (new RegExp('^(2[,.]?000|2000)\\s*m?(eters?)?\\s+(Steeplechase|SC)', 'i').test(n)) return '2KSC';
-  if (new RegExp('^(3[,.]?000|3000)\\s*m?(eters?)?\\s+(Steeplechase|SC)', 'i').test(n)) return '3KSC';
-
-  if (new RegExp('^55\\s*m?(eters?)?\\s*H(urdles)?' + tail + '$', 'i').test(n)) return '55H';
-  if (new RegExp('^60\\s*m?(eters?)?\\s*H(urdles)?' + tail + '$', 'i').test(n)) return '60H';
-  if (new RegExp('^100\\s*m?(eters?)?\\s*H(urdles)?' + tail + '$', 'i').test(n)) return '100H';
-  if (new RegExp('^110\\s*m?(eters?)?\\s*H(urdles)?' + tail + '$', 'i').test(n)) return '110H';
-  if (new RegExp('^300\\s*m?(eters?)?\\s*H(urdles)?' + tail + '$', 'i').test(n)) return '300H';
-  if (new RegExp('^400\\s*m?(eters?)?\\s*H(urdles)?' + tail + '$', 'i').test(n)) return '400H';
-
-  if (new RegExp('^55\\s*(Meters?|m)?' + tail + '$', 'i').test(n)) return '55';
-  if (new RegExp('^60\\s*(Meters?|m)?' + tail + '$', 'i').test(n)) return '60';
-  if (new RegExp('^100\\s*(Meters?|m)?' + tail + '$', 'i').test(n)) return '100';
-  if (new RegExp('^200\\s*(Meters?|m)?' + tail + '$', 'i').test(n)) return '200';
-  if (new RegExp('^300\\s*(Meters?|m)?' + tail + '$', 'i').test(n)) return '300';
-  if (new RegExp('^400\\s*(Meters?|m)?' + tail + '$', 'i').test(n)) return '400';
-  if (new RegExp('^500\\s*(Meters?|m)?' + tail + '$', 'i').test(n)) return '500';
-  if (new RegExp('^600\\s*(Meters?|m)?' + tail + '$', 'i').test(n)) return '600';
-  if (new RegExp('^800\\s*(Meters?|m)?' + tail + '$', 'i').test(n)) return '800';
-  if (new RegExp('^(1[,.]?000|1000)\\s*(Meters?|m)?' + tail + '$', 'i').test(n)) return '1K';
-  if (new RegExp('^(1[,.]?500|1500)\\s*(Meters?|m)?' + tail + '$', 'i').test(n)) return '1500';
-  if (new RegExp('^(1[,.]?600|1600)\\s*(Meters?|m)?' + tail + '$', 'i').test(n)) return '1600';
-  if (/^(1\s+)?Mile$/i.test(n)) return 'MILE';
-  if (new RegExp('^(3[,.]?000|3000)\\s*(Meters?|m)?' + tail + '$', 'i').test(n)) return '3K';
-  if (new RegExp('^(3[,.]?200|3200)\\s*(Meters?|m)?' + tail + '$', 'i').test(n)) return '3200';
-  if (new RegExp('^(5[,.]?000|5000)\\s*(Meters?|m)?' + tail + '$', 'i').test(n)) return '5K';
-  if (new RegExp('^(10[,.]?000|10000)\\s*(Meters?|m)?' + tail + '$', 'i').test(n)) return '10K';
-
-  if (/High\s+Jump|^HJ$/i.test(n)) return 'HJ';
-  if (/Pole\s+Vault|^PV$/i.test(n)) return 'PV';
-  if (/Long\s+Jump|^LJ$/i.test(n)) return 'LJ';
-  if (/Triple\s+Jump|^TJ$/i.test(n)) return 'TJ';
-  if (/Shot\s+Put|^SP$/i.test(n)) return 'SP';
-  if (/Discus/i.test(n)) return 'DIS';
-  if (/Javelin/i.test(n)) return 'JAV';
-  if (/Hammer/i.test(n)) return 'HT';
-  if (/Weight\s+Throw|^WT$/i.test(n)) return 'WT';
-
-  if (/\bDec(athlon)?\b/i.test(n)) return 'DEC';
-  if (/\bHept(athlon)?\b/i.test(n)) return 'HEP';
-  if (/\bPent(athlon)?\b/i.test(n)) return 'PEN';
-
-  const rwMatch = n.match(/^(\d+[,.]?\d*)\s*(km|k|m)?\s*Race\s+Walk$/i);
+  const rwMatch = n.match(RACE_WALK_RE);
   if (rwMatch) {
     const rawDist = rwMatch[1].replace(/[,.]/g, '');
     const unit = (rwMatch[2] || '').toLowerCase();
@@ -101,7 +104,7 @@ function abbreviateEventName(name: string): string {
     if (num >= 1000) return Math.round(num / 1000) + 'KRW';
     return num + 'RW';
   }
-  if (/Race\s+Walk/i.test(n)) return 'RW';
+  if (RACE_WALK_GENERIC_RE.test(n)) return 'RW';
 
   return n.length > 8 ? n.substring(0, 8) : n;
 }
@@ -145,6 +148,7 @@ async function prefetchSceneData(sceneId: number): Promise<{ scene: any; objects
 const LYNX_ONLY_MESSAGE_TYPES = new Set([
   'track_mode_change', 'track_mode_change_big',
   'start_list', 'start_list_big',
+  // clock_update intentionally NOT in this set — clock is universal and reaches ALL displays
   'layout_command', 'layout_command_big',
   'lynx_clock', 'lynx_wind', 'lynx_page',
   'layout-command',
@@ -177,20 +181,19 @@ function broadcastToDisplays(message: WSMessage) {
 }
 
 // === PERFORMANCE: Dedicated clock broadcast — completely isolated from all other processing ===
-// Clock ticks must never be delayed by start-list DB queries, field data broadcasts, or
-// record tag enrichment. This function does the absolute minimum work:
+// Clock ticks are UNIVERSAL — every display device receives them regardless of content mode.
+// This function does the absolute minimum work:
 // 1. Pre-serialize the JSON string ONCE
-// 2. Send directly to ALL open WebSocket clients (clock is universal — every display needs it)
+// 2. Send directly to each open WebSocket client (ALL devices)
 // 3. Zero async operations, zero DB queries, zero object allocation per tick
 function broadcastClockUpdate(eventNumber: number, time: string, command: string) {
   // Sanitize strings to prevent malformed JSON from garbled serial data
-  // Also strip curly braces to prevent unescaped } from breaking the JSON structure
   const safeEventNumber = Number.isFinite(eventNumber) ? eventNumber : 0;
   const safeTime = time.replace(/[\\"\x00-\x1f\x7f{}]/g, '');
   const safeCmd = (command || '').replace(/[\\"\x00-\x1f\x7f{}]/g, '');
   const messageStr = `{"type":"clock_update","data":{"eventNumber":${safeEventNumber},"time":"${safeTime}","command":"${safeCmd}"}}`;
   
-  // Send to ALL open clients — clock is universal, not filtered by content mode
+  // Send to ALL open clients — clock is never filtered by content mode
   displayClients.forEach((client) => {
     if (client.readyState === 1) { // 1 = WebSocket.OPEN
       client.send(messageStr);
@@ -565,23 +568,26 @@ async function autoUpdateAthleteBests(eventType: string, entries: EntryWithDetai
 // === PERFORMANCE: Debounce broadcastCurrentEvent ===
 // When 10-15 devices connect simultaneously (e.g., server restart), each triggers broadcastCurrentEvent.
 // Without debouncing, that's 10-15 sequential calls, each running 5+ DB queries for record enrichment.
-// This coalesces all calls within 500ms into a single broadcast.
+// This coalesces all calls within 300ms into a single broadcast.
 let broadcastCurrentEventTimer: ReturnType<typeof setTimeout> | null = null;
-let broadcastCurrentEventPromise: Promise<void> | null = null;
+let broadcastCurrentEventResolvers: Array<() => void> = [];
 
 async function broadcastCurrentEvent() {
-  // If a broadcast is already scheduled, skip — the pending one will cover this request
-  if (broadcastCurrentEventTimer) return;
-  
   return new Promise<void>((resolve) => {
+    broadcastCurrentEventResolvers.push(resolve);
+    // If a broadcast is already scheduled, this caller will be resolved when it fires
+    if (broadcastCurrentEventTimer) return;
+
     broadcastCurrentEventTimer = setTimeout(async () => {
       broadcastCurrentEventTimer = null;
+      const resolvers = broadcastCurrentEventResolvers;
+      broadcastCurrentEventResolvers = [];
       try {
         await broadcastCurrentEventImpl();
       } catch (e) {
         console.error('[broadcastCurrentEvent] Error:', e);
       }
-      resolve();
+      resolvers.forEach(r => r());
     }, 300);
   });
 }
@@ -1089,10 +1095,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("WebSocket error:", error);
       displayClients.delete(ws);
       
-      // Clean up field session subscriptions
+      // Clean up field session subscriptions + prune empty entries
       fieldSessionSubscribers.forEach((subscribers, sessionId) => {
         if (subscribers.has(ws)) {
           subscribers.delete(ws);
+          if (subscribers.size === 0) {
+            fieldSessionSubscribers.delete(sessionId);
+          }
         }
       });
       
@@ -1102,6 +1111,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     });
   });
+
+  // WebSocket ping/pong heartbeat — detect dead connections every 30s
+  const WS_PING_INTERVAL = 30_000;
+  const aliveClients = new WeakSet<WebSocket>();
+
+  wss.on("connection", (ws: WebSocket) => {
+    aliveClients.add(ws);
+    ws.on("pong", () => { aliveClients.add(ws); });
+  });
+
+  const pingInterval = setInterval(() => {
+    wss.clients.forEach((ws) => {
+      if (!aliveClients.has(ws)) {
+        ws.terminate();
+        return;
+      }
+      aliveClients.delete(ws);
+      ws.ping();
+    });
+  }, WS_PING_INTERVAL);
+
+  wss.on("close", () => { clearInterval(pingInterval); });
   // Initialize weather polling for all meets on server start
   setImmediate(async () => {
     try {

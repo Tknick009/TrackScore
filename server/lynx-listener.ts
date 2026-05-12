@@ -151,6 +151,7 @@ export class LynxListener extends EventEmitter {
   
   private aggregatedEvents: Map<string, AggregatedEvent> = new Map();
   private aggregationTimeout: number = 250;
+  private aggregationTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
   
   // Persist event names by event number so results can use start list's event name
   private eventNamesByNumber: Map<number, string> = new Map();
@@ -179,13 +180,15 @@ export class LynxListener extends EventEmitter {
     const maxWaitTime = 500;
     const waitTime = Math.max(50, maxWaitTime - (Date.now() - event.firstUpdate));
     
-    setTimeout(() => {
+    const timerId = setTimeout(() => {
+      this.aggregationTimers.delete(key);
       const currentEvent = this.aggregatedEvents.get(key);
       if (currentEvent) {
         this.emitAggregatedEvent(key, currentEvent);
         this.aggregatedEvents.delete(key);
       }
     }, waitTime);
+    this.aggregationTimers.set(key, timerId);
   }
   
   private emitAggregatedEvent(key: string, event: AggregatedEvent) {
@@ -1570,6 +1573,11 @@ export class LynxListener extends EventEmitter {
   }
 
   async stop(): Promise<void> {
+    // Clear pending aggregation timers
+    this.aggregationTimers.forEach((timerId) => clearTimeout(timerId));
+    this.aggregationTimers.clear();
+    this.aggregatedEvents.clear();
+
     const closePromises = Array.from(this.servers.entries()).map(([key, server]) => {
       return new Promise<void>((resolve) => {
         // Destroy all existing client sockets immediately so close() fires right away

@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { storage } from "../storage";
+import { asyncHandler } from "../async-handler";
 import {
   insertAthleteSchema,
   insertTeamSchema,
@@ -65,13 +66,13 @@ export function registerAthletesTeamsRoutes(app: Express, ctx: RouteContext) {
     }
   });
 
-  app.get("/api/athletes/:id", async (req, res) => {
+  app.get("/api/athletes/:id", asyncHandler(async (req, res) => {
     const athlete = await storage.getAthlete(req.params.id);
     if (!athlete) {
       return res.status(404).json({ error: "Athlete not found" });
     }
     res.json(athlete);
-  });
+  }));
 
   // Get events for an athlete
   app.get("/api/athletes/:id/events", async (req, res) => {

@@ -7,6 +7,7 @@ import { storage } from "./storage";
 import { initEVTWatchers } from "./evt-watcher";
 import { installLogCapture, exportLogs, clearLogs, logCount } from "./log-capture";
 import { bootSync } from "./folder-sync";
+import { lynxListener } from "./lynx-listener";
 
 // Install log capture BEFORE anything else so all console output is recorded
 installLogCapture();
@@ -115,8 +116,8 @@ app.use((req, res, next) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
+    console.error(`[Express Error] ${status}: ${message}`, err.stack || err);
     res.status(status).json({ message });
-    throw err;
   });
 
   // importantly only setup vite in development and after
@@ -152,4 +153,46 @@ app.use((req, res, next) => {
       console.error("Failed to run boot sync:", err);
     });
   });
+
+  // Graceful shutdown: close connections cleanly so SQLite isn't left dirty
+  let shuttingDown = false;
+  const gracefulShutdown = async (signal: string) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`\n[Shutdown] Received ${signal}, closing gracefully...`);
+
+    // 1. Stop accepting new HTTP connections
+    server.close(() => {
+      console.log("[Shutdown] HTTP server closed");
+    });
+
+    // 2. Stop FinishLynx TCP listeners
+    try {
+      await lynxListener.stop();
+      console.log("[Shutdown] Lynx listeners stopped");
+    } catch (e) {
+      console.error("[Shutdown] Error stopping Lynx listeners:", e);
+    }
+
+    // 3. Close SQLite cleanly
+    try {
+      if ('close' in storage && typeof (storage as any).close === 'function') {
+        (storage as any).close();
+        console.log("[Shutdown] Database closed");
+      }
+    } catch (e) {
+      console.error("[Shutdown] Error closing database:", e);
+    }
+
+    // 4. Force exit after timeout (5s) if something hangs
+    setTimeout(() => {
+      console.error("[Shutdown] Forced exit after timeout");
+      process.exit(1);
+    }, 5000).unref();
+
+    process.exit(0);
+  };
+
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 })();
