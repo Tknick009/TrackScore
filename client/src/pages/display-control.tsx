@@ -113,6 +113,7 @@ export default function DisplayControlPage() {
   const [recordLabel, setRecordLabel] = useState<Record<string, string>>({}); // deviceId -> record name
   const [recordEventSearch, setRecordEventSearch] = useState('');
   const [pagingLines, setPagingLines] = useState<Record<string, number>>({});
+  const [pagingSeconds, setPagingSeconds] = useState<Record<string, number>>({});
   const [teamScoreGender, setTeamScoreGender] = useState<Record<string, 'M' | 'W'>>({});
   const [maxPages, setMaxPages] = useState<Record<string, number>>({});
   const [eventSearch, setEventSearch] = useState('');
@@ -352,8 +353,8 @@ export default function DisplayControlPage() {
   });
 
   const sendHytekResultsMutation = useMutation({
-    mutationFn: async ({ deviceId, eventId, pagingLines, round }: { deviceId: string; eventId: string; pagingLines: number; round: string }) => {
-      const response = await apiRequest('POST', `/api/display-devices/${deviceId}/hytek-results`, { eventId, pagingLines, round });
+    mutationFn: async ({ deviceId, eventId, pagingLines, pagingSeconds, round }: { deviceId: string; eventId: string; pagingLines: number; pagingSeconds?: number; round: string }) => {
+      const response = await apiRequest('POST', `/api/display-devices/${deviceId}/hytek-results`, { eventId, pagingLines, pagingSeconds, round });
       return response.json();
     },
     onSuccess: (data) => {
@@ -374,8 +375,8 @@ export default function DisplayControlPage() {
 
   // Send Team Scores mutation
   const sendTeamScoresMutation = useMutation({
-    mutationFn: async ({ deviceId, pagingLines, gender, maxPages: mp }: { deviceId: string; pagingLines: number; gender: 'M' | 'W'; maxPages?: number }) => {
-      const response = await apiRequest('POST', `/api/display-devices/${deviceId}/team-scores`, { pagingLines, gender, maxPages: mp || 0 });
+    mutationFn: async ({ deviceId, pagingLines, pagingSeconds, gender, maxPages: mp }: { deviceId: string; pagingLines: number; pagingSeconds?: number; gender: 'M' | 'W'; maxPages?: number }) => {
+      const response = await apiRequest('POST', `/api/display-devices/${deviceId}/team-scores`, { pagingLines, pagingSeconds, gender, maxPages: mp || 0 });
       return response.json();
     },
     onSuccess: (data) => {
@@ -473,16 +474,16 @@ export default function DisplayControlPage() {
   // Scene Template Mappings - for assigning custom scenes to display types/modes
   // Pre-meet display mutations
   const sendMeetScheduleMutation = useMutation({
-    mutationFn: async ({ deviceId, pagingLines, maxPages }: { deviceId: string; pagingLines: number; maxPages: number }) => {
-      return apiRequest('POST', `/api/display-devices/${deviceId}/meet-schedule`, { pagingLines, maxPages });
+    mutationFn: async ({ deviceId, pagingLines, pagingSeconds, maxPages }: { deviceId: string; pagingLines: number; pagingSeconds?: number; maxPages: number }) => {
+      return apiRequest('POST', `/api/display-devices/${deviceId}/meet-schedule`, { pagingLines, pagingSeconds, maxPages });
     },
     onSuccess: () => toast({ title: 'Meet Schedule sent to display' }),
     onError: (error: Error) => toast({ title: 'Failed to send schedule', description: error.message, variant: 'destructive' }),
   });
 
   const sendMeetRecordsMutation = useMutation({
-    mutationFn: async ({ deviceId, pagingLines, maxPages, bookId }: { deviceId: string; pagingLines: number; maxPages: number; bookId?: string }) => {
-      return apiRequest('POST', `/api/display-devices/${deviceId}/meet-records`, { pagingLines, maxPages, bookId });
+    mutationFn: async ({ deviceId, pagingLines, pagingSeconds, maxPages, bookId }: { deviceId: string; pagingLines: number; pagingSeconds?: number; maxPages: number; bookId?: string }) => {
+      return apiRequest('POST', `/api/display-devices/${deviceId}/meet-records`, { pagingLines, pagingSeconds, maxPages, bookId });
     },
     onSuccess: () => toast({ title: 'Meet Records sent to display' }),
     onError: (error: Error) => toast({ title: 'Failed to send records', description: error.message, variant: 'destructive' }),
@@ -497,8 +498,8 @@ export default function DisplayControlPage() {
   });
 
   const sendTeamPreviewMutation = useMutation({
-    mutationFn: async ({ deviceId, pagingLines, gender, maxPages }: { deviceId: string; pagingLines: number; gender: string; maxPages: number }) => {
-      return apiRequest('POST', `/api/display-devices/${deviceId}/team-preview`, { pagingLines, gender, maxPages });
+    mutationFn: async ({ deviceId, pagingLines, pagingSeconds, gender, maxPages }: { deviceId: string; pagingLines: number; pagingSeconds?: number; gender: string; maxPages: number }) => {
+      return apiRequest('POST', `/api/display-devices/${deviceId}/team-preview`, { pagingLines, pagingSeconds, gender, maxPages });
     },
     onSuccess: () => toast({ title: 'Team preview sent to display' }),
     onError: (error: Error) => toast({ title: 'Failed to send team preview', description: error.message, variant: 'destructive' }),
@@ -1225,8 +1226,8 @@ export default function DisplayControlPage() {
                                   const isSelected = selectedHytekItem[selectedDevice.id] === item.key;
                                   // Detect sub-events: event number >= 1000 and name contains " - " (e.g., "Women's Pentathlon - 60m Hurdles")
                                   const isSubEvent = (item.event.eventNumber || 0) >= 1000 && item.label.includes(' - ');
-                                  // For sub-events, show only the sub-event part after " - "
-                                  const displayLabel = isSubEvent ? item.label.split(' - ').slice(1).join(' - ') : item.label;
+                                  // For sub-events, strip the gender prefix but keep the multi-event type (e.g., "Heptathlon - 800m")
+                                  const displayLabel = isSubEvent ? item.label.replace(/^(Women's|Men's)\s+/i, '') : item.label;
 
                                   // Show day header when date changes between items
                                   const currentDate = item.event.eventDate ? new Date(item.event.eventDate).toDateString() : '';
@@ -1269,7 +1270,7 @@ export default function DisplayControlPage() {
                           </div>
 
                           <div className="space-y-2">
-                            <Label>Paging (lines = seconds)</Label>
+                            <Label>Paging</Label>
                             <div className="flex items-center gap-2">
                               <Select
                                 value={String(pagingLines[selectedDevice.id] || 8)}
@@ -1277,7 +1278,7 @@ export default function DisplayControlPage() {
                                   setPagingLines(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }));
                                 }}
                               >
-                                <SelectTrigger className="w-24" data-testid="select-hytek-paging">
+                                <SelectTrigger className="w-20" data-testid="select-hytek-paging">
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -1286,9 +1287,23 @@ export default function DisplayControlPage() {
                                   ))}
                                 </SelectContent>
                               </Select>
-                              <span className="text-sm text-muted-foreground">
-                                lines per page, {pagingLines[selectedDevice.id] || 8} seconds per page
-                              </span>
+                              <span className="text-sm text-muted-foreground">lines per page,</span>
+                              <Select
+                                value={String(pagingSeconds[selectedDevice.id] || pagingLines[selectedDevice.id] || 8)}
+                                onValueChange={(value) => {
+                                  setPagingSeconds(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }));
+                                }}
+                              >
+                                <SelectTrigger className="w-20" data-testid="select-hytek-paging-seconds">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {[3, 4, 5, 6, 8, 10, 12, 15, 20, 30].map(n => (
+                                    <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <span className="text-sm text-muted-foreground">seconds per page</span>
                             </div>
                           </div>
 
@@ -1299,10 +1314,12 @@ export default function DisplayControlPage() {
                               const item = hytekEventRoundItems.find(i => i.key === itemKey);
                               if (!item) return;
                               const lines = pagingLines[selectedDevice.id] || 8;
+                              const seconds = pagingSeconds[selectedDevice.id] || lines;
                               sendHytekResultsMutation.mutate({
                                 deviceId: selectedDevice.id,
                                 eventId: item.eventId,
                                 pagingLines: lines,
+                                pagingSeconds: seconds,
                                 round: item.round,
                               });
                             }}
@@ -1339,7 +1356,7 @@ export default function DisplayControlPage() {
                           </div>
 
                           <div className="space-y-2">
-                            <Label>Paging (lines = seconds)</Label>
+                            <Label>Paging</Label>
                             <div className="flex items-center gap-2">
                               <Select
                                 value={String(pagingLines[selectedDevice.id] || 8)}
@@ -1347,7 +1364,7 @@ export default function DisplayControlPage() {
                                   setPagingLines(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }));
                                 }}
                               >
-                                <SelectTrigger className="w-24" data-testid="select-teamscores-paging">
+                                <SelectTrigger className="w-20" data-testid="select-teamscores-paging">
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -1356,9 +1373,23 @@ export default function DisplayControlPage() {
                                   ))}
                                 </SelectContent>
                               </Select>
-                              <span className="text-sm text-muted-foreground">
-                                teams per page, {pagingLines[selectedDevice.id] || 8} seconds per page
-                              </span>
+                              <span className="text-sm text-muted-foreground">teams per page,</span>
+                              <Select
+                                value={String(pagingSeconds[selectedDevice.id] || pagingLines[selectedDevice.id] || 8)}
+                                onValueChange={(value) => {
+                                  setPagingSeconds(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }));
+                                }}
+                              >
+                                <SelectTrigger className="w-20" data-testid="select-teamscores-paging-seconds">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {[3, 4, 5, 6, 8, 10, 12, 15, 20, 30].map(n => (
+                                    <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <span className="text-sm text-muted-foreground">seconds per page</span>
                             </div>
                           </div>
 
@@ -1389,11 +1420,13 @@ export default function DisplayControlPage() {
                           <Button
                             onClick={() => {
                               const lines = pagingLines[selectedDevice.id] || 8;
+                              const seconds = pagingSeconds[selectedDevice.id] || lines;
                               const gender = teamScoreGender[selectedDevice.id] || 'M';
                               const mp = maxPages[selectedDevice.id] || 0;
                               sendTeamScoresMutation.mutate({
                                 deviceId: selectedDevice.id,
                                 pagingLines: lines,
+                                pagingSeconds: seconds,
                                 gender,
                                 maxPages: mp,
                               });
@@ -1662,22 +1695,32 @@ export default function DisplayControlPage() {
                       ) : displayMode[selectedDevice.id] === 'meet_schedule' ? (
                         <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
                           <div className="space-y-2">
-                            <Label>Paging (lines = seconds)</Label>
+                            <Label>Paging</Label>
                             <div className="flex items-center gap-2">
                               <Select
                                 value={String(pagingLines[selectedDevice.id] || 8)}
                                 onValueChange={(value) => setPagingLines(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }))}
                               >
-                                <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                                <SelectTrigger className="w-20"><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                   {[4, 6, 8, 10, 12, 16, 20].map(n => (
                                     <SelectItem key={n} value={String(n)}>{n}</SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
-                              <span className="text-sm text-muted-foreground">
-                                events per page, {pagingLines[selectedDevice.id] || 8}s per page
-                              </span>
+                              <span className="text-sm text-muted-foreground">events per page,</span>
+                              <Select
+                                value={String(pagingSeconds[selectedDevice.id] || pagingLines[selectedDevice.id] || 8)}
+                                onValueChange={(value) => setPagingSeconds(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }))}
+                              >
+                                <SelectTrigger className="w-20"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  {[3, 4, 5, 6, 8, 10, 12, 15, 20, 30].map(n => (
+                                    <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <span className="text-sm text-muted-foreground">seconds per page</span>
                             </div>
                           </div>
                           <div className="space-y-2">
@@ -1701,6 +1744,7 @@ export default function DisplayControlPage() {
                               sendMeetScheduleMutation.mutate({
                                 deviceId: selectedDevice.id,
                                 pagingLines: pagingLines[selectedDevice.id] || 8,
+                                pagingSeconds: pagingSeconds[selectedDevice.id] || pagingLines[selectedDevice.id] || 8,
                                 maxPages: maxPages[selectedDevice.id] || 0,
                               });
                             }}
@@ -1730,22 +1774,32 @@ export default function DisplayControlPage() {
                             </Select>
                           </div>
                           <div className="space-y-2">
-                            <Label>Paging (lines = seconds)</Label>
+                            <Label>Paging</Label>
                             <div className="flex items-center gap-2">
                               <Select
                                 value={String(pagingLines[selectedDevice.id] || 8)}
                                 onValueChange={(value) => setPagingLines(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }))}
                               >
-                                <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                                <SelectTrigger className="w-20"><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                   {[4, 6, 8, 10, 12, 16, 20].map(n => (
                                     <SelectItem key={n} value={String(n)}>{n}</SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
-                              <span className="text-sm text-muted-foreground">
-                                records per page
-                              </span>
+                              <span className="text-sm text-muted-foreground">records per page,</span>
+                              <Select
+                                value={String(pagingSeconds[selectedDevice.id] || pagingLines[selectedDevice.id] || 8)}
+                                onValueChange={(value) => setPagingSeconds(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }))}
+                              >
+                                <SelectTrigger className="w-20"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  {[3, 4, 5, 6, 8, 10, 12, 15, 20, 30].map(n => (
+                                    <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <span className="text-sm text-muted-foreground">seconds per page</span>
                             </div>
                           </div>
                           <div className="space-y-2">
@@ -1770,6 +1824,7 @@ export default function DisplayControlPage() {
                               sendMeetRecordsMutation.mutate({
                                 deviceId: selectedDevice.id,
                                 pagingLines: pagingLines[selectedDevice.id] || 8,
+                                pagingSeconds: pagingSeconds[selectedDevice.id] || pagingLines[selectedDevice.id] || 8,
                                 maxPages: maxPages[selectedDevice.id] || 0,
                                 bookId: bookVal && bookVal !== 'all' ? bookVal : undefined,
                               });
@@ -1860,22 +1915,32 @@ export default function DisplayControlPage() {
                             </div>
                           </div>
                           <div className="space-y-2">
-                            <Label>Paging (lines = seconds)</Label>
+                            <Label>Paging</Label>
                             <div className="flex items-center gap-2">
                               <Select
                                 value={String(pagingLines[selectedDevice.id] || 8)}
                                 onValueChange={(value) => setPagingLines(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }))}
                               >
-                                <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                                <SelectTrigger className="w-20"><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                   {[4, 6, 8, 10, 12, 16, 20].map(n => (
                                     <SelectItem key={n} value={String(n)}>{n}</SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
-                              <span className="text-sm text-muted-foreground">
-                                teams per page
-                              </span>
+                              <span className="text-sm text-muted-foreground">teams per page,</span>
+                              <Select
+                                value={String(pagingSeconds[selectedDevice.id] || pagingLines[selectedDevice.id] || 8)}
+                                onValueChange={(value) => setPagingSeconds(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }))}
+                              >
+                                <SelectTrigger className="w-20"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  {[3, 4, 5, 6, 8, 10, 12, 15, 20, 30].map(n => (
+                                    <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <span className="text-sm text-muted-foreground">seconds per page</span>
                             </div>
                           </div>
                           <div className="space-y-2">
@@ -1899,6 +1964,7 @@ export default function DisplayControlPage() {
                               sendTeamPreviewMutation.mutate({
                                 deviceId: selectedDevice.id,
                                 pagingLines: pagingLines[selectedDevice.id] || 8,
+                                pagingSeconds: pagingSeconds[selectedDevice.id] || pagingLines[selectedDevice.id] || 8,
                                 gender: teamPreviewGender[selectedDevice.id] || 'M',
                                 maxPages: maxPages[selectedDevice.id] || 0,
                               });
