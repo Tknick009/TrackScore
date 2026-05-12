@@ -45,6 +45,15 @@ if %ERRORLEVEL% neq 0 (
     echo.
 )
 
+echo Installing/updating dependencies...
+call npm install --silent
+if %ERRORLEVEL% neq 0 (
+    echo WARNING: npm install had issues, but continuing...
+) else (
+    echo Dependencies up to date.
+)
+echo.
+
 echo Starting server...
 echo Server will run at http://localhost:5000
 echo Press Ctrl+C to stop.

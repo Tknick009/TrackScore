@@ -27,23 +27,6 @@ if %errorlevel% neq 0 (
 for /f "tokens=*" %%i in ('node -v') do set NODE_VERSION=%%i
 echo [OK] Node.js %NODE_VERSION% found
 
-:: Check if node_modules exists, if not run npm install
-if not exist "node_modules" (
-    echo.
-    echo [SETUP] First time setup - installing dependencies...
-    echo This may take a few minutes...
-    echo.
-    call npm install
-    if %errorlevel% neq 0 (
-        echo.
-        echo [ERROR] Failed to install dependencies
-        pause
-        exit /b 1
-    )
-    echo.
-    echo [OK] Dependencies installed successfully!
-)
-
 :: Create data directory if it doesn't exist
 if not exist "data" mkdir data
 
@@ -62,6 +45,16 @@ if %errorlevel% neq 0 (
     echo [WARN] Sync had issues, but continuing with server start...
 ) else (
     echo [OK] Sync check complete
+)
+
+:: Always run npm install after sync to pick up any new dependencies
+echo.
+echo [DEPS] Installing/updating dependencies...
+call npm install --silent
+if %errorlevel% neq 0 (
+    echo [WARN] npm install had issues, but continuing...
+) else (
+    echo [OK] Dependencies up to date
 )
 
 echo.
