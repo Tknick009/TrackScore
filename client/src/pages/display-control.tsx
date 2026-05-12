@@ -1272,37 +1272,31 @@ export default function DisplayControlPage() {
                           <div className="space-y-2">
                             <Label>Paging</Label>
                             <div className="flex items-center gap-2">
-                              <Select
-                                value={String(pagingLines[selectedDevice.id] || 8)}
-                                onValueChange={(value) => {
-                                  setPagingLines(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }));
+                              <Input
+                                type="number"
+                                min={1}
+                                max={50}
+                                className="w-16 text-center"
+                                data-testid="select-hytek-paging"
+                                value={pagingLines[selectedDevice.id] || 8}
+                                onChange={(e) => {
+                                  const val = Math.max(1, parseInt(e.target.value) || 1);
+                                  setPagingLines(prev => ({ ...prev, [selectedDevice.id]: val }));
                                 }}
-                              >
-                                <SelectTrigger className="w-20" data-testid="select-hytek-paging">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {[4, 6, 8, 10, 12, 16, 20].map(n => (
-                                    <SelectItem key={n} value={String(n)}>{n}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              />
                               <span className="text-sm text-muted-foreground">lines per page,</span>
-                              <Select
-                                value={String(pagingSeconds[selectedDevice.id] || pagingLines[selectedDevice.id] || 8)}
-                                onValueChange={(value) => {
-                                  setPagingSeconds(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }));
+                              <Input
+                                type="number"
+                                min={1}
+                                max={120}
+                                className="w-16 text-center"
+                                data-testid="select-hytek-paging-seconds"
+                                value={pagingSeconds[selectedDevice.id] || pagingLines[selectedDevice.id] || 8}
+                                onChange={(e) => {
+                                  const val = Math.max(1, parseInt(e.target.value) || 1);
+                                  setPagingSeconds(prev => ({ ...prev, [selectedDevice.id]: val }));
                                 }}
-                              >
-                                <SelectTrigger className="w-20" data-testid="select-hytek-paging-seconds">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {[3, 4, 5, 6, 8, 10, 12, 15, 20, 30].map(n => (
-                                    <SelectItem key={n} value={String(n)}>{n}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              />
                               <span className="text-sm text-muted-foreground">seconds per page</span>
                             </div>
                           </div>
@@ -1358,37 +1352,31 @@ export default function DisplayControlPage() {
                           <div className="space-y-2">
                             <Label>Paging</Label>
                             <div className="flex items-center gap-2">
-                              <Select
-                                value={String(pagingLines[selectedDevice.id] || 8)}
-                                onValueChange={(value) => {
-                                  setPagingLines(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }));
+                              <Input
+                                type="number"
+                                min={1}
+                                max={50}
+                                className="w-16 text-center"
+                                data-testid="select-teamscores-paging"
+                                value={pagingLines[selectedDevice.id] || 8}
+                                onChange={(e) => {
+                                  const val = Math.max(1, parseInt(e.target.value) || 1);
+                                  setPagingLines(prev => ({ ...prev, [selectedDevice.id]: val }));
                                 }}
-                              >
-                                <SelectTrigger className="w-20" data-testid="select-teamscores-paging">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {[4, 6, 8, 10, 12, 16, 20].map(n => (
-                                    <SelectItem key={n} value={String(n)}>{n}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              />
                               <span className="text-sm text-muted-foreground">teams per page,</span>
-                              <Select
-                                value={String(pagingSeconds[selectedDevice.id] || pagingLines[selectedDevice.id] || 8)}
-                                onValueChange={(value) => {
-                                  setPagingSeconds(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }));
+                              <Input
+                                type="number"
+                                min={1}
+                                max={120}
+                                className="w-16 text-center"
+                                data-testid="select-teamscores-paging-seconds"
+                                value={pagingSeconds[selectedDevice.id] || pagingLines[selectedDevice.id] || 8}
+                                onChange={(e) => {
+                                  const val = Math.max(1, parseInt(e.target.value) || 1);
+                                  setPagingSeconds(prev => ({ ...prev, [selectedDevice.id]: val }));
                                 }}
-                              >
-                                <SelectTrigger className="w-20" data-testid="select-teamscores-paging-seconds">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {[3, 4, 5, 6, 8, 10, 12, 15, 20, 30].map(n => (
-                                    <SelectItem key={n} value={String(n)}>{n}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              />
                               <span className="text-sm text-muted-foreground">seconds per page</span>
                             </div>
                           </div>
@@ -1697,29 +1685,29 @@ export default function DisplayControlPage() {
                           <div className="space-y-2">
                             <Label>Paging</Label>
                             <div className="flex items-center gap-2">
-                              <Select
-                                value={String(pagingLines[selectedDevice.id] || 8)}
-                                onValueChange={(value) => setPagingLines(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }))}
-                              >
-                                <SelectTrigger className="w-20"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                  {[4, 6, 8, 10, 12, 16, 20].map(n => (
-                                    <SelectItem key={n} value={String(n)}>{n}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              <Input
+                                type="number"
+                                min={1}
+                                max={50}
+                                className="w-16 text-center"
+                                value={pagingLines[selectedDevice.id] || 8}
+                                onChange={(e) => {
+                                  const val = Math.max(1, parseInt(e.target.value) || 1);
+                                  setPagingLines(prev => ({ ...prev, [selectedDevice.id]: val }));
+                                }}
+                              />
                               <span className="text-sm text-muted-foreground">events per page,</span>
-                              <Select
-                                value={String(pagingSeconds[selectedDevice.id] || pagingLines[selectedDevice.id] || 8)}
-                                onValueChange={(value) => setPagingSeconds(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }))}
-                              >
-                                <SelectTrigger className="w-20"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                  {[3, 4, 5, 6, 8, 10, 12, 15, 20, 30].map(n => (
-                                    <SelectItem key={n} value={String(n)}>{n}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              <Input
+                                type="number"
+                                min={1}
+                                max={120}
+                                className="w-16 text-center"
+                                value={pagingSeconds[selectedDevice.id] || pagingLines[selectedDevice.id] || 8}
+                                onChange={(e) => {
+                                  const val = Math.max(1, parseInt(e.target.value) || 1);
+                                  setPagingSeconds(prev => ({ ...prev, [selectedDevice.id]: val }));
+                                }}
+                              />
                               <span className="text-sm text-muted-foreground">seconds per page</span>
                             </div>
                           </div>
@@ -1776,29 +1764,29 @@ export default function DisplayControlPage() {
                           <div className="space-y-2">
                             <Label>Paging</Label>
                             <div className="flex items-center gap-2">
-                              <Select
-                                value={String(pagingLines[selectedDevice.id] || 8)}
-                                onValueChange={(value) => setPagingLines(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }))}
-                              >
-                                <SelectTrigger className="w-20"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                  {[4, 6, 8, 10, 12, 16, 20].map(n => (
-                                    <SelectItem key={n} value={String(n)}>{n}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              <Input
+                                type="number"
+                                min={1}
+                                max={50}
+                                className="w-16 text-center"
+                                value={pagingLines[selectedDevice.id] || 8}
+                                onChange={(e) => {
+                                  const val = Math.max(1, parseInt(e.target.value) || 1);
+                                  setPagingLines(prev => ({ ...prev, [selectedDevice.id]: val }));
+                                }}
+                              />
                               <span className="text-sm text-muted-foreground">records per page,</span>
-                              <Select
-                                value={String(pagingSeconds[selectedDevice.id] || pagingLines[selectedDevice.id] || 8)}
-                                onValueChange={(value) => setPagingSeconds(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }))}
-                              >
-                                <SelectTrigger className="w-20"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                  {[3, 4, 5, 6, 8, 10, 12, 15, 20, 30].map(n => (
-                                    <SelectItem key={n} value={String(n)}>{n}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              <Input
+                                type="number"
+                                min={1}
+                                max={120}
+                                className="w-16 text-center"
+                                value={pagingSeconds[selectedDevice.id] || pagingLines[selectedDevice.id] || 8}
+                                onChange={(e) => {
+                                  const val = Math.max(1, parseInt(e.target.value) || 1);
+                                  setPagingSeconds(prev => ({ ...prev, [selectedDevice.id]: val }));
+                                }}
+                              />
                               <span className="text-sm text-muted-foreground">seconds per page</span>
                             </div>
                           </div>
@@ -1917,29 +1905,29 @@ export default function DisplayControlPage() {
                           <div className="space-y-2">
                             <Label>Paging</Label>
                             <div className="flex items-center gap-2">
-                              <Select
-                                value={String(pagingLines[selectedDevice.id] || 8)}
-                                onValueChange={(value) => setPagingLines(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }))}
-                              >
-                                <SelectTrigger className="w-20"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                  {[4, 6, 8, 10, 12, 16, 20].map(n => (
-                                    <SelectItem key={n} value={String(n)}>{n}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              <Input
+                                type="number"
+                                min={1}
+                                max={50}
+                                className="w-16 text-center"
+                                value={pagingLines[selectedDevice.id] || 8}
+                                onChange={(e) => {
+                                  const val = Math.max(1, parseInt(e.target.value) || 1);
+                                  setPagingLines(prev => ({ ...prev, [selectedDevice.id]: val }));
+                                }}
+                              />
                               <span className="text-sm text-muted-foreground">teams per page,</span>
-                              <Select
-                                value={String(pagingSeconds[selectedDevice.id] || pagingLines[selectedDevice.id] || 8)}
-                                onValueChange={(value) => setPagingSeconds(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }))}
-                              >
-                                <SelectTrigger className="w-20"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                  {[3, 4, 5, 6, 8, 10, 12, 15, 20, 30].map(n => (
-                                    <SelectItem key={n} value={String(n)}>{n}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              <Input
+                                type="number"
+                                min={1}
+                                max={120}
+                                className="w-16 text-center"
+                                value={pagingSeconds[selectedDevice.id] || pagingLines[selectedDevice.id] || 8}
+                                onChange={(e) => {
+                                  const val = Math.max(1, parseInt(e.target.value) || 1);
+                                  setPagingSeconds(prev => ({ ...prev, [selectedDevice.id]: val }));
+                                }}
+                              />
                               <span className="text-sm text-muted-foreground">seconds per page</span>
                             </div>
                           </div>

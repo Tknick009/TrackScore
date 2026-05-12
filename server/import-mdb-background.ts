@@ -72,6 +72,8 @@ function processQueue() {
       settled = true;
       if (code !== 0) {
         reject(new Error(`MDB import process exited with code ${code}`));
+      } else {
+        reject(new Error('MDB import process exited before sending results'));
       }
     }
     activeImport = false;
