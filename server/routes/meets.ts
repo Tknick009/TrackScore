@@ -4,6 +4,7 @@ import * as fs from "fs";
 import { unlink } from "fs/promises";
 import { storage } from "../storage";
 import { asyncHandler } from "../async-handler";
+import { clearPersistedHash } from "../hytek-mdb-watcher";
 import {
   insertMeetSchema,
   insertSeasonSchema,
@@ -443,6 +444,8 @@ export function registerMeetsRoutes(app: Express, ctx: RouteContext) {
         return res.status(404).json({ error: "Meet not found" });
       }
       const result = await storage.resetMeet(req.params.id);
+      // Clear persisted MDB hash so the watcher re-imports on next detection
+      clearPersistedHash(req.params.id);
       await broadcastCurrentEvent();
       res.json({ 
         success: true, 

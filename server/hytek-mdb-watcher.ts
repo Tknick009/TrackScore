@@ -48,6 +48,17 @@ function persistHash(meetId: string, hash: string): void {
   savePersistedHashes(hashes);
 }
 
+/** Clear persisted hash for a meet so the next detection triggers a fresh import. */
+export function clearPersistedHash(meetId: string): void {
+  const hashes = loadPersistedHashes();
+  delete hashes[meetId];
+  savePersistedHashes(hashes);
+  const state = watchers.get(meetId);
+  if (state) {
+    state.lastHash = null;
+  }
+}
+
 let importCallback: ((meetId: string) => void) | null = null;
 
 export function setHytekImportCallback(callback: (meetId: string) => void): void {
@@ -98,6 +109,7 @@ async function handleMdbChange(state: HytekMdbWatcherState, filePath: string): P
     const hash = computeFileHash(buffer);
 
     if (hash === state.lastHash) {
+      console.log(`[HyTek MDB Watcher] File unchanged for meet ${state.meetId}, skipping import`);
       return;
     }
 
@@ -209,6 +221,8 @@ export function stopHytekMdbWatcher(meetId: string): void {
     state.watcher.close();
     console.log(`[HyTek MDB Watcher] Stopped watching for meet ${meetId}`);
   }
+  // Clear persisted hash so re-starting the watcher triggers a fresh import
+  clearPersistedHash(meetId);
   watchers.delete(meetId);
 }
 
