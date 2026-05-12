@@ -11,7 +11,7 @@
 import { Worker } from 'worker_threads';
 import { fileURLToPath } from 'url';
 import path from 'path';
-import type { ImportStatistics } from './import-mdb-complete.js';
+import type { ImportStatistics } from './import-mdb-complete.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

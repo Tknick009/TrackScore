@@ -6,7 +6,7 @@
  * Receives { mdbPath, meetId } via workerData, posts back { type, stats | error }.
  */
 import { workerData, parentPort } from 'worker_threads';
-import { importCompleteMDB } from './import-mdb-complete.js';
+import { importCompleteMDB } from './import-mdb-complete.ts';
 
 interface WorkerInput {
   mdbPath: string;
