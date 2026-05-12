@@ -238,6 +238,7 @@ import {
   isTemplateCompatible,
 } from "@/lib/displayCapabilities";
 import { SceneCanvas } from "@/components/scene-canvas";
+import { FieldTransitionRenderer } from "@/components/display/FieldTransitionRenderer";
 
 interface LiveEventData {
   eventNumber: number;
@@ -1555,6 +1556,7 @@ export default function DisplayDevice() {
       customHeight={state.displayType === 'Custom' ? customHeight : undefined}
       fieldPort={fieldPort}
       displayScale={displayScale}
+      currentLayoutMode={currentLayoutModeRef.current}
       onReturnToLogo={returnToMeetLogo}
     />
   );
@@ -1693,6 +1695,7 @@ interface DisplayRendererProps {
   customHeight?: number;
   fieldPort?: number;
   displayScale?: number;
+  currentLayoutMode?: string | null;
   onReturnToLogo?: () => void;
 }
 
@@ -1700,7 +1703,7 @@ interface EventWithEntries extends Event {
   entries: any[];
 }
 
-function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTimeRef, clockSubscribersRef, liveEventData, liveEventDataByPort, pagingSize, pagingInterval, maxPages, customWidth, customHeight, fieldPort, displayScale = 100, onReturnToLogo }: DisplayRendererProps) {
+function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTimeRef, clockSubscribersRef, liveEventData, liveEventDataByPort, pagingSize, pagingInterval, maxPages, customWidth, customHeight, fieldPort, displayScale = 100, currentLayoutMode, onReturnToLogo }: DisplayRendererProps) {
   const { data: meet } = useQuery<Meet>({
     queryKey: ['/api/meets', meetId],
     enabled: !!meetId,
@@ -1709,7 +1712,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
   const { data: currentEventData } = useQuery<EventWithEntries>({
     queryKey: ['/api/events/current', meetId],
     enabled: !!meetId,
-    refetchInterval: 5000,
+    refetchInterval: 30000, // WebSocket board_update handles real-time; polling is fallback only
   });
 
   const { data: specificEvent } = useQuery<EventWithEntries>({
@@ -1720,7 +1723,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
   const { data: teamStandings } = useQuery({
     queryKey: [`/api/meets/${meetId}/scoring/standings`],
     enabled: !!meetId,
-    refetchInterval: 10000,
+    refetchInterval: 30000, // WebSocket pushes standings updates; polling is fallback only
   });
 
   const currentEvent = specificEvent || currentEventData;
@@ -1776,6 +1779,28 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
           deviceFieldPort={fieldPort}
         />
       );
+
+      // When field mode is active, overlay the curtain transition so it works
+      // even if the scene doesn't have a field-transition object
+      const isFieldScene = currentLayoutMode === 'field_results' || currentLayoutMode === 'multi_field';
+      if (isFieldScene) {
+        return (
+          <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+            {sceneCanvasElement}
+            <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 9999 }}>
+              <FieldTransitionRenderer
+                curtainColor="#001e57"
+                meetId={meetId || undefined}
+                liveData={liveEventData}
+                liveEventDataByPort={liveEventDataByPort}
+                deviceFieldPort={fieldPort}
+                canvasWidth={effectiveWidth}
+                canvasHeight={effectiveHeight}
+              />
+            </div>
+          </div>
+        );
+      }
 
       // When winners mode is active, overlay confetti on top of the custom scene
       if (liveEventData?.mode === 'winners') {

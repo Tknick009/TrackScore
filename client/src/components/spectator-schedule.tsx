@@ -11,7 +11,7 @@ export function SpectatorSchedule() {
   const { data: events, isLoading } = useQuery<any[]>({
     queryKey: ["/api/public/meets", currentMeetId, "events"],
     enabled: !!currentMeetId,
-    refetchInterval: 10000
+    refetchInterval: 30000 // Schedule changes infrequently; polling is fallback
   });
   
   if (isLoading) {

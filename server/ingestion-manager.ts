@@ -5,7 +5,7 @@ import * as crypto from 'crypto';
 import { storage } from './storage';
 import { ingestLIFResults } from './finishlynx-ingestion';
 import { parseLFFFile, type NormalizedFieldResult } from './parsers/lff-parser';
-import { importCompleteMDB } from './import-mdb-complete';
+import { importMDBInBackground, isMDBImportRunning } from './import-mdb-background';
 import type { MeetIngestionSettings } from '@shared/schema';
 
 interface WatcherState {
@@ -288,6 +288,13 @@ class IngestionManager {
         return;
       }
 
+      // Skip if another import is already running to avoid clearing data without repopulating
+      if (isMDBImportRunning()) {
+        console.log(`[Ingestion] Import already in progress, skipping MDB import for meet ${meetId}`);
+        this.cleanupTempFile(tempMdbPath);
+        return;
+      }
+      
       console.log(`[Ingestion] MDB file changed, importing from copy: ${tempMdbPath}`);
       
       // Clear existing import data before re-importing
@@ -295,7 +302,7 @@ class IngestionManager {
       console.log(`[Ingestion] 🧹 Pre-import clear: ${JSON.stringify(clearStats)}`);
       
       // Import from the copy, not the original
-      const stats = await importCompleteMDB(tempMdbPath, meetId);
+      const stats = await importMDBInBackground(tempMdbPath, meetId);
       console.log(`[Ingestion] MDB import complete:`, stats);
 
       await storage.updateIngestionSettings(meetId, {

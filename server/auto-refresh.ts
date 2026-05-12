@@ -1,5 +1,5 @@
 import { storage } from "./storage";
-import { importCompleteMDB } from "./import-mdb-complete";
+import { importMDBInBackground, isMDBImportRunning } from "./import-mdb-background";
 import { existsSync, copyFileSync, mkdirSync, unlinkSync } from "fs";
 import * as path from "path";
 
@@ -61,6 +61,12 @@ export function startAutoRefresh() {
               throw copyError;
             }
             
+            // Skip if another import is already running to avoid clearing data without repopulating
+            if (isMDBImportRunning()) {
+              console.log(`⏳ Import already in progress, skipping auto-refresh for ${meet.name}`);
+              continue;
+            }
+            
             console.log(`🔄 Auto-refreshing meet: ${meet.name} (${meet.id})`);
             
             // Clear existing import data before re-importing
@@ -68,7 +74,7 @@ export function startAutoRefresh() {
             console.log(`🧹 Pre-import clear: ${JSON.stringify(clearStats)}`);
             
             // Import from the copy, not the original
-            await importCompleteMDB(tempMdbPath, meet.id);
+            await importMDBInBackground(tempMdbPath, meet.id);
             
             // Use storage abstraction to update the meet
             await storage.updateMeet(meet.id, { lastImportAt: now });

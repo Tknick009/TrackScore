@@ -93,7 +93,7 @@ export default function EventControl() {
     queryKey: ["/api/entries/event", eventId, "details"],
     queryFn: () => fetch(`/api/entries/event/${eventId}/details`).then(r => r.json()),
     enabled: !!eventId && eventBelongsToMeet,
-    refetchInterval: 5000,
+    refetchInterval: 10000, // Operator panel; WS pushes handle real-time updates
   });
 
   const { data: allEvents = [] } = useQuery<Event[]>({

@@ -33,7 +33,7 @@ export function TeamStandingsOverlay({ config }: TeamStandingsProps) {
   const { data: standings } = useQuery<any[]>({
     queryKey: ["/api/team-scores", currentConfig.meetId],
     enabled: !!currentConfig.meetId && visible,
-    refetchInterval: visible ? 5000 : false
+    refetchInterval: visible ? 15000 : false // WS pushes standings; polling is fallback
   });
   
   const topTeams = standings?.slice(0, 5) || [];

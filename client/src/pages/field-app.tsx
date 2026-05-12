@@ -126,7 +126,7 @@ function EventMenuScreen({
 }) {
   const { data: evtEventsData, isLoading } = useQuery<{ events: EVTEventSummary[] }>({
     queryKey: ["/api/evt-events"],
-    refetchInterval: 10000,
+    refetchInterval: 30000, // EVT files change infrequently; polling is fallback
   });
 
   const { data: meet } = useQuery<Meet>({

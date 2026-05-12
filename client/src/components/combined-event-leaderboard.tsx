@@ -12,7 +12,7 @@ interface CombinedEventLeaderboardProps {
 export function CombinedEventLeaderboard({ combinedEventId }: CombinedEventLeaderboardProps) {
   const { data: standings } = useQuery<CombinedEventStanding[]>({
     queryKey: ["/api/combined-events", combinedEventId, "standings"],
-    refetchInterval: 15000
+    refetchInterval: 60000 // WS combined_event_update handles real-time; polling is fallback
   });
   
   if (!standings || standings.length === 0) {

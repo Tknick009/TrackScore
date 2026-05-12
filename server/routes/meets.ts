@@ -10,7 +10,7 @@ import {
 } from "@shared/schema";
 import { APP_VERSION, VERSION_DATE, RELEASE_NOTES } from "@shared/version";
 import { generateMeetCSV } from "../export-utils";
-import { importCompleteMDB } from "../import-mdb-complete";
+import { importMDBInBackground, isMDBImportRunning } from "../import-mdb-background";
 import type { RouteContext } from "../route-context";
 
 export function registerMeetsRoutes(app: Express, ctx: RouteContext) {
@@ -593,12 +593,17 @@ export function registerMeetsRoutes(app: Express, ctx: RouteContext) {
       console.log(`📁 Processing MDB import for meet: ${existingMeet.name} (${meetId})`);
       console.log(`📍 File: ${file.originalname}`);
 
+      // Guard: don't clear data if another import is already running
+      if (isMDBImportRunning()) {
+        return res.status(409).json({ error: 'An MDB import is already in progress. Please wait and try again.' });
+      }
+
       // Clear existing import data before re-importing
       const clearStats = await storage.clearMeetImportData(meetId);
       console.log(`🧹 Pre-import clear: ${JSON.stringify(clearStats)}`);
 
       // Run the import
-      const stats = await importCompleteMDB(filePath, meetId);
+      const stats = await importMDBInBackground(filePath, meetId);
 
       // Update meet with mdbPath and lastImportAt
       await storage.updateMeet(meetId, { 

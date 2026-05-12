@@ -105,12 +105,12 @@ export default function FieldCapturePage() {
 
   const { data: status } = useQuery<CaptureStatus>({
     queryKey: ["/api/capture/status"],
-    refetchInterval: 2000,
+    refetchInterval: 5000, // Capture status; WS raw_capture handles real-time
   });
 
   const { data: files } = useQuery<CaptureFile[]>({
     queryKey: ["/api/capture/files"],
-    refetchInterval: 5000,
+    refetchInterval: 15000, // File list changes infrequently
   });
 
   const startMutation = useMutation({

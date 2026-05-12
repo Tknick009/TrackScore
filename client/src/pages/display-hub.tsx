@@ -38,7 +38,7 @@ export default function DisplayHub() {
   const { data: devices = [], refetch: refetchDevices } = useQuery<DisplayDevice[]>({
     queryKey: ['/api/display-devices/meet', currentMeetId],
     enabled: !!currentMeetId,
-    refetchInterval: 5000,
+    refetchInterval: 15000, // WebSocket devices_updated handles real-time; polling is fallback
   });
 
   const sendCommandMutation = useMutation({

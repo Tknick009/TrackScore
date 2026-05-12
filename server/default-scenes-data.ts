@@ -3236,6 +3236,26 @@ export const DEFAULT_SCENES_DATA =
           "visible": true,
           "locked": false,
           "createdAt": "2026-04-28T22:25:06.000Z"
+        },
+        {
+          "id": 59234,
+          "sceneId": 2992,
+          "name": "Field Curtain",
+          "objectType": "field-transition",
+          "x": 0,
+          "y": 0,
+          "width": 100,
+          "height": 100,
+          "zIndex": 10,
+          "rotation": 0,
+          "dataBinding": {},
+          "config": {},
+          "style": {
+            "backgroundColor": "#001e57"
+          },
+          "visible": true,
+          "locked": false,
+          "createdAt": "2026-04-28T22:25:06.000Z"
         }
       ]
     },
@@ -6531,6 +6551,26 @@ export const DEFAULT_SCENES_DATA =
           "visible": true,
           "locked": false,
           "createdAt": "2026-04-28T22:25:06.000Z"
+        },
+        {
+          "id": 59339,
+          "sceneId": 2998,
+          "name": "Field Curtain",
+          "objectType": "field-transition",
+          "x": 0,
+          "y": 0,
+          "width": 100,
+          "height": 100,
+          "zIndex": 10,
+          "rotation": 0,
+          "dataBinding": {},
+          "config": {},
+          "style": {
+            "backgroundColor": "#001e57"
+          },
+          "visible": true,
+          "locked": false,
+          "createdAt": "2026-04-28T22:25:06.000Z"
         }
       ]
     },
@@ -6835,6 +6875,26 @@ export const DEFAULT_SCENES_DATA =
             "borderSides": [
               "top"
             ]
+          },
+          "visible": true,
+          "locked": false,
+          "createdAt": "2026-04-28T22:25:06.000Z"
+        },
+        {
+          "id": 59360,
+          "sceneId": 3000,
+          "name": "Field Curtain",
+          "objectType": "field-transition",
+          "x": 0,
+          "y": 0,
+          "width": 100,
+          "height": 100,
+          "zIndex": 11,
+          "rotation": 0,
+          "dataBinding": {},
+          "config": {},
+          "style": {
+            "backgroundColor": "#001e57"
           },
           "visible": true,
           "locked": false,

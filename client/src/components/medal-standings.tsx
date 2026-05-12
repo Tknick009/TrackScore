@@ -13,7 +13,7 @@ interface MedalStandingsProps {
 export function MedalStandings({ meetId, showPodium = true }: MedalStandingsProps) {
   const { data: standings } = useQuery<MedalStanding[]>({
     queryKey: ["/api/meets", meetId, "medal-standings"],
-    refetchInterval: 10000
+    refetchInterval: 30000 // WS medal_standings_update handles real-time; polling is fallback
   });
   
   if (!standings || standings.length === 0) {

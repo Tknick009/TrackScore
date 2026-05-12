@@ -169,12 +169,12 @@ export default function FieldEventsControl() {
     queryKey: ["/api/evt-events"],
     queryFn: () => fetch("/api/evt-events").then((r) => r.json()),
     enabled: !!evtConfig?.directoryPath,
-    refetchInterval: 5000,
+    refetchInterval: 10000, // EVT file changes are infrequent
   });
 
   const { data: sessions = [], isLoading: sessionsLoading } = useQuery<FieldEventSession[]>({
     queryKey: ["/api/field-sessions"],
-    refetchInterval: 5000,
+    refetchInterval: 15000, // WS field_event_update handles real-time; polling is fallback
   });
 
   const { data: scoreboards = [], isLoading: sbLoading } = useQuery<ExternalScoreboard[]>({
