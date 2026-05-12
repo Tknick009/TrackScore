@@ -1,77 +1,68 @@
 /**
- * Background MDB import using Worker Threads.
- * 
- * Wraps importCompleteMDB so it runs in a separate thread, keeping the main
- * event loop free for clock ticks, FinishLynx data, and WebSocket broadcasts.
- * 
+ * Background MDB import wrapper.
+ *
+ * Provides a mutex (one import at a time) and a queue so that when multiple
+ * MDB watchers fire simultaneously, imports run sequentially instead of
+ * being dropped.
+ *
+ * Note: Worker Threads are not used because tsx (TypeScript Execute) does not
+ * reliably propagate its ESM loader to worker threads on Windows. The import
+ * runs on the main thread using async/await, which yields to the event loop
+ * between database operations so clock ticks and WebSocket broadcasts continue.
+ *
  * Usage:
  *   import { importMDBInBackground } from './import-mdb-background';
  *   const stats = await importMDBInBackground(mdbPath, meetId);
  */
-import { Worker } from 'worker_threads';
-import { fileURLToPath } from 'url';
-import path from 'path';
-import type { ImportStatistics } from './import-mdb-complete.ts';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { importCompleteMDB, type ImportStatistics } from './import-mdb-complete';
 
 /** Track whether any import is currently running (only one at a time). */
 let activeImport = false;
 
+/** Queue of pending imports to run after the current one finishes. */
+const importQueue: Array<{
+  mdbPath: string;
+  meetId: string;
+  resolve: (stats: ImportStatistics) => void;
+  reject: (err: Error) => void;
+}> = [];
+
+/** Process the next item in the queue, if any. */
+async function processQueue() {
+  if (activeImport || importQueue.length === 0) return;
+
+  activeImport = true;
+  const { mdbPath, meetId, resolve, reject } = importQueue.shift()!;
+
+  try {
+    console.log(`[MDB Import] Starting import: ${mdbPath} for meet ${meetId}`);
+    const stats = await importCompleteMDB(mdbPath, meetId);
+    resolve(stats);
+  } catch (err: any) {
+    reject(err instanceof Error ? err : new Error(String(err)));
+  } finally {
+    activeImport = false;
+    // Process next queued import
+    processQueue();
+  }
+}
+
 /**
- * Run an MDB import in a Worker Thread so the main thread stays responsive.
+ * Run an MDB import. If another import is already running, this one is
+ * queued and will execute as soon as the current import finishes.
  * Returns the same ImportStatistics that importCompleteMDB returns.
- * Only one import can run at a time — concurrent calls are rejected.
  */
 export function importMDBInBackground(
   mdbPath: string,
   meetId: string,
 ): Promise<ImportStatistics> {
-  if (activeImport) {
-    return Promise.reject(new Error('An MDB import is already in progress'));
-  }
-
-  activeImport = true;
-
   return new Promise<ImportStatistics>((resolve, reject) => {
-    // Resolve the worker script path relative to this file.
-    // At runtime under tsx the .ts extension is loaded directly.
-    const workerPath = path.resolve(__dirname, 'import-mdb-worker.ts');
-
-    const worker = new Worker(workerPath, {
-      workerData: { mdbPath, meetId },
-      // Inherit environment so EDGE_MODE, SQLITE_DB_PATH, etc. are available
-      env: { ...process.env },
-    });
-
-    worker.on('message', (msg: { type: string; stats?: ImportStatistics; error?: string; message?: string }) => {
-      if (msg.type === 'complete') {
-        activeImport = false;
-        resolve(msg.stats!);
-      } else if (msg.type === 'error') {
-        activeImport = false;
-        reject(new Error(msg.error || 'Unknown worker error'));
-      } else if (msg.type === 'log') {
-        console.log(msg.message);
-      }
-    });
-
-    worker.on('error', (err) => {
-      activeImport = false;
-      reject(err);
-    });
-
-    worker.on('exit', (code) => {
-      activeImport = false;
-      if (code !== 0) {
-        reject(new Error(`MDB import worker exited with code ${code}`));
-      }
-    });
+    importQueue.push({ mdbPath, meetId, resolve, reject });
+    processQueue();
   });
 }
 
-/** Check if an import is currently running in the background. */
+/** Check if an import is currently running. */
 export function isMDBImportRunning(): boolean {
   return activeImport;
 }
