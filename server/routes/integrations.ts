@@ -2365,11 +2365,29 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     console.log(`[Track Heat Watcher] Broadcast heat counts for meet ${meetId}:`, data);
   });
   
-  // Initialize track heat watchers on startup
+  // Initialize track heat watchers on startup — skip stale configs for deleted meets
   (async () => {
     try {
       const configs = loadTrackHeatConfigs();
+      let removedCount = 0;
+
+      const validConfigs = [];
       for (const config of configs) {
+        const meetExists = await storage.getMeet(config.meetId);
+        if (meetExists) {
+          validConfigs.push(config);
+        } else {
+          removedCount++;
+          console.log(`[Track Heat Watcher] Skipping stale watcher for deleted meet ${config.meetId}`);
+        }
+      }
+
+      if (removedCount > 0) {
+        saveTrackHeatConfigs(validConfigs);
+        console.log(`[Track Heat Watcher] Cleaned up ${removedCount} stale watcher config(s)`);
+      }
+
+      for (const config of validConfigs) {
         const result = startTrackHeatWatcher(config.meetId, config.evtFilePath);
         if (result.success) {
           console.log(`[Track Heat Watcher] Initialized watcher for meet ${config.meetId}`);
@@ -2389,11 +2407,32 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     console.log(`[HyTek MDB Watcher] Broadcast cache invalidation for meet ${meetId}`);
   });
 
-  // Initialize hytek mdb watchers on startup
+  // Initialize hytek mdb watchers on startup — skip stale configs for deleted meets
   (async () => {
     try {
       const hytekConfigs = loadHytekMdbConfigs();
+      let cleanedConfigs = hytekConfigs;
+      let removedCount = 0;
+
+      // Filter out configs for meets that no longer exist
+      const validConfigs = [];
       for (const config of hytekConfigs) {
+        const meetExists = await storage.getMeet(config.meetId);
+        if (meetExists) {
+          validConfigs.push(config);
+        } else {
+          removedCount++;
+          console.log(`[HyTek MDB Watcher] Skipping stale watcher for deleted meet ${config.meetId}`);
+        }
+      }
+
+      // Save cleaned config if any stale entries were removed
+      if (removedCount > 0) {
+        saveHytekMdbConfigs(validConfigs);
+        console.log(`[HyTek MDB Watcher] Cleaned up ${removedCount} stale watcher config(s)`);
+      }
+
+      for (const config of validConfigs) {
         const result = startHytekMdbWatcher(config.meetId, config.mdbDirectory);
         if (result.success) {
           console.log(`[HyTek MDB Watcher] Initialized watcher for meet ${config.meetId}`);

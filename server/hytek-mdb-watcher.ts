@@ -19,7 +19,34 @@ interface HytekMdbConfig {
 }
 
 const HYTEK_MDB_CONFIG_FILE = './hytek-mdb-config.json';
+const HYTEK_MDB_HASH_FILE = './data/hytek-mdb-hashes.json';
 const watchers = new Map<string, HytekMdbWatcherState>();
+
+/** Load persisted file hashes from disk (survives restarts). */
+function loadPersistedHashes(): Record<string, string> {
+  try {
+    if (fs.existsSync(HYTEK_MDB_HASH_FILE)) {
+      return JSON.parse(fs.readFileSync(HYTEK_MDB_HASH_FILE, 'utf-8'));
+    }
+  } catch (e) {}
+  return {};
+}
+
+/** Save file hashes to disk so unchanged files are skipped on next startup. */
+function savePersistedHashes(hashes: Record<string, string>): void {
+  try {
+    const dir = path.dirname(HYTEK_MDB_HASH_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(HYTEK_MDB_HASH_FILE, JSON.stringify(hashes, null, 2));
+  } catch (e) {}
+}
+
+/** Update the persisted hash for a specific meet. */
+function persistHash(meetId: string, hash: string): void {
+  const hashes = loadPersistedHashes();
+  hashes[meetId] = hash;
+  savePersistedHashes(hashes);
+}
 
 let importCallback: ((meetId: string) => void) | null = null;
 
@@ -83,6 +110,8 @@ async function handleMdbChange(state: HytekMdbWatcherState, filePath: string): P
     const importDuration = Date.now() - importStart;
     state.lastImportAt = new Date();
 
+    // Persist the hash so this file won't be re-imported on next restart
+    persistHash(state.meetId, hash);
     console.log(`[HyTek MDB Watcher] Import complete for meet ${state.meetId}: ${stats.events} events, ${stats.athletes} athletes, ${stats.entries} entries`);
     
     if (importCallback) {
@@ -143,10 +172,12 @@ export function startHytekMdbWatcher(meetId: string, mdbPath: string): { success
     },
   });
 
+  // Load persisted hash so unchanged files are skipped on startup
+  const persistedHashes = loadPersistedHashes();
   const state: HytekMdbWatcherState = {
     meetId,
     watcher,
-    lastHash: null,
+    lastHash: persistedHashes[meetId] || null,
     mdbFilePath: resolvedMdbFile,
     lastImportAt: null,
     importing: false,
