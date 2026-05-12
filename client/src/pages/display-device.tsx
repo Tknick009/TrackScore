@@ -1556,6 +1556,7 @@ export default function DisplayDevice() {
       customHeight={state.displayType === 'Custom' ? customHeight : undefined}
       fieldPort={fieldPort}
       displayScale={displayScale}
+      currentLayoutMode={currentLayoutModeRef.current}
       onReturnToLogo={returnToMeetLogo}
     />
   );
@@ -1694,6 +1695,7 @@ interface DisplayRendererProps {
   customHeight?: number;
   fieldPort?: number;
   displayScale?: number;
+  currentLayoutMode?: string | null;
   onReturnToLogo?: () => void;
 }
 
@@ -1701,7 +1703,7 @@ interface EventWithEntries extends Event {
   entries: any[];
 }
 
-function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTimeRef, clockSubscribersRef, liveEventData, liveEventDataByPort, pagingSize, pagingInterval, maxPages, customWidth, customHeight, fieldPort, displayScale = 100, onReturnToLogo }: DisplayRendererProps) {
+function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTimeRef, clockSubscribersRef, liveEventData, liveEventDataByPort, pagingSize, pagingInterval, maxPages, customWidth, customHeight, fieldPort, displayScale = 100, currentLayoutMode, onReturnToLogo }: DisplayRendererProps) {
   const { data: meet } = useQuery<Meet>({
     queryKey: ['/api/meets', meetId],
     enabled: !!meetId,
@@ -1780,7 +1782,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
 
       // When field mode is active, overlay the curtain transition so it works
       // even if the scene doesn't have a field-transition object
-      const isFieldScene = currentLayoutModeRef.current === 'field_results' || currentLayoutModeRef.current === 'multi_field';
+      const isFieldScene = currentLayoutMode === 'field_results' || currentLayoutMode === 'multi_field';
       if (isFieldScene) {
         return (
           <div style={{ position: 'relative', width: '100%', height: '100%' }}>
