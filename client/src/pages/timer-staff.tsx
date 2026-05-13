@@ -14,6 +14,10 @@ import { formatTimeValue } from "@shared/formatting";
 
 type ProtestStatus = null | "protest" | "ready_for_awards" | "awarded";
 
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 interface EventWithEntries extends Event {
   entries: EntryWithDetails[];
 }
@@ -179,12 +183,12 @@ function handlePrint(
 
     let cells = `
       <td style="padding:6px 8px;${bold}">${isDQ ? "DQ" : isSCR ? "SCR" : row.place ?? "—"}</td>
-      <td style="padding:6px 8px;">${athlete ? `${athlete.lastName}, ${athlete.firstName}` : "—"}</td>
-      <td style="padding:6px 8px;">${team?.name || team?.abbreviation || "—"}</td>
+      <td style="padding:6px 8px;">${athlete ? escapeHtml(`${athlete.lastName}, ${athlete.firstName}`) : "—"}</td>
+      <td style="padding:6px 8px;">${escapeHtml(team?.name || team?.abbreviation || "—")}</td>
       <td style="padding:6px 8px;text-align:right;">${isDQ ? "DQ" : isSCR ? "SCR" : formatMark(row.mark, row.entry.resultType)}</td>
     `;
     if (hasNotes) {
-      cells += `<td style="padding:6px 8px;font-size:11px;color:#444;">${row.resultNote || ""}</td>`;
+      cells += `<td style="padding:6px 8px;font-size:11px;color:#444;">${row.resultNote ? escapeHtml(row.resultNote) : ""}</td>`;
     }
     if (!isFinal) {
       cells += `<td style="padding:6px 8px;text-align:center;">${row.heat ?? "—"}</td>`;
@@ -234,7 +238,7 @@ function handlePrint(
 
   let notesSection = "";
   if (event.protestNotes) {
-    notesSection = `<div style="margin-top:16px;padding:10px 14px;border:1px solid #999;background:#fffde7;font-size:12px;"><strong>Notes:</strong> ${event.protestNotes}</div>`;
+    notesSection = `<div style="margin-top:16px;padding:10px 14px;border:1px solid #999;background:#fffde7;font-size:12px;"><strong>Notes:</strong> ${escapeHtml(event.protestNotes)}</div>`;
   }
 
   const logoImg = meetLogoUrl
@@ -254,14 +258,14 @@ function handlePrint(
     <table class="header-table"><tr>
       ${logoCell}
       <td style="text-align:center;vertical-align:middle;">
-        <div style="font-size:22px;font-weight:bold;letter-spacing:0.5px;text-transform:uppercase;">${meetName}</div>
+        <div style="font-size:22px;font-weight:bold;letter-spacing:0.5px;text-transform:uppercase;">${escapeHtml(meetName)}</div>
       </td>
     </tr></table>
     <div style="text-align:center;margin-top:10px;padding:6px 0;border-top:1px solid #666;border-bottom:1px solid #666;">
       <span style="font-size:16px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;">${mode === "protest" ? "OFFICIAL PROTEST FORM" : "OFFICIAL AWARDS FORM"}</span>
     </div>
     <div style="text-align:center;margin-top:10px;">
-      <div style="font-size:15px;font-weight:bold;">Event ${event.eventNumber} — ${eventDisplayName}</div>
+      <div style="font-size:15px;font-weight:bold;">Event ${event.eventNumber} — ${escapeHtml(eventDisplayName)}</div>
       <div style="font-size:13px;color:#333;margin-top:2px;">${roundLabel}</div>
     </div>
   </div>
@@ -540,7 +544,7 @@ export default function TimerStaffPage() {
                       </Button>
                     )}
 
-                    {event.isScored && hasResults && (
+                    {event.isScored && hasResults && !isLocked && (
                       <>
                         {(!status || status === "protest") && (
                           <Button
