@@ -1,17 +1,21 @@
 /**
- * Background MDB import using Worker Threads.
- * 
- * Wraps importCompleteMDB so it runs in a separate thread, keeping the main
- * event loop free for clock ticks, FinishLynx data, and WebSocket broadcasts.
- * 
+ * Background MDB import using child_process.fork().
+ *
+ * Spawns a separate Node.js process with tsx for each import, so the main
+ * event loop (clock ticks, FinishLynx data, WebSocket broadcasts) is never
+ * blocked by MDB parsing or SQLite writes.
+ *
+ * Includes a queue so when multiple MDB watchers fire simultaneously,
+ * imports run sequentially instead of being dropped.
+ *
  * Usage:
  *   import { importMDBInBackground } from './import-mdb-background';
  *   const stats = await importMDBInBackground(mdbPath, meetId);
  */
-import { Worker } from 'worker_threads';
+import { fork } from 'child_process';
 import { fileURLToPath } from 'url';
 import path from 'path';
-import type { ImportStatistics } from './import-mdb-complete.js';
+import type { ImportStatistics } from './import-mdb-complete';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -19,55 +23,79 @@ const __dirname = path.dirname(__filename);
 /** Track whether any import is currently running (only one at a time). */
 let activeImport = false;
 
+/** Queue of pending imports to run after the current one finishes. */
+const importQueue: Array<{
+  mdbPath: string;
+  meetId: string;
+  resolve: (stats: ImportStatistics) => void;
+  reject: (err: Error) => void;
+}> = [];
+
+/** Process the next item in the queue, if any. */
+function processQueue() {
+  if (activeImport || importQueue.length === 0) return;
+
+  activeImport = true;
+  const { mdbPath, meetId, resolve, reject } = importQueue.shift()!;
+
+  const workerPath = path.resolve(__dirname, 'import-mdb-worker.ts');
+
+  // fork() spawns a new Node.js process. We pass --import tsx so the child
+  // process can load TypeScript files directly, just like the main process.
+  const child = fork(workerPath, [], {
+    execArgv: ['--import', 'tsx'],
+    env: { ...process.env },
+    stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
+  });
+
+  let settled = false;
+
+  child.on('message', (msg: { type: string; stats?: ImportStatistics; error?: string }) => {
+    if (settled) return;
+    settled = true;
+
+    if (msg.type === 'complete') {
+      resolve(msg.stats!);
+    } else if (msg.type === 'error') {
+      reject(new Error(msg.error || 'Unknown worker error'));
+    }
+  });
+
+  child.on('error', (err) => {
+    if (settled) return;
+    settled = true;
+    reject(err);
+  });
+
+  child.on('exit', (code) => {
+    if (!settled) {
+      settled = true;
+      if (code !== 0) {
+        reject(new Error(`MDB import process exited with code ${code}`));
+      } else {
+        reject(new Error('MDB import process exited before sending results'));
+      }
+    }
+    activeImport = false;
+    processQueue();
+  });
+
+  // Send the import parameters to the child process
+  child.send({ mdbPath, meetId });
+}
+
 /**
- * Run an MDB import in a Worker Thread so the main thread stays responsive.
+ * Run an MDB import in a separate process. If another import is already
+ * running, this one is queued and will execute when the current one finishes.
  * Returns the same ImportStatistics that importCompleteMDB returns.
- * Only one import can run at a time — concurrent calls are rejected.
  */
 export function importMDBInBackground(
   mdbPath: string,
   meetId: string,
 ): Promise<ImportStatistics> {
-  if (activeImport) {
-    return Promise.reject(new Error('An MDB import is already in progress'));
-  }
-
-  activeImport = true;
-
   return new Promise<ImportStatistics>((resolve, reject) => {
-    // Resolve the worker script path relative to this file.
-    // At runtime under tsx the .ts extension is loaded directly.
-    const workerPath = path.resolve(__dirname, 'import-mdb-worker.ts');
-
-    const worker = new Worker(workerPath, {
-      workerData: { mdbPath, meetId },
-      // Inherit environment so EDGE_MODE, SQLITE_DB_PATH, etc. are available
-      env: { ...process.env },
-    });
-
-    worker.on('message', (msg: { type: string; stats?: ImportStatistics; error?: string; message?: string }) => {
-      if (msg.type === 'complete') {
-        activeImport = false;
-        resolve(msg.stats!);
-      } else if (msg.type === 'error') {
-        activeImport = false;
-        reject(new Error(msg.error || 'Unknown worker error'));
-      } else if (msg.type === 'log') {
-        console.log(msg.message);
-      }
-    });
-
-    worker.on('error', (err) => {
-      activeImport = false;
-      reject(err);
-    });
-
-    worker.on('exit', (code) => {
-      activeImport = false;
-      if (code !== 0) {
-        reject(new Error(`MDB import worker exited with code ${code}`));
-      }
-    });
+    importQueue.push({ mdbPath, meetId, resolve, reject });
+    processQueue();
   });
 }
 

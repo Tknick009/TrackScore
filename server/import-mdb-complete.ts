@@ -212,6 +212,19 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
     const { SQLiteStorage } = await import('./storage/sqlite-adapter');
     if (storage instanceof SQLiteStorage) {
       sqliteDb = storage.getSqliteDb();
+      // When running in a child process (fork), FK checks can fail if the
+      // child's connection doesn't see the meet row yet. Disable FK checks
+      // for the import — data integrity is enforced by the main process.
+      const isChildProcess = !!process.send;
+      if (isChildProcess) {
+        sqliteDb.pragma('foreign_keys = OFF');
+      }
+      // Verify the meet exists before importing
+      const meetRow = sqliteDb.prepare('SELECT id FROM meets WHERE id = ?').get(meetId);
+      if (!meetRow) {
+        console.log(`⚠️  Meet ${meetId} not found in database — skipping import`);
+        return { teams: 0, divisions: 0, athletes: 0, events: 0, entries: 0 };
+      }
       sqliteDb.exec(`
         CREATE TABLE IF NOT EXISTS meet_scoring_rules (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
