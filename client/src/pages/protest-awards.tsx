@@ -93,7 +93,7 @@ function getResultEntries(event: EventWithEntries): Array<{
   const isFinal = !event.numRounds || event.numRounds <= 1;
   const qualTags = computeQualifierTags(event);
   
-  return event.entries
+  const mapped = event.entries
     .map((entry) => {
       if (isFinal) {
         return {
@@ -119,8 +119,23 @@ function getResultEntries(event: EventWithEntries): Array<{
         };
       }
     })
-    .filter((r) => r.place != null || r.mark != null)
-    .sort((a, b) => (a.place ?? 999) - (b.place ?? 999));
+    .filter((r) => r.place != null || r.mark != null);
+
+  if (isFinal) {
+    mapped.sort((a, b) => (a.place ?? 999) - (b.place ?? 999));
+  } else {
+    // Prelims: Q's first (by mark), then q's (by mark), then rest (by mark)
+    const qualRank = (tag: string | null) => tag === "Q" ? 0 : tag === "q" ? 1 : 2;
+    mapped.sort((a, b) => {
+      const rankDiff = qualRank(a.qualTag) - qualRank(b.qualTag);
+      if (rankDiff !== 0) return rankDiff;
+      return (a.mark ?? 999999) - (b.mark ?? 999999);
+    });
+    // Assign overall place (1 through N)
+    mapped.forEach((r, idx) => { r.place = idx + 1; });
+  }
+
+  return mapped;
 }
 
 function ProtestPrintView({
