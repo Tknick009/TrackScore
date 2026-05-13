@@ -152,6 +152,7 @@ function ProtestPrintView({
   });
 
   const genderLabel = event.gender === "M" || event.gender === "m" ? "Men's" : "Women's";
+  const eventDisplayName = event.name.startsWith(genderLabel) ? event.name : `${genderLabel} ${event.name}`;
 
   return (
     <div className="print-page" style={{ fontFamily: "Arial, sans-serif", color: "#000", background: "#fff", padding: "0.5in" }}>
@@ -175,7 +176,7 @@ function ProtestPrintView({
         </div>
         <div style={{ textAlign: "center", marginTop: "10px" }}>
           <div style={{ fontSize: "15px", fontWeight: "bold" }}>
-            Event {event.eventNumber} — {genderLabel} {event.name}
+            Event {event.eventNumber} — {eventDisplayName}
           </div>
           <div style={{ fontSize: "13px", color: "#333", marginTop: "2px" }}>
             {roundLabel}
@@ -353,6 +354,7 @@ export default function ProtestAwardsPage() {
     }
 
     const genderLabel = event.gender === "M" || event.gender === "m" ? "Men's" : "Women's";
+    const eventDisplayName = event.name.startsWith(genderLabel) ? event.name : `${genderLabel} ${event.name}`;
 
     const rows = entries.map((row, idx) => {
       const athlete = row.entry.athlete;
@@ -424,7 +426,7 @@ export default function ProtestAwardsPage() {
     const logoRight = meetLogoUrl ? `<td style="width:80px;text-align:center;vertical-align:middle;">${logoImg}</td>` : '';
 
     const html = `<!DOCTYPE html>
-<html><head><title>${mode === "protest" ? "Protest" : "Awards"} — ${genderLabel} ${event.name}</title>
+<html><head><title>${mode === "protest" ? "Protest" : "Awards"} — ${eventDisplayName}</title>
 <style>
   @media print { body { margin: 0; } @page { margin: 0.5in; } }
   body { font-family: Arial, sans-serif; color: #000; padding: 0.5in; }
@@ -443,7 +445,7 @@ export default function ProtestAwardsPage() {
       <span style="font-size:16px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;">${mode === "protest" ? "OFFICIAL PROTEST FORM" : "OFFICIAL AWARDS FORM"}</span>
     </div>
     <div style="text-align:center;margin-top:10px;">
-      <div style="font-size:15px;font-weight:bold;">Event ${event.eventNumber} — ${genderLabel} ${event.name}</div>
+      <div style="font-size:15px;font-weight:bold;">Event ${event.eventNumber} — ${eventDisplayName}</div>
       <div style="font-size:13px;color:#333;margin-top:2px;">${roundLabel}</div>
     </div>
   </div>
@@ -611,7 +613,7 @@ export default function ProtestAwardsPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="font-medium truncate">
-                        {event.gender === "M" || event.gender === "m" ? "Men's" : "Women's"} {event.name}
+                        {event.name.startsWith(event.gender === "M" || event.gender === "m" ? "Men's" : "Women's") ? event.name : `${event.gender === "M" || event.gender === "m" ? "Men's" : "Women's"} ${event.name}`}
                       </div>
                       <div className="text-xs text-muted-foreground">
                         {getRoundLabel(event)} · {hasResults ? `${resultEntries.length} results` : "No results"}
