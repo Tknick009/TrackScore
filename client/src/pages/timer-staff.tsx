@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Printer, Award, ShieldCheck, RotateCcw, Filter, Lock, MessageSquare, X } from "lucide-react";
+import { Search, Printer, Award, ShieldCheck, RotateCcw, Filter, Lock, Unlock, MessageSquare, X } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Event, EntryWithDetails } from "@shared/schema";
@@ -20,7 +20,7 @@ interface EventWithEntries extends Event {
 
 function getStatusBadge(event: EventWithEntries) {
   if (event.timingLocked) {
-    return <Badge className="bg-orange-600 hover:bg-orange-700 text-sm px-3 py-1">Locked by Timing Staff</Badge>;
+    return <Badge className="bg-orange-600 hover:bg-orange-700 text-sm px-3 py-1">Locked</Badge>;
   }
   if (!event.isScored) {
     return <Badge variant="outline" className="text-muted-foreground text-sm px-3 py-1">Not Ready</Badge>;
@@ -128,7 +128,6 @@ function getResultEntries(event: EventWithEntries): Array<{
   if (isFinal) {
     mapped.sort((a, b) => (a.place ?? 999) - (b.place ?? 999));
   } else {
-    // Prelims: Q's first (by mark), then q's (by mark), then rest (by mark)
     const qualRank = (tag: string | null) => tag === "Q" ? 0 : tag === "q" ? 1 : 2;
     const resultType = event.entries[0]?.resultType;
     const lowerIsBetter = resultType === "time";
@@ -138,7 +137,6 @@ function getResultEntries(event: EventWithEntries): Array<{
       if (lowerIsBetter) return (a.mark ?? 999999) - (b.mark ?? 999999);
       return (b.mark ?? -999999) - (a.mark ?? -999999);
     });
-    // Assign overall place (1 through N)
     mapped.forEach((r, idx) => { r.place = idx + 1; });
   }
 
@@ -234,7 +232,6 @@ function handlePrint(
     qualFooter += `</div>`;
   }
 
-  // Event notes section
   let notesSection = "";
   if (event.protestNotes) {
     notesSection = `<div style="margin-top:16px;padding:10px 14px;border:1px solid #999;background:#fffde7;font-size:12px;"><strong>Notes:</strong> ${event.protestNotes}</div>`;
@@ -298,7 +295,7 @@ function handlePrint(
   };
 }
 
-export default function ProtestAwardsPage({ standalone = false }: { standalone?: boolean }) {
+export default function TimerStaffPage() {
   const { currentMeetId, currentMeet } = useMeet();
   const { toast } = useToast();
   const [search, setSearch] = useState("");
@@ -321,6 +318,18 @@ export default function ProtestAwardsPage({ standalone = false }: { standalone?:
   const updateProtestStatus = useMutation({
     mutationFn: async ({ eventId, status }: { eventId: string; status: ProtestStatus }) => {
       return await apiRequest("PATCH", `/api/events/${eventId}/protest-status`, { status });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/meets", currentMeetId, "protest-awards"] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const toggleLock = useMutation({
+    mutationFn: async ({ eventId, locked }: { eventId: string; locked: boolean }) => {
+      return await apiRequest("PATCH", `/api/events/${eventId}/timing-lock`, { locked });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/meets", currentMeetId, "protest-awards"] });
@@ -372,6 +381,7 @@ export default function ProtestAwardsPage({ standalone = false }: { standalone?:
         if (statusFilter === "ready_for_awards" && event.protestStatus !== "ready_for_awards") return false;
         if (statusFilter === "awarded" && event.protestStatus !== "awarded") return false;
         if (statusFilter === "locked" && !event.timingLocked) return false;
+        if (statusFilter === "unlocked" && event.timingLocked) return false;
         return true;
       })
       .sort((a, b) => a.eventNumber - b.eventNumber);
@@ -390,14 +400,14 @@ export default function ProtestAwardsPage({ standalone = false }: { standalone?:
     return <div className="p-6 text-muted-foreground">Loading events...</div>;
   }
 
-  const content = (
+  return (
     <div className="p-4 space-y-4 max-w-5xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Protest & Awards</h1>
+          <h1 className="text-3xl font-bold">Timer Staff</h1>
           <p className="text-sm text-muted-foreground">
-            {currentMeet?.name || "Track & Field Meet"}
+            Lock events, manage protest periods, print forms, and add notes
           </p>
         </div>
       </div>
@@ -463,7 +473,8 @@ export default function ProtestAwardsPage({ standalone = false }: { standalone?:
             <SelectItem value="protest">In Protest</SelectItem>
             <SelectItem value="ready_for_awards">Ready for Awards</SelectItem>
             <SelectItem value="awarded">Awarded</SelectItem>
-            <SelectItem value="locked">Locked by Timing</SelectItem>
+            <SelectItem value="locked">Locked</SelectItem>
+            <SelectItem value="unlocked">Unlocked</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -480,7 +491,6 @@ export default function ProtestAwardsPage({ standalone = false }: { standalone?:
           const resultEntries = getResultEntries(event);
           const hasResults = resultEntries.length > 0;
           const isLocked = event.timingLocked;
-          const canAct = event.isScored && hasResults && !isLocked;
 
           const genderLabel = event.gender === "M" || event.gender === "m" ? "Men's" : "Women's";
           const eventDisplayName = event.name.startsWith(genderLabel) ? event.name : `${genderLabel} ${event.name}`;
@@ -517,7 +527,20 @@ export default function ProtestAwardsPage({ standalone = false }: { standalone?:
 
                   {/* Action buttons — bigger */}
                   <div className="flex items-center gap-2 ml-4 flex-shrink-0">
-                    {canAct && (
+                    {/* Lock/Unlock — always available for scored events */}
+                    {event.isScored && (
+                      <Button
+                        size="lg"
+                        variant={isLocked ? "default" : "outline"}
+                        className={`text-base px-5 py-3 ${isLocked ? "bg-orange-600 hover:bg-orange-700" : ""}`}
+                        onClick={() => toggleLock.mutate({ eventId: event.id, locked: !isLocked })}
+                      >
+                        {isLocked ? <Unlock className="h-5 w-5 mr-2" /> : <Lock className="h-5 w-5 mr-2" />}
+                        {isLocked ? "Unlock" : "Lock"}
+                      </Button>
+                    )}
+
+                    {event.isScored && hasResults && (
                       <>
                         {(!status || status === "protest") && (
                           <Button
@@ -590,13 +613,6 @@ export default function ProtestAwardsPage({ standalone = false }: { standalone?:
                         )}
                       </>
                     )}
-
-                    {isLocked && (
-                      <div className="flex items-center gap-2 text-orange-600">
-                        <Lock className="h-5 w-5" />
-                        <span className="text-sm font-medium">Locked</span>
-                      </div>
-                    )}
                   </div>
                 </div>
               </CardContent>
@@ -640,14 +656,4 @@ export default function ProtestAwardsPage({ standalone = false }: { standalone?:
       )}
     </div>
   );
-
-  if (standalone) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        {content}
-      </div>
-    );
-  }
-
-  return content;
 }
