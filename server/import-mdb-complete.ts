@@ -788,6 +788,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           case '2':
           case 'done':
             hytekStatus = 'done';
+            isScored = true;
             break;
           case 'S':
           case 's':
