@@ -30,6 +30,11 @@ else
     echo ""
 fi
 
+echo "Installing/updating dependencies..."
+npm install --silent
+echo "Dependencies up to date."
+echo ""
+
 echo "Starting server..."
 echo "Server will run at http://localhost:5000"
 echo "Press Ctrl+C to stop."
