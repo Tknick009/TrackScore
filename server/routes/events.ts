@@ -771,10 +771,13 @@ export function registerEventsRoutes(app: Express, ctx: RouteContext) {
       updates.protest_printed_at = null;
     }
 
-    await storage.updateEvent(req.params.id, {
+    const storageUpdates: Record<string, any> = {
       protestStatus: updates.protest_status,
-      protestPrintedAt: updates.protest_printed_at,
-    });
+    };
+    if (updates.protest_printed_at !== undefined) {
+      storageUpdates.protestPrintedAt = updates.protest_printed_at;
+    }
+    await storage.updateEvent(req.params.id, storageUpdates);
     res.json({ success: true, protestStatus: status });
   }));
 
