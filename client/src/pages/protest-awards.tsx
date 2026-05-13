@@ -42,22 +42,37 @@ function formatMark(mark: number | null | undefined, resultType: string): string
   return mark.toString();
 }
 
-function getQualifierTag(
-  entry: EntryWithDetails,
+function computeQualifierTags(
   event: EventWithEntries,
-): string | null {
-  if (!event.numRounds || event.numRounds <= 1) return null;
-  if (!event.advanceByPlace && !event.advanceByTime) return null;
+): Map<string, string> {
+  const tags = new Map<string, string>();
+  if (!event.numRounds || event.numRounds <= 1) return tags;
+  if (!event.advanceByPlace && !event.advanceByTime) return tags;
 
-  const prelimPlace = entry.preliminaryPlace;
-  if (!prelimPlace) return null;
+  const nonQualified: { id: string; mark: number }[] = [];
 
-  if (event.advanceByPlace && prelimPlace <= event.advanceByPlace) {
-    return "Q";
+  for (const entry of event.entries) {
+    const prelimPlace = entry.preliminaryPlace;
+    if (!prelimPlace) continue;
+
+    if (event.advanceByPlace && prelimPlace <= event.advanceByPlace) {
+      tags.set(entry.id, "Q");
+    } else if (entry.preliminaryMark != null) {
+      nonQualified.push({ id: entry.id, mark: entry.preliminaryMark });
+    }
   }
-  // Athletes who advance by time get lowercase q — but we'd need to know
-  // which athletes specifically advanced. For now, mark the top N by place as Q.
-  return null;
+
+  if (event.advanceByTime && nonQualified.length > 0) {
+    const resultType = event.entries[0]?.resultType;
+    const lowerIsBetter = resultType === "time";
+    nonQualified.sort((a, b) => lowerIsBetter ? a.mark - b.mark : b.mark - a.mark);
+    const count = Math.min(event.advanceByTime, nonQualified.length);
+    for (let i = 0; i < count; i++) {
+      tags.set(nonQualified[i].id, "q");
+    }
+  }
+
+  return tags;
 }
 
 function getRoundLabel(event: EventWithEntries): string {
@@ -75,6 +90,7 @@ function getResultEntries(event: EventWithEntries): Array<{
   qualTag: string | null;
 }> {
   const isFinal = !event.numRounds || event.numRounds <= 1;
+  const qualTags = computeQualifierTags(event);
   
   return event.entries
     .map((entry) => {
@@ -96,7 +112,7 @@ function getResultEntries(event: EventWithEntries): Array<{
           heat: entry.preliminaryHeat,
           lane: entry.preliminaryLane,
           wind: entry.preliminaryWind,
-          qualTag: getQualifierTag(entry, event),
+          qualTag: qualTags.get(entry.id) || null,
         };
       }
     })
@@ -107,11 +123,13 @@ function getResultEntries(event: EventWithEntries): Array<{
 function ProtestPrintView({
   event,
   meetName,
+  meetLogoUrl,
   entries,
   mode,
 }: {
   event: EventWithEntries;
   meetName: string;
+  meetLogoUrl?: string | null;
   entries: ReturnType<typeof getResultEntries>;
   mode: "protest" | "awards";
 }) {
@@ -130,17 +148,36 @@ function ProtestPrintView({
     year: "numeric",
   });
 
+  const genderLabel = event.gender === "M" || event.gender === "m" ? "Men's" : "Women's";
+
   return (
     <div className="print-page" style={{ fontFamily: "Arial, sans-serif", color: "#000", background: "#fff", padding: "0.5in" }}>
-      {/* Header */}
-      <div style={{ textAlign: "center", marginBottom: "24px", borderBottom: "2px solid #000", paddingBottom: "12px" }}>
-        <h1 style={{ fontSize: "20px", fontWeight: "bold", margin: "0 0 4px 0" }}>{meetName}</h1>
-        <h2 style={{ fontSize: "16px", fontWeight: "bold", margin: "0 0 4px 0" }}>
-          {mode === "protest" ? "PROTEST FORM" : "AWARDS FORM"}
-        </h2>
-        <h3 style={{ fontSize: "14px", margin: "0" }}>
-          Event {event.eventNumber} — {event.gender === "M" || event.gender === "m" ? "Men's" : "Women's"} {event.name} ({roundLabel})
-        </h3>
+      {/* Header with logo */}
+      <div style={{ marginBottom: "24px", borderBottom: "3px solid #000", paddingBottom: "16px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "16px", marginBottom: "12px" }}>
+          {meetLogoUrl && (
+            <img src={meetLogoUrl} alt="Meet logo" style={{ height: "60px", objectFit: "contain" }} />
+          )}
+          <div style={{ textAlign: "center" }}>
+            <h1 style={{ fontSize: "22px", fontWeight: "bold", margin: "0", letterSpacing: "0.5px", textTransform: "uppercase" }}>{meetName}</h1>
+          </div>
+          {meetLogoUrl && (
+            <img src={meetLogoUrl} alt="Meet logo" style={{ height: "60px", objectFit: "contain" }} />
+          )}
+        </div>
+        <div style={{ textAlign: "center", marginTop: "8px", padding: "6px 0", borderTop: "1px solid #666", borderBottom: "1px solid #666" }}>
+          <div style={{ fontSize: "16px", fontWeight: "bold", letterSpacing: "2px", textTransform: "uppercase" }}>
+            {mode === "protest" ? "OFFICIAL PROTEST FORM" : "OFFICIAL AWARDS FORM"}
+          </div>
+        </div>
+        <div style={{ textAlign: "center", marginTop: "10px" }}>
+          <div style={{ fontSize: "15px", fontWeight: "bold" }}>
+            Event {event.eventNumber} — {genderLabel} {event.name}
+          </div>
+          <div style={{ fontSize: "13px", color: "#333", marginTop: "2px" }}>
+            {roundLabel}
+          </div>
+        </div>
       </div>
 
       {/* Time info */}
@@ -150,12 +187,12 @@ function ProtestPrintView({
           <span><strong>Results Posted:</strong> {timeStr}</span>
         </div>
         {mode === "protest" ? (
-          <div style={{ fontSize: "14px", marginTop: "12px", padding: "8px", border: "1px solid #000" }}>
+          <div style={{ fontSize: "14px", marginTop: "12px", padding: "10px 12px", border: "2px solid #000", background: "#fafafa" }}>
             <strong>Protest Period Ends: </strong>
             <span style={{ borderBottom: "1px solid #000", display: "inline-block", width: "200px" }}>&nbsp;</span>
           </div>
         ) : (
-          <div style={{ fontSize: "14px", marginTop: "12px", padding: "8px", border: "1px solid #000" }}>
+          <div style={{ fontSize: "14px", marginTop: "12px", padding: "10px 12px", border: "2px solid #000", background: "#fafafa" }}>
             <strong>Protest Period Ended: </strong>
             <span style={{ borderBottom: "1px solid #000", display: "inline-block", width: "200px" }}>&nbsp;</span>
           </div>
@@ -288,6 +325,7 @@ export default function ProtestAwardsPage() {
   const handlePrint = (event: EventWithEntries, mode: "protest" | "awards") => {
     const entries = getResultEntries(event);
     const meetName = currentMeet?.name || "Track & Field Meet";
+    const meetLogoUrl = currentMeet?.logoUrl || null;
     const isFinal = !event.numRounds || event.numRounds <= 1;
     const roundLabel = getRoundLabel(event);
     const now = new Date();
@@ -313,44 +351,44 @@ export default function ProtestAwardsPage() {
       const bold = idx < 3 && isFinal ? "font-weight: bold;" : "";
 
       let cells = `
-        <td style="padding:5px 4px;${bold}">${isDQ ? "DQ" : isSCR ? "SCR" : row.place ?? "—"}</td>
-        <td style="padding:5px 4px;">${athlete ? `${athlete.lastName}, ${athlete.firstName}` : "—"}</td>
-        <td style="padding:5px 4px;">${team?.name || team?.abbreviation || "—"}</td>
-        <td style="padding:5px 4px;text-align:right;">${isDQ ? "DQ" : isSCR ? "SCR" : formatMark(row.mark, row.entry.resultType)}</td>
+        <td style="padding:6px 8px;${bold}">${isDQ ? "DQ" : isSCR ? "SCR" : row.place ?? "—"}</td>
+        <td style="padding:6px 8px;">${athlete ? `${athlete.lastName}, ${athlete.firstName}` : "—"}</td>
+        <td style="padding:6px 8px;">${team?.name || team?.abbreviation || "—"}</td>
+        <td style="padding:6px 8px;text-align:right;">${isDQ ? "DQ" : isSCR ? "SCR" : formatMark(row.mark, row.entry.resultType)}</td>
       `;
       if (!isFinal) {
-        cells += `<td style="padding:5px 4px;text-align:center;">${row.heat ?? "—"}</td>`;
-        cells += `<td style="padding:5px 4px;text-align:center;">${row.lane ?? "—"}</td>`;
+        cells += `<td style="padding:6px 8px;text-align:center;">${row.heat ?? "—"}</td>`;
+        cells += `<td style="padding:6px 8px;text-align:center;">${row.lane ?? "—"}</td>`;
       }
       if (hasWind) {
-        cells += `<td style="padding:5px 4px;text-align:right;">${row.wind != null ? row.wind.toFixed(1) : ""}</td>`;
+        cells += `<td style="padding:6px 8px;text-align:right;">${row.wind != null ? row.wind.toFixed(1) : ""}</td>`;
       }
       if (!isFinal) {
-        cells += `<td style="padding:5px 4px;text-align:center;font-weight:bold;">${row.qualTag || ""}</td>`;
+        cells += `<td style="padding:6px 8px;text-align:center;font-weight:bold;">${row.qualTag || ""}</td>`;
       }
-      return `<tr style="border-bottom:1px solid #ccc;${bg}">${cells}</tr>`;
+      return `<tr style="border-bottom:1px solid #ddd;${bg}">${cells}</tr>`;
     }).join("");
 
     let headerCells = `
-      <th style="text-align:left;padding:6px 4px;width:40px;">Place</th>
-      <th style="text-align:left;padding:6px 4px;">Name</th>
-      <th style="text-align:left;padding:6px 4px;">Team</th>
-      <th style="text-align:right;padding:6px 4px;width:80px;">Mark</th>
+      <th style="text-align:left;padding:8px;width:40px;">Place</th>
+      <th style="text-align:left;padding:8px;">Name</th>
+      <th style="text-align:left;padding:8px;">Team</th>
+      <th style="text-align:right;padding:8px;width:80px;">Mark</th>
     `;
     if (!isFinal) {
-      headerCells += `<th style="text-align:center;padding:6px 4px;width:50px;">Heat</th>`;
-      headerCells += `<th style="text-align:center;padding:6px 4px;width:50px;">Lane</th>`;
+      headerCells += `<th style="text-align:center;padding:8px;width:50px;">Heat</th>`;
+      headerCells += `<th style="text-align:center;padding:8px;width:50px;">Lane</th>`;
     }
     if (hasWind) {
-      headerCells += `<th style="text-align:right;padding:6px 4px;width:50px;">Wind</th>`;
+      headerCells += `<th style="text-align:right;padding:8px;width:50px;">Wind</th>`;
     }
     if (!isFinal) {
-      headerCells += `<th style="text-align:center;padding:6px 4px;width:30px;"></th>`;
+      headerCells += `<th style="text-align:center;padding:8px;width:30px;"></th>`;
     }
 
     const protestLine = mode === "protest"
-      ? `<div style="font-size:14px;margin-top:12px;padding:8px;border:1px solid #000;"><strong>Protest Period Ends: </strong><span style="border-bottom:1px solid #000;display:inline-block;width:200px;">&nbsp;</span></div>`
-      : `<div style="font-size:14px;margin-top:12px;padding:8px;border:1px solid #000;"><strong>Protest Period Ended: </strong><span style="border-bottom:1px solid #000;display:inline-block;width:200px;">&nbsp;</span></div>`;
+      ? `<div style="font-size:14px;margin-top:12px;padding:10px 14px;border:2px solid #000;background:#fafafa;"><strong>Protest Period Ends: </strong><span style="border-bottom:1px solid #000;display:inline-block;width:200px;">&nbsp;</span></div>`
+      : `<div style="font-size:14px;margin-top:12px;padding:10px 14px;border:2px solid #000;background:#fafafa;"><strong>Protest Period Ended: </strong><span style="border-bottom:1px solid #000;display:inline-block;width:200px;">&nbsp;</span></div>`;
 
     let qualFooter = "";
     if (!isFinal && event.advanceByPlace) {
@@ -361,16 +399,35 @@ export default function ProtestAwardsPage() {
       qualFooter += `</div>`;
     }
 
+    const logoImg = meetLogoUrl
+      ? `<img src="${meetLogoUrl}" alt="Meet logo" style="height:64px;object-fit:contain;" />`
+      : '';
+    const logoLeft = meetLogoUrl ? `<td style="width:80px;text-align:center;vertical-align:middle;">${logoImg}</td>` : '';
+    const logoRight = meetLogoUrl ? `<td style="width:80px;text-align:center;vertical-align:middle;">${logoImg}</td>` : '';
+
     const html = `<!DOCTYPE html>
 <html><head><title>${mode === "protest" ? "Protest" : "Awards"} — ${genderLabel} ${event.name}</title>
 <style>
   @media print { body { margin: 0; } @page { margin: 0.5in; } }
   body { font-family: Arial, sans-serif; color: #000; padding: 0.5in; }
+  .header-table { width: 100%; border-collapse: collapse; }
+  .header-table td { padding: 0; }
 </style></head><body>
-  <div style="text-align:center;margin-bottom:24px;border-bottom:2px solid #000;padding-bottom:12px;">
-    <h1 style="font-size:20px;font-weight:bold;margin:0 0 4px 0;">${meetName}</h1>
-    <h2 style="font-size:16px;font-weight:bold;margin:0 0 4px 0;">${mode === "protest" ? "PROTEST FORM" : "AWARDS FORM"}</h2>
-    <h3 style="font-size:14px;margin:0;">Event ${event.eventNumber} — ${genderLabel} ${event.name} (${roundLabel})</h3>
+  <div style="margin-bottom:24px;border-bottom:3px solid #000;padding-bottom:16px;">
+    <table class="header-table"><tr>
+      ${logoLeft}
+      <td style="text-align:center;vertical-align:middle;">
+        <div style="font-size:22px;font-weight:bold;letter-spacing:0.5px;text-transform:uppercase;">${meetName}</div>
+      </td>
+      ${logoRight}
+    </tr></table>
+    <div style="text-align:center;margin-top:10px;padding:6px 0;border-top:1px solid #666;border-bottom:1px solid #666;">
+      <span style="font-size:16px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;">${mode === "protest" ? "OFFICIAL PROTEST FORM" : "OFFICIAL AWARDS FORM"}</span>
+    </div>
+    <div style="text-align:center;margin-top:10px;">
+      <div style="font-size:15px;font-weight:bold;">Event ${event.eventNumber} — ${genderLabel} ${event.name}</div>
+      <div style="font-size:13px;color:#333;margin-top:2px;">${roundLabel}</div>
+    </div>
   </div>
   <div style="margin-bottom:20px;font-size:13px;">
     <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
@@ -379,12 +436,12 @@ export default function ProtestAwardsPage() {
     </div>
     ${protestLine}
   </div>
-  <table style="width:100%;border-collapse:collapse;font-size:12px;">
-    <thead><tr style="border-bottom:2px solid #000;">${headerCells}</tr></thead>
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead><tr style="border-bottom:2px solid #000;background:#f5f5f5;">${headerCells}</tr></thead>
     <tbody>${rows}</tbody>
   </table>
   ${qualFooter}
-  <div style="margin-top:40px;border-top:1px solid #ccc;padding-top:16px;">
+  <div style="margin-top:48px;border-top:1px solid #999;padding-top:16px;">
     <div style="display:flex;justify-content:space-between;">
       <div><span style="border-bottom:1px solid #000;display:inline-block;width:250px;">&nbsp;</span>
         <div style="font-size:10px;color:#666;margin-top:4px;">Referee Signature</div></div>
