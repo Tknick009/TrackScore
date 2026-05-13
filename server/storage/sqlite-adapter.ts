@@ -182,6 +182,8 @@ export class SQLiteStorage implements IStorage {
     try { this.db.prepare('ALTER TABLE record_books ADD COLUMN display_order INTEGER DEFAULT 99').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE record_books ADD COLUMN allow_multiple INTEGER DEFAULT 0').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE record_books ADD COLUMN meet_id TEXT').run(); } catch(e) {}
+    try { this.db.prepare('ALTER TABLE events ADD COLUMN protest_status TEXT').run(); } catch(e) {}
+    try { this.db.prepare('ALTER TABLE events ADD COLUMN protest_printed_at TEXT').run(); } catch(e) {}
     // Clean up orphaned record books (NULL meet_id) — these leak into every meet
     // and cause records from old meets to appear sporadically in other meets
     try {
@@ -1156,6 +1158,8 @@ export class SQLiteStorage implements IStorage {
       isMultiEvent: this.toBoolean(row.is_multi_event),
       lastResultSource: row.last_result_source,
       lastResultAt: row.last_result_at ? new Date(row.last_result_at) : null,
+      protestStatus: row.protest_status ?? null,
+      protestPrintedAt: row.protest_printed_at ? new Date(row.protest_printed_at) : null,
     };
   }
 
@@ -1356,6 +1360,8 @@ export class SQLiteStorage implements IStorage {
       status: 'status',
       numRounds: 'num_rounds',
       numLanes: 'num_lanes',
+      protestStatus: 'protest_status',
+      protestPrintedAt: 'protest_printed_at',
     };
     const sets: string[] = [];
     const vals: any[] = [];
@@ -1363,7 +1369,7 @@ export class SQLiteStorage implements IStorage {
       const col = colMap[jsKey];
       if (col) {
         sets.push(`${col} = ?`);
-        vals.push(typeof val === 'boolean' ? (val ? 1 : 0) : val);
+        vals.push(val === null ? null : typeof val === 'boolean' ? (val ? 1 : 0) : val);
       }
     }
     if (sets.length === 0) return undefined;

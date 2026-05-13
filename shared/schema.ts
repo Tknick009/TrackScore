@@ -185,6 +185,10 @@ export type RoundType = z.infer<typeof roundTypeEnum>;
 export const displayTargetTypeEnum = z.enum(["track_event", "field_event", "standings", "schedule"]);
 export type DisplayTargetType = z.infer<typeof displayTargetTypeEnum>;
 
+// Protest Status
+export const protestStatusEnum = z.enum(["protest", "ready_for_awards", "awarded"]);
+export type ProtestStatus = z.infer<typeof protestStatusEnum>;
+
 // Meet Status
 export const meetStatusEnum = z.enum(["upcoming", "in_progress", "completed"]);
 export type MeetStatus = z.infer<typeof meetStatusEnum>;
@@ -448,6 +452,8 @@ export const events = pgTable("events", {
   isScored: boolean("is_scored").default(false), // Derived: true if hytekStatus = 'done' or 'scored'
   lastResultSource: text("last_result_source"), // port, lif, lff, manual
   lastResultAt: timestamp("last_result_at"), // When results were last updated
+  protestStatus: text("protest_status"), // null → 'protest' → 'ready_for_awards' → 'awarded'
+  protestPrintedAt: timestamp("protest_printed_at"), // When protest form was first printed
 }, (table) => ({
   meetEventUnique: unique("events_meet_event_unique").on(table.meetId, table.eventNumber),
   meetIdIdx: index("events_meet_id_idx").on(table.meetId),

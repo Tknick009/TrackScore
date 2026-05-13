@@ -669,6 +669,8 @@ export class DatabaseStorage implements IStorage {
     if (updates.status !== undefined) fieldMap.status = updates.status;
     if (updates.numRounds !== undefined) fieldMap.numRounds = updates.numRounds;
     if (updates.numLanes !== undefined) fieldMap.numLanes = updates.numLanes;
+    if (updates.protestStatus !== undefined) fieldMap.protestStatus = updates.protestStatus;
+    if (updates.protestPrintedAt !== undefined) fieldMap.protestPrintedAt = updates.protestPrintedAt;
     if (Object.keys(fieldMap).length === 0) return undefined;
     const [updated] = await db
       .update(events)

@@ -43,6 +43,7 @@ import LapCounterDisplay from "@/pages/lap-counter-display";
 import FieldCapturePage from "@/pages/field-capture";
 import HeadshotManager from "@/pages/headshot-manager";
 import LogoManager from "@/pages/logo-manager";
+import ProtestAwards from "@/pages/protest-awards";
 import NotFound from "@/pages/not-found";
 
 function MeetSyncWrapper({ meetId, children }: { meetId: string; children: React.ReactNode }) {
@@ -116,6 +117,7 @@ function MeetControlRouter() {
     if (subPath === "external-scoreboards") return <ExternalScoreboards />;
     if (subPath === "headshots") return <HeadshotManager />;
     if (subPath === "logos") return <LogoManager />;
+    if (subPath === "protest-awards") return <ProtestAwards />;
     return <NotFound />;
   };
   
