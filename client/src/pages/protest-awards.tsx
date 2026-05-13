@@ -126,10 +126,13 @@ function getResultEntries(event: EventWithEntries): Array<{
   } else {
     // Prelims: Q's first (by mark), then q's (by mark), then rest (by mark)
     const qualRank = (tag: string | null) => tag === "Q" ? 0 : tag === "q" ? 1 : 2;
+    const resultType = event.entries[0]?.resultType;
+    const lowerIsBetter = resultType === "time";
     mapped.sort((a, b) => {
       const rankDiff = qualRank(a.qualTag) - qualRank(b.qualTag);
       if (rankDiff !== 0) return rankDiff;
-      return (a.mark ?? 999999) - (b.mark ?? 999999);
+      if (lowerIsBetter) return (a.mark ?? 999999) - (b.mark ?? 999999);
+      return (b.mark ?? -999999) - (a.mark ?? -999999);
     });
     // Assign overall place (1 through N)
     mapped.forEach((r, idx) => { r.place = idx + 1; });
