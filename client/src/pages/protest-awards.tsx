@@ -88,6 +88,7 @@ function getResultEntries(event: EventWithEntries): Array<{
   lane: number | null;
   wind: number | null;
   qualTag: string | null;
+  resultNote: string | null;
 }> {
   const isFinal = !event.numRounds || event.numRounds <= 1;
   const qualTags = computeQualifierTags(event);
@@ -103,6 +104,7 @@ function getResultEntries(event: EventWithEntries): Array<{
           lane: entry.finalLane,
           wind: entry.finalWind,
           qualTag: null,
+          resultNote: entry.finalNote || entry.notes || null,
         };
       } else {
         return {
@@ -113,6 +115,7 @@ function getResultEntries(event: EventWithEntries): Array<{
           lane: entry.preliminaryLane,
           wind: entry.preliminaryWind,
           qualTag: qualTags.get(entry.id) || null,
+          resultNote: entry.preliminaryNote || entry.notes || null,
         };
       }
     })
@@ -207,6 +210,9 @@ function ProtestPrintView({
             <th style={{ textAlign: "left", padding: "6px 4px" }}>Name</th>
             <th style={{ textAlign: "left", padding: "6px 4px" }}>Team</th>
             <th style={{ textAlign: "right", padding: "6px 4px", width: "80px" }}>Mark</th>
+            {entries.some((e) => e.resultNote) && (
+              <th style={{ textAlign: "left", padding: "6px 4px" }}>Note</th>
+            )}
             {!isFinal && <th style={{ textAlign: "center", padding: "6px 4px", width: "50px" }}>Heat</th>}
             {!isFinal && <th style={{ textAlign: "center", padding: "6px 4px", width: "50px" }}>Lane</th>}
             {entries.some((e) => e.wind != null) && (
@@ -242,6 +248,11 @@ function ProtestPrintView({
                 <td style={{ padding: "5px 4px", textAlign: "right" }}>
                   {isDisqualified ? "DQ" : isScratched ? "SCR" : formatMark(row.mark, row.entry.resultType)}
                 </td>
+                {entries.some((e) => e.resultNote) && (
+                  <td style={{ padding: "5px 4px", fontSize: "11px", color: "#444" }}>
+                    {row.resultNote || ""}
+                  </td>
+                )}
                 {!isFinal && (
                   <td style={{ padding: "5px 4px", textAlign: "center" }}>{row.heat ?? "—"}</td>
                 )}
@@ -333,6 +344,7 @@ export default function ProtestAwardsPage() {
     const dateStr = now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
 
     const hasWind = entries.some((e) => e.wind != null);
+    const hasNotes = entries.some((e) => e.resultNote);
 
     const printWindow = window.open("", "_blank");
     if (!printWindow) {
@@ -356,6 +368,9 @@ export default function ProtestAwardsPage() {
         <td style="padding:6px 8px;">${team?.name || team?.abbreviation || "—"}</td>
         <td style="padding:6px 8px;text-align:right;">${isDQ ? "DQ" : isSCR ? "SCR" : formatMark(row.mark, row.entry.resultType)}</td>
       `;
+      if (hasNotes) {
+        cells += `<td style="padding:6px 8px;font-size:11px;color:#444;">${row.resultNote || ""}</td>`;
+      }
       if (!isFinal) {
         cells += `<td style="padding:6px 8px;text-align:center;">${row.heat ?? "—"}</td>`;
         cells += `<td style="padding:6px 8px;text-align:center;">${row.lane ?? "—"}</td>`;
@@ -375,6 +390,9 @@ export default function ProtestAwardsPage() {
       <th style="text-align:left;padding:8px;">Team</th>
       <th style="text-align:right;padding:8px;width:80px;">Mark</th>
     `;
+    if (hasNotes) {
+      headerCells += `<th style="text-align:left;padding:8px;">Note</th>`;
+    }
     if (!isFinal) {
       headerCells += `<th style="text-align:center;padding:8px;width:50px;">Heat</th>`;
       headerCells += `<th style="text-align:center;padding:8px;width:50px;">Lane</th>`;

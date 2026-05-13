@@ -1241,11 +1241,19 @@ export class SQLiteStorage implements IStorage {
       finalMark: row.final_mark,
       finalPlace: row.final_place,
       finalWind: row.final_wind,
+      preliminaryPoints: row.preliminary_points ?? null,
+      quarterfinalPoints: row.quarterfinal_points ?? null,
+      semifinalPoints: row.semifinal_points ?? null,
+      finalPoints: row.final_points ?? null,
       isDisqualified: this.toBoolean(row.is_disqualified),
       isScratched: this.toBoolean(row.is_scratched),
       scoringStatus: row.scoring_status,
       scoredPoints: row.scored_points,
       notes: row.notes,
+      preliminaryNote: row.preliminary_note ?? null,
+      quarterfinalNote: row.quarterfinal_note ?? null,
+      semifinalNote: row.semifinal_note ?? null,
+      finalNote: row.final_note ?? null,
       checkInStatus: row.check_in_status,
       checkInTime: row.check_in_time ? new Date(row.check_in_time) : null,
       checkInOperator: row.check_in_operator,
@@ -1482,8 +1490,8 @@ export class SQLiteStorage implements IStorage {
   async createEntry(entry: InsertEntry): Promise<Entry> {
     const id = this.generateId();
     this.db.prepare(`
-      INSERT INTO entries (id, event_id, athlete_id, team_id, division_id, seed_mark, result_type, preliminary_heat, preliminary_lane, quarterfinal_heat, quarterfinal_lane, semifinal_heat, semifinal_lane, final_heat, final_lane, preliminary_mark, preliminary_place, preliminary_wind, quarterfinal_mark, quarterfinal_place, quarterfinal_wind, semifinal_mark, semifinal_place, semifinal_wind, final_mark, final_place, final_wind, is_disqualified, is_scratched, scoring_status, scored_points, notes, check_in_status, check_in_time, check_in_operator, check_in_method)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO entries (id, event_id, athlete_id, team_id, division_id, seed_mark, result_type, preliminary_heat, preliminary_lane, quarterfinal_heat, quarterfinal_lane, semifinal_heat, semifinal_lane, final_heat, final_lane, preliminary_mark, preliminary_place, preliminary_wind, quarterfinal_mark, quarterfinal_place, quarterfinal_wind, semifinal_mark, semifinal_place, semifinal_wind, final_mark, final_place, final_wind, is_disqualified, is_scratched, scoring_status, scored_points, notes, preliminary_note, quarterfinal_note, semifinal_note, final_note, check_in_status, check_in_time, check_in_operator, check_in_method)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       entry.eventId,
@@ -1517,6 +1525,10 @@ export class SQLiteStorage implements IStorage {
       entry.scoringStatus ?? 'pending',
       entry.scoredPoints ?? null,
       entry.notes ?? null,
+      entry.preliminaryNote ?? null,
+      entry.quarterfinalNote ?? null,
+      entry.semifinalNote ?? null,
+      entry.finalNote ?? null,
       entry.checkInStatus ?? 'pending',
       entry.checkInTime?.toISOString() ?? null,
       entry.checkInOperator ?? null,
@@ -1567,6 +1579,10 @@ export class SQLiteStorage implements IStorage {
       scoringStatus: 'scoring_status',
       scoredPoints: 'scored_points',
       notes: 'notes',
+      preliminaryNote: 'preliminary_note',
+      quarterfinalNote: 'quarterfinal_note',
+      semifinalNote: 'semifinal_note',
+      finalNote: 'final_note',
       checkInStatus: 'check_in_status',
       checkInTime: 'check_in_time',
       checkInOperator: 'check_in_operator',

@@ -239,6 +239,10 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
       try { sqliteDb.exec('ALTER TABLE entries ADD COLUMN quarterfinal_points REAL'); } catch(e) {}
       try { sqliteDb.exec('ALTER TABLE entries ADD COLUMN semifinal_points REAL'); } catch(e) {}
       try { sqliteDb.exec('ALTER TABLE entries ADD COLUMN final_points REAL'); } catch(e) {}
+      try { sqliteDb.exec('ALTER TABLE entries ADD COLUMN preliminary_note TEXT'); } catch(e) {}
+      try { sqliteDb.exec('ALTER TABLE entries ADD COLUMN quarterfinal_note TEXT'); } catch(e) {}
+      try { sqliteDb.exec('ALTER TABLE entries ADD COLUMN semifinal_note TEXT'); } catch(e) {}
+      try { sqliteDb.exec('ALTER TABLE entries ADD COLUMN final_note TEXT'); } catch(e) {}
     }
   }
   
@@ -1496,6 +1500,12 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
             return jd > 0 ? jd : ev > 0 ? ev : null;
           })(),
           
+          // Per-round result notes from HyTek
+          preliminaryNote: row.Pre_note ? String(row.Pre_note).trim() || null : null,
+          quarterfinalNote: row.Qtr_note ? String(row.Qtr_note).trim() || null : null,
+          semifinalNote: row.Sem_note ? String(row.Sem_note).trim() || null : null,
+          finalNote: row.Fin_note ? String(row.Fin_note).trim() || null : null,
+          
           // Flags (proper boolean parsing)
           // Only set isDisqualified for actual DQ (Fin_stat='D'), NOT for DNF or other status types
           // HyTek's dq_type field is used for ALL non-standard finishes, not just DQs
@@ -1541,8 +1551,9 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
               semifinal_heat, semifinal_lane, semifinal_mark, semifinal_place, semifinal_wind,
               final_heat, final_lane, final_mark, final_place, final_wind,
               scored_points,
-              is_disqualified, is_scratched, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              is_disqualified, is_scratched, notes,
+              preliminary_note, quarterfinal_note, semifinal_note, final_note)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(event_id, athlete_id) DO UPDATE SET
               team_id=excluded.team_id, division_id=excluded.division_id, seed_mark=excluded.seed_mark, result_type=excluded.result_type,
               preliminary_heat=excluded.preliminary_heat, preliminary_lane=excluded.preliminary_lane,
@@ -1554,7 +1565,9 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
               final_heat=excluded.final_heat, final_lane=excluded.final_lane,
               final_mark=excluded.final_mark, final_place=excluded.final_place, final_wind=excluded.final_wind,
               scored_points=excluded.scored_points,
-              is_disqualified=excluded.is_disqualified, is_scratched=excluded.is_scratched, notes=excluded.notes
+              is_disqualified=excluded.is_disqualified, is_scratched=excluded.is_scratched, notes=excluded.notes,
+              preliminary_note=excluded.preliminary_note, quarterfinal_note=excluded.quarterfinal_note,
+              semifinal_note=excluded.semifinal_note, final_note=excluded.final_note
           `);
           const insertBatch = sqliteDb.transaction((items: any[]) => {
             for (const item of items) {
@@ -1566,7 +1579,8 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
                 item.semifinalHeat, item.semifinalLane, item.semifinalMark, item.semifinalPlace, item.semifinalWind,
                 item.finalHeat, item.finalLane, item.finalMark, item.finalPlace, item.finalWind,
                 item.finalPoints,
-                item.isDisqualified ? 1 : 0, item.isScratched ? 1 : 0, item.notes
+                item.isDisqualified ? 1 : 0, item.isScratched ? 1 : 0, item.notes,
+                item.preliminaryNote, item.quarterfinalNote, item.semifinalNote, item.finalNote
               );
             }
           });
@@ -1615,6 +1629,10 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
                 isDisqualified: sql`excluded.is_disqualified`,
                 isScratched: sql`excluded.is_scratched`,
                 notes: sql`excluded.notes`,
+                preliminaryNote: sql`excluded.preliminary_note`,
+                quarterfinalNote: sql`excluded.quarterfinal_note`,
+                semifinalNote: sql`excluded.semifinal_note`,
+                finalNote: sql`excluded.final_note`,
               }
             });
           imported += entryBatch.length;
@@ -1751,6 +1769,10 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
           isScratched: row.Scr_stat === true || row.Scr_stat === "Y",
           notes: row.Fin_stat != null && String(row.Fin_stat).trim() !== '' && String(row.Fin_stat).trim() !== ' ' 
             ? String(row.Fin_stat).trim().toUpperCase() : null,
+          preliminaryNote: row.Pre_note ? String(row.Pre_note).trim() || null : null,
+          quarterfinalNote: null,
+          semifinalNote: null,
+          finalNote: row.Fin_note ? String(row.Fin_note).trim() || null : null,
         });
       }
       
@@ -1763,8 +1785,9 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
               semifinal_heat, semifinal_lane, semifinal_mark, semifinal_place, semifinal_wind,
               final_heat, final_lane, final_mark, final_place, final_wind,
               scored_points,
-              is_disqualified, is_scratched, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              is_disqualified, is_scratched, notes,
+              preliminary_note, quarterfinal_note, semifinal_note, final_note)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(event_id, athlete_id) DO UPDATE SET
               team_id=excluded.team_id, division_id=excluded.division_id, seed_mark=excluded.seed_mark, result_type=excluded.result_type,
               preliminary_heat=excluded.preliminary_heat, preliminary_lane=excluded.preliminary_lane,
@@ -1776,7 +1799,9 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
               final_heat=excluded.final_heat, final_lane=excluded.final_lane,
               final_mark=excluded.final_mark, final_place=excluded.final_place, final_wind=excluded.final_wind,
               scored_points=excluded.scored_points,
-              is_disqualified=excluded.is_disqualified, is_scratched=excluded.is_scratched, notes=excluded.notes
+              is_disqualified=excluded.is_disqualified, is_scratched=excluded.is_scratched, notes=excluded.notes,
+              preliminary_note=excluded.preliminary_note, quarterfinal_note=excluded.quarterfinal_note,
+              semifinal_note=excluded.semifinal_note, final_note=excluded.final_note
           `);
           const insertBatch = sqliteDb.transaction((items: any[]) => {
             for (const item of items) {
@@ -1788,7 +1813,8 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
                 item.semifinalHeat, item.semifinalLane, item.semifinalMark, item.semifinalPlace, item.semifinalWind,
                 item.finalHeat, item.finalLane, item.finalMark, item.finalPlace, item.finalWind,
                 item.scoredPoints,
-                item.isDisqualified ? 1 : 0, item.isScratched ? 1 : 0, item.notes
+                item.isDisqualified ? 1 : 0, item.isScratched ? 1 : 0, item.notes,
+                item.preliminaryNote, item.quarterfinalNote, item.semifinalNote, item.finalNote
               );
             }
           });
@@ -1811,6 +1837,10 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
                 isDisqualified: sql`excluded.is_disqualified`,
                 isScratched: sql`excluded.is_scratched`,
                 notes: sql`excluded.notes`,
+                preliminaryNote: sql`excluded.preliminary_note`,
+                quarterfinalNote: sql`excluded.quarterfinal_note`,
+                semifinalNote: sql`excluded.semifinal_note`,
+                finalNote: sql`excluded.final_note`,
               }
             });
         }
@@ -1895,6 +1925,10 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
             isScratched: false,
             notes: row.Fin_stat != null && String(row.Fin_stat).trim() !== '' && String(row.Fin_stat).trim() !== ' '
               ? String(row.Fin_stat).trim().toUpperCase() : null,
+            preliminaryNote: null,
+            quarterfinalNote: null,
+            semifinalNote: null,
+            finalNote: row.Fin_note ? String(row.Fin_note).trim() || null : null,
           });
         }
         
@@ -1907,14 +1941,17 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
                 semifinal_heat, semifinal_lane, semifinal_mark, semifinal_place, semifinal_wind,
                 final_heat, final_lane, final_mark, final_place, final_wind,
                 scored_points,
-                is_disqualified, is_scratched, notes)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                is_disqualified, is_scratched, notes,
+                preliminary_note, quarterfinal_note, semifinal_note, final_note)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
               ON CONFLICT(event_id, athlete_id) DO UPDATE SET
                 team_id=excluded.team_id, seed_mark=excluded.seed_mark, result_type=excluded.result_type,
                 final_heat=excluded.final_heat, final_lane=excluded.final_lane,
                 final_mark=excluded.final_mark, final_place=excluded.final_place, final_wind=excluded.final_wind,
                 scored_points=excluded.scored_points,
-                is_disqualified=excluded.is_disqualified, is_scratched=excluded.is_scratched, notes=excluded.notes
+                is_disqualified=excluded.is_disqualified, is_scratched=excluded.is_scratched, notes=excluded.notes,
+                preliminary_note=excluded.preliminary_note, quarterfinal_note=excluded.quarterfinal_note,
+                semifinal_note=excluded.semifinal_note, final_note=excluded.final_note
             `);
             const multiInsertBatch = sqliteDb.transaction((items: any[]) => {
               for (const item of items) {
@@ -1926,7 +1963,8 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
                   item.semifinalHeat, item.semifinalLane, item.semifinalMark, item.semifinalPlace, item.semifinalWind,
                   item.finalHeat, item.finalLane, item.finalMark, item.finalPlace, item.finalWind,
                   item.scoredPoints,
-                  item.isDisqualified ? 1 : 0, item.isScratched ? 1 : 0, item.notes
+                  item.isDisqualified ? 1 : 0, item.isScratched ? 1 : 0, item.notes,
+                  item.preliminaryNote, item.quarterfinalNote, item.semifinalNote, item.finalNote
                 );
               }
             });
@@ -1948,6 +1986,10 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
                   isDisqualified: sql`excluded.is_disqualified`,
                   isScratched: sql`excluded.is_scratched`,
                   notes: sql`excluded.notes`,
+                  preliminaryNote: sql`excluded.preliminary_note`,
+                  quarterfinalNote: sql`excluded.quarterfinal_note`,
+                  semifinalNote: sql`excluded.semifinal_note`,
+                  finalNote: sql`excluded.final_note`,
                 }
               });
           }
