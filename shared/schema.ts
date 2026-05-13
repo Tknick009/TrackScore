@@ -454,6 +454,9 @@ export const events = pgTable("events", {
   lastResultAt: timestamp("last_result_at"), // When results were last updated
   protestStatus: text("protest_status"), // null → 'protest' → 'ready_for_awards' → 'awarded'
   protestPrintedAt: timestamp("protest_printed_at"), // When protest form was first printed
+  timingLocked: boolean("timing_locked").default(false), // Locked by timing staff
+  timingLockedAt: timestamp("timing_locked_at"), // When timing lock was applied
+  protestNotes: text("protest_notes"), // Notes from protest table or timing staff (e.g., DQ rule violations)
 }, (table) => ({
   meetEventUnique: unique("events_meet_event_unique").on(table.meetId, table.eventNumber),
   meetIdIdx: index("events_meet_id_idx").on(table.meetId),

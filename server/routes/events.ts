@@ -758,6 +758,11 @@ export function registerEventsRoutes(app: Express, ctx: RouteContext) {
       return res.status(400).json({ error: "Event must be done or scored in HyTek before protest actions" });
     }
 
+    // Block if locked by timing staff
+    if (event.timingLocked) {
+      return res.status(400).json({ error: "Event is locked by timing staff" });
+    }
+
     const now = new Date().toISOString();
     const updates: Record<string, any> = { protest_status: status };
 
@@ -787,9 +792,6 @@ export function registerEventsRoutes(app: Express, ctx: RouteContext) {
     const result = [];
 
     for (const event of events) {
-      // Skip multi-event sub-events (only show parent events)
-      if (event.isMultiEvent) continue;
-
       const entries = await storage.getEntriesWithDetails(event.id);
       result.push({
         ...event,
@@ -798,6 +800,46 @@ export function registerEventsRoutes(app: Express, ctx: RouteContext) {
     }
 
     res.json(result);
+  }));
+
+  // ===== TIMING LOCK =====
+
+  // Toggle timing lock on an event
+  app.patch("/api/events/:id/timing-lock", asyncHandler(async (req, res) => {
+    const { locked } = req.body;
+    if (typeof locked !== "boolean") {
+      return res.status(400).json({ error: "locked must be a boolean" });
+    }
+
+    const event = await storage.getEvent(req.params.id);
+    if (!event) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    const storageUpdates: Record<string, any> = {
+      timingLocked: locked,
+      timingLockedAt: locked ? new Date().toISOString() : null,
+    };
+    await storage.updateEvent(req.params.id, storageUpdates);
+    res.json({ success: true, timingLocked: locked });
+  }));
+
+  // ===== EVENT NOTES =====
+
+  // Update protest/timing notes on an event
+  app.patch("/api/events/:id/protest-notes", asyncHandler(async (req, res) => {
+    const { notes } = req.body;
+    if (typeof notes !== "string" && notes !== null) {
+      return res.status(400).json({ error: "notes must be a string or null" });
+    }
+
+    const event = await storage.getEvent(req.params.id);
+    if (!event) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    await storage.updateEvent(req.params.id, { protestNotes: notes || null });
+    res.json({ success: true });
   }));
 
 }

@@ -12,6 +12,8 @@ import {
   Zap,
   ClipboardCheck,
   Scale,
+  Timer,
+  ExternalLink,
 } from "lucide-react";
 import {
   Sidebar,
@@ -39,7 +41,10 @@ export function AppSidebar() {
     { href: `${basePath}/schedule`, icon: Calendar, label: 'Schedule', testId: 'link-schedule', active: location === `${basePath}/schedule` || location.includes('/events/') },
     { href: `${basePath}/field-events`, icon: Target, label: 'Field Events', testId: 'link-field-events', active: location === `${basePath}/field-events` },
     { href: `${basePath}/protest-awards`, icon: Scale, label: 'Protest & Awards', testId: 'link-protest-awards', active: location === `${basePath}/protest-awards` },
+    { href: `${basePath}/timer-staff`, icon: Timer, label: 'Timer Staff', testId: 'link-timer-staff', active: location === `${basePath}/timer-staff` },
   ];
+
+  const protestStandaloneHref = `/protest/${currentMeetId}`;
 
   // Officiate opens in a new tab (full-screen for tablet use)
   const officiateHref = '/Officiate';
@@ -87,6 +92,14 @@ export function AppSidebar() {
                   <a href={officiateHref} target="_blank" rel="noopener noreferrer" data-testid="link-officiate">
                     <ClipboardCheck />
                     <span>Officiate</span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <a href={protestStandaloneHref} target="_blank" rel="noopener noreferrer" data-testid="link-protest-standalone">
+                    <ExternalLink />
+                    <span>Open Protest Tab</span>
                   </a>
                 </SidebarMenuButton>
               </SidebarMenuItem>
