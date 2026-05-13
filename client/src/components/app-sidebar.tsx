@@ -11,6 +11,7 @@ import {
   Send,
   Zap,
   ClipboardCheck,
+  Scale,
 } from "lucide-react";
 import {
   Sidebar,
@@ -37,6 +38,7 @@ export function AppSidebar() {
   const quickAccessItems = [
     { href: `${basePath}/schedule`, icon: Calendar, label: 'Schedule', testId: 'link-schedule', active: location === `${basePath}/schedule` || location.includes('/events/') },
     { href: `${basePath}/field-events`, icon: Target, label: 'Field Events', testId: 'link-field-events', active: location === `${basePath}/field-events` },
+    { href: `${basePath}/protest-awards`, icon: Scale, label: 'Protest & Awards', testId: 'link-protest-awards', active: location === `${basePath}/protest-awards` },
   ];
 
   // Officiate opens in a new tab (full-screen for tablet use)

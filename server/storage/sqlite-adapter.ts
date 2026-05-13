@@ -182,6 +182,8 @@ export class SQLiteStorage implements IStorage {
     try { this.db.prepare('ALTER TABLE record_books ADD COLUMN display_order INTEGER DEFAULT 99').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE record_books ADD COLUMN allow_multiple INTEGER DEFAULT 0').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE record_books ADD COLUMN meet_id TEXT').run(); } catch(e) {}
+    try { this.db.prepare('ALTER TABLE events ADD COLUMN protest_status TEXT').run(); } catch(e) {}
+    try { this.db.prepare('ALTER TABLE events ADD COLUMN protest_printed_at TEXT').run(); } catch(e) {}
     // Clean up orphaned record books (NULL meet_id) — these leak into every meet
     // and cause records from old meets to appear sporadically in other meets
     try {
@@ -1156,6 +1158,8 @@ export class SQLiteStorage implements IStorage {
       isMultiEvent: this.toBoolean(row.is_multi_event),
       lastResultSource: row.last_result_source,
       lastResultAt: row.last_result_at ? new Date(row.last_result_at) : null,
+      protestStatus: row.protest_status ?? null,
+      protestPrintedAt: row.protest_printed_at ? new Date(row.protest_printed_at) : null,
     };
   }
 
@@ -1237,11 +1241,19 @@ export class SQLiteStorage implements IStorage {
       finalMark: row.final_mark,
       finalPlace: row.final_place,
       finalWind: row.final_wind,
+      preliminaryPoints: row.preliminary_points ?? null,
+      quarterfinalPoints: row.quarterfinal_points ?? null,
+      semifinalPoints: row.semifinal_points ?? null,
+      finalPoints: row.final_points ?? null,
       isDisqualified: this.toBoolean(row.is_disqualified),
       isScratched: this.toBoolean(row.is_scratched),
       scoringStatus: row.scoring_status,
       scoredPoints: row.scored_points,
       notes: row.notes,
+      preliminaryNote: row.preliminary_note ?? null,
+      quarterfinalNote: row.quarterfinal_note ?? null,
+      semifinalNote: row.semifinal_note ?? null,
+      finalNote: row.final_note ?? null,
       checkInStatus: row.check_in_status,
       checkInTime: row.check_in_time ? new Date(row.check_in_time) : null,
       checkInOperator: row.check_in_operator,
@@ -1356,6 +1368,8 @@ export class SQLiteStorage implements IStorage {
       status: 'status',
       numRounds: 'num_rounds',
       numLanes: 'num_lanes',
+      protestStatus: 'protest_status',
+      protestPrintedAt: 'protest_printed_at',
     };
     const sets: string[] = [];
     const vals: any[] = [];
@@ -1363,7 +1377,7 @@ export class SQLiteStorage implements IStorage {
       const col = colMap[jsKey];
       if (col) {
         sets.push(`${col} = ?`);
-        vals.push(typeof val === 'boolean' ? (val ? 1 : 0) : val);
+        vals.push(val === null ? null : typeof val === 'boolean' ? (val ? 1 : 0) : val);
       }
     }
     if (sets.length === 0) return undefined;
@@ -1476,8 +1490,8 @@ export class SQLiteStorage implements IStorage {
   async createEntry(entry: InsertEntry): Promise<Entry> {
     const id = this.generateId();
     this.db.prepare(`
-      INSERT INTO entries (id, event_id, athlete_id, team_id, division_id, seed_mark, result_type, preliminary_heat, preliminary_lane, quarterfinal_heat, quarterfinal_lane, semifinal_heat, semifinal_lane, final_heat, final_lane, preliminary_mark, preliminary_place, preliminary_wind, quarterfinal_mark, quarterfinal_place, quarterfinal_wind, semifinal_mark, semifinal_place, semifinal_wind, final_mark, final_place, final_wind, is_disqualified, is_scratched, scoring_status, scored_points, notes, check_in_status, check_in_time, check_in_operator, check_in_method)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO entries (id, event_id, athlete_id, team_id, division_id, seed_mark, result_type, preliminary_heat, preliminary_lane, quarterfinal_heat, quarterfinal_lane, semifinal_heat, semifinal_lane, final_heat, final_lane, preliminary_mark, preliminary_place, preliminary_wind, quarterfinal_mark, quarterfinal_place, quarterfinal_wind, semifinal_mark, semifinal_place, semifinal_wind, final_mark, final_place, final_wind, is_disqualified, is_scratched, scoring_status, scored_points, notes, preliminary_note, quarterfinal_note, semifinal_note, final_note, check_in_status, check_in_time, check_in_operator, check_in_method)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       entry.eventId,
@@ -1511,6 +1525,10 @@ export class SQLiteStorage implements IStorage {
       entry.scoringStatus ?? 'pending',
       entry.scoredPoints ?? null,
       entry.notes ?? null,
+      entry.preliminaryNote ?? null,
+      entry.quarterfinalNote ?? null,
+      entry.semifinalNote ?? null,
+      entry.finalNote ?? null,
       entry.checkInStatus ?? 'pending',
       entry.checkInTime?.toISOString() ?? null,
       entry.checkInOperator ?? null,
@@ -1561,6 +1579,10 @@ export class SQLiteStorage implements IStorage {
       scoringStatus: 'scoring_status',
       scoredPoints: 'scored_points',
       notes: 'notes',
+      preliminaryNote: 'preliminary_note',
+      quarterfinalNote: 'quarterfinal_note',
+      semifinalNote: 'semifinal_note',
+      finalNote: 'final_note',
       checkInStatus: 'check_in_status',
       checkInTime: 'check_in_time',
       checkInOperator: 'check_in_operator',

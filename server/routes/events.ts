@@ -738,4 +738,66 @@ export function registerEventsRoutes(app: Express, ctx: RouteContext) {
     res.status(204).send();
   }));
 
+  // ===== PROTEST & AWARDS =====
+
+  // Update protest status for an event
+  app.patch("/api/events/:id/protest-status", asyncHandler(async (req, res) => {
+    const { status } = req.body;
+    const validStatuses = [null, 'protest', 'ready_for_awards', 'awarded'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ error: `Invalid protest status: ${status}` });
+    }
+
+    const event = await storage.getEvent(req.params.id);
+    if (!event) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    // Only allow protest actions on done/scored events
+    if (status && !event.isScored) {
+      return res.status(400).json({ error: "Event must be done or scored in HyTek before protest actions" });
+    }
+
+    const now = new Date().toISOString();
+    const updates: Record<string, any> = { protest_status: status };
+
+    // Set protest_printed_at when first entering protest status
+    if (status === 'protest' && !event.protestPrintedAt) {
+      updates.protest_printed_at = now;
+    }
+
+    // Clear protest_printed_at when resetting
+    if (status === null) {
+      updates.protest_printed_at = null;
+    }
+
+    const storageUpdates: Record<string, any> = {
+      protestStatus: updates.protest_status,
+    };
+    if (updates.protest_printed_at !== undefined) {
+      storageUpdates.protestPrintedAt = updates.protest_printed_at;
+    }
+    await storage.updateEvent(req.params.id, storageUpdates);
+    res.json({ success: true, protestStatus: status });
+  }));
+
+  // Get protest/awards data for all events in a meet (used by the Protest & Awards page)
+  app.get("/api/meets/:meetId/protest-awards", asyncHandler(async (req, res) => {
+    const events = await storage.getEventsByMeetId(req.params.meetId);
+    const result = [];
+
+    for (const event of events) {
+      // Skip multi-event sub-events (only show parent events)
+      if (event.isMultiEvent) continue;
+
+      const entries = await storage.getEntriesWithDetails(event.id);
+      result.push({
+        ...event,
+        entries,
+      });
+    }
+
+    res.json(result);
+  }));
+
 }
