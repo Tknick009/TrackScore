@@ -2205,7 +2205,8 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             id: 0,
             name: liveEventData?.eventName || '',
             eventType: 'track',
-            status: liveEventData?.mode === 'results' ? 'completed' : 'in_progress',
+            status: liveEventData?.mode === 'results' ? 'completed' :
+                    liveEventData?.mode === 'start_list' ? 'scheduled' : 'in_progress',
             entries: (liveEventData?.entries || []).map((entry: any, idx: number) => {
               const firstName = entry.firstName || entry.name?.split(' ')[0] || '';
               const lastName = entry.lastName || entry.name?.split(' ').slice(1).join(' ') || entry.name || '';
@@ -2251,7 +2252,8 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             id: 0,
             name: liveEventData.eventName || '',
             eventType: 'track',
-            status: liveEventData.mode === 'results' ? 'completed' : 'in_progress',
+            status: liveEventData.mode === 'results' ? 'completed' :
+                    liveEventData.mode === 'start_list' ? 'scheduled' : 'in_progress',
             entries: [],
           }
         : null;
@@ -2315,7 +2317,8 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             ...(hasLiveEntries ? {
               entries: mapLiveEntries(liveEventData!.entries),
               status: liveEventData!.mode === 'results' ? 'completed' : 
-                      liveEventData!.mode === 'running' ? 'in_progress' : currentEvent.status,
+                      liveEventData!.mode === 'running' ? 'in_progress' :
+                      liveEventData!.mode === 'start_list' ? 'scheduled' : currentEvent.status,
               isMultiEvent: liveEventData!.isMultiEvent ?? (currentEvent as any).isMultiEvent ?? false,
               roundName: liveEventData!.roundName ?? (currentEvent as any).roundName,
               wind: liveEventData!.wind ?? (currentEvent as any).wind,
@@ -2327,7 +2330,8 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             id: 0,
             name: liveEventData?.eventName || '',
             eventType: 'track',
-            status: liveEventData?.mode === 'results' ? 'completed' : 'in_progress',
+            status: liveEventData?.mode === 'results' ? 'completed' :
+                    liveEventData?.mode === 'start_list' ? 'scheduled' : 'in_progress',
             entries: mapLiveEntries(liveEventData?.entries || []),
             wind: liveEventData?.wind,
             heat: liveEventData?.heat,
