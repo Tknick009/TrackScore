@@ -2097,10 +2097,18 @@ export class SQLiteStorage implements IStorage {
   }
 
   async updateDisplayDeviceStatus(id: string, status: string, lastIp?: string): Promise<DisplayDevice | undefined> {
-    this.db.prepare(`
-      UPDATE display_devices SET status = ?, last_seen_at = datetime('now'), last_ip = COALESCE(?, last_ip)
-      WHERE id = ?
-    `).run(status, lastIp ?? null, id);
+    if (status === 'offline') {
+      // Don't update last_seen_at when going offline — preserve the timestamp of the last real heartbeat
+      this.db.prepare(`
+        UPDATE display_devices SET status = ?
+        WHERE id = ?
+      `).run(status, id);
+    } else {
+      this.db.prepare(`
+        UPDATE display_devices SET status = ?, last_seen_at = datetime('now'), last_ip = COALESCE(?, last_ip)
+        WHERE id = ?
+      `).run(status, lastIp ?? null, id);
+    }
     const updated = await this.getDisplayDevice(id);
     if (updated) this.logSyncEvent('display_devices', id, 'update', updated);
     return updated;

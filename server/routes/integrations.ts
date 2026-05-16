@@ -1639,7 +1639,7 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
       // FinishLynx does NOT send points — we calculate them from the athlete's time
       // using the WA scoring tables based on the sub-event and gender
       if (isMultiEvent && mode === 'results' && data.entries && data.eventName) {
-        const parsed = parseMultiEventName(data.eventName);
+        const parsed = parseMultiEventName(data.eventName, eventGender || undefined);
         if (parsed) {
           for (const entry of data.entries) {
             if (entry.time) {
@@ -1925,10 +1925,30 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
           console.log(`[Lynx] Auto-activated field event ${event.name} (${event.id}) to in_progress`);
           await broadcastCurrentEvent();
         }
-        // If this is a multi-event, send a corrected broadcast with multi-event info
+        // If this is a multi-event, send a corrected broadcast with multi-event info + points
         if (event.isMultiEvent || event.eventType) {
+          // Calculate event points for each field entry's mark
+          const enrichedResults = [...accumulatedResults];
+          if (event.isMultiEvent && data.eventName) {
+            const parsed = parseMultiEventName(data.eventName, event.gender || undefined);
+            if (parsed) {
+              for (const entry of enrichedResults) {
+                if (entry.mark) {
+                  const points = calculateEventPoints(parsed.scoringKey, entry.mark, parsed.gender);
+                  if (points > 0) {
+                    entry.eventPoints = points;
+                  }
+                }
+              }
+              console.log(`[Lynx] Calculated multi-event field points for "${data.eventName}" → ${parsed.scoringKey} (${parsed.gender})`);
+            } else {
+              console.log(`[Lynx] Could not parse multi-event field name: "${data.eventName}"`);
+            }
+          }
+
           const correctedData = {
             ...fieldBroadcastData,
+            results: enrichedResults,
             isMultiEvent: event.isMultiEvent ?? false,
             eventType: event.eventType ?? null,
             gender: event.gender ?? null,
@@ -2174,7 +2194,7 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     
     // Calculate multi-event points for accumulated entries (BigBoard path)
     if (isMultiEvent && acc.eventName && acc.entries.length > 0) {
-      const parsed = parseMultiEventName(acc.eventName);
+      const parsed = parseMultiEventName(acc.eventName, eventGender || undefined);
       if (parsed) {
         for (const entry of acc.entries) {
           if (entry.time) {

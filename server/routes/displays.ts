@@ -764,10 +764,30 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       // - For multi-round events, label based on which round is selected
       // - For single-round events, it's always the "Final" (the only round IS the final)
       // - Auto-detect: if we're viewing final data and entries have finalMark/finalPlace, it's "Final"
-      const roundLabel = selectedRound === 'preliminary' ? (totalRounds > 1 ? 'Prelims' : 'Final')
+      // - For multi-event parents (Dec/Hept/Pent), show "X of Y Events Scored"
+      let roundLabel = selectedRound === 'preliminary' ? (totalRounds > 1 ? 'Prelims' : 'Final')
         : selectedRound === 'quarterfinal' ? 'Quarterfinals'
         : selectedRound === 'semifinal' ? 'Semis'
         : 'Final';
+      
+      // For multi-event parents, count scored sub-events and show "X of Y Events Scored"
+      if ((event as any).isMultiEvent === true && device.meetId) {
+        try {
+          const allMeetEvents = await storage.getEventsByMeetId(device.meetId);
+          const parentEventNum = event.eventNumber || 0;
+          const subEvents = allMeetEvents.filter((e: any) => {
+            const num = e.eventNumber || 0;
+            return num >= parentEventNum * 1000 && num < (parentEventNum + 1) * 1000;
+          });
+          const scoredSubEvents = subEvents.filter((e: any) => e.isScored || (e.hytekStatus && /^[AaDdSsCc23]$/.test(e.hytekStatus)));
+          const totalSubEvents = subEvents.length;
+          if (totalSubEvents > 0) {
+            roundLabel = `${scoredSubEvents.length} of ${totalSubEvents} Events Scored`;
+          }
+        } catch (err) {
+          console.warn(`[Hytek Results] Failed to count multi-event sub-events:`, err);
+        }
+      }
       
       const relevantEntries = allEntries.filter(entry => {
         const fields = getRoundFields(entry);

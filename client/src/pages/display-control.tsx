@@ -353,8 +353,8 @@ export default function DisplayControlPage() {
   });
 
   const sendHytekResultsMutation = useMutation({
-    mutationFn: async ({ deviceId, eventId, pagingLines, pagingSeconds, round }: { deviceId: string; eventId: string; pagingLines: number; pagingSeconds?: number; round: string }) => {
-      const response = await apiRequest('POST', `/api/display-devices/${deviceId}/hytek-results`, { eventId, pagingLines, pagingSeconds, round });
+    mutationFn: async ({ deviceId, eventId, pagingLines, pagingSeconds, round, maxPages: mp }: { deviceId: string; eventId: string; pagingLines: number; pagingSeconds?: number; round: string; maxPages?: number }) => {
+      const response = await apiRequest('POST', `/api/display-devices/${deviceId}/hytek-results`, { eventId, pagingLines, pagingSeconds, round, maxPages: mp || 0 });
       return response.json();
     },
     onSuccess: (data) => {
@@ -1301,6 +1301,26 @@ export default function DisplayControlPage() {
                             </div>
                           </div>
 
+                          <div className="space-y-2">
+                            <Label>Max Pages</Label>
+                            <div className="flex items-center gap-2">
+                              <Select
+                                value={String(maxPages[selectedDevice.id] || 0)}
+                                onValueChange={(value) => setMaxPages(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }))}
+                              >
+                                <SelectTrigger className="w-24" data-testid="select-hytek-maxpages"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  {[0, 1, 2, 3, 5, 10].map(n => (
+                                    <SelectItem key={n} value={String(n)}>{n === 0 ? 'All' : String(n)}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <span className="text-sm text-muted-foreground">
+                                {(maxPages[selectedDevice.id] || 0) === 0 ? 'show all pages' : `only show first ${maxPages[selectedDevice.id]} page${maxPages[selectedDevice.id] === 1 ? '' : 's'}`}
+                              </span>
+                            </div>
+                          </div>
+
                           <Button
                             onClick={() => {
                               const itemKey = selectedHytekItem[selectedDevice.id];
@@ -1315,6 +1335,7 @@ export default function DisplayControlPage() {
                                 pagingLines: lines,
                                 pagingSeconds: seconds,
                                 round: item.round,
+                                maxPages: maxPages[selectedDevice.id] || 0,
                               });
                             }}
                             disabled={!selectedHytekItem[selectedDevice.id] || sendHytekResultsMutation.isPending}

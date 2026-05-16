@@ -1141,7 +1141,7 @@ export function SceneObjectRenderer({
             'last-name-qualifier-badge': qualifierStatus,
             'school': schoolDisplay,
             'time': firstEntry?.time || firstEntry?.mark,
-            'mark-converted': firstEntry?.markConverted || '',
+            'mark-converted': isMultiEvent && eventPoints > 0 ? `${eventPoints}` : (firstEntry?.markConverted || ''),
             'last-split': isMultiEvent && eventPoints > 0 ? `${eventPoints}` : firstEntry?.lastSplit,
             'cumulative-split': firstEntry?.cumulativeSplit,
             'reaction-time': firstEntry?.reactionTime,

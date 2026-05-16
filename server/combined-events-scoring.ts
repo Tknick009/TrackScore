@@ -400,25 +400,47 @@ export function mapSubEventToScoringKey(subEvent: string): string | null {
  *   "Hept Men 60 Meter Dash"  (raw) or "Hept Men 60M" (cleaned)
  *   "Pent Women 60 Meter Hurdles" (raw) or "Pent Women 60M Hurdles" (cleaned)
  *   "Hept Men 1000 Meter Run" (raw) or "Hept Men 1000M" (cleaned)
+ *   "Decathlon 400m" (no gender — some meets omit it)
  * 
+ * @param fallbackGender - Optional gender from DB when not present in the event name
  * Returns the scoring key and gender needed for calculateEventPoints().
  */
-export function parseMultiEventName(eventName: string): {
+export function parseMultiEventName(eventName: string, fallbackGender?: string): {
   scoringKey: string;
   gender: Gender;
   combinedType: string;
 } | null {
   if (!eventName) return null;
   
-  // Match: (Hept|Pent|Dec|Heptathlon|Pentathlon|Decathlon) (Men|Women) <sub-event>
-  const match = eventName.match(/\b(Hept(?:athlon)?|Pent(?:athlon)?|Dec(?:athlon)?)\s+(Men|Women)\s+(.+)/i);
-  if (!match) return null;
+  // Match WITH gender: (Hept|Pent|Dec|Heptathlon|Pentathlon|Decathlon) (Men|Women) <sub-event>
+  const matchWithGender = eventName.match(/\b(Hept(?:athlon)?|Pent(?:athlon)?|Dec(?:athlon)?)\s+(Men|Women)\s+(.+)/i);
+  // Match WITHOUT gender: (Heptathlon|Pentathlon|Decathlon|Hept|Pent|Dec) <sub-event>
+  const matchNoGender = !matchWithGender
+    ? eventName.match(/\b(Hept(?:athlon)?|Pent(?:athlon)?|Dec(?:athlon)?)\s+(.+)/i)
+    : null;
   
-  const multiType = match[1].toLowerCase();
-  const genderStr = match[2].toLowerCase();
-  const subEvent = match[3].trim();
+  if (!matchWithGender && !matchNoGender) return null;
   
-  const gender: Gender = genderStr === 'women' ? 'F' : 'M';
+  let multiType: string;
+  let gender: Gender;
+  let subEvent: string;
+  
+  if (matchWithGender) {
+    multiType = matchWithGender[1].toLowerCase();
+    const genderStr = matchWithGender[2].toLowerCase();
+    subEvent = matchWithGender[3].trim();
+    gender = genderStr === 'women' ? 'F' : 'M';
+  } else {
+    multiType = matchNoGender![1].toLowerCase();
+    subEvent = matchNoGender![2].trim();
+    // Use fallback gender from DB, default to M for decathlon, F for heptathlon
+    if (fallbackGender) {
+      const g = fallbackGender.toUpperCase().charAt(0);
+      gender = (g === 'W' || g === 'F') ? 'F' : 'M';
+    } else {
+      gender = multiType.startsWith('hept') ? 'F' : 'M';
+    }
+  }
   
   // Determine combined event type label
   let combinedType = '';
