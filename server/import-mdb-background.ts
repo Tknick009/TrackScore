@@ -74,6 +74,7 @@ function processQueue() {
     if (settled) return;
     settled = true;
     child.removeListener('message', onMessage);
+    child.removeListener('exit', onExit);
 
     activeImport = false;
 
