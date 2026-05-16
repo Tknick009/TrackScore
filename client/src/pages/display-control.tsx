@@ -53,8 +53,9 @@ import type { Event, SelectLayoutScene, SelectSceneTemplateMapping } from '@shar
 
 function getEventDisplayStatus(event: Event): string {
   if (event.status === "in_progress") return 'live';
-  if (event.isScored || event.hytekStatus === 'scored') return 'scored';
+  if (event.hytekStatus === 'scored') return 'scored';
   if (event.hytekStatus === 'done') return 'done';
+  if (event.isScored && event.hytekStatus !== 'done') return 'scored';
   if (event.hytekStatus === 'seeded') return 'seeded';
   return 'unseeded';
 }

@@ -161,8 +161,12 @@ function parseTimeToMinutes(timeStr: string | null | undefined): number {
 
 function getDisplayStatus(event: Event): string {
   if (event.status === "in_progress") return 'live';
-  if (event.isScored || event.hytekStatus === 'scored') return 'scored';
+  // Check hytekStatus first — 'done' means results are in but not team-scored yet
+  // 'scored' means team points have been assigned
+  if (event.hytekStatus === 'scored') return 'scored';
   if (event.hytekStatus === 'done') return 'done';
+  // Fallback: isScored without a specific hytekStatus still counts as scored
+  if (event.isScored && event.hytekStatus !== 'done') return 'scored';
   if (event.hytekStatus === 'seeded') return 'seeded';
   return 'unseeded';
 }
@@ -399,8 +403,8 @@ export default function Schedule() {
   }, [events, searchQuery]);
 
   const liveEvents = filteredEvents.filter(e => e.status === "in_progress");
-  const scoredEvents = filteredEvents.filter(e => e.status === "completed" || e.isScored || e.hytekStatus === 'scored');
-  const doneEvents = filteredEvents.filter(e => !scoredEvents.includes(e) && e.hytekStatus === 'done');
+  const scoredEvents = filteredEvents.filter(e => e.status === "completed" || e.hytekStatus === 'scored' || (e.isScored && e.hytekStatus !== 'done'));
+  const doneEvents = filteredEvents.filter(e => !scoredEvents.includes(e) && (e.hytekStatus === 'done' || (e.isScored && e.hytekStatus === 'done')));
   const seededEvents = filteredEvents.filter(e => !scoredEvents.includes(e) && !doneEvents.includes(e) && e.status !== "in_progress" && e.hytekStatus === 'seeded');
   const unseededEvents = filteredEvents.filter(e => !scoredEvents.includes(e) && !doneEvents.includes(e) && !seededEvents.includes(e) && e.status !== "in_progress");
 
