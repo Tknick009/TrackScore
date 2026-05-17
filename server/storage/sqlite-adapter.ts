@@ -184,6 +184,8 @@ export class SQLiteStorage implements IStorage {
     try { this.db.prepare('ALTER TABLE record_books ADD COLUMN meet_id TEXT').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE events ADD COLUMN protest_status TEXT').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE events ADD COLUMN protest_printed_at TEXT').run(); } catch(e) {}
+    try { this.db.prepare('ALTER TABLE events ADD COLUMN protest_end_at TEXT').run(); } catch(e) {}
+    try { this.db.prepare('ALTER TABLE events ADD COLUMN protest_filed INTEGER DEFAULT 0').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE events ADD COLUMN timing_locked INTEGER DEFAULT 0').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE events ADD COLUMN timing_locked_at TEXT').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE events ADD COLUMN protest_notes TEXT').run(); } catch(e) {}
@@ -1163,6 +1165,8 @@ export class SQLiteStorage implements IStorage {
       lastResultAt: row.last_result_at ? new Date(row.last_result_at) : null,
       protestStatus: row.protest_status ?? null,
       protestPrintedAt: row.protest_printed_at ? new Date(row.protest_printed_at) : null,
+      protestEndAt: row.protest_end_at ? new Date(row.protest_end_at) : null,
+      protestFiled: this.toBoolean(row.protest_filed),
       timingLocked: this.toBoolean(row.timing_locked),
       timingLockedAt: row.timing_locked_at ? new Date(row.timing_locked_at) : null,
       protestNotes: row.protest_notes ?? null,
@@ -1376,6 +1380,8 @@ export class SQLiteStorage implements IStorage {
       numLanes: 'num_lanes',
       protestStatus: 'protest_status',
       protestPrintedAt: 'protest_printed_at',
+      protestEndAt: 'protest_end_at',
+      protestFiled: 'protest_filed',
       timingLocked: 'timing_locked',
       timingLockedAt: 'timing_locked_at',
       protestNotes: 'protest_notes',

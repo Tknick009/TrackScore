@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Printer, Award, ShieldCheck, RotateCcw, Filter, Lock, MessageSquare, X } from "lucide-react";
+import { Search, Printer, Award, ShieldCheck, RotateCcw, Filter, Lock, MessageSquare, X, AlertTriangle, Clock, Edit2 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Event, EntryWithDetails } from "@shared/schema";
@@ -31,6 +31,9 @@ function getStatusBadge(event: EventWithEntries) {
   }
   switch (event.protestStatus as ProtestStatus) {
     case "protest":
+      if (event.protestFiled) {
+        return <Badge variant="destructive" className="animate-pulse text-sm px-3 py-1 bg-red-700">⚠ Protest Filed</Badge>;
+      }
       return <Badge variant="destructive" className="animate-pulse text-sm px-3 py-1">Protest Period</Badge>;
     case "ready_for_awards":
       return <Badge className="bg-green-600 hover:bg-green-700 text-sm px-3 py-1">Ready for Awards</Badge>;
@@ -57,22 +60,35 @@ function computeQualifierTags(event: EventWithEntries): Map<string, string> {
   if (!event.numRounds || event.numRounds <= 1) return tags;
   if (!event.advanceByPlace && !event.advanceByTime) return tags;
 
-  const nonQualified: { id: string; mark: number }[] = [];
+  const resultType = event.entries[0]?.resultType;
+  const lowerIsBetter = resultType === "time";
 
+  // Group entries by heat and compute per-heat placement
+  // Q = qualified by place within each heat (top N per heat)
+  // q = qualified by next best time across all heats
+  const heatGroups = new Map<number, { id: string; mark: number }[]>();
   for (const entry of event.entries) {
-    const prelimPlace = entry.preliminaryPlace;
-    if (!prelimPlace) continue;
+    if (entry.preliminaryMark == null || entry.preliminaryHeat == null) continue;
+    const heat = entry.preliminaryHeat;
+    if (!heatGroups.has(heat)) heatGroups.set(heat, []);
+    heatGroups.get(heat)!.push({ id: entry.id, mark: entry.preliminaryMark });
+  }
 
-    if (event.advanceByPlace && prelimPlace <= event.advanceByPlace) {
-      tags.set(entry.id, "Q");
-    } else if (entry.preliminaryMark != null) {
-      nonQualified.push({ id: entry.id, mark: entry.preliminaryMark });
+  // Sort each heat by mark and assign Q to top N
+  const nonQualified: { id: string; mark: number }[] = [];
+  for (const [, heatEntries] of heatGroups) {
+    heatEntries.sort((a, b) => lowerIsBetter ? a.mark - b.mark : b.mark - a.mark);
+    for (let i = 0; i < heatEntries.length; i++) {
+      if (event.advanceByPlace && i < event.advanceByPlace) {
+        tags.set(heatEntries[i].id, "Q");
+      } else {
+        nonQualified.push(heatEntries[i]);
+      }
     }
   }
 
+  // Assign q to next best times across all non-Q athletes
   if (event.advanceByTime && nonQualified.length > 0) {
-    const resultType = event.entries[0]?.resultType;
-    const lowerIsBetter = resultType === "time";
     nonQualified.sort((a, b) => lowerIsBetter ? a.mark - b.mark : b.mark - a.mark);
     const count = Math.min(event.advanceByTime, nonQualified.length);
     for (let i = 0; i < count; i++) {
@@ -225,8 +241,15 @@ function handlePrint(
     headerCells += `<th style="text-align:center;padding:8px;width:30px;"></th>`;
   }
 
+  // Pre-fill protest end time if available, otherwise show blank line
+  const protestEndStr = event.protestEndAt
+    ? new Date(event.protestEndAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
+    : (() => {
+        const end = new Date(now.getTime() + 15 * 60 * 1000);
+        return end.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+      })();
   const protestLine = mode === "protest"
-    ? `<div style="font-size:14px;margin-top:12px;padding:10px 14px;border:2px solid #000;background:#fafafa;"><strong>Protest Period Ends: </strong><span style="border-bottom:1px solid #000;display:inline-block;width:200px;">&nbsp;</span></div>`
+    ? `<div style="font-size:14px;margin-top:12px;padding:10px 14px;border:2px solid #000;background:#fafafa;"><strong>Protest Period Ends: </strong>${escapeHtml(protestEndStr)}</div>`
     : `<div style="font-size:14px;margin-top:12px;padding:10px 14px;border:2px solid #000;background:#fafafa;"><strong>Protest Period Ended: </strong><span style="border-bottom:1px solid #000;display:inline-block;width:200px;">&nbsp;</span></div>`;
 
   let qualFooter = "";
@@ -347,6 +370,34 @@ export default function ProtestAwardsPage({ standalone = false }: { standalone?:
       toast({ title: "Error", description: error.message, variant: "destructive" });
     },
   });
+
+  const updateProtestFiled = useMutation({
+    mutationFn: async ({ eventId, filed }: { eventId: string; filed: boolean }) => {
+      return await apiRequest("PATCH", `/api/events/${eventId}/protest-filed`, { filed });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/meets", currentMeetId, "protest-awards"] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const updateProtestEndTime = useMutation({
+    mutationFn: async ({ eventId, endAt, reset }: { eventId: string; endAt?: string; reset?: boolean }) => {
+      return await apiRequest("PATCH", `/api/events/${eventId}/protest-end-time`, { endAt, reset });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/meets", currentMeetId, "protest-awards"] });
+      setEditingEndTimeEventId(null);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const [editingEndTimeEventId, setEditingEndTimeEventId] = useState<string | null>(null);
+  const [editEndTimeValue, setEditEndTimeValue] = useState("");
 
   const onPrint = (event: EventWithEntries, mode: "protest" | "awards") => {
     const meetName = currentMeet?.name || "Track & Field Meet";
@@ -504,12 +555,59 @@ export default function ProtestAwardsPage({ standalone = false }: { standalone?:
                       </div>
                       <div className="text-xs text-muted-foreground">
                         {getRoundLabel(event)} · {hasResults ? `${resultEntries.length} results` : "No results"}
-                        {event.protestPrintedAt && (
-                          <span className="ml-2">
-                            · Protest printed {new Date(event.protestPrintedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}
-                          </span>
-                        )}
                       </div>
+                      {/* Protest timer display */}
+                      {status === "protest" && event.protestPrintedAt && (
+                        <div className="text-xs mt-1 flex items-center gap-2 flex-wrap">
+                          <Clock className="h-3 w-3 text-muted-foreground" />
+                          <span>
+                            Started: {new Date(event.protestPrintedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}
+                          </span>
+                          {event.protestEndAt && (
+                            <>
+                              <span className="text-muted-foreground">·</span>
+                              {editingEndTimeEventId === event.id ? (
+                                <span className="flex items-center gap-1">
+                                  <span>Ends:</span>
+                                  <input
+                                    type="time"
+                                    className="border rounded px-1 py-0.5 text-xs w-24"
+                                    value={editEndTimeValue}
+                                    onChange={(e) => setEditEndTimeValue(e.target.value)}
+                                  />
+                                  <Button size="sm" variant="ghost" className="h-5 px-1 text-xs" onClick={() => {
+                                    if (editEndTimeValue) {
+                                      const today = new Date();
+                                      const [h, m] = editEndTimeValue.split(':').map(Number);
+                                      today.setHours(h, m, 0, 0);
+                                      updateProtestEndTime.mutate({ eventId: event.id, endAt: today.toISOString() });
+                                    }
+                                  }}>Save</Button>
+                                  <Button size="sm" variant="ghost" className="h-5 px-1 text-xs" onClick={() => setEditingEndTimeEventId(null)}>Cancel</Button>
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-1">
+                                  <span className={new Date(event.protestEndAt) < new Date() ? "text-red-600 font-semibold" : "font-semibold"}>
+                                    Ends: {new Date(event.protestEndAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}
+                                  </span>
+                                  <Button size="sm" variant="ghost" className="h-5 px-1" onClick={() => {
+                                    const d = new Date(event.protestEndAt!);
+                                    setEditEndTimeValue(`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`);
+                                    setEditingEndTimeEventId(event.id);
+                                  }}>
+                                    <Edit2 className="h-3 w-3" />
+                                  </Button>
+                                </span>
+                              )}
+                              <Button size="sm" variant="ghost" className="h-5 px-1 text-xs text-muted-foreground" onClick={() => {
+                                updateProtestEndTime.mutate({ eventId: event.id, reset: true });
+                              }}>
+                                <RotateCcw className="h-3 w-3 mr-0.5" />Reset
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      )}
                       {event.protestNotes && (
                         <div className="text-xs text-orange-700 bg-orange-50 rounded px-2 py-0.5 mt-1 inline-block">
                           <MessageSquare className="h-3 w-3 inline mr-1" />{event.protestNotes}
@@ -535,7 +633,31 @@ export default function ProtestAwardsPage({ standalone = false }: { standalone?:
                           </Button>
                         )}
 
-                        {status === "protest" && (
+                        {status === "protest" && !event.protestFiled && (
+                          <Button
+                            size="lg"
+                            variant="destructive"
+                            className="text-base px-5 py-3"
+                            onClick={() => updateProtestFiled.mutate({ eventId: event.id, filed: true })}
+                          >
+                            <AlertTriangle className="h-5 w-5 mr-2" />
+                            Protest Received
+                          </Button>
+                        )}
+
+                        {status === "protest" && event.protestFiled && (
+                          <Button
+                            size="lg"
+                            variant="outline"
+                            className="text-base px-5 py-3 border-green-600 text-green-700"
+                            onClick={() => updateProtestFiled.mutate({ eventId: event.id, filed: false })}
+                          >
+                            <ShieldCheck className="h-5 w-5 mr-2" />
+                            Resolve Protest
+                          </Button>
+                        )}
+
+                        {status === "protest" && !event.protestFiled && (
                           <Button
                             size="lg"
                             className="bg-green-600 hover:bg-green-700 text-base px-5 py-3"
@@ -546,7 +668,7 @@ export default function ProtestAwardsPage({ standalone = false }: { standalone?:
                           </Button>
                         )}
 
-                        {(status === "ready_for_awards" || status === "awarded") && (
+                        {(status === "ready_for_awards" || status === "awarded") && !event.protestFiled && (
                           <Button
                             size="lg"
                             variant="outline"
