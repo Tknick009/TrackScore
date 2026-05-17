@@ -3019,19 +3019,45 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         `/api/meets/${device.meetId}/sponsor-images/${encodeURIComponent(f)}`
       );
 
-      await storage.updateDisplayTemplate(deviceId, 'sponsor-reel');
+      let meetLogoUrl: string | null = null;
+      try { if (meet?.logoUrl) meetLogoUrl = meet.logoUrl; } catch {}
+
+      const sponsorEntries = imageUrls.map((url: string, index: number) => ({
+        place: String(index + 1),
+        name: '',
+        lastName: '',
+        affiliation: '',
+        team: '',
+        time: '',
+        mark: '',
+        imageUrl: url,
+        logoUrl: url,
+      }));
+
+      await storage.updateDisplayTemplate(deviceId, 'sponsor-rotation');
 
       const connectedDevice = connectedDisplayDevices.get(deviceId);
       if (connectedDevice && connectedDevice.ws.readyState === 1) {
-        connectedDevice.contentMode = 'sponsor_reel';
+        connectedDevice.contentMode = 'sponsors';
+        storage.updateDisplayContentMode(deviceId, 'sponsors').catch(err => console.error('[Sponsor Reel] Failed to persist contentMode:', err));
         connectedDevice.ws.send(JSON.stringify({
           type: 'display_command',
-          template: 'sponsor-reel',
-          sponsorImages: imageUrls,
+          template: 'sponsor-rotation',
+          liveEventData: {
+            mode: 'sponsors',
+            eventName: 'Sponsors',
+            meetName: meet?.name || '',
+            meetLogoUrl,
+            entries: sponsorEntries,
+            rotationInterval: interval,
+          },
+          pagingSize: 1,
           pagingInterval: interval,
+          maxPages: 0,
         }));
       }
 
+      console.log(`[Sponsor Reel] Sent ${imageUrls.length} images from directory to ${device.deviceName} (${interval}s interval)`);
       res.json({
         success: true,
         imageCount: imageUrls.length,

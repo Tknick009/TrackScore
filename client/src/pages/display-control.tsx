@@ -498,6 +498,14 @@ export default function DisplayControlPage() {
     onError: (error: Error) => toast({ title: 'Failed to send sponsors', description: error.message, variant: 'destructive' }),
   });
 
+  const sendSponsorReelMutation = useMutation({
+    mutationFn: async ({ deviceId, pagingSeconds }: { deviceId: string; pagingSeconds: number }) => {
+      return apiRequest('POST', `/api/display-devices/${deviceId}/sponsor-reel`, { pagingSeconds });
+    },
+    onSuccess: () => toast({ title: 'Sponsor reel started from directory' }),
+    onError: (error: Error) => toast({ title: 'Failed to start sponsor reel', description: error.message, variant: 'destructive' }),
+  });
+
   const sendTeamPreviewMutation = useMutation({
     mutationFn: async ({ deviceId, pagingLines, pagingSeconds, gender, maxPages }: { deviceId: string; pagingLines: number; pagingSeconds?: number; gender: string; maxPages: number }) => {
       return apiRequest('POST', `/api/display-devices/${deviceId}/team-preview`, { pagingLines, pagingSeconds, gender, maxPages });
@@ -1849,59 +1857,104 @@ export default function DisplayControlPage() {
                         </div>
                       ) : displayMode[selectedDevice.id] === 'sponsors' ? (
                         <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
-                          <div className="space-y-2">
-                            <Label>Sponsor Image URLs (one per line)</Label>
-                            <textarea
-                              className="w-full h-32 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                              placeholder={"https://example.com/sponsor1.png\nhttps://example.com/sponsor2.png"}
-                              value={sponsorUrls[selectedDevice.id] || ''}
-                              onChange={(e) => setSponsorUrls(prev => ({ ...prev, [selectedDevice.id]: e.target.value }))}
-                              data-testid="textarea-sponsor-urls"
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              Enter one image URL per line. These can be logos, banners, or ads.
-                            </p>
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Rotation Interval (seconds per sponsor)</Label>
-                            <div className="flex items-center gap-2">
-                              <Select
-                                value={String(sponsorInterval[selectedDevice.id] || 8)}
-                                onValueChange={(value) => setSponsorInterval(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }))}
+                          {/* Directory-based sponsor reel (preferred when sponsorDir is set) */}
+                          {currentMeet?.sponsorDir ? (
+                            <>
+                              <div className="text-sm">
+                                <span className="font-medium">Sponsor Directory:</span>{' '}
+                                <span className="text-muted-foreground">{currentMeet.sponsorDir}</span>
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Rotation Interval (seconds per sponsor)</Label>
+                                <div className="flex items-center gap-2">
+                                  <Select
+                                    value={String(sponsorInterval[selectedDevice.id] || 8)}
+                                    onValueChange={(value) => setSponsorInterval(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }))}
+                                  >
+                                    <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                      {[3, 5, 8, 10, 15, 20, 30].map(n => (
+                                        <SelectItem key={n} value={String(n)}>{n}s</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <span className="text-sm text-muted-foreground">
+                                    seconds per sponsor
+                                  </span>
+                                </div>
+                              </div>
+                              <Button
+                                onClick={() => {
+                                  sendSponsorReelMutation.mutate({
+                                    deviceId: selectedDevice.id,
+                                    pagingSeconds: sponsorInterval[selectedDevice.id] || 8,
+                                  });
+                                }}
+                                disabled={sendSponsorReelMutation.isPending}
+                                className="w-full"
+                                data-testid="button-send-sponsor-reel"
                               >
-                                <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                  {[3, 5, 8, 10, 15, 20, 30].map(n => (
-                                    <SelectItem key={n} value={String(n)}>{n}s</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <span className="text-sm text-muted-foreground">
-                                seconds per sponsor
-                              </span>
-                            </div>
-                          </div>
-                          <Button
-                            onClick={() => {
-                              const urlText = sponsorUrls[selectedDevice.id] || '';
-                              const urls = urlText.split('\n').map(u => u.trim()).filter(u => u.length > 0);
-                              if (urls.length === 0) {
-                                toast({ title: 'No sponsors', description: 'Enter at least one image URL', variant: 'destructive' });
-                                return;
-                              }
-                              sendSponsorRotationMutation.mutate({
-                                deviceId: selectedDevice.id,
-                                sponsors: urls.map(url => ({ imageUrl: url })),
-                                interval: sponsorInterval[selectedDevice.id] || 8,
-                              });
-                            }}
-                            disabled={sendSponsorRotationMutation.isPending}
-                            className="w-full"
-                            data-testid="button-send-sponsors"
-                          >
-                            <Send className="w-4 h-4 mr-2" />
-                            Start Sponsor Rotation
-                          </Button>
+                                <Send className="w-4 h-4 mr-2" />
+                                Start Sponsor Reel
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <div className="space-y-2">
+                                <Label>Sponsor Image URLs (one per line)</Label>
+                                <textarea
+                                  className="w-full h-32 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                  placeholder={"https://example.com/sponsor1.png\nhttps://example.com/sponsor2.png"}
+                                  value={sponsorUrls[selectedDevice.id] || ''}
+                                  onChange={(e) => setSponsorUrls(prev => ({ ...prev, [selectedDevice.id]: e.target.value }))}
+                                  data-testid="textarea-sponsor-urls"
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                  Enter one image URL per line, or set a sponsor directory in Meet Setup.
+                                </p>
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Rotation Interval (seconds per sponsor)</Label>
+                                <div className="flex items-center gap-2">
+                                  <Select
+                                    value={String(sponsorInterval[selectedDevice.id] || 8)}
+                                    onValueChange={(value) => setSponsorInterval(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }))}
+                                  >
+                                    <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                      {[3, 5, 8, 10, 15, 20, 30].map(n => (
+                                        <SelectItem key={n} value={String(n)}>{n}s</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <span className="text-sm text-muted-foreground">
+                                    seconds per sponsor
+                                  </span>
+                                </div>
+                              </div>
+                              <Button
+                                onClick={() => {
+                                  const urlText = sponsorUrls[selectedDevice.id] || '';
+                                  const urls = urlText.split('\n').map(u => u.trim()).filter(u => u.length > 0);
+                                  if (urls.length === 0) {
+                                    toast({ title: 'No sponsors', description: 'Enter at least one image URL', variant: 'destructive' });
+                                    return;
+                                  }
+                                  sendSponsorRotationMutation.mutate({
+                                    deviceId: selectedDevice.id,
+                                    sponsors: urls.map(url => ({ imageUrl: url })),
+                                    interval: sponsorInterval[selectedDevice.id] || 8,
+                                  });
+                                }}
+                                disabled={sendSponsorRotationMutation.isPending}
+                                className="w-full"
+                                data-testid="button-send-sponsors"
+                              >
+                                <Send className="w-4 h-4 mr-2" />
+                                Start Sponsor Rotation
+                              </Button>
+                            </>
+                          )}
                         </div>
                       ) : displayMode[selectedDevice.id] === 'team_preview' ? (
                         <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
