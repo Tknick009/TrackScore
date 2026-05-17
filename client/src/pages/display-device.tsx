@@ -1873,9 +1873,13 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     }
 
     if (isSponsorRotation && liveEventData?.mode === 'sponsors') {
+      const sponsorEntries = (liveEventData.entries || []).map((e: any) => ({
+        url: e.url || e.imageUrl || e.logoUrl || '',
+        name: e.name || '',
+      }));
       return (
         <SponsorRotation
-          entries={liveEventData.entries || []}
+          entries={sponsorEntries}
           meetName={(liveEventData as any).meetName || meet?.name || ''}
           meetLogoUrl={(liveEventData as any).meetLogoUrl || meet?.logoUrl || null}
           meetLogoEffect={(meet as any)?.logoEffect}
