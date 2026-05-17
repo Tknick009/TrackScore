@@ -179,6 +179,7 @@ export class SQLiteStorage implements IStorage {
     try { this.db.prepare("ALTER TABLE display_devices ADD COLUMN content_mode TEXT DEFAULT 'lynx'").run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE meet_ingestion_settings ADD COLUMN headshot_directory TEXT').run(); } catch(e) {}
     try { this.db.prepare("ALTER TABLE meets ADD COLUMN logo_effect TEXT DEFAULT 'none'").run(); } catch(e) {}
+    try { this.db.prepare('ALTER TABLE meets ADD COLUMN sponsor_dir TEXT').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE record_books ADD COLUMN display_order INTEGER DEFAULT 99').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE record_books ADD COLUMN allow_multiple INTEGER DEFAULT 0').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE record_books ADD COLUMN meet_id TEXT').run(); } catch(e) {}
@@ -1137,6 +1138,7 @@ export class SQLiteStorage implements IStorage {
       accentColor: row.accent_color,
       textColor: row.text_color,
       logoEffect: row.logo_effect ?? 'none',
+      sponsorDir: row.sponsor_dir ?? null,
     };
   }
 
@@ -1762,6 +1764,7 @@ export class SQLiteStorage implements IStorage {
       accentColor: 'accent_color',
       textColor: 'text_color',
       logoEffect: 'logo_effect',
+      sponsorDir: 'sponsor_dir',
     };
 
     for (const [key, val] of Object.entries(data)) {
