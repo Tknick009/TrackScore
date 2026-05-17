@@ -779,7 +779,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
             const num = e.eventNumber || 0;
             return num >= parentEventNum * 1000 && num < (parentEventNum + 1) * 1000;
           });
-          const scoredSubEvents = subEvents.filter((e: any) => e.isScored || (e.hytekStatus && /^[AaDdSsCc23]$/.test(e.hytekStatus)));
+          const scoredSubEvents = subEvents.filter((e: any) => e.isScored || (e.hytekStatus && /^(done|scored|[AaDdSsCc23])$/i.test(e.hytekStatus)));
           const totalSubEvents = subEvents.length;
           if (totalSubEvents > 0) {
             roundLabel = `${scoredSubEvents.length} of ${totalSubEvents} Events Scored`;
