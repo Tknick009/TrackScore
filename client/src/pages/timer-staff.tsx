@@ -439,7 +439,16 @@ export default function TimerStaffPage() {
         if (statusFilter === "unlocked" && event.timingLocked) return false;
         return true;
       })
-      .sort((a, b) => a.eventNumber - b.eventNumber);
+      .sort((a, b) => {
+        // Sort by scheduled day, then time, then event number
+        const dateA = a.eventDate ? new Date(a.eventDate).getTime() : 0;
+        const dateB = b.eventDate ? new Date(b.eventDate).getTime() : 0;
+        if (dateA !== dateB) return dateA - dateB;
+        const timeA = a.eventTime || '';
+        const timeB = b.eventTime || '';
+        if (timeA !== timeB) return timeA.localeCompare(timeB);
+        return a.eventNumber - b.eventNumber;
+      });
   }, [events, search, genderFilter, statusFilter]);
 
   const stats = useMemo(() => {
