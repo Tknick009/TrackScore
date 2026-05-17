@@ -14,6 +14,18 @@ import { formatTimeValue } from "@shared/formatting";
 
 type ProtestStatus = null | "protest" | "ready_for_awards" | "awarded";
 
+function parseTimeToMinutes(timeStr: string | null | undefined): number {
+  if (!timeStr) return 9999;
+  const match = timeStr.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!match) return 9999;
+  let hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2], 10);
+  const period = match[3].toUpperCase();
+  if (period === 'AM' && hours === 12) hours = 0;
+  else if (period === 'PM' && hours !== 12) hours += 12;
+  return hours * 60 + minutes;
+}
+
 function escapeHtml(str: string): string {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
@@ -440,13 +452,13 @@ export default function TimerStaffPage() {
         return true;
       })
       .sort((a, b) => {
-        // Sort by scheduled day, then time, then event number
-        const dateA = a.eventDate ? new Date(a.eventDate).getTime() : 0;
-        const dateB = b.eventDate ? new Date(b.eventDate).getTime() : 0;
-        if (dateA !== dateB) return dateA - dateB;
-        const timeA = a.eventTime || '';
-        const timeB = b.eventTime || '';
-        if (timeA !== timeB) return timeA.localeCompare(timeB);
+        // Sort by scheduled day, then time (parsed to minutes), then event number
+        const dateA = a.eventDate ? String(a.eventDate) : '';
+        const dateB = b.eventDate ? String(b.eventDate) : '';
+        if (dateA !== dateB) return dateA.localeCompare(dateB);
+        const timeA = parseTimeToMinutes(a.eventTime);
+        const timeB = parseTimeToMinutes(b.eventTime);
+        if (timeA !== timeB) return timeA - timeB;
         return a.eventNumber - b.eventNumber;
       });
   }, [events, search, genderFilter, statusFilter]);
