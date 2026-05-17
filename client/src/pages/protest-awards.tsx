@@ -560,189 +560,147 @@ export default function ProtestAwardsPage({ standalone = false }: { standalone?:
 
           return (
             <Card key={event.id} className={!event.isScored && !isLocked ? "opacity-50" : ""}>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between gap-4">
-                  {/* Event info */}
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="text-lg font-mono font-bold text-muted-foreground w-12 text-right">
+              <CardContent className="p-4 space-y-3">
+                {/* Row 1: Event info + status badge */}
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="text-lg font-mono font-bold text-muted-foreground w-12 text-right flex-shrink-0 pt-0.5">
                       {event.eventNumber}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-base truncate">
+                    <div className="min-w-0">
+                      <div className="font-semibold text-base">
                         {eventDisplayName}
                       </div>
-                      <div className="text-xs text-muted-foreground">
+                      <div className="text-sm text-muted-foreground mt-0.5">
                         {getRoundLabel(event)} · {hasResults ? `${resultEntries.length} results` : "No results"}
                       </div>
-                      {/* Protest timer display */}
-                      {status === "protest" && event.protestPrintedAt && (
-                        <div className="text-xs mt-1 flex items-center gap-2 flex-wrap">
-                          <Clock className="h-3 w-3 text-muted-foreground" />
-                          <span>
-                            Started: {new Date(event.protestPrintedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}
-                          </span>
-                          {event.protestEndAt && (
-                            <>
-                              <span className="text-muted-foreground">·</span>
-                              {editingEndTimeEventId === event.id ? (
-                                <span className="flex items-center gap-1">
-                                  <span>Ends:</span>
-                                  <input
-                                    type="time"
-                                    className="border rounded px-1 py-0.5 text-xs w-24"
-                                    value={editEndTimeValue}
-                                    onChange={(e) => setEditEndTimeValue(e.target.value)}
-                                  />
-                                  <Button size="sm" variant="ghost" className="h-5 px-1 text-xs" onClick={() => {
-                                    if (editEndTimeValue) {
-                                      const today = new Date();
-                                      const [h, m] = editEndTimeValue.split(':').map(Number);
-                                      today.setHours(h, m, 0, 0);
-                                      updateProtestEndTime.mutate({ eventId: event.id, endAt: today.toISOString() });
-                                    }
-                                  }}>Save</Button>
-                                  <Button size="sm" variant="ghost" className="h-5 px-1 text-xs" onClick={() => setEditingEndTimeEventId(null)}>Cancel</Button>
-                                </span>
-                              ) : (
-                                <span className="flex items-center gap-1">
-                                  <span className={new Date(event.protestEndAt) < new Date() ? "text-red-600 font-semibold" : "font-semibold"}>
-                                    Ends: {new Date(event.protestEndAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}
-                                  </span>
-                                  <Button size="sm" variant="ghost" className="h-5 px-1" onClick={() => {
-                                    const d = new Date(event.protestEndAt!);
-                                    setEditEndTimeValue(`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`);
-                                    setEditingEndTimeEventId(event.id);
-                                  }}>
-                                    <Edit2 className="h-3 w-3" />
-                                  </Button>
-                                </span>
-                              )}
-                              <Button size="sm" variant="ghost" className="h-5 px-1 text-xs text-muted-foreground" onClick={() => {
-                                updateProtestEndTime.mutate({ eventId: event.id, reset: true });
-                              }}>
-                                <RotateCcw className="h-3 w-3 mr-0.5" />Reset
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      )}
-                      {event.protestNotes && (
-                        <div className="text-xs text-orange-700 bg-orange-50 rounded px-2 py-0.5 mt-1 inline-block">
-                          <MessageSquare className="h-3 w-3 inline mr-1" />{event.protestNotes}
-                        </div>
-                      )}
                     </div>
-                    {getStatusBadge(event)}
                   </div>
-
-                  {/* Action buttons — bigger */}
-                  <div className="flex items-center gap-2 ml-4 flex-shrink-0">
-                    {canAct && (
-                      <>
-                        {(!status || status === "protest") && (
-                          <Button
-                            size="lg"
-                            variant="outline"
-                            className="text-base px-5 py-3"
-                            onClick={() => onPrint(event, "protest")}
-                          >
-                            <Printer className="h-5 w-5 mr-2" />
-                            Protest Form
-                          </Button>
-                        )}
-
-                        {status === "protest" && !event.protestFiled && (
-                          <Button
-                            size="lg"
-                            variant="destructive"
-                            className="text-base px-5 py-3"
-                            onClick={() => updateProtestFiled.mutate({ eventId: event.id, filed: true })}
-                          >
-                            <AlertTriangle className="h-5 w-5 mr-2" />
-                            Protest Received
-                          </Button>
-                        )}
-
-                        {status === "protest" && event.protestFiled && (
-                          <Button
-                            size="lg"
-                            variant="outline"
-                            className="text-base px-5 py-3 border-green-600 text-green-700"
-                            onClick={() => updateProtestFiled.mutate({ eventId: event.id, filed: false })}
-                          >
-                            <ShieldCheck className="h-5 w-5 mr-2" />
-                            Resolve Protest
-                          </Button>
-                        )}
-
-                        {status === "protest" && !event.protestFiled && (
-                          <Button
-                            size="lg"
-                            className="bg-green-600 hover:bg-green-700 text-base px-5 py-3"
-                            onClick={() => updateProtestStatus.mutate({ eventId: event.id, status: "ready_for_awards" })}
-                          >
-                            <ShieldCheck className="h-5 w-5 mr-2" />
-                            Clear Protest
-                          </Button>
-                        )}
-
-                        {(status === "ready_for_awards" || status === "awarded") && !event.protestFiled && (
-                          <Button
-                            size="lg"
-                            variant="outline"
-                            className="text-base px-5 py-3"
-                            onClick={() => onPrint(event, "awards")}
-                          >
-                            <Award className="h-5 w-5 mr-2" />
-                            Awards Form
-                          </Button>
-                        )}
-
-                        {status === "ready_for_awards" && (
-                          <Button
-                            size="lg"
-                            className="text-base px-5 py-3"
-                            onClick={() => updateProtestStatus.mutate({ eventId: event.id, status: "awarded" })}
-                          >
-                            <Award className="h-5 w-5 mr-2" />
-                            Mark Awarded
-                          </Button>
-                        )}
-
-                        {/* Notes button */}
-                        <Button
-                          size="lg"
-                          variant="ghost"
-                          className="px-3 py-3"
-                          onClick={() => {
-                            setNotesEventId(event.id);
-                            setNotesText(event.protestNotes || "");
-                          }}
-                        >
-                          <MessageSquare className="h-5 w-5" />
-                        </Button>
-
-                        {status && (
-                          <Button
-                            size="lg"
-                            variant="ghost"
-                            className="px-3 py-3"
-                            onClick={() => updateProtestStatus.mutate({ eventId: event.id, status: null })}
-                          >
-                            <RotateCcw className="h-5 w-5" />
-                          </Button>
-                        )}
-                      </>
-                    )}
-
+                  <div className="flex-shrink-0 flex items-center gap-2">
                     {isLocked && (
-                      <div className="flex items-center gap-2 text-orange-600">
-                        <Lock className="h-5 w-5" />
+                      <div className="flex items-center gap-1.5 text-orange-600">
+                        <Lock className="h-4 w-4" />
                         <span className="text-sm font-medium">Locked</span>
                       </div>
                     )}
+                    {getStatusBadge(event)}
                   </div>
                 </div>
+
+                {/* Row 2: Protest timer (when active) */}
+                {status === "protest" && event.protestPrintedAt && (
+                  <div className="bg-gray-50 rounded-lg px-4 py-2 ml-[60px]">
+                    <div className="flex items-center gap-3 flex-wrap text-sm">
+                      <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <span className="text-muted-foreground">
+                        Started: <span className="text-foreground font-medium">{new Date(event.protestPrintedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}</span>
+                      </span>
+                      {event.protestEndAt && (
+                        <>
+                          <span className="text-muted-foreground">·</span>
+                          {editingEndTimeEventId === event.id ? (
+                            <span className="flex items-center gap-1.5">
+                              <span className="text-muted-foreground">Ends:</span>
+                              <input
+                                type="time"
+                                className="border rounded px-2 py-1 text-sm w-28"
+                                value={editEndTimeValue}
+                                onChange={(e) => setEditEndTimeValue(e.target.value)}
+                              />
+                              <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => {
+                                if (editEndTimeValue) {
+                                  const today = new Date();
+                                  const [h, m] = editEndTimeValue.split(':').map(Number);
+                                  today.setHours(h, m, 0, 0);
+                                  updateProtestEndTime.mutate({ eventId: event.id, endAt: today.toISOString() });
+                                }
+                              }}>Save</Button>
+                              <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setEditingEndTimeEventId(null)}>Cancel</Button>
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1.5">
+                              <span className="text-muted-foreground">Ends:</span>
+                              <span className={new Date(event.protestEndAt) < new Date() ? "text-red-600 font-semibold" : "font-medium"}>
+                                {new Date(event.protestEndAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}
+                              </span>
+                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => {
+                                const d = new Date(event.protestEndAt!);
+                                setEditEndTimeValue(`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`);
+                                setEditingEndTimeEventId(event.id);
+                              }}>
+                                <Edit2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </span>
+                          )}
+                          <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => {
+                            updateProtestEndTime.mutate({ eventId: event.id, reset: true });
+                          }}>
+                            <RotateCcw className="h-3.5 w-3.5 mr-1" />Reset
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Notes display */}
+                {event.protestNotes && (
+                  <div className="ml-[60px] text-sm text-orange-700 bg-orange-50 border border-orange-200 rounded-lg px-3 py-1.5 inline-flex items-center gap-1.5">
+                    <MessageSquare className="h-3.5 w-3.5 flex-shrink-0" />{event.protestNotes}
+                  </div>
+                )}
+
+                {/* Row 3: Action buttons */}
+                {canAct && (
+                  <div className="flex items-center gap-2 flex-wrap ml-[60px] pt-1 border-t border-gray-100">
+                    {(!status || status === "protest") && (
+                      <Button size="default" variant="outline" onClick={() => onPrint(event, "protest")}>
+                        <Printer className="h-4 w-4 mr-1.5" />Protest Form
+                      </Button>
+                    )}
+
+                    {status === "protest" && !event.protestFiled && (
+                      <Button size="default" variant="destructive" onClick={() => updateProtestFiled.mutate({ eventId: event.id, filed: true })}>
+                        <AlertTriangle className="h-4 w-4 mr-1.5" />Protest Received
+                      </Button>
+                    )}
+
+                    {status === "protest" && event.protestFiled && (
+                      <Button size="default" variant="outline" className="border-green-600 text-green-700" onClick={() => updateProtestFiled.mutate({ eventId: event.id, filed: false })}>
+                        <ShieldCheck className="h-4 w-4 mr-1.5" />Resolve Protest
+                      </Button>
+                    )}
+
+                    {status === "protest" && !event.protestFiled && (
+                      <Button size="default" className="bg-green-600 hover:bg-green-700" onClick={() => updateProtestStatus.mutate({ eventId: event.id, status: "ready_for_awards" })}>
+                        <ShieldCheck className="h-4 w-4 mr-1.5" />Clear Protest
+                      </Button>
+                    )}
+
+                    {(status === "ready_for_awards" || status === "awarded") && !event.protestFiled && (
+                      <Button size="default" variant="outline" onClick={() => onPrint(event, "awards")}>
+                        <Award className="h-4 w-4 mr-1.5" />Awards Form
+                      </Button>
+                    )}
+
+                    {status === "ready_for_awards" && (
+                      <Button size="default" onClick={() => updateProtestStatus.mutate({ eventId: event.id, status: "awarded" })}>
+                        <Award className="h-4 w-4 mr-1.5" />Mark Awarded
+                      </Button>
+                    )}
+
+                    <div className="flex items-center gap-1 ml-auto">
+                      <Button size="default" variant="ghost" onClick={() => { setNotesEventId(event.id); setNotesText(event.protestNotes || ""); }}>
+                        <MessageSquare className="h-4 w-4" />
+                      </Button>
+                      {status && (
+                        <Button size="default" variant="ghost" onClick={() => updateProtestStatus.mutate({ eventId: event.id, status: null })}>
+                          <RotateCcw className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           );
