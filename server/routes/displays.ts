@@ -1982,7 +1982,13 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       try {
         const allEvents = await storage.getEventsByMeetId(device.meetId);
         const filtered = allEvents.filter((e: any) => {
-          if (!e.isScored) return false;
+          // Only count events that are actually team-scored (hytekStatus 'scored'),
+          // not just 'done' (results in but not team-scored yet)
+          const isTeamScored = e.hytekStatus === 'scored' || (!e.hytekStatus && e.isScored);
+          if (!isTeamScored) return false;
+          // Skip multi-event sub-events (e.g. 43001) — only count the parent
+          const num = e.eventNumber || 0;
+          if (num >= 1000) return false;
           const g = (e.gender || '').toUpperCase().charAt(0);
           return selectedGender === 'M' ? (g === 'M' || g === '') : (g === 'W' || g === 'F');
         });
