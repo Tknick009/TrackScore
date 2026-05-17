@@ -55,8 +55,8 @@ function formatMark(mark: number | null | undefined, resultType: string): string
   return mark.toString();
 }
 
-function computeQualifierTags(event: EventWithEntries): Map<string, string> {
-  const tags = new Map<string, string>();
+function computeQualifierTags(event: EventWithEntries): Map<string, { tag: string; heatPlace: number }> {
+  const tags = new Map<string, { tag: string; heatPlace: number }>();
   if (!event.numRounds || event.numRounds <= 1) return tags;
   if (!event.advanceByPlace && !event.advanceByTime) return tags;
 
@@ -74,13 +74,13 @@ function computeQualifierTags(event: EventWithEntries): Map<string, string> {
     heatGroups.get(heat)!.push({ id: entry.id, mark: entry.preliminaryMark });
   }
 
-  // Sort each heat by mark and assign Q to top N
+  // Sort each heat by mark and assign Q to top N, tracking per-heat placement
   const nonQualified: { id: string; mark: number }[] = [];
   for (const [, heatEntries] of heatGroups) {
     heatEntries.sort((a, b) => lowerIsBetter ? a.mark - b.mark : b.mark - a.mark);
     for (let i = 0; i < heatEntries.length; i++) {
       if (event.advanceByPlace && i < event.advanceByPlace) {
-        tags.set(heatEntries[i].id, "Q");
+        tags.set(heatEntries[i].id, { tag: "Q", heatPlace: i });
       } else {
         nonQualified.push(heatEntries[i]);
       }
@@ -92,7 +92,7 @@ function computeQualifierTags(event: EventWithEntries): Map<string, string> {
     nonQualified.sort((a, b) => lowerIsBetter ? a.mark - b.mark : b.mark - a.mark);
     const count = Math.min(event.advanceByTime, nonQualified.length);
     for (let i = 0; i < count; i++) {
-      tags.set(nonQualified[i].id, "q");
+      tags.set(nonQualified[i].id, { tag: "q", heatPlace: 0 });
     }
   }
 
@@ -128,6 +128,7 @@ function getResultEntries(event: EventWithEntries): Array<{
           lane: entry.finalLane,
           wind: entry.finalWind,
           qualTag: null,
+          heatPlace: 999,
           resultNote: entry.finalNote || entry.notes || null,
         };
       } else {
@@ -138,7 +139,8 @@ function getResultEntries(event: EventWithEntries): Array<{
           heat: entry.preliminaryHeat,
           lane: entry.preliminaryLane,
           wind: entry.preliminaryWind,
-          qualTag: qualTags.get(entry.id) || null,
+          qualTag: qualTags.get(entry.id)?.tag || null,
+          heatPlace: qualTags.get(entry.id)?.heatPlace ?? 999,
           resultNote: entry.preliminaryNote || entry.notes || null,
         };
       }
@@ -148,13 +150,20 @@ function getResultEntries(event: EventWithEntries): Array<{
   if (isFinal) {
     mapped.sort((a, b) => (a.place ?? 999) - (b.place ?? 999));
   } else {
-    // Prelims: Q's first (by mark), then q's (by mark), then rest (by mark)
+    // Prelims: match HyTek ordering
+    // Q's first, grouped by heat placement tier (all 1st-in-heat by time, then all 2nd-in-heat, etc.)
+    // then q's by time, then rest by time
     const qualRank = (tag: string | null) => tag === "Q" ? 0 : tag === "q" ? 1 : 2;
     const resultType = event.entries[0]?.resultType;
     const lowerIsBetter = resultType === "time";
     mapped.sort((a, b) => {
       const rankDiff = qualRank(a.qualTag) - qualRank(b.qualTag);
       if (rankDiff !== 0) return rankDiff;
+      // For Q qualifiers, sort by heat placement tier first (1st-in-heat before 2nd-in-heat)
+      if (a.qualTag === "Q" && b.qualTag === "Q") {
+        const hpDiff = (a.heatPlace ?? 999) - (b.heatPlace ?? 999);
+        if (hpDiff !== 0) return hpDiff;
+      }
       if (lowerIsBetter) return (a.mark ?? 999999) - (b.mark ?? 999999);
       return (b.mark ?? -999999) - (a.mark ?? -999999);
     });
