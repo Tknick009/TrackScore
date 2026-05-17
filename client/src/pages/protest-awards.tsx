@@ -554,6 +554,7 @@ export default function ProtestAwardsPage({ standalone = false }: { standalone?:
           const hasResults = resultEntries.length > 0;
           const isLocked = event.timingLocked;
           const canAct = event.isScored && hasResults && !isLocked;
+          const isFinal = !event.numRounds || event.numRounds <= 1;
 
           const genderLabel = event.gender === "M" || event.gender === "m" ? "Men's" : "Women's";
           const eventDisplayName = event.name.startsWith(genderLabel) ? event.name : `${genderLabel} ${event.name}`;
@@ -672,18 +673,18 @@ export default function ProtestAwardsPage({ standalone = false }: { standalone?:
                     )}
 
                     {status === "protest" && !event.protestFiled && (
-                      <Button size="default" className="bg-green-600 hover:bg-green-700" onClick={() => updateProtestStatus.mutate({ eventId: event.id, status: "ready_for_awards" })}>
+                      <Button size="default" className="bg-green-600 hover:bg-green-700" onClick={() => updateProtestStatus.mutate({ eventId: event.id, status: isFinal ? "ready_for_awards" : null })}>
                         <ShieldCheck className="h-4 w-4 mr-1.5" />Clear Protest
                       </Button>
                     )}
 
-                    {(status === "ready_for_awards" || status === "awarded") && !event.protestFiled && (
+                    {isFinal && (status === "ready_for_awards" || status === "awarded") && !event.protestFiled && (
                       <Button size="default" variant="outline" onClick={() => onPrint(event, "awards")}>
                         <Award className="h-4 w-4 mr-1.5" />Awards Form
                       </Button>
                     )}
 
-                    {status === "ready_for_awards" && (
+                    {isFinal && status === "ready_for_awards" && (
                       <Button size="default" onClick={() => updateProtestStatus.mutate({ eventId: event.id, status: "awarded" })}>
                         <Award className="h-4 w-4 mr-1.5" />Mark Awarded
                       </Button>
