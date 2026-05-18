@@ -84,8 +84,8 @@ export function MultiFieldBoard({
     rowName: cols === 1 ? "3.2cqw" : cols === 2 ? "2.4cqw" : "1.9cqw",
     rowMark: cols === 1 ? "3.8cqw" : cols === 2 ? "2.8cqw" : "2.2cqw",
     logo: cols === 1 ? "4.5cqw" : cols === 2 ? "3.5cqw" : "2.8cqw",
-    headshot: cols === 1 ? "22cqh" : cols === 2 ? "20cqh" : "18cqh",
-    headshotW: cols === 1 ? "14cqw" : cols === 2 ? "11cqw" : "9cqw",
+    headshot: cols === 1 ? "32cqh" : cols === 2 ? "30cqh" : "28cqh",
+    headshotW: cols === 1 ? "18cqw" : cols === 2 ? "14cqw" : "11cqw",
     spotLogo: cols === 1 ? "5.5cqw" : cols === 2 ? "4.5cqw" : "3.5cqw",
     placeBadge: cols === 1 ? "7cqw" : cols === 2 ? "5.5cqw" : "4.5cqw",
     placeBadgeFont: cols === 1 ? "4cqw" : cols === 2 ? "3cqw" : "2.5cqw",
@@ -144,40 +144,39 @@ export function MultiFieldBoard({
           >
             {evt.currentAthlete ? (
               <>
-                {/* Headshot */}
-                <div
-                  className="shrink-0 rounded-lg overflow-hidden bg-gray-800 flex items-center justify-center"
-                  style={{
-                    width: fs.headshotW,
-                    height: "100%",
-                    border: `3px solid ${meetColor}`,
-                  }}
-                >
-                  {evt.currentAthlete.headshotUrl ? (
-                    <img src={evt.currentAthlete.headshotUrl} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full bg-gray-700 flex items-center justify-center">
-                      <span className="text-gray-500" style={{ fontSize: "4cqw" }}>?</span>
-                    </div>
+                {/* Headshot + team logo stacked */}
+                <div className="shrink-0 flex flex-col items-center" style={{ gap: "0.5cqh" }}>
+                  <div
+                    className="rounded-lg overflow-hidden bg-gray-800 flex items-center justify-center"
+                    style={{
+                      width: fs.headshotW,
+                      height: fs.headshot,
+                      border: `3px solid ${meetColor}`,
+                    }}
+                  >
+                    {evt.currentAthlete.headshotUrl ? (
+                      <img src={evt.currentAthlete.headshotUrl} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full bg-gray-700 flex items-center justify-center">
+                        <span className="text-gray-500" style={{ fontSize: "4cqw" }}>?</span>
+                      </div>
+                    )}
+                  </div>
+                  {evt.currentAthlete.teamLogoUrl && (
+                    <img
+                      src={evt.currentAthlete.teamLogoUrl}
+                      alt=""
+                      style={{ height: fs.spotLogo, width: "auto", objectFit: "contain" }}
+                    />
                   )}
                 </div>
 
                 {/* Info block */}
                 <div className="flex-1 min-w-0 flex flex-col justify-center" style={{ gap: "0.3cqh" }}>
-                  {/* Name + team logo */}
-                  <div className="flex items-center" style={{ gap: "1cqw" }}>
-                    <span className="font-bold text-white truncate uppercase" style={{ fontSize: fs.spotName }}>
-                      {evt.currentAthlete.firstName.charAt(0)}. {evt.currentAthlete.lastName}
-                    </span>
-                    {evt.currentAthlete.teamLogoUrl && (
-                      <img
-                        src={evt.currentAthlete.teamLogoUrl}
-                        alt=""
-                        className="shrink-0"
-                        style={{ height: fs.spotLogo, width: "auto", objectFit: "contain" }}
-                      />
-                    )}
-                  </div>
+                  {/* Name */}
+                  <span className="font-bold text-white truncate uppercase" style={{ fontSize: fs.spotName }}>
+                    {evt.currentAthlete.firstName.charAt(0)}. {evt.currentAthlete.lastName}
+                  </span>
 
                   {/* School */}
                   <span className="text-gray-300 truncate" style={{ fontSize: fs.spotTeam }}>
