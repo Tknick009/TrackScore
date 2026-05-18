@@ -3,7 +3,7 @@ import type { WSMessage } from "@shared/schema";
 import type multer from "multer";
 import type { FileStorage } from "./file-storage";
 
-export type ContentMode = 'lynx' | 'hytek' | 'team_scores' | 'field' | 'winners' | 'record';
+export type ContentMode = 'lynx' | 'hytek' | 'team_scores' | 'field' | 'winners' | 'record' | 'multi_field' | 'meet_schedule' | 'meet_records' | 'sponsors' | 'team_preview';
 
 export interface ConnectedDisplayDevice {
   ws: WebSocket;

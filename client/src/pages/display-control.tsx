@@ -94,7 +94,7 @@ interface DisplayDevice {
 }
 
 // Display mode types
-type DisplayMode = 'finishlynx' | 'hytek' | 'teamscores' | 'field' | 'winners' | 'record' | 'meet_schedule' | 'meet_records' | 'sponsors' | 'team_preview' | 'broadcast';
+type DisplayMode = 'finishlynx' | 'hytek' | 'teamscores' | 'field' | 'winners' | 'record' | 'meet_schedule' | 'meet_records' | 'sponsors' | 'team_preview' | 'broadcast' | 'multi_field';
 
 export default function DisplayControlPage() {
   const { currentMeetId, currentMeet } = useMeet();
@@ -125,6 +125,8 @@ export default function DisplayControlPage() {
   const [sponsorInterval, setSponsorInterval] = useState<Record<string, number>>({});
   const [teamPreviewGender, setTeamPreviewGender] = useState<Record<string, 'M' | 'W'>>({});
   const [selectedRecordBook, setSelectedRecordBook] = useState<Record<string, string>>({});
+  const [multiFieldEvents, setMultiFieldEvents] = useState<Record<string, number[]>>({}); // deviceId -> selected event numbers (up to 3)
+  const [multiFieldSearch, setMultiFieldSearch] = useState('');
 
   const baseUrl = typeof window !== 'undefined' 
     ? `${window.location.protocol}//${window.location.host}` 
@@ -505,6 +507,14 @@ export default function DisplayControlPage() {
     },
     onSuccess: () => toast({ title: 'Sponsor reel started from directory' }),
     onError: (error: Error) => toast({ title: 'Failed to start sponsor reel', description: error.message, variant: 'destructive' }),
+  });
+
+  const sendMultiFieldBoardMutation = useMutation({
+    mutationFn: async ({ deviceId, eventNumbers, maxRows }: { deviceId: string; eventNumbers: number[]; maxRows?: number }) => {
+      return apiRequest('POST', `/api/display-devices/${deviceId}/multi-field-board`, { eventNumbers, maxRows });
+    },
+    onSuccess: () => toast({ title: 'Multi-Field Board sent to display' }),
+    onError: (error: Error) => toast({ title: 'Failed to send Multi-Field Board', description: error.message, variant: 'destructive' }),
   });
 
   const sendTeamPreviewMutation = useMutation({
@@ -1012,6 +1022,32 @@ export default function DisplayControlPage() {
                             Results from Athletic Field App
                           </p>
                           {displayMode[selectedDevice.id] === 'field' && !autoModeStatus?.autoMode && (
+                            <Badge variant="default" className="mt-2">Active</Badge>
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDisplayMode(prev => ({ ...prev, [selectedDevice.id]: 'multi_field' }));
+                            toggleAutoModeMutation.mutate({ deviceId: selectedDevice.id, enabled: false });
+                            apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}/content-mode`, { contentMode: 'multi_field' });
+                          }}
+                          className={`p-4 rounded-lg border-2 transition-all text-left ${
+                            displayMode[selectedDevice.id] === 'multi_field' && !autoModeStatus?.autoMode
+                              ? 'border-primary bg-primary/10'
+                              : 'border-border hover-elevate'
+                          }`}
+                          data-testid="tile-multi-field"
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <Layout className="w-5 h-5 text-emerald-500" />
+                            <span className="font-medium">Multi-Field Board</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            1-3 field events side-by-side with LFF standings
+                          </p>
+                          {displayMode[selectedDevice.id] === 'multi_field' && !autoModeStatus?.autoMode && (
                             <Badge variant="default" className="mt-2">Active</Badge>
                           )}
                         </button>
@@ -2147,6 +2183,117 @@ export default function DisplayControlPage() {
                               </div>
                             </div>
                           </div>
+                        </div>
+                      ) : displayMode[selectedDevice.id] === 'multi_field' ? (
+                        <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
+                          <div className="space-y-2">
+                            <Label>Select Field Events (up to 3)</Label>
+                            <div className="text-xs text-muted-foreground">
+                              Choose 1-3 field events. Standings are parsed from LFF files and auto-refresh when files change.
+                            </div>
+                            <div className="relative">
+                              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                              <Input
+                                placeholder="Search field events..."
+                                value={multiFieldSearch}
+                                onChange={(e) => setMultiFieldSearch(e.target.value)}
+                                className="pl-8"
+                                data-testid="input-multi-field-search"
+                              />
+                            </div>
+                            <ScrollArea className="h-48 rounded-md border">
+                              <div className="p-1">
+                                {(events || [])
+                                  .filter((e: any) => {
+                                    const isField = e.eventType === 'field' || /throw|put|jump|vault|javelin|discus|hammer/i.test(e.name || '');
+                                    const matchesSearch = !multiFieldSearch || (e.name || '').toLowerCase().includes(multiFieldSearch.toLowerCase());
+                                    return isField && matchesSearch;
+                                  })
+                                  .sort((a: any, b: any) => (a.eventNumber || 0) - (b.eventNumber || 0))
+                                  .map((e: any) => {
+                                    const selectedEvents = multiFieldEvents[selectedDevice.id] || [];
+                                    const isSelected = selectedEvents.includes(e.eventNumber);
+                                    const canSelect = selectedEvents.length < 3 || isSelected;
+                                    return (
+                                      <button
+                                        key={e.eventNumber}
+                                        onClick={() => {
+                                          setMultiFieldEvents(prev => {
+                                            const current = prev[selectedDevice.id] || [];
+                                            if (isSelected) {
+                                              return { ...prev, [selectedDevice.id]: current.filter(n => n !== e.eventNumber) };
+                                            } else if (current.length < 3) {
+                                              return { ...prev, [selectedDevice.id]: [...current, e.eventNumber] };
+                                            }
+                                            return prev;
+                                          });
+                                        }}
+                                        disabled={!canSelect}
+                                        className={`flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded-md cursor-pointer ${
+                                          isSelected ? 'bg-emerald-500/20 border border-emerald-500/40' : canSelect ? 'hover-elevate' : 'opacity-40'
+                                        }`}
+                                        data-testid={`button-multi-field-${e.eventNumber}`}
+                                      >
+                                        <span className="text-muted-foreground shrink-0 w-10 text-xs">#{e.eventNumber}</span>
+                                        <span className={`truncate ${isSelected ? 'font-semibold text-emerald-600 dark:text-emerald-400' : ''}`}>
+                                          {e.name}
+                                        </span>
+                                        {isSelected && (
+                                          <Badge variant="default" className="ml-auto shrink-0 bg-emerald-600">
+                                            {selectedEvents.indexOf(e.eventNumber) + 1}
+                                          </Badge>
+                                        )}
+                                      </button>
+                                    );
+                                  })}
+                              </div>
+                            </ScrollArea>
+                          </div>
+
+                          {/* Selected events summary */}
+                          {(multiFieldEvents[selectedDevice.id] || []).length > 0 && (
+                            <div className="flex flex-wrap gap-2">
+                              {(multiFieldEvents[selectedDevice.id] || []).map((evtNum, idx) => {
+                                const evt = (events || []).find((e: any) => e.eventNumber === evtNum);
+                                return (
+                                  <Badge key={evtNum} variant="secondary" className="flex items-center gap-1">
+                                    <span className="font-bold">{idx + 1}.</span>
+                                    <span>{evt?.name || `Event ${evtNum}`}</span>
+                                    <button
+                                      onClick={() => {
+                                        setMultiFieldEvents(prev => ({
+                                          ...prev,
+                                          [selectedDevice.id]: (prev[selectedDevice.id] || []).filter(n => n !== evtNum),
+                                        }));
+                                      }}
+                                      className="ml-1 text-muted-foreground hover:text-destructive"
+                                    >
+                                      ×
+                                    </button>
+                                  </Badge>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          <Button
+                            onClick={() => {
+                              const selectedEvents = multiFieldEvents[selectedDevice.id] || [];
+                              if (selectedEvents.length === 0) {
+                                toast({ title: 'Select at least 1 field event', variant: 'destructive' });
+                                return;
+                              }
+                              sendMultiFieldBoardMutation.mutate({
+                                deviceId: selectedDevice.id,
+                                eventNumbers: selectedEvents,
+                              });
+                            }}
+                            disabled={sendMultiFieldBoardMutation.isPending || (multiFieldEvents[selectedDevice.id] || []).length === 0}
+                            className="w-full"
+                          >
+                            <Send className="w-4 h-4 mr-2" />
+                            Send Multi-Field Board ({(multiFieldEvents[selectedDevice.id] || []).length} event{(multiFieldEvents[selectedDevice.id] || []).length !== 1 ? 's' : ''})
+                          </Button>
                         </div>
                       ) : null}
                     </>

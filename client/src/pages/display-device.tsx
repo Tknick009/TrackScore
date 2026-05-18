@@ -230,6 +230,7 @@ import {
   MeetScheduleBoard,
   MeetRecordsBoard,
   SponsorRotation,
+  MultiFieldBoard,
 } from "@/components/display/templates";
 import { BroadcastDisplay } from "@/components/display/templates/BroadcastDisplay";
 import { 
@@ -1836,6 +1837,22 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     const isMeetSchedule = templateId === 'meet-schedule';
     const isMeetRecords = templateId === 'meet-records';
     const isSponsorRotation = templateId === 'sponsor-rotation';
+    const isMultiFieldBoard = templateId === 'multi-field-board';
+
+    // Multi-Field Board
+    if (isMultiFieldBoard && liveEventData?.mode === 'multi_field') {
+      return (
+        <MultiFieldBoard
+          events={(liveEventData as any).events || []}
+          meetName={(liveEventData as any).meetName || meet?.name || ''}
+          meetLogoUrl={(liveEventData as any).meetLogoUrl || meet?.logoUrl || null}
+          meetLogoEffect={(meet as any)?.logoEffect}
+          primaryColor={(liveEventData as any).primaryColor || meet?.primaryColor || undefined}
+          secondaryColor={(liveEventData as any).secondaryColor || meet?.secondaryColor || undefined}
+          maxRows={(liveEventData as any).maxRows || 6}
+        />
+      );
+    }
 
     // Pre-meet display modes
     if (isMeetSchedule && liveEventData?.mode === 'meet_schedule') {
@@ -2475,7 +2492,8 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     (template === 'winners-board' && liveEventData?.mode === 'winners') ||
     (template === 'meet-schedule' && liveEventData?.mode === 'meet_schedule') ||
     (template === 'meet-records' && liveEventData?.mode === 'meet_records') ||
-    (template === 'sponsor-rotation' && liveEventData?.mode === 'sponsors');
+    (template === 'sponsor-rotation' && liveEventData?.mode === 'sponsors') ||
+    (template === 'multi-field-board' && liveEventData?.mode === 'multi_field');
 
   // Display scale: set CSS custom property for text/logo condensing only (backgrounds stay full-size)
   const scaleClass = displayScale !== 100 ? 'display-scale-active' : '';

@@ -21,6 +21,7 @@ import {
 } from "../field-standings";
 import type { RouteContext } from "../route-context";
 import { getTotalHeatsFromCache } from '../track-heat-watcher';
+import { ingestionManager } from '../ingestion-manager';
 
 const overlayUpdateSchema = z.object({
   overlayType: z.enum(['lower-third', 'scorebug', 'athlete-spotlight', 'team-standings']),
@@ -2988,6 +2989,372 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       res.status(500).json({ error: error.message });
     }
   });
+
+  // ===== MULTI-FIELD BOARD =====
+  // Send multiple field events (1-3) to a display as a side-by-side board
+  // Parses LFF files from the Lynx directory for each event, enriches with team logos + headshots
+  app.post("/api/display-devices/:id/multi-field-board", async (req, res) => {
+    try {
+      const { eventNumbers, maxRows } = req.body;
+      const deviceId = req.params.id;
+
+      if (!eventNumbers || !Array.isArray(eventNumbers) || eventNumbers.length === 0) {
+        return res.status(400).json({ error: "eventNumbers array is required (1-3 event numbers)" });
+      }
+      if (eventNumbers.length > 3) {
+        return res.status(400).json({ error: "Maximum 3 events for Multi-Field Board" });
+      }
+
+      const device = await storage.getDisplayDevice(deviceId);
+      if (!device) {
+        return res.status(404).json({ error: "Display device not found" });
+      }
+      if (!device.meetId) {
+        return res.status(400).json({ error: "Device not assigned to a meet" });
+      }
+
+      const meetId = device.meetId;
+      const meet = await storage.getMeet(meetId);
+      const ingestionSettings = await storage.getIngestionSettings(meetId);
+      if (!ingestionSettings?.lynxFilesDirectory) {
+        return res.status(400).json({ error: "No Lynx files directory configured. Set it in Ingestion Settings." });
+      }
+      const lynxDir = ingestionSettings.lynxFilesDirectory;
+      if (!fs.existsSync(lynxDir)) {
+        return res.status(400).json({ error: `Lynx files directory not found: ${lynxDir}` });
+      }
+
+      // Fetch team logos and athlete photos for enrichment
+      const teamLogoMap = new Map<string, string>();
+      const headshotMap = new Map<string, string>();
+      const athleteByBib = new Map<number, any>();
+      const teamByName = new Map<string, any>();
+
+      try {
+        const teamLogos = await storage.getTeamLogosByMeet(meetId);
+        teamLogos.forEach(logo => { teamLogoMap.set(logo.teamId, fileStorage.publicUrlForKey(logo.storageKey)); });
+      } catch (err) { console.warn('[Multi-Field] Failed to fetch team logos:', err); }
+      try {
+        const photos = await storage.getAthletePhotosByMeet(meetId);
+        photos.forEach(photo => { headshotMap.set(photo.athleteId, fileStorage.publicUrlForKey(photo.storageKey)); });
+      } catch (err) { console.warn('[Multi-Field] Failed to fetch athlete photos:', err); }
+
+      // Load all athletes for bib number lookup + team lookup
+      const allEvents = await storage.getEventsByMeetId(meetId);
+      const allTeams = await storage.getTeamsByMeetId(meetId);
+      allTeams.forEach(t => {
+        if (t.name) teamByName.set(t.name, t);
+        if (t.shortName) teamByName.set(t.shortName, t);
+        if (t.abbreviation) teamByName.set(t.abbreviation, t);
+      });
+
+      // Pre-load all athletes for bib → athlete ID mapping (for headshots)
+      const allAthletes = await storage.getAthletesByMeetId(meetId);
+      const athleteByBibStr = new Map<string, any>();
+      allAthletes.forEach(a => {
+        const bib = (a as any).bibNumber || (a as any).athleteNumber?.toString();
+        if (bib) athleteByBibStr.set(String(bib), a);
+      });
+
+      // Build per-event data
+      const eventsData: any[] = [];
+
+      // Helper: resolve team logo from LFF team name
+      const resolveTeamLogo = (teamName: string | null): string | null => {
+        if (!teamName) return null;
+        const team = teamByName.get(teamName);
+        if (team) {
+          const logo = teamLogoMap.get(team.id);
+          if (logo) return logo;
+        }
+        const safeName = (teamName || '').replace(/[\/\\]/g, '');
+        const ncaaPath = pathModule.join(process.cwd(), 'public', 'logos', 'NCAA', `${safeName}.png`);
+        const resolvedNcaaPath = pathModule.resolve(ncaaPath);
+        const resolvedNcaaDir = pathModule.resolve(pathModule.join(process.cwd(), 'public', 'logos', 'NCAA'));
+        if (resolvedNcaaPath.startsWith(resolvedNcaaDir) && fs.existsSync(ncaaPath)) {
+          return `/logos/NCAA/${encodeURIComponent(safeName)}.png`;
+        }
+        return null;
+      };
+
+      // Helper: resolve headshot from bib number
+      const resolveHeadshot = (bibNumber: number): string | null => {
+        const athlete = athleteByBibStr.get(String(bibNumber));
+        return athlete ? (headshotMap.get(athlete.id) || null) : null;
+      };
+
+      for (const evtNum of eventNumbers) {
+        const standings = await mergeFlightsForEvent(lynxDir, evtNum);
+        const dbEvent = allEvents.find((e: any) => e.eventNumber === evtNum);
+
+        if (!standings || standings.athletes.length === 0) {
+          eventsData.push({
+            eventNumber: evtNum,
+            eventName: dbEvent?.name || `Event ${evtNum}`,
+            eventType: dbEvent?.eventType || '',
+            isVertical: false,
+            currentAthlete: null,
+            standings: [],
+          });
+          continue;
+        }
+
+        // Build enriched standings
+        const enrichedStandings = [];
+        for (const a of standings.athletes) {
+          const teamLogo = resolveTeamLogo(a.team);
+          const headshot = resolveHeadshot(a.bibNumber);
+          enrichedStandings.push({
+            place: a.overallPlace || null,
+            bibNumber: a.bibNumber,
+            firstName: a.firstName,
+            lastName: a.lastName,
+            team: a.team || '',
+            teamLogoUrl: teamLogo,
+            headshotUrl: headshot,
+            bestMark: a.bestMarkFormatted || '',
+            isDNS: a.isDNS,
+          });
+        }
+
+        // The first non-DNS athlete with attempts is the "current" spotlight (approximate)
+        // In real-time mode, this would come from the field event session
+        const topAthlete = enrichedStandings.find(e => !e.isDNS);
+
+        // Build status line based on event type
+        let statusLine = '';
+        if (standings.isVerticalEvent && standings.heights && standings.heights.length > 0) {
+          const lastHeight = standings.heights[standings.heights.length - 1];
+          statusLine = `Height: ${lastHeight.toFixed(2)}`;
+        } else {
+          // Count total valid attempts for the flight
+          const totalAttempts = standings.athletes.reduce((sum, a) => sum + a.attempts.filter(att => att.mark !== null || att.isFoul).length, 0);
+          statusLine = totalAttempts > 0 ? `Attempt #${Math.min(6, Math.ceil(totalAttempts / Math.max(1, standings.athletes.length)))}` : '';
+        }
+
+        eventsData.push({
+          eventNumber: evtNum,
+          eventName: standings.eventName || dbEvent?.name || `Event ${evtNum}`,
+          eventType: dbEvent?.eventType || (standings.isVerticalEvent ? 'vertical' : 'horizontal'),
+          isVertical: standings.isVerticalEvent,
+          currentAthlete: topAthlete ? {
+            firstName: topAthlete.firstName,
+            lastName: topAthlete.lastName,
+            team: topAthlete.team,
+            teamLogoUrl: topAthlete.teamLogoUrl,
+            headshotUrl: topAthlete.headshotUrl,
+            place: topAthlete.place,
+            statusLine,
+          } : null,
+          standings: enrichedStandings,
+        });
+      }
+
+      // Get meet logo URL
+      let meetLogoUrl: string | null = null;
+      if (meet?.logoUrl) {
+        meetLogoUrl = meet.logoUrl.startsWith('http') ? meet.logoUrl
+          : meet.logoUrl.startsWith('uploads/') ? fileStorage.publicUrlForKey(meet.logoUrl)
+          : meet.logoUrl;
+      }
+
+      // Send to display
+      const connectedDevice = connectedDisplayDevices.get(deviceId);
+      if (connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {
+        connectedDevice.contentMode = 'multi_field';
+        // Store the selected event numbers so we can re-push on LFF changes
+        (connectedDevice as any).multiFieldEvents = eventNumbers;
+        storage.updateDisplayContentMode(deviceId, 'multi_field').catch(err =>
+          console.error('[Multi-Field] Failed to persist contentMode:', err)
+        );
+
+        connectedDevice.ws.send(JSON.stringify({
+          type: 'display_command',
+          template: 'multi-field-board',
+          liveEventData: {
+            mode: 'multi_field',
+            events: eventsData,
+            meetName: meet?.name || '',
+            meetLogoUrl,
+            meetLogoEffect: (meet as any)?.logoEffect || null,
+            primaryColor: meet?.primaryColor || null,
+            secondaryColor: meet?.secondaryColor || null,
+            maxRows: maxRows || 6,
+          },
+          pagingSize: 1,
+          pagingInterval: 30,
+          maxPages: 0,
+        }));
+
+        console.log(`[Multi-Field] Sent ${eventsData.length} events to ${device.deviceName}: ${eventNumbers.join(', ')}`);
+        res.json({ success: true, delivered: true, eventCount: eventsData.length });
+      } else {
+        res.json({ success: false, delivered: false, message: "Device offline" });
+      }
+    } catch (error: any) {
+      console.error('[Multi-Field] Error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Preview Multi-Field Board — returns the data without sending to a display
+  app.post("/api/meets/:meetId/multi-field-preview", async (req, res) => {
+    try {
+      const { eventNumbers } = req.body;
+      const meetId = req.params.meetId;
+
+      if (!eventNumbers || !Array.isArray(eventNumbers) || eventNumbers.length === 0) {
+        return res.status(400).json({ error: "eventNumbers array is required" });
+      }
+
+      const ingestionSettings = await storage.getIngestionSettings(meetId);
+      if (!ingestionSettings?.lynxFilesDirectory) {
+        return res.status(400).json({ error: "No Lynx files directory configured" });
+      }
+      const lynxDir = ingestionSettings.lynxFilesDirectory;
+
+      const result: any[] = [];
+      const allEvents = await storage.getEventsByMeetId(meetId);
+
+      for (const evtNum of eventNumbers) {
+        const standings = await mergeFlightsForEvent(lynxDir, evtNum);
+        const dbEvent = allEvents.find((e: any) => e.eventNumber === evtNum);
+        result.push({
+          eventNumber: evtNum,
+          eventName: standings?.eventName || dbEvent?.name || `Event ${evtNum}`,
+          athleteCount: standings?.athletes?.length || 0,
+          isVertical: standings?.isVerticalEvent || false,
+          hasData: !!standings && standings.athletes.length > 0,
+        });
+      }
+
+      res.json({ events: result });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ===== MULTI-FIELD BOARD AUTO-REFRESH =====
+  // Listen for LFF file changes from the ingestion manager and re-push data to multi-field displays
+  try {
+    ingestionManager.on('lff_updated', async ({ meetId, eventNumber }: { meetId: string; eventNumber: number }) => {
+      try {
+        // Find all connected displays in multi_field mode that include this event
+        for (const [deviceId, device] of Array.from(connectedDisplayDevices.entries())) {
+          if (device.contentMode !== 'multi_field') continue;
+          if (device.meetId !== meetId) continue;
+          const multiFieldEvents = (device as any).multiFieldEvents as number[] | undefined;
+          if (!multiFieldEvents || !multiFieldEvents.includes(eventNumber)) continue;
+
+          // Re-push by making an internal API call to the multi-field-board endpoint
+          console.log(`[Multi-Field Auto] LFF updated for event ${eventNumber}, refreshing display ${device.deviceName}`);
+          try {
+            // Use the same endpoint logic inline for efficiency
+            const meet = await storage.getMeet(meetId);
+            const ingestionSettings = await storage.getIngestionSettings(meetId);
+            if (!ingestionSettings?.lynxFilesDirectory) continue;
+            const lynxDir = ingestionSettings.lynxFilesDirectory;
+            if (!fs.existsSync(lynxDir)) continue;
+
+            const teamLogoMap = new Map<string, string>();
+            const headshotMap = new Map<string, string>();
+            try {
+              const teamLogos = await storage.getTeamLogosByMeet(meetId);
+              teamLogos.forEach(logo => { teamLogoMap.set(logo.teamId, fileStorage.publicUrlForKey(logo.storageKey)); });
+            } catch {}
+            try {
+              const photos = await storage.getAthletePhotosByMeet(meetId);
+              photos.forEach(photo => { headshotMap.set(photo.athleteId, fileStorage.publicUrlForKey(photo.storageKey)); });
+            } catch {}
+
+            const allEvents = await storage.getEventsByMeetId(meetId);
+            const allTeams = await storage.getTeamsByMeetId(meetId);
+            const teamByName = new Map<string, any>();
+            allTeams.forEach(t => {
+              if (t.name) teamByName.set(t.name, t);
+              if (t.shortName) teamByName.set(t.shortName, t);
+              if (t.abbreviation) teamByName.set(t.abbreviation, t);
+            });
+            const allAthletes = await storage.getAthletesByMeetId(meetId);
+            const athleteByBibStr = new Map<string, any>();
+            allAthletes.forEach(a => {
+              const bib = (a as any).bibNumber || (a as any).athleteNumber?.toString();
+              if (bib) athleteByBibStr.set(String(bib), a);
+            });
+
+            const resolveTeamLogo = (tn: string | null): string | null => {
+              if (!tn) return null;
+              const team = teamByName.get(tn);
+              if (team) { const logo = teamLogoMap.get(team.id); if (logo) return logo; }
+              const safeName = (tn || '').replace(/[\/\\]/g, '');
+              const ncaaPath = pathModule.join(process.cwd(), 'public', 'logos', 'NCAA', `${safeName}.png`);
+              const resolvedP = pathModule.resolve(ncaaPath);
+              const resolvedD = pathModule.resolve(pathModule.join(process.cwd(), 'public', 'logos', 'NCAA'));
+              if (resolvedP.startsWith(resolvedD) && fs.existsSync(ncaaPath)) return `/logos/NCAA/${encodeURIComponent(safeName)}.png`;
+              return null;
+            };
+            const resolveHeadshot = (bib: number): string | null => {
+              const athlete = athleteByBibStr.get(String(bib));
+              return athlete ? (headshotMap.get(athlete.id) || null) : null;
+            };
+
+            const eventsData: any[] = [];
+            for (const evtNum of multiFieldEvents) {
+              const standings = await mergeFlightsForEvent(lynxDir, evtNum);
+              const dbEvent = allEvents.find((e: any) => e.eventNumber === evtNum);
+              if (!standings || standings.athletes.length === 0) {
+                eventsData.push({ eventNumber: evtNum, eventName: dbEvent?.name || `Event ${evtNum}`, eventType: '', isVertical: false, currentAthlete: null, standings: [] });
+                continue;
+              }
+              const enriched = standings.athletes.map(a => ({
+                place: a.overallPlace || null, bibNumber: a.bibNumber, firstName: a.firstName, lastName: a.lastName,
+                team: a.team || '', teamLogoUrl: resolveTeamLogo(a.team), headshotUrl: resolveHeadshot(a.bibNumber),
+                bestMark: a.bestMarkFormatted || '', isDNS: a.isDNS,
+              }));
+              const topAthlete = enriched.find(e => !e.isDNS);
+              let statusLine = '';
+              if (standings.isVerticalEvent && standings.heights && standings.heights.length > 0) {
+                statusLine = `Height: ${standings.heights[standings.heights.length - 1].toFixed(2)}`;
+              }
+              eventsData.push({
+                eventNumber: evtNum, eventName: standings.eventName || dbEvent?.name || `Event ${evtNum}`,
+                eventType: dbEvent?.eventType || '', isVertical: standings.isVerticalEvent,
+                currentAthlete: topAthlete ? { firstName: topAthlete.firstName, lastName: topAthlete.lastName, team: topAthlete.team, teamLogoUrl: topAthlete.teamLogoUrl, headshotUrl: topAthlete.headshotUrl, place: topAthlete.place, statusLine } : null,
+                standings: enriched,
+              });
+            }
+
+            let meetLogoUrl: string | null = null;
+            if (meet?.logoUrl) {
+              meetLogoUrl = meet.logoUrl.startsWith('http') ? meet.logoUrl
+                : meet.logoUrl.startsWith('uploads/') ? fileStorage.publicUrlForKey(meet.logoUrl)
+                : meet.logoUrl;
+            }
+
+            if (device.ws.readyState === WebSocket.OPEN) {
+              device.ws.send(JSON.stringify({
+                type: 'display_command', template: 'multi-field-board',
+                liveEventData: {
+                  mode: 'multi_field', events: eventsData, meetName: meet?.name || '', meetLogoUrl,
+                  meetLogoEffect: (meet as any)?.logoEffect || null, primaryColor: meet?.primaryColor || null,
+                  secondaryColor: meet?.secondaryColor || null, maxRows: 6,
+                },
+                pagingSize: 1, pagingInterval: 30, maxPages: 0,
+              }));
+              console.log(`[Multi-Field Auto] Refreshed ${device.deviceName} with ${eventsData.length} events`);
+            }
+          } catch (refreshErr) {
+            console.error(`[Multi-Field Auto] Error refreshing display ${device.deviceName}:`, refreshErr);
+          }
+        }
+      } catch (err) {
+        console.error('[Multi-Field Auto] Error handling lff_updated:', err);
+      }
+    });
+    console.log('[Multi-Field Auto] Registered LFF update listener for multi-field board auto-refresh');
+  } catch (importErr) {
+    console.warn('[Multi-Field Auto] Could not register LFF listener:', importErr);
+  }
 
   app.post("/api/display-devices/:id/sponsor-reel", async (req, res) => {
     try {
