@@ -61,6 +61,9 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
     enrichEntriesWithRecordTags,
   } = ctx;
 
+  // Track previous athlete per device+event for the Multi-Field Board 1-column split layout
+  const multiFieldPreviousAthletes = new Map<string, { bibNumber: number; athleteData: any }>();
+
   // ===== DISPLAY REGISTRATION =====
   app.post("/api/displays/register", async (req, res) => {
     try {
@@ -3178,6 +3181,12 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
             }
           }
 
+          // For multi-events, show points instead of English mark
+          const isMulti = (dbEvent as any)?.isMultiEvent === true;
+          const points = isMulti && topAthleteRaw.bestMark != null
+            ? Math.round(topAthleteRaw.bestMark)
+            : null;
+
           currentAthleteData = {
             firstName: topAthlete.firstName,
             lastName: topAthlete.lastName,
@@ -3186,7 +3195,8 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
             headshotUrl: topAthlete.headshotUrl,
             place: topAthlete.place,
             mark: topAthlete.bestMark,
-            englishMark,
+            englishMark: isMulti ? undefined : englishMark,
+            points,
             attemptNum: attemptCount,
             attemptTotal: totalPossible,
             attemptsDisplay,
@@ -3194,12 +3204,28 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           };
         }
 
+        // Track previousAthlete: when currentAthlete changes, shift old one to previous
+        let previousAthleteData: any = null;
+        const devicePrevKey = `${deviceId}:${evtNum}`;
+        if (currentAthleteData) {
+          const prevState = multiFieldPreviousAthletes.get(devicePrevKey);
+          if (prevState && prevState.bibNumber !== topAthleteRaw?.bibNumber) {
+            previousAthleteData = prevState.athleteData;
+          }
+          multiFieldPreviousAthletes.set(devicePrevKey, {
+            bibNumber: topAthleteRaw?.bibNumber || 0,
+            athleteData: currentAthleteData,
+          });
+        }
+
         eventsData.push({
           eventNumber: evtNum,
           eventName: standings.eventName || dbEvent?.name || `Event ${evtNum}`,
           eventType: dbEvent?.eventType || (standings.isVerticalEvent ? 'vertical' : 'horizontal'),
           isVertical: standings.isVerticalEvent,
+          isMultiEvent: (dbEvent as any)?.isMultiEvent === true,
           currentAthlete: currentAthleteData,
+          previousAthlete: previousAthleteData,
           standings: enrichedStandings,
         });
       }
@@ -3370,10 +3396,12 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
               const topEnr = topIdx >= 0 ? enriched[topIdx] : null;
               let currentAthl: any = null;
               if (topEnr && topRaw) {
+                const isMulti = (dbEvent as any)?.isMultiEvent === true;
                 let englishMark = '';
-                if (topRaw.bestMark != null) {
+                if (!isMulti && topRaw.bestMark != null) {
                   englishMark = metersToEnglishFraction(topRaw.bestMark);
                 }
+                const points = isMulti && topRaw.bestMark != null ? Math.round(topRaw.bestMark) : null;
                 const validAtt = topRaw.attempts.filter(att => att.mark !== null || att.isFoul || att.isPassed || att.isCleared || att.isMissed);
                 let attemptsDisplay: string[] = [];
                 let curHeight = '';
@@ -3391,15 +3419,29 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
                 currentAthl = {
                   firstName: topEnr.firstName, lastName: topEnr.lastName, team: topEnr.team,
                   teamLogoUrl: topEnr.teamLogoUrl, headshotUrl: topEnr.headshotUrl, place: topEnr.place,
-                  mark: topEnr.bestMark, englishMark,
+                  mark: topEnr.bestMark, englishMark: isMulti ? undefined : englishMark, points,
                   attemptNum: validAtt.length,
                   attemptsDisplay, currentHeight: curHeight,
                 };
               }
+              // Track previousAthlete in auto-refresh path
+              let previousAthl: any = null;
+              const prevKey = `${deviceId}:${evtNum}`;
+              if (currentAthl) {
+                const prevState = multiFieldPreviousAthletes.get(prevKey);
+                if (prevState && prevState.bibNumber !== topRaw?.bibNumber) {
+                  previousAthl = prevState.athleteData;
+                }
+                multiFieldPreviousAthletes.set(prevKey, {
+                  bibNumber: topRaw?.bibNumber || 0,
+                  athleteData: currentAthl,
+                });
+              }
               eventsData.push({
                 eventNumber: evtNum, eventName: standings.eventName || dbEvent?.name || `Event ${evtNum}`,
                 eventType: dbEvent?.eventType || '', isVertical: standings.isVerticalEvent,
-                currentAthlete: currentAthl, standings: enriched,
+                isMultiEvent: (dbEvent as any)?.isMultiEvent === true,
+                currentAthlete: currentAthl, previousAthlete: previousAthl, standings: enriched,
               });
             }
 
