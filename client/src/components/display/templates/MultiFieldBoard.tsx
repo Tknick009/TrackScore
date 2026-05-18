@@ -80,9 +80,9 @@ export function MultiFieldBoard({
     spotMark: cols === 1 ? "5.5cqw" : cols === 2 ? "4.2cqw" : "3.2cqw",
     spotEnglish: cols === 1 ? "3.5cqw" : cols === 2 ? "2.8cqw" : "2.2cqw",
     spotXO: cols === 1 ? "4cqw" : cols === 2 ? "3cqw" : "2.4cqw",
-    rowPlace: cols === 1 ? "3.8cqw" : cols === 2 ? "2.8cqw" : "2.2cqw",
-    rowName: cols === 1 ? "3.2cqw" : cols === 2 ? "2.4cqw" : "1.9cqw",
-    rowMark: cols === 1 ? "3.8cqw" : cols === 2 ? "2.8cqw" : "2.2cqw",
+    rowPlace: cols === 1 ? "4.5cqw" : cols === 2 ? "3.5cqw" : "2.8cqw",
+    rowName: cols === 1 ? "4cqw" : cols === 2 ? "3cqw" : "2.4cqw",
+    rowMark: cols === 1 ? "4.5cqw" : cols === 2 ? "3.5cqw" : "2.8cqw",
     logo: cols === 1 ? "4.5cqw" : cols === 2 ? "3.5cqw" : "2.8cqw",
     headshot: cols === 1 ? "32cqh" : cols === 2 ? "30cqh" : "28cqh",
     headshotW: cols === 1 ? "18cqw" : cols === 2 ? "14cqw" : "11cqw",
@@ -90,7 +90,7 @@ export function MultiFieldBoard({
     placeBadge: cols === 1 ? "7cqw" : cols === 2 ? "5.5cqw" : "4.5cqw",
     placeBadgeFont: cols === 1 ? "4cqw" : cols === 2 ? "3cqw" : "2.5cqw",
     // Fixed spotlight height so all columns match
-    spotHeight: cols === 1 ? "42cqh" : cols === 2 ? "40cqh" : "38cqh",
+    spotHeight: cols === 1 ? "46cqh" : cols === 2 ? "44cqh" : "42cqh",
   };
 
   return (
@@ -144,30 +144,21 @@ export function MultiFieldBoard({
           >
             {evt.currentAthlete ? (
               <>
-                {/* Headshot + team logo stacked */}
-                <div className="shrink-0 flex flex-col items-center" style={{ gap: "0.5cqh" }}>
-                  <div
-                    className="rounded-lg overflow-hidden bg-gray-800 flex items-center justify-center"
-                    style={{
-                      width: fs.headshotW,
-                      height: fs.headshot,
-                      border: `3px solid ${meetColor}`,
-                    }}
-                  >
-                    {evt.currentAthlete.headshotUrl ? (
-                      <img src={evt.currentAthlete.headshotUrl} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full bg-gray-700 flex items-center justify-center">
-                        <span className="text-gray-500" style={{ fontSize: "4cqw" }}>?</span>
-                      </div>
-                    )}
-                  </div>
-                  {evt.currentAthlete.teamLogoUrl && (
-                    <img
-                      src={evt.currentAthlete.teamLogoUrl}
-                      alt=""
-                      style={{ height: fs.spotLogo, width: "auto", objectFit: "contain" }}
-                    />
+                {/* Headshot */}
+                <div
+                  className="shrink-0 rounded-lg overflow-hidden bg-gray-800 flex items-center justify-center"
+                  style={{
+                    width: fs.headshotW,
+                    height: fs.headshot,
+                    border: `3px solid ${meetColor}`,
+                  }}
+                >
+                  {evt.currentAthlete.headshotUrl ? (
+                    <img src={evt.currentAthlete.headshotUrl} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full bg-gray-700 flex items-center justify-center">
+                      <span className="text-gray-500" style={{ fontSize: "4cqw" }}>?</span>
+                    </div>
                   )}
                 </div>
 
@@ -183,8 +174,15 @@ export function MultiFieldBoard({
                     {evt.currentAthlete.team}
                   </span>
 
+                  {/* Place */}
+                  {evt.currentAthlete.place != null && (
+                    <span className="font-bold text-white" style={{ fontSize: fs.spotDetail }}>
+                      Place: {evt.currentAthlete.place}
+                    </span>
+                  )}
+
                   {/* Mark + English mark */}
-                  <div className="flex items-baseline" style={{ gap: "1cqw" }}>
+                  <div className="flex items-baseline" style={{ gap: "1cqw", whiteSpace: "nowrap" }}>
                     {evt.currentAthlete.mark && (
                       <span className="font-bold text-white" style={{ fontSize: fs.spotMark, fontFamily: "'Oswald', sans-serif" }}>
                         {evt.currentAthlete.mark}
@@ -231,21 +229,18 @@ export function MultiFieldBoard({
                   )}
                 </div>
 
-                {/* Place badge */}
-                {evt.currentAthlete.place != null && (
-                  <div
-                    className="shrink-0 flex items-center justify-center font-bold text-white"
+                {/* Team logo (where place badge was) */}
+                {evt.currentAthlete.teamLogoUrl && (
+                  <img
+                    src={evt.currentAthlete.teamLogoUrl}
+                    alt=""
+                    className="shrink-0"
                     style={{
-                      width: fs.placeBadge,
                       height: fs.placeBadge,
-                      borderRadius: "50%",
-                      background: meetColor,
-                      fontSize: fs.placeBadgeFont,
-                      boxShadow: "0 3px 12px rgba(0,0,0,0.6)",
+                      width: "auto",
+                      objectFit: "contain",
                     }}
-                  >
-                    {evt.currentAthlete.place}
-                  </div>
+                  />
                 )}
               </>
             ) : (
