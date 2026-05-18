@@ -84,13 +84,13 @@ export function MultiFieldBoard({
     rowName: cols === 1 ? "5cqw" : cols === 2 ? "3.8cqw" : "3cqw",
     rowMark: cols === 1 ? "5.5cqw" : cols === 2 ? "4.2cqw" : "3.4cqw",
     logo: cols === 1 ? "5cqw" : cols === 2 ? "4cqw" : "3.2cqw",
-    headshot: cols === 1 ? "32cqh" : cols === 2 ? "30cqh" : "28cqh",
-    headshotW: cols === 1 ? "18cqw" : cols === 2 ? "14cqw" : "11cqw",
+    headshot: cols === 1 ? "26cqh" : cols === 2 ? "24cqh" : "22cqh",
+    headshotW: cols === 1 ? "15cqw" : cols === 2 ? "12cqw" : "9cqw",
     spotLogo: cols === 1 ? "5.5cqw" : cols === 2 ? "4.5cqw" : "3.5cqw",
     placeBadge: cols === 1 ? "7cqw" : cols === 2 ? "5.5cqw" : "4.5cqw",
     placeBadgeFont: cols === 1 ? "4cqw" : cols === 2 ? "3cqw" : "2.5cqw",
     // Fixed spotlight height so all columns match
-    spotHeight: cols === 1 ? "46cqh" : cols === 2 ? "44cqh" : "42cqh",
+    spotHeight: cols === 1 ? "36cqh" : cols === 2 ? "34cqh" : "32cqh",
   };
 
   return (
@@ -99,7 +99,7 @@ export function MultiFieldBoard({
       style={{
         containerType: "size",
         background: "#0a0a0a",
-        fontFamily: "'Oswald', 'Inter', Arial, sans-serif",
+        fontFamily: "'Oswald', sans-serif",
       }}
     >
       {events.map((evt, colIdx) => (
@@ -177,7 +177,7 @@ export function MultiFieldBoard({
                   {/* Mark + English mark */}
                   <div className="flex items-baseline" style={{ gap: "1cqw", whiteSpace: "nowrap" }}>
                     {evt.currentAthlete.mark && (
-                      <span className="font-bold text-white" style={{ fontSize: fs.spotMark, fontFamily: "'Oswald', sans-serif" }}>
+                      <span className="font-bold text-white" style={{ fontSize: fs.spotMark }}>
                         {evt.currentAthlete.mark}
                       </span>
                     )}
@@ -355,7 +355,7 @@ export function MultiFieldBoard({
                   className="shrink-0 font-bold tabular-nums text-right"
                   style={{
                     fontSize: fs.rowMark,
-                    fontFamily: "'Oswald', 'Inter', sans-serif",
+                    fontFamily: "'Oswald', sans-serif",
                     minWidth: cols === 1 ? "10cqw" : cols === 2 ? "8cqw" : "7cqw",
                     color: "#e0e0e0",
                   }}
