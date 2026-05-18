@@ -3140,20 +3140,27 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           const attemptCount = validAttempts.length;
           const totalPossible = standings.isVerticalEvent ? (standings.heights?.length || 0) : 6;
 
-          // Build X/O string for verticals
+          // Build X/O string for verticals — only the CURRENT height's attempts
           let attemptsDisplay: string[] = [];
-          if (standings.isVerticalEvent) {
-            for (const att of topAthleteRaw.attempts) {
-              if (att.isCleared) {
-                const misses = att.missCount || 0;
-                attemptsDisplay.push('X'.repeat(misses) + 'O');
-              } else if (att.isMissed && att.missCount >= 3) {
-                attemptsDisplay.push('XXX');
-              } else if (att.isMissed) {
-                attemptsDisplay.push('X'.repeat(att.missCount || 1));
-              } else if (att.isPassed) {
-                attemptsDisplay.push('P');
-              }
+          let currentHeight = '';
+          if (standings.isVerticalEvent && topAthleteRaw.attempts.length > 0) {
+            // The last attempt entry is the current height
+            const lastAtt = topAthleteRaw.attempts[topAthleteRaw.attempts.length - 1];
+            // Build the X/O string for just this height
+            if (lastAtt.isCleared) {
+              const misses = lastAtt.missCount || 0;
+              attemptsDisplay.push('X'.repeat(misses) + 'O');
+            } else if (lastAtt.isMissed && (lastAtt.missCount || 0) >= 3) {
+              attemptsDisplay.push('XXX');
+            } else if (lastAtt.isMissed) {
+              attemptsDisplay.push('X'.repeat(lastAtt.missCount || 1));
+            } else if (lastAtt.isPassed) {
+              attemptsDisplay.push('P');
+            }
+            // Show the current height value
+            if (standings.heights && standings.heights.length > 0) {
+              const heightIdx = Math.min(topAthleteRaw.attempts.length - 1, standings.heights.length - 1);
+              currentHeight = standings.heights[heightIdx].toFixed(2);
             }
           }
 
@@ -3169,6 +3176,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
             attemptNum: attemptCount,
             attemptTotal: totalPossible,
             attemptsDisplay,
+            currentHeight,
           };
         }
 
@@ -3357,20 +3365,24 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
                 }
                 const validAtt = topRaw.attempts.filter(att => att.mark !== null || att.isFoul || att.isPassed || att.isCleared || att.isMissed);
                 let attemptsDisplay: string[] = [];
-                if (standings.isVerticalEvent) {
-                  for (const att of topRaw.attempts) {
-                    if (att.isCleared) { attemptsDisplay.push('X'.repeat(att.missCount || 0) + 'O'); }
-                    else if (att.isMissed && (att.missCount || 0) >= 3) { attemptsDisplay.push('XXX'); }
-                    else if (att.isMissed) { attemptsDisplay.push('X'.repeat(att.missCount || 1)); }
-                    else if (att.isPassed) { attemptsDisplay.push('P'); }
+                let curHeight = '';
+                if (standings.isVerticalEvent && topRaw.attempts.length > 0) {
+                  const lastAtt = topRaw.attempts[topRaw.attempts.length - 1];
+                  if (lastAtt.isCleared) { attemptsDisplay.push('X'.repeat(lastAtt.missCount || 0) + 'O'); }
+                  else if (lastAtt.isMissed && (lastAtt.missCount || 0) >= 3) { attemptsDisplay.push('XXX'); }
+                  else if (lastAtt.isMissed) { attemptsDisplay.push('X'.repeat(lastAtt.missCount || 1)); }
+                  else if (lastAtt.isPassed) { attemptsDisplay.push('P'); }
+                  if (standings.heights && standings.heights.length > 0) {
+                    const hIdx = Math.min(topRaw.attempts.length - 1, standings.heights.length - 1);
+                    curHeight = standings.heights[hIdx].toFixed(2);
                   }
                 }
                 currentAthl = {
                   firstName: topEnr.firstName, lastName: topEnr.lastName, team: topEnr.team,
                   teamLogoUrl: topEnr.teamLogoUrl, headshotUrl: topEnr.headshotUrl, place: topEnr.place,
                   mark: topEnr.bestMark, englishMark,
-                  attemptNum: validAtt.length, attemptTotal: standings.isVerticalEvent ? (standings.heights?.length || 0) : 6,
-                  attemptsDisplay,
+                  attemptNum: validAtt.length,
+                  attemptsDisplay, currentHeight: curHeight,
                 };
               }
               eventsData.push({
