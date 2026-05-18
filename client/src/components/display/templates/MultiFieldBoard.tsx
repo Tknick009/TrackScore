@@ -149,7 +149,7 @@ export function MultiFieldBoard({
                   style={{
                     width: fs.headshotW,
                     height: fs.headshot,
-                    border: `3px solid ${meetColor}`,
+                    border: "none",
                   }}
                 >
                   {evt.currentAthlete.headshotUrl ? (
