@@ -195,37 +195,39 @@ export function MultiFieldBoard({
                     )}
                   </div>
 
-                  {/* Attempt number */}
-                  {evt.currentAthlete.attemptNum != null && evt.currentAthlete.attemptNum > 0 && (
-                    <span style={{ fontSize: fs.spotDetail, color: "#4caf50" }} className="font-semibold">
-                      Attempt {evt.currentAthlete.attemptNum}
-                    </span>
-                  )}
-
-                  {/* Current height for verticals */}
-                  {evt.currentAthlete.currentHeight && (
-                    <span className="font-bold text-white" style={{ fontSize: fs.spotDetail }}>
-                      Height: {evt.currentAthlete.currentHeight}
-                    </span>
-                  )}
-
-                  {/* X/O for current height only */}
-                  {evt.currentAthlete.attemptsDisplay && evt.currentAthlete.attemptsDisplay.length > 0 && (
-                    <div className="flex items-center" style={{ gap: "0.6cqw" }}>
-                      {evt.currentAthlete.attemptsDisplay.map((xo, i) => (
-                        <span
-                          key={i}
-                          className="font-bold"
-                          style={{
-                            fontSize: fs.spotXO,
-                            color: xo.endsWith('O') ? "#4caf50" : xo === 'P' ? "#ffb300" : "#ef5350",
-                            letterSpacing: "0.05em",
-                          }}
-                        >
-                          {xo}
+                  {/* Verticals: Height + X/O instead of Attempt */}
+                  {evt.isVertical ? (
+                    <>
+                      {evt.currentAthlete.currentHeight && (
+                        <span className="font-bold text-white" style={{ fontSize: fs.spotDetail }}>
+                          Height: {evt.currentAthlete.currentHeight}
                         </span>
-                      ))}
-                    </div>
+                      )}
+                      {evt.currentAthlete.attemptsDisplay && evt.currentAthlete.attemptsDisplay.length > 0 && (
+                        <div className="flex items-center" style={{ gap: "0.6cqw" }}>
+                          {evt.currentAthlete.attemptsDisplay.map((xo, i) => (
+                            <span
+                              key={i}
+                              className="font-bold"
+                              style={{
+                                fontSize: fs.spotXO,
+                                color: xo.endsWith('O') ? "#4caf50" : xo === 'P' ? "#ffb300" : "#ef5350",
+                                letterSpacing: "0.05em",
+                              }}
+                            >
+                              {xo}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    /* Horizontal: show Attempt number */
+                    evt.currentAthlete.attemptNum != null && evt.currentAthlete.attemptNum > 0 && (
+                      <span style={{ fontSize: fs.spotDetail, color: "#4caf50" }} className="font-semibold">
+                        Attempt {evt.currentAthlete.attemptNum}
+                      </span>
+                    )
                   )}
                 </div>
 
