@@ -110,38 +110,42 @@ export function MultiFieldBoard({
             borderRight: colIdx < cols - 1 ? "4px solid #444" : undefined,
           }}
         >
-          {/* Event name header — uses meet color */}
+          {/* Gradient box: event header + spotlight as one unified block */}
           <div
-            className="shrink-0 flex items-center justify-center"
+            className="shrink-0 flex flex-col"
             style={{
-              background: `linear-gradient(135deg, ${meetColor} 0%, ${meetColorDark} 100%)`,
-              padding: "1.2cqh 1cqw",
-              borderBottom: `3px solid ${meetColor}88`,
+              background: `linear-gradient(180deg, ${meetColor} 0%, ${meetColorDark} 35%, #111 100%)`,
+              borderBottom: `3px solid ${meetColor}`,
             }}
           >
-            <span
-              className="font-bold uppercase tracking-wider text-white text-center"
+            {/* Event name header */}
+            <div
+              className="shrink-0 flex items-center justify-center"
               style={{
-                fontSize: fs.eventName,
-                textShadow: "0 2px 6px rgba(0,0,0,0.6)",
-                letterSpacing: "0.08em",
+                padding: "1.2cqh 1cqw",
               }}
             >
-              {evt.eventName}
-            </span>
-          </div>
+              <span
+                className="font-bold uppercase tracking-wider text-white text-center"
+                style={{
+                  fontSize: fs.eventName,
+                  textShadow: "0 2px 6px rgba(0,0,0,0.6)",
+                  letterSpacing: "0.08em",
+                }}
+              >
+                {evt.eventName}
+              </span>
+            </div>
 
-          {/* Spotlight: fixed height so all columns align */}
-          <div
-            className="shrink-0 flex items-center overflow-hidden"
-            style={{
-              height: fs.spotHeight,
-              background: "linear-gradient(180deg, #1a2a1a 0%, #111 100%)",
-              borderBottom: `3px solid ${meetColor}`,
-              padding: "1.5cqh 1.5cqw",
-              gap: "1.5cqw",
-            }}
-          >
+            {/* Spotlight */}
+            <div
+              className="shrink-0 flex items-center overflow-hidden"
+              style={{
+                height: fs.spotHeight,
+                padding: "1.5cqh 1.5cqw",
+                gap: "1.5cqw",
+              }}
+            >
             {evt.currentAthlete ? (
               <>
                 {/* Headshot */}
@@ -242,6 +246,7 @@ export function MultiFieldBoard({
                 <span className="text-gray-500 font-bold" style={{ fontSize: fs.spotTeam }}>Awaiting data...</span>
               </div>
             )}
+            </div>
           </div>
 
           {/* Standings header row */}
