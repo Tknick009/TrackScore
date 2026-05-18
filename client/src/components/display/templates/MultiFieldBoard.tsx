@@ -174,13 +174,6 @@ export function MultiFieldBoard({
                     {evt.currentAthlete.team}
                   </span>
 
-                  {/* Place */}
-                  {evt.currentAthlete.place != null && (
-                    <span className="font-bold text-white" style={{ fontSize: fs.spotDetail }}>
-                      Place: {evt.currentAthlete.place}
-                    </span>
-                  )}
-
                   {/* Mark + English mark */}
                   <div className="flex items-baseline" style={{ gap: "1cqw", whiteSpace: "nowrap" }}>
                     {evt.currentAthlete.mark && (
@@ -195,15 +188,15 @@ export function MultiFieldBoard({
                     )}
                   </div>
 
-                  {/* Verticals: Height + X/O instead of Attempt */}
-                  {evt.isVertical ? (
-                    <>
-                      {evt.currentAthlete.currentHeight && (
-                        <span className="font-bold text-white" style={{ fontSize: fs.spotDetail }}>
-                          Height: {evt.currentAthlete.currentHeight}
-                        </span>
-                      )}
-                      {evt.currentAthlete.attemptsDisplay && evt.currentAthlete.attemptsDisplay.length > 0 && (
+                  {/* Place + Attempt (horizontal) or X/O (vertical) on same line */}
+                  <div className="flex items-center" style={{ gap: "1.5cqw", whiteSpace: "nowrap" }}>
+                    {evt.currentAthlete.place != null && (
+                      <span className="font-bold text-white" style={{ fontSize: fs.spotDetail }}>
+                        Place: {evt.currentAthlete.place}
+                      </span>
+                    )}
+                    {evt.isVertical ? (
+                      evt.currentAthlete.attemptsDisplay && evt.currentAthlete.attemptsDisplay.length > 0 && (
                         <div className="flex items-center" style={{ gap: "0.6cqw" }}>
                           {evt.currentAthlete.attemptsDisplay.map((xo, i) => (
                             <span
@@ -219,16 +212,15 @@ export function MultiFieldBoard({
                             </span>
                           ))}
                         </div>
-                      )}
-                    </>
-                  ) : (
-                    /* Horizontal: show Attempt number */
-                    evt.currentAthlete.attemptNum != null && evt.currentAthlete.attemptNum > 0 && (
-                      <span style={{ fontSize: fs.spotDetail, color: "#4caf50" }} className="font-semibold">
-                        Attempt {evt.currentAthlete.attemptNum}
-                      </span>
-                    )
-                  )}
+                      )
+                    ) : (
+                      evt.currentAthlete.attemptNum != null && evt.currentAthlete.attemptNum > 0 && (
+                        <span style={{ fontSize: fs.spotDetail, color: "#4caf50" }} className="font-semibold">
+                          Attempt {evt.currentAthlete.attemptNum}
+                        </span>
+                      )
+                    )}
+                  </div>
                 </div>
 
                 {/* Team logo (where place badge was) */}
@@ -356,7 +348,7 @@ export function MultiFieldBoard({
                   className="flex-1 font-bold text-white truncate uppercase"
                   style={{ fontSize: fs.rowName, letterSpacing: "0.02em" }}
                 >
-                  {entry.lastName}
+                  {entry.firstName?.charAt(0) ? `${entry.firstName.charAt(0)}. ` : ""}{entry.lastName}
                 </span>
 
                 <span
