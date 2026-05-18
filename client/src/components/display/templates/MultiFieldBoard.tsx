@@ -195,7 +195,7 @@ export function MultiFieldBoard({
                         Place: {evt.currentAthlete.place}
                       </span>
                     )}
-                    <span style={{ fontSize: fs.spotDetail, color: "#555" }}>|</span>
+                    <span style={{ fontSize: fs.spotDetail, color: "#fff" }}>|</span>
                     {evt.isVertical ? (
                       evt.currentAthlete.attemptsDisplay && evt.currentAthlete.attemptsDisplay.length > 0 && (
                         <div className="flex items-center" style={{ gap: "0.3cqw" }}>
