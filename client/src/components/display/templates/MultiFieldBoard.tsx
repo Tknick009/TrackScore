@@ -163,7 +163,7 @@ export function MultiFieldBoard({
                 </div>
 
                 {/* Info block */}
-                <div className="flex-1 min-w-0 flex flex-col justify-center" style={{ gap: "0.3cqh" }}>
+                <div className="flex-1 min-w-0 flex flex-col justify-center overflow-hidden" style={{ gap: "0.3cqh" }}>
                   {/* Name */}
                   <span className="font-bold text-white truncate uppercase" style={{ fontSize: fs.spotName }}>
                     {evt.currentAthlete.firstName.charAt(0)}. {evt.currentAthlete.lastName}
@@ -175,7 +175,7 @@ export function MultiFieldBoard({
                   </span>
 
                   {/* Mark + English mark */}
-                  <div className="flex items-baseline" style={{ gap: "1cqw", whiteSpace: "nowrap" }}>
+                  <div className="flex items-baseline" style={{ gap: "1cqw", whiteSpace: "nowrap", overflow: "hidden" }}>
                     {evt.currentAthlete.mark && (
                       <span className="font-bold text-white" style={{ fontSize: fs.spotMark }}>
                         {evt.currentAthlete.mark}
