@@ -163,7 +163,7 @@ export function MultiFieldBoard({
                 </div>
 
                 {/* Info block */}
-                <div className="flex-1 min-w-0 flex flex-col justify-center overflow-hidden" style={{ gap: "0.3cqh" }}>
+                <div className="flex-1 min-w-0 flex flex-col justify-center" style={{ gap: "0.3cqh" }}>
                   {/* Name */}
                   <span className="font-bold text-white truncate uppercase" style={{ fontSize: fs.spotName }}>
                     {evt.currentAthlete.firstName.charAt(0)}. {evt.currentAthlete.lastName}
@@ -174,19 +174,18 @@ export function MultiFieldBoard({
                     {evt.currentAthlete.team}
                   </span>
 
-                  {/* Mark + English mark */}
-                  <div className="flex items-baseline" style={{ gap: "1cqw", whiteSpace: "nowrap", overflow: "hidden" }}>
-                    {evt.currentAthlete.mark && (
-                      <span className="font-bold text-white" style={{ fontSize: fs.spotMark }}>
-                        {evt.currentAthlete.mark}
-                      </span>
-                    )}
-                    {evt.currentAthlete.englishMark && (
-                      <span style={{ fontSize: fs.spotEnglish, color: "#d4a017" }}>
-                        ({evt.currentAthlete.englishMark})
-                      </span>
-                    )}
-                  </div>
+                  {/* Mark */}
+                  {evt.currentAthlete.mark && (
+                    <span className="font-bold text-white" style={{ fontSize: fs.spotMark }}>
+                      {evt.currentAthlete.mark}
+                    </span>
+                  )}
+                  {/* English mark on its own line */}
+                  {evt.currentAthlete.englishMark && (
+                    <span style={{ fontSize: fs.spotEnglish, color: "#d4a017" }}>
+                      ({evt.currentAthlete.englishMark})
+                    </span>
+                  )}
 
                   {/* Place + Attempt (horizontal) or X/O (vertical) on same line */}
                   <div className="flex items-center" style={{ gap: "1.5cqw", whiteSpace: "nowrap" }}>
