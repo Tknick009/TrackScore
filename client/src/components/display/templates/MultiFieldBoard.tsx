@@ -182,7 +182,7 @@ export function MultiFieldBoard({
                       </span>
                     )}
                     {evt.currentAthlete.englishMark && (
-                      <span className="text-gray-400" style={{ fontSize: fs.spotEnglish }}>
+                      <span style={{ fontSize: fs.spotEnglish, color: "#d4a017" }}>
                         ({evt.currentAthlete.englishMark})
                       </span>
                     )}
@@ -195,6 +195,7 @@ export function MultiFieldBoard({
                         Place: {evt.currentAthlete.place}
                       </span>
                     )}
+                    <span style={{ fontSize: fs.spotDetail, color: "#555" }}>|</span>
                     {evt.isVertical ? (
                       evt.currentAthlete.attemptsDisplay && evt.currentAthlete.attemptsDisplay.length > 0 && (
                         <div className="flex items-center" style={{ gap: "0.3cqw" }}>
@@ -215,7 +216,7 @@ export function MultiFieldBoard({
                       )
                     ) : (
                       evt.currentAthlete.attemptNum != null && evt.currentAthlete.attemptNum > 0 && (
-                        <span style={{ fontSize: fs.spotDetail, color: "#d4a017" }} className="font-semibold">
+                        <span style={{ fontSize: fs.spotDetail, color: "#fff" }} className="font-semibold">
                           Attempt {evt.currentAthlete.attemptNum}
                         </span>
                       )
