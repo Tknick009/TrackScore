@@ -112,6 +112,7 @@ export default function DisplayControlPage() {
   const [selectedRecordEvent, setSelectedRecordEvent] = useState<Record<string, number>>({});
   const [recordPreview, setRecordPreview] = useState<Record<string, any>>({}); // deviceId -> record preview data
   const [recordLabel, setRecordLabel] = useState<Record<string, string>>({}); // deviceId -> record name
+  const [recordTag, setRecordTag] = useState<Record<string, string>>({}); // deviceId -> record tag (e.g. "MR", "AR")
   const [recordEventSearch, setRecordEventSearch] = useState('');
   const [pagingLines, setPagingLines] = useState<Record<string, number>>({});
   const [pagingSeconds, setPagingSeconds] = useState<Record<string, number>>({});
@@ -455,10 +456,10 @@ export default function DisplayControlPage() {
     },
   });
 
-  // Send Record Board mutation — pushes winner + record label to the display
+  // Send Record Board mutation — pushes winner + record label + tag to the display
   const sendRecordBoardMutation = useMutation({
-    mutationFn: async ({ deviceId, eventNumber, recordLabel: label }: { deviceId: string; eventNumber: number; recordLabel: string }) => {
-      const response = await apiRequest('POST', `/api/display-devices/${deviceId}/record-board`, { eventNumber, recordLabel: label });
+    mutationFn: async ({ deviceId, eventNumber, recordLabel: label, recordTag: tag }: { deviceId: string; eventNumber: number; recordLabel: string; recordTag?: string }) => {
+      const response = await apiRequest('POST', `/api/display-devices/${deviceId}/record-board`, { eventNumber, recordLabel: label, recordTag: tag });
       return response.json();
     },
     onSuccess: (data) => {
@@ -1589,7 +1590,7 @@ export default function DisplayControlPage() {
                         <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
                           {/* Step 1: Select event from available LIF/LFF files */}
                           <div className="space-y-2">
-                            <Label>Select Event (events with result files)</Label>
+                            <Label>Select Event</Label>
                             <div className="relative">
                               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                               <Input
@@ -1611,8 +1612,12 @@ export default function DisplayControlPage() {
                                         key={evt.eventNumber}
                                         onClick={() => {
                                           setSelectedRecordEvent(prev => ({ ...prev, [selectedDevice.id]: evt.eventNumber }));
-                                          // Clear any previous preview when selecting a new event
                                           setRecordPreview(prev => { const next = { ...prev }; delete next[selectedDevice.id]; return next; });
+                                          // Auto-load preview
+                                          previewRecordMutation.mutate({
+                                            deviceId: selectedDevice.id,
+                                            eventNumber: evt.eventNumber,
+                                          });
                                         }}
                                         className={`flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded-md cursor-pointer hover-elevate ${isSelected ? 'bg-accent' : ''}`}
                                         data-testid={`button-record-${evt.eventNumber}`}
@@ -1626,78 +1631,121 @@ export default function DisplayControlPage() {
                                     );
                                   })}
                                 {availableWinnersEvents.length === 0 && (
-                                  <p className="text-xs text-muted-foreground text-center py-4">No events with LIF/LFF result files found. Make sure your Lynx files directory is configured in Ingestion Settings.</p>
+                                  <p className="text-xs text-muted-foreground text-center py-4">No events with LIF/LFF result files found.</p>
                                 )}
                               </div>
                             </ScrollArea>
                           </div>
 
-                          {/* Step 2: Preview button */}
-                          <Button
-                            onClick={() => {
-                              const evtNum = selectedRecordEvent[selectedDevice.id];
-                              if (!evtNum) return;
-                              previewRecordMutation.mutate({
-                                deviceId: selectedDevice.id,
-                                eventNumber: evtNum,
-                              });
-                            }}
-                            disabled={!selectedRecordEvent[selectedDevice.id] || previewRecordMutation.isPending}
-                            variant="outline"
-                            className="w-full"
-                            data-testid="button-preview-record"
-                          >
-                            <Search className="w-4 h-4 mr-2" />
-                            {previewRecordMutation.isPending ? 'Loading Preview...' : 'Preview Winner'}
-                          </Button>
+                          {/* Loading indicator */}
+                          {previewRecordMutation.isPending && (
+                            <div className="text-center text-sm text-muted-foreground py-2">Loading preview...</div>
+                          )}
 
-                          {/* Step 3: Preview card — shows only the winner */}
+                          {/* Step 2: Preview card — shows the data that will be displayed */}
                           {recordPreview[selectedDevice.id]?.entry && (
                             <div className="space-y-3">
-                              <div className="flex items-center justify-between">
-                                <Label className="text-sm font-semibold">{recordPreview[selectedDevice.id].eventName}</Label>
-                                <Badge variant="outline" className="text-xs">Round {recordPreview[selectedDevice.id].round} • {recordPreview[selectedDevice.id].source?.toUpperCase()}</Badge>
-                              </div>
-                              <div className="border rounded-md p-3 bg-background">
-                                {(() => {
-                                  const entry = recordPreview[selectedDevice.id].entry;
-                                  return (
-                                    <div className="flex items-center gap-3">
-                                      {entry.headshotUrl && <img src={entry.headshotUrl} alt="" className="w-10 h-10 rounded-full object-cover" />}
-                                      <div className="flex-1 min-w-0">
-                                        <div className="font-semibold truncate">{entry.name}</div>
-                                        <div className="text-sm text-muted-foreground flex items-center gap-1">
-                                          {entry.teamLogoUrl && <img src={entry.teamLogoUrl} alt="" className="w-4 h-4 object-contain" />}
-                                          <span>{entry.affiliation || entry.team}</span>
+                              <div className="border rounded-lg overflow-hidden bg-background">
+                                {/* Preview header */}
+                                <div className="bg-muted px-3 py-2 flex items-center justify-between">
+                                  <span className="font-semibold text-sm">{recordPreview[selectedDevice.id].eventName}</span>
+                                  <Badge variant="outline" className="text-xs">Round {recordPreview[selectedDevice.id].round} • {recordPreview[selectedDevice.id].source?.toUpperCase()}</Badge>
+                                </div>
+                                {/* Winner details */}
+                                <div className="p-4">
+                                  {(() => {
+                                    const entry = recordPreview[selectedDevice.id].entry;
+                                    return (
+                                      <div className="flex items-center gap-4">
+                                        {entry.headshotUrl && (
+                                          <img src={entry.headshotUrl} alt="" className="w-14 h-14 rounded-lg object-cover border" />
+                                        )}
+                                        <div className="flex-1 min-w-0">
+                                          <div className="font-bold text-lg truncate">{entry.name}</div>
+                                          <div className="text-sm text-muted-foreground flex items-center gap-1.5">
+                                            {entry.teamLogoUrl && <img src={entry.teamLogoUrl} alt="" className="w-5 h-5 object-contain" />}
+                                            <span>{entry.affiliation || entry.team}</span>
+                                          </div>
+                                        </div>
+                                        <div className="text-right">
+                                          <div className="font-mono font-black text-2xl">{entry.mark || entry.time}</div>
                                         </div>
                                       </div>
-                                      <div className="font-mono font-bold text-lg">{entry.mark || entry.time}</div>
-                                    </div>
-                                  );
-                                })()}
+                                    );
+                                  })()}
+                                </div>
                               </div>
 
-                              {/* Step 4: Record label input */}
-                              <div className="space-y-1">
-                                <Label className="text-sm">Record Name</Label>
-                                <Input
-                                  placeholder="e.g. Meet Record, Facility Record, School Record..."
-                                  value={recordLabel[selectedDevice.id] || ''}
-                                  onChange={(e) => setRecordLabel(prev => ({ ...prev, [selectedDevice.id]: e.target.value }))}
-                                  data-testid="input-record-label"
-                                />
+                              {/* Step 3: Record label — quick-select buttons + custom name/tag */}
+                              <div className="space-y-2">
+                                <Label className="text-sm">Record Type</Label>
+                                <div className="grid grid-cols-3 gap-2">
+                                  {['Meet Record', 'Facility Record', 'Conference Record'].map(label => (
+                                    <Button
+                                      key={label}
+                                      type="button"
+                                      variant={recordLabel[selectedDevice.id] === label ? 'default' : 'outline'}
+                                      size="sm"
+                                      onClick={() => {
+                                        setRecordLabel(prev => ({ ...prev, [selectedDevice.id]: label }));
+                                        setRecordTag(prev => ({ ...prev, [selectedDevice.id]: '' }));
+                                      }}
+                                    >
+                                      {label.replace(' Record', '')}
+                                    </Button>
+                                  ))}
+                                  {['School Record', 'National Record', 'All-Time Record'].map(label => (
+                                    <Button
+                                      key={label}
+                                      type="button"
+                                      variant={recordLabel[selectedDevice.id] === label ? 'default' : 'outline'}
+                                      size="sm"
+                                      onClick={() => {
+                                        setRecordLabel(prev => ({ ...prev, [selectedDevice.id]: label }));
+                                        setRecordTag(prev => ({ ...prev, [selectedDevice.id]: '' }));
+                                      }}
+                                    >
+                                      {label.replace(' Record', '')}
+                                    </Button>
+                                  ))}
+                                </div>
+                                {/* Custom record name + tag for records not in the presets */}
+                                <div className="flex gap-2">
+                                  <Input
+                                    placeholder="Custom record name..."
+                                    className="flex-1"
+                                    value={
+                                      ['Meet Record', 'Facility Record', 'Conference Record', 'School Record', 'National Record', 'All-Time Record'].includes(recordLabel[selectedDevice.id] || '')
+                                        ? ''
+                                        : recordLabel[selectedDevice.id] || ''
+                                    }
+                                    onChange={(e) => setRecordLabel(prev => ({ ...prev, [selectedDevice.id]: e.target.value }))}
+                                    data-testid="input-record-label"
+                                  />
+                                  <Input
+                                    placeholder="Tag (e.g. AR)"
+                                    className="w-24"
+                                    maxLength={5}
+                                    value={recordTag[selectedDevice.id] || ''}
+                                    onChange={(e) => setRecordTag(prev => ({ ...prev, [selectedDevice.id]: e.target.value.toUpperCase() }))}
+                                    data-testid="input-record-tag"
+                                  />
+                                </div>
+                                <p className="text-xs text-muted-foreground">Use custom inputs for records not in the list above (e.g. "Arena Record" / "AR")</p>
                               </div>
 
-                              {/* Step 5: Send to Board */}
+                              {/* Step 4: Send to Board */}
                               <Button
                                 onClick={() => {
                                   const evtNum = selectedRecordEvent[selectedDevice.id];
                                   const label = recordLabel[selectedDevice.id];
+                                  const tag = recordTag[selectedDevice.id];
                                   if (!evtNum || !label?.trim()) return;
                                   sendRecordBoardMutation.mutate({
                                     deviceId: selectedDevice.id,
                                     eventNumber: evtNum,
                                     recordLabel: label.trim(),
+                                    recordTag: tag?.trim() || undefined,
                                   });
                                 }}
                                 disabled={sendRecordBoardMutation.isPending || !recordLabel[selectedDevice.id]?.trim()}
