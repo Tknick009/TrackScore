@@ -87,7 +87,7 @@ export function MultiFieldBoard({
     headshot: cols === 1 ? "30cqh" : cols === 2 ? "28cqh" : "26cqh",
     headshotW: cols === 1 ? "17cqw" : cols === 2 ? "13cqw" : "10cqw",
     spotLogo: cols === 1 ? "8cqw" : cols === 2 ? "6.5cqw" : "5cqw",
-    placeBadge: cols === 1 ? "16cqh" : cols === 2 ? "14cqh" : "13cqh",
+    placeBadge: cols === 1 ? "13cqh" : cols === 2 ? "11cqh" : "10cqh",
     placeBadgeFont: cols === 1 ? "4cqw" : cols === 2 ? "3cqw" : "2.5cqw",
     // Fixed spotlight height so all columns match
     spotHeight: cols === 1 ? "36cqh" : cols === 2 ? "34cqh" : "32cqh",
