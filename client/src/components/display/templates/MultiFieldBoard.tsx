@@ -1,5 +1,4 @@
-import { useState, useEffect, useRef } from "react";
-import { getLogoEffectStyle } from "@/lib/logoEffects";
+import { useState, useEffect } from "react";
 
 /** One athlete row in a field event standings list */
 export interface MultiFieldEntry {
@@ -11,9 +10,7 @@ export interface MultiFieldEntry {
   teamLogoUrl: string | null;
   headshotUrl: string | null;
   bestMark: string;
-  /** For vertical events, current height display */
   currentHeight?: string;
-  /** Attempt-by-attempt data for display (e.g. "O", "XXO", "X") */
   attempts?: string[];
   isDNS?: boolean;
   isCurrent?: boolean;
@@ -23,10 +20,8 @@ export interface MultiFieldEntry {
 export interface MultiFieldEvent {
   eventNumber: number;
   eventName: string;
-  /** e.g. "Weight Throw", "Pole Vault", "Long Jump" */
   eventType?: string;
   isVertical?: boolean;
-  /** The athlete currently competing */
   currentAthlete?: {
     firstName: string;
     lastName: string;
@@ -34,10 +29,8 @@ export interface MultiFieldEvent {
     teamLogoUrl: string | null;
     headshotUrl: string | null;
     place: number | null;
-    /** "Attempt #3" or "Height: 5.56" */
     statusLine: string;
   } | null;
-  /** Sorted standings from LFF */
   standings: MultiFieldEntry[];
 }
 
@@ -48,21 +41,7 @@ interface MultiFieldBoardProps {
   meetLogoEffect?: string | null;
   primaryColor?: string;
   secondaryColor?: string;
-  /** Max rows to show in each column */
   maxRows?: number;
-}
-
-function Clock() {
-  const [time, setTime] = useState(new Date());
-  useEffect(() => {
-    const id = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(id);
-  }, []);
-  return (
-    <span>
-      {time.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }).toUpperCase()}
-    </span>
-  );
 }
 
 export function MultiFieldBoard({
@@ -72,275 +51,311 @@ export function MultiFieldBoard({
   meetLogoEffect,
   primaryColor,
   secondaryColor,
-  maxRows = 6,
+  maxRows = 8,
 }: MultiFieldBoardProps) {
   const cols = events.length;
   if (cols === 0) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-black">
-        <span className="text-white/50 text-2xl">No field events selected</span>
+        <span className="text-white/50 text-4xl font-bold">No field events selected</span>
       </div>
     );
   }
 
-  const primary = primaryColor || "#8B0000";
-  const secondary = secondaryColor || "#FFFFFF";
-  const accent = "#2E7D32"; // green header bar color (like the Harvard board)
+  const accent = "#2E7D32";
+
+  // Font sizes scale based on column count — bigger = better
+  const fs = {
+    eventName: cols === 1 ? "5cqw" : cols === 2 ? "3.5cqw" : "2.8cqw",
+    spotlightName: cols === 1 ? "4.5cqw" : cols === 2 ? "3.2cqw" : "2.5cqw",
+    spotlightTeam: cols === 1 ? "2.8cqw" : cols === 2 ? "2cqw" : "1.6cqw",
+    spotlightStatus: cols === 1 ? "2.5cqw" : cols === 2 ? "1.8cqw" : "1.4cqw",
+    rowPlace: cols === 1 ? "3.8cqw" : cols === 2 ? "2.8cqw" : "2.2cqw",
+    rowName: cols === 1 ? "3.2cqw" : cols === 2 ? "2.4cqw" : "1.9cqw",
+    rowMark: cols === 1 ? "3.8cqw" : cols === 2 ? "2.8cqw" : "2.2cqw",
+    logo: cols === 1 ? "4.5cqw" : cols === 2 ? "3.5cqw" : "2.8cqw",
+    headshot: cols === 1 ? "14cqh" : cols === 2 ? "12cqh" : "10cqh",
+    headshotW: cols === 1 ? "10cqw" : cols === 2 ? "8cqw" : "6cqw",
+    spotlightLogo: cols === 1 ? "5cqw" : cols === 2 ? "4cqw" : "3cqw",
+  };
 
   return (
     <div
-      className="w-full h-full flex flex-col overflow-hidden"
+      className="w-full h-full flex overflow-hidden"
       style={{
         containerType: "size",
-        background: "#111",
-        fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif",
+        background: "#0a0a0a",
+        fontFamily: "'Oswald', 'Inter', Arial, sans-serif",
       }}
     >
-      {/* Event columns */}
-      <div className="flex-1 flex min-h-0">
-        {events.map((evt, colIdx) => (
+      {events.map((evt, colIdx) => (
+        <div
+          key={evt.eventNumber}
+          className="flex-1 flex flex-col min-w-0 min-h-0"
+          style={{
+            borderRight:
+              colIdx < cols - 1
+                ? "4px solid #444"
+                : undefined,
+          }}
+        >
+          {/* Event name header */}
           <div
-            key={evt.eventNumber}
-            className="flex-1 flex flex-col min-w-0"
+            className="shrink-0 flex items-center justify-center"
             style={{
-              borderRight: colIdx < cols - 1 ? "2px solid #333" : undefined,
+              background: `linear-gradient(135deg, ${accent} 0%, #1b5e20 100%)`,
+              padding: "1.2cqh 1cqw",
+              borderBottom: "3px solid #4caf50",
             }}
           >
-            {/* Green header bar with event name */}
-            <div
-              className="shrink-0 flex items-center justify-center text-center"
+            <span
+              className="font-bold uppercase tracking-wider text-white text-center"
               style={{
-                background: accent,
-                padding: "0.6cqh 0.5cqw",
-                minHeight: "4cqh",
+                fontSize: fs.eventName,
+                textShadow: "0 2px 6px rgba(0,0,0,0.6)",
+                letterSpacing: "0.08em",
               }}
             >
-              <span
-                className="font-bold uppercase tracking-wide text-white"
-                style={{
-                  fontSize: cols === 1 ? "3.5cqw" : cols === 2 ? "2.8cqw" : "2.2cqw",
-                  textShadow: "0 1px 3px rgba(0,0,0,0.4)",
-                }}
-              >
-                {evt.eventName}
-              </span>
-            </div>
+              {evt.eventName}
+            </span>
+          </div>
 
-            {/* Spotlight: current athlete with headshot */}
-            {evt.currentAthlete && (
+          {/* Spotlight: current athlete with headshot + team logo */}
+          {evt.currentAthlete && (
+            <div
+              className="shrink-0 flex items-center"
+              style={{
+                background: "linear-gradient(180deg, #1a2a1a 0%, #111 100%)",
+                borderBottom: `3px solid ${accent}`,
+                padding: "1.5cqh 1.5cqw",
+                gap: "1.5cqw",
+              }}
+            >
+              {/* Headshot */}
               <div
-                className="shrink-0 flex items-center gap-[1cqw] px-[1cqw]"
+                className="shrink-0 rounded-lg overflow-hidden bg-gray-800 flex items-center justify-center"
                 style={{
-                  background: "#1a1a1a",
-                  borderBottom: `2px solid ${accent}`,
-                  padding: "1cqh 1.5cqw",
+                  width: fs.headshotW,
+                  height: fs.headshot,
+                  border: `3px solid ${accent}`,
                 }}
               >
-                {/* Headshot */}
-                <div
-                  className="shrink-0 rounded overflow-hidden bg-gray-800 flex items-center justify-center"
-                  style={{
-                    width: cols === 1 ? "10cqw" : cols === 2 ? "8cqw" : "7cqw",
-                    height: cols === 1 ? "12cqh" : cols === 2 ? "10cqh" : "9cqh",
-                  }}
-                >
-                  {evt.currentAthlete.headshotUrl ? (
+                {evt.currentAthlete.headshotUrl ? (
+                  <img
+                    src={evt.currentAthlete.headshotUrl}
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-gray-700 flex items-center justify-center">
+                    <span className="text-gray-500" style={{ fontSize: "4cqw" }}>?</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Name + team logo + status */}
+              <div className="flex-1 min-w-0 flex flex-col" style={{ gap: "0.4cqh" }}>
+                <div className="flex items-center" style={{ gap: "1cqw" }}>
+                  <span
+                    className="font-bold text-white truncate uppercase"
+                    style={{ fontSize: fs.spotlightName }}
+                  >
+                    {evt.currentAthlete.firstName.charAt(0)}. {evt.currentAthlete.lastName}
+                  </span>
+                  {evt.currentAthlete.teamLogoUrl && (
                     <img
-                      src={evt.currentAthlete.headshotUrl}
+                      src={evt.currentAthlete.teamLogoUrl}
                       alt=""
-                      className="w-full h-full object-cover"
+                      className="shrink-0"
+                      style={{
+                        height: fs.spotlightLogo,
+                        width: "auto",
+                        objectFit: "contain",
+                      }}
                     />
-                  ) : (
-                    <div className="w-full h-full bg-gray-700 flex items-center justify-center">
-                      <span className="text-gray-400" style={{ fontSize: "3cqw" }}>?</span>
-                    </div>
                   )}
                 </div>
+                <span
+                  className="text-gray-300 truncate"
+                  style={{ fontSize: fs.spotlightTeam }}
+                >
+                  {evt.currentAthlete.team}
+                </span>
+                <span
+                  className="font-semibold truncate"
+                  style={{
+                    fontSize: fs.spotlightStatus,
+                    color: "#4caf50",
+                  }}
+                >
+                  {evt.currentAthlete.statusLine}
+                </span>
+              </div>
 
-                {/* Name + team + status */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-[0.5cqw]">
-                    <span
-                      className="font-bold text-white truncate"
-                      style={{
-                        fontSize: cols === 1 ? "3cqw" : cols === 2 ? "2.4cqw" : "1.8cqw",
-                      }}
-                    >
-                      {evt.currentAthlete.lastName}
-                    </span>
-                    {evt.currentAthlete.teamLogoUrl && (
+              {/* Place badge */}
+              {evt.currentAthlete.place != null && (
+                <div
+                  className="shrink-0 flex items-center justify-center font-bold text-white"
+                  style={{
+                    width: cols === 1 ? "6cqw" : cols === 2 ? "5cqw" : "4cqw",
+                    height: cols === 1 ? "6cqw" : cols === 2 ? "5cqw" : "4cqw",
+                    borderRadius: "50%",
+                    background: accent,
+                    fontSize: cols === 1 ? "3.5cqw" : cols === 2 ? "2.8cqw" : "2.2cqw",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.5)",
+                  }}
+                >
+                  {evt.currentAthlete.place}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Standings header row */}
+          <div
+            className="shrink-0 flex items-center"
+            style={{
+              background: "#1a1a2e",
+              padding: "0.6cqh 1cqw",
+              borderBottom: "2px solid #333",
+            }}
+          >
+            <span
+              className="uppercase text-gray-400 font-bold"
+              style={{
+                fontSize: cols === 1 ? "1.8cqw" : cols === 2 ? "1.4cqw" : "1.1cqw",
+                width: cols === 1 ? "4cqw" : cols === 2 ? "3.5cqw" : "3cqw",
+                textAlign: "center",
+                letterSpacing: "0.1em",
+              }}
+            >
+              PL
+            </span>
+            <span
+              className="uppercase text-gray-400 font-bold"
+              style={{
+                fontSize: cols === 1 ? "1.8cqw" : cols === 2 ? "1.4cqw" : "1.1cqw",
+                width: fs.logo,
+                textAlign: "center",
+                marginLeft: "0.5cqw",
+                marginRight: "0.5cqw",
+              }}
+            />
+            <span
+              className="flex-1 uppercase text-gray-400 font-bold"
+              style={{
+                fontSize: cols === 1 ? "1.8cqw" : cols === 2 ? "1.4cqw" : "1.1cqw",
+                letterSpacing: "0.1em",
+              }}
+            >
+              ATHLETE
+            </span>
+            <span
+              className="uppercase text-gray-400 font-bold text-right"
+              style={{
+                fontSize: cols === 1 ? "1.8cqw" : cols === 2 ? "1.4cqw" : "1.1cqw",
+                minWidth: cols === 1 ? "10cqw" : cols === 2 ? "8cqw" : "7cqw",
+                letterSpacing: "0.1em",
+              }}
+            >
+              MARK
+            </span>
+          </div>
+
+          {/* Standings rows — fill remaining space */}
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            {evt.standings.slice(0, maxRows).map((entry, rowIdx) => {
+              const isCurrentRow = entry.isCurrent;
+              return (
+                <div
+                  key={`${entry.bibNumber}-${rowIdx}`}
+                  className="flex items-center"
+                  style={{
+                    flex: "1 1 0",
+                    minHeight: 0,
+                    background: isCurrentRow
+                      ? `${accent}30`
+                      : rowIdx % 2 === 0
+                      ? "#151520"
+                      : "#1a1a2a",
+                    borderBottom: "2px solid #2a2a3a",
+                    borderLeft: isCurrentRow ? `4px solid ${accent}` : "4px solid transparent",
+                    padding: "0 1cqw",
+                  }}
+                >
+                  {/* Place */}
+                  <span
+                    className="font-bold text-white shrink-0 tabular-nums"
+                    style={{
+                      fontSize: fs.rowPlace,
+                      width: cols === 1 ? "4cqw" : cols === 2 ? "3.5cqw" : "3cqw",
+                      textAlign: "center",
+                      color: isCurrentRow ? "#4caf50" : "#fff",
+                    }}
+                  >
+                    {entry.isDNS ? "--" : entry.place ?? rowIdx + 1}
+                  </span>
+
+                  {/* Team logo */}
+                  <div
+                    className="shrink-0 flex items-center justify-center"
+                    style={{
+                      width: fs.logo,
+                      marginLeft: "0.5cqw",
+                      marginRight: "0.8cqw",
+                    }}
+                  >
+                    {entry.teamLogoUrl ? (
                       <img
-                        src={evt.currentAthlete.teamLogoUrl}
+                        src={entry.teamLogoUrl}
                         alt=""
-                        className="shrink-0"
                         style={{
-                          height: cols === 1 ? "3.5cqw" : cols === 2 ? "2.8cqw" : "2.2cqw",
+                          height: fs.logo,
                           width: "auto",
                           objectFit: "contain",
                         }}
                       />
+                    ) : (
+                      <span
+                        className="text-gray-500 font-bold uppercase"
+                        style={{
+                          fontSize: cols === 1 ? "1.6cqw" : cols === 2 ? "1.3cqw" : "1cqw",
+                        }}
+                      >
+                        {(entry.team || "").substring(0, 4)}
+                      </span>
                     )}
                   </div>
-                  <div
-                    className="text-gray-300"
+
+                  {/* Athlete name */}
+                  <span
+                    className="flex-1 font-bold text-white truncate uppercase"
                     style={{
-                      fontSize: cols === 1 ? "2cqw" : cols === 2 ? "1.6cqw" : "1.3cqw",
+                      fontSize: fs.rowName,
+                      letterSpacing: "0.02em",
                     }}
                   >
-                    {evt.currentAthlete.team}
-                  </div>
-                  {evt.currentAthlete.place != null && (
-                    <div
-                      className="text-gray-400"
-                      style={{
-                        fontSize: cols === 1 ? "1.8cqw" : cols === 2 ? "1.4cqw" : "1.1cqw",
-                      }}
-                    >
-                      Place: {evt.currentAthlete.place}
-                    </div>
-                  )}
-                  <div
-                    className="text-white font-semibold"
+                    {entry.lastName}
+                  </span>
+
+                  {/* Best mark */}
+                  <span
+                    className="shrink-0 font-bold text-white tabular-nums text-right"
                     style={{
-                      fontSize: cols === 1 ? "2cqw" : cols === 2 ? "1.6cqw" : "1.3cqw",
+                      fontSize: fs.rowMark,
+                      fontFamily: "'Oswald', 'Inter', sans-serif",
+                      minWidth: cols === 1 ? "10cqw" : cols === 2 ? "8cqw" : "7cqw",
+                      color: isCurrentRow ? "#4caf50" : "#e0e0e0",
                     }}
                   >
-                    {evt.currentAthlete.statusLine}
-                  </div>
+                    {entry.isDNS ? "DNS" : entry.bestMark}
+                  </span>
                 </div>
-              </div>
-            )}
-
-            {/* Standings table */}
-            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-              {evt.standings.slice(0, maxRows).map((entry, rowIdx) => {
-                const isCurrentRow = entry.isCurrent;
-                return (
-                  <div
-                    key={`${entry.bibNumber}-${rowIdx}`}
-                    className="flex items-center"
-                    style={{
-                      background: isCurrentRow
-                        ? `${accent}33`
-                        : rowIdx % 2 === 0
-                        ? "#1a1a1a"
-                        : "#111",
-                      borderBottom: "1px solid #2a2a2a",
-                      padding: "0.4cqh 0.8cqw",
-                      flex: "1 1 0",
-                      minHeight: 0,
-                    }}
-                  >
-                    {/* Place number */}
-                    <span
-                      className="font-bold text-white shrink-0"
-                      style={{
-                        fontSize: cols === 1 ? "2.8cqw" : cols === 2 ? "2.2cqw" : "1.7cqw",
-                        width: cols === 1 ? "3.5cqw" : cols === 2 ? "3cqw" : "2.5cqw",
-                        textAlign: "center",
-                      }}
-                    >
-                      {entry.isDNS ? "--" : entry.place ?? rowIdx + 1}
-                    </span>
-
-                    {/* Team logo */}
-                    <div
-                      className="shrink-0 flex items-center justify-center"
-                      style={{
-                        width: cols === 1 ? "3.5cqw" : cols === 2 ? "3cqw" : "2.5cqw",
-                        marginLeft: "0.5cqw",
-                        marginRight: "0.5cqw",
-                      }}
-                    >
-                      {entry.teamLogoUrl ? (
-                        <img
-                          src={entry.teamLogoUrl}
-                          alt=""
-                          style={{
-                            height: cols === 1 ? "3cqw" : cols === 2 ? "2.5cqw" : "2cqw",
-                            width: "auto",
-                            objectFit: "contain",
-                          }}
-                        />
-                      ) : (
-                        <span
-                          className="text-gray-500 font-bold uppercase"
-                          style={{
-                            fontSize: cols === 1 ? "1.4cqw" : cols === 2 ? "1.1cqw" : "0.9cqw",
-                          }}
-                        >
-                          {(entry.team || "").substring(0, 4)}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Athlete name */}
-                    <span
-                      className="flex-1 font-semibold text-white truncate"
-                      style={{
-                        fontSize: cols === 1 ? "2.5cqw" : cols === 2 ? "2cqw" : "1.5cqw",
-                      }}
-                    >
-                      {entry.lastName}
-                    </span>
-
-                    {/* Best mark */}
-                    <span
-                      className="shrink-0 font-bold text-white tabular-nums text-right"
-                      style={{
-                        fontSize: cols === 1 ? "2.8cqw" : cols === 2 ? "2.2cqw" : "1.7cqw",
-                        fontFamily: "'Oswald', 'Inter', sans-serif",
-                        minWidth: cols === 1 ? "8cqw" : cols === 2 ? "7cqw" : "6cqw",
-                      }}
-                    >
-                      {entry.isDNS ? "DNS" : entry.bestMark}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+              );
+            })}
           </div>
-        ))}
-      </div>
-
-      {/* Bottom banner: meet branding + clock */}
-      <div
-        className="shrink-0 flex items-center justify-between px-[2cqw]"
-        style={{
-          background: primary,
-          height: "8cqh",
-          borderTop: `2px solid ${secondary}44`,
-        }}
-      >
-        <div className="flex items-center gap-[1.5cqw]">
-          {meetLogoUrl && (
-            <img
-              src={meetLogoUrl}
-              alt=""
-              className="h-[5cqh] w-auto object-contain"
-              style={getLogoEffectStyle(meetLogoEffect)}
-            />
-          )}
-          <span
-            className="font-bold uppercase tracking-wide text-white"
-            style={{
-              fontSize: "2.8cqw",
-              textShadow: "0 1px 4px rgba(0,0,0,0.5)",
-            }}
-          >
-            {meetName}
-          </span>
         </div>
-        <span
-          className="font-bold text-white tabular-nums"
-          style={{
-            fontSize: "3.5cqw",
-            fontFamily: "'Oswald', 'Inter', sans-serif",
-          }}
-        >
-          <Clock />
-        </span>
-      </div>
+      ))}
     </div>
   );
 }
