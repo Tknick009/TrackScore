@@ -87,7 +87,7 @@ export function MultiFieldBoard({
     headshot: cols === 1 ? "30cqh" : cols === 2 ? "28cqh" : "26cqh",
     headshotW: cols === 1 ? "17cqw" : cols === 2 ? "13cqw" : "10cqw",
     spotLogo: cols === 1 ? "8cqw" : cols === 2 ? "6.5cqw" : "5cqw",
-    placeBadge: cols === 1 ? "14cqh" : cols === 2 ? "12cqh" : "10cqh",
+    placeBadge: cols === 1 ? "16cqh" : cols === 2 ? "14cqh" : "13cqh",
     placeBadgeFont: cols === 1 ? "4cqw" : cols === 2 ? "3cqw" : "2.5cqw",
     // Fixed spotlight height so all columns match
     spotHeight: cols === 1 ? "36cqh" : cols === 2 ? "34cqh" : "32cqh",
@@ -110,42 +110,37 @@ export function MultiFieldBoard({
             borderRight: colIdx < cols - 1 ? "4px solid #444" : undefined,
           }}
         >
-          {/* Gradient box: event header + spotlight as one unified block */}
+          {/* Event name header */}
           <div
-            className="shrink-0 flex flex-col"
+            className="shrink-0 flex items-center justify-center"
             style={{
-              background: `linear-gradient(180deg, ${meetColor} 0%, ${meetColorDark} 35%, #111 100%)`,
+              background: `linear-gradient(135deg, ${meetColor} 0%, ${meetColorDark} 100%)`,
+              padding: "1.2cqh 1cqw",
               borderBottom: `3px solid ${meetColor}`,
             }}
           >
-            {/* Event name header */}
-            <div
-              className="shrink-0 flex items-center justify-center"
+            <span
+              className="font-bold uppercase tracking-wider text-white text-center"
               style={{
-                padding: "1.2cqh 1cqw",
+                fontSize: fs.eventName,
+                textShadow: "0 2px 6px rgba(0,0,0,0.6)",
+                letterSpacing: "0.08em",
               }}
             >
-              <span
-                className="font-bold uppercase tracking-wider text-white text-center"
-                style={{
-                  fontSize: fs.eventName,
-                  textShadow: "0 2px 6px rgba(0,0,0,0.6)",
-                  letterSpacing: "0.08em",
-                }}
-              >
-                {evt.eventName}
-              </span>
-            </div>
+              {evt.eventName}
+            </span>
+          </div>
 
-            {/* Spotlight */}
-            <div
-              className="shrink-0 flex items-center overflow-hidden"
-              style={{
-                height: fs.spotHeight,
-                padding: "1.5cqh 1.5cqw",
-                gap: "1.5cqw",
-              }}
-            >
+          {/* Spotlight */}
+          <div
+            className="shrink-0 flex items-center overflow-hidden"
+            style={{
+              height: fs.spotHeight,
+              padding: "1.5cqh 1.5cqw",
+              gap: "1.5cqw",
+              background: "linear-gradient(180deg, #1a1a2e 0%, #111 100%)",
+            }}
+          >
             {evt.currentAthlete ? (
               <>
                 {/* Headshot */}
@@ -246,7 +241,6 @@ export function MultiFieldBoard({
                 <span className="text-gray-500 font-bold" style={{ fontSize: fs.spotTeam }}>Awaiting data...</span>
               </div>
             )}
-            </div>
           </div>
 
           {/* Standings header row */}
