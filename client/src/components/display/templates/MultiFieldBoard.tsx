@@ -29,7 +29,13 @@ export interface MultiFieldEvent {
     teamLogoUrl: string | null;
     headshotUrl: string | null;
     place: number | null;
-    statusLine: string;
+    mark: string;
+    englishMark?: string;
+    attemptNum?: number;
+    attemptTotal?: number;
+    attemptsDisplay?: string[];
+    /** Legacy field — ignored if mark+englishMark are present */
+    statusLine?: string;
   } | null;
   standings: MultiFieldEntry[];
 }
@@ -64,19 +70,22 @@ export function MultiFieldBoard({
 
   const accent = "#2E7D32";
 
-  // Font sizes scale based on column count — bigger = better
   const fs = {
     eventName: cols === 1 ? "5cqw" : cols === 2 ? "3.8cqw" : "3cqw",
-    spotlightName: cols === 1 ? "6cqw" : cols === 2 ? "4.5cqw" : "3.5cqw",
-    spotlightTeam: cols === 1 ? "3.5cqw" : cols === 2 ? "2.5cqw" : "2cqw",
-    spotlightStatus: cols === 1 ? "3.2cqw" : cols === 2 ? "2.4cqw" : "1.8cqw",
+    spotName: cols === 1 ? "5.5cqw" : cols === 2 ? "4cqw" : "3.2cqw",
+    spotTeam: cols === 1 ? "2.8cqw" : cols === 2 ? "2.2cqw" : "1.7cqw",
+    spotDetail: cols === 1 ? "2.5cqw" : cols === 2 ? "2cqw" : "1.5cqw",
+    spotMark: cols === 1 ? "4cqw" : cols === 2 ? "3cqw" : "2.4cqw",
+    spotXO: cols === 1 ? "3cqw" : cols === 2 ? "2.2cqw" : "1.7cqw",
     rowPlace: cols === 1 ? "3.8cqw" : cols === 2 ? "2.8cqw" : "2.2cqw",
     rowName: cols === 1 ? "3.2cqw" : cols === 2 ? "2.4cqw" : "1.9cqw",
     rowMark: cols === 1 ? "3.8cqw" : cols === 2 ? "2.8cqw" : "2.2cqw",
     logo: cols === 1 ? "4.5cqw" : cols === 2 ? "3.5cqw" : "2.8cqw",
     headshot: cols === 1 ? "22cqh" : cols === 2 ? "20cqh" : "18cqh",
     headshotW: cols === 1 ? "14cqw" : cols === 2 ? "11cqw" : "9cqw",
-    spotlightLogo: cols === 1 ? "6cqw" : cols === 2 ? "5cqw" : "4cqw",
+    spotLogo: cols === 1 ? "5.5cqw" : cols === 2 ? "4.5cqw" : "3.5cqw",
+    placeBadge: cols === 1 ? "7cqw" : cols === 2 ? "5.5cqw" : "4.5cqw",
+    placeBadgeFont: cols === 1 ? "4cqw" : cols === 2 ? "3cqw" : "2.5cqw",
   };
 
   return (
@@ -93,10 +102,7 @@ export function MultiFieldBoard({
           key={evt.eventNumber}
           className="flex-1 flex flex-col min-w-0 min-h-0"
           style={{
-            borderRight:
-              colIdx < cols - 1
-                ? "4px solid #444"
-                : undefined,
+            borderRight: colIdx < cols - 1 ? "4px solid #444" : undefined,
           }}
         >
           {/* Event name header */}
@@ -120,15 +126,15 @@ export function MultiFieldBoard({
             </span>
           </div>
 
-          {/* Spotlight: current athlete with headshot + team logo */}
+          {/* Spotlight: current athlete — full details */}
           {evt.currentAthlete && (
             <div
               className="shrink-0 flex items-center"
               style={{
                 background: "linear-gradient(180deg, #1a2a1a 0%, #111 100%)",
                 borderBottom: `3px solid ${accent}`,
-                padding: "2cqh 2cqw",
-                gap: "2cqw",
+                padding: "1.8cqh 1.5cqw",
+                gap: "1.5cqw",
               }}
             >
               {/* Headshot */}
@@ -141,11 +147,7 @@ export function MultiFieldBoard({
                 }}
               >
                 {evt.currentAthlete.headshotUrl ? (
-                  <img
-                    src={evt.currentAthlete.headshotUrl}
-                    alt=""
-                    className="w-full h-full object-cover"
-                  />
+                  <img src={evt.currentAthlete.headshotUrl} alt="" className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full bg-gray-700 flex items-center justify-center">
                     <span className="text-gray-500" style={{ fontSize: "4cqw" }}>?</span>
@@ -153,12 +155,13 @@ export function MultiFieldBoard({
                 )}
               </div>
 
-              {/* Name + team logo + status */}
-              <div className="flex-1 min-w-0 flex flex-col" style={{ gap: "0.4cqh" }}>
+              {/* Info block */}
+              <div className="flex-1 min-w-0 flex flex-col" style={{ gap: "0.3cqh" }}>
+                {/* Name + team logo */}
                 <div className="flex items-center" style={{ gap: "1cqw" }}>
                   <span
                     className="font-bold text-white truncate uppercase"
-                    style={{ fontSize: fs.spotlightName }}
+                    style={{ fontSize: fs.spotName }}
                   >
                     {evt.currentAthlete.firstName.charAt(0)}. {evt.currentAthlete.lastName}
                   </span>
@@ -167,29 +170,55 @@ export function MultiFieldBoard({
                       src={evt.currentAthlete.teamLogoUrl}
                       alt=""
                       className="shrink-0"
-                      style={{
-                        height: fs.spotlightLogo,
-                        width: "auto",
-                        objectFit: "contain",
-                      }}
+                      style={{ height: fs.spotLogo, width: "auto", objectFit: "contain" }}
                     />
                   )}
                 </div>
-                <span
-                  className="text-gray-300 truncate"
-                  style={{ fontSize: fs.spotlightTeam }}
-                >
+
+                {/* School */}
+                <span className="text-gray-300 truncate" style={{ fontSize: fs.spotTeam }}>
                   {evt.currentAthlete.team}
                 </span>
-                <span
-                  className="font-semibold truncate"
-                  style={{
-                    fontSize: fs.spotlightStatus,
-                    color: "#4caf50",
-                  }}
-                >
-                  {evt.currentAthlete.statusLine}
-                </span>
+
+                {/* Mark + English mark */}
+                <div className="flex items-baseline" style={{ gap: "1cqw" }}>
+                  {evt.currentAthlete.mark && (
+                    <span className="font-bold text-white" style={{ fontSize: fs.spotMark, fontFamily: "'Oswald', sans-serif" }}>
+                      {evt.currentAthlete.mark}
+                    </span>
+                  )}
+                  {evt.currentAthlete.englishMark && (
+                    <span className="text-gray-400" style={{ fontSize: fs.spotDetail }}>
+                      ({evt.currentAthlete.englishMark})
+                    </span>
+                  )}
+                </div>
+
+                {/* Attempt info */}
+                {evt.currentAthlete.attemptNum != null && evt.currentAthlete.attemptTotal != null && (
+                  <span style={{ fontSize: fs.spotDetail, color: "#4caf50" }} className="font-semibold">
+                    Attempt {evt.currentAthlete.attemptNum} of {evt.currentAthlete.attemptTotal}
+                  </span>
+                )}
+
+                {/* X's and O's for verticals */}
+                {evt.currentAthlete.attemptsDisplay && evt.currentAthlete.attemptsDisplay.length > 0 && (
+                  <div className="flex items-center" style={{ gap: "0.6cqw", marginTop: "0.2cqh" }}>
+                    {evt.currentAthlete.attemptsDisplay.map((xo, i) => (
+                      <span
+                        key={i}
+                        className="font-bold"
+                        style={{
+                          fontSize: fs.spotXO,
+                          color: xo.endsWith('O') ? "#4caf50" : xo === 'P' ? "#ffb300" : "#ef5350",
+                          letterSpacing: "0.05em",
+                        }}
+                      >
+                        {xo}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Place badge */}
@@ -197,11 +226,11 @@ export function MultiFieldBoard({
                 <div
                   className="shrink-0 flex items-center justify-center font-bold text-white"
                   style={{
-                    width: cols === 1 ? "8cqw" : cols === 2 ? "6.5cqw" : "5cqw",
-                    height: cols === 1 ? "8cqw" : cols === 2 ? "6.5cqw" : "5cqw",
+                    width: fs.placeBadge,
+                    height: fs.placeBadge,
                     borderRadius: "50%",
                     background: accent,
-                    fontSize: cols === 1 ? "4.5cqw" : cols === 2 ? "3.5cqw" : "2.8cqw",
+                    fontSize: fs.placeBadgeFont,
                     boxShadow: "0 3px 12px rgba(0,0,0,0.6)",
                   }}
                 >
@@ -262,7 +291,7 @@ export function MultiFieldBoard({
             </span>
           </div>
 
-          {/* Standings rows — fill remaining space */}
+          {/* Standings rows */}
           <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
             {evt.standings.slice(0, maxRows).map((entry, rowIdx) => {
               const isCurrentRow = entry.isCurrent;
@@ -283,7 +312,6 @@ export function MultiFieldBoard({
                     padding: "0 1cqw",
                   }}
                 >
-                  {/* Place */}
                   <span
                     className="font-bold text-white shrink-0 tabular-nums"
                     style={{
@@ -296,7 +324,6 @@ export function MultiFieldBoard({
                     {entry.isDNS ? "--" : entry.place ?? rowIdx + 1}
                   </span>
 
-                  {/* Team logo */}
                   <div
                     className="shrink-0 flex items-center justify-center"
                     style={{
@@ -309,36 +336,25 @@ export function MultiFieldBoard({
                       <img
                         src={entry.teamLogoUrl}
                         alt=""
-                        style={{
-                          height: fs.logo,
-                          width: "auto",
-                          objectFit: "contain",
-                        }}
+                        style={{ height: fs.logo, width: "auto", objectFit: "contain" }}
                       />
                     ) : (
                       <span
                         className="text-gray-500 font-bold uppercase"
-                        style={{
-                          fontSize: cols === 1 ? "1.6cqw" : cols === 2 ? "1.3cqw" : "1cqw",
-                        }}
+                        style={{ fontSize: cols === 1 ? "1.6cqw" : cols === 2 ? "1.3cqw" : "1cqw" }}
                       >
                         {(entry.team || "").substring(0, 4)}
                       </span>
                     )}
                   </div>
 
-                  {/* Athlete name */}
                   <span
                     className="flex-1 font-bold text-white truncate uppercase"
-                    style={{
-                      fontSize: fs.rowName,
-                      letterSpacing: "0.02em",
-                    }}
+                    style={{ fontSize: fs.rowName, letterSpacing: "0.02em" }}
                   >
                     {entry.lastName}
                   </span>
 
-                  {/* Best mark */}
                   <span
                     className="shrink-0 font-bold text-white tabular-nums text-right"
                     style={{

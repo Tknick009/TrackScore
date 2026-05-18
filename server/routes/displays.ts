@@ -3119,17 +3119,57 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
 
         // The first non-DNS athlete with attempts is the "current" spotlight (approximate)
         // In real-time mode, this would come from the field event session
-        const topAthlete = enrichedStandings.find(e => !e.isDNS);
+        const topAthleteIdx = standings.athletes.findIndex(a => !a.isDNS);
+        const topAthleteRaw = topAthleteIdx >= 0 ? standings.athletes[topAthleteIdx] : null;
+        const topAthlete = topAthleteIdx >= 0 ? enrichedStandings[topAthleteIdx] : null;
 
-        // Build status line based on event type
-        let statusLine = '';
-        if (standings.isVerticalEvent && standings.heights && standings.heights.length > 0) {
-          const lastHeight = standings.heights[standings.heights.length - 1];
-          statusLine = `Height: ${lastHeight.toFixed(2)}`;
-        } else {
-          // Count total valid attempts for the flight
-          const totalAttempts = standings.athletes.reduce((sum, a) => sum + a.attempts.filter(att => att.mark !== null || att.isFoul).length, 0);
-          statusLine = totalAttempts > 0 ? `Attempt #${Math.min(6, Math.ceil(totalAttempts / Math.max(1, standings.athletes.length)))}` : '';
+        // Build detailed current athlete info
+        let currentAthleteData: any = null;
+        if (topAthlete && topAthleteRaw) {
+          // Compute English mark (feet-inches) from metric bestMark
+          let englishMark = '';
+          if (topAthleteRaw.bestMark != null) {
+            const totalInches = topAthleteRaw.bestMark / 0.0254;
+            const feet = Math.floor(totalInches / 12);
+            const inches = totalInches % 12;
+            englishMark = `${feet}-${inches.toFixed(2).replace(/\.?0+$/, '')}`;
+          }
+
+          // Figure out attempt info
+          const validAttempts = topAthleteRaw.attempts.filter(att => att.mark !== null || att.isFoul || att.isPassed || att.isCleared || att.isMissed);
+          const attemptCount = validAttempts.length;
+          const totalPossible = standings.isVerticalEvent ? (standings.heights?.length || 0) : 6;
+
+          // Build X/O string for verticals
+          let attemptsDisplay: string[] = [];
+          if (standings.isVerticalEvent) {
+            for (const att of topAthleteRaw.attempts) {
+              if (att.isCleared) {
+                const misses = att.missCount || 0;
+                attemptsDisplay.push('X'.repeat(misses) + 'O');
+              } else if (att.isMissed && att.missCount >= 3) {
+                attemptsDisplay.push('XXX');
+              } else if (att.isMissed) {
+                attemptsDisplay.push('X'.repeat(att.missCount || 1));
+              } else if (att.isPassed) {
+                attemptsDisplay.push('P');
+              }
+            }
+          }
+
+          currentAthleteData = {
+            firstName: topAthlete.firstName,
+            lastName: topAthlete.lastName,
+            team: topAthlete.team,
+            teamLogoUrl: topAthlete.teamLogoUrl,
+            headshotUrl: topAthlete.headshotUrl,
+            place: topAthlete.place,
+            mark: topAthlete.bestMark,
+            englishMark,
+            attemptNum: attemptCount,
+            attemptTotal: totalPossible,
+            attemptsDisplay,
+          };
         }
 
         eventsData.push({
@@ -3137,15 +3177,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           eventName: standings.eventName || dbEvent?.name || `Event ${evtNum}`,
           eventType: dbEvent?.eventType || (standings.isVerticalEvent ? 'vertical' : 'horizontal'),
           isVertical: standings.isVerticalEvent,
-          currentAthlete: topAthlete ? {
-            firstName: topAthlete.firstName,
-            lastName: topAthlete.lastName,
-            team: topAthlete.team,
-            teamLogoUrl: topAthlete.teamLogoUrl,
-            headshotUrl: topAthlete.headshotUrl,
-            place: topAthlete.place,
-            statusLine,
-          } : null,
+          currentAthlete: currentAthleteData,
           standings: enrichedStandings,
         });
       }
@@ -3311,16 +3343,40 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
                 team: a.team || '', teamLogoUrl: resolveTeamLogo(a.team), headshotUrl: resolveHeadshot(a.bibNumber),
                 bestMark: a.bestMarkFormatted || '', isDNS: a.isDNS,
               }));
-              const topAthlete = enriched.find(e => !e.isDNS);
-              let statusLine = '';
-              if (standings.isVerticalEvent && standings.heights && standings.heights.length > 0) {
-                statusLine = `Height: ${standings.heights[standings.heights.length - 1].toFixed(2)}`;
+              const topIdx = standings.athletes.findIndex(a => !a.isDNS);
+              const topRaw = topIdx >= 0 ? standings.athletes[topIdx] : null;
+              const topEnr = topIdx >= 0 ? enriched[topIdx] : null;
+              let currentAthl: any = null;
+              if (topEnr && topRaw) {
+                let englishMark = '';
+                if (topRaw.bestMark != null) {
+                  const ti = topRaw.bestMark / 0.0254;
+                  const ft = Math.floor(ti / 12);
+                  const inch = ti % 12;
+                  englishMark = `${ft}-${inch.toFixed(2).replace(/\.?0+$/, '')}`;
+                }
+                const validAtt = topRaw.attempts.filter(att => att.mark !== null || att.isFoul || att.isPassed || att.isCleared || att.isMissed);
+                let attemptsDisplay: string[] = [];
+                if (standings.isVerticalEvent) {
+                  for (const att of topRaw.attempts) {
+                    if (att.isCleared) { attemptsDisplay.push('X'.repeat(att.missCount || 0) + 'O'); }
+                    else if (att.isMissed && (att.missCount || 0) >= 3) { attemptsDisplay.push('XXX'); }
+                    else if (att.isMissed) { attemptsDisplay.push('X'.repeat(att.missCount || 1)); }
+                    else if (att.isPassed) { attemptsDisplay.push('P'); }
+                  }
+                }
+                currentAthl = {
+                  firstName: topEnr.firstName, lastName: topEnr.lastName, team: topEnr.team,
+                  teamLogoUrl: topEnr.teamLogoUrl, headshotUrl: topEnr.headshotUrl, place: topEnr.place,
+                  mark: topEnr.bestMark, englishMark,
+                  attemptNum: validAtt.length, attemptTotal: standings.isVerticalEvent ? (standings.heights?.length || 0) : 6,
+                  attemptsDisplay,
+                };
               }
               eventsData.push({
                 eventNumber: evtNum, eventName: standings.eventName || dbEvent?.name || `Event ${evtNum}`,
                 eventType: dbEvent?.eventType || '', isVertical: standings.isVerticalEvent,
-                currentAthlete: topAthlete ? { firstName: topAthlete.firstName, lastName: topAthlete.lastName, team: topAthlete.team, teamLogoUrl: topAthlete.teamLogoUrl, headshotUrl: topAthlete.headshotUrl, place: topAthlete.place, statusLine } : null,
-                standings: enriched,
+                currentAthlete: currentAthl, standings: enriched,
               });
             }
 
