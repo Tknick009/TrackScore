@@ -2680,10 +2680,16 @@ function SplitScreenSettings({ device, meetId }: SplitScreenSettingsProps) {
 
   const updateScreenPercent = async (idx: number, pct: number) => {
     const newScreens = [...screens];
-    newScreens[idx] = { ...newScreens[idx], widthPercent: pct };
-    // Adjust last screen to make total 100
+    const minWidth = 10;
+    // Cap the requested pct so that all other non-last screens + this one + min last screen <= 100
+    const otherNonLastTotal = newScreens.reduce((sum: number, s: any, i: number) => 
+      (i !== idx && i !== newScreens.length - 1) ? sum + s.widthPercent : sum, 0);
+    const maxAllowed = 100 - minWidth - otherNonLastTotal;
+    const clampedPct = Math.min(pct, Math.max(minWidth, maxAllowed));
+    newScreens[idx] = { ...newScreens[idx], widthPercent: clampedPct };
+    // Adjust last screen to make total exactly 100
     const othersTotal = newScreens.reduce((sum: number, s: any, i: number) => i === newScreens.length - 1 ? sum : sum + s.widthPercent, 0);
-    newScreens[newScreens.length - 1] = { ...newScreens[newScreens.length - 1], widthPercent: Math.max(10, 100 - othersTotal) };
+    newScreens[newScreens.length - 1] = { ...newScreens[newScreens.length - 1], widthPercent: 100 - othersTotal };
     await updateSplitConfig({ enabled: true, screens: newScreens });
   };
 
