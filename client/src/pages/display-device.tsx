@@ -355,6 +355,27 @@ export default function DisplayDevice() {
   const [isBigBoard, setIsBigBoard] = useState<boolean>(false);
   const isBigBoardRef = useRef<boolean>(false);
   
+  // Split screen config - when enabled, display renders multiple side-by-side panels
+  interface SplitScreenConfig {
+    enabled: boolean;
+    screens: Array<{ label: string; widthPercent: number }>;
+  }
+  const [splitConfig, setSplitConfig] = useState<SplitScreenConfig | null>(null);
+  // Per-screen state for split mode — each screen has independent content
+  interface ScreenState {
+    currentTemplate: string | null;
+    currentSceneId: number | null;
+    currentSceneData: { scene: any; objects: any[] } | null;
+    currentEventId: number | null;
+    liveEventData: any;
+    pagingSize: number;
+    pagingInterval: number;
+    maxPages: number;
+  }
+  const [screenStates, setScreenStates] = useState<ScreenState[]>([]);
+  const screenStatesRef = useRef<ScreenState[]>([]);
+  useEffect(() => { screenStatesRef.current = screenStates; }, [screenStates]);
+
   // Field event mode - when true, display subscribes to field event channels
   const [isFieldMode, setIsFieldMode] = useState<boolean>(false);
   const isFieldModeRef = useRef<boolean>(false);
@@ -546,6 +567,17 @@ export default function DisplayDevice() {
               if (deviceData.displayScale !== undefined) {
                 setDisplayScale(deviceData.displayScale);
               }
+              // Restore split config from device data
+              if (deviceData.splitConfig) {
+                const cfg = typeof deviceData.splitConfig === 'string' ? JSON.parse(deviceData.splitConfig) : deviceData.splitConfig;
+                if (cfg && cfg.enabled && cfg.screens?.length > 0) {
+                  setSplitConfig(cfg);
+                  setScreenStates(cfg.screens.map(() => ({
+                    currentTemplate: null, currentSceneId: null, currentSceneData: null,
+                    currentEventId: null, liveEventData: null, pagingSize: 8, pagingInterval: 5, maxPages: 0,
+                  })));
+                }
+              }
               // Restore persisted content mode on reconnection
               // This prevents defaulting to track mode when device reconnects or server restarts
               if (deviceData.contentMode && deviceData.contentMode !== 'lynx') {
@@ -576,47 +608,82 @@ export default function DisplayDevice() {
                 console.warn('[Display] Failed to hydrate React Query cache:', e);
               }
             }
-            
-            setState(prev => {
-              // Determine if we're switching to a new scene
-              const isSwitchingScenes = newSceneId !== prev.currentSceneId;
-              const isSwitchingToTemplate = !newSceneId && message.template;
-              
-              // Preserve scene data if staying on same scene and no new data provided
-              let sceneData = message.sceneData || null;
-              if (!sceneData && newSceneId && newSceneId === prev.currentSceneId) {
-                sceneData = prev.currentSceneData; // Keep existing scene data for same scene
-              }
-              
-              console.log(`[Display] Command: sceneId=${newSceneId}, template=${message.template}, switching=${isSwitchingScenes}`);
-              
-              return {
-                ...prev,
-                // Template: use message template, or null if we have a scene, or keep previous
-                currentTemplate: message.template ?? (newSceneId ? null : prev.currentTemplate),
-                // Scene ID: use new scene ID or null if switching to template
-                currentSceneId: isSwitchingToTemplate ? null : (newSceneId ?? prev.currentSceneId),
-                // Scene data: use new data, or preserved data for same scene, or null for template
-                currentSceneData: isSwitchingToTemplate ? null : sceneData,
-                currentEventId: message.eventId ?? prev.currentEventId,
-                // Merge live data - preserve entries if incoming data doesn't have them
-                liveEventData: message.liveEventData 
-                  ? {
-                      ...prev.liveEventData,
-                      ...message.liveEventData,
-                      // Preserve entries if new data doesn't include them
-                      entries: message.liveEventData.entries?.length > 0 
-                        ? message.liveEventData.entries 
-                        : prev.liveEventData?.entries || [],
-                      // Merge winnersData from top-level message into liveEventData
-                      ...(message.winnersData ? { winnersData: message.winnersData } : {}),
-                    }
-                  : prev.liveEventData,
-                pagingSize: message.pagingSize ?? prev.pagingSize,
-                pagingInterval: message.pagingInterval ?? prev.pagingInterval,
-                maxPages: message.maxPages ?? prev.maxPages,
-              };
-            });
+
+            // If this command targets a specific screen in split mode, route to that screen's state
+            const targetScreen = message.screenIndex;
+            if (targetScreen != null && screenStatesRef.current.length > targetScreen) {
+              setScreenStates(prev => {
+                const updated = [...prev];
+                const screenPrev = updated[targetScreen] || {
+                  currentTemplate: null, currentSceneId: null, currentSceneData: null,
+                  currentEventId: null, liveEventData: null, pagingSize: 8, pagingInterval: 5, maxPages: 0,
+                };
+                const isSwitchingToTemplate = !newSceneId && message.template;
+                let sceneData = message.sceneData || null;
+                if (!sceneData && newSceneId && newSceneId === screenPrev.currentSceneId) {
+                  sceneData = screenPrev.currentSceneData;
+                }
+                updated[targetScreen] = {
+                  currentTemplate: message.template ?? (newSceneId ? null : screenPrev.currentTemplate),
+                  currentSceneId: isSwitchingToTemplate ? null : (newSceneId ?? screenPrev.currentSceneId),
+                  currentSceneData: isSwitchingToTemplate ? null : sceneData,
+                  currentEventId: message.eventId ?? screenPrev.currentEventId,
+                  liveEventData: message.liveEventData
+                    ? { ...screenPrev.liveEventData, ...message.liveEventData,
+                        entries: message.liveEventData.entries?.length > 0 ? message.liveEventData.entries : screenPrev.liveEventData?.entries || [],
+                        ...(message.winnersData ? { winnersData: message.winnersData } : {}),
+                      }
+                    : screenPrev.liveEventData,
+                  pagingSize: message.pagingSize ?? screenPrev.pagingSize,
+                  pagingInterval: message.pagingInterval ?? screenPrev.pagingInterval,
+                  maxPages: message.maxPages ?? screenPrev.maxPages,
+                };
+                return updated;
+              });
+              // Don't update main state when targeting a specific screen
+            } else {
+              // Default: update main display state (non-split or screenIndex not specified)
+              setState(prev => {
+                // Determine if we're switching to a new scene
+                const isSwitchingScenes = newSceneId !== prev.currentSceneId;
+                const isSwitchingToTemplate = !newSceneId && message.template;
+                
+                // Preserve scene data if staying on same scene and no new data provided
+                let sceneData = message.sceneData || null;
+                if (!sceneData && newSceneId && newSceneId === prev.currentSceneId) {
+                  sceneData = prev.currentSceneData; // Keep existing scene data for same scene
+                }
+                
+                console.log(`[Display] Command: sceneId=${newSceneId}, template=${message.template}, switching=${isSwitchingScenes}`);
+                
+                return {
+                  ...prev,
+                  // Template: use message template, or null if we have a scene, or keep previous
+                  currentTemplate: message.template ?? (newSceneId ? null : prev.currentTemplate),
+                  // Scene ID: use new scene ID or null if switching to template
+                  currentSceneId: isSwitchingToTemplate ? null : (newSceneId ?? prev.currentSceneId),
+                  // Scene data: use new data, or preserved data for same scene, or null for template
+                  currentSceneData: isSwitchingToTemplate ? null : sceneData,
+                  currentEventId: message.eventId ?? prev.currentEventId,
+                  // Merge live data - preserve entries if incoming data doesn't have them
+                  liveEventData: message.liveEventData 
+                    ? {
+                        ...prev.liveEventData,
+                        ...message.liveEventData,
+                        // Preserve entries if new data doesn't include them
+                        entries: message.liveEventData.entries?.length > 0 
+                          ? message.liveEventData.entries 
+                          : prev.liveEventData?.entries || [],
+                        // Merge winnersData from top-level message into liveEventData
+                        ...(message.winnersData ? { winnersData: message.winnersData } : {}),
+                      }
+                    : prev.liveEventData,
+                  pagingSize: message.pagingSize ?? prev.pagingSize,
+                  pagingInterval: message.pagingInterval ?? prev.pagingInterval,
+                  maxPages: message.maxPages ?? prev.maxPages,
+                };
+              });
+            }
           }
           
           if (message.type === 'paging_settings') {
@@ -1296,6 +1363,31 @@ export default function DisplayDevice() {
             }
           }
 
+          // Handle split config updates from Display Control
+          if (message.type === 'update_split_config' && message.deviceId === registeredDeviceIdRef.current) {
+            const newConfig = message.splitConfig;
+            if (newConfig && newConfig.enabled && newConfig.screens?.length > 0) {
+              setSplitConfig(newConfig);
+              // Initialize screen states if not already matching
+              setScreenStates(prev => {
+                if (prev.length === newConfig.screens.length) return prev;
+                return newConfig.screens.map((_: any, i: number) => prev[i] || {
+                  currentTemplate: null,
+                  currentSceneId: null,
+                  currentSceneData: null,
+                  currentEventId: null,
+                  liveEventData: null,
+                  pagingSize: 8,
+                  pagingInterval: 5,
+                  maxPages: 0,
+                });
+              });
+            } else {
+              setSplitConfig(null);
+              setScreenStates([]);
+            }
+          }
+
           // Handle HyTek MDB import completion — invalidate React Query cache so display refetches
           if (message.type === 'hytek_import_complete') {
             console.log(`[Display] HyTek import complete for meet ${message.meetId}, invalidating cache`);
@@ -1536,6 +1628,55 @@ export default function DisplayDevice() {
   }
 
   // At this point, setupComplete is true, so displayType and meetId are guaranteed to be set
+
+  // Split screen mode: render multiple DisplayRenderers side-by-side
+  if (splitConfig && splitConfig.enabled && splitConfig.screens.length > 1 && screenStates.length > 0) {
+    return (
+      <div className="w-screen h-screen flex overflow-hidden" style={{ background: '#000' }}>
+        {splitConfig.screens.map((screen, idx) => {
+          const screenState = screenStates[idx];
+          if (!screenState) return null;
+          return (
+            <div
+              key={idx}
+              style={{
+                width: `${screen.widthPercent}%`,
+                height: '100%',
+                overflow: 'hidden',
+                borderRight: idx < splitConfig.screens.length - 1 ? '2px solid #333' : undefined,
+              }}
+            >
+              <DisplayRenderer
+                displayType={state.displayType!}
+                meetId={state.meetId}
+                template={screenState.currentTemplate}
+                sceneId={screenState.currentSceneId}
+                currentSceneData={screenState.currentSceneData}
+                eventId={screenState.currentEventId}
+                deviceId={registeredDeviceId || 'pending'}
+                isConnected={state.isConnected}
+                liveClockTimeRef={liveClockTimeRef}
+                clockSubscribersRef={clockSubscribersRef}
+                liveEventData={screenState.liveEventData}
+                liveEventDataByPort={state.liveEventDataByPort}
+                pagingSize={screenState.pagingSize}
+                pagingInterval={screenState.pagingInterval}
+                maxPages={screenState.maxPages}
+                customWidth={state.displayType === 'Custom' ? customWidth : undefined}
+                customHeight={state.displayType === 'Custom' ? customHeight : undefined}
+                fieldPort={fieldPort}
+                displayScale={displayScale}
+                currentLayoutMode={currentLayoutModeRef.current}
+                onReturnToLogo={returnToMeetLogo}
+              />
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // Normal (non-split) rendering
   return (
     <DisplayRenderer
       displayType={state.displayType!}

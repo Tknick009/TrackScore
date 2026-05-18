@@ -988,6 +988,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   autoMode: deviceAutoMode,
                   displayScale: device.displayScale ?? 100,
                   contentMode: deviceContentMode,
+                  splitConfig: (device as any).splitConfig || null,
                 }
               }));
               
