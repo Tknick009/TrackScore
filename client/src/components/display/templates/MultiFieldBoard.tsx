@@ -51,7 +51,7 @@ export function MultiFieldBoard({
   meetLogoEffect,
   primaryColor,
   secondaryColor,
-  maxRows = 8,
+  maxRows = 6,
 }: MultiFieldBoardProps) {
   const cols = events.length;
   if (cols === 0) {
@@ -66,17 +66,17 @@ export function MultiFieldBoard({
 
   // Font sizes scale based on column count — bigger = better
   const fs = {
-    eventName: cols === 1 ? "5cqw" : cols === 2 ? "3.5cqw" : "2.8cqw",
-    spotlightName: cols === 1 ? "4.5cqw" : cols === 2 ? "3.2cqw" : "2.5cqw",
-    spotlightTeam: cols === 1 ? "2.8cqw" : cols === 2 ? "2cqw" : "1.6cqw",
-    spotlightStatus: cols === 1 ? "2.5cqw" : cols === 2 ? "1.8cqw" : "1.4cqw",
+    eventName: cols === 1 ? "5cqw" : cols === 2 ? "3.8cqw" : "3cqw",
+    spotlightName: cols === 1 ? "6cqw" : cols === 2 ? "4.5cqw" : "3.5cqw",
+    spotlightTeam: cols === 1 ? "3.5cqw" : cols === 2 ? "2.5cqw" : "2cqw",
+    spotlightStatus: cols === 1 ? "3.2cqw" : cols === 2 ? "2.4cqw" : "1.8cqw",
     rowPlace: cols === 1 ? "3.8cqw" : cols === 2 ? "2.8cqw" : "2.2cqw",
     rowName: cols === 1 ? "3.2cqw" : cols === 2 ? "2.4cqw" : "1.9cqw",
     rowMark: cols === 1 ? "3.8cqw" : cols === 2 ? "2.8cqw" : "2.2cqw",
     logo: cols === 1 ? "4.5cqw" : cols === 2 ? "3.5cqw" : "2.8cqw",
-    headshot: cols === 1 ? "14cqh" : cols === 2 ? "12cqh" : "10cqh",
-    headshotW: cols === 1 ? "10cqw" : cols === 2 ? "8cqw" : "6cqw",
-    spotlightLogo: cols === 1 ? "5cqw" : cols === 2 ? "4cqw" : "3cqw",
+    headshot: cols === 1 ? "22cqh" : cols === 2 ? "20cqh" : "18cqh",
+    headshotW: cols === 1 ? "14cqw" : cols === 2 ? "11cqw" : "9cqw",
+    spotlightLogo: cols === 1 ? "6cqw" : cols === 2 ? "5cqw" : "4cqw",
   };
 
   return (
@@ -127,8 +127,8 @@ export function MultiFieldBoard({
               style={{
                 background: "linear-gradient(180deg, #1a2a1a 0%, #111 100%)",
                 borderBottom: `3px solid ${accent}`,
-                padding: "1.5cqh 1.5cqw",
-                gap: "1.5cqw",
+                padding: "2cqh 2cqw",
+                gap: "2cqw",
               }}
             >
               {/* Headshot */}
@@ -197,12 +197,12 @@ export function MultiFieldBoard({
                 <div
                   className="shrink-0 flex items-center justify-center font-bold text-white"
                   style={{
-                    width: cols === 1 ? "6cqw" : cols === 2 ? "5cqw" : "4cqw",
-                    height: cols === 1 ? "6cqw" : cols === 2 ? "5cqw" : "4cqw",
+                    width: cols === 1 ? "8cqw" : cols === 2 ? "6.5cqw" : "5cqw",
+                    height: cols === 1 ? "8cqw" : cols === 2 ? "6.5cqw" : "5cqw",
                     borderRadius: "50%",
                     background: accent,
-                    fontSize: cols === 1 ? "3.5cqw" : cols === 2 ? "2.8cqw" : "2.2cqw",
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.5)",
+                    fontSize: cols === 1 ? "4.5cqw" : cols === 2 ? "3.5cqw" : "2.8cqw",
+                    boxShadow: "0 3px 12px rgba(0,0,0,0.6)",
                   }}
                 >
                   {evt.currentAthlete.place}
