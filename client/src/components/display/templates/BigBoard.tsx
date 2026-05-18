@@ -187,6 +187,19 @@ export function BigBoard({ event, meet, liveTime, pagingSize = 8, pagingInterval
     return '';
   };
 
+  // Pre-check: if NO entries have any result data, treat the whole board as a start list
+  // This prevents dimming all rows when FinishLynx sends a start list but event status
+  // is already 'in_progress' (auto-activated), or results haven't arrived yet
+  const isZeroTimeCheck = (t: string) => t !== '' && /^0*:?0*\.?0*$/.test(t);
+  const noEntriesHaveResults = useMemo(() => {
+    return sortedEntries.every(entry => {
+      const ft = entry.performance || formatTime(entry.finalMark);
+      const st = getLatestSplit(entry);
+      const hasData = (ft !== '' && !isZeroTimeCheck(ft)) || (st !== '' && !isZeroTimeCheck(st));
+      return !hasData;
+    });
+  }, [sortedEntries]);
+
   return (
     <div 
       className="h-screen w-screen overflow-hidden flex flex-col display-layout" 
@@ -284,8 +297,8 @@ export function BigBoard({ event, meet, liveTime, pagingSize = 8, pagingInterval
             let rowOpacity = 1;
             if (dimmed) {
               rowOpacity = 0.5;
-            } else if (isStartList) {
-              rowOpacity = 1; // Start list: filled rows at full opacity
+            } else if (isStartList || noEntriesHaveResults) {
+              rowOpacity = 1; // Start list or no results yet: all rows at full opacity
             } else if (!isCompleted && !hasResultData) {
               rowOpacity = 0.5; // Running: no split/time yet = dimmed
             } else if (isCompleted && !hasResultData) {

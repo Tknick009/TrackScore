@@ -122,6 +122,18 @@ export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingInt
       ? roundName.toUpperCase()
       : (isCompleted ? 'OFFICIAL RESULTS' : isLive ? 'LIVE' : 'SCHEDULED');
 
+  // Pre-check: if NO entries have any result data, treat the whole board as a start list
+  // This prevents dimming all rows when event is 'in_progress' but no results have arrived yet
+  const isZeroTimeGlobal = (t: string) => t !== '' && /^0*:?0*\.?0*$/.test(t);
+  const noEntriesHaveResults = useMemo(() => {
+    return sortedEntries.every(entry => {
+      const mark = entry.performance || entry.finalMark;
+      if (mark === null || mark === undefined || mark === '') return true;
+      const markStr = typeof mark === 'number' ? mark.toFixed(2) : String(mark).trim();
+      return markStr === '' || markStr === '--' || isZeroTimeGlobal(markStr);
+    });
+  }, [sortedEntries]);
+
   return (
     <div
       className="h-screen w-screen overflow-hidden flex flex-col"
@@ -312,8 +324,8 @@ export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingInt
             let rowOpacity = 1;
             if (dimmed) {
               rowOpacity = 0.5;
-            } else if (isStartList) {
-              rowOpacity = 1; // Start list: filled rows at full opacity
+            } else if (isStartList || noEntriesHaveResults) {
+              rowOpacity = 1; // Start list or no results yet: all rows at full opacity
             } else if (!isCompleted && !hasResultData) {
               rowOpacity = 0.5; // Running: no result yet = dimmed
             } else if (isCompleted && !hasResultData) {
