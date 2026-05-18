@@ -13,6 +13,23 @@ import {
 import { mergeFlightsForEvent, parseLFFFile, findLFFFilesForEvent } from "../parsers/lff-parser";
 import { parseLIFFile, type NormalizedResult, type LIFEventHeader } from "../parsers/lif-parser";
 import * as fs from 'fs';
+
+/** Convert meters to English feet-inches with quarter-inch fractions (e.g. "23-4 1/4") */
+function metersToEnglishFraction(meters: number): string {
+  const totalInches = meters / 0.0254;
+  const feet = Math.floor(totalInches / 12);
+  const remainingInches = totalInches % 12;
+  // Round to nearest quarter inch
+  const quarters = Math.round(remainingInches * 4);
+  const wholeInches = Math.floor(quarters / 4);
+  const fracQuarters = quarters % 4;
+  const fractionMap: Record<number, string> = { 1: '1/4', 2: '1/2', 3: '3/4' };
+  const frac = fractionMap[fracQuarters] || '';
+  if (frac) {
+    return `${feet}-${wholeInches} ${frac}`;
+  }
+  return `${feet}-${wholeInches}`;
+}
 import * as pathModule from 'path';
 import { getActiveHytekMdbWatchers } from "../hytek-mdb-watcher";
 import {
@@ -3126,13 +3143,10 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         // Build detailed current athlete info
         let currentAthleteData: any = null;
         if (topAthlete && topAthleteRaw) {
-          // Compute English mark (feet-inches) from metric bestMark
+          // Compute English mark (feet-inches with quarter-inch fractions)
           let englishMark = '';
           if (topAthleteRaw.bestMark != null) {
-            const totalInches = topAthleteRaw.bestMark / 0.0254;
-            const feet = Math.floor(totalInches / 12);
-            const inches = totalInches % 12;
-            englishMark = `${feet}-${inches.toFixed(2).replace(/\.?0+$/, '')}`;
+            englishMark = metersToEnglishFraction(topAthleteRaw.bestMark);
           }
 
           // Figure out attempt info
@@ -3358,10 +3372,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
               if (topEnr && topRaw) {
                 let englishMark = '';
                 if (topRaw.bestMark != null) {
-                  const ti = topRaw.bestMark / 0.0254;
-                  const ft = Math.floor(ti / 12);
-                  const inch = ti % 12;
-                  englishMark = `${ft}-${inch.toFixed(2).replace(/\.?0+$/, '')}`;
+                  englishMark = metersToEnglishFraction(topRaw.bestMark);
                 }
                 const validAtt = topRaw.attempts.filter(att => att.mark !== null || att.isFoul || att.isPassed || att.isCleared || att.isMissed);
                 let attemptsDisplay: string[] = [];
