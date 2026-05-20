@@ -972,7 +972,15 @@ export function SceneObjectRenderer({
             'name-qualifier-badge': qualifierStatus,
             'last-name-qualifier-badge': qualifierStatus,
             'school': schoolDisplay,
-            'time': firstEntry?.time || firstEntry?.mark,
+            'time': (() => {
+              const raw = firstEntry?.time || firstEntry?.mark;
+              if (!raw) return raw;
+              // Append "m" to metric field marks (numeric values like "6.58", "45.23")
+              if (isFieldMode && !firstEntry?.time && firstEntry?.mark && /^\d+(\.\d+)?$/.test(String(raw).trim())) {
+                return `${raw}m`;
+              }
+              return raw;
+            })(),
             'mark-converted': isMultiEvent && eventPoints > 0 ? `${eventPoints} pts` : (firstEntry?.markConverted || ''),
             'last-split': isMultiEvent && eventPoints > 0 ? `${eventPoints} pts` : firstEntry?.lastSplit,
             'cumulative-split': firstEntry?.cumulativeSplit,

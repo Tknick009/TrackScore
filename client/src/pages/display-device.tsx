@@ -699,6 +699,13 @@ export default function DisplayDevice() {
               autoModeRef.current = false;
               currentLayoutModeRef.current = null; // Reset so display_command triggers fresh render
               console.log(`[Display] Switched to ${newContentMode} content mode (auto-mode disabled)`);
+            } else if (newContentMode === 'multi_field') {
+              // Switch to Multi-Field Board — NOT regular field mode.
+              // Disable isFieldMode so live FieldLynx broadcasts don't trigger scene switches.
+              setIsFieldMode(false);
+              autoModeRef.current = false;
+              currentLayoutModeRef.current = null;
+              console.log(`[Display] Switched to multi_field content mode (auto-mode disabled)`);
             } else if (newContentMode === 'meet_schedule' || newContentMode === 'meet_records' || newContentMode === 'sponsors' || newContentMode === 'sponsor_reel' || newContentMode === 'team_preview') {
               // Switch to pre-meet display modes — disable auto mode so FinishLynx doesn't override
               setIsFieldMode(false);
@@ -2239,7 +2246,11 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
                 id: idx,
                 finalLane: entry.lane || idx + 1,
                 finalPlace,
-                finalMark: entry.time || entry.mark || entry.result || '',
+                finalMark: (() => {
+              const raw = entry.time || entry.mark || entry.result || '';
+              if (!entry.time && entry.mark && /^\d+(\.\d+)?$/.test(String(raw).trim())) return `${raw}m`;
+              return raw;
+            })(),
                 lastSplit: entry.lastSplit || entry.cumulativeSplit || '',
                 reactionTime: entry.reactionTime || '',
                 qualifier: entry.qualifier || '',
@@ -2304,7 +2315,11 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
           id: idx,
           finalLane: entry.lane || idx + 1,
           finalPlace,
-          finalMark: entry.time || entry.mark || entry.result || '',
+          finalMark: (() => {
+              const raw = entry.time || entry.mark || entry.result || '';
+              if (!entry.time && entry.mark && /^\d+(\.\d+)?$/.test(String(raw).trim())) return `${raw}m`;
+              return raw;
+            })(),
           lastSplit: entry.lastSplit || entry.cumulativeSplit || '',
           reactionTime: entry.reactionTime || '',
           qualifier: entry.qualifier || '',
