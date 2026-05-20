@@ -1736,6 +1736,80 @@ function ConfettiOverlay({ children, teamLogoUrl }: { children: React.ReactNode;
   );
 }
 
+/** MultiPanelContainer — fills the browser viewport and scales each panel to fit side by side.
+ * Each child (FieldPanel) renders at its native pixel size, then gets CSS-scaled to fill
+ * its share of the viewport width. This way the content looks identical to a single board. */
+function MultiPanelContainer({ panelCount, panelPixelWidth, panelPixelHeight, scaleClass, scaleVarStyle, children }: {
+  panelCount: number;
+  panelPixelWidth: number;
+  panelPixelHeight: number;
+  scaleClass: string;
+  scaleVarStyle: React.CSSProperties;
+  children: React.ReactNode;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [viewportSize, setViewportSize] = useState({ w: window.innerWidth, h: window.innerHeight });
+
+  useEffect(() => {
+    const onResize = () => setViewportSize({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  // Each panel gets an equal share of the viewport
+  const slotWidth = viewportSize.w / panelCount;
+  const slotHeight = viewportSize.h;
+
+  // Scale to fill: pick the smaller axis so panel fits fully
+  const scaleX = slotWidth / panelPixelWidth;
+  const scaleY = slotHeight / panelPixelHeight;
+  const panelScale = Math.min(scaleX, scaleY);
+
+  const childArray = React.Children.toArray(children);
+
+  return (
+    <div
+      ref={containerRef}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
+        backgroundColor: '#000',
+        display: 'flex',
+        overflow: 'hidden',
+      }}
+    >
+      {childArray.map((child, idx) => (
+        <div
+          key={idx}
+          style={{
+            width: `${slotWidth}px`,
+            height: `${slotHeight}px`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              width: `${panelPixelWidth}px`,
+              height: `${panelPixelHeight}px`,
+              transform: `scale(${panelScale})`,
+              transformOrigin: 'center center',
+              flexShrink: 0,
+            }}
+          >
+            {child}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /** FieldPanel — one column in multi-panel mode. Shows meet logo when idle, field data when port active. */
 function FieldPanel({ port, width, height, meetId, liveEventDataByPort, displayType, liveClockTimeRef, clockSubscribersRef, displayScale }: {
   port: number;
@@ -2696,26 +2770,19 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     const fixedWidth = displayType === 'Custom' && customWidth ? customWidth : resolution.width;
     const fixedHeight = displayType === 'Custom' && customHeight ? customHeight : resolution.height;
 
-    // Multi-panel mode: each panel is a full-size P10/P6 display side by side
-    // Total width = panelCount × single display width (e.g., 3 P6 panels = 864×144)
-    // The browser window should span all daisy-chained boards (set Windows display to combined resolution)
+    // Multi-panel mode: each panel is a full P10/P6 display side by side.
+    // Uses 100vw/100vh so the panels fill the entire browser window.
+    // The LED controller should present all daisy-chained boards as one wide
+    // display to Windows, then open Chrome in fullscreen (F11).
     if (fieldPanels && fieldPanels.length > 1) {
       const panelCount = fieldPanels.length;
-      const totalWidth = fixedWidth * panelCount;
       return (
-        <div
-          className={scaleClass}
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: `${totalWidth}px`,
-            height: `${fixedHeight}px`,
-            backgroundColor: '#000',
-            display: 'flex',
-            overflow: 'visible',
-            ...scaleVarStyle,
-          }}
+        <MultiPanelContainer
+          panelCount={panelCount}
+          panelPixelWidth={fixedWidth}
+          panelPixelHeight={fixedHeight}
+          scaleClass={scaleClass}
+          scaleVarStyle={scaleVarStyle}
         >
           {fieldPanels.map((panel, idx) => (
             <FieldPanel
@@ -2731,7 +2798,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
               displayScale={displayScale}
             />
           ))}
-        </div>
+        </MultiPanelContainer>
       );
     }
 
