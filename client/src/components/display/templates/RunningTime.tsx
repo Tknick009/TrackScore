@@ -103,6 +103,7 @@ export function RunningTime({ event, meet, liveTime, clockSubscribersRef }: Runn
               color="white"
               fontFamily="'Bebas Neue', sans-serif"
               className="font-black tabular-nums leading-none"
+              extraStyle={{ letterSpacing: '-0.02em', textShadow: '0 0 60px rgba(0, 150, 255, 0.4)' }}
             />
           ) : (
             <span 

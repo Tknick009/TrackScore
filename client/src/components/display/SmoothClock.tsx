@@ -46,6 +46,7 @@ export const SmoothClock = memo(function SmoothClock({
   color,
   fontFamily,
   className,
+  extraStyle,
 }: { 
   serverTime: string | null | undefined;
   clockSubscribersRef?: React.RefObject<Set<(time: string, command?: string) => void>>;
@@ -53,6 +54,7 @@ export const SmoothClock = memo(function SmoothClock({
   color?: string;
   fontFamily?: string;
   className?: string;
+  extraStyle?: React.CSSProperties;
 }) {
   const spanRef = useRef<HTMLSpanElement>(null);
   
@@ -156,6 +158,7 @@ export const SmoothClock = memo(function SmoothClock({
         fontSize: fontSize || '48px',
         color: color || 'inherit',
         fontFamily: fontFamily || 'inherit',
+        ...extraStyle,
       }}
     >
       {serverTime || "0.0"}
