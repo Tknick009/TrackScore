@@ -129,7 +129,7 @@ function useLiveEventData(eventNumber: string | number | null | undefined) {
   });
 }
 
-function useLatestLiveEventData() {
+function useLatestLiveEventData(enabled = true) {
   return useQuery({
     queryKey: ["/api/live-events/latest"],
     queryFn: async () => {
@@ -138,8 +138,9 @@ function useLatestLiveEventData() {
       const data = await res.json();
       return Array.isArray(data) && data.length > 0 ? data[0] : null;
     },
+    enabled,
     staleTime: 5000,
-    refetchInterval: 10000, // WebSocket handles real-time; this is fallback only
+    refetchInterval: enabled ? 10000 : false,
   });
 }
 
@@ -1641,14 +1642,15 @@ export function SceneCanvas({
   const objects = propObjects || fetchedObjects;
   
   const { data: fetchedLiveEventData } = useLiveEventData(eventNumber);
-  // Skip latest-event REST polling when a specific port is assigned (multi-panel mode).
+  // Skip latest-event REST polling when data is provided via props (WebSocket/multi-panel).
   // Each panel receives its own data via propLiveEventData; polling for "latest"
   // would return whichever port got data last and bleed into the wrong panel.
-  const skipLatestPoll = !!deviceFieldPort && !!propLiveEventData;
-  const { data: latestLiveEventData } = useLatestLiveEventData();
+  // Also avoids the expensive /api/live-events call (2+ seconds) that blocks the event loop.
+  const needsLatestPoll = !propLiveEventData && !eventNumber;
+  const { data: latestLiveEventData } = useLatestLiveEventData(needsLatestPoll);
   
-  // Priority: WebSocket prop > REST by eventNumber > REST latest (skipped in multi-panel)
-  const rawLiveData = propLiveEventData || fetchedLiveEventData || (skipLatestPoll ? null : latestLiveEventData);
+  // Priority: WebSocket prop > REST by eventNumber > REST latest (only when no other source)
+  const rawLiveData = propLiveEventData || fetchedLiveEventData || latestLiveEventData;
   
   // Use entries in arrival order for start_list (FinishLynx controls display order)
   // Only sort results mode by place
