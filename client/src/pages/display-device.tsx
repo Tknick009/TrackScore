@@ -1104,9 +1104,9 @@ export default function DisplayDevice() {
               
               console.log(`[Display] Field mode change (port ${dataPort}): Event ${data.eventNumber}, ${data.results?.length || 0} results`);
               
-              // Determine the display mode — single field_results or multi_field
-              const isMultiEvent = data.isMultiEvent;
-              const targetDisplayMode = isMultiEvent ? 'multi_field' : 'field_results';
+              // Always use field_results for live FieldLynx data (including multi-event sub-events).
+              // 'multi_field' is only for the dedicated Multi-Field Board tile sent via HTTP.
+              const targetDisplayMode = 'field_results';
               
               // Only switch scene when data arrives for this device's assigned port.
               // This prevents a device on port 4560 from switching when port 4561 data arrives.
