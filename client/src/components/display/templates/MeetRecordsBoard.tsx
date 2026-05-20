@@ -89,7 +89,7 @@ export function MeetRecordsBoard({
 
   return (
     <div
-      className="h-screen w-screen overflow-hidden flex flex-col"
+      className="h-full w-full overflow-hidden flex flex-col"
       style={{
         background: '#000000',
         fontFamily: "'Barlow Semi Condensed', 'Inter', sans-serif",

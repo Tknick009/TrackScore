@@ -2513,28 +2513,11 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     </div>
   );
 
-  // Record Board, Winners Board, and pre-meet displays always render full-screen regardless of display type
-  const isFullScreenBoard = 
-    (template === 'record-board' && liveEventData?.mode === 'record') ||
-    (template === 'winners-board' && liveEventData?.mode === 'winners') ||
-    (template === 'meet-schedule' && liveEventData?.mode === 'meet_schedule') ||
-    (template === 'meet-records' && liveEventData?.mode === 'meet_records') ||
-    (template === 'sponsor-rotation' && liveEventData?.mode === 'sponsors') ||
-    (template === 'multi-field-board' && liveEventData?.mode === 'multi_field');
-
   // Display scale: set CSS custom property for text/logo condensing only (backgrounds stay full-size)
   const scaleClass = displayScale !== 100 ? 'display-scale-active' : '';
   const scaleVarStyle: React.CSSProperties = displayScale !== 100 ? {
     '--display-scale': `${displayScale / 100}`,
   } as React.CSSProperties : {};
-
-  if (isFullScreenBoard) {
-    return (
-      <div className={`h-screen w-screen bg-black overflow-hidden ${scaleClass}`} style={{ position: 'relative', ...scaleVarStyle }}>
-        {wrapWithLogoButton(renderWithTransition())}
-      </div>
-    );
-  }
 
   if (isFixedSizeDisplay) {
     // P10, P6, and Custom use exact pixel dimensions at position 0,0
@@ -2561,7 +2544,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     );
   }
 
-  // BigBoard uses full screen
+  // BigBoard and Broadcast use full screen
   return (
     <div className={`h-screen w-screen bg-black overflow-hidden ${scaleClass}`} style={{ position: 'relative', ...scaleVarStyle }}>
       {wrapWithLogoButton(renderWithTransition())}
