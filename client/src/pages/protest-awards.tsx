@@ -166,9 +166,18 @@ function handlePrint(
   const hasWind = entries.some((e) => e.wind != null);
   const hasNotes = entries.some((e) => e.resultNote);
 
-  const printWindow = window.open("", "_blank");
+  // Use hidden iframe to print without opening a new tab
+  const iframe = document.createElement("iframe");
+  iframe.style.position = "fixed";
+  iframe.style.top = "-10000px";
+  iframe.style.left = "-10000px";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
+  document.body.appendChild(iframe);
+  const printWindow = iframe.contentWindow;
   if (!printWindow) {
-    toast({ title: "Popup Blocked", description: "Please allow popups to print", variant: "destructive" });
+    document.body.removeChild(iframe);
+    toast({ title: "Print Error", description: "Could not create print frame", variant: "destructive" });
     return;
   }
 
@@ -295,10 +304,13 @@ function handlePrint(
   </div>
 </body></html>`;
 
+  printWindow.document.open();
   printWindow.document.write(html);
   printWindow.document.close();
-  printWindow.onload = () => {
+  iframe.onload = () => {
+    printWindow.focus();
     printWindow.print();
+    setTimeout(() => document.body.removeChild(iframe), 1000);
   };
 }
 

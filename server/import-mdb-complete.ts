@@ -1227,7 +1227,7 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
             case '1': case 'seeded':
               subHytekStatus = 'seeded'; break;
             case 'A': case 'a': case 'D': case 'd': case '2': case 'done':
-              subHytekStatus = 'done'; break;
+              subHytekStatus = 'done'; subIsScored = true; break;
             case 'S': case 's': case 'C': case 'c': case '3': case 'scored':
               subHytekStatus = 'scored'; subIsScored = true; break;
             default:
