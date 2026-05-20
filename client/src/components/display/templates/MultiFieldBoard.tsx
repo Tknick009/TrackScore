@@ -103,7 +103,7 @@ export function MultiFieldBoard({
     headerName: cols === 1 ? "4.5cqw" : cols === 2 ? "3.2cqw" : "2.6cqw",
     spotName: cols === 1 ? "3.6cqw" : cols === 2 ? "3cqw" : "2.4cqw",
     spotTeam: cols === 1 ? "2.2cqw" : cols === 2 ? "2cqw" : "1.6cqw",
-    spotMark: cols === 1 ? "5cqw" : cols === 2 ? "4.5cqw" : "3.5cqw",
+    spotMark: cols === 1 ? "4.2cqw" : cols === 2 ? "3.8cqw" : "3cqw",
     spotSub: cols === 1 ? "2.2cqw" : cols === 2 ? "2cqw" : "1.6cqw",
     spotDetail: cols === 1 ? "2cqw" : cols === 2 ? "1.8cqw" : "1.4cqw",
     spotXO: cols === 1 ? "2.8cqw" : cols === 2 ? "2.4cqw" : "2cqw",
@@ -116,7 +116,7 @@ export function MultiFieldBoard({
     headshot: cols === 1 ? "26cqh" : cols === 2 ? "24cqh" : "22cqh",
     headshotW: cols === 1 ? "10cqw" : cols === 2 ? "10cqw" : "8cqw",
     spotLogo: cols === 1 ? "8cqw" : cols === 2 ? "6cqw" : "4.5cqw",
-    spotHeight: cols === 1 ? "28cqh" : cols === 2 ? "26cqh" : "24cqh",
+    spotHeight: cols === 1 ? "30cqh" : cols === 2 ? "28cqh" : "26cqh",
     meetLogo: cols === 1 ? "3.5cqw" : cols === 2 ? "2.8cqw" : "2.2cqw",
   };
 
@@ -140,10 +140,11 @@ export function MultiFieldBoard({
 
     return (
       <div style={{
-        height: s.spotHeight,
+        minHeight: s.spotHeight,
+        flexShrink: 0,
         display: "flex",
         alignItems: "center",
-        padding: "1cqh 1.2cqw",
+        padding: "0.6cqh 1.2cqw",
         gap: "1.2cqw",
         background: "linear-gradient(180deg, rgba(255,255,255,0.04) 0%, transparent 100%)",
         position: "relative",
@@ -178,7 +179,7 @@ export function MultiFieldBoard({
         </div>
 
         {/* Info */}
-        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "0.2cqh" }}>
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "0.1cqh" }}>
           {/* Name — no truncation, auto-fits */}
           <div style={{
             fontSize: s.spotName,
@@ -186,7 +187,7 @@ export function MultiFieldBoard({
             color: "#fff",
             textTransform: "uppercase",
             letterSpacing: "0.02em",
-            lineHeight: 1.15,
+            lineHeight: 1.1,
             wordBreak: "break-word",
             overflow: "hidden",
             display: "-webkit-box",
@@ -207,7 +208,7 @@ export function MultiFieldBoard({
 
           {/* Mark + secondary */}
           {athlete.mark && (
-            <div style={{ display: "flex", alignItems: "baseline", gap: "0.8cqw", marginTop: "0.3cqh" }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: "0.8cqw", marginTop: "0.1cqh" }}>
               <span style={{
                 fontSize: s.spotMark,
                 fontWeight: 800,
@@ -224,7 +225,7 @@ export function MultiFieldBoard({
           )}
 
           {/* Place + Attempt */}
-          <div style={{ display: "flex", alignItems: "center", gap: "1cqw", marginTop: "0.2cqh" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "1cqw", marginTop: "0.1cqh" }}>
             {athlete.place != null && athlete.mark && (
               <span style={{
                 fontSize: s.spotDetail,
