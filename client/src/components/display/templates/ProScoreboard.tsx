@@ -5,11 +5,13 @@ import { formatResult, formatTimeValue } from "../utils";
 import { getTeamColor, getPodiumColor } from "../utils";
 import { shouldShowWind } from "../utils/formatting";
 import { getLogoEffectStyle } from "@/lib/logoEffects";
+import { SmoothClock } from "@/components/display/SmoothClock";
 
 interface ProScoreboardProps {
   event: EventWithEntries;
   meet?: Meet | null;
   liveTime?: string;
+  clockSubscribersRef?: React.RefObject<Set<(time: string, command?: string) => void>>;
   pagingSize?: number;
   pagingIntervalMs?: number;
   maxPages?: number;
@@ -24,7 +26,7 @@ function determineDisplayMode(event: EventWithEntries): 'track' | 'field' {
   return checkIsTrackEvent(event.eventType) ? 'track' : 'field';
 }
 
-export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingIntervalMs = 8000, maxPages = 0, displayType }: ProScoreboardProps) {
+export function ProScoreboard({ event, meet, liveTime, clockSubscribersRef, pagingSize = 8, pagingIntervalMs = 8000, maxPages = 0, displayType }: ProScoreboardProps) {
   const showPlacePrefix = displayType === 'P10' || displayType === 'P6';
   const [clock, setClock] = useState("");
   const [currentPage, setCurrentPage] = useState(0);
@@ -178,7 +180,18 @@ export function ProScoreboard({ event, meet, liveTime, pagingSize = 8, pagingInt
             className="text-white/50 tabular-nums font-medium"
             style={{ fontSize: '28px', fontFamily: "'JetBrains Mono', 'Fira Code', monospace" }}
           >
-            {displayClock}
+            {clockSubscribersRef && event.status === 'in_progress' ? (
+              <SmoothClock
+                serverTime={liveTime}
+                clockSubscribersRef={clockSubscribersRef}
+                fontSize="28px"
+                color="rgba(255,255,255,0.5)"
+                fontFamily="'JetBrains Mono', 'Fira Code', monospace"
+                className="tabular-nums font-medium"
+              />
+            ) : (
+              displayClock
+            )}
           </div>
         </div>
 

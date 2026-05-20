@@ -156,6 +156,7 @@ export function FieldTransitionRenderer({
         if (id) currentBibs.add(id);
       }
     }
+    let isEventSwitch = false;
     if (seenBibsRef.current.size > 0 && currentBibs.size > 0) {
       let overlap = 0;
       for (const id of currentBibs) {
@@ -163,12 +164,13 @@ export function FieldTransitionRenderer({
       }
       const overlapRatio = overlap / Math.max(seenBibsRef.current.size, currentBibs.size);
       if (overlapRatio < 0.3) {
-        // Looks like a different event — reset tracking to avoid spurious curtain
-        seenBibsRef.current = currentBibs;
+        // Different event — reset tracking so first athlete gets a curtain
+        seenBibsRef.current = new Set<string>();
         initialLoadRef.current = false;
         prevCalledBibRef.current = '';
-        lastCurtainTimeRef.current = 0; // Reset cooldown so first athlete in new event gets curtain
-        return;
+        lastCurtainTimeRef.current = 0;
+        isEventSwitch = true;
+        // Fall through to detection logic instead of returning
       }
     }
 
@@ -190,9 +192,9 @@ export function FieldTransitionRenderer({
 
       // Strategy 2: Vertical events — find a newly appeared bib/name
       // (FieldLynx adds the "up" athlete to the list when their turn starts)
-      // Skip on initial load: seenBibsRef is empty so ALL entries look new.
+      // Skip on initial load or event switch: seenBibsRef is empty so ALL entries look new.
       // Also skip entries with orderOfDraw (cycling standings data from port 4561).
-      if (!calledUp && !initialLoadRef.current) {
+      if (!calledUp && !initialLoadRef.current && !isEventSwitch) {
         for (const r of entries) {
           if (r.orderOfDraw || r.orderOfDrawName) continue;
           const id = r.bib ? String(r.bib) : r.name ? String(r.name) : '';

@@ -2,17 +2,19 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import type { EventWithEntries, Meet } from "@shared/schema";
 import { getLogoEffectStyle } from "@/lib/logoEffects";
 import { shouldShowWind } from "../utils/formatting";
+import { SmoothClock } from "@/components/display/SmoothClock";
 
 interface BigBoardProps {
   event: EventWithEntries;
   meet?: Meet | null;
   liveTime?: string;
+  clockSubscribersRef?: React.RefObject<Set<(time: string, command?: string) => void>>;
   pagingSize?: number;
   pagingIntervalMs?: number;
   maxPages?: number;
 }
 
-export function BigBoard({ event, meet, liveTime, pagingSize = 8, pagingIntervalMs = 8000, maxPages = 0 }: BigBoardProps) {
+export function BigBoard({ event, meet, liveTime, clockSubscribersRef, pagingSize = 8, pagingIntervalMs = 8000, maxPages = 0 }: BigBoardProps) {
   const [clock, setClock] = useState<string>("");
   const [fadeIn, setFadeIn] = useState(true);
   const [displayedEntries, setDisplayedEntries] = useState<any[]>([]);
@@ -236,12 +238,23 @@ export function BigBoard({ event, meet, liveTime, pagingSize = 8, pagingInterval
               {event.name || event.eventName || ''}
             </h1>
           </div>
-          <span 
-            className="text-white font-bold tabular-nums"
-            style={{ fontSize: '64px', fontFamily: "'Bebas Neue', sans-serif" }}
-          >
-            {displayClock}
-          </span>
+          {clockSubscribersRef && event.status === 'in_progress' ? (
+            <SmoothClock
+              serverTime={liveTime}
+              clockSubscribersRef={clockSubscribersRef}
+              fontSize="64px"
+              color="white"
+              fontFamily="'Bebas Neue', sans-serif"
+              className="font-bold tabular-nums"
+            />
+          ) : (
+            <span 
+              className="text-white font-bold tabular-nums"
+              style={{ fontSize: '64px', fontFamily: "'Bebas Neue', sans-serif" }}
+            >
+              {displayClock}
+            </span>
+          )}
         </div>
 
         <div className="h-1 bg-gradient-to-r from-cyan-500/0 via-cyan-500/60 to-cyan-500/0 mt-4" />
