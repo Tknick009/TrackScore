@@ -2698,40 +2698,39 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
 
     // Multi-panel mode: each panel is a full-size P10/P6 display side by side
     // Total width = panelCount × single display width (e.g., 3 P6 panels = 864×144)
+    // The browser window should span all daisy-chained boards (set Windows display to combined resolution)
     if (fieldPanels && fieldPanels.length > 1) {
       const panelCount = fieldPanels.length;
       const totalWidth = fixedWidth * panelCount;
       return (
-        <div className="bg-black min-h-screen">
-          <div
-            className={scaleClass}
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: `${totalWidth}px`,
-              height: `${fixedHeight}px`,
-              overflow: 'hidden',
-              backgroundColor: '#000',
-              display: 'flex',
-              ...scaleVarStyle,
-            }}
-          >
-            {fieldPanels.map((panel, idx) => (
-              <FieldPanel
-                key={`panel-${idx}-${panel.port}`}
-                port={panel.port}
-                width={fixedWidth}
-                height={fixedHeight}
-                meetId={meetId}
-                liveEventDataByPort={liveEventDataByPort}
-                displayType={displayType}
-                liveClockTimeRef={liveClockTimeRef}
-                clockSubscribersRef={clockSubscribersRef}
-                displayScale={displayScale}
-              />
-            ))}
-          </div>
+        <div
+          className={scaleClass}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: `${totalWidth}px`,
+            height: `${fixedHeight}px`,
+            backgroundColor: '#000',
+            display: 'flex',
+            overflow: 'visible',
+            ...scaleVarStyle,
+          }}
+        >
+          {fieldPanels.map((panel, idx) => (
+            <FieldPanel
+              key={`panel-${idx}-${panel.port}`}
+              port={panel.port}
+              width={fixedWidth}
+              height={fixedHeight}
+              meetId={meetId}
+              liveEventDataByPort={liveEventDataByPort}
+              displayType={displayType}
+              liveClockTimeRef={liveClockTimeRef}
+              clockSubscribersRef={clockSubscribersRef}
+              displayScale={displayScale}
+            />
+          ))}
         </div>
       );
     }
