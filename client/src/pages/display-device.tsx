@@ -865,13 +865,14 @@ export default function DisplayDevice() {
             console.log(`[Display] Layout command: "${layoutName}" → mode: ${displayMode} (was: ${currentLayoutModeRef.current})`);
             
             if (displayMode === 'idle') {
-              // Logo/idle mode - use meet-logo template
+              // Logo/idle mode - use meet-logo template, clear port data so scene logos show
               currentLayoutModeRef.current = displayMode;
               setState(prev => ({
                 ...prev,
                 currentLayoutMode: displayMode,
                 currentTemplate: 'meet-logo',
                 currentSceneId: null,
+                liveEventDataByPort: {},
               }));
             } else if (displayMode && displayType) {
               // Update mode ref immediately for debouncing
@@ -1410,6 +1411,7 @@ export default function DisplayDevice() {
       currentSceneData: null,
       currentLayoutMode: null,
       liveEventData: null,
+      liveEventDataByPort: {},
     }));
   }, []);
 
@@ -1793,6 +1795,10 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
           displayWidth={effectiveWidth}
           displayHeight={effectiveHeight}
           deviceFieldPort={fieldPort}
+          meetLogoUrl={meet?.logoUrl || null}
+          meetLogoEffect={(meet as any)?.logoEffect || null}
+          meetPrimaryColor={meet?.primaryColor || undefined}
+          meetSecondaryColor={meet?.secondaryColor || undefined}
         />
       );
 

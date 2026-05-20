@@ -21,6 +21,7 @@ import {
 import { formatHeatDisplay } from "@/lib/fieldBindings";
 import { shouldShowWind } from "@/components/display/utils/formatting";
 import { calculateMultiEventPoints, normalizeEventType, hasScoring, type Gender } from "@shared/combined-scoring";
+import { getLogoEffectStyle } from "@/lib/logoEffects";
 import { Trophy, Clock, Users, User, Image, Type, Award, Loader2 } from "lucide-react";
 import { SmoothClock as StaticRunningClock, parseClockTimeToSeconds, formatSecondsToClockDisplay } from "@/components/display/SmoothClock";
 
@@ -89,6 +90,11 @@ export interface SceneCanvasProps {
   displayHeight?: number;
   // Device-level field port — used as fallback for field-transition objects that don't have a port set
   deviceFieldPort?: number;
+  // Meet logo fallback: shown when scene has port-bound objects but no active data
+  meetLogoUrl?: string | null;
+  meetLogoEffect?: string | null;
+  meetPrimaryColor?: string;
+  meetSecondaryColor?: string;
 }
 
 function useEventWithEntries(eventId: string | null | undefined) {
@@ -1617,6 +1623,10 @@ export function SceneCanvas({
   displayWidth,
   displayHeight,
   deviceFieldPort,
+  meetLogoUrl,
+  meetLogoEffect,
+  meetPrimaryColor,
+  meetSecondaryColor,
 }: SceneCanvasProps) {
   const [dimensions, setDimensions] = useState({ width: 1920, height: 1080 });
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
@@ -1787,7 +1797,18 @@ export function SceneCanvas({
   }
   
   const backgroundColor = scene.backgroundColor || "hsl(var(--display-bg))";
-  
+
+  // Detect if scene has port-bound objects but none have active data → show meet logo
+  const portBoundObjects = sortedObjects.filter(obj => obj.dataBinding?.fieldPort);
+  const hasPortBindings = portBoundObjects.length > 0;
+  const anyPortHasData = hasPortBindings && portBoundObjects.some(obj => {
+    const port = obj.dataBinding?.fieldPort;
+    return port && liveEventDataByPort?.[port];
+  });
+  // Also check device-level liveData as fallback
+  const isPortIdle = hasPortBindings && !anyPortHasData && !liveData;
+  const showMeetLogo = isPortIdle && !!meetLogoUrl;
+
   // Check if we have fixed display dimensions (P10/P6/Custom)
   const isFixedSize = displayWidth !== undefined && displayHeight !== undefined;
   
@@ -1871,6 +1892,37 @@ export function SceneCanvas({
                 </div>
               </div>
             )}
+
+            {/* Meet logo overlay when port-bound scene has no active data */}
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: showMeetLogo
+                  ? `linear-gradient(135deg, ${meetPrimaryColor || '#0066CC'} 0%, ${meetSecondaryColor || '#003366'} 100%)`
+                  : 'transparent',
+                opacity: showMeetLogo ? 1 : 0,
+                transition: 'opacity 0.6s ease-in-out',
+                pointerEvents: showMeetLogo ? 'auto' : 'none',
+                zIndex: 100,
+              }}
+            >
+              {meetLogoUrl && (
+                <img
+                  src={meetLogoUrl}
+                  alt="Meet Logo"
+                  style={{
+                    maxWidth: '85%',
+                    maxHeight: '85%',
+                    objectFit: 'contain',
+                    ...getLogoEffectStyle(meetLogoEffect),
+                  }}
+                />
+              )}
+            </div>
           </div>
         </div>
       );
@@ -1926,6 +1978,37 @@ export function SceneCanvas({
             </div>
           </div>
         )}
+
+        {/* Meet logo overlay when port-bound scene has no active data */}
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: showMeetLogo
+              ? `linear-gradient(135deg, ${meetPrimaryColor || '#0066CC'} 0%, ${meetSecondaryColor || '#003366'} 100%)`
+              : 'transparent',
+            opacity: showMeetLogo ? 1 : 0,
+            transition: 'opacity 0.6s ease-in-out',
+            pointerEvents: showMeetLogo ? 'auto' : 'none',
+            zIndex: 100,
+          }}
+        >
+          {meetLogoUrl && (
+            <img
+              src={meetLogoUrl}
+              alt="Meet Logo"
+              style={{
+                maxWidth: '85%',
+                maxHeight: '85%',
+                objectFit: 'contain',
+                ...getLogoEffectStyle(meetLogoEffect),
+              }}
+            />
+          )}
+        </div>
       </div>
     );
   }
@@ -1997,6 +2080,37 @@ export function SceneCanvas({
             </div>
           </div>
         )}
+
+        {/* Meet logo overlay when port-bound scene has no active data */}
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: showMeetLogo
+              ? `linear-gradient(135deg, ${meetPrimaryColor || '#0066CC'} 0%, ${meetSecondaryColor || '#003366'} 100%)`
+              : 'transparent',
+            opacity: showMeetLogo ? 1 : 0,
+            transition: 'opacity 0.6s ease-in-out',
+            pointerEvents: showMeetLogo ? 'auto' : 'none',
+            zIndex: 100,
+          }}
+        >
+          {meetLogoUrl && (
+            <img
+              src={meetLogoUrl}
+              alt="Meet Logo"
+              style={{
+                maxWidth: '80%',
+                maxHeight: '80%',
+                objectFit: 'contain',
+                ...getLogoEffectStyle(meetLogoEffect),
+              }}
+            />
+          )}
+        </div>
       </div>
     </div>
   );
