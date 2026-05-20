@@ -144,7 +144,7 @@ export default function DisplayControlPage() {
   const [teamPreviewGender, setTeamPreviewGender] = useState<Record<string, 'M' | 'W'>>({});
   const [selectedRecordBook, setSelectedRecordBook] = useState<Record<string, string>>({});
   const [multiFieldEvents, setMultiFieldEvents] = useState<Record<string, number[]>>({}); // deviceId -> selected event numbers (up to 3)
-  const [multiFieldSearch, setMultiFieldSearch] = useState('');
+  const [multiFieldColumns, setMultiFieldColumns] = useState<Record<string, number>>({}); // deviceId -> column count (1-3)
 
   const baseUrl = typeof window !== 'undefined' 
     ? `${window.location.protocol}//${window.location.host}` 
@@ -2220,114 +2220,102 @@ export default function DisplayControlPage() {
                         </div>
                       ) : displayMode[selectedDevice.id] === 'multi_field' ? (
                         <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
+                          {/* Column count selector */}
                           <div className="space-y-2">
-                            <Label>Select Field Events (up to 3)</Label>
-                            <div className="text-xs text-muted-foreground">
-                              Choose 1-3 field events. Standings are parsed from LFF files and auto-refresh when files change.
-                            </div>
-                            <div className="relative">
-                              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                              <Input
-                                placeholder="Search field events..."
-                                value={multiFieldSearch}
-                                onChange={(e) => setMultiFieldSearch(e.target.value)}
-                                className="pl-8"
-                                data-testid="input-multi-field-search"
-                              />
-                            </div>
-                            <ScrollArea className="h-48 rounded-md border">
-                              <div className="p-1">
-                                {(events || [])
-                                  .filter((e: any) => {
-                                    const isField = e.eventType === 'field' || /throw|put|jump|vault|javelin|discus|hammer/i.test(e.name || '');
-                                    const matchesSearch = !multiFieldSearch || (e.name || '').toLowerCase().includes(multiFieldSearch.toLowerCase());
-                                    return isField && matchesSearch;
-                                  })
-                                  .sort((a: any, b: any) => (a.eventNumber || 0) - (b.eventNumber || 0))
-                                  .map((e: any) => {
-                                    const selectedEvents = multiFieldEvents[selectedDevice.id] || [];
-                                    const isSelected = selectedEvents.includes(e.eventNumber);
-                                    const canSelect = selectedEvents.length < 3 || isSelected;
-                                    return (
-                                      <button
-                                        key={e.eventNumber}
-                                        onClick={() => {
-                                          setMultiFieldEvents(prev => {
-                                            const current = prev[selectedDevice.id] || [];
-                                            if (isSelected) {
-                                              return { ...prev, [selectedDevice.id]: current.filter(n => n !== e.eventNumber) };
-                                            } else if (current.length < 3) {
-                                              return { ...prev, [selectedDevice.id]: [...current, e.eventNumber] };
-                                            }
-                                            return prev;
-                                          });
-                                        }}
-                                        disabled={!canSelect}
-                                        className={`flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded-md cursor-pointer ${
-                                          isSelected ? 'bg-emerald-500/20 border border-emerald-500/40' : canSelect ? 'hover-elevate' : 'opacity-40'
-                                        }`}
-                                        data-testid={`button-multi-field-${e.eventNumber}`}
-                                      >
-                                        <span className="text-muted-foreground shrink-0 w-10 text-xs">#{e.eventNumber}</span>
-                                        <span className={`truncate ${isSelected ? 'font-semibold text-emerald-600 dark:text-emerald-400' : ''}`}>
-                                          {e.name}
-                                        </span>
-                                        {isSelected && (
-                                          <Badge variant="default" className="ml-auto shrink-0 bg-emerald-600">
-                                            {selectedEvents.indexOf(e.eventNumber) + 1}
-                                          </Badge>
-                                        )}
-                                      </button>
-                                    );
-                                  })}
-                              </div>
-                            </ScrollArea>
-                          </div>
-
-                          {/* Selected events summary */}
-                          {(multiFieldEvents[selectedDevice.id] || []).length > 0 && (
-                            <div className="flex flex-wrap gap-2">
-                              {(multiFieldEvents[selectedDevice.id] || []).map((evtNum, idx) => {
-                                const evt = (events || []).find((e: any) => e.eventNumber === evtNum);
+                            <Label>Number of Columns</Label>
+                            <div className="flex gap-2">
+                              {[1, 2, 3].map(n => {
+                                const currentCols = multiFieldColumns[selectedDevice.id] || 0;
                                 return (
-                                  <Badge key={evtNum} variant="secondary" className="flex items-center gap-1">
-                                    <span className="font-bold">{idx + 1}.</span>
-                                    <span>{evt?.name || `Event ${evtNum}`}</span>
-                                    <button
-                                      onClick={() => {
-                                        setMultiFieldEvents(prev => ({
-                                          ...prev,
-                                          [selectedDevice.id]: (prev[selectedDevice.id] || []).filter(n => n !== evtNum),
-                                        }));
-                                      }}
-                                      className="ml-1 text-muted-foreground hover:text-destructive"
-                                    >
-                                      ×
-                                    </button>
-                                  </Badge>
+                                  <Button
+                                    key={n}
+                                    variant={currentCols === n ? 'default' : 'outline'}
+                                    size="sm"
+                                    className="flex-1"
+                                    onClick={() => {
+                                      setMultiFieldColumns(prev => ({ ...prev, [selectedDevice.id]: n }));
+                                      // Trim events array if reducing columns
+                                      setMultiFieldEvents(prev => {
+                                        const current = prev[selectedDevice.id] || [];
+                                        if (current.length > n) {
+                                          return { ...prev, [selectedDevice.id]: current.slice(0, n) };
+                                        }
+                                        // Pad with 0s (unassigned) if expanding
+                                        const padded = [...current];
+                                        while (padded.length < n) padded.push(0);
+                                        return { ...prev, [selectedDevice.id]: padded };
+                                      });
+                                    }}
+                                  >
+                                    {n} Column{n !== 1 ? 's' : ''}
+                                  </Button>
                                 );
                               })}
                             </div>
-                          )}
+                          </div>
 
-                          <Button
-                            onClick={() => {
-                              const selectedEvents = multiFieldEvents[selectedDevice.id] || [];
-                              if (selectedEvents.length === 0) {
-                                toast({ title: 'Select at least 1 field event', variant: 'destructive' });
-                                return;
-                              }
-                              sendMultiFieldBoardMutation.mutate({
-                                deviceId: selectedDevice.id,
-                                eventNumbers: selectedEvents,
-                              });
-                            }}
-                            disabled={sendMultiFieldBoardMutation.isPending || (multiFieldEvents[selectedDevice.id] || []).length === 0}
-                            className="w-full"
-                          >
-                            <Send className="w-4 h-4 mr-2" />
-                            Send Multi-Field Board ({(multiFieldEvents[selectedDevice.id] || []).length} event{(multiFieldEvents[selectedDevice.id] || []).length !== 1 ? 's' : ''})
-                          </Button>
+                          {/* Per-column event assignment */}
+                          {(multiFieldColumns[selectedDevice.id] || 0) > 0 && (() => {
+                            const numCols = multiFieldColumns[selectedDevice.id] || 1;
+                            const currentAssignments = multiFieldEvents[selectedDevice.id] || [];
+                            const fieldEvents = (events || [])
+                              .filter((e: any) => e.eventType === 'field' || /throw|put|jump|vault|javelin|discus|hammer/i.test(e.name || ''))
+                              .sort((a: any, b: any) => (a.eventNumber || 0) - (b.eventNumber || 0));
+
+                            return (
+                              <div className="space-y-3">
+                                <Label>Assign Events</Label>
+                                <div className="text-xs text-muted-foreground">
+                                  Each column listens for its assigned event. Standings auto-refresh from LFF files.
+                                </div>
+                                {Array.from({ length: numCols }, (_, colIdx) => (
+                                  <div key={colIdx} className="flex items-center gap-2">
+                                    <span className="text-sm font-medium text-muted-foreground w-20 shrink-0">Column {colIdx + 1}:</span>
+                                    <Select
+                                      value={String(currentAssignments[colIdx] || '')}
+                                      onValueChange={(val) => {
+                                        const evtNum = parseInt(val, 10);
+                                        setMultiFieldEvents(prev => {
+                                          const updated = [...(prev[selectedDevice.id] || [])];
+                                          while (updated.length <= colIdx) updated.push(0);
+                                          updated[colIdx] = evtNum;
+                                          return { ...prev, [selectedDevice.id]: updated };
+                                        });
+                                        // Auto-send: build the event list and send immediately
+                                        const updatedList = [...currentAssignments];
+                                        while (updatedList.length <= colIdx) updatedList.push(0);
+                                        updatedList[colIdx] = evtNum;
+                                        const validEvents = updatedList.filter(n => n > 0);
+                                        if (validEvents.length > 0) {
+                                          sendMultiFieldBoardMutation.mutate({
+                                            deviceId: selectedDevice.id,
+                                            eventNumbers: validEvents,
+                                          });
+                                        }
+                                      }}
+                                    >
+                                      <SelectTrigger className="flex-1">
+                                        <SelectValue placeholder="Select event..." />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {fieldEvents
+                                          .filter((e: any) => {
+                                            // Don't show events already assigned to other columns
+                                            const otherAssigned = currentAssignments.filter((_: number, i: number) => i !== colIdx);
+                                            return !otherAssigned.includes(e.eventNumber);
+                                          })
+                                          .map((e: any) => (
+                                            <SelectItem key={e.eventNumber} value={String(e.eventNumber)}>
+                                              #{e.eventNumber} — {e.name}
+                                            </SelectItem>
+                                          ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })()}
                         </div>
                       ) : null}
                     </>
