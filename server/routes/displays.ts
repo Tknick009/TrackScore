@@ -3247,6 +3247,9 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         storage.updateDisplayContentMode(deviceId, 'multi_field').catch(err =>
           console.error('[Multi-Field] Failed to persist contentMode:', err)
         );
+        storage.updateDisplayMultiFieldEvents(deviceId, eventNumbers).catch(err =>
+          console.error('[Multi-Field] Failed to persist event assignments:', err)
+        );
 
         connectedDevice.ws.send(JSON.stringify({
           type: 'display_command',

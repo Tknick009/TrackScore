@@ -959,7 +959,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const deviceAutoMode = device.autoMode ?? (device.displayMode === 'track');
               // Load persisted contentMode from database, default to 'lynx'
               const deviceContentMode = (device as any).contentMode || 'lynx';
-              connectedDisplayDevices.set(device.id, {
+              // Restore persisted multi-field event assignments (if any)
+              const persistedMultiFieldEvents = (device as any).multiFieldEvents as number[] | null;
+              const connEntry: any = {
                 ws,
                 deviceId: device.id,
                 deviceName: device.deviceName,
@@ -970,7 +972,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 pagingInterval: device.pagingInterval ?? 5,
                 fieldPort: device.fieldPort ?? undefined,
                 contentMode: deviceContentMode,
-              });
+              };
+              if (persistedMultiFieldEvents && persistedMultiFieldEvents.length > 0) {
+                connEntry.multiFieldEvents = persistedMultiFieldEvents;
+              }
+              connectedDisplayDevices.set(device.id, connEntry);
               
               // Send registration confirmation with assigned event
               ws.send(JSON.stringify({
@@ -988,6 +994,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   autoMode: deviceAutoMode,
                   displayScale: device.displayScale ?? 100,
                   contentMode: deviceContentMode,
+                  multiFieldEvents: persistedMultiFieldEvents,
                 }
               }));
               
@@ -998,6 +1005,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
               } as WSMessage);
               
               console.log(`Display device registered: ${device.deviceName} (${device.id})`);
+
+              // Auto-push multi-field board data on reconnect if device was in multi_field mode
+              if (deviceContentMode === 'multi_field' && persistedMultiFieldEvents && persistedMultiFieldEvents.length > 0) {
+                console.log(`[Multi-Field] Auto-restoring multi-field board for ${device.deviceName}: events ${persistedMultiFieldEvents.join(', ')}`);
+                // Trigger the multi-field-board endpoint internally via a small delay to ensure WS is ready
+                setTimeout(async () => {
+                  try {
+                    const { mergeFlightsForEvent } = await import('./parsers/lff-parser');
+                    const meet = await storage.getMeet(device.meetId);
+                    const ingestionSettings = await storage.getIngestionSettings(device.meetId);
+                    if (!ingestionSettings?.lynxFilesDirectory) return;
+                    const lynxDir = ingestionSettings.lynxFilesDirectory;
+                    const fs = await import('fs');
+                    if (!fs.existsSync(lynxDir)) return;
+                    const pathModule = await import('path');
+
+                    const allEvents = await storage.getEventsByMeetId(device.meetId);
+                    const eventsData: any[] = [];
+                    for (const evtNum of persistedMultiFieldEvents) {
+                      const standings = await mergeFlightsForEvent(lynxDir, evtNum);
+                      const dbEvent = allEvents.find((e: any) => e.eventNumber === evtNum);
+                      if (!standings || standings.athletes.length === 0) {
+                        eventsData.push({ eventNumber: evtNum, eventName: dbEvent?.name || `Event ${evtNum}`, eventType: '', isVertical: false, currentAthlete: null, standings: [] });
+                        continue;
+                      }
+                      const enriched = standings.athletes.map(a => ({
+                        place: a.bestMark != null ? (a.overallPlace || null) : null,
+                        bibNumber: a.bibNumber, firstName: a.firstName, lastName: a.lastName,
+                        team: a.team || '', teamLogoUrl: null, headshotUrl: null,
+                        bestMark: a.bestMarkFormatted || '', isDNS: a.isDNS,
+                      }));
+                      eventsData.push({
+                        eventNumber: evtNum, eventName: standings.eventName || dbEvent?.name || `Event ${evtNum}`,
+                        eventType: dbEvent?.eventType || '', isVertical: standings.isVerticalEvent,
+                        currentAthlete: null, standings: enriched,
+                      });
+                    }
+
+                    let meetLogoUrl: string | null = null;
+                    if (meet?.logoUrl) {
+                      meetLogoUrl = meet.logoUrl.startsWith('http') ? meet.logoUrl
+                        : meet.logoUrl.startsWith('uploads/') ? fileStorage.publicUrlForKey(meet.logoUrl)
+                        : meet.logoUrl;
+                    }
+
+                    const currentConn = connectedDisplayDevices.get(device.id);
+                    if (currentConn && currentConn.ws.readyState === WebSocket.OPEN) {
+                      currentConn.ws.send(JSON.stringify({
+                        type: 'display_command', template: 'multi-field-board',
+                        liveEventData: {
+                          mode: 'multi_field', events: eventsData, meetName: meet?.name || '', meetLogoUrl,
+                          meetLogoEffect: (meet as any)?.logoEffect || null,
+                          primaryColor: meet?.primaryColor || null, secondaryColor: meet?.secondaryColor || null, maxRows: 6,
+                        },
+                        pagingSize: 1, pagingInterval: 30, maxPages: 0,
+                      }));
+                      console.log(`[Multi-Field] Auto-restored ${eventsData.length} events to ${device.deviceName}`);
+                    }
+                  } catch (err) {
+                    console.error(`[Multi-Field] Auto-restore failed for ${device.deviceName}:`, err);
+                  }
+                }, 500);
+              }
             } catch (error) {
               console.error('Failed to register display device:', error);
               ws.send(JSON.stringify({

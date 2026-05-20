@@ -557,6 +557,12 @@ export default function DisplayDevice() {
                   setIsFieldMode(true);
                   isFieldModeRef.current = true;
                   console.log(`[Display] Restored field mode from persisted contentMode`);
+                } else if (deviceData.contentMode === 'multi_field') {
+                  // Multi-field board: ensure field mode is off so live FieldLynx doesn't trigger scene switches
+                  setIsFieldMode(false);
+                  isFieldModeRef.current = false;
+                  currentLayoutModeRef.current = null;
+                  console.log(`[Display] Restored multi_field mode — awaiting display_command from server`);
                 }
               }
             }
@@ -679,6 +685,7 @@ export default function DisplayDevice() {
             if (newContentMode === 'field') {
               // Switch to field mode — set isFieldMode so field data is accepted
               setIsFieldMode(true);
+              isFieldModeRef.current = true; // Sync ref immediately for field_mode_change handler
               autoModeRef.current = false;
               currentLayoutModeRef.current = null; // Reset so next field data triggers scene switch
               console.log(`[Display] Switched to field content mode`);
@@ -703,6 +710,7 @@ export default function DisplayDevice() {
               // Switch to Multi-Field Board — NOT regular field mode.
               // Disable isFieldMode so live FieldLynx broadcasts don't trigger scene switches.
               setIsFieldMode(false);
+              isFieldModeRef.current = false; // Sync ref immediately
               autoModeRef.current = false;
               currentLayoutModeRef.current = null;
               console.log(`[Display] Switched to multi_field content mode (auto-mode disabled)`);

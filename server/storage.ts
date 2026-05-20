@@ -1375,6 +1375,10 @@ export class DatabaseStorage implements IStorage {
     return updated || undefined;
   }
 
+  async updateDisplayMultiFieldEvents(id: string, eventNumbers: number[] | null): Promise<void> {
+    // In-memory storage — no-op (only SQLite persists this)
+  }
+
   async updateDisplayDevice(id: string, updates: Partial<{ pagingSize: number; pagingInterval: number; fieldPort: number | null; isBigBoard: boolean }>): Promise<DisplayDevice | undefined> {
     const [updated] = await db
       .update(displayDevices)
