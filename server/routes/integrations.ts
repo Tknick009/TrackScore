@@ -1874,17 +1874,32 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     
     // === BROADCAST IMMEDIATELY — don't wait for DB writes ===
     // This eliminates the ~3s delay caused by sequential await calls before broadcast.
+    // Detect multi-event from the event name (e.g., "Dec Men Long Jump") so the display
+    // gets points immediately, even before the DB lookup completes.
+    const nameBasedMulti = data.eventName ? parseMultiEventName(data.eventName) : null;
+    const isMultiFromName = !!nameBasedMulti;
+    
+    // If multi-event detected from name, calculate points for each entry right away
+    if (isMultiFromName && nameBasedMulti) {
+      for (const entry of accumulatedResults) {
+        if (entry.mark && !entry.eventPoints) {
+          const pts = calculateEventPoints(nameBasedMulti.scoringKey, entry.mark, nameBasedMulti.gender);
+          if (pts > 0) entry.eventPoints = pts;
+        }
+      }
+    }
+    
     const fieldBroadcastData = {
       eventNumber,
       mode,
-      displayMode: 'field_results', // Will be updated below if multi-event
+      displayMode: isMultiFromName ? 'multi_field' : 'field_results',
       eventName: data.eventName,
       flight: data.flight,
       wind: data.wind,
       results: accumulatedResults,
-      isMultiEvent: false,
-      eventType: null as string | null,
-      gender: null as string | null,
+      isMultiEvent: isMultiFromName,
+      eventType: nameBasedMulti?.scoringKey || null as string | null,
+      gender: nameBasedMulti?.gender || null as string | null,
       fieldPort,
     };
     
@@ -1926,10 +1941,13 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
           await broadcastCurrentEvent();
         }
         // If this is a multi-event, send a corrected broadcast with multi-event info + points
-        if (event.isMultiEvent || event.eventType) {
+        // Detect multi-event from DB flag OR from the event name (e.g., "Dec Men Long Jump")
+        const isMultiFromDb = event.isMultiEvent ?? false;
+        const isMultiDetected = isMultiFromDb || isMultiFromName;
+        if (isMultiDetected || event.eventType) {
           // Calculate event points for each field entry's mark
           const enrichedResults = [...accumulatedResults];
-          if (event.isMultiEvent && data.eventName) {
+          if (isMultiDetected && data.eventName) {
             const parsed = parseMultiEventName(data.eventName, event.gender || undefined);
             if (parsed) {
               for (const entry of enrichedResults) {
@@ -1949,10 +1967,10 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
           const correctedData = {
             ...fieldBroadcastData,
             results: enrichedResults,
-            isMultiEvent: event.isMultiEvent ?? false,
-            eventType: event.eventType ?? null,
-            gender: event.gender ?? null,
-            displayMode: event.isMultiEvent ? 'multi_field' : 'field_results',
+            isMultiEvent: isMultiDetected,
+            eventType: event.eventType ?? nameBasedMulti?.scoringKey ?? null,
+            gender: event.gender ?? nameBasedMulti?.gender ?? null,
+            displayMode: isMultiDetected ? 'multi_field' : 'field_results',
           };
           const correctedMsg = JSON.stringify({ type: `field_mode_change_${fieldPort}`, data: correctedData });
           for (const [, dev] of connectedDisplayDevices) {
