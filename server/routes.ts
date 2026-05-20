@@ -995,6 +995,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   displayScale: device.displayScale ?? 100,
                   contentMode: deviceContentMode,
                   multiFieldEvents: persistedMultiFieldEvents,
+                  fieldPanels: (connEntry as any).fieldPanels || null,
                 }
               }));
               

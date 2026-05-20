@@ -361,6 +361,8 @@ export default function DisplayDevice() {
   // Field port selection (4560-4569) for port-based routing
   const [fieldPort, setFieldPort] = useState<number>(4560);
   const fieldPortRef = useRef<number>(4560);
+  // Multi-panel mode: each panel is an independent field display with its own port
+  const [fieldPanels, setFieldPanels] = useState<Array<{port: number}> | null>(null);
   
   const autoModeRef = useRef<boolean>(true);
   
@@ -370,6 +372,10 @@ export default function DisplayDevice() {
   
   const wsRef = useRef<WebSocket | null>(null);
   const deviceNameRef = useRef<string>('');
+
+  // Port inactivity timers: clear port data after 5 minutes of no new data → show meet logo
+  const PORT_IDLE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+  const portIdleTimersRef = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
   
   // Clock performance: store clock time in a ref to avoid re-rendering the entire
   // component tree on every tick (~10x/second). Only command changes trigger setState.
@@ -380,6 +386,31 @@ export default function DisplayDevice() {
   // Subscribers that want clock updates (e.g., StaticRunningClock) register callbacks here.
   // This lets them update the DOM directly without going through React's render cycle.
   const clockSubscribersRef = useRef<Set<(time: string, command?: string) => void>>(new Set());
+
+  // Reset idle timer for a port — called whenever new data arrives on that port
+  const resetPortIdleTimer = useCallback((port: number) => {
+    // Clear existing timer for this port
+    if (portIdleTimersRef.current[port]) {
+      clearTimeout(portIdleTimersRef.current[port]);
+    }
+    // Start new 5-minute timer
+    portIdleTimersRef.current[port] = setTimeout(() => {
+      console.log(`[Display] Port ${port} idle for 5 minutes, clearing data → show meet logo`);
+      setState(prev => {
+        const updated = { ...prev.liveEventDataByPort };
+        delete updated[port];
+        return {
+          ...prev,
+          liveEventDataByPort: updated,
+          // Also clear primary liveEventData if it was from this port
+          ...(prev.liveEventData && (prev.liveEventData as any).fieldPort === port
+            ? { liveEventData: null }
+            : {}),
+        };
+      });
+      delete portIdleTimersRef.current[port];
+    }, PORT_IDLE_TIMEOUT);
+  }, [PORT_IDLE_TIMEOUT]);
 
   const { data: meets } = useQuery<Meet[]>({
     queryKey: ['/api/meets'],
@@ -546,6 +577,9 @@ export default function DisplayDevice() {
               if (deviceData.displayScale !== undefined) {
                 setDisplayScale(deviceData.displayScale);
               }
+              if (deviceData.fieldPanels !== undefined) {
+                setFieldPanels(Array.isArray(deviceData.fieldPanels) ? deviceData.fieldPanels : null);
+              }
               // Restore persisted content mode on reconnection
               // This prevents defaulting to track mode when device reconnects or server restarts
               if (deviceData.contentMode && deviceData.contentMode !== 'lynx') {
@@ -666,6 +700,10 @@ export default function DisplayDevice() {
               if (data.displayMode !== undefined) {
                 setIsFieldMode(data.displayMode === 'field');
                 console.log(`[Display] Display mode updated to: ${data.displayMode} (isFieldMode: ${data.displayMode === 'field'})`);
+              }
+              if (data.fieldPanels !== undefined) {
+                setFieldPanels(Array.isArray(data.fieldPanels) ? data.fieldPanels : null);
+                console.log(`[Display] Field panels updated:`, data.fieldPanels);
               }
             }
           }
@@ -1104,6 +1142,8 @@ export default function DisplayDevice() {
                     [dataPort]: portEventData,
                   },
                 }));
+                // Reset 5-minute idle timer for this port
+                resetPortIdleTimer(dataPort);
               }
               
               // Only process field data when device is set to Field Events mode
@@ -1211,6 +1251,8 @@ export default function DisplayDevice() {
                     [data.fieldPort]: portStandingsData,
                   },
                 }));
+                // Reset 5-minute idle timer for this port
+                resetPortIdleTimer(data.fieldPort);
               }
               
               if (!autoModeRef.current) {
@@ -1573,6 +1615,7 @@ export default function DisplayDevice() {
       customWidth={state.displayType === 'Custom' ? customWidth : undefined}
       customHeight={state.displayType === 'Custom' ? customHeight : undefined}
       fieldPort={fieldPort}
+      fieldPanels={fieldPanels}
       displayScale={displayScale}
       currentLayoutMode={currentLayoutModeRef.current}
       onReturnToLogo={returnToMeetLogo}
@@ -1693,6 +1736,127 @@ function ConfettiOverlay({ children, teamLogoUrl }: { children: React.ReactNode;
   );
 }
 
+/** FieldPanel — one column in multi-panel mode. Shows meet logo when idle, field data when port active. */
+function FieldPanel({ port, width, height, meetId, liveEventDataByPort, displayType, liveClockTimeRef, clockSubscribersRef, displayScale }: {
+  port: number;
+  width: number;
+  height: number;
+  meetId: string | null;
+  liveEventDataByPort: Record<number, LiveEventData>;
+  displayType: DisplayType;
+  liveClockTimeRef?: React.RefObject<string>;
+  clockSubscribersRef?: React.RefObject<Set<(time: string, command?: string) => void>>;
+  displayScale?: number;
+}) {
+  const { data: meet } = useQuery<Meet>({
+    queryKey: ['/api/meets', meetId],
+    enabled: !!meetId,
+  });
+
+  const portData = liveEventDataByPort[port] || null;
+  const hasData = !!portData;
+
+  const primaryColor = meet?.primaryColor || '#0066CC';
+  const secondaryColor = meet?.secondaryColor || '#003366';
+  const hasLogo = !!meet?.logoUrl;
+
+  // Build EventWithEntries from port data (same as main renderContent for SingleAthleteField)
+  const eventFromPortData = portData ? {
+    id: 0,
+    name: portData.eventName || '',
+    eventType: 'field' as const,
+    status: portData.mode === 'results' ? 'completed' as const :
+            portData.mode === 'start_list' ? 'scheduled' as const : 'in_progress' as const,
+    entries: (portData.entries || []).map((entry: any, idx: number) => {
+      const firstName = entry.firstName || entry.name?.split(' ')[0] || '';
+      const lastName = entry.lastName || entry.name?.split(' ').slice(1).join(' ') || entry.name || '';
+      const teamName = entry.affiliation || entry.team || '';
+      const rawPlace = entry.place;
+      const placeNum = rawPlace ? parseInt(String(rawPlace)) : undefined;
+      const finalPlace = !isNaN(placeNum as number) && placeNum! > 0 ? placeNum : rawPlace;
+      return {
+        id: idx,
+        finalLane: entry.lane || idx + 1,
+        finalPlace,
+        finalMark: (() => {
+          const raw = entry.time || entry.mark || entry.result || '';
+          if (!entry.time && entry.mark && /^\d+(\.\d+)?$/.test(String(raw).trim())) return `${raw}m`;
+          return raw;
+        })(),
+        lastSplit: entry.lastSplit || entry.cumulativeSplit || '',
+        reactionTime: entry.reactionTime || '',
+        qualifier: entry.qualifier || '',
+        recordTags: entry.recordTags || [],
+        isDisqualified: entry.isDisqualified || false,
+        isScratched: entry.isScratched || false,
+        notes: entry.notes || entry.statusCode || null,
+        athlete: { firstName, lastName, team: teamName },
+        team: { name: teamName, logoUrl: teamName ? `/logos/NCAA/${encodeURIComponent(teamName)}.png` : null },
+      };
+    }),
+  } : null;
+
+  return (
+    <div style={{ width: `${width}px`, height: `${height}px`, overflow: 'hidden', position: 'relative' }}>
+      {/* Field data display */}
+      {hasData && eventFromPortData && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
+          <SingleAthleteField event={eventFromPortData as any} meet={meet} focusIndex={0} />
+        </div>
+      )}
+
+      {/* Meet logo overlay when port is idle */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          opacity: hasData ? 0 : 1,
+          transition: 'opacity 0.6s ease-in-out',
+          pointerEvents: hasData ? 'none' : 'auto',
+          zIndex: 2,
+        }}
+      >
+        {hasLogo ? (
+          <CurtainLogoBackground
+            primaryColor={primaryColor}
+            secondaryColor={secondaryColor}
+            accentColor={meet?.textColor || '#FFFFFF'}
+            width={width}
+            height={height}
+          >
+            <img
+              src={meet!.logoUrl!}
+              alt={meet?.name || 'Meet Logo'}
+              style={{
+                maxWidth: '85%',
+                maxHeight: '85%',
+                objectFit: 'contain',
+                ...getLogoEffectStyle((meet as any)?.logoEffect),
+              }}
+            />
+          </CurtainLogoBackground>
+        ) : (
+          <div
+            style={{
+              width: `${width}px`,
+              height: `${height}px`,
+              background: `linear-gradient(135deg, ${primaryColor} 0%, ${secondaryColor} 100%)`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#22c55e' }} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 interface DisplayRendererProps {
   displayType: DisplayType;
   meetId: string | null;
@@ -1712,6 +1876,7 @@ interface DisplayRendererProps {
   customWidth?: number;
   customHeight?: number;
   fieldPort?: number;
+  fieldPanels?: Array<{port: number}> | null;
   displayScale?: number;
   currentLayoutMode?: string | null;
   onReturnToLogo?: () => void;
@@ -1721,7 +1886,7 @@ interface EventWithEntries extends Event {
   entries: any[];
 }
 
-function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTimeRef, clockSubscribersRef, liveEventData, liveEventDataByPort, pagingSize, pagingInterval, maxPages, customWidth, customHeight, fieldPort, displayScale = 100, currentLayoutMode, onReturnToLogo }: DisplayRendererProps) {
+function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTimeRef, clockSubscribersRef, liveEventData, liveEventDataByPort, pagingSize, pagingInterval, maxPages, customWidth, customHeight, fieldPort, fieldPanels, displayScale = 100, currentLayoutMode, onReturnToLogo }: DisplayRendererProps) {
   const { data: meet } = useQuery<Meet>({
     queryKey: ['/api/meets', meetId],
     enabled: !!meetId,
@@ -2529,6 +2694,46 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     // P10, P6, and Custom use exact pixel dimensions at position 0,0
     const fixedWidth = displayType === 'Custom' && customWidth ? customWidth : resolution.width;
     const fixedHeight = displayType === 'Custom' && customHeight ? customHeight : resolution.height;
+
+    // Multi-panel mode: split display into N side-by-side columns, each with its own port
+    if (fieldPanels && fieldPanels.length > 1) {
+      const panelCount = fieldPanels.length;
+      const panelWidth = Math.floor(fixedWidth / panelCount);
+      return (
+        <div className="bg-black min-h-screen">
+          <div
+            className={scaleClass}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: `${fixedWidth}px`,
+              height: `${fixedHeight}px`,
+              overflow: 'hidden',
+              backgroundColor: '#000',
+              display: 'flex',
+              ...scaleVarStyle,
+            }}
+          >
+            {fieldPanels.map((panel, idx) => (
+              <FieldPanel
+                key={`panel-${idx}-${panel.port}`}
+                port={panel.port}
+                width={panelWidth}
+                height={fixedHeight}
+                meetId={meetId}
+                liveEventDataByPort={liveEventDataByPort}
+                displayType={displayType}
+                liveClockTimeRef={liveClockTimeRef}
+                clockSubscribersRef={clockSubscribersRef}
+                displayScale={displayScale}
+              />
+            ))}
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="bg-black min-h-screen">
         <div 

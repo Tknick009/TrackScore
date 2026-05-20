@@ -139,6 +139,7 @@ export default function DisplayControlPage() {
   const [eventSearch, setEventSearch] = useState('');
   const [winnersEventSearch, setWinnersEventSearch] = useState('');
   const [pendingFieldPort, setPendingFieldPort] = useState<Record<string, number>>({});
+  const [fieldPanelConfig, setFieldPanelConfig] = useState<Record<string, Array<{port: number}>>>({});
   const [sponsorUrls, setSponsorUrls] = useState<Record<string, string>>({});
   const [sponsorInterval, setSponsorInterval] = useState<Record<string, number>>({});
   const [teamPreviewGender, setTeamPreviewGender] = useState<Record<string, 'M' | 'W'>>({});
@@ -2202,6 +2203,103 @@ export default function DisplayControlPage() {
                             <p className="text-xs text-muted-foreground">
                               Default port for this device. Scene objects with their own port binding (set in Scene Editor) override this.
                             </p>
+                          </div>
+
+                          {/* Multi-Panel daisy chain */}
+                          <div className="space-y-2 pt-2 border-t">
+                            <Label>Multi-Panel (Daisy Chain)</Label>
+                            <p className="text-xs text-muted-foreground">
+                              Split this display into 2-3 side-by-side columns, each showing an independent field event from its own port.
+                            </p>
+                            <div className="flex gap-2 items-center">
+                              {[1, 2, 3].map(n => (
+                                <Button
+                                  key={n}
+                                  variant={(fieldPanelConfig[selectedDevice.id]?.length || 1) === n ? 'default' : 'outline'}
+                                  size="sm"
+                                  onClick={() => {
+                                    if (n === 1) {
+                                      setFieldPanelConfig(prev => {
+                                        const next = { ...prev };
+                                        delete next[selectedDevice.id];
+                                        return next;
+                                      });
+                                    } else {
+                                      const existing = fieldPanelConfig[selectedDevice.id] || [];
+                                      const panels = Array.from({ length: n }, (_, i) => ({
+                                        port: existing[i]?.port ?? 4560 + i,
+                                      }));
+                                      setFieldPanelConfig(prev => ({ ...prev, [selectedDevice.id]: panels }));
+                                    }
+                                  }}
+                                >
+                                  {n === 1 ? 'Single' : `${n} Panels`}
+                                </Button>
+                              ))}
+                            </div>
+                            {(fieldPanelConfig[selectedDevice.id]?.length || 0) > 1 && (
+                              <div className="space-y-2">
+                                {fieldPanelConfig[selectedDevice.id]!.map((panel, idx) => (
+                                  <div key={idx} className="flex gap-2 items-center">
+                                    <span className="text-xs text-muted-foreground w-16">Panel {idx + 1}:</span>
+                                    <Select
+                                      value={String(panel.port)}
+                                      onValueChange={(val) => {
+                                        setFieldPanelConfig(prev => {
+                                          const panels = [...(prev[selectedDevice.id] || [])];
+                                          panels[idx] = { port: parseInt(val) };
+                                          return { ...prev, [selectedDevice.id]: panels };
+                                        });
+                                      }}
+                                    >
+                                      <SelectTrigger className="flex-1 h-8 text-xs">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {Array.from({ length: 10 }, (_, i) => 4560 + i).map(port => (
+                                          <SelectItem key={port} value={String(port)}>
+                                            Port {port}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                ))}
+                                <Button
+                                  size="sm"
+                                  onClick={async () => {
+                                    const panels = fieldPanelConfig[selectedDevice.id];
+                                    await apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}`, { fieldPanels: panels });
+                                    toast({ title: 'Multi-Panel set', description: `${panels!.length} panels configured` });
+                                  }}
+                                >
+                                  <Send className="w-3 h-3 mr-1" />
+                                  Apply Panels
+                                </Button>
+                              </div>
+                            )}
+                            {(fieldPanelConfig[selectedDevice.id]?.length || 0) <= 1 && fieldPanelConfig[selectedDevice.id] === undefined && (
+                              <></>
+                            )}
+                            {/* Clear panels if switching back to single */}
+                            {(fieldPanelConfig[selectedDevice.id]?.length || 0) <= 1 && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-xs"
+                                onClick={async () => {
+                                  await apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}`, { fieldPanels: null });
+                                  setFieldPanelConfig(prev => {
+                                    const next = { ...prev };
+                                    delete next[selectedDevice.id];
+                                    return next;
+                                  });
+                                  toast({ title: 'Single panel', description: 'Multi-panel mode disabled' });
+                                }}
+                              >
+                                Reset to single panel
+                              </Button>
+                            )}
                           </div>
                         </div>
                       ) : displayMode[selectedDevice.id] === 'broadcast' ? (
