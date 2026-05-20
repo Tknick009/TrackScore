@@ -1945,6 +1945,25 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     { template, sceneId, currentSceneData }
   );
 
+  // Ref for incoming layer to attach transitionend handler (must be before any early returns)
+  const incomingLayerRef = useRef<HTMLDivElement>(null);
+
+  // Handle transitionend event to complete the transition
+  useEffect(() => {
+    const layer = incomingLayerRef.current;
+    if (!layer || transitionState.phase !== 'transitioning') return;
+    
+    const capturedVersion = transitionState.version;
+    
+    const handleTransitionEnd = (e: TransitionEvent) => {
+      if (e.propertyName !== 'opacity' || e.target !== layer) return;
+      completeTransition(capturedVersion);
+    };
+    
+    layer.addEventListener('transitionend', handleTransitionEnd, { once: true });
+    return () => layer.removeEventListener('transitionend', handleTransitionEnd);
+  }, [transitionState.phase, transitionState.version, completeTransition]);
+
   const isCustomDisplay = displayType === 'Custom';
   const effectiveResWidth = isCustomDisplay && customWidth ? customWidth : DISPLAY_CAPABILITIES[displayType].resolution.width;
   const effectiveResHeight = isCustomDisplay && customHeight ? customHeight : DISPLAY_CAPABILITIES[displayType].resolution.height;
@@ -2675,29 +2694,6 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
   // Get fixed dimensions for P10/P6/Custom displays
   const resolution = DISPLAY_CAPABILITIES[displayType].resolution;
   const isFixedSizeDisplay = displayType === 'P10' || displayType === 'P6' || displayType === 'Custom';
-
-  // Ref for incoming layer to attach transitionend handler
-  const incomingLayerRef = useRef<HTMLDivElement>(null);
-  
-  // Handle transitionend event to complete the transition - use { once: true } and version binding
-  useEffect(() => {
-    const layer = incomingLayerRef.current;
-    if (!layer || transitionState.phase !== 'transitioning') return;
-    
-    const capturedVersion = transitionState.version;
-    
-    const handleTransitionEnd = (e: TransitionEvent) => {
-      // Only handle opacity transitions on this exact element (not children)
-      if (e.propertyName !== 'opacity' || e.target !== layer) return;
-      completeTransition(capturedVersion);
-    };
-    
-    // Use { once: true } so the handler is automatically removed after firing
-    layer.addEventListener('transitionend', handleTransitionEnd, { once: true });
-    
-    // Cleanup removes handler if a new version starts before animation completes
-    return () => layer.removeEventListener('transitionend', handleTransitionEnd);
-  }, [transitionState.phase, transitionState.version, completeTransition]);
 
   // Render content - instant layout switching for crisp transitions
   // Debouncing in the layout command handler prevents glitchy rapid switches
