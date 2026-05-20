@@ -91,6 +91,7 @@ interface DisplayDevice {
   status: string;
   fieldPort: number | null;
   isBigBoard: boolean;
+  splitConfig: string | null;
   assignedEvent?: Event;
 }
 
@@ -122,6 +123,9 @@ export default function DisplayControlPage() {
   const [qrDialog, setQrDialog] = useState<{ open: boolean; url: string; title: string }>({ open: false, url: '', title: '' });
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
   
+  // Split screen: which screen index is currently being configured per device
+  const [selectedScreenIndex, setSelectedScreenIndex] = useState<Record<string, number>>({});
+
   // New display mode state - tracks which mode is active per device
   const [displayMode, setDisplayMode] = useState<Record<string, DisplayMode>>({});
   const [selectedHytekItem, setSelectedHytekItem] = useState<Record<string, string>>({});
@@ -145,6 +149,17 @@ export default function DisplayControlPage() {
   const [selectedRecordBook, setSelectedRecordBook] = useState<Record<string, string>>({});
   const [multiFieldEvents, setMultiFieldEvents] = useState<Record<string, number[]>>({}); // deviceId -> selected event numbers (up to 3)
   const [multiFieldSearch, setMultiFieldSearch] = useState('');
+
+  // Helper: get the active screenIndex for a device (undefined if not split)
+  const getActiveScreenIndex = (deviceId: string, device: DisplayDevice): number | undefined => {
+    const cfg = device.splitConfig
+      ? (typeof device.splitConfig === 'string' ? JSON.parse(device.splitConfig) : device.splitConfig)
+      : null;
+    if (cfg?.enabled && cfg.screens?.length > 1) {
+      return selectedScreenIndex[deviceId] ?? 0;
+    }
+    return undefined;
+  };
 
   const baseUrl = typeof window !== 'undefined' 
     ? `${window.location.protocol}//${window.location.host}` 
@@ -300,8 +315,8 @@ export default function DisplayControlPage() {
   });
 
   const sendCommandMutation = useMutation({
-    mutationFn: async ({ deviceId, template }: { deviceId: string; template: string }) => {
-      return apiRequest('POST', `/api/display-devices/${deviceId}/command`, { template });
+    mutationFn: async ({ deviceId, template, screenIndex }: { deviceId: string; template: string; screenIndex?: number }) => {
+      return apiRequest('POST', `/api/display-devices/${deviceId}/command`, { template, ...(screenIndex != null ? { screenIndex } : {}) });
     },
     onSuccess: (_, variables) => {
       toast({ title: 'Command sent', description: `Display updated to ${variables.template}` });
@@ -391,8 +406,8 @@ export default function DisplayControlPage() {
   });
 
   const sendHytekResultsMutation = useMutation({
-    mutationFn: async ({ deviceId, eventId, pagingLines, pagingSeconds, round, maxPages: mp }: { deviceId: string; eventId: string; pagingLines: number; pagingSeconds?: number; round: string; maxPages?: number }) => {
-      const response = await apiRequest('POST', `/api/display-devices/${deviceId}/hytek-results`, { eventId, pagingLines, pagingSeconds, round, maxPages: mp || 0 });
+    mutationFn: async ({ deviceId, eventId, pagingLines, pagingSeconds, round, maxPages: mp, screenIndex }: { deviceId: string; eventId: string; pagingLines: number; pagingSeconds?: number; round: string; maxPages?: number; screenIndex?: number }) => {
+      const response = await apiRequest('POST', `/api/display-devices/${deviceId}/hytek-results`, { eventId, pagingLines, pagingSeconds, round, maxPages: mp || 0, ...(screenIndex != null ? { screenIndex } : {}) });
       return response.json();
     },
     onSuccess: (data) => {
@@ -413,8 +428,8 @@ export default function DisplayControlPage() {
 
   // Send Team Scores mutation
   const sendTeamScoresMutation = useMutation({
-    mutationFn: async ({ deviceId, pagingLines, pagingSeconds, gender, maxPages: mp }: { deviceId: string; pagingLines: number; pagingSeconds?: number; gender: 'M' | 'W'; maxPages?: number }) => {
-      const response = await apiRequest('POST', `/api/display-devices/${deviceId}/team-scores`, { pagingLines, pagingSeconds, gender, maxPages: mp || 0 });
+    mutationFn: async ({ deviceId, pagingLines, pagingSeconds, gender, maxPages: mp, screenIndex }: { deviceId: string; pagingLines: number; pagingSeconds?: number; gender: 'M' | 'W'; maxPages?: number; screenIndex?: number }) => {
+      const response = await apiRequest('POST', `/api/display-devices/${deviceId}/team-scores`, { pagingLines, pagingSeconds, gender, maxPages: mp || 0, ...(screenIndex != null ? { screenIndex } : {}) });
       return response.json();
     },
     onSuccess: (data) => {
@@ -544,8 +559,8 @@ export default function DisplayControlPage() {
   });
 
   const sendMultiFieldBoardMutation = useMutation({
-    mutationFn: async ({ deviceId, eventNumbers, maxRows }: { deviceId: string; eventNumbers: number[]; maxRows?: number }) => {
-      return apiRequest('POST', `/api/display-devices/${deviceId}/multi-field-board`, { eventNumbers, maxRows });
+    mutationFn: async ({ deviceId, eventNumbers, maxRows, screenIndex }: { deviceId: string; eventNumbers: number[]; maxRows?: number; screenIndex?: number }) => {
+      return apiRequest('POST', `/api/display-devices/${deviceId}/multi-field-board`, { eventNumbers, maxRows, ...(screenIndex != null ? { screenIndex } : {}) });
     },
     onSuccess: () => toast({ title: 'Multi-Field Board sent to display' }),
     onError: (error: Error) => toast({ title: 'Failed to send Multi-Field Board', description: error.message, variant: 'destructive' }),
@@ -935,13 +950,44 @@ export default function DisplayControlPage() {
                     </div>
                   ) : (
                     <>
+                      {/* Split Screen Selector — when split is active, show per-screen tabs */}
+                      {(() => {
+                        const splitCfg = selectedDevice.splitConfig
+                          ? (typeof selectedDevice.splitConfig === 'string' ? JSON.parse(selectedDevice.splitConfig) : selectedDevice.splitConfig)
+                          : null;
+                        if (splitCfg?.enabled && splitCfg.screens?.length > 1) {
+                          const activeIdx = selectedScreenIndex[selectedDevice.id] ?? 0;
+                          return (
+                            <div className="mb-3 p-2 rounded-lg bg-muted/50 border">
+                              <div className="text-xs font-medium text-muted-foreground mb-2">Sending to:</div>
+                              <div className="flex gap-1">
+                                {splitCfg.screens.map((s: any, i: number) => (
+                                  <button
+                                    key={i}
+                                    type="button"
+                                    onClick={() => setSelectedScreenIndex(prev => ({ ...prev, [selectedDevice.id]: i }))}
+                                    className={`flex-1 px-3 py-1.5 rounded text-sm font-medium transition-all ${
+                                      activeIdx === i
+                                        ? 'bg-primary text-primary-foreground shadow-sm'
+                                        : 'bg-background hover:bg-accent text-muted-foreground'
+                                    }`}
+                                  >
+                                    {s.label} ({s.widthPercent}%)
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
                       <div className="mb-3">
                         <button
                           type="button"
                           onClick={() => {
                             setDisplayMode(prev => ({ ...prev, [selectedDevice.id]: undefined as any }));
                             toggleAutoModeMutation.mutate({ deviceId: selectedDevice.id, enabled: false });
-                            sendCommandMutation.mutate({ deviceId: selectedDevice.id, template: 'meet-logo' });
+                            sendCommandMutation.mutate({ deviceId: selectedDevice.id, template: 'meet-logo', screenIndex: getActiveScreenIndex(selectedDevice.id, selectedDevice) });
                           }}
                           className="w-full p-3 rounded-lg border-2 transition-all text-left border-amber-500/50 bg-amber-500/10 hover:bg-amber-500/20 flex items-center gap-3"
                           data-testid="tile-meet-logo"
@@ -1416,6 +1462,7 @@ export default function DisplayControlPage() {
                                 pagingSeconds: seconds,
                                 round: item.round,
                                 maxPages: maxPages[selectedDevice.id] || 0,
+                                screenIndex: getActiveScreenIndex(selectedDevice.id, selectedDevice),
                               });
                             }}
                             disabled={!selectedHytekItem[selectedDevice.id] || sendHytekResultsMutation.isPending}
@@ -1518,6 +1565,7 @@ export default function DisplayControlPage() {
                                 pagingSeconds: seconds,
                                 gender,
                                 maxPages: mp,
+                                screenIndex: getActiveScreenIndex(selectedDevice.id, selectedDevice),
                               });
                             }}
                             disabled={sendTeamScoresMutation.isPending}
@@ -2320,6 +2368,7 @@ export default function DisplayControlPage() {
                               sendMultiFieldBoardMutation.mutate({
                                 deviceId: selectedDevice.id,
                                 eventNumbers: selectedEvents,
+                                screenIndex: getActiveScreenIndex(selectedDevice.id, selectedDevice),
                               });
                             }}
                             disabled={sendMultiFieldBoardMutation.isPending || (multiFieldEvents[selectedDevice.id] || []).length === 0}
@@ -2440,6 +2489,9 @@ export default function DisplayControlPage() {
                       100% = normal. Lower values squeeze content horizontally. Persists across layout changes &amp; reconnects.
                     </p>
                   </div>
+                  <Separator className="my-4" />
+                  {/* Split Screen Settings */}
+                  <SplitScreenSettings device={selectedDevice} meetId={currentMeetId || ''} />
                 </CardContent>
               </Card>
 
@@ -2596,6 +2648,148 @@ export default function DisplayControlPage() {
           </AccordionItem>
         </Accordion>
       </div>
+    </div>
+  );
+}
+
+// ====== SPLIT SCREEN SETTINGS ======
+interface SplitScreenSettingsProps {
+  device: DisplayDevice;
+  meetId: string;
+}
+
+function SplitScreenSettings({ device, meetId }: SplitScreenSettingsProps) {
+  const parsedConfig = device.splitConfig 
+    ? (typeof device.splitConfig === 'string' ? JSON.parse(device.splitConfig) : device.splitConfig) 
+    : null;
+  const isEnabled = parsedConfig?.enabled === true;
+  const screens = parsedConfig?.screens || [];
+
+  const updateSplitConfig = async (newConfig: any) => {
+    await apiRequest('PATCH', `/api/display-devices/${device.id}`, { 
+      splitConfig: newConfig 
+    });
+    queryClient.invalidateQueries({ queryKey: ['/api/display-devices/meet', meetId] });
+  };
+
+  const toggleSplit = async (enabled: boolean) => {
+    if (enabled) {
+      await updateSplitConfig({ 
+        enabled: true, 
+        screens: [
+          { label: 'Screen A', widthPercent: 50 },
+          { label: 'Screen B', widthPercent: 50 },
+        ] 
+      });
+    } else {
+      await updateSplitConfig(null);
+    }
+  };
+
+  const addScreen = async () => {
+    if (screens.length >= 3) return;
+    const newScreens = [...screens, { label: `Screen ${String.fromCharCode(65 + screens.length)}`, widthPercent: 0 }];
+    // Redistribute evenly
+    const pct = Math.floor(100 / newScreens.length);
+    const redistributed = newScreens.map((s: any, i: number) => ({
+      ...s,
+      widthPercent: i === newScreens.length - 1 ? 100 - pct * (newScreens.length - 1) : pct,
+    }));
+    await updateSplitConfig({ enabled: true, screens: redistributed });
+  };
+
+  const removeScreen = async (idx: number) => {
+    if (screens.length <= 2) {
+      await updateSplitConfig(null);
+      return;
+    }
+    const newScreens = screens.filter((_: any, i: number) => i !== idx);
+    const pct = Math.floor(100 / newScreens.length);
+    const redistributed = newScreens.map((s: any, i: number) => ({
+      ...s,
+      widthPercent: i === newScreens.length - 1 ? 100 - pct * (newScreens.length - 1) : pct,
+    }));
+    await updateSplitConfig({ enabled: true, screens: redistributed });
+  };
+
+  const updateScreenPercent = async (idx: number, pct: number) => {
+    const newScreens = [...screens];
+    const minWidth = 10;
+    // Cap the requested pct so that all other non-last screens + this one + min last screen <= 100
+    const otherNonLastTotal = newScreens.reduce((sum: number, s: any, i: number) => 
+      (i !== idx && i !== newScreens.length - 1) ? sum + s.widthPercent : sum, 0);
+    const maxAllowed = 100 - minWidth - otherNonLastTotal;
+    const clampedPct = Math.min(pct, Math.max(minWidth, maxAllowed));
+    newScreens[idx] = { ...newScreens[idx], widthPercent: clampedPct };
+    // Adjust last screen to make total exactly 100
+    const othersTotal = newScreens.reduce((sum: number, s: any, i: number) => i === newScreens.length - 1 ? sum : sum + s.widthPercent, 0);
+    newScreens[newScreens.length - 1] = { ...newScreens[newScreens.length - 1], widthPercent: 100 - othersTotal };
+    await updateSplitConfig({ enabled: true, screens: newScreens });
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-sm font-medium">Split Screen</div>
+          <p className="text-xs text-muted-foreground">Divide this display into multiple independent screens</p>
+        </div>
+        <Switch
+          checked={isEnabled}
+          onCheckedChange={toggleSplit}
+          data-testid="switch-split-screen"
+        />
+      </div>
+      {isEnabled && screens.length > 0 && (
+        <div className="space-y-3 pt-2">
+          {/* Visual preview */}
+          <div className="flex h-8 rounded border overflow-hidden">
+            {screens.map((s: any, i: number) => (
+              <div
+                key={i}
+                className="flex items-center justify-center text-[10px] font-medium border-r last:border-r-0"
+                style={{ 
+                  width: `${s.widthPercent}%`, 
+                  background: i === 0 ? 'hsl(var(--primary) / 0.15)' : i === 1 ? 'hsl(var(--chart-2) / 0.15)' : 'hsl(var(--chart-3) / 0.15)',
+                }}
+              >
+                {s.label} ({s.widthPercent}%)
+              </div>
+            ))}
+          </div>
+          {/* Per-screen width controls */}
+          {screens.map((s: any, i: number) => (
+            <div key={i} className="flex items-center gap-2">
+              <span className="text-xs font-medium w-16 shrink-0">{s.label}</span>
+              <input
+                type="range"
+                min="10"
+                max="80"
+                step="5"
+                value={s.widthPercent}
+                onChange={(e) => updateScreenPercent(i, parseInt(e.target.value))}
+                className="flex-1 accent-primary cursor-pointer"
+                disabled={i === screens.length - 1}
+              />
+              <span className="text-xs font-mono w-8 text-right">{s.widthPercent}%</span>
+              {screens.length > 2 && (
+                <button
+                  type="button"
+                  onClick={() => removeScreen(i)}
+                  className="text-destructive hover:text-destructive/80 p-1"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          ))}
+          {screens.length < 3 && (
+            <Button variant="outline" size="sm" onClick={addScreen} className="w-full">
+              + Add Screen ({screens.length}/3)
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

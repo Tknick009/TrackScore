@@ -316,7 +316,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
   // Send command to a display device (push template/content)
   app.post("/api/display-devices/:id/command", async (req, res) => {
     try {
-      const { template, eventId } = req.body;
+      const { template, eventId, screenIndex } = req.body;
       const deviceId = req.params.id;
       
       // Get the device
@@ -473,6 +473,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           liveEventData,
           pagingSize: connectedDevice.pagingSize,
           pagingInterval: connectedDevice.pagingInterval,
+          ...(screenIndex != null ? { screenIndex } : {}),
         }));
         
         res.json({ success: true, delivered: true, sceneId });
@@ -627,10 +628,10 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
     }
   });
 
-  // Update display device config (fieldPort, isBigBoard, pagingSize, pagingInterval, displayType)
+  // Update display device config (fieldPort, isBigBoard, pagingSize, pagingInterval, displayType, splitConfig)
   app.patch("/api/display-devices/:id", async (req, res) => {
     try {
-      const { fieldPort, isBigBoard, pagingSize, pagingInterval, displayType, displayWidth, displayHeight, displayScale } = req.body;
+      const { fieldPort, isBigBoard, pagingSize, pagingInterval, displayType, displayWidth, displayHeight, displayScale, splitConfig } = req.body;
       const id = req.params.id;
 
       const device = await storage.getDisplayDevice(id);
@@ -646,12 +647,24 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         await storage.updateDisplayDeviceType(id, displayType, undefined, displayWidth, displayHeight);
       }
 
-      const updates: Partial<{ pagingSize: number; pagingInterval: number; fieldPort: number | null; isBigBoard: boolean; displayScale: number }> = {};
+      const updates: Partial<{ pagingSize: number; pagingInterval: number; fieldPort: number | null; isBigBoard: boolean; displayScale: number; splitConfig: string | null }> = {};
       if (fieldPort !== undefined) updates.fieldPort = fieldPort;
       if (isBigBoard !== undefined) updates.isBigBoard = isBigBoard;
       if (pagingSize !== undefined) updates.pagingSize = Math.max(1, Math.min(20, parseInt(pagingSize) || 8));
       if (pagingInterval !== undefined) updates.pagingInterval = Math.max(1, Math.min(60, parseInt(pagingInterval) || 5));
       if (displayScale !== undefined) updates.displayScale = Math.max(1, Math.min(200, parseInt(displayScale) || 100));
+      if (splitConfig !== undefined) {
+        // Validate split config
+        if (splitConfig === null) {
+          updates.splitConfig = null;
+        } else {
+          const cfg = typeof splitConfig === 'string' ? JSON.parse(splitConfig) : splitConfig;
+          if (cfg.screens && cfg.screens.length > 3) {
+            return res.status(400).json({ error: "Maximum 3 screens for split display" });
+          }
+          updates.splitConfig = typeof splitConfig === 'string' ? splitConfig : JSON.stringify(splitConfig);
+        }
+      }
 
       if (Object.keys(updates).length > 0) {
         await storage.updateDisplayDevice(id, updates);
@@ -678,6 +691,15 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         }));
       }
 
+      // Push split config update directly to the connected device
+      if (splitConfig !== undefined && connectedDevice && connectedDevice.ws.readyState === WebSocket.OPEN) {
+        connectedDevice.ws.send(JSON.stringify({
+          type: 'update_split_config',
+          deviceId: id,
+          splitConfig: updates.splitConfig ? JSON.parse(updates.splitConfig) : null,
+        }));
+      }
+
       broadcastToDisplays({
         type: 'device_config_update',
         data: {
@@ -689,6 +711,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           pagingInterval: finalDevice?.pagingInterval,
           displayMode: finalDevice?.displayMode,
           displayScale: finalDevice?.displayScale,
+          splitConfig: finalDevice?.splitConfig ? JSON.parse(finalDevice.splitConfig as string) : null,
         }
       } as WSMessage);
 
@@ -701,7 +724,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
   // Send Hytek Results to a display device (compiled results from database)
   app.post("/api/display-devices/:id/hytek-results", async (req, res) => {
     try {
-      const { eventId, pagingLines, pagingSeconds, round, maxPages: reqMaxPages } = req.body;
+      const { eventId, pagingLines, pagingSeconds, round, maxPages: reqMaxPages, screenIndex } = req.body;
       const deviceId = req.params.id;
       
       if (!eventId) {
@@ -1275,6 +1298,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           pagingSize: lines,
           pagingInterval: seconds,
           maxPages: parseInt(reqMaxPages) || 0,
+          ...(screenIndex != null ? { screenIndex } : {}),
         }));
         
         await storage.updateDisplayDevice(deviceId, {
@@ -1981,7 +2005,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
   // Send Team Scores to a display device
   app.post("/api/display-devices/:id/team-scores", async (req, res) => {
     try {
-      const { pagingLines, pagingSeconds, gender, maxPages } = req.body;
+      const { pagingLines, pagingSeconds, gender, maxPages, screenIndex } = req.body;
       const deviceId = req.params.id;
       const selectedGender: string = gender === 'W' ? 'W' : 'M';
       const effectiveMaxPages = Math.max(0, parseInt(maxPages) || 0);
@@ -2150,6 +2174,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           pagingSize: lines,
           pagingInterval: seconds,
           maxPages: effectiveMaxPages,
+          ...(screenIndex != null ? { screenIndex } : {}),
         }));
         
         // Update database with paging settings
@@ -3015,7 +3040,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
   // Parses LFF files from the Lynx directory for each event, enriches with team logos + headshots
   app.post("/api/display-devices/:id/multi-field-board", async (req, res) => {
     try {
-      const { eventNumbers, maxRows } = req.body;
+      const { eventNumbers, maxRows, screenIndex } = req.body;
       const deviceId = req.params.id;
 
       if (!eventNumbers || !Array.isArray(eventNumbers) || eventNumbers.length === 0) {
@@ -3264,6 +3289,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           pagingSize: 1,
           pagingInterval: 30,
           maxPages: 0,
+          ...(screenIndex != null ? { screenIndex } : {}),
         }));
 
         console.log(`[Multi-Field] Sent ${eventsData.length} events to ${device.deviceName}: ${eventNumbers.join(', ')}`);
