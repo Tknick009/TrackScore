@@ -1872,6 +1872,18 @@ function FieldPanel({ port, width, height, meetId, liveEventDataByPort, displayT
           </div>
         )}
       </div>
+
+      {/* Curtain transition overlay — fires independently per panel when an athlete is called up */}
+      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 3 }}>
+        <FieldTransitionRenderer
+          curtainColor={primaryColor}
+          meetId={meetId || undefined}
+          liveEventDataByPort={liveEventDataByPort}
+          deviceFieldPort={port}
+          canvasWidth={width}
+          canvasHeight={height}
+        />
+      </div>
     </div>
   );
 }
