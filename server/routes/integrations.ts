@@ -1892,7 +1892,7 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     const fieldBroadcastData = {
       eventNumber,
       mode,
-      displayMode: isMultiFromName ? 'multi_field' : 'field_results',
+      displayMode: 'field_results',
       eventName: data.eventName,
       flight: data.flight,
       wind: data.wind,
@@ -1970,7 +1970,7 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
             isMultiEvent: isMultiDetected,
             eventType: event.eventType ?? nameBasedMulti?.scoringKey ?? null,
             gender: event.gender ?? nameBasedMulti?.gender ?? null,
-            displayMode: isMultiDetected ? 'multi_field' : 'field_results',
+            displayMode: 'field_results',
           };
           const correctedMsg = JSON.stringify({ type: `field_mode_change_${fieldPort}`, data: correctedData });
           for (const [, dev] of connectedDisplayDevices) {
