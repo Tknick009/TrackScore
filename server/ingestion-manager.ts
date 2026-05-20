@@ -2,6 +2,7 @@ import chokidar, { type FSWatcher } from 'chokidar';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import { EventEmitter } from 'events';
 import { storage } from './storage';
 import { ingestLIFResults } from './finishlynx-ingestion';
 import { parseLFFFile, type NormalizedFieldResult } from './parsers/lff-parser';
@@ -14,9 +15,14 @@ interface WatcherState {
   mdbPollingInterval: NodeJS.Timeout | null;
 }
 
-class IngestionManager {
+class IngestionManager extends EventEmitter {
   private watchers: Map<string, WatcherState> = new Map();
   private isShuttingDown = false;
+
+  constructor() {
+    super();
+    this.setMaxListeners(50);
+  }
 
   async startWatchersForMeet(meetId: string): Promise<{ success: boolean; message: string }> {
     const settings = await storage.getIngestionSettings(meetId);
@@ -243,6 +249,11 @@ class IngestionManager {
       } catch (error) {
         errors.push(`Error processing result for bib ${result.bibNumber}: ${error}`);
       }
+    }
+
+    // Emit lff_updated event so multi-field displays can refresh
+    if (processed > 0) {
+      this.emit('lff_updated', { meetId, eventNumber: header.eventNumber });
     }
 
     return { processed, errors };

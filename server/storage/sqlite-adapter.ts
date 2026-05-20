@@ -179,11 +179,14 @@ export class SQLiteStorage implements IStorage {
     try { this.db.prepare("ALTER TABLE display_devices ADD COLUMN content_mode TEXT DEFAULT 'lynx'").run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE meet_ingestion_settings ADD COLUMN headshot_directory TEXT').run(); } catch(e) {}
     try { this.db.prepare("ALTER TABLE meets ADD COLUMN logo_effect TEXT DEFAULT 'none'").run(); } catch(e) {}
+    try { this.db.prepare('ALTER TABLE meets ADD COLUMN sponsor_dir TEXT').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE record_books ADD COLUMN display_order INTEGER DEFAULT 99').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE record_books ADD COLUMN allow_multiple INTEGER DEFAULT 0').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE record_books ADD COLUMN meet_id TEXT').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE events ADD COLUMN protest_status TEXT').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE events ADD COLUMN protest_printed_at TEXT').run(); } catch(e) {}
+    try { this.db.prepare('ALTER TABLE events ADD COLUMN protest_end_at TEXT').run(); } catch(e) {}
+    try { this.db.prepare('ALTER TABLE events ADD COLUMN protest_filed INTEGER DEFAULT 0').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE events ADD COLUMN timing_locked INTEGER DEFAULT 0').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE events ADD COLUMN timing_locked_at TEXT').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE events ADD COLUMN protest_notes TEXT').run(); } catch(e) {}
@@ -1135,6 +1138,7 @@ export class SQLiteStorage implements IStorage {
       accentColor: row.accent_color,
       textColor: row.text_color,
       logoEffect: row.logo_effect ?? 'none',
+      sponsorDir: row.sponsor_dir ?? null,
     };
   }
 
@@ -1163,6 +1167,8 @@ export class SQLiteStorage implements IStorage {
       lastResultAt: row.last_result_at ? new Date(row.last_result_at) : null,
       protestStatus: row.protest_status ?? null,
       protestPrintedAt: row.protest_printed_at ? new Date(row.protest_printed_at) : null,
+      protestEndAt: row.protest_end_at ? new Date(row.protest_end_at) : null,
+      protestFiled: this.toBoolean(row.protest_filed),
       timingLocked: this.toBoolean(row.timing_locked),
       timingLockedAt: row.timing_locked_at ? new Date(row.timing_locked_at) : null,
       protestNotes: row.protest_notes ?? null,
@@ -1376,6 +1382,8 @@ export class SQLiteStorage implements IStorage {
       numLanes: 'num_lanes',
       protestStatus: 'protest_status',
       protestPrintedAt: 'protest_printed_at',
+      protestEndAt: 'protest_end_at',
+      protestFiled: 'protest_filed',
       timingLocked: 'timing_locked',
       timingLockedAt: 'timing_locked_at',
       protestNotes: 'protest_notes',
@@ -1756,6 +1764,7 @@ export class SQLiteStorage implements IStorage {
       accentColor: 'accent_color',
       textColor: 'text_color',
       logoEffect: 'logo_effect',
+      sponsorDir: 'sponsor_dir',
     };
 
     for (const [key, val] of Object.entries(data)) {
@@ -2097,10 +2106,18 @@ export class SQLiteStorage implements IStorage {
   }
 
   async updateDisplayDeviceStatus(id: string, status: string, lastIp?: string): Promise<DisplayDevice | undefined> {
-    this.db.prepare(`
-      UPDATE display_devices SET status = ?, last_seen_at = datetime('now'), last_ip = COALESCE(?, last_ip)
-      WHERE id = ?
-    `).run(status, lastIp ?? null, id);
+    if (status === 'offline') {
+      // Don't update last_seen_at when going offline — preserve the timestamp of the last real heartbeat
+      this.db.prepare(`
+        UPDATE display_devices SET status = ?
+        WHERE id = ?
+      `).run(status, id);
+    } else {
+      this.db.prepare(`
+        UPDATE display_devices SET status = ?, last_seen_at = datetime('now'), last_ip = COALESCE(?, last_ip)
+        WHERE id = ?
+      `).run(status, lastIp ?? null, id);
+    }
     const updated = await this.getDisplayDevice(id);
     if (updated) this.logSyncEvent('display_devices', id, 'update', updated);
     return updated;

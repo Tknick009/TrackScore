@@ -671,6 +671,8 @@ export class DatabaseStorage implements IStorage {
     if (updates.numLanes !== undefined) fieldMap.numLanes = updates.numLanes;
     if (updates.protestStatus !== undefined) fieldMap.protestStatus = updates.protestStatus;
     if (updates.protestPrintedAt !== undefined) fieldMap.protestPrintedAt = updates.protestPrintedAt;
+    if (updates.protestEndAt !== undefined) fieldMap.protestEndAt = updates.protestEndAt;
+    if (updates.protestFiled !== undefined) fieldMap.protestFiled = updates.protestFiled;
     if (updates.timingLocked !== undefined) fieldMap.timingLocked = updates.timingLocked;
     if (updates.timingLockedAt !== undefined) fieldMap.timingLockedAt = updates.timingLockedAt;
     if (updates.protestNotes !== undefined) fieldMap.protestNotes = updates.protestNotes;

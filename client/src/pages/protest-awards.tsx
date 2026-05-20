@@ -6,13 +6,25 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Printer, Award, ShieldCheck, RotateCcw, Filter, Lock, MessageSquare, X } from "lucide-react";
+import { Search, Printer, Award, ShieldCheck, RotateCcw, Filter, Lock, MessageSquare, X, AlertTriangle, Clock, Edit2 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Event, EntryWithDetails } from "@shared/schema";
 import { formatTimeValue } from "@shared/formatting";
 
 type ProtestStatus = null | "protest" | "ready_for_awards" | "awarded";
+
+function parseTimeToMinutes(timeStr: string | null | undefined): number {
+  if (!timeStr) return 9999;
+  const match = timeStr.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!match) return 9999;
+  let hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2], 10);
+  const period = match[3].toUpperCase();
+  if (period === 'AM' && hours === 12) hours = 0;
+  else if (period === 'PM' && hours !== 12) hours += 12;
+  return hours * 60 + minutes;
+}
 
 function escapeHtml(str: string): string {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -38,6 +50,9 @@ function getStatusBadge(event: EventWithEntries) {
 
   switch (event.protestStatus as ProtestStatus) {
     case "protest":
+      if (event.protestFiled) {
+        return <Badge variant="destructive" className="animate-pulse text-sm px-3 py-1 bg-red-700">⚠ Protest Filed{onlyPrelimsComplete ? " (Prelims)" : ""}</Badge>;
+      }
       return <Badge variant="destructive" className="animate-pulse text-sm px-3 py-1">Protest Period{onlyPrelimsComplete ? " (Prelims)" : ""}</Badge>;
     case "ready_for_awards":
       return <Badge className="bg-green-600 hover:bg-green-700 text-sm px-3 py-1">Ready for Awards{onlyPrelimsComplete ? " (Prelims)" : ""}</Badge>;
@@ -62,31 +77,44 @@ function formatMark(mark: number | null | undefined, resultType: string): string
   return mark.toString();
 }
 
-function computeQualifierTags(event: EventWithEntries): Map<string, string> {
-  const tags = new Map<string, string>();
+function computeQualifierTags(event: EventWithEntries): Map<string, { tag: string; heatPlace: number }> {
+  const tags = new Map<string, { tag: string; heatPlace: number }>();
   if (!event.numRounds || event.numRounds <= 1) return tags;
   if (!event.advanceByPlace && !event.advanceByTime) return tags;
 
-  const nonQualified: { id: string; mark: number }[] = [];
+  const resultType = event.entries[0]?.resultType;
+  const lowerIsBetter = resultType === "time";
 
+  // Group entries by heat and compute per-heat placement
+  // Q = qualified by place within each heat (top N per heat)
+  // q = qualified by next best time across all heats
+  const heatGroups = new Map<number, { id: string; mark: number }[]>();
   for (const entry of event.entries) {
-    const prelimPlace = entry.preliminaryPlace;
-    if (!prelimPlace) continue;
+    if (entry.preliminaryMark == null || entry.preliminaryHeat == null) continue;
+    const heat = entry.preliminaryHeat;
+    if (!heatGroups.has(heat)) heatGroups.set(heat, []);
+    heatGroups.get(heat)!.push({ id: entry.id, mark: entry.preliminaryMark });
+  }
 
-    if (event.advanceByPlace && prelimPlace <= event.advanceByPlace) {
-      tags.set(entry.id, "Q");
-    } else if (entry.preliminaryMark != null) {
-      nonQualified.push({ id: entry.id, mark: entry.preliminaryMark });
+  // Sort each heat by mark and assign Q to top N, tracking per-heat placement
+  const nonQualified: { id: string; mark: number }[] = [];
+  for (const [, heatEntries] of heatGroups) {
+    heatEntries.sort((a, b) => lowerIsBetter ? a.mark - b.mark : b.mark - a.mark);
+    for (let i = 0; i < heatEntries.length; i++) {
+      if (event.advanceByPlace && i < event.advanceByPlace) {
+        tags.set(heatEntries[i].id, { tag: "Q", heatPlace: i });
+      } else {
+        nonQualified.push(heatEntries[i]);
+      }
     }
   }
 
+  // Assign q to next best times across all non-Q athletes
   if (event.advanceByTime && nonQualified.length > 0) {
-    const resultType = event.entries[0]?.resultType;
-    const lowerIsBetter = resultType === "time";
     nonQualified.sort((a, b) => lowerIsBetter ? a.mark - b.mark : b.mark - a.mark);
     const count = Math.min(event.advanceByTime, nonQualified.length);
     for (let i = 0; i < count; i++) {
-      tags.set(nonQualified[i].id, "q");
+      tags.set(nonQualified[i].id, { tag: "q", heatPlace: 0 });
     }
   }
 
@@ -122,6 +150,7 @@ function getResultEntries(event: EventWithEntries): Array<{
           lane: entry.finalLane,
           wind: entry.finalWind,
           qualTag: null,
+          heatPlace: 999,
           resultNote: entry.finalNote || entry.notes || null,
         };
       } else {
@@ -132,7 +161,8 @@ function getResultEntries(event: EventWithEntries): Array<{
           heat: entry.preliminaryHeat,
           lane: entry.preliminaryLane,
           wind: entry.preliminaryWind,
-          qualTag: qualTags.get(entry.id) || null,
+          qualTag: qualTags.get(entry.id)?.tag || null,
+          heatPlace: qualTags.get(entry.id)?.heatPlace ?? 999,
           resultNote: entry.preliminaryNote || entry.notes || null,
         };
       }
@@ -142,13 +172,20 @@ function getResultEntries(event: EventWithEntries): Array<{
   if (isFinal) {
     mapped.sort((a, b) => (a.place ?? 999) - (b.place ?? 999));
   } else {
-    // Prelims: Q's first (by mark), then q's (by mark), then rest (by mark)
+    // Prelims: match HyTek ordering
+    // Q's first, grouped by heat placement tier (all 1st-in-heat by time, then all 2nd-in-heat, etc.)
+    // then q's by time, then rest by time
     const qualRank = (tag: string | null) => tag === "Q" ? 0 : tag === "q" ? 1 : 2;
     const resultType = event.entries[0]?.resultType;
     const lowerIsBetter = resultType === "time";
     mapped.sort((a, b) => {
       const rankDiff = qualRank(a.qualTag) - qualRank(b.qualTag);
       if (rankDiff !== 0) return rankDiff;
+      // For Q qualifiers, sort by heat placement tier first (1st-in-heat before 2nd-in-heat)
+      if (a.qualTag === "Q" && b.qualTag === "Q") {
+        const hpDiff = (a.heatPlace ?? 999) - (b.heatPlace ?? 999);
+        if (hpDiff !== 0) return hpDiff;
+      }
       if (lowerIsBetter) return (a.mark ?? 999999) - (b.mark ?? 999999);
       return (b.mark ?? -999999) - (a.mark ?? -999999);
     });
@@ -244,8 +281,15 @@ function handlePrint(
     headerCells += `<th style="text-align:center;padding:8px;width:30px;"></th>`;
   }
 
+  // Pre-fill protest end time if available, otherwise show blank line
+  const protestEndStr = event.protestEndAt
+    ? new Date(event.protestEndAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
+    : (() => {
+        const end = new Date(now.getTime() + 15 * 60 * 1000);
+        return end.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+      })();
   const protestLine = mode === "protest"
-    ? `<div style="font-size:14px;margin-top:12px;padding:10px 14px;border:2px solid #000;background:#fafafa;"><strong>Protest Period Ends: </strong><span style="border-bottom:1px solid #000;display:inline-block;width:200px;">&nbsp;</span></div>`
+    ? `<div style="font-size:14px;margin-top:12px;padding:10px 14px;border:2px solid #000;background:#fafafa;"><strong>Protest Period Ends: </strong>${escapeHtml(protestEndStr)}</div>`
     : `<div style="font-size:14px;margin-top:12px;padding:10px 14px;border:2px solid #000;background:#fafafa;"><strong>Protest Period Ended: </strong><span style="border-bottom:1px solid #000;display:inline-block;width:200px;">&nbsp;</span></div>`;
 
   let qualFooter = "";
@@ -370,6 +414,34 @@ export default function ProtestAwardsPage({ standalone = false }: { standalone?:
     },
   });
 
+  const updateProtestFiled = useMutation({
+    mutationFn: async ({ eventId, filed }: { eventId: string; filed: boolean }) => {
+      return await apiRequest("PATCH", `/api/events/${eventId}/protest-filed`, { filed });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/meets", currentMeetId, "protest-awards"] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const updateProtestEndTime = useMutation({
+    mutationFn: async ({ eventId, endAt, reset }: { eventId: string; endAt?: string; reset?: boolean }) => {
+      return await apiRequest("PATCH", `/api/events/${eventId}/protest-end-time`, { endAt, reset });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/meets", currentMeetId, "protest-awards"] });
+      setEditingEndTimeEventId(null);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const [editingEndTimeEventId, setEditingEndTimeEventId] = useState<string | null>(null);
+  const [editEndTimeValue, setEditEndTimeValue] = useState("");
+
   const onPrint = (event: EventWithEntries, mode: "protest" | "awards") => {
     const meetName = currentMeet?.name || "Track & Field Meet";
     const meetLogoUrl = currentMeet?.logoUrl || null;
@@ -400,7 +472,16 @@ export default function ProtestAwardsPage({ standalone = false }: { standalone?:
         if (statusFilter === "locked" && !event.timingLocked) return false;
         return true;
       })
-      .sort((a, b) => a.eventNumber - b.eventNumber);
+      .sort((a, b) => {
+        // Sort by scheduled day, then time (parsed to minutes), then event number
+        const dateA = a.eventDate ? String(a.eventDate) : '';
+        const dateB = b.eventDate ? String(b.eventDate) : '';
+        if (dateA !== dateB) return dateA.localeCompare(dateB);
+        const timeA = parseTimeToMinutes(a.eventTime);
+        const timeB = parseTimeToMinutes(b.eventTime);
+        if (timeA !== timeB) return timeA - timeB;
+        return a.eventNumber - b.eventNumber;
+      });
   }, [events, search, genderFilter, statusFilter]);
 
   const stats = useMemo(() => {
@@ -507,124 +588,154 @@ export default function ProtestAwardsPage({ standalone = false }: { standalone?:
           const hasResults = resultEntries.length > 0;
           const isLocked = event.timingLocked;
           const canAct = event.isScored && hasResults && !isLocked;
+          const isFinal = !event.numRounds || event.numRounds <= 1;
 
           const genderLabel = event.gender === "M" || event.gender === "m" ? "Men's" : "Women's";
           const eventDisplayName = event.name.startsWith(genderLabel) ? event.name : `${genderLabel} ${event.name}`;
 
           return (
             <Card key={event.id} className={!event.isScored && !isLocked ? "opacity-50" : ""}>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between gap-4">
-                  {/* Event info */}
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="text-lg font-mono font-bold text-muted-foreground w-12 text-right">
+              <CardContent className="p-4 space-y-3">
+                {/* Row 1: Event info + status badge */}
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="text-lg font-mono font-bold text-muted-foreground w-12 text-right flex-shrink-0 pt-0.5">
                       {event.eventNumber}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-base truncate">
+                    <div className="min-w-0">
+                      <div className="font-semibold text-base">
                         {eventDisplayName}
                       </div>
-                      <div className="text-xs text-muted-foreground">
+                      <div className="text-sm text-muted-foreground mt-0.5">
                         {getRoundLabel(event)} · {hasResults ? `${resultEntries.length} results` : "No results"}
-                        {event.protestPrintedAt && (
-                          <span className="ml-2">
-                            · Protest printed {new Date(event.protestPrintedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}
-                          </span>
-                        )}
                       </div>
-                      {event.protestNotes && (
-                        <div className="text-xs text-orange-700 bg-orange-50 rounded px-2 py-0.5 mt-1 inline-block">
-                          <MessageSquare className="h-3 w-3 inline mr-1" />{event.protestNotes}
-                        </div>
-                      )}
                     </div>
-                    {getStatusBadge(event)}
                   </div>
-
-                  {/* Action buttons — bigger */}
-                  <div className="flex items-center gap-2 ml-4 flex-shrink-0">
-                    {canAct && (
-                      <>
-                        {(!status || status === "protest") && (
-                          <Button
-                            size="lg"
-                            variant="outline"
-                            className="text-base px-5 py-3"
-                            onClick={() => onPrint(event, "protest")}
-                          >
-                            <Printer className="h-5 w-5 mr-2" />
-                            Protest Form
-                          </Button>
-                        )}
-
-                        {status === "protest" && (
-                          <Button
-                            size="lg"
-                            className="bg-green-600 hover:bg-green-700 text-base px-5 py-3"
-                            onClick={() => updateProtestStatus.mutate({ eventId: event.id, status: "ready_for_awards" })}
-                          >
-                            <ShieldCheck className="h-5 w-5 mr-2" />
-                            Clear Protest
-                          </Button>
-                        )}
-
-                        {(status === "ready_for_awards" || status === "awarded") && (
-                          <Button
-                            size="lg"
-                            variant="outline"
-                            className="text-base px-5 py-3"
-                            onClick={() => onPrint(event, "awards")}
-                          >
-                            <Award className="h-5 w-5 mr-2" />
-                            Awards Form
-                          </Button>
-                        )}
-
-                        {status === "ready_for_awards" && (
-                          <Button
-                            size="lg"
-                            className="text-base px-5 py-3"
-                            onClick={() => updateProtestStatus.mutate({ eventId: event.id, status: "awarded" })}
-                          >
-                            <Award className="h-5 w-5 mr-2" />
-                            Mark Awarded
-                          </Button>
-                        )}
-
-                        {/* Notes button */}
-                        <Button
-                          size="lg"
-                          variant="ghost"
-                          className="px-3 py-3"
-                          onClick={() => {
-                            setNotesEventId(event.id);
-                            setNotesText(event.protestNotes || "");
-                          }}
-                        >
-                          <MessageSquare className="h-5 w-5" />
-                        </Button>
-
-                        {status && (
-                          <Button
-                            size="lg"
-                            variant="ghost"
-                            className="px-3 py-3"
-                            onClick={() => updateProtestStatus.mutate({ eventId: event.id, status: null })}
-                          >
-                            <RotateCcw className="h-5 w-5" />
-                          </Button>
-                        )}
-                      </>
-                    )}
-
+                  <div className="flex-shrink-0 flex items-center gap-2">
                     {isLocked && (
-                      <div className="flex items-center gap-2 text-orange-600">
-                        <Lock className="h-5 w-5" />
+                      <div className="flex items-center gap-1.5 text-orange-600">
+                        <Lock className="h-4 w-4" />
                         <span className="text-sm font-medium">Locked</span>
                       </div>
                     )}
+                    {getStatusBadge(event)}
                   </div>
                 </div>
+
+                {/* Row 2: Protest timer (when active) */}
+                {status === "protest" && event.protestPrintedAt && (
+                  <div className="bg-gray-50 rounded-lg px-4 py-2 ml-[60px]">
+                    <div className="flex items-center gap-3 flex-wrap text-sm">
+                      <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <span className="text-muted-foreground">
+                        Started: <span className="text-foreground font-medium">{new Date(event.protestPrintedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}</span>
+                      </span>
+                      {event.protestEndAt && (
+                        <>
+                          <span className="text-muted-foreground">·</span>
+                          {editingEndTimeEventId === event.id ? (
+                            <span className="flex items-center gap-1.5">
+                              <span className="text-muted-foreground">Ends:</span>
+                              <input
+                                type="time"
+                                className="border rounded px-2 py-1 text-sm w-28"
+                                value={editEndTimeValue}
+                                onChange={(e) => setEditEndTimeValue(e.target.value)}
+                              />
+                              <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => {
+                                if (editEndTimeValue) {
+                                  const today = new Date();
+                                  const [h, m] = editEndTimeValue.split(':').map(Number);
+                                  today.setHours(h, m, 0, 0);
+                                  updateProtestEndTime.mutate({ eventId: event.id, endAt: today.toISOString() });
+                                }
+                              }}>Save</Button>
+                              <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setEditingEndTimeEventId(null)}>Cancel</Button>
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1.5">
+                              <span className="text-muted-foreground">Ends:</span>
+                              <span className={new Date(event.protestEndAt) < new Date() ? "text-red-600 font-semibold" : "font-medium"}>
+                                {new Date(event.protestEndAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}
+                              </span>
+                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => {
+                                const d = new Date(event.protestEndAt!);
+                                setEditEndTimeValue(`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`);
+                                setEditingEndTimeEventId(event.id);
+                              }}>
+                                <Edit2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </span>
+                          )}
+                          <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => {
+                            updateProtestEndTime.mutate({ eventId: event.id, reset: true });
+                          }}>
+                            <RotateCcw className="h-3.5 w-3.5 mr-1" />Reset
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Notes display */}
+                {event.protestNotes && (
+                  <div className="ml-[60px] text-sm text-orange-700 bg-orange-50 border border-orange-200 rounded-lg px-3 py-1.5 inline-flex items-center gap-1.5">
+                    <MessageSquare className="h-3.5 w-3.5 flex-shrink-0" />{event.protestNotes}
+                  </div>
+                )}
+
+                {/* Row 3: Action buttons */}
+                {canAct && (
+                  <div className="flex items-center gap-2 flex-wrap ml-[60px] pt-1 border-t border-gray-100">
+                    {(!status || status === "protest") && (
+                      <Button size="default" variant="outline" onClick={() => onPrint(event, "protest")}>
+                        <Printer className="h-4 w-4 mr-1.5" />Protest Form
+                      </Button>
+                    )}
+
+                    {status === "protest" && !event.protestFiled && (
+                      <Button size="default" variant="destructive" onClick={() => updateProtestFiled.mutate({ eventId: event.id, filed: true })}>
+                        <AlertTriangle className="h-4 w-4 mr-1.5" />Protest Received
+                      </Button>
+                    )}
+
+                    {status === "protest" && event.protestFiled && (
+                      <Button size="default" variant="outline" className="border-green-600 text-green-700" onClick={() => updateProtestFiled.mutate({ eventId: event.id, filed: false })}>
+                        <ShieldCheck className="h-4 w-4 mr-1.5" />Resolve Protest
+                      </Button>
+                    )}
+
+                    {status === "protest" && !event.protestFiled && (
+                      <Button size="default" className="bg-green-600 hover:bg-green-700" onClick={() => updateProtestStatus.mutate({ eventId: event.id, status: isFinal ? "ready_for_awards" : null })}>
+                        <ShieldCheck className="h-4 w-4 mr-1.5" />Clear Protest
+                      </Button>
+                    )}
+
+                    {isFinal && (status === "ready_for_awards" || status === "awarded") && !event.protestFiled && (
+                      <Button size="default" variant="outline" onClick={() => onPrint(event, "awards")}>
+                        <Award className="h-4 w-4 mr-1.5" />Awards Form
+                      </Button>
+                    )}
+
+                    {isFinal && status === "ready_for_awards" && (
+                      <Button size="default" onClick={() => updateProtestStatus.mutate({ eventId: event.id, status: "awarded" })}>
+                        <Award className="h-4 w-4 mr-1.5" />Mark Awarded
+                      </Button>
+                    )}
+
+                    <div className="flex items-center gap-1 ml-auto">
+                      <Button size="default" variant="ghost" onClick={() => { setNotesEventId(event.id); setNotesText(event.protestNotes || ""); }}>
+                        <MessageSquare className="h-4 w-4" />
+                      </Button>
+                      {status && (
+                        <Button size="default" variant="ghost" onClick={() => updateProtestStatus.mutate({ eventId: event.id, status: null })}>
+                          <RotateCcw className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           );

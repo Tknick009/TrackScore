@@ -157,9 +157,9 @@ export function RecordBoard({
 
         {/* ATHLETE NAME — First Initial. Last Name, hero text, always one line */}
         <div
-          className="text-center uppercase font-black leading-[0.9] w-full whitespace-nowrap overflow-hidden text-ellipsis"
+          className="text-center uppercase font-black leading-[0.9] w-full whitespace-nowrap"
           style={{
-            fontSize: displayName.length > 10 ? `${Math.max(5, 14 * (10 / displayName.length))}cqw` : '14cqw',
+            fontSize: displayName.length > 12 ? `${Math.max(7, 14 * (10 / displayName.length))}cqw` : '14cqw',
             color: '#ffffff',
             textShadow: '0 1px 8px rgba(0,0,0,0.6)',
             marginBottom: '1.5cqh',
@@ -253,7 +253,7 @@ export function RecordBoard({
                 className="font-black tabular-nums"
                 style={{
                   fontSize: `${timeSize}cqw`,
-                  fontFamily: "'Bebas Neue', 'Inter', sans-serif",
+                  fontFamily: "'Oswald', 'Inter', sans-serif",
                   color: '#ffffff',
                   lineHeight: 1,
                   textShadow: '0 1px 8px rgba(0,0,0,0.4)',
@@ -265,8 +265,8 @@ export function RecordBoard({
                 className="font-black uppercase rounded flex items-center justify-center"
                 style={{
                   fontSize: `${tagSize}cqw`,
-                  fontFamily: "'Bebas Neue', 'Inter', sans-serif",
-                  color: '#000',
+                  fontFamily: "'Oswald', 'Inter', sans-serif",
+                  color: '#fff',
                   background: accent,
                   boxShadow: `0 0 10px ${accent}66`,
                   lineHeight: 1,

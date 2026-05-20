@@ -53,8 +53,9 @@ import type { Event, SelectLayoutScene, SelectSceneTemplateMapping } from '@shar
 
 function getEventDisplayStatus(event: Event): string {
   if (event.status === "in_progress") return 'live';
-  if (event.isScored || event.hytekStatus === 'scored') return 'scored';
+  if (event.hytekStatus === 'scored') return 'scored';
   if (event.hytekStatus === 'done') return 'done';
+  if (event.isScored && event.hytekStatus !== 'done') return 'scored';
   if (event.hytekStatus === 'seeded') return 'seeded';
   return 'unseeded';
 }
@@ -111,7 +112,7 @@ function serverContentModeToDisplayMode(contentMode: string | null): DisplayMode
 }
 
 // Display mode types
-type DisplayMode = 'finishlynx' | 'hytek' | 'teamscores' | 'field' | 'winners' | 'record' | 'meet_schedule' | 'meet_records' | 'sponsors' | 'team_preview' | 'broadcast';
+type DisplayMode = 'finishlynx' | 'hytek' | 'teamscores' | 'field' | 'winners' | 'record' | 'meet_schedule' | 'meet_records' | 'sponsors' | 'team_preview' | 'broadcast' | 'multi_field';
 
 export default function DisplayControlPage() {
   const { currentMeetId, currentMeet } = useMeet();
@@ -129,6 +130,7 @@ export default function DisplayControlPage() {
   const [selectedRecordEvent, setSelectedRecordEvent] = useState<Record<string, number>>({});
   const [recordPreview, setRecordPreview] = useState<Record<string, any>>({}); // deviceId -> record preview data
   const [recordLabel, setRecordLabel] = useState<Record<string, string>>({}); // deviceId -> record name
+  const [recordTag, setRecordTag] = useState<Record<string, string>>({}); // deviceId -> record tag (e.g. "MR", "AR")
   const [recordEventSearch, setRecordEventSearch] = useState('');
   const [pagingLines, setPagingLines] = useState<Record<string, number>>({});
   const [pagingSeconds, setPagingSeconds] = useState<Record<string, number>>({});
@@ -141,6 +143,8 @@ export default function DisplayControlPage() {
   const [sponsorInterval, setSponsorInterval] = useState<Record<string, number>>({});
   const [teamPreviewGender, setTeamPreviewGender] = useState<Record<string, 'M' | 'W'>>({});
   const [selectedRecordBook, setSelectedRecordBook] = useState<Record<string, string>>({});
+  const [multiFieldEvents, setMultiFieldEvents] = useState<Record<string, number[]>>({}); // deviceId -> selected event numbers (up to 3)
+  const [multiFieldSearch, setMultiFieldSearch] = useState('');
 
   const baseUrl = typeof window !== 'undefined' 
     ? `${window.location.protocol}//${window.location.host}` 
@@ -387,8 +391,8 @@ export default function DisplayControlPage() {
   });
 
   const sendHytekResultsMutation = useMutation({
-    mutationFn: async ({ deviceId, eventId, pagingLines, pagingSeconds, round }: { deviceId: string; eventId: string; pagingLines: number; pagingSeconds?: number; round: string }) => {
-      const response = await apiRequest('POST', `/api/display-devices/${deviceId}/hytek-results`, { eventId, pagingLines, pagingSeconds, round });
+    mutationFn: async ({ deviceId, eventId, pagingLines, pagingSeconds, round, maxPages: mp }: { deviceId: string; eventId: string; pagingLines: number; pagingSeconds?: number; round: string; maxPages?: number }) => {
+      const response = await apiRequest('POST', `/api/display-devices/${deviceId}/hytek-results`, { eventId, pagingLines, pagingSeconds, round, maxPages: mp || 0 });
       return response.json();
     },
     onSuccess: (data) => {
@@ -488,10 +492,10 @@ export default function DisplayControlPage() {
     },
   });
 
-  // Send Record Board mutation — pushes winner + record label to the display
+  // Send Record Board mutation — pushes winner + record label + tag to the display
   const sendRecordBoardMutation = useMutation({
-    mutationFn: async ({ deviceId, eventNumber, recordLabel: label }: { deviceId: string; eventNumber: number; recordLabel: string }) => {
-      const response = await apiRequest('POST', `/api/display-devices/${deviceId}/record-board`, { eventNumber, recordLabel: label });
+    mutationFn: async ({ deviceId, eventNumber, recordLabel: label, recordTag: tag }: { deviceId: string; eventNumber: number; recordLabel: string; recordTag?: string }) => {
+      const response = await apiRequest('POST', `/api/display-devices/${deviceId}/record-board`, { eventNumber, recordLabel: label, recordTag: tag });
       return response.json();
     },
     onSuccess: (data) => {
@@ -529,6 +533,22 @@ export default function DisplayControlPage() {
     },
     onSuccess: () => toast({ title: 'Sponsor rotation sent to display' }),
     onError: (error: Error) => toast({ title: 'Failed to send sponsors', description: error.message, variant: 'destructive' }),
+  });
+
+  const sendSponsorReelMutation = useMutation({
+    mutationFn: async ({ deviceId, pagingSeconds }: { deviceId: string; pagingSeconds: number }) => {
+      return apiRequest('POST', `/api/display-devices/${deviceId}/sponsor-reel`, { pagingSeconds });
+    },
+    onSuccess: () => toast({ title: 'Sponsor reel started from directory' }),
+    onError: (error: Error) => toast({ title: 'Failed to start sponsor reel', description: error.message, variant: 'destructive' }),
+  });
+
+  const sendMultiFieldBoardMutation = useMutation({
+    mutationFn: async ({ deviceId, eventNumbers, maxRows }: { deviceId: string; eventNumbers: number[]; maxRows?: number }) => {
+      return apiRequest('POST', `/api/display-devices/${deviceId}/multi-field-board`, { eventNumbers, maxRows });
+    },
+    onSuccess: () => toast({ title: 'Multi-Field Board sent to display' }),
+    onError: (error: Error) => toast({ title: 'Failed to send Multi-Field Board', description: error.message, variant: 'destructive' }),
   });
 
   const sendTeamPreviewMutation = useMutation({
@@ -1043,6 +1063,32 @@ export default function DisplayControlPage() {
                         <button
                           type="button"
                           onClick={() => {
+                            setDisplayMode(prev => ({ ...prev, [selectedDevice.id]: 'multi_field' }));
+                            toggleAutoModeMutation.mutate({ deviceId: selectedDevice.id, enabled: false });
+                            apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}/content-mode`, { contentMode: 'multi_field' });
+                          }}
+                          className={`p-4 rounded-lg border-2 transition-all text-left ${
+                            displayMode[selectedDevice.id] === 'multi_field' && !autoModeStatus?.autoMode
+                              ? 'border-primary bg-primary/10'
+                              : 'border-border hover-elevate'
+                          }`}
+                          data-testid="tile-multi-field"
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <Layout className="w-5 h-5 text-emerald-500" />
+                            <span className="font-medium">Multi-Field Board</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            1-3 field events side-by-side with LFF standings
+                          </p>
+                          {displayMode[selectedDevice.id] === 'multi_field' && !autoModeStatus?.autoMode && (
+                            <Badge variant="default" className="mt-2">Active</Badge>
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
                             setDisplayMode(prev => ({ ...prev, [selectedDevice.id]: 'winners' }));
                             toggleAutoModeMutation.mutate({ deviceId: selectedDevice.id, enabled: false });
                             apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}/content-mode`, { contentMode: 'winners' });
@@ -1335,6 +1381,26 @@ export default function DisplayControlPage() {
                             </div>
                           </div>
 
+                          <div className="space-y-2">
+                            <Label>Max Pages</Label>
+                            <div className="flex items-center gap-2">
+                              <Select
+                                value={String(maxPages[selectedDevice.id] || 0)}
+                                onValueChange={(value) => setMaxPages(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }))}
+                              >
+                                <SelectTrigger className="w-24" data-testid="select-hytek-maxpages"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  {[0, 1, 2, 3, 5, 10].map(n => (
+                                    <SelectItem key={n} value={String(n)}>{n === 0 ? 'All' : String(n)}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <span className="text-sm text-muted-foreground">
+                                {(maxPages[selectedDevice.id] || 0) === 0 ? 'show all pages' : `only show first ${maxPages[selectedDevice.id]} page${maxPages[selectedDevice.id] === 1 ? '' : 's'}`}
+                              </span>
+                            </div>
+                          </div>
+
                           <Button
                             onClick={() => {
                               const itemKey = selectedHytekItem[selectedDevice.id];
@@ -1349,6 +1415,7 @@ export default function DisplayControlPage() {
                                 pagingLines: lines,
                                 pagingSeconds: seconds,
                                 round: item.round,
+                                maxPages: maxPages[selectedDevice.id] || 0,
                               });
                             }}
                             disabled={!selectedHytekItem[selectedDevice.id] || sendHytekResultsMutation.isPending}
@@ -1593,7 +1660,7 @@ export default function DisplayControlPage() {
                         <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
                           {/* Step 1: Select event from available LIF/LFF files */}
                           <div className="space-y-2">
-                            <Label>Select Event (events with result files)</Label>
+                            <Label>Select Event</Label>
                             <div className="relative">
                               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                               <Input
@@ -1615,8 +1682,12 @@ export default function DisplayControlPage() {
                                         key={evt.eventNumber}
                                         onClick={() => {
                                           setSelectedRecordEvent(prev => ({ ...prev, [selectedDevice.id]: evt.eventNumber }));
-                                          // Clear any previous preview when selecting a new event
                                           setRecordPreview(prev => { const next = { ...prev }; delete next[selectedDevice.id]; return next; });
+                                          // Auto-load preview
+                                          previewRecordMutation.mutate({
+                                            deviceId: selectedDevice.id,
+                                            eventNumber: evt.eventNumber,
+                                          });
                                         }}
                                         className={`flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded-md cursor-pointer hover-elevate ${isSelected ? 'bg-accent' : ''}`}
                                         data-testid={`button-record-${evt.eventNumber}`}
@@ -1630,78 +1701,121 @@ export default function DisplayControlPage() {
                                     );
                                   })}
                                 {availableWinnersEvents.length === 0 && (
-                                  <p className="text-xs text-muted-foreground text-center py-4">No events with LIF/LFF result files found. Make sure your Lynx files directory is configured in Ingestion Settings.</p>
+                                  <p className="text-xs text-muted-foreground text-center py-4">No events with LIF/LFF result files found.</p>
                                 )}
                               </div>
                             </ScrollArea>
                           </div>
 
-                          {/* Step 2: Preview button */}
-                          <Button
-                            onClick={() => {
-                              const evtNum = selectedRecordEvent[selectedDevice.id];
-                              if (!evtNum) return;
-                              previewRecordMutation.mutate({
-                                deviceId: selectedDevice.id,
-                                eventNumber: evtNum,
-                              });
-                            }}
-                            disabled={!selectedRecordEvent[selectedDevice.id] || previewRecordMutation.isPending}
-                            variant="outline"
-                            className="w-full"
-                            data-testid="button-preview-record"
-                          >
-                            <Search className="w-4 h-4 mr-2" />
-                            {previewRecordMutation.isPending ? 'Loading Preview...' : 'Preview Winner'}
-                          </Button>
+                          {/* Loading indicator */}
+                          {previewRecordMutation.isPending && (
+                            <div className="text-center text-sm text-muted-foreground py-2">Loading preview...</div>
+                          )}
 
-                          {/* Step 3: Preview card — shows only the winner */}
+                          {/* Step 2: Preview card — shows the data that will be displayed */}
                           {recordPreview[selectedDevice.id]?.entry && (
                             <div className="space-y-3">
-                              <div className="flex items-center justify-between">
-                                <Label className="text-sm font-semibold">{recordPreview[selectedDevice.id].eventName}</Label>
-                                <Badge variant="outline" className="text-xs">Round {recordPreview[selectedDevice.id].round} • {recordPreview[selectedDevice.id].source?.toUpperCase()}</Badge>
-                              </div>
-                              <div className="border rounded-md p-3 bg-background">
-                                {(() => {
-                                  const entry = recordPreview[selectedDevice.id].entry;
-                                  return (
-                                    <div className="flex items-center gap-3">
-                                      {entry.headshotUrl && <img src={entry.headshotUrl} alt="" className="w-10 h-10 rounded-full object-cover" />}
-                                      <div className="flex-1 min-w-0">
-                                        <div className="font-semibold truncate">{entry.name}</div>
-                                        <div className="text-sm text-muted-foreground flex items-center gap-1">
-                                          {entry.teamLogoUrl && <img src={entry.teamLogoUrl} alt="" className="w-4 h-4 object-contain" />}
-                                          <span>{entry.affiliation || entry.team}</span>
+                              <div className="border rounded-lg overflow-hidden bg-background">
+                                {/* Preview header */}
+                                <div className="bg-muted px-3 py-2 flex items-center justify-between">
+                                  <span className="font-semibold text-sm">{recordPreview[selectedDevice.id].eventName}</span>
+                                  <Badge variant="outline" className="text-xs">Round {recordPreview[selectedDevice.id].round} • {recordPreview[selectedDevice.id].source?.toUpperCase()}</Badge>
+                                </div>
+                                {/* Winner details */}
+                                <div className="p-4">
+                                  {(() => {
+                                    const entry = recordPreview[selectedDevice.id].entry;
+                                    return (
+                                      <div className="flex items-center gap-4">
+                                        {entry.headshotUrl && (
+                                          <img src={entry.headshotUrl} alt="" className="w-14 h-14 rounded-lg object-cover border" />
+                                        )}
+                                        <div className="flex-1 min-w-0">
+                                          <div className="font-bold text-lg truncate">{entry.name}</div>
+                                          <div className="text-sm text-muted-foreground flex items-center gap-1.5">
+                                            {entry.teamLogoUrl && <img src={entry.teamLogoUrl} alt="" className="w-5 h-5 object-contain" />}
+                                            <span>{entry.affiliation || entry.team}</span>
+                                          </div>
+                                        </div>
+                                        <div className="text-right">
+                                          <div className="font-mono font-black text-2xl">{entry.mark || entry.time}</div>
                                         </div>
                                       </div>
-                                      <div className="font-mono font-bold text-lg">{entry.mark || entry.time}</div>
-                                    </div>
-                                  );
-                                })()}
+                                    );
+                                  })()}
+                                </div>
                               </div>
 
-                              {/* Step 4: Record label input */}
-                              <div className="space-y-1">
-                                <Label className="text-sm">Record Name</Label>
-                                <Input
-                                  placeholder="e.g. Meet Record, Facility Record, School Record..."
-                                  value={recordLabel[selectedDevice.id] || ''}
-                                  onChange={(e) => setRecordLabel(prev => ({ ...prev, [selectedDevice.id]: e.target.value }))}
-                                  data-testid="input-record-label"
-                                />
+                              {/* Step 3: Record label — quick-select buttons + custom name/tag */}
+                              <div className="space-y-2">
+                                <Label className="text-sm">Record Type</Label>
+                                <div className="grid grid-cols-3 gap-2">
+                                  {['Meet Record', 'Facility Record', 'Conference Record'].map(label => (
+                                    <Button
+                                      key={label}
+                                      type="button"
+                                      variant={recordLabel[selectedDevice.id] === label ? 'default' : 'outline'}
+                                      size="sm"
+                                      onClick={() => {
+                                        setRecordLabel(prev => ({ ...prev, [selectedDevice.id]: label }));
+                                        setRecordTag(prev => ({ ...prev, [selectedDevice.id]: '' }));
+                                      }}
+                                    >
+                                      {label.replace(' Record', '')}
+                                    </Button>
+                                  ))}
+                                  {['School Record', 'National Record', 'All-Time Record'].map(label => (
+                                    <Button
+                                      key={label}
+                                      type="button"
+                                      variant={recordLabel[selectedDevice.id] === label ? 'default' : 'outline'}
+                                      size="sm"
+                                      onClick={() => {
+                                        setRecordLabel(prev => ({ ...prev, [selectedDevice.id]: label }));
+                                        setRecordTag(prev => ({ ...prev, [selectedDevice.id]: '' }));
+                                      }}
+                                    >
+                                      {label.replace(' Record', '')}
+                                    </Button>
+                                  ))}
+                                </div>
+                                {/* Custom record name + tag for records not in the presets */}
+                                <div className="flex gap-2">
+                                  <Input
+                                    placeholder="Custom record name..."
+                                    className="flex-1"
+                                    value={
+                                      ['Meet Record', 'Facility Record', 'Conference Record', 'School Record', 'National Record', 'All-Time Record'].includes(recordLabel[selectedDevice.id] || '')
+                                        ? ''
+                                        : recordLabel[selectedDevice.id] || ''
+                                    }
+                                    onChange={(e) => setRecordLabel(prev => ({ ...prev, [selectedDevice.id]: e.target.value }))}
+                                    data-testid="input-record-label"
+                                  />
+                                  <Input
+                                    placeholder="Tag (e.g. AR)"
+                                    className="w-24"
+                                    maxLength={5}
+                                    value={recordTag[selectedDevice.id] || ''}
+                                    onChange={(e) => setRecordTag(prev => ({ ...prev, [selectedDevice.id]: e.target.value.toUpperCase() }))}
+                                    data-testid="input-record-tag"
+                                  />
+                                </div>
+                                <p className="text-xs text-muted-foreground">Use custom inputs for records not in the list above (e.g. "Arena Record" / "AR")</p>
                               </div>
 
-                              {/* Step 5: Send to Board */}
+                              {/* Step 4: Send to Board */}
                               <Button
                                 onClick={() => {
                                   const evtNum = selectedRecordEvent[selectedDevice.id];
                                   const label = recordLabel[selectedDevice.id];
+                                  const tag = recordTag[selectedDevice.id];
                                   if (!evtNum || !label?.trim()) return;
                                   sendRecordBoardMutation.mutate({
                                     deviceId: selectedDevice.id,
                                     eventNumber: evtNum,
                                     recordLabel: label.trim(),
+                                    recordTag: tag?.trim() || undefined,
                                   });
                                 }}
                                 disabled={sendRecordBoardMutation.isPending || !recordLabel[selectedDevice.id]?.trim()}
@@ -1861,59 +1975,104 @@ export default function DisplayControlPage() {
                         </div>
                       ) : displayMode[selectedDevice.id] === 'sponsors' ? (
                         <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
-                          <div className="space-y-2">
-                            <Label>Sponsor Image URLs (one per line)</Label>
-                            <textarea
-                              className="w-full h-32 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                              placeholder={"https://example.com/sponsor1.png\nhttps://example.com/sponsor2.png"}
-                              value={sponsorUrls[selectedDevice.id] || ''}
-                              onChange={(e) => setSponsorUrls(prev => ({ ...prev, [selectedDevice.id]: e.target.value }))}
-                              data-testid="textarea-sponsor-urls"
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              Enter one image URL per line. These can be logos, banners, or ads.
-                            </p>
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Rotation Interval (seconds per sponsor)</Label>
-                            <div className="flex items-center gap-2">
-                              <Select
-                                value={String(sponsorInterval[selectedDevice.id] || 8)}
-                                onValueChange={(value) => setSponsorInterval(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }))}
+                          {/* Directory-based sponsor reel (preferred when sponsorDir is set) */}
+                          {currentMeet?.sponsorDir ? (
+                            <>
+                              <div className="text-sm">
+                                <span className="font-medium">Sponsor Directory:</span>{' '}
+                                <span className="text-muted-foreground">{currentMeet.sponsorDir}</span>
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Rotation Interval (seconds per sponsor)</Label>
+                                <div className="flex items-center gap-2">
+                                  <Select
+                                    value={String(sponsorInterval[selectedDevice.id] || 8)}
+                                    onValueChange={(value) => setSponsorInterval(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }))}
+                                  >
+                                    <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                      {[3, 5, 8, 10, 15, 20, 30].map(n => (
+                                        <SelectItem key={n} value={String(n)}>{n}s</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <span className="text-sm text-muted-foreground">
+                                    seconds per sponsor
+                                  </span>
+                                </div>
+                              </div>
+                              <Button
+                                onClick={() => {
+                                  sendSponsorReelMutation.mutate({
+                                    deviceId: selectedDevice.id,
+                                    pagingSeconds: sponsorInterval[selectedDevice.id] || 8,
+                                  });
+                                }}
+                                disabled={sendSponsorReelMutation.isPending}
+                                className="w-full"
+                                data-testid="button-send-sponsor-reel"
                               >
-                                <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                  {[3, 5, 8, 10, 15, 20, 30].map(n => (
-                                    <SelectItem key={n} value={String(n)}>{n}s</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <span className="text-sm text-muted-foreground">
-                                seconds per sponsor
-                              </span>
-                            </div>
-                          </div>
-                          <Button
-                            onClick={() => {
-                              const urlText = sponsorUrls[selectedDevice.id] || '';
-                              const urls = urlText.split('\n').map(u => u.trim()).filter(u => u.length > 0);
-                              if (urls.length === 0) {
-                                toast({ title: 'No sponsors', description: 'Enter at least one image URL', variant: 'destructive' });
-                                return;
-                              }
-                              sendSponsorRotationMutation.mutate({
-                                deviceId: selectedDevice.id,
-                                sponsors: urls.map(url => ({ imageUrl: url })),
-                                interval: sponsorInterval[selectedDevice.id] || 8,
-                              });
-                            }}
-                            disabled={sendSponsorRotationMutation.isPending}
-                            className="w-full"
-                            data-testid="button-send-sponsors"
-                          >
-                            <Send className="w-4 h-4 mr-2" />
-                            Start Sponsor Rotation
-                          </Button>
+                                <Send className="w-4 h-4 mr-2" />
+                                Start Sponsor Reel
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <div className="space-y-2">
+                                <Label>Sponsor Image URLs (one per line)</Label>
+                                <textarea
+                                  className="w-full h-32 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                  placeholder={"https://example.com/sponsor1.png\nhttps://example.com/sponsor2.png"}
+                                  value={sponsorUrls[selectedDevice.id] || ''}
+                                  onChange={(e) => setSponsorUrls(prev => ({ ...prev, [selectedDevice.id]: e.target.value }))}
+                                  data-testid="textarea-sponsor-urls"
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                  Enter one image URL per line, or set a sponsor directory in Meet Setup.
+                                </p>
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Rotation Interval (seconds per sponsor)</Label>
+                                <div className="flex items-center gap-2">
+                                  <Select
+                                    value={String(sponsorInterval[selectedDevice.id] || 8)}
+                                    onValueChange={(value) => setSponsorInterval(prev => ({ ...prev, [selectedDevice.id]: parseInt(value) }))}
+                                  >
+                                    <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                      {[3, 5, 8, 10, 15, 20, 30].map(n => (
+                                        <SelectItem key={n} value={String(n)}>{n}s</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <span className="text-sm text-muted-foreground">
+                                    seconds per sponsor
+                                  </span>
+                                </div>
+                              </div>
+                              <Button
+                                onClick={() => {
+                                  const urlText = sponsorUrls[selectedDevice.id] || '';
+                                  const urls = urlText.split('\n').map(u => u.trim()).filter(u => u.length > 0);
+                                  if (urls.length === 0) {
+                                    toast({ title: 'No sponsors', description: 'Enter at least one image URL', variant: 'destructive' });
+                                    return;
+                                  }
+                                  sendSponsorRotationMutation.mutate({
+                                    deviceId: selectedDevice.id,
+                                    sponsors: urls.map(url => ({ imageUrl: url })),
+                                    interval: sponsorInterval[selectedDevice.id] || 8,
+                                  });
+                                }}
+                                disabled={sendSponsorRotationMutation.isPending}
+                                className="w-full"
+                                data-testid="button-send-sponsors"
+                              >
+                                <Send className="w-4 h-4 mr-2" />
+                                Start Sponsor Rotation
+                              </Button>
+                            </>
+                          )}
                         </div>
                       ) : displayMode[selectedDevice.id] === 'team_preview' ? (
                         <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
@@ -2058,6 +2217,117 @@ export default function DisplayControlPage() {
                               </div>
                             </div>
                           </div>
+                        </div>
+                      ) : displayMode[selectedDevice.id] === 'multi_field' ? (
+                        <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
+                          <div className="space-y-2">
+                            <Label>Select Field Events (up to 3)</Label>
+                            <div className="text-xs text-muted-foreground">
+                              Choose 1-3 field events. Standings are parsed from LFF files and auto-refresh when files change.
+                            </div>
+                            <div className="relative">
+                              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                              <Input
+                                placeholder="Search field events..."
+                                value={multiFieldSearch}
+                                onChange={(e) => setMultiFieldSearch(e.target.value)}
+                                className="pl-8"
+                                data-testid="input-multi-field-search"
+                              />
+                            </div>
+                            <ScrollArea className="h-48 rounded-md border">
+                              <div className="p-1">
+                                {(events || [])
+                                  .filter((e: any) => {
+                                    const isField = e.eventType === 'field' || /throw|put|jump|vault|javelin|discus|hammer/i.test(e.name || '');
+                                    const matchesSearch = !multiFieldSearch || (e.name || '').toLowerCase().includes(multiFieldSearch.toLowerCase());
+                                    return isField && matchesSearch;
+                                  })
+                                  .sort((a: any, b: any) => (a.eventNumber || 0) - (b.eventNumber || 0))
+                                  .map((e: any) => {
+                                    const selectedEvents = multiFieldEvents[selectedDevice.id] || [];
+                                    const isSelected = selectedEvents.includes(e.eventNumber);
+                                    const canSelect = selectedEvents.length < 3 || isSelected;
+                                    return (
+                                      <button
+                                        key={e.eventNumber}
+                                        onClick={() => {
+                                          setMultiFieldEvents(prev => {
+                                            const current = prev[selectedDevice.id] || [];
+                                            if (isSelected) {
+                                              return { ...prev, [selectedDevice.id]: current.filter(n => n !== e.eventNumber) };
+                                            } else if (current.length < 3) {
+                                              return { ...prev, [selectedDevice.id]: [...current, e.eventNumber] };
+                                            }
+                                            return prev;
+                                          });
+                                        }}
+                                        disabled={!canSelect}
+                                        className={`flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded-md cursor-pointer ${
+                                          isSelected ? 'bg-emerald-500/20 border border-emerald-500/40' : canSelect ? 'hover-elevate' : 'opacity-40'
+                                        }`}
+                                        data-testid={`button-multi-field-${e.eventNumber}`}
+                                      >
+                                        <span className="text-muted-foreground shrink-0 w-10 text-xs">#{e.eventNumber}</span>
+                                        <span className={`truncate ${isSelected ? 'font-semibold text-emerald-600 dark:text-emerald-400' : ''}`}>
+                                          {e.name}
+                                        </span>
+                                        {isSelected && (
+                                          <Badge variant="default" className="ml-auto shrink-0 bg-emerald-600">
+                                            {selectedEvents.indexOf(e.eventNumber) + 1}
+                                          </Badge>
+                                        )}
+                                      </button>
+                                    );
+                                  })}
+                              </div>
+                            </ScrollArea>
+                          </div>
+
+                          {/* Selected events summary */}
+                          {(multiFieldEvents[selectedDevice.id] || []).length > 0 && (
+                            <div className="flex flex-wrap gap-2">
+                              {(multiFieldEvents[selectedDevice.id] || []).map((evtNum, idx) => {
+                                const evt = (events || []).find((e: any) => e.eventNumber === evtNum);
+                                return (
+                                  <Badge key={evtNum} variant="secondary" className="flex items-center gap-1">
+                                    <span className="font-bold">{idx + 1}.</span>
+                                    <span>{evt?.name || `Event ${evtNum}`}</span>
+                                    <button
+                                      onClick={() => {
+                                        setMultiFieldEvents(prev => ({
+                                          ...prev,
+                                          [selectedDevice.id]: (prev[selectedDevice.id] || []).filter(n => n !== evtNum),
+                                        }));
+                                      }}
+                                      className="ml-1 text-muted-foreground hover:text-destructive"
+                                    >
+                                      ×
+                                    </button>
+                                  </Badge>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          <Button
+                            onClick={() => {
+                              const selectedEvents = multiFieldEvents[selectedDevice.id] || [];
+                              if (selectedEvents.length === 0) {
+                                toast({ title: 'Select at least 1 field event', variant: 'destructive' });
+                                return;
+                              }
+                              sendMultiFieldBoardMutation.mutate({
+                                deviceId: selectedDevice.id,
+                                eventNumbers: selectedEvents,
+                              });
+                            }}
+                            disabled={sendMultiFieldBoardMutation.isPending || (multiFieldEvents[selectedDevice.id] || []).length === 0}
+                            className="w-full"
+                          >
+                            <Send className="w-4 h-4 mr-2" />
+                            Send Multi-Field Board ({(multiFieldEvents[selectedDevice.id] || []).length} event{(multiFieldEvents[selectedDevice.id] || []).length !== 1 ? 's' : ''})
+                          </Button>
                         </div>
                       ) : null}
                     </>

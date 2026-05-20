@@ -19,3 +19,4 @@ export * from './WinnersBoard';
 export * from './MeetScheduleBoard';
 export * from './MeetRecordsBoard';
 export * from './SponsorRotation';
+export * from './MultiFieldBoard';

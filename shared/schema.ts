@@ -454,6 +454,8 @@ export const events = pgTable("events", {
   lastResultAt: timestamp("last_result_at"), // When results were last updated
   protestStatus: text("protest_status"), // null → 'protest' → 'ready_for_awards' → 'awarded'
   protestPrintedAt: timestamp("protest_printed_at"), // When protest form was first printed
+  protestEndAt: timestamp("protest_end_at"), // Estimated protest end time (default: printed_at + 15 min)
+  protestFiled: boolean("protest_filed").default(false), // A formal protest has been received for this event
   timingLocked: boolean("timing_locked").default(false), // Locked by timing staff
   timingLockedAt: timestamp("timing_locked_at"), // When timing lock was applied
   protestNotes: text("protest_notes"), // Notes from protest table or timing staff (e.g., DQ rule violations)

@@ -1348,6 +1348,30 @@ export async function importCompleteMDB(filePath: string, meetId: string): Promi
         stats.events += subEventBatch.length;
         console.log(`   ✅ Imported ${subEventBatch.length} multi-event sub-events`);
         console.log(`   📊 Sub-event ID mappings: ${subEventIdMap.size}`);
+
+        // Update parent multi-event status: if any sub-event is done/scored, parent should be in_progress
+        const parentEventPtrsWithDoneSubs = new Set<number>();
+        for (const sub of subEventBatch) {
+          if (sub.hytekStatus === 'done' || sub.hytekStatus === 'scored' || sub.isScored) {
+            parentEventPtrsWithDoneSubs.add(sub._eventPtr);
+          }
+        }
+        for (const eventPtr of parentEventPtrsWithDoneSubs) {
+          const parentMeta = multiEventMetaMap.get(eventPtr);
+          if (!parentMeta) continue;
+          if (isEdgeMode && sqliteDb) {
+            // Only update if parent is still 'scheduled' — don't overwrite 'in_progress' or 'completed'
+            sqliteDb.prepare(`
+              UPDATE events SET status = 'in_progress'
+              WHERE meet_id = ? AND event_number = ? AND status = 'scheduled'
+            `).run(meetId, parentMeta.eventNum);
+          } else if (db) {
+            await db.update(events)
+              .set({ status: 'in_progress' })
+              .where(sql`${events.meetId} = ${meetId} AND ${events.eventNumber} = ${parentMeta.eventNum} AND ${events.status} = 'scheduled'`);
+          }
+          console.log(`   📊 Parent multi-event "${parentMeta.name}" (#${parentMeta.eventNum}) → in_progress (has done sub-events)`);
+        }
       }
     } else {
       console.log(`   ℹ️  No multi-events found to import sub-events for`);

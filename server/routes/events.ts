@@ -764,26 +764,56 @@ export function registerEventsRoutes(app: Express, ctx: RouteContext) {
     }
 
     const now = new Date().toISOString();
-    const updates: Record<string, any> = { protest_status: status };
-
-    // Set protest_printed_at when first entering protest status
-    if (status === 'protest' && !event.protestPrintedAt) {
-      updates.protest_printed_at = now;
-    }
-
-    // Clear protest_printed_at when resetting
-    if (status === null) {
-      updates.protest_printed_at = null;
-    }
-
     const storageUpdates: Record<string, any> = {
-      protestStatus: updates.protest_status,
+      protestStatus: status,
     };
-    if (updates.protest_printed_at !== undefined) {
-      storageUpdates.protestPrintedAt = updates.protest_printed_at;
+
+    // Set protest_printed_at and protest_end_at when first entering protest status
+    if (status === 'protest' && !event.protestPrintedAt) {
+      storageUpdates.protestPrintedAt = now;
+      const endAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+      storageUpdates.protestEndAt = endAt;
     }
+
+    // Clear timestamps and protest filed flag when resetting
+    if (status === null) {
+      storageUpdates.protestPrintedAt = null;
+      storageUpdates.protestEndAt = null;
+      storageUpdates.protestFiled = false;
+    }
+
     await storage.updateEvent(req.params.id, storageUpdates);
     res.json({ success: true, protestStatus: status });
+  }));
+
+  // File or resolve a protest on an event
+  app.patch("/api/events/:id/protest-filed", asyncHandler(async (req, res) => {
+    const { filed } = req.body;
+    const event = await storage.getEvent(req.params.id);
+    if (!event) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+    await storage.updateEvent(req.params.id, { protestFiled: !!filed });
+    res.json({ success: true, protestFiled: !!filed });
+  }));
+
+  // Update protest end time (manual adjustment or reset)
+  app.patch("/api/events/:id/protest-end-time", asyncHandler(async (req, res) => {
+    const { endAt, reset } = req.body;
+    const event = await storage.getEvent(req.params.id);
+    if (!event) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+    const storageUpdates: Record<string, any> = {};
+    if (reset) {
+      const now = new Date().toISOString();
+      storageUpdates.protestPrintedAt = now;
+      storageUpdates.protestEndAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+    } else if (endAt) {
+      storageUpdates.protestEndAt = endAt;
+    }
+    await storage.updateEvent(req.params.id, storageUpdates);
+    res.json({ success: true });
   }));
 
   // Get protest/awards data for all events in a meet (used by the Protest & Awards page)
