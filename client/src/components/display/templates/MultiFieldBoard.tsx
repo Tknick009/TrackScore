@@ -111,6 +111,7 @@ export function MultiFieldBoard({
     rowName: cols === 1 ? "2.6cqw" : cols === 2 ? "2.8cqw" : "2.2cqw",
     rowTeamAbbr: cols === 1 ? "1.4cqw" : cols === 2 ? "1.2cqw" : "1cqw",
     rowMark: cols === 1 ? "3cqw" : cols === 2 ? "3cqw" : "2.6cqw",
+    rowHeight: cols === 1 ? "9.5cqh" : cols === 2 ? "9cqh" : "8.5cqh",
     logo: cols === 1 ? "3.5cqw" : cols === 2 ? "3.2cqw" : "2.6cqw",
     headshot: cols === 1 ? "26cqh" : cols === 2 ? "24cqh" : "22cqh",
     headshotW: cols === 1 ? "10cqw" : cols === 2 ? "10cqw" : "8cqw",
@@ -290,8 +291,8 @@ export function MultiFieldBoard({
     return (
       <div
         style={{
-          flex: "1 1 0",
-          minHeight: 0,
+          height: s.rowHeight,
+          flexShrink: 0,
           display: "flex",
           alignItems: "center",
           background: isEven ? "rgba(255,255,255,0.02)" : "transparent",
