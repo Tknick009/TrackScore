@@ -81,166 +81,122 @@ function adjustBrightness(hex: string, factor: number): string {
   return `#${nr.toString(16).padStart(2, '0')}${ng.toString(16).padStart(2, '0')}${nb.toString(16).padStart(2, '0')}`;
 }
 
-/** Smooth-scrolling standings list */
-function ScrollingStandings({ entries, cols, s, accent }: {
+/** Standings list: shows exactly `visibleRows` rows that fill the container. Smooth-scrolls when more entries exist. */
+function ScrollingStandings({ entries, cols, s, accent, visibleRows = 6 }: {
   entries: MultiFieldEntry[];
   cols: number;
   s: Record<string, string>;
   accent: string;
+  visibleRows?: number;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
-  const [needsScroll, setNeedsScroll] = useState(false);
+  const needsScroll = entries.length > visibleRows;
 
   useEffect(() => {
+    if (!needsScroll) return;
     const el = scrollRef.current;
     const inner = innerRef.current;
     if (!el || !inner) return;
-    const overflow = inner.scrollHeight > el.clientHeight + 2;
-    setNeedsScroll(overflow);
-    if (!overflow) {
-      el.scrollTop = 0;
-      return;
-    }
-    // Continuous smooth scroll: scroll down, pause, scroll back up, pause, repeat
+
     let raf: number;
     let scrollPos = 0;
-    let direction = 1; // 1 = down, -1 = up
-    let pauseUntil = 0;
-    const SPEED = 0.4; // px per frame
+    let direction = 1;
+    let pauseUntil = performance.now() + 4000;
+    const SPEED = 0.35;
     const PAUSE_MS = 3000;
 
     const step = () => {
       const now = performance.now();
-      if (now < pauseUntil) {
-        raf = requestAnimationFrame(step);
-        return;
-      }
+      if (now < pauseUntil) { raf = requestAnimationFrame(step); return; }
       const maxScroll = inner.scrollHeight - el.clientHeight;
       if (maxScroll <= 0) { raf = requestAnimationFrame(step); return; }
-
       scrollPos += direction * SPEED;
-      if (scrollPos >= maxScroll) {
-        scrollPos = maxScroll;
-        direction = -1;
-        pauseUntil = now + PAUSE_MS;
-      } else if (scrollPos <= 0) {
-        scrollPos = 0;
-        direction = 1;
-        pauseUntil = now + PAUSE_MS;
-      }
+      if (scrollPos >= maxScroll) { scrollPos = maxScroll; direction = -1; pauseUntil = now + PAUSE_MS; }
+      else if (scrollPos <= 0) { scrollPos = 0; direction = 1; pauseUntil = now + PAUSE_MS; }
       el.scrollTop = scrollPos;
       raf = requestAnimationFrame(step);
     };
-
-    // Initial pause before starting scroll
-    pauseUntil = performance.now() + PAUSE_MS;
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [entries.length, entries.map(e => e.bibNumber).join(',')]);
+  }, [needsScroll, entries.length]);
 
   const hasMark = (e: MultiFieldEntry) => e.bestMark && e.bestMark !== '' && e.bestMark !== 'DNS';
+  const rowFlex = needsScroll ? undefined : 1;
+  const rowMinH = needsScroll ? `${100 / visibleRows}%` : undefined;
 
-  return (
-    <div
-      ref={scrollRef}
-      style={{
-        flex: 1,
-        overflow: "hidden",
-        minHeight: 0,
-        position: "relative",
-      }}
-    >
-      <div ref={innerRef}>
-        {entries.map((entry, i) => {
-          const isEven = i % 2 === 0;
-          return (
-            <div
-              key={`${entry.bibNumber}-${i}`}
-              style={{
-                height: s.rowHeight,
-                display: "flex",
-                alignItems: "center",
-                background: isEven ? "rgba(255,255,255,0.02)" : "transparent",
-                borderBottom: "1px solid rgba(255,255,255,0.06)",
-                padding: "0 0.8cqw",
-              }}
-            >
-              {/* Place */}
-              <span style={{
-                fontSize: s.rowPlace,
-                fontWeight: 800,
-                color: entry.isDNS ? "rgba(255,255,255,0.3)" : hasMark(entry) ? GOLD : "rgba(255,255,255,0.3)",
-                width: cols === 1 ? "3cqw" : cols === 2 ? "3.5cqw" : "3cqw",
-                textAlign: "center",
-                flexShrink: 0,
-                fontFamily: "'Oswald', sans-serif",
-              }}>
-                {entry.isDNS ? "—" : (entry.place != null ? entry.place : "")}
-              </span>
-
-              {/* Team logo */}
-              <div style={{
-                width: s.logo,
-                flexShrink: 0,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                marginLeft: "0.4cqw",
-                marginRight: "0.6cqw",
-              }}>
-                {entry.teamLogoUrl ? (
-                  <img
-                    src={entry.teamLogoUrl}
-                    alt=""
-                    style={{ height: s.logo, width: "auto", objectFit: "contain" }}
-                  />
-                ) : null}
-              </div>
-
-              {/* Name */}
-              <span style={{
-                flex: 1,
-                fontSize: s.rowName,
-                fontWeight: 700,
-                color: entry.isDNS ? "rgba(255,255,255,0.35)" : "#fff",
-                textTransform: "uppercase",
-                letterSpacing: "0.02em",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}>
-                {entry.firstName?.charAt(0) ? `${entry.firstName.charAt(0)}. ` : ""}{entry.lastName}
-              </span>
-
-              {/* Mark */}
-              <span style={{
-                fontSize: s.rowMark,
-                fontWeight: 700,
-                color: entry.isDNS ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.9)",
-                fontFamily: "'Oswald', sans-serif",
-                flexShrink: 0,
-                textAlign: "right",
-                minWidth: cols === 1 ? "6cqw" : cols === 2 ? "7cqw" : "6cqw",
-              }}>
-                {entry.isDNS ? "DNS" : entry.bestMark}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-      {/* Fade at bottom when scrollable */}
-      {needsScroll && (
+  function Row({ entry, i }: { entry: MultiFieldEntry; i: number }) {
+    const isEven = i % 2 === 0;
+    return (
+      <div style={{
+        flex: rowFlex,
+        minHeight: rowMinH,
+        display: "flex",
+        alignItems: "center",
+        background: isEven ? "rgba(255,255,255,0.02)" : "transparent",
+        borderBottom: "1px solid rgba(255,255,255,0.06)",
+        padding: "0 0.8cqw",
+      }}>
+        <span style={{
+          fontSize: s.rowPlace, fontWeight: 800,
+          color: entry.isDNS ? "rgba(255,255,255,0.3)" : hasMark(entry) ? GOLD : "rgba(255,255,255,0.3)",
+          width: cols === 1 ? "3cqw" : cols === 2 ? "3.5cqw" : "3cqw",
+          textAlign: "center", flexShrink: 0, fontFamily: "'Oswald', sans-serif",
+        }}>
+          {entry.isDNS ? "—" : (entry.place != null ? entry.place : "")}
+        </span>
         <div style={{
-          position: "absolute",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: "3cqh",
-          background: "linear-gradient(transparent, #0d1117)",
-          pointerEvents: "none",
-        }} />
-      )}
+          width: s.logo, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
+          marginLeft: "0.4cqw", marginRight: "0.6cqw",
+        }}>
+          {entry.teamLogoUrl ? (
+            <img src={entry.teamLogoUrl} alt="" style={{ height: s.logo, width: "auto", objectFit: "contain" }} />
+          ) : null}
+        </div>
+        <span style={{
+          flex: 1, fontSize: s.rowName, fontWeight: 700,
+          color: entry.isDNS ? "rgba(255,255,255,0.35)" : "#fff",
+          textTransform: "uppercase", letterSpacing: "0.02em",
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        }}>
+          {entry.firstName?.charAt(0) ? `${entry.firstName.charAt(0)}. ` : ""}{entry.lastName}
+        </span>
+        <span style={{
+          fontSize: s.rowMark, fontWeight: 700,
+          color: entry.isDNS ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.9)",
+          fontFamily: "'Oswald', sans-serif", flexShrink: 0, textAlign: "right",
+          minWidth: cols === 1 ? "6cqw" : cols === 2 ? "7cqw" : "6cqw",
+        }}>
+          {entry.isDNS ? "DNS" : entry.bestMark}
+        </span>
+      </div>
+    );
+  }
+
+  if (!needsScroll) {
+    // Show up to visibleRows, each row uses flex:1 to fill container evenly
+    const shown = entries.slice(0, visibleRows);
+    return (
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+        {shown.map((entry, i) => <Row key={`${entry.bibNumber}-${i}`} entry={entry} i={i} />)}
+      </div>
+    );
+  }
+
+  // Scrolling mode: fixed-size rows, overflow hidden with smooth animation
+  return (
+    <div ref={scrollRef} style={{ flex: 1, overflow: "hidden", minHeight: 0, position: "relative" }}>
+      <div ref={innerRef} style={{ display: "flex", flexDirection: "column" }}>
+        {entries.map((entry, i) => (
+          <div key={`${entry.bibNumber}-${i}`} style={{ minHeight: `${100 / visibleRows}%`, height: `${100 / visibleRows}%` }}>
+            <Row entry={entry} i={i} />
+          </div>
+        ))}
+      </div>
+      <div style={{
+        position: "absolute", bottom: 0, left: 0, right: 0, height: "3cqh",
+        background: "linear-gradient(transparent, #0d1117)", pointerEvents: "none",
+      }} />
     </div>
   );
 }

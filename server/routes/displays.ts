@@ -12,6 +12,7 @@ import {
 } from "@shared/schema";
 import { mergeFlightsForEvent, parseLFFFile, findLFFFilesForEvent } from "../parsers/lff-parser";
 import { parseLIFFile, type NormalizedResult, type LIFEventHeader } from "../parsers/lif-parser";
+import { calculateEventPoints, parseMultiEventName } from "../combined-events-scoring";
 import * as fs from 'fs';
 
 /** Convert meters to English feet-inches with quarter-inch fractions (e.g. "23-4 1/4") */
@@ -3097,10 +3098,64 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         return null;
       };
 
-      // Helper: resolve headshot from bib number
-      const resolveHeadshot = (bibNumber: number): string | null => {
+      // Pre-build directory-based headshot cache for athletes not in DB photos
+      const headshotDirCache = new Map<string, string>();
+      const headshotDir = (ingestionSettings as any)?.headshotDirectory;
+      if (headshotDir && fs.existsSync(headshotDir)) {
+        try {
+          const { headshotBaseNames } = await import('../name-utils');
+          const dirFiles = fs.readdirSync(headshotDir);
+          const imgExts = new Set(['.png', '.jpg', '.jpeg', '.webp']);
+          const dirFileSet = new Map<string, string>(); // lowercase basename → actual filename
+          for (const f of dirFiles) {
+            const ext = pathModule.extname(f).toLowerCase();
+            if (imgExts.has(ext)) {
+              dirFileSet.set(f.toLowerCase(), f);
+            }
+          }
+          for (const a of allAthletes) {
+            if (headshotMap.has(a.id)) continue;
+            const bib = (a as any).bibNumber || (a as any).athleteNumber?.toString();
+            if (!bib) continue;
+            const team = (a as any).teamName || (a as any).school || '';
+            const firstName = (a as any).firstName || '';
+            const lastName = (a as any).lastName || '';
+            if (!firstName && !lastName) continue;
+            const bases = headshotBaseNames(team, firstName, lastName);
+            let found = false;
+            for (const base of bases) {
+              if (found) break;
+              for (const ext of ['.png', '.jpg', '.jpeg', '.webp']) {
+                const candidate = `${base}${ext}`.toLowerCase();
+                if (dirFileSet.has(candidate)) {
+                  // Use the existing headshot API endpoint
+                  headshotDirCache.set(String(bib), `/api/meets/${meetId}/headshot?school=${encodeURIComponent(team)}&firstName=${encodeURIComponent(firstName)}&lastName=${encodeURIComponent(lastName)}`);
+                  found = true;
+                  break;
+                }
+              }
+            }
+          }
+          if (headshotDirCache.size > 0) {
+            console.log(`[Multi-Field] Found ${headshotDirCache.size} directory-based headshots`);
+          }
+        } catch (e) { console.warn('[Multi-Field] Directory headshot scan failed:', e); }
+      }
+
+      // Helper: resolve headshot from bib number (DB photos first, then directory fallback)
+      const resolveHeadshot = (bibNumber: number, firstName?: string, lastName?: string, team?: string): string | null => {
         const athlete = athleteByBibStr.get(String(bibNumber));
-        return athlete ? (headshotMap.get(athlete.id) || null) : null;
+        if (athlete) {
+          const dbPhoto = headshotMap.get(athlete.id);
+          if (dbPhoto) return dbPhoto;
+        }
+        const dirCached = headshotDirCache.get(String(bibNumber));
+        if (dirCached) return dirCached;
+        // Last resort: if we have name/team from LFF but no DB match, try the headshot API
+        if (headshotDir && firstName && lastName && team) {
+          return `/api/meets/${meetId}/headshot?school=${encodeURIComponent(team)}&firstName=${encodeURIComponent(firstName)}&lastName=${encodeURIComponent(lastName)}`;
+        }
+        return null;
       };
 
       // Access live "athlete up" data from the TCP field handler
@@ -3132,7 +3187,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
               lastName: nameParts.length > 1 ? nameParts[0].trim() : liveAthlete.name,
               team: liveAthlete.affiliation || '',
               teamLogoUrl: resolveTeamLogo(liveAthlete.affiliation),
-              headshotUrl: resolveHeadshot(Number(liveAthlete.bib) || 0),
+              headshotUrl: resolveHeadshot(Number(liveAthlete.bib) || 0, nameParts.length > 1 ? nameParts[1].trim() : '', nameParts.length > 1 ? nameParts[0].trim() : '', liveAthlete.affiliation || ''),
               place: null,
               mark: liveAthlete.mark || '',
               englishMark: liveAthlete.markConverted || '',
@@ -3154,12 +3209,19 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         // Detect multi-event from DB flag OR event name
         const eventNameForDetect = standings.eventName || dbEvent?.name || '';
         const isMulti = (dbEvent as any)?.isMultiEvent === true || /\b(decathlon|heptathlon|pentathlon|dec |hep |pent )\b/i.test(eventNameForDetect) || (evtNum > 1000);
+        const parsedMulti = isMulti ? parseMultiEventName(eventNameForDetect, (dbEvent as any)?.gender || undefined) : null;
+        /** Calculate proper multi-event points for a mark string */
+        const calcPoints = (mark: string | undefined | null): number | null => {
+          if (!parsedMulti || !mark) return null;
+          const pts = calculateEventPoints(parsedMulti.scoringKey, mark, parsedMulti.gender);
+          return pts > 0 ? pts : null;
+        };
 
         // Build enriched standings
         const enrichedStandings = [];
         for (const a of standings.athletes) {
           const teamLogo = resolveTeamLogo(a.team);
-          const headshot = resolveHeadshot(a.bibNumber);
+          const headshot = resolveHeadshot(a.bibNumber, a.firstName, a.lastName, a.team);
           enrichedStandings.push({
             place: a.bestMark != null ? (a.overallPlace || null) : null,
             bibNumber: a.bibNumber,
@@ -3192,7 +3254,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
             if (!englishMark && !isMulti && matchRaw.bestMark != null) {
               englishMark = metersToEnglishFraction(matchRaw.bestMark);
             }
-            const points = isMulti && matchRaw.bestMark != null ? Math.round(matchRaw.bestMark) : null;
+            const points = calcPoints(liveMark) || calcPoints(matchEnr.bestMark);
             const validAtt = matchRaw.attempts.filter(att => att.mark !== null || att.isFoul || att.isPassed || att.isCleared || att.isMissed);
             let attemptsDisplay: string[] = [];
             let curHeight = '';
@@ -3223,7 +3285,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
               lastName: nameParts.length > 1 ? nameParts[0].trim() : liveAthlete.name,
               team: liveAthlete.affiliation || '',
               teamLogoUrl: resolveTeamLogo(liveAthlete.affiliation),
-              headshotUrl: resolveHeadshot(Number(liveAthlete.bib) || 0),
+              headshotUrl: resolveHeadshot(Number(liveAthlete.bib) || 0, nameParts.length > 1 ? nameParts[1].trim() : '', nameParts.length > 1 ? nameParts[0].trim() : '', liveAthlete.affiliation || ''),
               place: null,
               mark: liveAthlete.mark || '',
               englishMark: liveAthlete.markConverted || '',
@@ -3242,7 +3304,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
             if (!isMulti && topAthleteRaw.bestMark != null) {
               englishMark = metersToEnglishFraction(topAthleteRaw.bestMark);
             }
-            const points = isMulti && topAthleteRaw.bestMark != null ? Math.round(topAthleteRaw.bestMark) : null;
+            const points = calcPoints(topAthlete.bestMark);
             const validAttempts = topAthleteRaw.attempts.filter(att => att.mark !== null || att.isFoul || att.isPassed || att.isCleared || att.isMissed);
             const attemptCount = validAttempts.length;
             const totalPossible = standings.isVerticalEvent ? (standings.heights?.length || 0) : 6;
@@ -3503,6 +3565,12 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
               // Detect multi-event from DB flag OR event name
               const autoEventName = standings.eventName || dbEvent?.name || '';
               const isMulti = (dbEvent as any)?.isMultiEvent === true || /\b(decathlon|heptathlon|pentathlon|dec |hep |pent )\b/i.test(autoEventName) || (evtNum > 1000);
+              const autoParsedMulti = isMulti ? parseMultiEventName(autoEventName, (dbEvent as any)?.gender || undefined) : null;
+              const autoCalcPoints = (mark: string | undefined | null): number | null => {
+                if (!autoParsedMulti || !mark) return null;
+                const pts = calculateEventPoints(autoParsedMulti.scoringKey, mark, autoParsedMulti.gender);
+                return pts > 0 ? pts : null;
+              };
 
               const enriched = standings.athletes.map(a => ({
                 place: a.bestMark != null ? (a.overallPlace || null) : null, bibNumber: a.bibNumber, firstName: a.firstName, lastName: a.lastName,
@@ -3529,7 +3597,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
                   if (!englishMark && !isMulti && matchRaw.bestMark != null) {
                     englishMark = metersToEnglishFraction(matchRaw.bestMark);
                   }
-                  const points = isMulti && matchRaw.bestMark != null ? Math.round(matchRaw.bestMark) : null;
+                  const points = autoCalcPoints(liveMark) || autoCalcPoints(matchEnr.bestMark);
                   const validAtt = matchRaw.attempts.filter(att => att.mark !== null || att.isFoul || att.isPassed || att.isCleared || att.isMissed);
                   let attemptsDisplay: string[] = [];
                   let curHeight = '';
@@ -3578,7 +3646,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
                   if (!isMulti && topRaw.bestMark != null) {
                     englishMark = metersToEnglishFraction(topRaw.bestMark);
                   }
-                  const points = isMulti && topRaw.bestMark != null ? Math.round(topRaw.bestMark) : null;
+                  const points = autoCalcPoints(topEnr.bestMark);
                   const validAtt = topRaw.attempts.filter(att => att.mark !== null || att.isFoul || att.isPassed || att.isCleared || att.isMissed);
                   let attemptsDisplay: string[] = [];
                   let curHeight = '';
