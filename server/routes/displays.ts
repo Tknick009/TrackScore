@@ -3107,10 +3107,16 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       const liveAthletes = (globalThis as any).multiFieldLiveAthletes as Map<number, any> | undefined;
       
       for (const evtNum of eventNumbers) {
-        let standings = await mergeFlightsForEvent(lynxDir, evtNum);
-        // For sub-events (e.g., 42002), also try the parent event number (42)
+        // For sub-events (e.g., 42002 = event 42 round 2), extract parent event and round
         const parentEvtNum = evtNum > 1000 ? Math.floor(evtNum / 1000) : evtNum;
+        const roundNum = evtNum > 1000 ? (evtNum % 1000) : undefined;
+        let standings = await mergeFlightsForEvent(lynxDir, evtNum);
         if ((!standings || standings.athletes.length === 0) && evtNum > 1000) {
+          // Try parent event + specific round (e.g., event 42, round 2 → 042-2-*.lff)
+          standings = await mergeFlightsForEvent(lynxDir, parentEvtNum, roundNum);
+        }
+        if ((!standings || standings.athletes.length === 0) && evtNum > 1000) {
+          // Fallback: try parent event without round filter
           standings = await mergeFlightsForEvent(lynxDir, parentEvtNum);
         }
         const dbEvent = allEvents.find((e: any) => e.eventNumber === evtNum);
@@ -3358,9 +3364,14 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       const allEvents = await storage.getEventsByMeetId(meetId);
 
       for (const evtNum of eventNumbers) {
+        const parentEvt = evtNum > 1000 ? Math.floor(evtNum / 1000) : evtNum;
+        const roundN = evtNum > 1000 ? (evtNum % 1000) : undefined;
         let standings = await mergeFlightsForEvent(lynxDir, evtNum);
         if ((!standings || standings.athletes.length === 0) && evtNum > 1000) {
-          standings = await mergeFlightsForEvent(lynxDir, Math.floor(evtNum / 1000));
+          standings = await mergeFlightsForEvent(lynxDir, parentEvt, roundN);
+        }
+        if ((!standings || standings.athletes.length === 0) && evtNum > 1000) {
+          standings = await mergeFlightsForEvent(lynxDir, parentEvt);
         }
         const dbEvent = allEvents.find((e: any) => e.eventNumber === evtNum);
         result.push({
@@ -3451,10 +3462,16 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
             const liveAthletes = (globalThis as any).multiFieldLiveAthletes as Map<number, any> | undefined;
             
             for (const evtNum of multiFieldEvents) {
-              let standings = await mergeFlightsForEvent(lynxDir, evtNum);
-              // For sub-events (e.g., 42002), also try the parent event number (42)
+              // For sub-events (e.g., 42002 = event 42 round 2), extract parent event and round
               const parentEvtNum = evtNum > 1000 ? Math.floor(evtNum / 1000) : evtNum;
+              const roundNum = evtNum > 1000 ? (evtNum % 1000) : undefined;
+              let standings = await mergeFlightsForEvent(lynxDir, evtNum);
               if ((!standings || standings.athletes.length === 0) && evtNum > 1000) {
+                // Try parent event + specific round (e.g., event 42, round 2 → 042-2-*.lff)
+                standings = await mergeFlightsForEvent(lynxDir, parentEvtNum, roundNum);
+              }
+              if ((!standings || standings.athletes.length === 0) && evtNum > 1000) {
+                // Fallback: try parent event without round filter
                 standings = await mergeFlightsForEvent(lynxDir, parentEvtNum);
               }
               const dbEvent = allEvents.find((e: any) => e.eventNumber === evtNum);

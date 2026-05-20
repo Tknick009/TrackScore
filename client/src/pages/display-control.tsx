@@ -2259,7 +2259,7 @@ export default function DisplayControlPage() {
                             const numCols = multiFieldColumns[selectedDevice.id] || 1;
                             const currentAssignments = multiFieldEvents[selectedDevice.id] || [];
                             const fieldEvents = (events || [])
-                              .filter((e: any) => e.eventType === 'field' || /throw|put|jump|vault|javelin|discus|hammer/i.test(e.name || ''))
+                              .filter((e: any) => e.eventType === 'field' || e.isMultiEvent || /throw|put|jump|vault|javelin|discus|hammer|decathlon|heptathlon|pentathlon/i.test(e.name || ''))
                               .sort((a: any, b: any) => (a.eventNumber || 0) - (b.eventNumber || 0));
 
                             return (
