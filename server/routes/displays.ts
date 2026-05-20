@@ -3176,8 +3176,11 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           const isMulti = (dbEvent as any)?.isMultiEvent === true;
           
           if (matchEnr && matchRaw) {
-            let englishMark = '';
-            if (!isMulti && matchRaw.bestMark != null) {
+            // Use the LIVE mark from TCP, not the LFF best mark
+            const liveMark = liveAthlete.mark || matchEnr.bestMark;
+            const liveEnglishMark = liveAthlete.markConverted || '';
+            let englishMark = liveEnglishMark;
+            if (!englishMark && !isMulti && matchRaw.bestMark != null) {
               englishMark = metersToEnglishFraction(matchRaw.bestMark);
             }
             const points = isMulti && matchRaw.bestMark != null ? Math.round(matchRaw.bestMark) : null;
@@ -3198,7 +3201,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
             currentAthleteData = {
               firstName: matchEnr.firstName, lastName: matchEnr.lastName, team: matchEnr.team,
               teamLogoUrl: matchEnr.teamLogoUrl, headshotUrl: matchEnr.headshotUrl, place: matchEnr.place,
-              mark: matchEnr.bestMark, englishMark: isMulti ? undefined : englishMark, points,
+              mark: liveMark, englishMark: isMulti ? undefined : englishMark, points,
               attemptNum: Number(liveAthlete.attemptNumber) || validAtt.length,
               attemptTotal: standings.isVerticalEvent ? (standings.heights?.length || 0) : 6,
               attemptsDisplay, currentHeight: curHeight,
@@ -3496,8 +3499,11 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
                 const isMulti = (dbEvent as any)?.isMultiEvent === true;
                 
                 if (matchEnr && matchRaw) {
-                  let englishMark = '';
-                  if (!isMulti && matchRaw.bestMark != null) {
+                  // Use the LIVE mark from TCP, not the LFF best mark
+                  const liveMark = liveAthlete.mark || matchEnr.bestMark;
+                  const liveEnglishMark = liveAthlete.markConverted || '';
+                  let englishMark = liveEnglishMark;
+                  if (!englishMark && !isMulti && matchRaw.bestMark != null) {
                     englishMark = metersToEnglishFraction(matchRaw.bestMark);
                   }
                   const points = isMulti && matchRaw.bestMark != null ? Math.round(matchRaw.bestMark) : null;
@@ -3518,7 +3524,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
                   currentAthl = {
                     firstName: matchEnr.firstName, lastName: matchEnr.lastName, team: matchEnr.team,
                     teamLogoUrl: matchEnr.teamLogoUrl, headshotUrl: matchEnr.headshotUrl, place: matchEnr.place,
-                    mark: matchEnr.bestMark, englishMark: isMulti ? undefined : englishMark, points,
+                    mark: liveMark, englishMark: isMulti ? undefined : englishMark, points,
                     attemptNum: Number(liveAthlete.attemptNumber) || validAtt.length,
                     attemptTotal: standings.isVerticalEvent ? (standings.heights?.length || 0) : 6,
                     attemptsDisplay, currentHeight: curHeight,
