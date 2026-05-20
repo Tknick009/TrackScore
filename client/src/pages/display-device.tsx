@@ -1951,6 +1951,53 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
   const containerStyle = isCustomDisplay ? { width: `${effectiveResWidth}px`, height: `${effectiveResHeight}px` } : {};
   const containerClass = isCustomDisplay ? '' : 'h-screen w-screen';
 
+  // MULTI-PANEL MODE: Takes priority over ALL other rendering paths.
+  // Renders panels side-by-side at native pixel dimensions on the full screen.
+  // Each panel is an independent FieldPanel with its own port.
+  if (fieldPanels && fieldPanels.length > 1) {
+    const resolution = DISPLAY_CAPABILITIES[displayType].resolution;
+    const panelWidth = resolution.width;
+    const panelHeight = resolution.height;
+    const panelCount = fieldPanels.length;
+    const totalWidth = panelWidth * panelCount;
+    return (
+      <div className="bg-black min-h-screen">
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: `${totalWidth}px`,
+          height: `${panelHeight}px`,
+          display: 'flex',
+          backgroundColor: '#000',
+        }}>
+          {fieldPanels.map((panel, idx) => (
+            <div
+              key={`panel-${idx}-${panel.port}`}
+              style={{
+                width: `${panelWidth}px`,
+                height: `${panelHeight}px`,
+                flexShrink: 0,
+              }}
+            >
+              <FieldPanel
+                port={panel.port}
+                width={panelWidth}
+                height={panelHeight}
+                meetId={meetId}
+                liveEventDataByPort={liveEventDataByPort}
+                displayType={displayType}
+                liveClockTimeRef={liveClockTimeRef}
+                clockSubscribersRef={clockSubscribersRef}
+                displayScale={displayScale}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   const renderContent = (overrideProps?: { template?: string | null; sceneId?: number | null; currentSceneData?: any }) => {
     const effectiveTemplate = overrideProps?.template !== undefined ? overrideProps.template : template;
     const effectiveSceneId = overrideProps?.sceneId !== undefined ? overrideProps.sceneId : sceneId;
@@ -2713,43 +2760,6 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     // P10, P6, and Custom use exact pixel dimensions at position 0,0
     const fixedWidth = displayType === 'Custom' && customWidth ? customWidth : resolution.width;
     const fixedHeight = displayType === 'Custom' && customHeight ? customHeight : resolution.height;
-
-    // Multi-panel mode: each panel is a full P10/P6 display side by side at native pixels.
-    // Total width = panelCount × base resolution. No scaling — the LED controller scans the
-    // full framebuffer. Panels are placed with absolute positioning so they render even if
-    // the browser viewport is narrower than the total width.
-    if (fieldPanels && fieldPanels.length > 1) {
-      const panelCount = fieldPanels.length;
-      const totalWidth = fixedWidth * panelCount;
-      return (
-        <div className="bg-black" style={{ position: 'relative', width: `${totalWidth}px`, height: `${fixedHeight}px`, overflow: 'visible' }}>
-          {fieldPanels.map((panel, idx) => (
-            <div
-              key={`panel-${idx}-${panel.port}`}
-              style={{
-                position: 'absolute',
-                left: `${idx * fixedWidth}px`,
-                top: 0,
-                width: `${fixedWidth}px`,
-                height: `${fixedHeight}px`,
-              }}
-            >
-              <FieldPanel
-                port={panel.port}
-                width={fixedWidth}
-                height={fixedHeight}
-                meetId={meetId}
-                liveEventDataByPort={liveEventDataByPort}
-                displayType={displayType}
-                liveClockTimeRef={liveClockTimeRef}
-                clockSubscribersRef={clockSubscribersRef}
-                displayScale={displayScale}
-              />
-            </div>
-          ))}
-        </div>
-      );
-    }
 
     return (
       <div className="bg-black min-h-screen">
