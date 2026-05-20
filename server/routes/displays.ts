@@ -3104,7 +3104,12 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       };
 
       for (const evtNum of eventNumbers) {
-        const standings = await mergeFlightsForEvent(lynxDir, evtNum);
+        let standings = await mergeFlightsForEvent(lynxDir, evtNum);
+        // For sub-events (e.g., 42002), also try the parent event number (42)
+        if ((!standings || standings.athletes.length === 0) && evtNum > 1000) {
+          const parentEvtNum = Math.floor(evtNum / 1000);
+          standings = await mergeFlightsForEvent(lynxDir, parentEvtNum);
+        }
         const dbEvent = allEvents.find((e: any) => e.eventNumber === evtNum);
 
         if (!standings || standings.athletes.length === 0) {
@@ -3300,7 +3305,10 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       const allEvents = await storage.getEventsByMeetId(meetId);
 
       for (const evtNum of eventNumbers) {
-        const standings = await mergeFlightsForEvent(lynxDir, evtNum);
+        let standings = await mergeFlightsForEvent(lynxDir, evtNum);
+        if ((!standings || standings.athletes.length === 0) && evtNum > 1000) {
+          standings = await mergeFlightsForEvent(lynxDir, Math.floor(evtNum / 1000));
+        }
         const dbEvent = allEvents.find((e: any) => e.eventNumber === evtNum);
         result.push({
           eventNumber: evtNum,
@@ -3327,7 +3335,11 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           if (device.contentMode !== 'multi_field') continue;
           if (device.meetId !== meetId) continue;
           const multiFieldEvents = (device as any).multiFieldEvents as number[] | undefined;
-          if (!multiFieldEvents || !multiFieldEvents.includes(eventNumber)) continue;
+          if (!multiFieldEvents) continue;
+          // Match exact event number OR parent event for sub-events (e.g., event 42 matches sub-event 42002)
+          const eventMatches = multiFieldEvents.includes(eventNumber) || 
+            multiFieldEvents.some(e => e > 1000 && Math.floor(e / 1000) === eventNumber);
+          if (!eventMatches) continue;
 
           // Re-push by making an internal API call to the multi-field-board endpoint
           console.log(`[Multi-Field Auto] LFF updated for event ${eventNumber}, refreshing display ${device.deviceName}`);
@@ -3383,7 +3395,12 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
 
             const eventsData: any[] = [];
             for (const evtNum of multiFieldEvents) {
-              const standings = await mergeFlightsForEvent(lynxDir, evtNum);
+              let standings = await mergeFlightsForEvent(lynxDir, evtNum);
+              // For sub-events (e.g., 42002), also try the parent event number (42)
+              if ((!standings || standings.athletes.length === 0) && evtNum > 1000) {
+                const parentEvtNum = Math.floor(evtNum / 1000);
+                standings = await mergeFlightsForEvent(lynxDir, parentEvtNum);
+              }
               const dbEvent = allEvents.find((e: any) => e.eventNumber === evtNum);
               if (!standings || standings.athletes.length === 0) {
                 eventsData.push({ eventNumber: evtNum, eventName: dbEvent?.name || `Event ${evtNum}`, eventType: '', isVertical: false, currentAthlete: null, standings: [] });

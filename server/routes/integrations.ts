@@ -1921,6 +1921,35 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     }
     console.log(`[Lynx] Field data port ${fieldPort} → sent to ${fieldRecipients} device(s) (immediate)`);
     
+    // === Trigger multi-field board refresh for devices monitoring this event ===
+    // This bridges live TCP data to the Multi-Field Board which normally only updates from LFF files.
+    // Use a short debounce to batch rapid updates (multiple athletes/marks in quick succession).
+    const activeMeetIdForMultiField = await getActiveMeetId();
+    if (activeMeetIdForMultiField) {
+      for (const [, dev] of connectedDisplayDevices) {
+        if (dev.contentMode !== 'multi_field' || dev.meetId !== activeMeetIdForMultiField) continue;
+        const mfEvents = (dev as any).multiFieldEvents as number[] | undefined;
+        if (!mfEvents) continue;
+        // Match exact event number OR parent event for sub-events (e.g., event 42 matches sub-event 42002)
+        const matches = mfEvents.includes(eventNumber) || 
+          mfEvents.some((e: number) => e > 1000 && Math.floor(e / 1000) === eventNumber);
+        if (!matches) continue;
+        // Emit synthetic lff_updated to trigger the auto-refresh handler in displays.ts
+        // Debounce: cancel any pending refresh for this device and schedule a new one after 1.5s
+        const debounceKey = `mf_refresh_${dev.deviceId}`;
+        if ((globalThis as any)[debounceKey]) clearTimeout((globalThis as any)[debounceKey]);
+        const capturedMeetId = activeMeetIdForMultiField;
+        const capturedEventNumber = eventNumber;
+        (globalThis as any)[debounceKey] = setTimeout(async () => {
+          delete (globalThis as any)[debounceKey];
+          try {
+            const { ingestionManager: im } = await import('../ingestion-manager');
+            im.emit('lff_updated', { meetId: capturedMeetId, eventNumber: capturedEventNumber });
+          } catch (e) { console.error('[Multi-Field] Failed to emit lff_updated:', e); }
+        }, 1500);
+      }
+    }
+    
     // === DB writes happen in the background — display already updated ===
     try {
       const allFieldMatchEvents = await storage.getEventsByLynxEventNumber(eventNumber);
@@ -2049,6 +2078,32 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     } catch (error) {
       console.error('[Lynx] Error storing field result:', error);
     }
+    
+    // Trigger multi-field board refresh (same debounce as field-mode-change)
+    try {
+      const resultMeetId = await getActiveMeetId();
+      if (resultMeetId) {
+        for (const [, dev] of connectedDisplayDevices) {
+          if (dev.contentMode !== 'multi_field' || dev.meetId !== resultMeetId) continue;
+          const mfEvents = (dev as any).multiFieldEvents as number[] | undefined;
+          if (!mfEvents) continue;
+          const matches = mfEvents.includes(eventNumber) || 
+            mfEvents.some((e: number) => e > 1000 && Math.floor(e / 1000) === eventNumber);
+          if (!matches) continue;
+          const debounceKey = `mf_refresh_${dev.deviceId}`;
+          if ((globalThis as any)[debounceKey]) clearTimeout((globalThis as any)[debounceKey]);
+          const capturedMeetId = resultMeetId;
+          const capturedEventNumber = eventNumber;
+          (globalThis as any)[debounceKey] = setTimeout(async () => {
+            delete (globalThis as any)[debounceKey];
+            try {
+              const { ingestionManager: im } = await import('../ingestion-manager');
+              im.emit('lff_updated', { meetId: capturedMeetId, eventNumber: capturedEventNumber });
+            } catch (e) { console.error('[Multi-Field] Failed to emit lff_updated:', e); }
+          }, 1500);
+        }
+      }
+    } catch (e) { /* ignore */ }
     
     // Broadcast field result
     broadcastToDisplays({
