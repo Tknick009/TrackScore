@@ -4590,9 +4590,23 @@ export class SQLiteStorage implements IStorage {
 
   async getLiveEventsByMeet(meetId?: string): Promise<LiveEventData[]> {
     const rows = meetId
-      ? this.db.prepare('SELECT * FROM live_event_data WHERE meet_id = ?').all(meetId)
-      : this.db.prepare('SELECT * FROM live_event_data').all();
-    return rows.map((row: any) => this.mapLiveEventDataRow(row));
+      ? this.db.prepare('SELECT * FROM live_event_data WHERE meet_id = ? ORDER BY last_update_at DESC LIMIT 50').all(meetId)
+      : this.db.prepare('SELECT * FROM live_event_data ORDER BY last_update_at DESC LIMIT 50').all();
+    
+    // Group by eventNumber and return only the most complete record per event
+    const bestByEvent = new Map<number, LiveEventData>();
+    for (const row of rows) {
+      const record = this.mapLiveEventDataRow(row);
+      const existing = bestByEvent.get(record.eventNumber);
+      const recordEntries = Array.isArray(record.entries) ? record.entries.length : 0;
+      const existingEntries = existing && Array.isArray(existing.entries) ? existing.entries.length : 0;
+      if (!existing || recordEntries > existingEntries) {
+        bestByEvent.set(record.eventNumber, record);
+      }
+    }
+    return Array.from(bestByEvent.values())
+      .sort((a, b) => new Date(b.lastUpdateAt || 0).getTime() - new Date(a.lastUpdateAt || 0).getTime())
+      .slice(0, 10);
   }
 
   async upsertLiveEventData(data: InsertLiveEventData): Promise<LiveEventData> {
