@@ -1641,10 +1641,14 @@ export function SceneCanvas({
   const objects = propObjects || fetchedObjects;
   
   const { data: fetchedLiveEventData } = useLiveEventData(eventNumber);
+  // Skip latest-event REST polling when a specific port is assigned (multi-panel mode).
+  // Each panel receives its own data via propLiveEventData; polling for "latest"
+  // would return whichever port got data last and bleed into the wrong panel.
+  const skipLatestPoll = !!deviceFieldPort && !!propLiveEventData;
   const { data: latestLiveEventData } = useLatestLiveEventData();
   
-  // Priority: WebSocket prop > REST by eventNumber > REST latest
-  const rawLiveData = propLiveEventData || fetchedLiveEventData || latestLiveEventData;
+  // Priority: WebSocket prop > REST by eventNumber > REST latest (skipped in multi-panel)
+  const rawLiveData = propLiveEventData || fetchedLiveEventData || (skipLatestPoll ? null : latestLiveEventData);
   
   // Use entries in arrival order for start_list (FinishLynx controls display order)
   // Only sort results mode by place

@@ -1778,6 +1778,13 @@ function FieldPanel({ port, width, height, meetId, liveEventDataByPort, displayT
   const portData = liveEventDataByPort[port] || null;
   const hasData = !!portData;
 
+  // Filter liveEventDataByPort to only include THIS panel's port.
+  // Prevents scene objects from accidentally reading another panel's data.
+  const singlePortData = useMemo(() => {
+    if (!portData) return {};
+    return { [port]: portData };
+  }, [port, portData]);
+
   const primaryColor = meet?.primaryColor || '#0066CC';
   const secondaryColor = meet?.secondaryColor || '#003366';
   const hasLogo = !!meet?.logoUrl;
@@ -1829,7 +1836,7 @@ function FieldPanel({ port, width, height, meetId, liveEventDataByPort, displayT
             objects={fieldSceneData.objects}
             meetId={meetId || undefined}
             liveEventData={portData}
-            liveEventDataByPort={liveEventDataByPort}
+            liveEventDataByPort={singlePortData}
             liveClockTimeRef={liveClockTimeRef}
             clockSubscribersRef={clockSubscribersRef}
             displayWidth={width}
