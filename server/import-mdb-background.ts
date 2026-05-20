@@ -1,9 +1,9 @@
 /**
  * Background MDB import using child_process.fork().
  *
- * Spawns a separate Node.js process with tsx for each import, so the main
- * event loop (clock ticks, FinishLynx data, WebSocket broadcasts) is never
- * blocked by MDB parsing or SQLite writes.
+ * Keeps a persistent worker process alive between imports to avoid the
+ * overhead of re-spawning Node.js + tsx on every file change (~2-5s saved).
+ * Falls back to spawning a new worker if the persistent one dies.
  *
  * Includes a queue so when multiple MDB watchers fire simultaneously,
  * imports run sequentially instead of being dropped.
@@ -12,7 +12,7 @@
  *   import { importMDBInBackground } from './import-mdb-background';
  *   const stats = await importMDBInBackground(mdbPath, meetId);
  */
-import { fork } from 'child_process';
+import { fork, ChildProcess } from 'child_process';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import type { ImportStatistics } from './import-mdb-complete';
@@ -23,6 +23,9 @@ const __dirname = path.dirname(__filename);
 /** Track whether any import is currently running (only one at a time). */
 let activeImport = false;
 
+/** Persistent worker process — stays alive between imports. */
+let persistentWorker: ChildProcess | null = null;
+
 /** Queue of pending imports to run after the current one finishes. */
 const importQueue: Array<{
   mdbPath: string;
@@ -31,6 +34,32 @@ const importQueue: Array<{
   reject: (err: Error) => void;
 }> = [];
 
+/** Get or create the persistent worker process. */
+function getWorker(): ChildProcess {
+  if (persistentWorker && persistentWorker.connected) {
+    return persistentWorker;
+  }
+
+  const workerPath = path.resolve(__dirname, 'import-mdb-worker.ts');
+  persistentWorker = fork(workerPath, [], {
+    execArgv: ['--import', 'tsx'],
+    env: { ...process.env },
+    stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
+  });
+
+  persistentWorker.on('exit', (code) => {
+    console.log(`[MDB Background] Worker exited with code ${code}, will respawn on next import`);
+    persistentWorker = null;
+  });
+
+  persistentWorker.on('error', (err) => {
+    console.error(`[MDB Background] Worker error:`, err);
+    persistentWorker = null;
+  });
+
+  return persistentWorker;
+}
+
 /** Process the next item in the queue, if any. */
 function processQueue() {
   if (activeImport || importQueue.length === 0) return;
@@ -38,47 +67,42 @@ function processQueue() {
   activeImport = true;
   const { mdbPath, meetId, resolve, reject } = importQueue.shift()!;
 
-  const workerPath = path.resolve(__dirname, 'import-mdb-worker.ts');
-
-  // fork() spawns a new Node.js process. We pass --import tsx so the child
-  // process can load TypeScript files directly, just like the main process.
-  const child = fork(workerPath, [], {
-    execArgv: ['--import', 'tsx'],
-    env: { ...process.env },
-    stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
-  });
-
+  const child = getWorker();
   let settled = false;
 
-  child.on('message', (msg: { type: string; stats?: ImportStatistics; error?: string }) => {
+  const onMessage = (msg: { type: string; stats?: ImportStatistics; error?: string }) => {
     if (settled) return;
     settled = true;
+    child.removeListener('message', onMessage);
+    child.removeListener('exit', onExit);
+
+    activeImport = false;
 
     if (msg.type === 'complete') {
       resolve(msg.stats!);
     } else if (msg.type === 'error') {
       reject(new Error(msg.error || 'Unknown worker error'));
     }
-  });
 
-  child.on('error', (err) => {
+    // Process next in queue
+    processQueue();
+  };
+
+  const onExit = (code: number | null) => {
     if (settled) return;
     settled = true;
-    reject(err);
-  });
+    child.removeListener('message', onMessage);
+    child.removeListener('exit', onExit);
 
-  child.on('exit', (code) => {
-    if (!settled) {
-      settled = true;
-      if (code !== 0) {
-        reject(new Error(`MDB import process exited with code ${code}`));
-      } else {
-        reject(new Error('MDB import process exited before sending results'));
-      }
-    }
     activeImport = false;
+    persistentWorker = null;
+
+    reject(new Error(`MDB import process exited unexpectedly with code ${code}`));
     processQueue();
-  });
+  };
+
+  child.on('message', onMessage);
+  child.once('exit', onExit);
 
   // Send the import parameters to the child process
   child.send({ mdbPath, meetId });

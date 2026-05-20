@@ -2429,12 +2429,12 @@ export class DatabaseStorage implements IStorage {
         rank: index + 1,
         teamId,
         teamName: data.teamName,
-        totalPoints: data.totalPoints,
+        totalPoints: Math.round((data.totalPoints + Number.EPSILON) * 100) / 100,
         eventCount: data.events.size,
         eventBreakdown: Array.from(data.events.entries()).map(([eventId, e]) => ({
           eventId,
           eventName: e.eventName,
-          points: e.points,
+          points: Math.round((e.points + Number.EPSILON) * 100) / 100,
         })),
       }));
 

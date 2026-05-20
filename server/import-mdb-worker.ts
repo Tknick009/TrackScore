@@ -3,6 +3,7 @@
  * Spawned via child_process.fork() so the main event loop
  * (clock ticks, FinishLynx data, WebSocket broadcasts) stays responsive.
  *
+ * Stays alive between imports to avoid re-spawning overhead.
  * Receives { mdbPath, meetId } via IPC message, sends back { type, stats | error }.
  */
 import { importCompleteMDB } from './import-mdb-complete';
@@ -17,7 +18,4 @@ process.on('message', async (msg: { mdbPath: string; meetId: string }) => {
   } catch (err: any) {
     process.send?.({ type: 'error', error: err.message || String(err) });
   }
-
-  // Exit cleanly after the import finishes
-  process.exit(0);
 });

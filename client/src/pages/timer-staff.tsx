@@ -29,14 +29,24 @@ function getStatusBadge(event: EventWithEntries) {
   if (!event.isScored) {
     return <Badge variant="outline" className="text-muted-foreground text-sm px-3 py-1">Not Ready</Badge>;
   }
+  // For multi-round events, check if finals have actually been run
+  const isMultiRound = event.numRounds != null && event.numRounds > 1;
+  const hasFinalResults = isMultiRound && event.entries.some(
+    (e) => e.finalPlace != null || e.finalMark != null
+  );
+  const onlyPrelimsComplete = isMultiRound && !hasFinalResults;
+
   switch (event.protestStatus as ProtestStatus) {
     case "protest":
-      return <Badge variant="destructive" className="animate-pulse text-sm px-3 py-1">Protest Period</Badge>;
+      return <Badge variant="destructive" className="animate-pulse text-sm px-3 py-1">Protest Period{onlyPrelimsComplete ? " (Prelims)" : ""}</Badge>;
     case "ready_for_awards":
-      return <Badge className="bg-green-600 hover:bg-green-700 text-sm px-3 py-1">Ready for Awards</Badge>;
+      return <Badge className="bg-green-600 hover:bg-green-700 text-sm px-3 py-1">Ready for Awards{onlyPrelimsComplete ? " (Prelims)" : ""}</Badge>;
     case "awarded":
-      return <Badge variant="secondary" className="text-sm px-3 py-1">Awarded</Badge>;
+      return <Badge variant="secondary" className="text-sm px-3 py-1">Awarded{onlyPrelimsComplete ? " (Prelims)" : ""}</Badge>;
     default:
+      if (onlyPrelimsComplete) {
+        return <Badge className="bg-yellow-600 hover:bg-yellow-700 text-sm px-3 py-1">Prelims Done — Ready</Badge>;
+      }
       if (event.hytekStatus === "done") {
         return <Badge className="bg-yellow-600 hover:bg-yellow-700 text-sm px-3 py-1">Done — Ready</Badge>;
       }
