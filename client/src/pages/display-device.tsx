@@ -2696,10 +2696,11 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     const fixedWidth = displayType === 'Custom' && customWidth ? customWidth : resolution.width;
     const fixedHeight = displayType === 'Custom' && customHeight ? customHeight : resolution.height;
 
-    // Multi-panel mode: split display into N side-by-side columns, each with its own port
+    // Multi-panel mode: each panel is a full-size P10/P6 display side by side
+    // Total width = panelCount × single display width (e.g., 3 P6 panels = 864×144)
     if (fieldPanels && fieldPanels.length > 1) {
       const panelCount = fieldPanels.length;
-      const panelWidth = Math.floor(fixedWidth / panelCount);
+      const totalWidth = fixedWidth * panelCount;
       return (
         <div className="bg-black min-h-screen">
           <div
@@ -2708,7 +2709,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
               position: 'absolute',
               top: 0,
               left: 0,
-              width: `${fixedWidth}px`,
+              width: `${totalWidth}px`,
               height: `${fixedHeight}px`,
               overflow: 'hidden',
               backgroundColor: '#000',
@@ -2720,7 +2721,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
               <FieldPanel
                 key={`panel-${idx}-${panel.port}`}
                 port={panel.port}
-                width={panelWidth}
+                width={fixedWidth}
                 height={fixedHeight}
                 meetId={meetId}
                 liveEventDataByPort={liveEventDataByPort}
