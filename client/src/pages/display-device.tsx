@@ -1754,8 +1754,10 @@ function ConfettiOverlay({ children, teamLogoUrl }: { children: React.ReactNode;
  * Total width = panelCount × panelPixelWidth. No scaling, no viewport tricks.
  * The LED controller scans the full framebuffer regardless of browser viewport size. */
 
-/** FieldPanel — one column in multi-panel mode. Shows meet logo when idle, field data when port active. */
-function FieldPanel({ port, width, height, meetId, liveEventDataByPort, displayType, liveClockTimeRef, clockSubscribersRef, displayScale }: {
+/** FieldPanel — one column in multi-panel mode.
+ *  When a scene mapping is available (e.g., P6-Field), renders through SceneCanvas
+ *  so each panel uses the configured layout. Falls back to SingleAthleteField if no scene. */
+function FieldPanel({ port, width, height, meetId, liveEventDataByPort, displayType, liveClockTimeRef, clockSubscribersRef, displayScale, fieldSceneId, fieldSceneData }: {
   port: number;
   width: number;
   height: number;
@@ -1765,6 +1767,8 @@ function FieldPanel({ port, width, height, meetId, liveEventDataByPort, displayT
   liveClockTimeRef?: React.RefObject<string>;
   clockSubscribersRef?: React.RefObject<Set<(time: string, command?: string) => void>>;
   displayScale?: number;
+  fieldSceneId?: number | null;
+  fieldSceneData?: { scene: any; objects: any[] } | null;
 }) {
   const { data: meet } = useQuery<Meet>({
     queryKey: ['/api/meets', meetId],
@@ -1778,7 +1782,7 @@ function FieldPanel({ port, width, height, meetId, liveEventDataByPort, displayT
   const secondaryColor = meet?.secondaryColor || '#003366';
   const hasLogo = !!meet?.logoUrl;
 
-  // Build EventWithEntries from port data (same as main renderContent for SingleAthleteField)
+  // Build EventWithEntries from port data (fallback when no scene is mapped)
   const eventFromPortData = portData ? {
     id: 0,
     name: portData.eventName || '',
@@ -1816,8 +1820,31 @@ function FieldPanel({ port, width, height, meetId, liveEventDataByPort, displayT
 
   return (
     <div style={{ width: `${width}px`, height: `${height}px`, overflow: 'hidden', position: 'relative' }}>
-      {/* Field data display */}
-      {hasData && eventFromPortData && (
+      {/* Scene-based rendering when a layout mapping exists */}
+      {hasData && fieldSceneId && fieldSceneData && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
+          <SceneCanvas
+            sceneId={fieldSceneId}
+            scene={fieldSceneData.scene}
+            objects={fieldSceneData.objects}
+            meetId={meetId || undefined}
+            liveEventData={portData}
+            liveEventDataByPort={liveEventDataByPort}
+            liveClockTimeRef={liveClockTimeRef}
+            clockSubscribersRef={clockSubscribersRef}
+            displayWidth={width}
+            displayHeight={height}
+            deviceFieldPort={port}
+            meetLogoUrl={meet?.logoUrl || null}
+            meetLogoEffect={(meet as any)?.logoEffect || null}
+            meetPrimaryColor={meet?.primaryColor || undefined}
+            meetSecondaryColor={meet?.secondaryColor || undefined}
+          />
+        </div>
+      )}
+
+      {/* Fallback: direct SingleAthleteField when no scene mapping */}
+      {hasData && eventFromPortData && !fieldSceneId && (
         <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
           <SingleAthleteField event={eventFromPortData as any} meet={meet} focusIndex={0} />
         </div>
@@ -1940,6 +1967,38 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     refetchInterval: 30000, // WebSocket pushes standings updates; polling is fallback only
   });
 
+  // Multi-panel scene lookup: fetch scene mappings to find the field_results scene for this display type.
+  // Always called (hooks can't be conditional), but only used when fieldPanels > 1.
+  const isMultiPanel = !!(fieldPanels && fieldPanels.length > 1);
+  const { data: panelSceneMappings } = useQuery<Array<{
+    id: number; meetId: string; displayType: string; displayMode: string; sceneId: number;
+  }>>({
+    queryKey: [`/api/scene-template-mappings/${meetId}`],
+    enabled: !!meetId && isMultiPanel,
+  });
+  const fieldSceneId = useMemo(() => {
+    if (!panelSceneMappings || !isMultiPanel) return null;
+    const mapping = panelSceneMappings.find(
+      m => m.displayType === displayType && m.displayMode === 'field_results'
+    );
+    return mapping?.sceneId || null;
+  }, [panelSceneMappings, displayType, isMultiPanel]);
+
+  // Fetch the field scene + objects for multi-panel rendering
+  const { data: fieldSceneResponse } = useQuery({
+    queryKey: ['/api/layout-scenes', fieldSceneId],
+    enabled: !!fieldSceneId,
+  });
+  const { data: fieldObjectsResponse } = useQuery({
+    queryKey: ['/api/layout-objects', { sceneId: fieldSceneId }],
+    queryFn: () => fetch(`/api/layout-objects?sceneId=${fieldSceneId}`).then(r => r.json()),
+    enabled: !!fieldSceneId,
+  });
+  const fieldSceneData = useMemo(() => {
+    if (!fieldSceneResponse || !fieldObjectsResponse) return null;
+    return { scene: fieldSceneResponse, objects: fieldObjectsResponse };
+  }, [fieldSceneResponse, fieldObjectsResponse]);
+
   const currentEvent = specificEvent || currentEventData;
   
   // Generate a unique layout key for transition tracking
@@ -2021,6 +2080,8 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
                 liveClockTimeRef={liveClockTimeRef}
                 clockSubscribersRef={clockSubscribersRef}
                 displayScale={displayScale}
+                fieldSceneId={fieldSceneId}
+                fieldSceneData={fieldSceneData}
               />
             </div>
           ))}
