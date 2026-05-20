@@ -83,6 +83,7 @@ interface DisplayDevice {
   meetId: string;
   deviceName: string;
   displayType: string | null;
+  contentMode: string | null;
   currentTemplate: string | null;
   lastIp: string | null;
   lastSeenAt: string | null;
@@ -91,6 +92,23 @@ interface DisplayDevice {
   fieldPort: number | null;
   isBigBoard: boolean;
   assignedEvent?: Event;
+}
+
+// Map server-side contentMode values to client-side DisplayMode values
+function serverContentModeToDisplayMode(contentMode: string | null): DisplayMode | null {
+  switch (contentMode) {
+    case 'lynx': return 'finishlynx';
+    case 'hytek': return 'hytek';
+    case 'team_scores': return 'teamscores';
+    case 'field': return 'field';
+    case 'winners': return 'winners';
+    case 'record': return 'record';
+    case 'meet_schedule': return 'meet_schedule';
+    case 'meet_records': return 'meet_records';
+    case 'sponsors': case 'sponsor_reel': return 'sponsors';
+    case 'team_preview': return 'team_preview';
+    default: return null;
+  }
 }
 
 // Display mode types
@@ -136,6 +154,22 @@ export default function DisplayControlPage() {
     queryKey: ['/api/display-devices/meet', currentMeetId],
     enabled: !!currentMeetId,
   });
+
+  // Initialize displayMode from server-side contentMode when devices load
+  useEffect(() => {
+    if (devices.length > 0) {
+      setDisplayMode(prev => {
+        const updated = { ...prev };
+        for (const device of devices) {
+          if (!updated[device.id] && device.contentMode) {
+            const mode = serverContentModeToDisplayMode(device.contentMode);
+            if (mode) updated[device.id] = mode;
+          }
+        }
+        return updated;
+      });
+    }
+  }, [devices]);
 
   const { data: events = [] } = useQuery<Event[]>({
     queryKey: ['/api/events', currentMeetId],

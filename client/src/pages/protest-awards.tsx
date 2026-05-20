@@ -41,17 +41,27 @@ function getStatusBadge(event: EventWithEntries) {
   if (!event.isScored) {
     return <Badge variant="outline" className="text-muted-foreground text-sm px-3 py-1">Not Ready</Badge>;
   }
+  // For multi-round events, check if finals have actually been run
+  const isMultiRound = event.numRounds != null && event.numRounds > 1;
+  const hasFinalResults = isMultiRound && event.entries.some(
+    (e) => e.finalPlace != null || e.finalMark != null
+  );
+  const onlyPrelimsComplete = isMultiRound && !hasFinalResults;
+
   switch (event.protestStatus as ProtestStatus) {
     case "protest":
       if (event.protestFiled) {
-        return <Badge variant="destructive" className="animate-pulse text-sm px-3 py-1 bg-red-700">⚠ Protest Filed</Badge>;
+        return <Badge variant="destructive" className="animate-pulse text-sm px-3 py-1 bg-red-700">⚠ Protest Filed{onlyPrelimsComplete ? " (Prelims)" : ""}</Badge>;
       }
-      return <Badge variant="destructive" className="animate-pulse text-sm px-3 py-1">Protest Period</Badge>;
+      return <Badge variant="destructive" className="animate-pulse text-sm px-3 py-1">Protest Period{onlyPrelimsComplete ? " (Prelims)" : ""}</Badge>;
     case "ready_for_awards":
-      return <Badge className="bg-green-600 hover:bg-green-700 text-sm px-3 py-1">Ready for Awards</Badge>;
+      return <Badge className="bg-green-600 hover:bg-green-700 text-sm px-3 py-1">Ready for Awards{onlyPrelimsComplete ? " (Prelims)" : ""}</Badge>;
     case "awarded":
-      return <Badge variant="secondary" className="text-sm px-3 py-1">Awarded</Badge>;
+      return <Badge variant="secondary" className="text-sm px-3 py-1">Awarded{onlyPrelimsComplete ? " (Prelims)" : ""}</Badge>;
     default:
+      if (onlyPrelimsComplete) {
+        return <Badge className="bg-yellow-600 hover:bg-yellow-700 text-sm px-3 py-1">Prelims Done — Ready</Badge>;
+      }
       if (event.hytekStatus === "done") {
         return <Badge className="bg-yellow-600 hover:bg-yellow-700 text-sm px-3 py-1">Done — Ready</Badge>;
       }
@@ -203,9 +213,18 @@ function handlePrint(
   const hasWind = entries.some((e) => e.wind != null);
   const hasNotes = entries.some((e) => e.resultNote);
 
-  const printWindow = window.open("", "_blank");
+  // Use hidden iframe to print without opening a new tab
+  const iframe = document.createElement("iframe");
+  iframe.style.position = "fixed";
+  iframe.style.top = "-10000px";
+  iframe.style.left = "-10000px";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
+  document.body.appendChild(iframe);
+  const printWindow = iframe.contentWindow;
   if (!printWindow) {
-    toast({ title: "Popup Blocked", description: "Please allow popups to print", variant: "destructive" });
+    document.body.removeChild(iframe);
+    toast({ title: "Print Error", description: "Could not create print frame", variant: "destructive" });
     return;
   }
 
@@ -339,10 +358,13 @@ function handlePrint(
   </div>
 </body></html>`;
 
+  printWindow.document.open();
   printWindow.document.write(html);
   printWindow.document.close();
-  printWindow.onload = () => {
+  iframe.onload = () => {
+    printWindow.focus();
     printWindow.print();
+    setTimeout(() => document.body.removeChild(iframe), 1000);
   };
 }
 

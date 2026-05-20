@@ -510,11 +510,27 @@ export function SceneObjectRenderer({
   } else if (athleteIndex !== undefined && athleteIndex >= 0 && liveData) {
     const entries = Array.isArray(liveData.entries) ? liveData.entries : [];
     const entry = entries[athleteIndex];
+    
+    // Pre-check: if NO entries have any result/timing data, show all at full opacity
+    // This prevents dimming all rows when results haven't arrived yet
+    const noEntriesHaveData = entries.length > 0 && entries.every((e: any) => {
+      const t = String(e.time || '').trim();
+      const m = String(e.mark || '').trim();
+      const p = String(e.place || '').trim();
+      const ls = String(e.lastSplit || '').trim();
+      const cs = String(e.cumulativeSplit || '').trim();
+      const isZero = (s: string) => s !== '' && /^0*:?0*\.?0*$/.test(s);
+      return (!t || isZero(t)) && (!m || isZero(m)) && (!p || p === '--') && !ls && !cs;
+    });
+    
     if (!entry) {
       // Empty row (no athlete data) — dim to 50%
       contentFadeOpacity = 0.5;
     } else if (isFieldMode) {
       // Field events always show at full opacity
+      contentFadeOpacity = 1;
+    } else if (noEntriesHaveData) {
+      // No entries have results yet — show all at full opacity like a start list
       contentFadeOpacity = 1;
     } else {
       // Check if entry is DNS, FS (false start), or Scratch

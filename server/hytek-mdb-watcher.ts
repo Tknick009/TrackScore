@@ -174,8 +174,8 @@ export function startHytekMdbWatcher(meetId: string, mdbPath: string): { success
     persistent: true,
     ignoreInitial: false,
     awaitWriteFinish: {
-      stabilityThreshold: 2000,
-      pollInterval: 500,
+      stabilityThreshold: 1000,
+      pollInterval: 300,
     },
     ignored: (filePath: string) => {
       const basename = path.basename(filePath);
