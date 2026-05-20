@@ -1,4 +1,6 @@
 
+import { useEffect, useRef, useState } from "react";
+
 /** One athlete row in a field event standings list */
 export interface MultiFieldEntry {
   place: number | null;
@@ -55,13 +57,15 @@ interface MultiFieldBoardProps {
   maxRows?: number;
 }
 
+const GOLD = "#d4a843";
+
 /** Helper: render the secondary mark line (English or points for multi-events) */
 function SecondaryMark({ athlete, evt }: { athlete: MultiFieldAthlete; evt: MultiFieldEvent }) {
   if (evt.isMultiEvent && athlete.points != null) {
-    return <span style={{ color: "#fbbf24" }}>{athlete.points} pts</span>;
+    return <span style={{ color: GOLD }}>{athlete.points} pts</span>;
   }
   if (athlete.englishMark) {
-    return <span style={{ color: "rgba(255,255,255,0.6)" }}>({athlete.englishMark})</span>;
+    return <span style={{ color: GOLD }}>({athlete.englishMark})</span>;
   }
   return null;
 }
@@ -75,6 +79,170 @@ function adjustBrightness(hex: string, factor: number): string {
   const ng = Math.min(255, Math.max(0, Math.round(g * factor)));
   const nb = Math.min(255, Math.max(0, Math.round(b * factor)));
   return `#${nr.toString(16).padStart(2, '0')}${ng.toString(16).padStart(2, '0')}${nb.toString(16).padStart(2, '0')}`;
+}
+
+/** Smooth-scrolling standings list */
+function ScrollingStandings({ entries, cols, s, accent }: {
+  entries: MultiFieldEntry[];
+  cols: number;
+  s: Record<string, string>;
+  accent: string;
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
+  const [needsScroll, setNeedsScroll] = useState(false);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    const inner = innerRef.current;
+    if (!el || !inner) return;
+    const overflow = inner.scrollHeight > el.clientHeight + 2;
+    setNeedsScroll(overflow);
+    if (!overflow) {
+      el.scrollTop = 0;
+      return;
+    }
+    // Continuous smooth scroll: scroll down, pause, scroll back up, pause, repeat
+    let raf: number;
+    let scrollPos = 0;
+    let direction = 1; // 1 = down, -1 = up
+    let pauseUntil = 0;
+    const SPEED = 0.4; // px per frame
+    const PAUSE_MS = 3000;
+
+    const step = () => {
+      const now = performance.now();
+      if (now < pauseUntil) {
+        raf = requestAnimationFrame(step);
+        return;
+      }
+      const maxScroll = inner.scrollHeight - el.clientHeight;
+      if (maxScroll <= 0) { raf = requestAnimationFrame(step); return; }
+
+      scrollPos += direction * SPEED;
+      if (scrollPos >= maxScroll) {
+        scrollPos = maxScroll;
+        direction = -1;
+        pauseUntil = now + PAUSE_MS;
+      } else if (scrollPos <= 0) {
+        scrollPos = 0;
+        direction = 1;
+        pauseUntil = now + PAUSE_MS;
+      }
+      el.scrollTop = scrollPos;
+      raf = requestAnimationFrame(step);
+    };
+
+    // Initial pause before starting scroll
+    pauseUntil = performance.now() + PAUSE_MS;
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [entries.length, entries.map(e => e.bibNumber).join(',')]);
+
+  const hasMark = (e: MultiFieldEntry) => e.bestMark && e.bestMark !== '' && e.bestMark !== 'DNS';
+
+  return (
+    <div
+      ref={scrollRef}
+      style={{
+        flex: 1,
+        overflow: "hidden",
+        minHeight: 0,
+        position: "relative",
+      }}
+    >
+      <div ref={innerRef}>
+        {entries.map((entry, i) => {
+          const isEven = i % 2 === 0;
+          return (
+            <div
+              key={`${entry.bibNumber}-${i}`}
+              style={{
+                height: s.rowHeight,
+                display: "flex",
+                alignItems: "center",
+                background: isEven ? "rgba(255,255,255,0.02)" : "transparent",
+                borderBottom: "1px solid rgba(255,255,255,0.06)",
+                padding: "0 0.8cqw",
+              }}
+            >
+              {/* Place */}
+              <span style={{
+                fontSize: s.rowPlace,
+                fontWeight: 800,
+                color: entry.isDNS ? "rgba(255,255,255,0.3)" : hasMark(entry) ? GOLD : "rgba(255,255,255,0.3)",
+                width: cols === 1 ? "3cqw" : cols === 2 ? "3.5cqw" : "3cqw",
+                textAlign: "center",
+                flexShrink: 0,
+                fontFamily: "'Oswald', sans-serif",
+              }}>
+                {entry.isDNS ? "—" : (entry.place != null ? entry.place : "")}
+              </span>
+
+              {/* Team logo */}
+              <div style={{
+                width: s.logo,
+                flexShrink: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                marginLeft: "0.4cqw",
+                marginRight: "0.6cqw",
+              }}>
+                {entry.teamLogoUrl ? (
+                  <img
+                    src={entry.teamLogoUrl}
+                    alt=""
+                    style={{ height: s.logo, width: "auto", objectFit: "contain" }}
+                  />
+                ) : null}
+              </div>
+
+              {/* Name */}
+              <span style={{
+                flex: 1,
+                fontSize: s.rowName,
+                fontWeight: 700,
+                color: entry.isDNS ? "rgba(255,255,255,0.35)" : "#fff",
+                textTransform: "uppercase",
+                letterSpacing: "0.02em",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}>
+                {entry.firstName?.charAt(0) ? `${entry.firstName.charAt(0)}. ` : ""}{entry.lastName}
+              </span>
+
+              {/* Mark */}
+              <span style={{
+                fontSize: s.rowMark,
+                fontWeight: 700,
+                color: entry.isDNS ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.9)",
+                fontFamily: "'Oswald', sans-serif",
+                flexShrink: 0,
+                textAlign: "right",
+                minWidth: cols === 1 ? "6cqw" : cols === 2 ? "7cqw" : "6cqw",
+              }}>
+                {entry.isDNS ? "DNS" : entry.bestMark}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      {/* Fade at bottom when scrollable */}
+      {needsScroll && (
+        <div style={{
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: "3cqh",
+          background: "linear-gradient(transparent, #0d1117)",
+          pointerEvents: "none",
+        }} />
+      )}
+    </div>
+  );
 }
 
 export function MultiFieldBoard({
@@ -98,25 +266,24 @@ export function MultiFieldBoard({
   const accent = primaryColor || "#1e6b3a";
   const accentDark = secondaryColor || adjustBrightness(accent, 0.5);
 
-  // Responsive font sizes based on column count
-  const s = {
+  // Responsive sizes based on column count
+  const s: Record<string, string> = {
     headerName: cols === 1 ? "4.5cqw" : cols === 2 ? "3.2cqw" : "2.6cqw",
     spotName: cols === 1 ? "3.6cqw" : cols === 2 ? "3cqw" : "2.4cqw",
     spotTeam: cols === 1 ? "2.2cqw" : cols === 2 ? "2cqw" : "1.6cqw",
-    spotMark: cols === 1 ? "4.2cqw" : cols === 2 ? "3.8cqw" : "3cqw",
-    spotSub: cols === 1 ? "2.2cqw" : cols === 2 ? "2cqw" : "1.6cqw",
+    spotMark: cols === 1 ? "5cqw" : cols === 2 ? "4.2cqw" : "3.4cqw",
+    spotSub: cols === 1 ? "2.4cqw" : cols === 2 ? "2.2cqw" : "1.8cqw",
     spotDetail: cols === 1 ? "2cqw" : cols === 2 ? "1.8cqw" : "1.4cqw",
     spotXO: cols === 1 ? "2.8cqw" : cols === 2 ? "2.4cqw" : "2cqw",
     rowPlace: cols === 1 ? "3cqw" : cols === 2 ? "3cqw" : "2.6cqw",
     rowName: cols === 1 ? "2.6cqw" : cols === 2 ? "2.8cqw" : "2.2cqw",
-    rowTeamAbbr: cols === 1 ? "1.4cqw" : cols === 2 ? "1.2cqw" : "1cqw",
     rowMark: cols === 1 ? "3cqw" : cols === 2 ? "3cqw" : "2.6cqw",
-    rowHeight: cols === 1 ? "8.5cqh" : cols === 2 ? "8cqh" : "7.5cqh",
+    rowHeight: cols === 1 ? "9cqh" : cols === 2 ? "8.5cqh" : "8cqh",
     logo: cols === 1 ? "3.5cqw" : cols === 2 ? "3.2cqw" : "2.6cqw",
-    headshot: cols === 1 ? "26cqh" : cols === 2 ? "24cqh" : "22cqh",
-    headshotW: cols === 1 ? "10cqw" : cols === 2 ? "10cqw" : "8cqw",
+    headshot: cols === 1 ? "30cqh" : cols === 2 ? "28cqh" : "26cqh",
+    headshotW: cols === 1 ? "12cqw" : cols === 2 ? "11cqw" : "9cqw",
     spotLogo: cols === 1 ? "8cqw" : cols === 2 ? "6cqw" : "4.5cqw",
-    spotHeight: cols === 1 ? "30cqh" : cols === 2 ? "28cqh" : "26cqh",
+    spotHeight: cols === 1 ? "34cqh" : cols === 2 ? "32cqh" : "30cqh",
     meetLogo: cols === 1 ? "3.5cqw" : cols === 2 ? "2.8cqw" : "2.2cqw",
   };
 
@@ -144,7 +311,7 @@ export function MultiFieldBoard({
         flexShrink: 0,
         display: "flex",
         alignItems: "center",
-        padding: "0.6cqh 1.2cqw",
+        padding: "1cqh 1.2cqw",
         gap: "1.2cqw",
         background: "linear-gradient(180deg, rgba(255,255,255,0.04) 0%, transparent 100%)",
         position: "relative",
@@ -179,8 +346,8 @@ export function MultiFieldBoard({
         </div>
 
         {/* Info */}
-        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "0.1cqh" }}>
-          {/* Name — no truncation, auto-fits */}
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "0.2cqh" }}>
+          {/* Name */}
           <div style={{
             fontSize: s.spotName,
             fontWeight: 800,
@@ -208,7 +375,7 @@ export function MultiFieldBoard({
 
           {/* Mark + secondary */}
           {athlete.mark && (
-            <div style={{ display: "flex", alignItems: "baseline", gap: "0.8cqw", marginTop: "0.1cqh" }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: "0.8cqw", marginTop: "0.3cqh" }}>
               <span style={{
                 fontSize: s.spotMark,
                 fontWeight: 800,
@@ -225,13 +392,13 @@ export function MultiFieldBoard({
           )}
 
           {/* Place + Attempt */}
-          <div style={{ display: "flex", alignItems: "center", gap: "1cqw", marginTop: "0.1cqh" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "1cqw", marginTop: "0.3cqh" }}>
             {athlete.place != null && athlete.mark && (
               <span style={{
                 fontSize: s.spotDetail,
                 fontWeight: 700,
-                color: accent,
-                background: "rgba(255,255,255,0.1)",
+                color: "#111",
+                background: GOLD,
                 padding: "0.15cqh 0.6cqw",
                 borderRadius: "0.3cqh",
               }}>
@@ -284,98 +451,8 @@ export function MultiFieldBoard({
     );
   }
 
-  /** Render a standings row */
-  function StandingsRow({ entry, rowIdx }: { entry: MultiFieldEntry; rowIdx: number }) {
-    const isEven = rowIdx % 2 === 0;
-    const hasMark = entry.bestMark && entry.bestMark !== '' && entry.bestMark !== 'DNS';
-
-    return (
-      <div
-        style={{
-          height: s.rowHeight,
-          maxHeight: s.rowHeight,
-          flex: "0 1 auto",
-          display: "flex",
-          alignItems: "center",
-          background: isEven ? "rgba(255,255,255,0.02)" : "transparent",
-          borderBottom: "1px solid rgba(255,255,255,0.06)",
-          padding: "0 0.8cqw",
-        }}
-      >
-        {/* Place */}
-        <span style={{
-          fontSize: s.rowPlace,
-          fontWeight: 800,
-          color: entry.isDNS ? "rgba(255,255,255,0.3)" : hasMark ? "#fff" : "rgba(255,255,255,0.3)",
-          width: cols === 1 ? "3cqw" : cols === 2 ? "3.5cqw" : "3cqw",
-          textAlign: "center",
-          flexShrink: 0,
-          fontFamily: "'Oswald', sans-serif",
-        }}>
-          {entry.isDNS ? "—" : (entry.place != null ? entry.place : "")}
-        </span>
-
-        {/* Team logo */}
-        <div style={{
-          width: s.logo,
-          flexShrink: 0,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          marginLeft: "0.4cqw",
-          marginRight: "0.6cqw",
-        }}>
-          {entry.teamLogoUrl ? (
-            <img
-              src={entry.teamLogoUrl}
-              alt=""
-              style={{ height: s.logo, width: "auto", objectFit: "contain" }}
-            />
-          ) : null}
-        </div>
-
-        {/* Name */}
-        <span style={{
-          flex: 1,
-          fontSize: s.rowName,
-          fontWeight: 700,
-          color: entry.isDNS ? "rgba(255,255,255,0.35)" : "#fff",
-          textTransform: "uppercase",
-          letterSpacing: "0.02em",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-        }}>
-          {entry.firstName?.charAt(0) ? `${entry.firstName.charAt(0)}. ` : ""}{entry.lastName}
-        </span>
-
-        {/* Mark */}
-        <span style={{
-          fontSize: s.rowMark,
-          fontWeight: 700,
-          color: entry.isDNS ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.9)",
-          fontFamily: "'Oswald', sans-serif",
-          flexShrink: 0,
-          textAlign: "right",
-          minWidth: cols === 1 ? "6cqw" : cols === 2 ? "7cqw" : "6cqw",
-        }}>
-          {entry.isDNS ? "DNS" : entry.bestMark}
-        </span>
-      </div>
-    );
-  }
-
   /** Render one event column */
   function EventColumn({ evt, colIdx }: { evt: MultiFieldEvent; colIdx: number }) {
-    // Limit rows to prevent overflow: single-col shows 10 (5+5), multi-col caps at 7
-    const maxVisible = cols === 1 ? 10 : Math.min(maxRows, 7);
-    const standingsToShow = cols === 1
-      ? evt.standings.slice(0, maxVisible)
-      : evt.standings.slice(0, maxVisible);
-
-    const leftStandings = cols === 1 ? standingsToShow.slice(0, 5) : standingsToShow;
-    const rightStandings = cols === 1 ? standingsToShow.slice(5, 10) : [];
-
     return (
       <div style={{
         flex: 1,
@@ -383,6 +460,7 @@ export function MultiFieldBoard({
         flexDirection: "column",
         minWidth: 0,
         minHeight: 0,
+        height: "100%",
         borderRight: colIdx < cols - 1 ? "2px solid rgba(255,255,255,0.08)" : undefined,
       }}>
         {/* Event name header */}
@@ -396,7 +474,6 @@ export function MultiFieldBoard({
           position: "relative",
           overflow: "hidden",
         }}>
-          {/* Subtle pattern overlay */}
           <div style={{
             position: "absolute",
             inset: 0,
@@ -416,7 +493,6 @@ export function MultiFieldBoard({
             {evt.eventName}
           </span>
 
-          {/* Meet logo in header corner */}
           {meetLogoUrl && colIdx === 0 && (
             <img
               src={meetLogoUrl}
@@ -446,34 +522,37 @@ export function MultiFieldBoard({
         {/* Spotlight */}
         <Spotlight athlete={evt.currentAthlete} evt={evt} />
 
-        {/* Divider between spotlight and standings */}
+        {/* Divider */}
         <div style={{
           height: "2px",
           flexShrink: 0,
           background: `linear-gradient(90deg, transparent, ${accent}80, transparent)`,
         }} />
 
-        {/* Standings */}
+        {/* Standings — fills remaining space with smooth scroll if needed */}
         {cols === 1 ? (
           <div style={{ flex: 1, display: "flex", minHeight: 0, overflow: "hidden" }}>
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
-              {leftStandings.map((entry, i) => (
-                <StandingsRow key={`${entry.bibNumber}-${i}`} entry={entry} rowIdx={i} />
-              ))}
-            </div>
-            <div style={{ width: "2px", background: "rgba(255,255,255,0.06)" }} />
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
-              {rightStandings.map((entry, i) => (
-                <StandingsRow key={`${entry.bibNumber}-${i + 6}`} entry={entry} rowIdx={i + 6} />
-              ))}
-            </div>
+            <ScrollingStandings
+              entries={evt.standings.slice(0, Math.ceil(evt.standings.length / 2))}
+              cols={cols}
+              s={s}
+              accent={accent}
+            />
+            <div style={{ width: "2px", flexShrink: 0, background: "rgba(255,255,255,0.06)" }} />
+            <ScrollingStandings
+              entries={evt.standings.slice(Math.ceil(evt.standings.length / 2))}
+              cols={cols}
+              s={s}
+              accent={accent}
+            />
           </div>
         ) : (
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
-            {leftStandings.map((entry, i) => (
-              <StandingsRow key={`${entry.bibNumber}-${i}`} entry={entry} rowIdx={i} />
-            ))}
-          </div>
+          <ScrollingStandings
+            entries={evt.standings}
+            cols={cols}
+            s={s}
+            accent={accent}
+          />
         )}
       </div>
     );

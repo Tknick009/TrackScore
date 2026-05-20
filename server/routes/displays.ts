@@ -3151,6 +3151,10 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           continue;
         }
 
+        // Detect multi-event from DB flag OR event name
+        const eventNameForDetect = standings.eventName || dbEvent?.name || '';
+        const isMulti = (dbEvent as any)?.isMultiEvent === true || /\b(decathlon|heptathlon|pentathlon|dec |hep |pent )\b/i.test(eventNameForDetect) || (evtNum > 1000);
+
         // Build enriched standings
         const enrichedStandings = [];
         for (const a of standings.athletes) {
@@ -3179,7 +3183,6 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           const matchIdx = standings.athletes.findIndex(a => String(a.bibNumber) === bibStr);
           const matchRaw = matchIdx >= 0 ? standings.athletes[matchIdx] : null;
           const matchEnr = matchIdx >= 0 ? enrichedStandings[matchIdx] : null;
-          const isMulti = (dbEvent as any)?.isMultiEvent === true;
           
           if (matchEnr && matchRaw) {
             // Use the LIVE mark from TCP, not the LFF best mark
@@ -3287,7 +3290,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           eventName: standings.eventName || dbEvent?.name || `Event ${evtNum}`,
           eventType: dbEvent?.eventType || (standings.isVerticalEvent ? 'vertical' : 'horizontal'),
           isVertical: standings.isVerticalEvent,
-          isMultiEvent: (dbEvent as any)?.isMultiEvent === true,
+          isMultiEvent: isMulti,
           currentAthlete: currentAthleteData,
           previousAthlete: previousAthleteData,
           standings: enrichedStandings,
@@ -3497,6 +3500,10 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
                 eventsData.push({ eventNumber: evtNum, eventName: dbEvent?.name || `Event ${evtNum}`, eventType: '', isVertical: false, currentAthlete: liveCurrentAthl, standings: [] });
                 continue;
               }
+              // Detect multi-event from DB flag OR event name
+              const autoEventName = standings.eventName || dbEvent?.name || '';
+              const isMulti = (dbEvent as any)?.isMultiEvent === true || /\b(decathlon|heptathlon|pentathlon|dec |hep |pent )\b/i.test(autoEventName) || (evtNum > 1000);
+
               const enriched = standings.athletes.map(a => ({
                 place: a.bestMark != null ? (a.overallPlace || null) : null, bibNumber: a.bibNumber, firstName: a.firstName, lastName: a.lastName,
                 team: a.team || '', teamLogoUrl: resolveTeamLogo(a.team), headshotUrl: resolveHeadshot(a.bibNumber),
@@ -3513,7 +3520,6 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
                 const matchIdx = standings.athletes.findIndex(a => String(a.bibNumber) === bibStr);
                 const matchRaw = matchIdx >= 0 ? standings.athletes[matchIdx] : null;
                 const matchEnr = matchIdx >= 0 ? enriched[matchIdx] : null;
-                const isMulti = (dbEvent as any)?.isMultiEvent === true;
                 
                 if (matchEnr && matchRaw) {
                   // Use the LIVE mark from TCP, not the LFF best mark
@@ -3568,8 +3574,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
                 const topRaw = topIdx >= 0 ? standings.athletes[topIdx] : null;
                 const topEnr = topIdx >= 0 ? enriched[topIdx] : null;
                 if (topEnr && topRaw) {
-                  const isMulti = (dbEvent as any)?.isMultiEvent === true;
-                  let englishMark = '';
+                    let englishMark = '';
                   if (!isMulti && topRaw.bestMark != null) {
                     englishMark = metersToEnglishFraction(topRaw.bestMark);
                   }
@@ -3615,7 +3620,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
               eventsData.push({
                 eventNumber: evtNum, eventName: standings.eventName || dbEvent?.name || `Event ${evtNum}`,
                 eventType: dbEvent?.eventType || '', isVertical: standings.isVerticalEvent,
-                isMultiEvent: (dbEvent as any)?.isMultiEvent === true,
+                isMultiEvent: isMulti,
                 currentAthlete: currentAthl, previousAthlete: previousAthl, standings: enriched,
               });
             }
