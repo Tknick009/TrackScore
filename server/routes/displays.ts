@@ -3125,7 +3125,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           const teamLogo = resolveTeamLogo(a.team);
           const headshot = resolveHeadshot(a.bibNumber);
           enrichedStandings.push({
-            place: a.overallPlace || null,
+            place: a.bestMark != null ? (a.overallPlace || null) : null,
             bibNumber: a.bibNumber,
             firstName: a.firstName,
             lastName: a.lastName,
@@ -3387,7 +3387,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
                 continue;
               }
               const enriched = standings.athletes.map(a => ({
-                place: a.overallPlace || null, bibNumber: a.bibNumber, firstName: a.firstName, lastName: a.lastName,
+                place: a.bestMark != null ? (a.overallPlace || null) : null, bibNumber: a.bibNumber, firstName: a.firstName, lastName: a.lastName,
                 team: a.team || '', teamLogoUrl: resolveTeamLogo(a.team), headshotUrl: resolveHeadshot(a.bibNumber),
                 bestMark: a.bestMarkFormatted || '', isDNS: a.isDNS,
               }));
