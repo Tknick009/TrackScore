@@ -645,6 +645,12 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           return res.status(400).json({ error: `Invalid display type. Must be one of: ${validDisplayTypes.join(', ')}` });
         }
         await storage.updateDisplayDeviceType(id, displayType, undefined, displayWidth, displayHeight);
+      } else if (displayWidth !== undefined || displayHeight !== undefined) {
+        // Update display dimensions without changing display type (e.g., multi-panel combined resolution)
+        const currentDevice = await storage.getDisplayDevice(id);
+        if (currentDevice) {
+          await storage.updateDisplayDeviceType(id, currentDevice.displayType || 'P6', undefined, displayWidth, displayHeight);
+        }
       }
 
       const updates: Partial<{ pagingSize: number; pagingInterval: number; fieldPort: number | null; isBigBoard: boolean; displayScale: number }> = {};
@@ -698,6 +704,8 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           pagingInterval: finalDevice?.pagingInterval,
           displayMode: finalDevice?.displayMode,
           displayScale: finalDevice?.displayScale,
+          displayWidth: finalDevice?.displayWidth,
+          displayHeight: finalDevice?.displayHeight,
           fieldPanels: fieldPanels !== undefined ? (Array.isArray(fieldPanels) ? fieldPanels : null) : undefined,
         }
       } as WSMessage);

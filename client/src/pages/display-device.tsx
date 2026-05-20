@@ -580,6 +580,12 @@ export default function DisplayDevice() {
               if (deviceData.fieldPanels !== undefined) {
                 setFieldPanels(Array.isArray(deviceData.fieldPanels) ? deviceData.fieldPanels : null);
               }
+              if (deviceData.displayWidth !== undefined) {
+                setCustomWidth(deviceData.displayWidth);
+              }
+              if (deviceData.displayHeight !== undefined) {
+                setCustomHeight(deviceData.displayHeight);
+              }
               // Restore persisted content mode on reconnection
               // This prevents defaulting to track mode when device reconnects or server restarts
               if (deviceData.contentMode && deviceData.contentMode !== 'lynx') {
@@ -704,6 +710,14 @@ export default function DisplayDevice() {
               if (data.fieldPanels !== undefined) {
                 setFieldPanels(Array.isArray(data.fieldPanels) ? data.fieldPanels : null);
                 console.log(`[Display] Field panels updated:`, data.fieldPanels);
+              }
+              if (data.displayWidth !== undefined) {
+                setCustomWidth(data.displayWidth);
+                console.log(`[Display] Display width updated to: ${data.displayWidth}`);
+              }
+              if (data.displayHeight !== undefined) {
+                setCustomHeight(data.displayHeight);
+                console.log(`[Display] Display height updated to: ${data.displayHeight}`);
               }
             }
           }
@@ -1612,8 +1626,8 @@ export default function DisplayDevice() {
       pagingSize={state.pagingSize}
       pagingInterval={state.pagingInterval}
       maxPages={state.maxPages}
-      customWidth={state.displayType === 'Custom' ? customWidth : undefined}
-      customHeight={state.displayType === 'Custom' ? customHeight : undefined}
+      customWidth={(state.displayType === 'Custom' || (fieldPanels && fieldPanels.length > 1)) ? customWidth : undefined}
+      customHeight={(state.displayType === 'Custom' || (fieldPanels && fieldPanels.length > 1)) ? customHeight : undefined}
       fieldPort={fieldPort}
       fieldPanels={fieldPanels}
       displayScale={displayScale}
@@ -2771,16 +2785,18 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     const fixedHeight = displayType === 'Custom' && customHeight ? customHeight : resolution.height;
 
     // Multi-panel mode: each panel is a full P10/P6 display side by side.
-    // Uses 100vw/100vh so the panels fill the entire browser window.
-    // The LED controller should present all daisy-chained boards as one wide
-    // display to Windows, then open Chrome in fullscreen (F11).
+    // Each panel uses the BASE display resolution (e.g., 288×144 for P6).
+    // The combined width (e.g., 864 for 3×P6) is set via displayWidth on the device.
     if (fieldPanels && fieldPanels.length > 1) {
       const panelCount = fieldPanels.length;
+      // Use base resolution per panel (not the combined customWidth)
+      const basePanelWidth = resolution.width;
+      const basePanelHeight = resolution.height;
       return (
         <MultiPanelContainer
           panelCount={panelCount}
-          panelPixelWidth={fixedWidth}
-          panelPixelHeight={fixedHeight}
+          panelPixelWidth={basePanelWidth}
+          panelPixelHeight={basePanelHeight}
           scaleClass={scaleClass}
           scaleVarStyle={scaleVarStyle}
         >
@@ -2788,8 +2804,8 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             <FieldPanel
               key={`panel-${idx}-${panel.port}`}
               port={panel.port}
-              width={fixedWidth}
-              height={fixedHeight}
+              width={basePanelWidth}
+              height={basePanelHeight}
               meetId={meetId}
               liveEventDataByPort={liveEventDataByPort}
               displayType={displayType}

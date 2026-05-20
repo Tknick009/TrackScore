@@ -50,6 +50,7 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import type { Event, SelectLayoutScene, SelectSceneTemplateMapping } from '@shared/schema';
+import { DISPLAY_CAPABILITIES, type DisplayType } from '@/lib/displayCapabilities';
 
 function getEventDisplayStatus(event: Event): string {
   if (event.status === "in_progress") return 'live';
@@ -2269,8 +2270,17 @@ export default function DisplayControlPage() {
                                   size="sm"
                                   onClick={async () => {
                                     const panels = fieldPanelConfig[selectedDevice.id];
-                                    await apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}`, { fieldPanels: panels });
-                                    toast({ title: 'Multi-Panel set', description: `${panels!.length} panels configured` });
+                                    const devType = (selectedDevice.displayType || 'P10') as DisplayType;
+                                    const cap = DISPLAY_CAPABILITIES[devType];
+                                    const baseWidth = selectedDevice.displayWidth || cap?.resolution.width || 288;
+                                    const baseHeight = selectedDevice.displayHeight || cap?.resolution.height || 144;
+                                    const combinedWidth = baseWidth * panels!.length;
+                                    await apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}`, {
+                                      fieldPanels: panels,
+                                      displayWidth: combinedWidth,
+                                      displayHeight: baseHeight,
+                                    });
+                                    toast({ title: 'Multi-Panel set', description: `${panels!.length} panels → ${combinedWidth}×${baseHeight}` });
                                   }}
                                 >
                                   <Send className="w-3 h-3 mr-1" />
@@ -2288,13 +2298,21 @@ export default function DisplayControlPage() {
                                 variant="ghost"
                                 className="text-xs"
                                 onClick={async () => {
-                                  await apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}`, { fieldPanels: null });
+                                  const devType = (selectedDevice.displayType || 'P10') as DisplayType;
+                                  const cap = DISPLAY_CAPABILITIES[devType];
+                                  const origWidth = cap?.resolution.width || 288;
+                                  const origHeight = cap?.resolution.height || 144;
+                                  await apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}`, {
+                                    fieldPanels: null,
+                                    displayWidth: origWidth,
+                                    displayHeight: origHeight,
+                                  });
                                   setFieldPanelConfig(prev => {
                                     const next = { ...prev };
                                     delete next[selectedDevice.id];
                                     return next;
                                   });
-                                  toast({ title: 'Single panel', description: 'Multi-panel mode disabled' });
+                                  toast({ title: 'Single panel', description: `Reset to ${origWidth}×${origHeight}` });
                                 }}
                               >
                                 Reset to single panel
