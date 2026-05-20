@@ -3583,13 +3583,15 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
               // Track previousAthlete in auto-refresh path
               let previousAthl: any = null;
               const prevKey = `${deviceId}:${evtNum}`;
+              // Determine current bib from live data or LFF leader
+              const currentBib = liveAthlete?.bib ? Number(liveAthlete.bib) : (standings.athletes.find(a => !a.isDNS)?.bibNumber || 0);
               if (currentAthl) {
                 const prevState = multiFieldPreviousAthletes.get(prevKey);
-                if (prevState && prevState.bibNumber !== topRaw?.bibNumber) {
+                if (prevState && prevState.bibNumber !== currentBib) {
                   previousAthl = prevState.athleteData;
                 }
                 multiFieldPreviousAthletes.set(prevKey, {
-                  bibNumber: topRaw?.bibNumber || 0,
+                  bibNumber: currentBib,
                   athleteData: currentAthl,
                 });
               }
