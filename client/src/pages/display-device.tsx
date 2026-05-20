@@ -1840,16 +1840,17 @@ function FieldPanel({ port, width, height, meetId, liveEventDataByPort, displayT
           </CurtainLogoBackground>
         ) : (
           <div
+            className="bg-black flex items-center justify-center"
             style={{
               width: `${width}px`,
               height: `${height}px`,
-              background: `linear-gradient(135deg, ${primaryColor} 0%, ${secondaryColor} 100%)`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              fontFamily: "'Barlow Semi Condensed', sans-serif",
             }}
           >
-            <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#22c55e' }} />
+            <div className="text-white text-center">
+              <div className="w-3 h-3 rounded-full mx-auto mb-2 bg-green-500 animate-pulse" />
+              <p className="text-sm font-bold" style={{ color: meet?.textColor || '#FFFFFF' }}>{displayType}</p>
+            </div>
           </div>
         )}
       </div>
