@@ -3103,22 +3103,43 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         return athlete ? (headshotMap.get(athlete.id) || null) : null;
       };
 
+      // Access live "athlete up" data from the TCP field handler
+      const liveAthletes = (globalThis as any).multiFieldLiveAthletes as Map<number, any> | undefined;
+      
       for (const evtNum of eventNumbers) {
         let standings = await mergeFlightsForEvent(lynxDir, evtNum);
         // For sub-events (e.g., 42002), also try the parent event number (42)
+        const parentEvtNum = evtNum > 1000 ? Math.floor(evtNum / 1000) : evtNum;
         if ((!standings || standings.athletes.length === 0) && evtNum > 1000) {
-          const parentEvtNum = Math.floor(evtNum / 1000);
           standings = await mergeFlightsForEvent(lynxDir, parentEvtNum);
         }
         const dbEvent = allEvents.find((e: any) => e.eventNumber === evtNum);
 
         if (!standings || standings.athletes.length === 0) {
+          // Even without LFF standings, check if we have a live athlete up
+          const liveAthlete = liveAthletes?.get(evtNum) || liveAthletes?.get(parentEvtNum);
+          let liveCurrentAthl: any = null;
+          if (liveAthlete && Date.now() - liveAthlete.timestamp < 120000) {
+            const nameParts = (liveAthlete.name || '').split(/,\s*|,/);
+            liveCurrentAthl = {
+              firstName: nameParts.length > 1 ? nameParts[1].trim() : '',
+              lastName: nameParts.length > 1 ? nameParts[0].trim() : liveAthlete.name,
+              team: liveAthlete.affiliation || '',
+              teamLogoUrl: resolveTeamLogo(liveAthlete.affiliation),
+              headshotUrl: resolveHeadshot(Number(liveAthlete.bib) || 0),
+              place: null,
+              mark: liveAthlete.mark || '',
+              englishMark: liveAthlete.markConverted || '',
+              attemptNum: Number(liveAthlete.attemptNumber) || 1,
+              attemptTotal: 6,
+            };
+          }
           eventsData.push({
             eventNumber: evtNum,
             eventName: dbEvent?.name || `Event ${evtNum}`,
             eventType: dbEvent?.eventType || '',
             isVertical: false,
-            currentAthlete: null,
+            currentAthlete: liveCurrentAthl,
             standings: [],
           });
           continue;
@@ -3142,83 +3163,112 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           });
         }
 
-        // The first non-DNS athlete with attempts is the "current" spotlight (approximate)
-        // In real-time mode, this would come from the field event session
-        const topAthleteIdx = standings.athletes.findIndex(a => !a.isDNS);
-        const topAthleteRaw = topAthleteIdx >= 0 ? standings.athletes[topAthleteIdx] : null;
-        const topAthlete = topAthleteIdx >= 0 ? enrichedStandings[topAthleteIdx] : null;
-
-        // Build detailed current athlete info
+        // Use live "athlete up" data for currentAthlete if available and recent (< 2 min)
+        const liveAthlete = liveAthletes?.get(evtNum) || liveAthletes?.get(parentEvtNum);
         let currentAthleteData: any = null;
-        if (topAthlete && topAthleteRaw) {
-          // Compute English mark (feet-inches with quarter-inch fractions)
-          let englishMark = '';
-          if (topAthleteRaw.bestMark != null) {
-            englishMark = metersToEnglishFraction(topAthleteRaw.bestMark);
-          }
-
-          // Figure out attempt info
-          const validAttempts = topAthleteRaw.attempts.filter(att => att.mark !== null || att.isFoul || att.isPassed || att.isCleared || att.isMissed);
-          const attemptCount = validAttempts.length;
-          const totalPossible = standings.isVerticalEvent ? (standings.heights?.length || 0) : 6;
-
-          // Build X/O string for verticals — only the CURRENT height's attempts
-          let attemptsDisplay: string[] = [];
-          let currentHeight = '';
-          if (standings.isVerticalEvent && topAthleteRaw.attempts.length > 0) {
-            // The last attempt entry is the current height
-            const lastAtt = topAthleteRaw.attempts[topAthleteRaw.attempts.length - 1];
-            // Build the X/O string for just this height
-            if (lastAtt.isCleared) {
-              const misses = lastAtt.missCount || 0;
-              attemptsDisplay.push('X'.repeat(misses) + 'O');
-            } else if (lastAtt.isMissed && (lastAtt.missCount || 0) >= 3) {
-              attemptsDisplay.push('XXX');
-            } else if (lastAtt.isMissed) {
-              attemptsDisplay.push('X'.repeat(lastAtt.missCount || 1));
-            } else if (lastAtt.isPassed) {
-              attemptsDisplay.push('P');
-            }
-            // Show the current height value
-            if (standings.heights && standings.heights.length > 0) {
-              const heightIdx = Math.min(topAthleteRaw.attempts.length - 1, standings.heights.length - 1);
-              currentHeight = standings.heights[heightIdx].toFixed(2);
-            }
-          }
-
-          // For multi-events, show points instead of English mark
+        
+        if (liveAthlete && Date.now() - liveAthlete.timestamp < 120000) {
+          // Find this athlete in the standings to get enriched data (logo, headshot, place)
+          const bibStr = String(liveAthlete.bib || '');
+          const matchIdx = standings.athletes.findIndex(a => String(a.bibNumber) === bibStr);
+          const matchRaw = matchIdx >= 0 ? standings.athletes[matchIdx] : null;
+          const matchEnr = matchIdx >= 0 ? enrichedStandings[matchIdx] : null;
           const isMulti = (dbEvent as any)?.isMultiEvent === true;
-          const points = isMulti && topAthleteRaw.bestMark != null
-            ? Math.round(topAthleteRaw.bestMark)
-            : null;
-
-          currentAthleteData = {
-            firstName: topAthlete.firstName,
-            lastName: topAthlete.lastName,
-            team: topAthlete.team,
-            teamLogoUrl: topAthlete.teamLogoUrl,
-            headshotUrl: topAthlete.headshotUrl,
-            place: topAthlete.place,
-            mark: topAthlete.bestMark,
-            englishMark: isMulti ? undefined : englishMark,
-            points,
-            attemptNum: attemptCount,
-            attemptTotal: totalPossible,
-            attemptsDisplay,
-            currentHeight,
-          };
+          
+          if (matchEnr && matchRaw) {
+            let englishMark = '';
+            if (!isMulti && matchRaw.bestMark != null) {
+              englishMark = metersToEnglishFraction(matchRaw.bestMark);
+            }
+            const points = isMulti && matchRaw.bestMark != null ? Math.round(matchRaw.bestMark) : null;
+            const validAtt = matchRaw.attempts.filter(att => att.mark !== null || att.isFoul || att.isPassed || att.isCleared || att.isMissed);
+            let attemptsDisplay: string[] = [];
+            let curHeight = '';
+            if (standings.isVerticalEvent && matchRaw.attempts.length > 0) {
+              const lastAtt = matchRaw.attempts[matchRaw.attempts.length - 1];
+              if (lastAtt.isCleared) { attemptsDisplay.push('X'.repeat(lastAtt.missCount || 0) + 'O'); }
+              else if (lastAtt.isMissed && (lastAtt.missCount || 0) >= 3) { attemptsDisplay.push('XXX'); }
+              else if (lastAtt.isMissed) { attemptsDisplay.push('X'.repeat(lastAtt.missCount || 1)); }
+              else if (lastAtt.isPassed) { attemptsDisplay.push('P'); }
+              if (standings.heights && standings.heights.length > 0) {
+                const hIdx = Math.min(matchRaw.attempts.length - 1, standings.heights.length - 1);
+                curHeight = standings.heights[hIdx].toFixed(2);
+              }
+            }
+            currentAthleteData = {
+              firstName: matchEnr.firstName, lastName: matchEnr.lastName, team: matchEnr.team,
+              teamLogoUrl: matchEnr.teamLogoUrl, headshotUrl: matchEnr.headshotUrl, place: matchEnr.place,
+              mark: matchEnr.bestMark, englishMark: isMulti ? undefined : englishMark, points,
+              attemptNum: Number(liveAthlete.attemptNumber) || validAtt.length,
+              attemptTotal: standings.isVerticalEvent ? (standings.heights?.length || 0) : 6,
+              attemptsDisplay, currentHeight: curHeight,
+            };
+          } else {
+            // Athlete not found in LFF yet — build from live data
+            const nameParts = (liveAthlete.name || '').split(/,\s*|,/);
+            currentAthleteData = {
+              firstName: nameParts.length > 1 ? nameParts[1].trim() : '',
+              lastName: nameParts.length > 1 ? nameParts[0].trim() : liveAthlete.name,
+              team: liveAthlete.affiliation || '',
+              teamLogoUrl: resolveTeamLogo(liveAthlete.affiliation),
+              headshotUrl: resolveHeadshot(Number(liveAthlete.bib) || 0),
+              place: null,
+              mark: liveAthlete.mark || '',
+              englishMark: liveAthlete.markConverted || '',
+              attemptNum: Number(liveAthlete.attemptNumber) || 1,
+              attemptTotal: standings.isVerticalEvent ? (standings.heights?.length || 0) : 6,
+            };
+          }
+        } else {
+          // No live data — fall back to LFF leader
+          const topAthleteIdx = standings.athletes.findIndex(a => !a.isDNS);
+          const topAthleteRaw = topAthleteIdx >= 0 ? standings.athletes[topAthleteIdx] : null;
+          const topAthlete = topAthleteIdx >= 0 ? enrichedStandings[topAthleteIdx] : null;
+          if (topAthlete && topAthleteRaw) {
+            const isMulti = (dbEvent as any)?.isMultiEvent === true;
+            let englishMark = '';
+            if (!isMulti && topAthleteRaw.bestMark != null) {
+              englishMark = metersToEnglishFraction(topAthleteRaw.bestMark);
+            }
+            const points = isMulti && topAthleteRaw.bestMark != null ? Math.round(topAthleteRaw.bestMark) : null;
+            const validAttempts = topAthleteRaw.attempts.filter(att => att.mark !== null || att.isFoul || att.isPassed || att.isCleared || att.isMissed);
+            const attemptCount = validAttempts.length;
+            const totalPossible = standings.isVerticalEvent ? (standings.heights?.length || 0) : 6;
+            let attemptsDisplay: string[] = [];
+            let currentHeight = '';
+            if (standings.isVerticalEvent && topAthleteRaw.attempts.length > 0) {
+              const lastAtt = topAthleteRaw.attempts[topAthleteRaw.attempts.length - 1];
+              if (lastAtt.isCleared) { attemptsDisplay.push('X'.repeat(lastAtt.missCount || 0) + 'O'); }
+              else if (lastAtt.isMissed && (lastAtt.missCount || 0) >= 3) { attemptsDisplay.push('XXX'); }
+              else if (lastAtt.isMissed) { attemptsDisplay.push('X'.repeat(lastAtt.missCount || 1)); }
+              else if (lastAtt.isPassed) { attemptsDisplay.push('P'); }
+              if (standings.heights && standings.heights.length > 0) {
+                const hIdx = Math.min(topAthleteRaw.attempts.length - 1, standings.heights.length - 1);
+                currentHeight = standings.heights[hIdx].toFixed(2);
+              }
+            }
+            currentAthleteData = {
+              firstName: topAthlete.firstName, lastName: topAthlete.lastName, team: topAthlete.team,
+              teamLogoUrl: topAthlete.teamLogoUrl, headshotUrl: topAthlete.headshotUrl, place: topAthlete.place,
+              mark: topAthlete.bestMark, englishMark: isMulti ? undefined : englishMark, points,
+              attemptNum: attemptCount, attemptTotal: totalPossible,
+              attemptsDisplay, currentHeight,
+            };
+          }
         }
 
         // Track previousAthlete: when currentAthlete changes, shift old one to previous
         let previousAthleteData: any = null;
         const devicePrevKey = `${deviceId}:${evtNum}`;
+        const liveBib = liveAthlete?.bib ? Number(liveAthlete.bib) : null;
         if (currentAthleteData) {
           const prevState = multiFieldPreviousAthletes.get(devicePrevKey);
-          if (prevState && prevState.bibNumber !== topAthleteRaw?.bibNumber) {
+          const currentBib = liveBib || standings.athletes.find(a => !a.isDNS)?.bibNumber || 0;
+          if (prevState && prevState.bibNumber !== currentBib) {
             previousAthleteData = prevState.athleteData;
           }
           multiFieldPreviousAthletes.set(devicePrevKey, {
-            bibNumber: topAthleteRaw?.bibNumber || 0,
+            bibNumber: currentBib,
             athleteData: currentAthleteData,
           });
         }
@@ -3394,16 +3444,37 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
             };
 
             const eventsData: any[] = [];
+            // Access live "athlete up" data from the TCP field handler
+            const liveAthletes = (globalThis as any).multiFieldLiveAthletes as Map<number, any> | undefined;
+            
             for (const evtNum of multiFieldEvents) {
               let standings = await mergeFlightsForEvent(lynxDir, evtNum);
               // For sub-events (e.g., 42002), also try the parent event number (42)
+              const parentEvtNum = evtNum > 1000 ? Math.floor(evtNum / 1000) : evtNum;
               if ((!standings || standings.athletes.length === 0) && evtNum > 1000) {
-                const parentEvtNum = Math.floor(evtNum / 1000);
                 standings = await mergeFlightsForEvent(lynxDir, parentEvtNum);
               }
               const dbEvent = allEvents.find((e: any) => e.eventNumber === evtNum);
               if (!standings || standings.athletes.length === 0) {
-                eventsData.push({ eventNumber: evtNum, eventName: dbEvent?.name || `Event ${evtNum}`, eventType: '', isVertical: false, currentAthlete: null, standings: [] });
+                // Even without LFF standings, check if we have a live athlete up
+                const liveAthlete = liveAthletes?.get(evtNum) || liveAthletes?.get(parentEvtNum);
+                let liveCurrentAthl: any = null;
+                if (liveAthlete && Date.now() - liveAthlete.timestamp < 120000) {
+                  const nameParts = (liveAthlete.name || '').split(/,\s*|,/);
+                  liveCurrentAthl = {
+                    firstName: nameParts.length > 1 ? nameParts[1].trim() : '',
+                    lastName: nameParts.length > 1 ? nameParts[0].trim() : liveAthlete.name,
+                    team: liveAthlete.affiliation || '',
+                    teamLogoUrl: resolveTeamLogo(liveAthlete.affiliation),
+                    headshotUrl: resolveHeadshot(Number(liveAthlete.bib) || 0),
+                    place: null,
+                    mark: liveAthlete.mark || '',
+                    englishMark: liveAthlete.markConverted || '',
+                    attemptNum: Number(liveAthlete.attemptNumber) || 1,
+                    attemptTotal: 6,
+                  };
+                }
+                eventsData.push({ eventNumber: evtNum, eventName: dbEvent?.name || `Event ${evtNum}`, eventType: '', isVertical: false, currentAthlete: liveCurrentAthl, standings: [] });
                 continue;
               }
               const enriched = standings.athletes.map(a => ({
@@ -3411,38 +3482,97 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
                 team: a.team || '', teamLogoUrl: resolveTeamLogo(a.team), headshotUrl: resolveHeadshot(a.bibNumber),
                 bestMark: a.bestMarkFormatted || '', isDNS: a.isDNS,
               }));
-              const topIdx = standings.athletes.findIndex(a => !a.isDNS);
-              const topRaw = topIdx >= 0 ? standings.athletes[topIdx] : null;
-              const topEnr = topIdx >= 0 ? enriched[topIdx] : null;
+              
+              // Use live "athlete up" data for currentAthlete if available and recent (< 2 min)
+              const liveAthlete = liveAthletes?.get(evtNum) || liveAthletes?.get(parentEvtNum);
               let currentAthl: any = null;
-              if (topEnr && topRaw) {
+              
+              if (liveAthlete && Date.now() - liveAthlete.timestamp < 120000) {
+                // Find this athlete in the standings to get enriched data (logo, headshot, place)
+                const bibStr = String(liveAthlete.bib || '');
+                const matchIdx = standings.athletes.findIndex(a => String(a.bibNumber) === bibStr);
+                const matchRaw = matchIdx >= 0 ? standings.athletes[matchIdx] : null;
+                const matchEnr = matchIdx >= 0 ? enriched[matchIdx] : null;
                 const isMulti = (dbEvent as any)?.isMultiEvent === true;
-                let englishMark = '';
-                if (!isMulti && topRaw.bestMark != null) {
-                  englishMark = metersToEnglishFraction(topRaw.bestMark);
-                }
-                const points = isMulti && topRaw.bestMark != null ? Math.round(topRaw.bestMark) : null;
-                const validAtt = topRaw.attempts.filter(att => att.mark !== null || att.isFoul || att.isPassed || att.isCleared || att.isMissed);
-                let attemptsDisplay: string[] = [];
-                let curHeight = '';
-                if (standings.isVerticalEvent && topRaw.attempts.length > 0) {
-                  const lastAtt = topRaw.attempts[topRaw.attempts.length - 1];
-                  if (lastAtt.isCleared) { attemptsDisplay.push('X'.repeat(lastAtt.missCount || 0) + 'O'); }
-                  else if (lastAtt.isMissed && (lastAtt.missCount || 0) >= 3) { attemptsDisplay.push('XXX'); }
-                  else if (lastAtt.isMissed) { attemptsDisplay.push('X'.repeat(lastAtt.missCount || 1)); }
-                  else if (lastAtt.isPassed) { attemptsDisplay.push('P'); }
-                  if (standings.heights && standings.heights.length > 0) {
-                    const hIdx = Math.min(topRaw.attempts.length - 1, standings.heights.length - 1);
-                    curHeight = standings.heights[hIdx].toFixed(2);
+                
+                if (matchEnr && matchRaw) {
+                  let englishMark = '';
+                  if (!isMulti && matchRaw.bestMark != null) {
+                    englishMark = metersToEnglishFraction(matchRaw.bestMark);
                   }
+                  const points = isMulti && matchRaw.bestMark != null ? Math.round(matchRaw.bestMark) : null;
+                  const validAtt = matchRaw.attempts.filter(att => att.mark !== null || att.isFoul || att.isPassed || att.isCleared || att.isMissed);
+                  let attemptsDisplay: string[] = [];
+                  let curHeight = '';
+                  if (standings.isVerticalEvent && matchRaw.attempts.length > 0) {
+                    const lastAtt = matchRaw.attempts[matchRaw.attempts.length - 1];
+                    if (lastAtt.isCleared) { attemptsDisplay.push('X'.repeat(lastAtt.missCount || 0) + 'O'); }
+                    else if (lastAtt.isMissed && (lastAtt.missCount || 0) >= 3) { attemptsDisplay.push('XXX'); }
+                    else if (lastAtt.isMissed) { attemptsDisplay.push('X'.repeat(lastAtt.missCount || 1)); }
+                    else if (lastAtt.isPassed) { attemptsDisplay.push('P'); }
+                    if (standings.heights && standings.heights.length > 0) {
+                      const hIdx = Math.min(matchRaw.attempts.length - 1, standings.heights.length - 1);
+                      curHeight = standings.heights[hIdx].toFixed(2);
+                    }
+                  }
+                  currentAthl = {
+                    firstName: matchEnr.firstName, lastName: matchEnr.lastName, team: matchEnr.team,
+                    teamLogoUrl: matchEnr.teamLogoUrl, headshotUrl: matchEnr.headshotUrl, place: matchEnr.place,
+                    mark: matchEnr.bestMark, englishMark: isMulti ? undefined : englishMark, points,
+                    attemptNum: Number(liveAthlete.attemptNumber) || validAtt.length,
+                    attemptTotal: standings.isVerticalEvent ? (standings.heights?.length || 0) : 6,
+                    attemptsDisplay, currentHeight: curHeight,
+                  };
+                } else {
+                  // Athlete not found in LFF yet (maybe first attempt) — build from live data
+                  const nameParts = (liveAthlete.name || '').split(/,\s*|,/);
+                  currentAthl = {
+                    firstName: nameParts.length > 1 ? nameParts[1].trim() : '',
+                    lastName: nameParts.length > 1 ? nameParts[0].trim() : liveAthlete.name,
+                    team: liveAthlete.affiliation || '',
+                    teamLogoUrl: resolveTeamLogo(liveAthlete.affiliation),
+                    headshotUrl: resolveHeadshot(Number(liveAthlete.bib) || 0),
+                    place: null,
+                    mark: liveAthlete.mark || '',
+                    englishMark: liveAthlete.markConverted || '',
+                    attemptNum: Number(liveAthlete.attemptNumber) || 1,
+                    attemptTotal: standings.isVerticalEvent ? (standings.heights?.length || 0) : 6,
+                  };
                 }
-                currentAthl = {
-                  firstName: topEnr.firstName, lastName: topEnr.lastName, team: topEnr.team,
-                  teamLogoUrl: topEnr.teamLogoUrl, headshotUrl: topEnr.headshotUrl, place: topEnr.place,
-                  mark: topEnr.bestMark, englishMark: isMulti ? undefined : englishMark, points,
-                  attemptNum: validAtt.length,
-                  attemptsDisplay, currentHeight: curHeight,
-                };
+              } else {
+                // No live data — fall back to LFF leader
+                const topIdx = standings.athletes.findIndex(a => !a.isDNS);
+                const topRaw = topIdx >= 0 ? standings.athletes[topIdx] : null;
+                const topEnr = topIdx >= 0 ? enriched[topIdx] : null;
+                if (topEnr && topRaw) {
+                  const isMulti = (dbEvent as any)?.isMultiEvent === true;
+                  let englishMark = '';
+                  if (!isMulti && topRaw.bestMark != null) {
+                    englishMark = metersToEnglishFraction(topRaw.bestMark);
+                  }
+                  const points = isMulti && topRaw.bestMark != null ? Math.round(topRaw.bestMark) : null;
+                  const validAtt = topRaw.attempts.filter(att => att.mark !== null || att.isFoul || att.isPassed || att.isCleared || att.isMissed);
+                  let attemptsDisplay: string[] = [];
+                  let curHeight = '';
+                  if (standings.isVerticalEvent && topRaw.attempts.length > 0) {
+                    const lastAtt = topRaw.attempts[topRaw.attempts.length - 1];
+                    if (lastAtt.isCleared) { attemptsDisplay.push('X'.repeat(lastAtt.missCount || 0) + 'O'); }
+                    else if (lastAtt.isMissed && (lastAtt.missCount || 0) >= 3) { attemptsDisplay.push('XXX'); }
+                    else if (lastAtt.isMissed) { attemptsDisplay.push('X'.repeat(lastAtt.missCount || 1)); }
+                    else if (lastAtt.isPassed) { attemptsDisplay.push('P'); }
+                    if (standings.heights && standings.heights.length > 0) {
+                      const hIdx = Math.min(topRaw.attempts.length - 1, standings.heights.length - 1);
+                      curHeight = standings.heights[hIdx].toFixed(2);
+                    }
+                  }
+                  currentAthl = {
+                    firstName: topEnr.firstName, lastName: topEnr.lastName, team: topEnr.team,
+                    teamLogoUrl: topEnr.teamLogoUrl, headshotUrl: topEnr.headshotUrl, place: topEnr.place,
+                    mark: topEnr.bestMark, englishMark: isMulti ? undefined : englishMark, points,
+                    attemptNum: validAtt.length,
+                    attemptsDisplay, currentHeight: curHeight,
+                  };
+                }
               }
               // Track previousAthlete in auto-refresh path
               let previousAthl: any = null;

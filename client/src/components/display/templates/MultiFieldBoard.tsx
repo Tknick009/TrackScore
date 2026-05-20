@@ -111,12 +111,12 @@ export function MultiFieldBoard({
     rowName: cols === 1 ? "2.6cqw" : cols === 2 ? "2.8cqw" : "2.2cqw",
     rowTeamAbbr: cols === 1 ? "1.4cqw" : cols === 2 ? "1.2cqw" : "1cqw",
     rowMark: cols === 1 ? "3cqw" : cols === 2 ? "3cqw" : "2.6cqw",
-    rowHeight: cols === 1 ? "9.5cqh" : cols === 2 ? "9cqh" : "8.5cqh",
+    rowHeight: cols === 1 ? "8.5cqh" : cols === 2 ? "8cqh" : "7.5cqh",
     logo: cols === 1 ? "3.5cqw" : cols === 2 ? "3.2cqw" : "2.6cqw",
     headshot: cols === 1 ? "26cqh" : cols === 2 ? "24cqh" : "22cqh",
     headshotW: cols === 1 ? "10cqw" : cols === 2 ? "10cqw" : "8cqw",
     spotLogo: cols === 1 ? "8cqw" : cols === 2 ? "6cqw" : "4.5cqw",
-    spotHeight: cols === 1 ? "32cqh" : cols === 2 ? "30cqh" : "28cqh",
+    spotHeight: cols === 1 ? "28cqh" : cols === 2 ? "26cqh" : "24cqh",
     meetLogo: cols === 1 ? "3.5cqw" : cols === 2 ? "2.8cqw" : "2.2cqw",
   };
 
@@ -292,7 +292,8 @@ export function MultiFieldBoard({
       <div
         style={{
           height: s.rowHeight,
-          flexShrink: 0,
+          maxHeight: s.rowHeight,
+          flex: "0 1 auto",
           display: "flex",
           alignItems: "center",
           background: isEven ? "rgba(255,255,255,0.02)" : "transparent",
@@ -365,12 +366,14 @@ export function MultiFieldBoard({
 
   /** Render one event column */
   function EventColumn({ evt, colIdx }: { evt: MultiFieldEvent; colIdx: number }) {
+    // Limit rows to prevent overflow: single-col shows 10 (5+5), multi-col caps at 7
+    const maxVisible = cols === 1 ? 10 : Math.min(maxRows, 7);
     const standingsToShow = cols === 1
-      ? evt.standings.slice(0, 12)
-      : evt.standings.slice(0, maxRows);
+      ? evt.standings.slice(0, maxVisible)
+      : evt.standings.slice(0, maxVisible);
 
-    const leftStandings = cols === 1 ? standingsToShow.slice(0, 6) : standingsToShow;
-    const rightStandings = cols === 1 ? standingsToShow.slice(6, 12) : [];
+    const leftStandings = cols === 1 ? standingsToShow.slice(0, 5) : standingsToShow;
+    const rightStandings = cols === 1 ? standingsToShow.slice(5, 10) : [];
 
     return (
       <div style={{

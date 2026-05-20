@@ -1867,7 +1867,24 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
       mark: data.mark,
     });
     
+    // Store the currently-up athlete for Multi-Field Board to use as currentAthlete spotlight
+    if (!(globalThis as any).multiFieldLiveAthletes) {
+      (globalThis as any).multiFieldLiveAthletes = new Map<number, any>();
+    }
     const accumulatedResults = data.results || [];
+    const firstResult = accumulatedResults[0];
+    if (firstResult) {
+      (globalThis as any).multiFieldLiveAthletes.set(eventNumber, {
+        name: firstResult.name,
+        bib: firstResult.bib,
+        affiliation: firstResult.affiliation,
+        mark: firstResult.mark,
+        markConverted: firstResult.markConverted,
+        attemptNumber: firstResult.attemptNumber,
+        bestMark: firstResult.bestMark,
+        timestamp: Date.now(),
+      });
+    }
     
     // Get field port for routing: prefer sourcePort from TCP listener, fall back to currentFieldPort from HTTP
     const fieldPort = (data.sourcePort && data.sourcePort >= FIELD_PORT_MIN && data.sourcePort <= FIELD_PORT_MAX) ? data.sourcePort : currentFieldPort;
@@ -1935,7 +1952,7 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
           mfEvents.some((e: number) => e > 1000 && Math.floor(e / 1000) === eventNumber);
         if (!matches) continue;
         // Emit synthetic lff_updated to trigger the auto-refresh handler in displays.ts
-        // Debounce: cancel any pending refresh for this device and schedule a new one after 1.5s
+        // Short debounce (500ms) to batch rapid successive messages but still feel real-time
         const debounceKey = `mf_refresh_${dev.deviceId}`;
         if ((globalThis as any)[debounceKey]) clearTimeout((globalThis as any)[debounceKey]);
         const capturedMeetId = activeMeetIdForMultiField;
@@ -1946,7 +1963,7 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
             const { ingestionManager: im } = await import('../ingestion-manager');
             im.emit('lff_updated', { meetId: capturedMeetId, eventNumber: capturedEventNumber });
           } catch (e) { console.error('[Multi-Field] Failed to emit lff_updated:', e); }
-        }, 1500);
+        }, 500);
       }
     }
     
@@ -2100,7 +2117,7 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
               const { ingestionManager: im } = await import('../ingestion-manager');
               im.emit('lff_updated', { meetId: capturedMeetId, eventNumber: capturedEventNumber });
             } catch (e) { console.error('[Multi-Field] Failed to emit lff_updated:', e); }
-          }, 1500);
+          }, 500);
         }
       }
     } catch (e) { /* ignore */ }
