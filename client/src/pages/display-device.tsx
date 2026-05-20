@@ -2565,7 +2565,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             entries: [],
           }
         : null;
-      return <RunningTime event={eventWithLiveName as any} meet={meet} liveTime={liveClockTimeRef?.current || undefined} clockSubscribersRef={clockSubscribersRef} />;
+      return <RunningTime event={eventWithLiveName as any} meet={meet} liveTime={undefined} clockSubscribersRef={clockSubscribersRef} />;
     }
 
     if ((isFieldResults || isFieldStandings) && currentEvent) {
@@ -2653,9 +2653,9 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
           };
       // Check if ProScoreboard template is selected
       if (templateId === 'ProScoreboard' || templateId === 'pro-scoreboard') {
-        return <ProScoreboard event={eventWithLiveName as any} meet={meet} liveTime={liveClockTimeRef?.current || undefined} clockSubscribersRef={clockSubscribersRef} pagingSize={pagingSize} pagingIntervalMs={pagingInterval * 1000} />;
+        return <ProScoreboard event={eventWithLiveName as any} meet={meet} liveTime={undefined} clockSubscribersRef={clockSubscribersRef} pagingSize={pagingSize} pagingIntervalMs={pagingInterval * 1000} />;
       }
-      return <BigBoard event={eventWithLiveName as any} meet={meet} liveTime={liveClockTimeRef?.current || undefined} clockSubscribersRef={clockSubscribersRef} pagingSize={pagingSize} pagingIntervalMs={pagingInterval * 1000} />;
+      return <BigBoard event={eventWithLiveName as any} meet={meet} liveTime={undefined} clockSubscribersRef={clockSubscribersRef} pagingSize={pagingSize} pagingIntervalMs={pagingInterval * 1000} />;
     }
 
     if (!currentEvent && !liveEventData && (isTrackResults || isFieldResults || isStartList || isFieldStandings)) {

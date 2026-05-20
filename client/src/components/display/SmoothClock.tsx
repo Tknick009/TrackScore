@@ -39,6 +39,20 @@ export function formatSecondsToClockDisplay(totalSeconds: number): string {
 // Smooth clock display with requestAnimationFrame interpolation.
 // Receives server ticks (~10/second via FinishLynx) and interpolates at 60fps between them
 // so the tenths digit rolls smoothly. Uses direct DOM mutations (no React re-renders).
+interface SmoothClockProps {
+  serverTime: string | null | undefined;
+  clockSubscribersRef?: React.RefObject<Set<(time: string, command?: string) => void>>;
+  fontSize?: string;
+  color?: string;
+  fontFamily?: string;
+  className?: string;
+  extraStyle?: React.CSSProperties;
+}
+
+// Custom memo comparison: ignore serverTime changes to prevent re-renders.
+// The clock is driven by the subscriber pattern (direct DOM mutations), not by props.
+// Allowing serverTime to trigger re-renders causes React to overwrite the span's
+// textContent, creating visible clock stutters on every parent re-render.
 export const SmoothClock = memo(function SmoothClock({ 
   serverTime, 
   clockSubscribersRef,
@@ -47,15 +61,7 @@ export const SmoothClock = memo(function SmoothClock({
   fontFamily,
   className,
   extraStyle,
-}: { 
-  serverTime: string | null | undefined;
-  clockSubscribersRef?: React.RefObject<Set<(time: string, command?: string) => void>>;
-  fontSize?: string;
-  color?: string;
-  fontFamily?: string;
-  className?: string;
-  extraStyle?: React.CSSProperties;
-}) {
+}: SmoothClockProps) {
   const spanRef = useRef<HTMLSpanElement>(null);
   
   const lastServerSecondsRef = useRef<number>(0);
@@ -163,5 +169,16 @@ export const SmoothClock = memo(function SmoothClock({
     >
       {serverTime || "0.0"}
     </span>
+  );
+}, (prevProps, nextProps) => {
+  // Only re-render when style/layout props change. Ignore serverTime changes
+  // because the clock is driven by the subscriber pattern (direct DOM mutations).
+  return (
+    prevProps.clockSubscribersRef === nextProps.clockSubscribersRef &&
+    prevProps.fontSize === nextProps.fontSize &&
+    prevProps.color === nextProps.color &&
+    prevProps.fontFamily === nextProps.fontFamily &&
+    prevProps.className === nextProps.className &&
+    prevProps.extraStyle === nextProps.extraStyle
   );
 });
