@@ -2586,7 +2586,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       const { contentMode } = req.body;
       const deviceId = req.params.id;
       
-      const validModes = ['lynx', 'hytek', 'team_scores', 'field', 'winners', 'record', 'meet_schedule', 'meet_records', 'sponsors', 'sponsor_reel', 'team_preview'];
+      const validModes = ['lynx', 'hytek', 'team_scores', 'field', 'multi_field', 'winners', 'record', 'meet_schedule', 'meet_records', 'sponsors', 'sponsor_reel', 'team_preview'];
       if (!contentMode || !validModes.includes(contentMode)) {
         return res.status(400).json({ error: `contentMode must be one of: ${validModes.join(', ')}` });
       }
