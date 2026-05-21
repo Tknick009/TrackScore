@@ -74,7 +74,26 @@ interface LynxFieldResult {
   attemptMarks?: string[];
 }
 
-// Clean event name by removing common suffixes like "Run" and "Dash" from FinishLynx
+// Parse firstName/lastName from FieldLynx data. Prefers FN/LN fields; falls back to
+// parsing the full name (N field) as "First Last" or "Last, First".
+function parseNames(fn: string | undefined, ln: string | undefined, fullName: string | undefined): { firstName: string | undefined; lastName: string | undefined } {
+  let first = fn || '';
+  let last = ln || '';
+  if ((!first || !last) && fullName) {
+    const trimmed = fullName.trim();
+    if (trimmed.includes(',')) {
+      const parts = trimmed.split(',').map(s => s.trim());
+      last = last || parts[0] || '';
+      first = first || parts[1] || '';
+    } else {
+      const parts = trimmed.split(/\s+/);
+      first = first || parts[0] || '';
+      last = last || parts.slice(1).join(' ') || '';
+    }
+  }
+  return { firstName: first || undefined, lastName: last || undefined };
+}
+
 // Convert a metric field mark (meters as string) to US feet-inches format: "20-9¼"
 // Rounds DOWN to nearest ¼ inch. Returns original string for non-numeric values.
 // If mark is already in feet-inches format (e.g. "20-09.50") it is returned as-is.
@@ -1098,14 +1117,15 @@ export class LynxListener extends EventEmitter {
     const entries: LynxStartListEntry[] = [];
     for (const data of entriesData) {
       if (data.L || data.N || data.BIB) {
+        const { firstName: slFirst, lastName: slLast } = parseNames(data.FN, data.LN, data.N);
         entries.push({
           place: data.P,
           lane: data.L,
           bib: data.BIB,
           name: data.N,
           affiliation: data.AF,
-          firstName: data.FN,
-          lastName: data.LN,
+          firstName: slFirst,
+          lastName: slLast,
         });
       }
     }
@@ -1185,8 +1205,7 @@ export class LynxListener extends EventEmitter {
           lapsToGo: lapsToGo,
           cumulativeSplit: cumulativeSplit,
           lastSplit: lastSplit,
-          firstName: data.FN,
-          lastName: data.LN,
+          ...parseNames(data.FN, data.LN, athleteName),
         });
         
         // Emit individual result events for database recording
@@ -1369,14 +1388,15 @@ export class LynxListener extends EventEmitter {
     // NO AGGREGATION - pass through immediately
     // FinishLynx controls all paging and sends line numbers that match layout placeholders
     // Each packet is authoritative for its specific line number
+    const { firstName: seFirst, lastName: seLast } = parseNames(data.FN, data.LN, data.N);
     const entry: LynxStartListEntry | null = (data.L || data.N || data.BIB) ? {
       place: data.P,
       lane: data.L,  // This is the line number from FinishLynx
       bib: data.BIB,
       name: data.N,
       affiliation: data.AF,
-      firstName: data.FN,
-      lastName: data.LN,
+      firstName: seFirst,
+      lastName: seLast,
     } : null;
     
     // Emit immediately with single entry - display updates that line slot
@@ -1444,8 +1464,7 @@ export class LynxListener extends EventEmitter {
         lapsToGo: data.L2G,
         cumulativeSplit: data.CS,
         lastSplit: data.LS,
-        firstName: data.FN,
-        lastName: data.LN,
+        ...parseNames(data.FN, data.LN, athleteName),
       };
       
       // Emit result event for individual results
@@ -1540,13 +1559,15 @@ export class LynxListener extends EventEmitter {
         }
       }
       
+      const { firstName: fieldFirst, lastName: fieldLast } = parseNames(data.FN, data.LN, name);
+
       const entry: LynxFieldResult = {
         place: place,
         lane: data.L || '',  // Capture lane from field messages
         name: name,
         affiliation: data.AF,
-        firstName: data.FN,
-        lastName: data.LN,
+        firstName: fieldFirst,
+        lastName: fieldLast,
         bib: data.BIB,
         mark: mark,
         attemptNumber: data.AN,
