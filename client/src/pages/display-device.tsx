@@ -1881,11 +1881,22 @@ function FieldPanel({ port, eventNumber, width, height, meetId, liveEventDataByP
     enabled: !!meetId,
   });
 
-  // Find data for this panel: match by eventNumber (scanning all ports) or by direct port
+  // Find data for this panel: match by eventNumber (scanning all ports) or by direct port.
+  // Multi-event sub-events have compound numbers (e.g. 42002 for decathlon shot put)
+  // while FieldLynx sends the base event number (42). Try exact match first, then
+  // check if the live data's eventNumber is a prefix of the configured eventNumber.
   const { portData, resolvedPort } = useMemo(() => {
     if (eventNumber) {
+      const evStr = String(eventNumber);
+      // Exact match first
       for (const [p, data] of Object.entries(liveEventDataByPort)) {
         if (data && data.eventNumber === eventNumber) {
+          return { portData: data, resolvedPort: parseInt(p) };
+        }
+      }
+      // Loose match: FieldLynx sends base event (42), API has sub-event (42002)
+      for (const [p, data] of Object.entries(liveEventDataByPort)) {
+        if (data && evStr.startsWith(String(data.eventNumber))) {
           return { portData: data, resolvedPort: parseInt(p) };
         }
       }

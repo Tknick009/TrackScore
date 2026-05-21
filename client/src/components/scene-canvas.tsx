@@ -1994,7 +1994,7 @@ export function SceneCanvas({
     
     return (
       <div 
-        className="fixed overflow-hidden display-layout"
+        className={`${deviceFieldPort ? 'absolute' : 'fixed'} overflow-hidden display-layout`}
         style={{ 
           top: 0,
           left: 0,

@@ -1098,7 +1098,7 @@ export default function DisplayControlPage() {
                             apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}/content-mode`, { contentMode: 'field_daisy_chain' });
                             // Auto-configure 3 panels and display type if not already set
                             if (!fieldPanelConfig[selectedDevice.id] || fieldPanelConfig[selectedDevice.id].length === 0) {
-                              const fieldEvts = (events || []).filter((e: any) => e.eventType === 'field' || /throw|put|jump|vault|javelin|discus|hammer/i.test(e.name || ''));
+                              const fieldEvts = (events || []).filter((e: any) => e.eventType === 'field' || e.isMultiEvent || /throw|put|jump|vault|javelin|discus|hammer|decathlon|heptathlon|pentathlon/i.test(e.name || ''));
                               const defaultPanels = Array.from({ length: 3 }, (_, i) => ({
                                 eventNumber: fieldEvts[i]?.eventNumber || undefined,
                                 showLogo: !fieldEvts[i],
@@ -2360,7 +2360,7 @@ export default function DisplayControlPage() {
                       ) : displayMode[selectedDevice.id] === 'field_daisy_chain' ? (
                         (() => {
                           const fieldEvts = (events || [])
-                            .filter((e: any) => e.eventType === 'field' || /throw|put|jump|vault|javelin|discus|hammer/i.test(e.name || ''))
+                            .filter((e: any) => e.eventType === 'field' || e.isMultiEvent || /throw|put|jump|vault|javelin|discus|hammer|decathlon|heptathlon|pentathlon/i.test(e.name || ''))
                             .sort((a: any, b: any) => (a.eventNumber || 0) - (b.eventNumber || 0));
                           const currentPanels = fieldPanelConfig[selectedDevice.id] || [];
                           return (
