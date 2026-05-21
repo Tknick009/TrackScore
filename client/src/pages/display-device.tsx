@@ -240,7 +240,6 @@ import {
 } from "@/lib/displayCapabilities";
 import { SceneCanvas } from "@/components/scene-canvas";
 import { FieldTransitionRenderer } from "@/components/display/FieldTransitionRenderer";
-import { DaisyChainPanel } from "@/components/display/DaisyChainPanel";
 
 interface LiveEventData {
   eventNumber: number;
@@ -2098,9 +2097,9 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
   const containerStyle = isCustomDisplay ? { width: `${effectiveResWidth}px`, height: `${effectiveResHeight}px` } : {};
   const containerClass = isCustomDisplay ? '' : 'h-screen w-screen';
 
-  // DAISY CHAIN MODE: Purpose-built for P6 multi-panel field event displays.
-  // Each panel is an independent DaisyChainPanel reading only from its assigned port.
-  // No SceneCanvas, no scene mappings — guaranteed port isolation.
+  // DAISY CHAIN MODE: Each panel is a full standalone P6/P10 field display.
+  // Same SceneCanvas layout, same curtain animation, same meet logo — just port-isolated.
+  // Uses FieldPanel which already has all the rendering features.
   if (contentMode === 'field_daisy_chain' && fieldPanels && fieldPanels.length > 0) {
     const resolution = DISPLAY_CAPABILITIES[displayType].resolution;
     const panelWidth = resolution.width;
@@ -2127,12 +2126,19 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
                 flexShrink: 0,
               }}
             >
-              <DaisyChainPanel
+              <FieldPanel
                 port={panel.port}
                 width={panelWidth}
                 height={panelHeight}
                 meetId={meetId}
                 liveEventDataByPort={liveEventDataByPort}
+                calledUpByPort={calledUpByPort}
+                displayType={displayType}
+                liveClockTimeRef={liveClockTimeRef}
+                clockSubscribersRef={clockSubscribersRef}
+                displayScale={displayScale}
+                fieldSceneId={fieldSceneId}
+                fieldSceneData={fieldSceneData}
               />
             </div>
           ))}
