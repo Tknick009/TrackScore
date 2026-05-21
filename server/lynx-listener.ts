@@ -1,5 +1,7 @@
 import * as net from 'net';
 import { EventEmitter } from 'events';
+import { Worker } from 'worker_threads';
+import * as path from 'path';
 import type { LynxPacket, LynxPortType, TrackDisplayMode, FieldDisplayMode } from '@shared/schema';
 import { captureManager } from './capture-manager';
 
@@ -144,7 +146,19 @@ export class LynxListener extends EventEmitter {
   private clients: Map<string, Set<net.Socket>> = new Map();
   private buffers: Map<net.Socket, string> = new Map();
   private configs: PortConfig[] = [];
-  private currentEventNumber: number = 0;
+  private _currentEventNumber: number = 0;
+  private clockWorker: Worker | null = null;
+
+  private get currentEventNumber(): number {
+    return this._currentEventNumber;
+  }
+  private set currentEventNumber(value: number) {
+    this._currentEventNumber = value;
+    // Forward event number to clock worker so it tags ticks correctly
+    if (this.clockWorker) {
+      this.clockWorker.postMessage({ type: 'set-event-number', eventNumber: value });
+    }
+  }
   private currentHeatNumber: number = 1;
   private isRunning: boolean = false;
   private lastClockTime: string = '0:00.00';
@@ -406,6 +420,14 @@ export class LynxListener extends EventEmitter {
   }
 
   private startListener(config: PortConfig) {
+    // Clock ports run in a dedicated worker thread for complete isolation
+    // from the main event loop. This ensures clock ticks are never blocked
+    // by DB queries, HTTP requests, or track/field processing.
+    if (config.portType === 'clock') {
+      this.startClockWorker(config);
+      return;
+    }
+
     const server = net.createServer((socket) => {
       console.log(`[Lynx:${config.name}] Client connected from ${socket.remoteAddress}`);
       
@@ -449,6 +471,118 @@ export class LynxListener extends EventEmitter {
 
     server.listen(config.port, '0.0.0.0', () => {
       console.log(`[Lynx:${config.name}] Listening on port ${config.port}`);
+    });
+
+    this.servers.set(`${config.portType}_${config.port}`, server);
+  }
+
+  private startClockWorker(config: PortConfig) {
+    try {
+      // Resolve worker path — try .ts first (dev with tsx), fall back to .js (production build)
+      const tsPath = path.resolve(__dirname, 'clock-worker.ts');
+      const jsPath = path.resolve(__dirname, 'clock-worker.js');
+      const fs = require('fs');
+      const workerPath = fs.existsSync(tsPath) ? tsPath : jsPath;
+      const isTsFile = workerPath.endsWith('.ts');
+      
+      this.clockWorker = new Worker(workerPath, {
+        workerData: { port: config.port, portName: config.name },
+        // Use tsx loader for TypeScript files in worker threads
+        ...(isTsFile ? { execArgv: ['--import', 'tsx'] } : {}),
+      });
+
+      this.clockWorker.on('message', (msg) => {
+        switch (msg.type) {
+          case 'clock-update':
+            this.emit('clock-update', msg.eventNumber, msg.time, msg.command);
+            break;
+          case 'connection':
+            if (msg.connected) {
+              console.log(`[Lynx:${config.name}] Client connected from ${msg.remoteAddress} (worker thread)`);
+            } else {
+              console.log(`[Lynx:${config.name}] Client disconnected (worker thread)`);
+            }
+            this.emit('connection', config.portType, msg.connected);
+            break;
+          case 'log':
+            console.log(msg.message);
+            break;
+          case 'error':
+            console.error(`[Lynx:${config.name}] Worker error:`, msg.message);
+            this.emit('error', new Error(msg.message), config.portType);
+            break;
+        }
+      });
+
+      this.clockWorker.on('error', (err) => {
+        console.error(`[Lynx:Clock] Worker thread error:`, err.message);
+        console.log(`[Lynx:Clock] Falling back to main-thread clock listener`);
+        this.clockWorker = null;
+        // Fallback: start a regular listener on the main thread
+        this.startMainThreadListener(config);
+      });
+
+      this.clockWorker.on('exit', (code) => {
+        if (code !== 0) {
+          console.error(`[Lynx:Clock] Worker thread exited with code ${code}, falling back to main-thread listener`);
+          this.clockWorker = null;
+          this.startMainThreadListener(config);
+        }
+      });
+
+      console.log(`[Lynx:${config.name}] Clock worker thread started for port ${config.port}`);
+    } catch (err: any) {
+      console.error(`[Lynx:Clock] Failed to start worker thread:`, err.message);
+      console.log(`[Lynx:Clock] Falling back to main-thread clock listener`);
+      // Fallback: start a regular listener on the main thread
+      this.startMainThreadListener(config);
+    }
+  }
+
+  private startMainThreadListener(config: PortConfig) {
+    const server = net.createServer((socket) => {
+      console.log(`[Lynx:${config.name}] Client connected from ${socket.remoteAddress}`);
+      
+      const serverKey = `${config.portType}_${config.port}`;
+      let clients = this.clients.get(serverKey);
+      if (!clients) {
+        clients = new Set();
+        this.clients.set(serverKey, clients);
+      }
+      clients.add(socket);
+      this.buffers.set(socket, '');
+      
+      this.emit('connection', config.portType, true);
+
+      socket.on('data', (data) => {
+        captureManager.record(config.port, config.name, socket.remoteAddress || '', data);
+        this.handleData(socket, data, config);
+      });
+
+      socket.on('close', () => {
+        console.log(`[Lynx:${config.name}] Client disconnected`);
+        const closeKey = `${config.portType}_${config.port}`;
+        const closeClients = this.clients.get(closeKey);
+        closeClients?.delete(socket);
+        this.buffers.delete(socket);
+        if (closeClients?.size === 0) {
+          this.emit('connection', config.portType, false);
+        }
+      });
+
+      socket.on('error', (err) => {
+        console.error(`[Lynx:${config.name}] Socket error:`, err.message);
+        this.emit('error', err, config.portType);
+      });
+    });
+
+    server.on('error', (err) => {
+      console.error(`[Lynx:${config.name}] Server error on port ${config.port}:`, err.message);
+      this.emit('error', err, config.portType);
+    });
+
+    server.listen(config.port, '0.0.0.0', () => {
+      console.log(`[Lynx:${config.name}] Listening on port ${config.port} (main thread fallback)`);
     });
 
     this.servers.set(`${config.portType}_${config.port}`, server);
@@ -1596,6 +1730,12 @@ export class LynxListener extends EventEmitter {
     });
     await Promise.all(closePromises);
     this.servers.clear();
+
+    // Terminate clock worker thread
+    if (this.clockWorker) {
+      await this.clockWorker.terminate();
+      this.clockWorker = null;
+    }
   }
 
   getStatus(): { portType: LynxPortType; port: number; name: string; connected: boolean; clientCount: number }[] {
