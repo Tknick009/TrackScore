@@ -365,6 +365,8 @@ export default function DisplayDevice() {
   const fieldPortRef = useRef<number>(4560);
   // Multi-panel mode: each panel is an independent field display with its own port
   const [fieldPanels, setFieldPanels] = useState<Array<{port: number; showLogo?: boolean}> | null>(null);
+  // Override display type for daisy chain panels (P6 or P10)
+  const [daisyChainDisplayType, setDaisyChainDisplayType] = useState<string | null>(null);
   // Current content mode for rendering decisions
   const [contentMode, setContentMode] = useState<string>('lynx');
   
@@ -496,10 +498,12 @@ export default function DisplayDevice() {
 
   // Multi-panel viewport override: expand the viewport meta tag and body dimensions
   // so the LED controller's browser renders all panels instead of clipping to one P6 width.
+  // Uses daisyChainDisplayType when set, otherwise falls back to the device's displayType.
   useEffect(() => {
     if (contentMode !== 'field_daisy_chain' || !fieldPanels || fieldPanels.length <= 1) return;
-    if (!state.displayType) return;
-    const resolution = DISPLAY_CAPABILITIES[state.displayType as DisplayType]?.resolution;
+    const effectiveType = (daisyChainDisplayType || state.displayType) as DisplayType;
+    if (!effectiveType) return;
+    const resolution = DISPLAY_CAPABILITIES[effectiveType]?.resolution;
     if (!resolution) return;
     const totalWidth = resolution.width * fieldPanels.length;
     const totalHeight = resolution.height;
@@ -528,7 +532,7 @@ export default function DisplayDevice() {
     document.documentElement.style.height = `${totalHeight}px`;
     document.documentElement.style.overflow = 'hidden';
 
-    console.log(`[Display] Daisy chain viewport: ${totalWidth}×${totalHeight} (${fieldPanels.length} panels)`);
+    console.log(`[Display] Daisy chain viewport: ${totalWidth}×${totalHeight} (${fieldPanels.length} ${effectiveType} panels)`);
 
     return () => {
       if (viewportMeta) viewportMeta.setAttribute('content', prevViewport);
@@ -540,7 +544,7 @@ export default function DisplayDevice() {
       document.documentElement.style.height = prevHtmlHeight;
       document.documentElement.style.overflow = prevHtmlOverflow;
     };
-  }, [contentMode, fieldPanels, state.displayType]);
+  }, [contentMode, fieldPanels, state.displayType, daisyChainDisplayType]);
 
   // WebSocket connection - runs when setup is complete
   useEffect(() => {
@@ -767,6 +771,10 @@ export default function DisplayDevice() {
               if (data.fieldPanels !== undefined) {
                 setFieldPanels(Array.isArray(data.fieldPanels) ? data.fieldPanels : null);
                 console.log(`[Display] Field panels updated:`, data.fieldPanels);
+              }
+              if (data.daisyChainDisplayType) {
+                setDaisyChainDisplayType(data.daisyChainDisplayType);
+                console.log(`[Display] Daisy chain display type updated to: ${data.daisyChainDisplayType}`);
               }
               if (data.displayWidth !== undefined) {
                 setCustomWidth(data.displayWidth);
@@ -1723,6 +1731,7 @@ export default function DisplayDevice() {
       fieldPort={fieldPort}
       fieldPanels={fieldPanels}
       contentMode={contentMode}
+      daisyChainDisplayType={daisyChainDisplayType}
       displayScale={displayScale}
       currentLayoutMode={currentLayoutModeRef.current}
       onReturnToLogo={returnToMeetLogo}
@@ -2041,6 +2050,7 @@ interface DisplayRendererProps {
   fieldPort?: number;
   fieldPanels?: Array<{port: number; showLogo?: boolean}> | null;
   contentMode?: string;
+  daisyChainDisplayType?: string | null;
   displayScale?: number;
   currentLayoutMode?: string | null;
   onReturnToLogo?: () => void;
@@ -2050,7 +2060,7 @@ interface EventWithEntries extends Event {
   entries: any[];
 }
 
-function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTimeRef, clockSubscribersRef, liveEventData, liveEventDataByPort, calledUpByPort, pagingSize, pagingInterval, maxPages, customWidth, customHeight, fieldPort, fieldPanels, contentMode, displayScale = 100, currentLayoutMode, onReturnToLogo }: DisplayRendererProps) {
+function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTimeRef, clockSubscribersRef, liveEventData, liveEventDataByPort, calledUpByPort, pagingSize, pagingInterval, maxPages, customWidth, customHeight, fieldPort, fieldPanels, contentMode, daisyChainDisplayType, displayScale = 100, currentLayoutMode, onReturnToLogo }: DisplayRendererProps) {
   const { data: meet } = useQuery<Meet>({
     queryKey: ['/api/meets', meetId],
     enabled: !!meetId,
@@ -2084,11 +2094,20 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
   });
   const fieldSceneId = useMemo(() => {
     if (!panelSceneMappings || !isMultiPanel) return null;
+    // For daisy chain mode, use the daisy chain display type for scene lookup
+    const sceneDisplayType = daisyChainDisplayType || displayType;
     const mapping = panelSceneMappings.find(
-      m => m.displayType === displayType && m.displayMode === 'field_results'
+      m => m.displayType === sceneDisplayType && m.displayMode === 'field_results'
     );
+    // Fallback: try the device's display type if daisy chain type didn't match
+    if (!mapping && daisyChainDisplayType) {
+      const fallback = panelSceneMappings.find(
+        m => m.displayType === displayType && m.displayMode === 'field_results'
+      );
+      return fallback?.sceneId || null;
+    }
     return mapping?.sceneId || null;
-  }, [panelSceneMappings, displayType, isMultiPanel]);
+  }, [panelSceneMappings, displayType, daisyChainDisplayType, isMultiPanel]);
 
   // Fetch the field scene + objects for multi-panel rendering
   const { data: fieldSceneResponse } = useQuery({
@@ -2150,8 +2169,10 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
   // DAISY CHAIN MODE: Each panel is a full standalone P6/P10 field display.
   // Same SceneCanvas layout, same curtain animation, same meet logo — just port-isolated.
   // Uses FieldPanel which already has all the rendering features.
+  // daisyChainDisplayType allows overriding the panel resolution (e.g., P10 panels on a P6 device).
   if (contentMode === 'field_daisy_chain' && fieldPanels && fieldPanels.length > 0) {
-    const resolution = DISPLAY_CAPABILITIES[displayType].resolution;
+    const effectiveDaisyType = (daisyChainDisplayType || displayType) as DisplayType;
+    const resolution = DISPLAY_CAPABILITIES[effectiveDaisyType]?.resolution || DISPLAY_CAPABILITIES[displayType].resolution;
     const panelWidth = resolution.width;
     const panelHeight = resolution.height;
     const panelCount = fieldPanels.length;
@@ -2183,7 +2204,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
                 meetId={meetId}
                 liveEventDataByPort={liveEventDataByPort}
                 calledUpByPort={calledUpByPort}
-                displayType={displayType}
+                displayType={effectiveDaisyType}
                 liveClockTimeRef={liveClockTimeRef}
                 clockSubscribersRef={clockSubscribersRef}
                 displayScale={displayScale}

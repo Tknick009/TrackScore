@@ -141,6 +141,7 @@ export default function DisplayControlPage() {
   const [winnersEventSearch, setWinnersEventSearch] = useState('');
   const [pendingFieldPort, setPendingFieldPort] = useState<Record<string, number>>({});
   const [fieldPanelConfig, setFieldPanelConfig] = useState<Record<string, Array<{port: number}>>>({});
+  const [daisyChainDisplayType, setDaisyChainDisplayType] = useState<Record<string, string>>({});
   const [sponsorUrls, setSponsorUrls] = useState<Record<string, string>>({});
   const [sponsorInterval, setSponsorInterval] = useState<Record<string, number>>({});
   const [teamPreviewGender, setTeamPreviewGender] = useState<Record<string, 'M' | 'W'>>({});
@@ -2387,6 +2388,29 @@ export default function DisplayControlPage() {
                             </div>
                           </div>
 
+                          {/* Display type selector for daisy chain panels */}
+                          <div className="space-y-2">
+                            <Label>Panel Display Type</Label>
+                            <div className="flex gap-2">
+                              {[
+                                { value: 'P6', label: 'P6', desc: '288 × 144' },
+                                { value: 'P10', label: 'P10', desc: '192 × 96' },
+                              ].map(opt => (
+                                <Button
+                                  key={opt.value}
+                                  variant={(daisyChainDisplayType[selectedDevice.id] || selectedDevice.displayType || 'P6') === opt.value ? 'default' : 'outline'}
+                                  size="sm"
+                                  className="flex-1"
+                                  onClick={() => {
+                                    setDaisyChainDisplayType(prev => ({ ...prev, [selectedDevice.id]: opt.value }));
+                                  }}
+                                >
+                                  {opt.label} ({opt.desc})
+                                </Button>
+                              ))}
+                            </div>
+                          </div>
+
                           {(fieldPanelConfig[selectedDevice.id]?.length || 0) >= 1 && (
                             <div className="space-y-3">
                               <Label>Panel Configuration</Label>
@@ -2435,8 +2459,9 @@ export default function DisplayControlPage() {
                                 size="sm"
                                 onClick={async () => {
                                   const panels = fieldPanelConfig[selectedDevice.id] || [{ port: 4560 }];
-                                  await apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}`, { fieldPanels: panels });
-                                  toast({ title: 'Panels configured', description: `${panels.length} panel(s) with port assignments applied` });
+                                  const dcDisplayType = daisyChainDisplayType[selectedDevice.id] || selectedDevice.displayType || 'P6';
+                                  await apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}`, { fieldPanels: panels, daisyChainDisplayType: dcDisplayType });
+                                  toast({ title: 'Panels configured', description: `${panels.length} ${dcDisplayType} panel(s) applied` });
                                 }}
                               >
                                 <Send className="w-3 h-3 mr-1" />
