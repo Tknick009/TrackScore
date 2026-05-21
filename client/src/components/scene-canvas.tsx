@@ -347,11 +347,27 @@ export function SceneObjectRenderer({
     });
     
     if (!entry) {
-      // Empty row (no athlete data) — dim to 50%
-      contentFadeOpacity = 0.5;
+      // Empty row (no athlete data) — hide entirely in field mode, dim otherwise
+      if (isFieldMode) {
+        shouldHide = true;
+        contentFadeOpacity = 0;
+      } else {
+        contentFadeOpacity = 0.5;
+      }
     } else if (isFieldMode) {
-      // Field events always show at full opacity
-      contentFadeOpacity = 1;
+      // Field mode: hide athletes who haven't competed yet (no mark/time/place).
+      // The called-up athlete (raw index 0 in the scene) always shows — they're on
+      // the runway/circle and may not have a mark yet for this attempt.
+      const hasMark = entry.mark && String(entry.mark).trim() !== '';
+      const hasTime = entry.time && String(entry.time).trim() !== '';
+      const hasPlace = entry.place && String(entry.place).trim() !== '' && /^\d+$/.test(String(entry.place).trim());
+      const hasPerformance = hasMark || hasTime || hasPlace;
+      if (!hasPerformance && rawAthleteIndex !== 0) {
+        shouldHide = true;
+        contentFadeOpacity = 0;
+      } else {
+        contentFadeOpacity = 1;
+      }
     } else if (noEntriesHaveData) {
       // No entries have results yet — show all at full opacity like a start list
       contentFadeOpacity = 1;
@@ -554,9 +570,12 @@ export function SceneObjectRenderer({
         const logoFieldKey = dataBinding.fieldKey as string | undefined;
         
         if (componentConfig.logoType === "meet") {
+          // In multi-panel mode, hide meet logo objects to save space —
+          // the FieldPanel idle overlay already shows the meet logo when idle.
+          if (deviceFieldPort) return <div className="h-full" />;
           logoUrl = meet?.logoUrl;
         } else if (logoFieldKey === "meet-logo") {
-          // Meet logo binding — use meet data from React Query cache
+          if (deviceFieldPort) return <div className="h-full" />;
           logoUrl = meet?.logoUrl || null;
         } else if (logoFieldKey === "athlete-photo" && liveData) {
           // Athlete headshot from directory: School_FirstName_LastName.png
