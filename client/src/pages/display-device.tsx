@@ -494,6 +494,54 @@ export default function DisplayDevice() {
     };
   }, []);
 
+  // Multi-panel viewport override: expand the viewport meta tag and body dimensions
+  // so the LED controller's browser renders all panels instead of clipping to one P6 width.
+  useEffect(() => {
+    if (contentMode !== 'field_daisy_chain' || !fieldPanels || fieldPanels.length <= 1) return;
+    if (!state.displayType) return;
+    const resolution = DISPLAY_CAPABILITIES[state.displayType as DisplayType]?.resolution;
+    if (!resolution) return;
+    const totalWidth = resolution.width * fieldPanels.length;
+    const totalHeight = resolution.height;
+
+    // Update viewport meta tag
+    const viewportMeta = document.querySelector('meta[name="viewport"]');
+    const prevViewport = viewportMeta?.getAttribute('content') || '';
+    if (viewportMeta) {
+      viewportMeta.setAttribute('content', `width=${totalWidth}, initial-scale=1.0, maximum-scale=1`);
+    }
+
+    // Force body/html to the full multi-panel size
+    const prevBodyWidth = document.body.style.width;
+    const prevBodyHeight = document.body.style.height;
+    const prevBodyOverflow = document.body.style.overflow;
+    const prevBodyMargin = document.body.style.margin;
+    const prevHtmlWidth = document.documentElement.style.width;
+    const prevHtmlHeight = document.documentElement.style.height;
+    const prevHtmlOverflow = document.documentElement.style.overflow;
+
+    document.body.style.width = `${totalWidth}px`;
+    document.body.style.height = `${totalHeight}px`;
+    document.body.style.overflow = 'hidden';
+    document.body.style.margin = '0';
+    document.documentElement.style.width = `${totalWidth}px`;
+    document.documentElement.style.height = `${totalHeight}px`;
+    document.documentElement.style.overflow = 'hidden';
+
+    console.log(`[Display] Daisy chain viewport: ${totalWidth}×${totalHeight} (${fieldPanels.length} panels)`);
+
+    return () => {
+      if (viewportMeta) viewportMeta.setAttribute('content', prevViewport);
+      document.body.style.width = prevBodyWidth;
+      document.body.style.height = prevBodyHeight;
+      document.body.style.overflow = prevBodyOverflow;
+      document.body.style.margin = prevBodyMargin;
+      document.documentElement.style.width = prevHtmlWidth;
+      document.documentElement.style.height = prevHtmlHeight;
+      document.documentElement.style.overflow = prevHtmlOverflow;
+    };
+  }, [contentMode, fieldPanels, state.displayType]);
+
   // WebSocket connection - runs when setup is complete
   useEffect(() => {
     if (!state.setupComplete || !state.displayType || !state.meetId) return;
