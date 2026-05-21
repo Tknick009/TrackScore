@@ -175,19 +175,20 @@ export function FieldTransitionRenderer({
   const mergedLiveData = useMemo(() => {
     const allSources: Array<{ entries?: any[]; results?: any[] }> = [];
     
-    // If device has an assigned port, ONLY use data from that specific port
+    // Only include athlete_up data — standings/field_results updates should NOT
+    // trigger the heuristic curtain detection. The primary trigger (calledUpAthleteData)
+    // handles direct athlete_up signals; this heuristic is a backup for vertical events.
     if (deviceFieldPort && liveEventDataByPort) {
       const portData = liveEventDataByPort[deviceFieldPort];
       if (portData) {
         const pd = portData as any;
-        if (!pd.isStandings && pd.mode !== 'field_standings') {
+        if (pd.mode === 'athlete_up') {
           allSources.push(portData);
         }
       }
     } else if (liveData) {
-      // Fallback: no specific port assigned, use primary liveData only
       const ld = liveData as any;
-      if (!ld.isStandings && ld.mode !== 'field_standings') allSources.push(liveData);
+      if (ld.mode === 'athlete_up') allSources.push(liveData);
     }
     
     return allSources;
