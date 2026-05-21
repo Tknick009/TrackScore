@@ -1229,21 +1229,24 @@ export default function DisplayDevice() {
                   
                   // Track previous athlete: whoever was UP (no mark, index 0) in old data
                   // becomes PREVIOUS when they get a mark or a new UP athlete appears.
+                  // PREVIOUS persists until a DIFFERENT athlete becomes UP.
                   let prevBib = existing?.previousAthleteBib || null;
                   const oldEntries = existing?.entries || [];
                   const oldUp = oldEntries[0];
                   const newUp = mergedEntries[0];
                   const oldUpHadNoMark = oldUp && (!oldUp.mark || String(oldUp.mark).trim() === '');
                   const newUpHasNoMark = newUp && (!newUp.mark || String(newUp.mark).trim() === '');
+                  const oldBib = oldUp ? (oldUp.bib || oldUp.name) : null;
+                  const newBib = newUp ? (newUp.bib || newUp.name) : null;
                   
-                  if (oldUpHadNoMark && oldUp) {
-                    const oldBib = oldUp.bib || oldUp.name;
-                    const newBib = newUp?.bib || newUp?.name;
-                    if (!newUpHasNoMark || oldBib !== newBib) {
-                      // Old UP athlete got a mark or was replaced → they become PREVIOUS
-                      prevBib = oldBib;
-                    }
+                  if (oldUpHadNoMark && newUpHasNoMark && oldBib !== newBib) {
+                    // A different athlete is now UP → old UP becomes PREVIOUS
+                    prevBib = oldBib;
+                  } else if (oldUpHadNoMark && !newUpHasNoMark) {
+                    // The UP athlete just got a mark (no one new is UP yet) → they become PREVIOUS
+                    prevBib = oldBib;
                   }
+                  // In all other cases, prevBib carries forward unchanged
                   
                   const portEventData: any = {
                     eventNumber: data.eventNumber,
