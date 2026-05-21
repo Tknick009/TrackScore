@@ -689,11 +689,11 @@ export function SceneObjectRenderer({
           const lsEntry = lsEntries[lsIdx];
           if (lsEntry) {
             const hasMark = lsEntry.mark && String(lsEntry.mark).trim() !== '';
+            const entryBib = lsEntry.bib || lsEntry.name;
             if (!hasMark && lsIdx === 0) {
               logoFieldStatusBadge = 'UP';
-            } else if (hasMark && lsIdx === 1 && lsEntries.length > 0) {
-              const zeroEntry = lsEntries[0];
-              if (!zeroEntry?.mark || String(zeroEntry.mark).trim() === '') logoFieldStatusBadge = 'PREVIOUS';
+            } else if (liveData.previousAthleteBib && entryBib === liveData.previousAthleteBib) {
+              logoFieldStatusBadge = 'PREVIOUS';
             }
           }
         }
@@ -1055,16 +1055,12 @@ export function SceneObjectRenderer({
             'status': (() => {
               if (liveData.status) return liveData.status;
               // Field events: derive per-athlete status from entry data.
-              // The UP athlete (no mark) is sorted to index 0 by the server.
+              // UP = markless athlete at index 0. PREVIOUS = tracked by bib across updates.
               if (isFieldMode && firstEntry) {
                 const hasMark = firstEntry.mark && String(firstEntry.mark).trim() !== '';
                 if (!hasMark && textAthleteIndex === 0) return 'UP';
-                // PREVIOUS: index-1 athlete who has a mark (just completed)
-                if (hasMark && textAthleteIndex === 1 && entries.length > 0) {
-                  const zeroEntry = entries[0];
-                  const zeroHasMark = zeroEntry?.mark && String(zeroEntry.mark).trim() !== '';
-                  if (!zeroHasMark) return 'PREVIOUS';
-                }
+                const entryBib = firstEntry.bib || firstEntry.name;
+                if (liveData.previousAthleteBib && entryBib === liveData.previousAthleteBib) return 'PREVIOUS';
               }
               return liveData.status;
             })(),
@@ -1218,12 +1214,11 @@ export function SceneObjectRenderer({
           const fsEntry = fsEntries[fsIdx];
           if (fsEntry) {
             const hasMark = fsEntry.mark && String(fsEntry.mark).trim() !== '';
+            const entryBib = fsEntry.bib || fsEntry.name;
             if (!hasMark && fsIdx === 0) {
               fieldStatusBadge = 'UP';
-            } else if (hasMark && fsIdx === 1 && fsEntries.length > 0) {
-              const zeroEntry = fsEntries[0];
-              const zeroHasMark = zeroEntry?.mark && String(zeroEntry.mark).trim() !== '';
-              if (!zeroHasMark) fieldStatusBadge = 'PREVIOUS';
+            } else if (liveData.previousAthleteBib && entryBib === liveData.previousAthleteBib) {
+              fieldStatusBadge = 'PREVIOUS';
             }
           }
         }

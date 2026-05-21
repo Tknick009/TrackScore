@@ -1225,15 +1225,36 @@ export default function DisplayDevice() {
                 setState(prev => {
                   const existing = prev.liveEventDataByPort[dataPort];
                   const newEntries = data.results || [];
+                  const mergedEntries = newEntries.length > 0 ? newEntries : (existing?.entries || []);
+                  
+                  // Track previous athlete: whoever was UP (no mark, index 0) in old data
+                  // becomes PREVIOUS when they get a mark or a new UP athlete appears.
+                  let prevBib = existing?.previousAthleteBib || null;
+                  const oldEntries = existing?.entries || [];
+                  const oldUp = oldEntries[0];
+                  const newUp = mergedEntries[0];
+                  const oldUpHadNoMark = oldUp && (!oldUp.mark || String(oldUp.mark).trim() === '');
+                  const newUpHasNoMark = newUp && (!newUp.mark || String(newUp.mark).trim() === '');
+                  
+                  if (oldUpHadNoMark && oldUp) {
+                    const oldBib = oldUp.bib || oldUp.name;
+                    const newBib = newUp?.bib || newUp?.name;
+                    if (!newUpHasNoMark || oldBib !== newBib) {
+                      // Old UP athlete got a mark or was replaced → they become PREVIOUS
+                      prevBib = oldBib;
+                    }
+                  }
+                  
                   const portEventData: any = {
                     eventNumber: data.eventNumber,
                     eventName: data.eventName || existing?.eventName || '',
                     mode: data.mode,
                     wind: data.wind ?? existing?.wind,
-                    entries: newEntries.length > 0 ? newEntries : (existing?.entries || []),
+                    entries: mergedEntries,
                     isMultiEvent: data.isMultiEvent ?? existing?.isMultiEvent,
                     eventType: data.eventType ?? existing?.eventType,
                     gender: data.gender ?? existing?.gender,
+                    previousAthleteBib: prevBib,
                   };
                   return {
                     ...prev,
