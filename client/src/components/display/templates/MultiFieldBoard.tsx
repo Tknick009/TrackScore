@@ -127,6 +127,7 @@ function ScrollingStandings({ entries, cols, s, accent, visibleRows = 6 }: {
 
   function Row({ entry, i }: { entry: MultiFieldEntry; i: number }) {
     const isEven = i % 2 === 0;
+    const entryHasMark = hasMark(entry);
     return (
       <div style={{
         flex: rowFlex,
@@ -134,7 +135,7 @@ function ScrollingStandings({ entries, cols, s, accent, visibleRows = 6 }: {
         display: "flex",
         alignItems: "center",
         background: isEven ? "rgba(255,255,255,0.02)" : "transparent",
-
+        opacity: entry.isDNS ? 0.35 : entryHasMark ? 1 : 0.5,
         padding: "0 0.8cqw",
       }}>
         <span style={{
