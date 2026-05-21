@@ -24,7 +24,7 @@ interface LynxListenerEvents {
   'layout-command': (layoutName: string, sourcePortType?: LynxPortType) => void;  // ResulTV layout switching command
   'result': (eventNumber: number, lane: number, place: number, time: string, athleteName?: string) => void;
   'field-result': (eventNumber: number, athleteName: string, place: number, mark: string, attemptNumber: number, attempts?: string) => void;
-  'field-athlete-up': (eventNumber: number, athleteName: string, attemptNumber: number, mark?: string) => void;
+  'field-athlete-up': (eventNumber: number, athleteName: string, attemptNumber: number, mark?: string, sourcePort?: number, bib?: string, affiliation?: string) => void;
   'start-list': (eventNumber: number, heat: number, entries: LynxStartListEntry[], metadata?: { eventName?: string; distance?: string; round?: number; sourcePortType?: LynxPortType; sourcePort?: number }) => void;
   'connection': (portType: LynxPortType, connected: boolean) => void;
   'error': (error: Error, portType: LynxPortType) => void;
@@ -1593,7 +1593,7 @@ export class LynxListener extends EventEmitter {
       
       aggregated.lastUpdate = Date.now();
       
-      this.emit('field-athlete-up', eventNum, name || '', attemptNum, mark);
+      this.emit('field-athlete-up', eventNum, name || '', attemptNum, mark, config.port, data.BIB || '', data.AF || '');
       
       if (name && mark) {
         this.emit('field-result', eventNum, name, place ? parseInt(place) : 0, mark, attemptNum, attempts);

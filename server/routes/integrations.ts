@@ -2136,10 +2136,10 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     } as WSMessage);
   });
 
-  lynxListener.on('field-athlete-up', async (eventNumber, athleteName, attemptNumber, mark) => {
-    console.log(`[Lynx] Field athlete up: Event ${eventNumber}, ${athleteName}, Attempt ${attemptNumber}`);
+  lynxListener.on('field-athlete-up', async (eventNumber, athleteName, attemptNumber, mark, sourcePort, bib, affiliation) => {
+    console.log(`[Lynx] Field athlete up: Event ${eventNumber}, ${athleteName}, Attempt ${attemptNumber}, port ${sourcePort}`);
     
-    // Broadcast athlete up
+    // Broadcast athlete up with port info for per-panel curtain targeting
     broadcastToDisplays({
       type: 'field_athlete_up',
       data: {
@@ -2147,6 +2147,9 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
         athleteName,
         attemptNumber,
         mark,
+        fieldPort: sourcePort,
+        bib,
+        affiliation,
       }
     } as WSMessage);
   });

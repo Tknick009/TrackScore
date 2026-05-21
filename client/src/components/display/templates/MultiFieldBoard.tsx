@@ -81,6 +81,59 @@ function adjustBrightness(hex: string, factor: number): string {
   return `#${nr.toString(16).padStart(2, '0')}${ng.toString(16).padStart(2, '0')}${nb.toString(16).padStart(2, '0')}`;
 }
 
+/** Silhouette SVG shown when headshot is missing or fails to load */
+function SilhouettePlaceholder() {
+  return (
+    <div style={{
+      width: "100%",
+      height: "100%",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      background: "linear-gradient(135deg, #1a2332 0%, #0f1720 100%)",
+    }}>
+      <svg viewBox="0 0 80 80" style={{ width: "60%", height: "60%", opacity: 0.25 }}>
+        <circle cx="40" cy="28" r="14" fill="#fff" />
+        <ellipse cx="40" cy="68" rx="22" ry="16" fill="#fff" />
+      </svg>
+    </div>
+  );
+}
+
+/** Headshot image with automatic silhouette fallback on 404 / load error */
+function HeadshotWithFallback({ url, width, height }: { url: string | null; width: string; height: string }) {
+  const [failed, setFailed] = useState(false);
+  const prevUrl = useRef(url);
+
+  // Reset failed state when URL changes
+  if (url !== prevUrl.current) {
+    prevUrl.current = url;
+    setFailed(false);
+  }
+
+  return (
+    <div style={{
+      width, height,
+      borderRadius: "0.6cqw",
+      overflow: "hidden",
+      flexShrink: 0,
+      background: "#1a1f2e",
+      border: "2px solid rgba(255,255,255,0.1)",
+    }}>
+      {url && !failed ? (
+        <img
+          src={url}
+          alt=""
+          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <SilhouettePlaceholder />
+      )}
+    </div>
+  );
+}
+
 /** Standings list: shows exactly `visibleRows` rows that fill the container. Smooth-scrolls when more entries exist. */
 function ScrollingStandings({ entries, cols, s, accent, visibleRows = 6 }: {
   entries: MultiFieldEntry[];
@@ -92,6 +145,9 @@ function ScrollingStandings({ entries, cols, s, accent, visibleRows = 6 }: {
   const scrollRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const needsScroll = entries.length > visibleRows;
+  // Persist scroll position and direction across data updates so the list
+  // doesn't jump back to the top when new athlete data arrives.
+  const scrollStateRef = useRef({ pos: 0, dir: 1, pauseUntil: performance.now() + 4000 });
 
   useEffect(() => {
     if (!needsScroll) return;
@@ -100,33 +156,32 @@ function ScrollingStandings({ entries, cols, s, accent, visibleRows = 6 }: {
     if (!el || !inner) return;
 
     let raf: number;
-    let scrollPos = 0;
-    let direction = 1;
-    let pauseUntil = performance.now() + 4000;
+    const state = scrollStateRef.current;
     const SPEED = 0.35;
     const PAUSE_MS = 3000;
 
     const step = () => {
       const now = performance.now();
-      if (now < pauseUntil) { raf = requestAnimationFrame(step); return; }
+      if (now < state.pauseUntil) { raf = requestAnimationFrame(step); return; }
       const maxScroll = inner.scrollHeight - el.clientHeight;
       if (maxScroll <= 0) { raf = requestAnimationFrame(step); return; }
-      scrollPos += direction * SPEED;
-      if (scrollPos >= maxScroll) { scrollPos = maxScroll; direction = -1; pauseUntil = now + PAUSE_MS; }
-      else if (scrollPos <= 0) { scrollPos = 0; direction = 1; pauseUntil = now + PAUSE_MS; }
-      el.scrollTop = scrollPos;
+      // Clamp position if content shrank
+      if (state.pos > maxScroll) { state.pos = maxScroll; state.dir = -1; }
+      state.pos += state.dir * SPEED;
+      if (state.pos >= maxScroll) { state.pos = maxScroll; state.dir = -1; state.pauseUntil = now + PAUSE_MS; }
+      else if (state.pos <= 0) { state.pos = 0; state.dir = 1; state.pauseUntil = now + PAUSE_MS; }
+      el.scrollTop = state.pos;
       raf = requestAnimationFrame(step);
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [needsScroll, entries.length]);
+  }, [needsScroll]);
 
   const hasMark = (e: MultiFieldEntry) => e.bestMark && e.bestMark !== '' && e.bestMark !== 'DNS';
   const rowFlex = needsScroll ? undefined : 1;
   const rowMinH = needsScroll ? `${100 / visibleRows}%` : undefined;
 
   function Row({ entry, i }: { entry: MultiFieldEntry; i: number }) {
-    const isEven = i % 2 === 0;
     const entryHasMark = hasMark(entry);
     return (
       <div style={{
@@ -134,7 +189,6 @@ function ScrollingStandings({ entries, cols, s, accent, visibleRows = 6 }: {
         minHeight: rowMinH,
         display: "flex",
         alignItems: "center",
-        background: isEven ? "rgba(255,255,255,0.02)" : "transparent",
         opacity: entry.isDNS ? 0.35 : entryHasMark ? 1 : 0.5,
         padding: "0 0.8cqw",
       }}>
@@ -264,7 +318,7 @@ export function MultiFieldBoard({
 
     return (
       <div style={{
-        minHeight: s.spotHeight,
+        height: s.spotHeight,
         flexShrink: 0,
         display: "flex",
         alignItems: "center",
@@ -274,34 +328,8 @@ export function MultiFieldBoard({
         position: "relative",
         overflow: "hidden",
       }}>
-        {/* Headshot */}
-        <div style={{
-          width: s.headshotW,
-          height: s.headshot,
-          borderRadius: "0.6cqw",
-          overflow: "hidden",
-          flexShrink: 0,
-          background: "#1a1f2e",
-          border: "2px solid rgba(255,255,255,0.1)",
-        }}>
-          {athlete.headshotUrl ? (
-            <img src={athlete.headshotUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-          ) : (
-            <div style={{
-              width: "100%",
-              height: "100%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              background: "linear-gradient(135deg, #1a2332 0%, #0f1720 100%)",
-            }}>
-              <svg viewBox="0 0 80 80" style={{ width: "60%", height: "60%", opacity: 0.25 }}>
-                <circle cx="40" cy="28" r="14" fill="#fff" />
-                <ellipse cx="40" cy="68" rx="22" ry="16" fill="#fff" />
-              </svg>
-            </div>
-          )}
-        </div>
+        {/* Headshot with silhouette fallback */}
+        <HeadshotWithFallback url={athlete.headshotUrl} width={s.headshotW} height={s.headshot} />
 
         {/* Info */}
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "0.2cqh" }}>
@@ -461,8 +489,20 @@ export function MultiFieldBoard({
           background: `linear-gradient(90deg, ${accent}, ${adjustBrightness(accent, 1.4)}, ${accent})`,
         }} />
 
-        {/* Spotlight */}
-        <Spotlight athlete={evt.currentAthlete} evt={evt} />
+        {/* Spotlight — single column shows current + previous athlete side by side */}
+        {cols === 1 && evt.previousAthlete ? (
+          <div style={{ display: "flex", flexShrink: 0, height: s.spotHeight }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <Spotlight athlete={evt.currentAthlete} evt={evt} />
+            </div>
+            <div style={{ width: "2px", flexShrink: 0, background: "rgba(255,255,255,0.06)" }} />
+            <div style={{ flex: 1, minWidth: 0, opacity: 0.65 }}>
+              <Spotlight athlete={evt.previousAthlete} evt={evt} />
+            </div>
+          </div>
+        ) : (
+          <Spotlight athlete={evt.currentAthlete} evt={evt} />
+        )}
 
         {/* Divider */}
         <div style={{

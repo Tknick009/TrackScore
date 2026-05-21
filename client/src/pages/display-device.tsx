@@ -274,6 +274,7 @@ interface DisplayDeviceState {
   liveClockCommand: string | null;  // Command from FinishLynx (e.g., 'armed')
   liveEventData: LiveEventData | null;
   liveEventDataByPort: Record<number, LiveEventData>;
+  calledUpByPort: Record<number, { athleteName: string; bib: string; affiliation: string; attemptNumber: number; timestamp: number }>;
   pagingSize: number;
   pagingInterval: number;
   maxPages: number;
@@ -339,6 +340,7 @@ export default function DisplayDevice() {
     liveClockCommand: null,
     liveEventData: null,
     liveEventDataByPort: {},
+    calledUpByPort: {},
     pagingSize: 8,
     pagingInterval: 5,
     maxPages: 0,
@@ -925,6 +927,7 @@ export default function DisplayDevice() {
                 currentTemplate: 'meet-logo',
                 currentSceneId: null,
                 liveEventDataByPort: {},
+                calledUpByPort: {},
               }));
             } else if (displayMode && displayType) {
               // Update mode ref immediately for debouncing
@@ -1352,6 +1355,29 @@ export default function DisplayDevice() {
             }
           }
           
+          // Handle field_athlete_up — store the called-up athlete per port for curtain triggering
+          if (message.type === 'field_athlete_up') {
+            const data = message.data;
+            if (data) {
+              const port = data.fieldPort;
+              if (port) {
+                setState(prev => ({
+                  ...prev,
+                  calledUpByPort: {
+                    ...prev.calledUpByPort,
+                    [port]: {
+                      athleteName: data.athleteName || '',
+                      bib: data.bib || '',
+                      affiliation: data.affiliation || '',
+                      attemptNumber: data.attemptNumber || 0,
+                      timestamp: Date.now(),
+                    },
+                  },
+                }));
+              }
+            }
+          }
+
           // Handle remote refresh command — reload the page
           if (message.type === 'refresh') {
             console.log('[Display] Remote refresh command received — reloading page');
@@ -1468,6 +1494,7 @@ export default function DisplayDevice() {
       currentLayoutMode: null,
       liveEventData: null,
       liveEventDataByPort: {},
+      calledUpByPort: {},
     }));
   }, []);
 
@@ -1623,6 +1650,7 @@ export default function DisplayDevice() {
       clockSubscribersRef={clockSubscribersRef}
       liveEventData={state.liveEventData}
       liveEventDataByPort={state.liveEventDataByPort}
+      calledUpByPort={state.calledUpByPort}
       pagingSize={state.pagingSize}
       pagingInterval={state.pagingInterval}
       maxPages={state.maxPages}
@@ -1757,12 +1785,13 @@ function ConfettiOverlay({ children, teamLogoUrl }: { children: React.ReactNode;
 /** FieldPanel — one column in multi-panel mode.
  *  When a scene mapping is available (e.g., P6-Field), renders through SceneCanvas
  *  so each panel uses the configured layout. Falls back to SingleAthleteField if no scene. */
-function FieldPanel({ port, width, height, meetId, liveEventDataByPort, displayType, liveClockTimeRef, clockSubscribersRef, displayScale, fieldSceneId, fieldSceneData }: {
+function FieldPanel({ port, width, height, meetId, liveEventDataByPort, calledUpByPort, displayType, liveClockTimeRef, clockSubscribersRef, displayScale, fieldSceneId, fieldSceneData }: {
   port: number;
   width: number;
   height: number;
   meetId: string | null;
   liveEventDataByPort: Record<number, LiveEventData>;
+  calledUpByPort?: Record<number, { athleteName: string; bib: string; affiliation: string; attemptNumber: number; timestamp: number }>;
   displayType: DisplayType;
   liveClockTimeRef?: React.RefObject<string>;
   clockSubscribersRef?: React.RefObject<Set<(time: string, command?: string) => void>>;
@@ -1913,6 +1942,7 @@ function FieldPanel({ port, width, height, meetId, liveEventDataByPort, displayT
           curtainColor={primaryColor}
           meetId={meetId || undefined}
           liveEventDataByPort={liveEventDataByPort}
+          calledUpAthleteData={calledUpByPort?.[port]}
           deviceFieldPort={port}
           canvasWidth={width}
           canvasHeight={height}
@@ -1935,6 +1965,7 @@ interface DisplayRendererProps {
   clockSubscribersRef?: React.RefObject<Set<(time: string, command?: string) => void>>;
   liveEventData: LiveEventData | null;
   liveEventDataByPort: Record<number, LiveEventData>;
+  calledUpByPort?: Record<number, { athleteName: string; bib: string; affiliation: string; attemptNumber: number; timestamp: number }>;
   pagingSize: number;
   pagingInterval: number;
   maxPages: number;
@@ -1951,7 +1982,7 @@ interface EventWithEntries extends Event {
   entries: any[];
 }
 
-function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTimeRef, clockSubscribersRef, liveEventData, liveEventDataByPort, pagingSize, pagingInterval, maxPages, customWidth, customHeight, fieldPort, fieldPanels, displayScale = 100, currentLayoutMode, onReturnToLogo }: DisplayRendererProps) {
+function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTimeRef, clockSubscribersRef, liveEventData, liveEventDataByPort, calledUpByPort, pagingSize, pagingInterval, maxPages, customWidth, customHeight, fieldPort, fieldPanels, displayScale = 100, currentLayoutMode, onReturnToLogo }: DisplayRendererProps) {
   const { data: meet } = useQuery<Meet>({
     queryKey: ['/api/meets', meetId],
     enabled: !!meetId,
@@ -2083,6 +2114,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
                 height={panelHeight}
                 meetId={meetId}
                 liveEventDataByPort={liveEventDataByPort}
+                calledUpByPort={calledUpByPort}
                 displayType={displayType}
                 liveClockTimeRef={liveClockTimeRef}
                 clockSubscribersRef={clockSubscribersRef}
@@ -2145,6 +2177,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
                 meetId={meetId || undefined}
                 liveData={liveEventData}
                 liveEventDataByPort={liveEventDataByPort}
+                calledUpAthleteData={fieldPort ? calledUpByPort?.[fieldPort] : undefined}
                 deviceFieldPort={fieldPort}
                 canvasWidth={effectiveWidth}
                 canvasHeight={effectiveHeight}

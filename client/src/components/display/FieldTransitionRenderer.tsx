@@ -27,24 +27,19 @@ export function FieldTransitionRenderer({
   meetId,
   liveData,
   liveEventDataByPort,
+  calledUpAthleteData,
   deviceFieldPort,
   canvasWidth,
   canvasHeight,
 }: {
   curtainColor: string;
   meetId?: string;
-  // Live data prop — passed from SceneObjectRenderer which gets it from the display device's
-  // own WebSocket (registered as a display device). Previously this component listened on the
-  // WebSocket context directly, but that's a SEPARATE unregistered connection that never receives
-  // field_mode_change messages from the server.
   liveData?: { entries?: any[]; results?: any[] } | null;
-  // All field port data keyed by port number
   liveEventDataByPort?: Record<number, { entries?: any[]; results?: any[] }> | null;
-  // The device's assigned field port — curtain ONLY triggers for data on this port.
-  // Without this, the curtain fires for ANY port (causing wrong-school curtains on wrong boards).
+  // Direct athlete-up signal from server (field_athlete_up message) — more reliable than
+  // heuristic detection from standings data. Includes port, bib, school, and timestamp.
+  calledUpAthleteData?: { athleteName: string; bib: string; affiliation: string; attemptNumber: number; timestamp: number } | null;
   deviceFieldPort?: number | null;
-  // Canvas dimensions for responsive scaling — the curtain scales text/logo relative to
-  // a 1080p reference so it looks correct on P10 (192x96) through BigBoard (1920x1080).
   canvasWidth?: number;
   canvasHeight?: number;
 }) {
@@ -112,6 +107,65 @@ export function FieldTransitionRenderer({
   }, [clearTimers]);
 
   useEffect(() => () => clearTimers(), [clearTimers]);
+
+  // Primary curtain trigger: direct field_athlete_up signal from server.
+  // This is more reliable than heuristic detection because the server
+  // explicitly tells us which athlete is "up" on which port.
+  const prevCalledUpTimestampRef = useRef<number>(0);
+  useEffect(() => {
+    if (!calledUpAthleteData) return;
+    // Only fire if timestamp changed (new call-up)
+    if (calledUpAthleteData.timestamp === prevCalledUpTimestampRef.current) return;
+    prevCalledUpTimestampRef.current = calledUpAthleteData.timestamp;
+
+    const calledId = calledUpAthleteData.bib || calledUpAthleteData.athleteName || '';
+    if (!calledId) return;
+
+    // Cooldown guard
+    const now = Date.now();
+    if (now - lastCurtainTimeRef.current < CURTAIN_COOLDOWN_MS) return;
+
+    // Update tracking refs
+    prevCalledBibRef.current = calledId;
+    lastCurtainTimeRef.current = now;
+
+    const school = calledUpAthleteData.affiliation || '';
+    const cached = school ? teamCacheRef.current.get(school) : undefined;
+    const startPrimary = cached?.primary || curtainColor;
+    const startSecondary = cached?.secondary || curtainColor;
+    const startLogo = cached?.logo || null;
+    runCurtain(startLogo, startPrimary, startSecondary);
+
+    // Async fetch team colors/logo
+    const fetchVersion = versionRef.current;
+    if (school && meetId) {
+      (async () => {
+        try {
+          const res = await fetch(
+            `/api/teams/by-affiliation?name=${encodeURIComponent(school)}&meetId=${encodeURIComponent(meetId)}`
+          );
+          if (res.ok) {
+            const teamData = await res.json();
+            if (versionRef.current !== fetchVersion) return;
+            const currentPhase = phaseRef.current;
+            if (currentPhase === 'coverStart' || currentPhase === 'covering' || currentPhase === 'paused') {
+              const fetchedPrimary = teamData?.primaryColor || '';
+              const fetchedSecondary = teamData?.secondaryColor || fetchedPrimary;
+              const fetchedLogo = teamData?.logoUrl || null;
+              if (fetchedPrimary && school) {
+                teamCacheRef.current.set(school, { primary: fetchedPrimary, secondary: fetchedSecondary, logo: fetchedLogo });
+              }
+              if (fetchedPrimary) {
+                setPrimaryColor(fetchedPrimary);
+                setSecondaryColor(fetchedSecondary);
+              }
+              if (fetchedLogo) setLogoSrc(fetchedLogo);
+            }
+          }
+        } catch {}
+      })();
+    }
+  }, [calledUpAthleteData, curtainColor, meetId, runCurtain]);
 
   // Get live data ONLY from the device's assigned field port.
   // Previously this merged ALL port data, causing the curtain to fire on wrong boards
