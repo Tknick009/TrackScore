@@ -110,6 +110,8 @@ export interface SceneCanvasProps {
   meetLogoEffect?: string | null;
   meetPrimaryColor?: string;
   meetSecondaryColor?: string;
+  // Vertical compression for entry rows (50–100, default 100 = no compression)
+  verticalCompression?: number;
 }
 
 function useEventWithEntries(eventId: string | null | undefined) {
@@ -679,8 +681,25 @@ export function SceneObjectRenderer({
           return <div className="h-full" />;
         }
         const logoIsAthleteBound = logoFieldKey === 'school-logo' || isAthleteHeadshot;
+        // Field event UP/PREVIOUS badge overlay on school logos
+        let logoFieldStatusBadge: string | null = null;
+        if (isFieldMode && logoFieldKey === 'school-logo' && liveData) {
+          const lsEntries = Array.isArray(liveData.entries) ? liveData.entries : [];
+          const lsIdx = (dataBinding.athleteIndex || 0) + pageOffset;
+          const lsEntry = lsEntries[lsIdx];
+          if (lsEntry) {
+            const hasMark = lsEntry.mark && String(lsEntry.mark).trim() !== '';
+            if (!hasMark && lsIdx === 0) {
+              logoFieldStatusBadge = 'UP';
+            } else if (hasMark && lsIdx === 1 && lsEntries.length > 0) {
+              const zeroEntry = lsEntries[0];
+              if (!zeroEntry?.mark || String(zeroEntry.mark).trim() === '') logoFieldStatusBadge = 'PREVIOUS';
+            }
+          }
+        }
         return (
           <div style={{ 
+            position: 'relative',
             width: '100%', height: '100%',
             opacity: logoIsAthleteBound ? contentFadeOpacity : 1,
             transition: 'opacity 0.3s ease-in-out',
@@ -691,6 +710,28 @@ export function SceneObjectRenderer({
               fallbackUrl={logoFallbackUrl}
               isHeadshot={isAthleteHeadshot}
             />
+            {logoFieldStatusBadge && (
+              <span
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  backgroundColor: logoFieldStatusBadge === 'UP' ? '#16a34a' : '#d97706',
+                  color: '#ffffff',
+                  fontSize: `${Math.max(8, (height || 40) * 0.18)}px`,
+                  fontWeight: 700,
+                  letterSpacing: '0.05em',
+                  padding: '1px 6px',
+                  borderRadius: '3px',
+                  whiteSpace: 'nowrap',
+                  zIndex: 10,
+                  fontFamily: "'Barlow Semi Condensed', sans-serif",
+                }}
+              >
+                {logoFieldStatusBadge}
+              </span>
+            )}
           </div>
         );
         
@@ -1011,7 +1052,22 @@ export function SceneObjectRenderer({
             'round': liveData.roundName || liveData.round,
             'round-name': liveData.roundName || '',
             'wind': windDisplay,
-            'status': liveData.status,
+            'status': (() => {
+              if (liveData.status) return liveData.status;
+              // Field events: derive per-athlete status from entry data.
+              // The UP athlete (no mark) is sorted to index 0 by the server.
+              if (isFieldMode && firstEntry) {
+                const hasMark = firstEntry.mark && String(firstEntry.mark).trim() !== '';
+                if (!hasMark && textAthleteIndex === 0) return 'UP';
+                // PREVIOUS: index-1 athlete who has a mark (just completed)
+                if (hasMark && textAthleteIndex === 1 && entries.length > 0) {
+                  const zeroEntry = entries[0];
+                  const zeroHasMark = zeroEntry?.mark && String(zeroEntry.mark).trim() !== '';
+                  if (!zeroHasMark) return 'PREVIOUS';
+                }
+              }
+              return liveData.status;
+            })(),
             'lane': firstEntry?.lane,
             'place': (() => {
               const rawPlace = firstEntry?.place;
@@ -1153,6 +1209,25 @@ export function SceneObjectRenderer({
           recordTagBadges = recordTagBadges.slice(0, 1);
         }
         
+        // Field event UP/PREVIOUS badge — shown on school and name fields
+        const isSchoolField = fieldKey === 'school';
+        let fieldStatusBadge: string | null = null;
+        if (isFieldMode && (isSchoolField || isNameField) && liveData) {
+          const fsEntries = Array.isArray(liveData.entries) ? liveData.entries : [];
+          const fsIdx = (dataBinding.athleteIndex || 0) + pageOffset;
+          const fsEntry = fsEntries[fsIdx];
+          if (fsEntry) {
+            const hasMark = fsEntry.mark && String(fsEntry.mark).trim() !== '';
+            if (!hasMark && fsIdx === 0) {
+              fieldStatusBadge = 'UP';
+            } else if (hasMark && fsIdx === 1 && fsEntries.length > 0) {
+              const zeroEntry = fsEntries[0];
+              const zeroHasMark = zeroEntry?.mark && String(zeroEntry.mark).trim() !== '';
+              if (!zeroHasMark) fieldStatusBadge = 'PREVIOUS';
+            }
+          }
+        }
+        
         return (
           <div 
             className="flex items-center h-full p-2 overflow-hidden"
@@ -1222,6 +1297,23 @@ export function SceneObjectRenderer({
                 {badge}
               </span>
             ))}
+            {fieldStatusBadge && (
+              <span
+                className="ml-4 px-3 py-1 rounded-md font-bold uppercase"
+                style={{
+                  backgroundColor: fieldStatusBadge === 'UP' ? '#16a34a' : '#d97706',
+                  color: '#ffffff',
+                  fontSize: `calc(${resolvedFontSize} * 0.55)`,
+                  letterSpacing: '0.05em',
+                  padding: '2px 8px',
+                  verticalAlign: 'middle',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                }}
+              >
+                {fieldStatusBadge}
+              </span>
+            )}
           </div>
         );
         
@@ -1676,6 +1768,7 @@ export function SceneCanvas({
   meetLogoEffect,
   meetPrimaryColor,
   meetSecondaryColor,
+  verticalCompression = 100,
 }: SceneCanvasProps) {
   const [dimensions, setDimensions] = useState({ width: 1920, height: 1080 });
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
@@ -2005,32 +2098,57 @@ export function SceneCanvas({
         data-testid="scene-canvas"
         key={`scene-${sceneId}`}
       >
-        {sortedObjects.map((obj) => {
-          // In multi-panel mode (deviceFieldPort set), FieldPanel already provides
-          // port-filtered data as propLiveEventData → liveData. Use it directly.
-          const objectLiveData = deviceFieldPort
-            ? liveData
-            : (obj.dataBinding?.fieldPort
-              ? (liveEventDataByPort?.[obj.dataBinding.fieldPort] || null)
-              : liveData);
-          return (
-            <SceneObjectRenderer 
-              key={obj.id} 
-              object={obj} 
-              meetId={meetId}
-              canvasWidth={canvasWidth}
-              canvasHeight={canvasHeight}
-              eventNumber={eventNumber}
-              pageIndex={currentPageIndex}
-              pageSize={pagingSize}
-              sharedLatestLiveData={objectLiveData}
-              liveClockTimeRef={liveClockTimeRef}
-              clockSubscribersRef={clockSubscribersRef}
-              deviceFieldPort={deviceFieldPort}
-              liveEventDataByPort={liveEventDataByPort}
-            />
-          );
-        })}
+        {(() => {
+          // Vertical compression: compute y-offset adjustments for entry-row objects.
+          // Objects with athleteIndex >= 2 get compressed toward the anchor row.
+          const vcFactor = (verticalCompression ?? 100) / 100;
+          let anchorY: number | null = null;
+          if (vcFactor < 1) {
+            // Find anchor: the minimum y of objects with athleteIndex === 2
+            for (const o of sortedObjects) {
+              const idx = o.dataBinding?.athleteIndex;
+              if (idx === 2 && typeof o.y === 'number') {
+                if (anchorY === null || o.y < anchorY) anchorY = o.y;
+              }
+            }
+          }
+          return sortedObjects.map((obj) => {
+            // Apply vertical compression to entry-row objects (athleteIndex >= 2)
+            let compressedObj = obj;
+            if (vcFactor < 1 && anchorY !== null) {
+              const idx = obj.dataBinding?.athleteIndex;
+              if (typeof idx === 'number' && idx >= 2 && typeof obj.y === 'number') {
+                const offset = obj.y - anchorY;
+                const newY = anchorY + offset * vcFactor;
+                compressedObj = { ...obj, y: Math.round(newY) };
+              }
+            }
+            // In multi-panel mode (deviceFieldPort set), FieldPanel already provides
+            // port-filtered data as propLiveEventData → liveData. Use it directly.
+            const objectLiveData = deviceFieldPort
+              ? liveData
+              : (compressedObj.dataBinding?.fieldPort
+                ? (liveEventDataByPort?.[compressedObj.dataBinding.fieldPort] || null)
+                : liveData);
+            return (
+              <SceneObjectRenderer 
+                key={compressedObj.id} 
+                object={compressedObj} 
+                meetId={meetId}
+                canvasWidth={canvasWidth}
+                canvasHeight={canvasHeight}
+                eventNumber={eventNumber}
+                pageIndex={currentPageIndex}
+                pageSize={pagingSize}
+                sharedLatestLiveData={objectLiveData}
+                liveClockTimeRef={liveClockTimeRef}
+                clockSubscribersRef={clockSubscribersRef}
+                deviceFieldPort={deviceFieldPort}
+                liveEventDataByPort={liveEventDataByPort}
+              />
+            );
+          });
+        })()}
         
         {sortedObjects.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center">

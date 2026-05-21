@@ -631,7 +631,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
   // Update display device config (fieldPort, isBigBoard, pagingSize, pagingInterval, displayType)
   app.patch("/api/display-devices/:id", async (req, res) => {
     try {
-      const { fieldPort, isBigBoard, pagingSize, pagingInterval, displayType, displayWidth, displayHeight, displayScale, fieldPanels, daisyChainDisplayType } = req.body;
+      const { fieldPort, isBigBoard, pagingSize, pagingInterval, displayType, displayWidth, displayHeight, displayScale, verticalCompression, fieldPanels, daisyChainDisplayType } = req.body;
       const id = req.params.id;
 
       const device = await storage.getDisplayDevice(id);
@@ -666,12 +666,13 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
 
       const finalDevice = await storage.getDisplayDevice(id);
 
-      // Store fieldPanels and daisyChainDisplayType in memory on connected device (not in DB — runtime config)
-      if (fieldPanels !== undefined || daisyChainDisplayType !== undefined) {
+      // Store fieldPanels, daisyChainDisplayType, verticalCompression in memory on connected device (not in DB — runtime config)
+      if (fieldPanels !== undefined || daisyChainDisplayType !== undefined || verticalCompression !== undefined) {
         const connDev = connectedDisplayDevices.get(id);
         if (connDev) {
           if (fieldPanels !== undefined) (connDev as any).fieldPanels = Array.isArray(fieldPanels) ? fieldPanels : null;
           if (daisyChainDisplayType !== undefined) (connDev as any).daisyChainDisplayType = daisyChainDisplayType;
+          if (verticalCompression !== undefined) (connDev as any).verticalCompression = Math.max(50, Math.min(100, parseInt(verticalCompression) || 100));
         }
       }
 
@@ -709,6 +710,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           displayHeight: finalDevice?.displayHeight,
           fieldPanels: fieldPanels !== undefined ? (Array.isArray(fieldPanels) ? fieldPanels : null) : undefined,
           daisyChainDisplayType: daisyChainDisplayType || undefined,
+          verticalCompression: verticalCompression !== undefined ? Math.max(50, Math.min(100, parseInt(verticalCompression) || 100)) : undefined,
         }
       } as WSMessage);
 

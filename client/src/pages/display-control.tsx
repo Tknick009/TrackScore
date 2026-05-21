@@ -142,6 +142,7 @@ export default function DisplayControlPage() {
   const [pendingFieldPort, setPendingFieldPort] = useState<Record<string, number>>({});
   const [fieldPanelConfig, setFieldPanelConfig] = useState<Record<string, Array<{eventNumber?: number; port?: number; showLogo?: boolean}>>>({});
   const [daisyChainDisplayType, setDaisyChainDisplayType] = useState<Record<string, string>>({});
+  const [daisyChainVerticalCompression, setDaisyChainVerticalCompression] = useState<Record<string, number>>({});
   const [sponsorUrls, setSponsorUrls] = useState<Record<string, string>>({});
   const [sponsorInterval, setSponsorInterval] = useState<Record<string, number>>({});
   const [teamPreviewGender, setTeamPreviewGender] = useState<Record<string, 'M' | 'W'>>({});
@@ -2316,12 +2317,34 @@ export default function DisplayControlPage() {
                                     </Button>
                                   </div>
                                 ))}
+                                {/* Vertical compression slider */}
+                                <div className="space-y-1 pt-2 border-t">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-medium">Row Compression</span>
+                                    <span className="text-xs font-mono tabular-nums">{daisyChainVerticalCompression[selectedDevice.id] ?? 100}%</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[10px] text-muted-foreground">50</span>
+                                    <input
+                                      type="range"
+                                      min="50"
+                                      max="100"
+                                      step="5"
+                                      value={daisyChainVerticalCompression[selectedDevice.id] ?? 100}
+                                      onChange={(e) => setDaisyChainVerticalCompression(prev => ({ ...prev, [selectedDevice.id]: parseInt(e.target.value) }))}
+                                      className="flex-1 accent-primary cursor-pointer h-4"
+                                    />
+                                    <span className="text-[10px] text-muted-foreground">100</span>
+                                  </div>
+                                  <p className="text-[10px] text-muted-foreground">Lower = tighter rows, fits more athletes</p>
+                                </div>
                                 <Button
                                   size="sm"
                                   onClick={async () => {
                                     const panels = fieldPanelConfig[selectedDevice.id];
                                     const dcDisplayType = daisyChainDisplayType[selectedDevice.id] || 'P6';
-                                    await apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}`, { fieldPanels: panels, daisyChainDisplayType: dcDisplayType });
+                                    const vcVal = daisyChainVerticalCompression[selectedDevice.id] ?? 100;
+                                    await apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}`, { fieldPanels: panels, daisyChainDisplayType: dcDisplayType, verticalCompression: vcVal });
                                     await apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}/content-mode`, { contentMode: 'field_daisy_chain' });
                                     toast({ title: 'Multi-Panel set', description: `${panels!.length} ${dcDisplayType} panels configured` });
                                   }}
