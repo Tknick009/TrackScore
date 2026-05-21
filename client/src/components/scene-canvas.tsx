@@ -30,27 +30,42 @@ import { SmoothClock as StaticRunningClock, parseClockTimeToSeconds, formatSecon
 
 // Robust logo component with proper error handling
 // Falls back to 0.png when logo fails to load
-const LogoImage = memo(function LogoImage({ logoUrl, objectFit, fallbackUrl }: { logoUrl: string; objectFit: string; fallbackUrl?: string }) {
+const LogoImage = memo(function LogoImage({ logoUrl, objectFit, fallbackUrl, isHeadshot }: { logoUrl: string; objectFit: string; fallbackUrl?: string; isHeadshot?: boolean }) {
   const [currentUrl, setCurrentUrl] = useState(logoUrl);
-  const fallbackStage = useRef(0); // 0 = original, 1 = fallbackUrl, 2 = 0.png
+  const [showSilhouette, setShowSilhouette] = useState(false);
+  const fallbackStage = useRef(0); // 0 = original, 1 = fallbackUrl, 2 = 0.png/silhouette
   
   // Reset when logoUrl prop changes
   useEffect(() => {
     setCurrentUrl(logoUrl);
+    setShowSilhouette(false);
     fallbackStage.current = 0;
   }, [logoUrl, fallbackUrl]);
   
   const handleError = () => {
     if (fallbackStage.current === 0 && fallbackUrl) {
-      // First fallback: try the provided fallback URL (e.g. school logo)
       fallbackStage.current = 1;
       setCurrentUrl(fallbackUrl);
-    } else if (fallbackStage.current <= 1 && currentUrl !== '/logos/NCAA/0.png') {
-      // Final fallback: generic placeholder
+    } else if (fallbackStage.current <= 1) {
       fallbackStage.current = 2;
-      setCurrentUrl('/logos/NCAA/0.png');
+      if (isHeadshot) {
+        setShowSilhouette(true);
+      } else if (currentUrl !== '/logos/NCAA/0.png') {
+        setCurrentUrl('/logos/NCAA/0.png');
+      }
     }
   };
+  
+  if (showSilhouette) {
+    return (
+      <div className="flex items-center justify-center h-full" style={{ background: 'linear-gradient(135deg, #1a2332 0%, #0f1720 100%)' }}>
+        <svg viewBox="0 0 80 80" style={{ width: '55%', height: '55%', opacity: 0.3 }}>
+          <circle cx="40" cy="28" r="14" fill="#fff" />
+          <ellipse cx="40" cy="68" rx="22" ry="16" fill="#fff" />
+        </svg>
+      </div>
+    );
+  }
   
   return (
     <div className="flex items-center justify-center h-full p-2">
@@ -363,8 +378,7 @@ export function SceneObjectRenderer({
       const hasPlace = entry.place && String(entry.place).trim() !== '' && /^\d+$/.test(String(entry.place).trim());
       const hasPerformance = hasMark || hasTime || hasPlace;
       if (!hasPerformance && rawAthleteIndex !== 0) {
-        shouldHide = true;
-        contentFadeOpacity = 0;
+        contentFadeOpacity = 0.5;
       } else {
         contentFadeOpacity = 1;
       }
@@ -647,10 +661,24 @@ export function SceneObjectRenderer({
           logoUrl = componentConfig.logoUrl || componentConfig.imageUrl;
         }
         
+        const isAthleteHeadshot = logoFieldKey === 'athlete-photo';
         if (!logoUrl) {
+          if (isAthleteHeadshot) {
+            // Show silhouette placeholder for missing headshots
+            return (
+              <div style={{ width: '100%', height: '100%', opacity: contentFadeOpacity, transition: 'opacity 0.3s ease-in-out' }}>
+                <div className="flex items-center justify-center h-full" style={{ background: 'linear-gradient(135deg, #1a2332 0%, #0f1720 100%)' }}>
+                  <svg viewBox="0 0 80 80" style={{ width: '55%', height: '55%', opacity: 0.3 }}>
+                    <circle cx="40" cy="28" r="14" fill="#fff" />
+                    <ellipse cx="40" cy="68" rx="22" ry="16" fill="#fff" />
+                  </svg>
+                </div>
+              </div>
+            );
+          }
           return <div className="h-full" />;
         }
-        const logoIsAthleteBound = logoFieldKey === 'school-logo' || logoFieldKey === 'athlete-photo';
+        const logoIsAthleteBound = logoFieldKey === 'school-logo' || isAthleteHeadshot;
         return (
           <div style={{ 
             width: '100%', height: '100%',
@@ -661,6 +689,7 @@ export function SceneObjectRenderer({
               logoUrl={logoUrl} 
               objectFit={componentConfig.objectFit || componentConfig.imageFit || "contain"}
               fallbackUrl={logoFallbackUrl}
+              isHeadshot={isAthleteHeadshot}
             />
           </div>
         );

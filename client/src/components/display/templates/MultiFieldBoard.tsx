@@ -134,7 +134,7 @@ function ScrollingStandings({ entries, cols, s, accent, visibleRows = 6 }: {
         display: "flex",
         alignItems: "center",
         background: isEven ? "rgba(255,255,255,0.02)" : "transparent",
-        borderBottom: "1px solid rgba(255,255,255,0.06)",
+
         padding: "0 0.8cqw",
       }}>
         <span style={{
@@ -294,9 +294,10 @@ export function MultiFieldBoard({
               justifyContent: "center",
               background: "linear-gradient(135deg, #1a2332 0%, #0f1720 100%)",
             }}>
-              <span style={{ color: "rgba(255,255,255,0.15)", fontSize: "3.5cqw", fontWeight: 700 }}>
-                {athlete.firstName?.charAt(0)}{athlete.lastName?.charAt(0)}
-              </span>
+              <svg viewBox="0 0 80 80" style={{ width: "60%", height: "60%", opacity: 0.25 }}>
+                <circle cx="40" cy="28" r="14" fill="#fff" />
+                <ellipse cx="40" cy="68" rx="22" ry="16" fill="#fff" />
+              </svg>
             </div>
           )}
         </div>
@@ -449,23 +450,7 @@ export function MultiFieldBoard({
             {evt.eventName}
           </span>
 
-          {meetLogoUrl && colIdx === 0 && (
-            <img
-              src={meetLogoUrl}
-              alt=""
-              style={{
-                position: "absolute",
-                right: "0.8cqw",
-                top: "50%",
-                transform: "translateY(-50%)",
-                height: s.meetLogo,
-                width: "auto",
-                objectFit: "contain",
-                opacity: 0.7,
-                zIndex: 1,
-              }}
-            />
-          )}
+
         </div>
 
         {/* Accent line under header */}
