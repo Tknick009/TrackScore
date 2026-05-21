@@ -63,7 +63,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
   } = ctx;
 
   // Track previous athlete per device+event for the Multi-Field Board 1-column split layout
-  const multiFieldPreviousAthletes = new Map<string, { bibNumber: number; athleteData: any }>();
+  const multiFieldPreviousAthletes = new Map<string, { bibNumber: number; athleteData: any; previousAthleteData: any }>();
 
   // ===== DISPLAY REGISTRATION =====
   app.post("/api/displays/register", async (req, res) => {
@@ -3352,7 +3352,8 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           }
         }
 
-        // Track previousAthlete: when currentAthlete changes, shift old one to previous
+        // Track previousAthlete: when currentAthlete changes, shift old one to previous.
+        // Previous persists until a DIFFERENT athlete becomes current.
         let previousAthleteData: any = null;
         const devicePrevKey = `${deviceId}:${evtNum}`;
         const liveBib = liveAthlete?.bib ? Number(liveAthlete.bib) : null;
@@ -3360,12 +3361,29 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           const prevState = multiFieldPreviousAthletes.get(devicePrevKey);
           const currentBib = liveBib || standings.athletes.find(a => !a.isDNS)?.bibNumber || 0;
           if (prevState && prevState.bibNumber !== currentBib) {
+            // New athlete is up — old current becomes previous
             previousAthleteData = prevState.athleteData;
+            multiFieldPreviousAthletes.set(devicePrevKey, {
+              bibNumber: currentBib,
+              athleteData: currentAthleteData,
+              previousAthleteData: prevState.athleteData,
+            });
+          } else if (prevState) {
+            // Same athlete still up — keep existing previous
+            previousAthleteData = prevState.previousAthleteData || null;
+            multiFieldPreviousAthletes.set(devicePrevKey, {
+              bibNumber: currentBib,
+              athleteData: currentAthleteData,
+              previousAthleteData: prevState.previousAthleteData,
+            });
+          } else {
+            // First time seeing this event — no previous yet
+            multiFieldPreviousAthletes.set(devicePrevKey, {
+              bibNumber: currentBib,
+              athleteData: currentAthleteData,
+              previousAthleteData: null,
+            });
           }
-          multiFieldPreviousAthletes.set(devicePrevKey, {
-            bibNumber: currentBib,
-            athleteData: currentAthleteData,
-          });
         }
 
         eventsData.push({
@@ -3743,17 +3761,30 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
               // Track previousAthlete in auto-refresh path
               let previousAthl: any = null;
               const prevKey = `${deviceId}:${evtNum}`;
-              // Determine current bib from live data or LFF leader
               const currentBib = liveAthlete?.bib ? Number(liveAthlete.bib) : (standings.athletes.find(a => !a.isDNS)?.bibNumber || 0);
               if (currentAthl) {
                 const prevState = multiFieldPreviousAthletes.get(prevKey);
                 if (prevState && prevState.bibNumber !== currentBib) {
                   previousAthl = prevState.athleteData;
+                  multiFieldPreviousAthletes.set(prevKey, {
+                    bibNumber: currentBib,
+                    athleteData: currentAthl,
+                    previousAthleteData: prevState.athleteData,
+                  });
+                } else if (prevState) {
+                  previousAthl = prevState.previousAthleteData || null;
+                  multiFieldPreviousAthletes.set(prevKey, {
+                    bibNumber: currentBib,
+                    athleteData: currentAthl,
+                    previousAthleteData: prevState.previousAthleteData,
+                  });
+                } else {
+                  multiFieldPreviousAthletes.set(prevKey, {
+                    bibNumber: currentBib,
+                    athleteData: currentAthl,
+                    previousAthleteData: null,
+                  });
                 }
-                multiFieldPreviousAthletes.set(prevKey, {
-                  bibNumber: currentBib,
-                  athleteData: currentAthl,
-                });
               }
               eventsData.push({
                 eventNumber: evtNum, eventName: standings.eventName || dbEvent?.name || `Event ${evtNum}`,
