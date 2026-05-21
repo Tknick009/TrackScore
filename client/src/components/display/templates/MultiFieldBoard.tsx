@@ -341,13 +341,11 @@ export function MultiFieldBoard({
             textTransform: "uppercase",
             letterSpacing: "0.02em",
             lineHeight: 1.1,
-            wordBreak: "break-word",
             overflow: "hidden",
-            display: "-webkit-box",
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: "vertical" as const,
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
           }}>
-            {athlete.firstName} {athlete.lastName}
+            {athlete.firstName?.charAt(0) ? `${athlete.firstName.charAt(0)}. ` : ""}{athlete.lastName}
           </div>
           {/* Team */}
           <div style={{
