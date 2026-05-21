@@ -364,7 +364,7 @@ export default function DisplayDevice() {
   const [fieldPort, setFieldPort] = useState<number>(4560);
   const fieldPortRef = useRef<number>(4560);
   // Multi-panel mode: each panel is an independent field display with its own port
-  const [fieldPanels, setFieldPanels] = useState<Array<{port: number}> | null>(null);
+  const [fieldPanels, setFieldPanels] = useState<Array<{port: number; showLogo?: boolean}> | null>(null);
   // Current content mode for rendering decisions
   const [contentMode, setContentMode] = useState<string>('lynx');
   
@@ -1802,7 +1802,7 @@ function ConfettiOverlay({ children, teamLogoUrl }: { children: React.ReactNode;
 /** FieldPanel — one column in multi-panel mode.
  *  When a scene mapping is available (e.g., P6-Field), renders through SceneCanvas
  *  so each panel uses the configured layout. Falls back to SingleAthleteField if no scene. */
-function FieldPanel({ port, width, height, meetId, liveEventDataByPort, calledUpByPort, displayType, liveClockTimeRef, clockSubscribersRef, displayScale, fieldSceneId, fieldSceneData }: {
+function FieldPanel({ port, width, height, meetId, liveEventDataByPort, calledUpByPort, displayType, liveClockTimeRef, clockSubscribersRef, displayScale, fieldSceneId, fieldSceneData, forceShowLogo }: {
   port: number;
   width: number;
   height: number;
@@ -1815,6 +1815,7 @@ function FieldPanel({ port, width, height, meetId, liveEventDataByPort, calledUp
   displayScale?: number;
   fieldSceneId?: number | null;
   fieldSceneData?: { scene: any; objects: any[] } | null;
+  forceShowLogo?: boolean;
 }) {
   const { data: meet } = useQuery<Meet>({
     queryKey: ['/api/meets', meetId],
@@ -1822,7 +1823,8 @@ function FieldPanel({ port, width, height, meetId, liveEventDataByPort, calledUp
   });
 
   const portData = liveEventDataByPort[port] || null;
-  const hasData = !!portData;
+  // When forceShowLogo is true, treat panel as if it has no data (shows meet logo)
+  const hasData = forceShowLogo ? false : !!portData;
 
   // Filter liveEventDataByPort to only include THIS panel's port.
   // Prevents scene objects from accidentally reading another panel's data.
@@ -1989,7 +1991,7 @@ interface DisplayRendererProps {
   customWidth?: number;
   customHeight?: number;
   fieldPort?: number;
-  fieldPanels?: Array<{port: number}> | null;
+  fieldPanels?: Array<{port: number; showLogo?: boolean}> | null;
   contentMode?: string;
   displayScale?: number;
   currentLayoutMode?: string | null;
@@ -2139,6 +2141,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
                 displayScale={displayScale}
                 fieldSceneId={fieldSceneId}
                 fieldSceneData={fieldSceneData}
+                forceShowLogo={panel.showLogo}
               />
             </div>
           ))}

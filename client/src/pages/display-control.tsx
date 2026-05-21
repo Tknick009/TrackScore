@@ -1095,6 +1095,12 @@ export default function DisplayControlPage() {
                             toggleAutoModeMutation.mutate({ deviceId: selectedDevice.id, enabled: false });
                             apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}/mode`, { displayMode: 'field' });
                             apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}/content-mode`, { contentMode: 'field_daisy_chain' });
+                            // Auto-configure 3 panels if not already set
+                            if (!fieldPanelConfig[selectedDevice.id] || fieldPanelConfig[selectedDevice.id].length === 0) {
+                              const defaultPanels = [{ port: 4560 }, { port: 4561 }, { port: 4562 }];
+                              setFieldPanelConfig(prev => ({ ...prev, [selectedDevice.id]: defaultPanels }));
+                              apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}`, { fieldPanels: defaultPanels });
+                            }
                           }}
                           className={`p-4 rounded-lg border-2 transition-all text-left ${
                             displayMode[selectedDevice.id] === 'field_daisy_chain' && !autoModeStatus?.autoMode
@@ -2343,6 +2349,101 @@ export default function DisplayControlPage() {
                               </div>
                             </div>
                           </div>
+                        </div>
+                      ) : displayMode[selectedDevice.id] === 'field_daisy_chain' ? (
+                        <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
+                          <div className="space-y-2">
+                            <Label>Number of Panels</Label>
+                            <p className="text-xs text-muted-foreground">
+                              Each panel is an independent field display with its own FieldLynx port, curtain animation, and layout.
+                            </p>
+                            <div className="flex gap-2">
+                              {[1, 2, 3].map(n => (
+                                <Button
+                                  key={n}
+                                  variant={(fieldPanelConfig[selectedDevice.id]?.length || 1) === n ? 'default' : 'outline'}
+                                  size="sm"
+                                  className="flex-1"
+                                  onClick={() => {
+                                    if (n === 1) {
+                                      setFieldPanelConfig(prev => {
+                                        const next = { ...prev };
+                                        delete next[selectedDevice.id];
+                                        return next;
+                                      });
+                                    } else {
+                                      const existing = fieldPanelConfig[selectedDevice.id] || [];
+                                      const panels = Array.from({ length: n }, (_, i) => ({
+                                        port: existing[i]?.port ?? 4560 + i,
+                                        showLogo: (existing[i] as any)?.showLogo ?? false,
+                                      }));
+                                      setFieldPanelConfig(prev => ({ ...prev, [selectedDevice.id]: panels }));
+                                    }
+                                  }}
+                                >
+                                  {n === 1 ? 'Single' : `${n} Panels`}
+                                </Button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {(fieldPanelConfig[selectedDevice.id]?.length || 0) >= 1 && (
+                            <div className="space-y-3">
+                              <Label>Panel Configuration</Label>
+                              {(fieldPanelConfig[selectedDevice.id] || [{ port: 4560 }]).map((panel: any, idx: number) => (
+                                <div key={idx} className="flex gap-2 items-center">
+                                  <span className="text-xs text-muted-foreground w-16 shrink-0">Panel {idx + 1}:</span>
+                                  <Select
+                                    value={String(panel.port)}
+                                    onValueChange={(val) => {
+                                      setFieldPanelConfig(prev => {
+                                        const panels = [...(prev[selectedDevice.id] || [{ port: 4560 }])];
+                                        panels[idx] = { ...panels[idx], port: parseInt(val) };
+                                        return { ...prev, [selectedDevice.id]: panels };
+                                      });
+                                    }}
+                                  >
+                                    <SelectTrigger className="flex-1 h-8 text-xs">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {Array.from({ length: 10 }, (_, i) => 4560 + i).map(port => (
+                                        <SelectItem key={port} value={String(port)}>
+                                          Port {port}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <Button
+                                    variant={panel.showLogo ? 'default' : 'outline'}
+                                    size="sm"
+                                    className="shrink-0 text-xs h-8"
+                                    onClick={() => {
+                                      setFieldPanelConfig(prev => {
+                                        const panels = [...(prev[selectedDevice.id] || [{ port: 4560 }])];
+                                        panels[idx] = { ...panels[idx], showLogo: !panel.showLogo };
+                                        return { ...prev, [selectedDevice.id]: panels };
+                                      });
+                                    }}
+                                  >
+                                    <Image className="w-3 h-3 mr-1" />
+                                    {panel.showLogo ? 'Logo On' : 'Logo Off'}
+                                  </Button>
+                                </div>
+                              ))}
+                              <Button
+                                size="sm"
+                                onClick={async () => {
+                                  const panels = fieldPanelConfig[selectedDevice.id] || [{ port: 4560 }];
+                                  await apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}`, { fieldPanels: panels });
+                                  toast({ title: 'Panels configured', description: `${panels.length} panel(s) with port assignments applied` });
+                                }}
+                              >
+                                <Send className="w-3 h-3 mr-1" />
+                                Apply Panels
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       ) : displayMode[selectedDevice.id] === 'multi_field' ? (
                         <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
