@@ -1,9 +1,14 @@
 import * as net from 'net';
+import * as fs from 'fs';
 import { EventEmitter } from 'events';
 import { Worker } from 'worker_threads';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
 import type { LynxPacket, LynxPortType, TrackDisplayMode, FieldDisplayMode } from '@shared/schema';
 import { captureManager } from './capture-manager';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 interface PortConfig {
   port: number;
@@ -481,7 +486,6 @@ export class LynxListener extends EventEmitter {
       // Resolve worker path — try .ts first (dev with tsx), fall back to .js (production build)
       const tsPath = path.resolve(__dirname, 'clock-worker.ts');
       const jsPath = path.resolve(__dirname, 'clock-worker.js');
-      const fs = require('fs');
       const workerPath = fs.existsSync(tsPath) ? tsPath : jsPath;
       const isTsFile = workerPath.endsWith('.ts');
       

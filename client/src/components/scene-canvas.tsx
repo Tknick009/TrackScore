@@ -1546,9 +1546,9 @@ export function SceneObjectRenderer({
         
       case "field-transition": {
         const ftColor = bgColor !== 'transparent' && bgColor ? bgColor : '#001e57';
-        // Use the object-level fieldPort (from dataBinding) when set, otherwise fall back to device-level port.
-        // This ensures curtains in multi-field scenes only trigger for their bound port.
-        const transitionPort = dataBinding.fieldPort || deviceFieldPort;
+        // In multi-panel mode, deviceFieldPort takes priority (each panel has its own port).
+        // In single-panel mode, fall back to object-level fieldPort binding.
+        const transitionPort = deviceFieldPort || dataBinding.fieldPort;
         return (
           <FieldTransitionRenderer
             curtainColor={ftColor}
@@ -1866,11 +1866,15 @@ export function SceneCanvas({
             }}
           >
             {sortedObjects.map((obj) => {
-              // If object is bound to a specific field port, ONLY show data from that port.
-              // Never fall back to global liveData — that would show the wrong event.
-              const objectLiveData = obj.dataBinding?.fieldPort
-                ? (liveEventDataByPort?.[obj.dataBinding.fieldPort] || null)
-                : liveData;
+              // In multi-panel mode (deviceFieldPort set), FieldPanel already provides
+              // port-filtered data as propLiveEventData → liveData. Use it directly
+              // so objects don't fail looking up their hardcoded fieldPort in singlePortData.
+              // In single-panel mode, respect per-object fieldPort bindings.
+              const objectLiveData = deviceFieldPort
+                ? liveData
+                : (obj.dataBinding?.fieldPort
+                  ? (liveEventDataByPort?.[obj.dataBinding.fieldPort] || null)
+                  : liveData);
               return (
                 <SceneObjectRenderer 
                   key={obj.id} 
@@ -1952,11 +1956,13 @@ export function SceneCanvas({
         key={`scene-${sceneId}`}
       >
         {sortedObjects.map((obj) => {
-          // If object is bound to a specific field port, ONLY show data from that port.
-          // Never fall back to global liveData — that would show the wrong event.
-          const objectLiveData = obj.dataBinding?.fieldPort
-            ? (liveEventDataByPort?.[obj.dataBinding.fieldPort] || null)
-            : liveData;
+          // In multi-panel mode (deviceFieldPort set), FieldPanel already provides
+          // port-filtered data as propLiveEventData → liveData. Use it directly.
+          const objectLiveData = deviceFieldPort
+            ? liveData
+            : (obj.dataBinding?.fieldPort
+              ? (liveEventDataByPort?.[obj.dataBinding.fieldPort] || null)
+              : liveData);
           return (
             <SceneObjectRenderer 
               key={obj.id} 
@@ -2052,11 +2058,13 @@ export function SceneCanvas({
         }}
       >
         {sortedObjects.map((obj) => {
-          // If object is bound to a specific field port, ONLY show data from that port.
-          // Never fall back to global liveData — that would show the wrong event.
-          const objectLiveData = obj.dataBinding?.fieldPort
-            ? (liveEventDataByPort?.[obj.dataBinding.fieldPort] || null)
-            : liveData;
+          // In multi-panel mode (deviceFieldPort set), FieldPanel already provides
+          // port-filtered data as propLiveEventData → liveData. Use it directly.
+          const objectLiveData = deviceFieldPort
+            ? liveData
+            : (obj.dataBinding?.fieldPort
+              ? (liveEventDataByPort?.[obj.dataBinding.fieldPort] || null)
+              : liveData);
           return (
             <SceneObjectRenderer 
               key={obj.id} 
