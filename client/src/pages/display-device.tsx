@@ -1894,6 +1894,22 @@ function FieldPanel({ port, width, height, meetId, liveEventDataByPort, calledUp
   const secondaryColor = meet?.secondaryColor || '#003366';
   const hasLogo = !!meet?.logoUrl;
 
+  // Diagnostic logging for daisy chain debugging
+  useEffect(() => {
+    console.log(`[FieldPanel:${port}] Render state:`, {
+      hasData,
+      hasPortData: !!portData,
+      forceShowLogo,
+      fieldSceneId,
+      hasFieldSceneData: !!fieldSceneData,
+      hasLogo,
+      meetLoaded: !!meet,
+      displayType,
+      width,
+      height,
+    });
+  }, [hasData, portData, forceShowLogo, fieldSceneId, fieldSceneData, hasLogo, meet, displayType, width, height, port]);
+
   // Build EventWithEntries from port data (fallback when no scene is mapped)
   const eventFromPortData = portData ? {
     id: 0,
@@ -2173,6 +2189,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
   if (contentMode === 'field_daisy_chain' && fieldPanels && fieldPanels.length > 0) {
     const effectiveDaisyType = (daisyChainDisplayType || displayType) as DisplayType;
     const resolution = DISPLAY_CAPABILITIES[effectiveDaisyType]?.resolution || DISPLAY_CAPABILITIES[displayType].resolution;
+    console.log(`[DaisyChain] Rendering ${fieldPanels.length} panels, type=${effectiveDaisyType}, resolution=${resolution.width}x${resolution.height}, fieldSceneId=${fieldSceneId}, hasSceneData=${!!fieldSceneData}, ports=${fieldPanels.map(p => p.port).join(',')}, dataPortsWithData=${Object.keys(liveEventDataByPort).join(',') || 'none'}`);
     const panelWidth = resolution.width;
     const panelHeight = resolution.height;
     const panelCount = fieldPanels.length;
