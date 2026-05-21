@@ -1096,11 +1096,13 @@ export default function DisplayControlPage() {
                             toggleAutoModeMutation.mutate({ deviceId: selectedDevice.id, enabled: false });
                             apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}/mode`, { displayMode: 'field' });
                             apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}/content-mode`, { contentMode: 'field_daisy_chain' });
-                            // Auto-configure 3 panels if not already set
+                            // Auto-configure 3 panels and display type if not already set
                             if (!fieldPanelConfig[selectedDevice.id] || fieldPanelConfig[selectedDevice.id].length === 0) {
                               const defaultPanels = [{ port: 4560 }, { port: 4561 }, { port: 4562 }];
+                              const defaultType = selectedDevice.displayType === 'P10' ? 'P10' : 'P6';
                               setFieldPanelConfig(prev => ({ ...prev, [selectedDevice.id]: defaultPanels }));
-                              apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}`, { fieldPanels: defaultPanels });
+                              setDaisyChainDisplayType(prev => ({ ...prev, [selectedDevice.id]: defaultType }));
+                              apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}`, { fieldPanels: defaultPanels, daisyChainDisplayType: defaultType });
                             }
                           }}
                           className={`p-4 rounded-lg border-2 transition-all text-left ${

@@ -501,7 +501,8 @@ export default function DisplayDevice() {
   // Uses daisyChainDisplayType when set, otherwise falls back to the device's displayType.
   useEffect(() => {
     if (contentMode !== 'field_daisy_chain' || !fieldPanels || fieldPanels.length <= 1) return;
-    const effectiveType = (daisyChainDisplayType || state.displayType) as DisplayType;
+    const baseType = state.displayType as string;
+    const effectiveType = (daisyChainDisplayType || (baseType === 'BigBoard' || baseType === 'Broadcast' || baseType === 'Custom' ? 'P6' : baseType)) as DisplayType;
     if (!effectiveType) return;
     const resolution = DISPLAY_CAPABILITIES[effectiveType]?.resolution;
     if (!resolution) return;
@@ -2110,8 +2111,8 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
   });
   const fieldSceneId = useMemo(() => {
     if (!panelSceneMappings || !isMultiPanel) return null;
-    // For daisy chain mode, use the daisy chain display type for scene lookup
-    const sceneDisplayType = daisyChainDisplayType || displayType;
+    // For daisy chain mode, use the daisy chain display type for scene lookup (default to P6 for non-LED device types)
+    const sceneDisplayType = daisyChainDisplayType || (displayType === 'BigBoard' || displayType === 'Broadcast' || displayType === 'Custom' ? 'P6' : displayType);
     const mapping = panelSceneMappings.find(
       m => m.displayType === sceneDisplayType && m.displayMode === 'field_results'
     );
@@ -2187,8 +2188,9 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
   // Uses FieldPanel which already has all the rendering features.
   // daisyChainDisplayType allows overriding the panel resolution (e.g., P10 panels on a P6 device).
   if (contentMode === 'field_daisy_chain' && fieldPanels && fieldPanels.length > 0) {
-    const effectiveDaisyType = (daisyChainDisplayType || displayType) as DisplayType;
-    const resolution = DISPLAY_CAPABILITIES[effectiveDaisyType]?.resolution || DISPLAY_CAPABILITIES[displayType].resolution;
+    // For daisy chain, default to P6 if no explicit type set (device may be registered as BigBoard globally)
+    const effectiveDaisyType = (daisyChainDisplayType || (displayType === 'BigBoard' || displayType === 'Broadcast' || displayType === 'Custom' ? 'P6' : displayType)) as DisplayType;
+    const resolution = DISPLAY_CAPABILITIES[effectiveDaisyType]?.resolution || DISPLAY_CAPABILITIES['P6'].resolution;
     console.log(`[DaisyChain] Rendering ${fieldPanels.length} panels, type=${effectiveDaisyType}, resolution=${resolution.width}x${resolution.height}, fieldSceneId=${fieldSceneId}, hasSceneData=${!!fieldSceneData}, ports=${fieldPanels.map(p => p.port).join(',')}, dataPortsWithData=${Object.keys(liveEventDataByPort).join(',') || 'none'}`);
     const panelWidth = resolution.width;
     const panelHeight = resolution.height;
@@ -2212,6 +2214,8 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
                 width: `${panelWidth}px`,
                 height: `${panelHeight}px`,
                 flexShrink: 0,
+                border: '1px solid rgba(255,0,0,0.5)',
+                boxSizing: 'border-box',
               }}
             >
               <FieldPanel
