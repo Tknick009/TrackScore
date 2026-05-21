@@ -3534,9 +3534,54 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
               if (resolvedP.startsWith(resolvedD) && fs.existsSync(ncaaPath)) return `/logos/NCAA/${encodeURIComponent(safeName)}.png`;
               return null;
             };
-            const resolveHeadshot = (bib: number): string | null => {
+            // Build directory-based headshot cache (same as initial endpoint)
+            const headshotDirCacheAuto = new Map<string, string>();
+            const headshotDirAuto = (ingestionSettings as any)?.headshotDirectory;
+            if (headshotDirAuto && fs.existsSync(headshotDirAuto)) {
+              try {
+                const { headshotBaseNames } = await import('../name-utils');
+                const dirFiles = fs.readdirSync(headshotDirAuto);
+                const imgExts = new Set(['.png', '.jpg', '.jpeg', '.webp']);
+                const dirFileSet = new Map<string, string>();
+                for (const f of dirFiles) {
+                  const ext = pathModule.extname(f).toLowerCase();
+                  if (imgExts.has(ext)) dirFileSet.set(f.toLowerCase(), f);
+                }
+                for (const a of allAthletes) {
+                  if (headshotMap.has(a.id)) continue;
+                  const bib = (a as any).bibNumber || (a as any).athleteNumber?.toString();
+                  if (!bib) continue;
+                  const team = (a as any).teamName || (a as any).school || '';
+                  const firstName = (a as any).firstName || '';
+                  const lastName = (a as any).lastName || '';
+                  if (!firstName && !lastName) continue;
+                  const bases = headshotBaseNames(team, firstName, lastName);
+                  let found = false;
+                  for (const base of bases) {
+                    if (found) break;
+                    for (const ext of ['.png', '.jpg', '.jpeg', '.webp']) {
+                      if (dirFileSet.has(`${base}${ext}`.toLowerCase())) {
+                        headshotDirCacheAuto.set(String(bib), `/api/meets/${meetId}/headshot?school=${encodeURIComponent(team)}&firstName=${encodeURIComponent(firstName)}&lastName=${encodeURIComponent(lastName)}`);
+                        found = true;
+                        break;
+                      }
+                    }
+                  }
+                }
+              } catch (e) { /* directory scan failed */ }
+            }
+            const resolveHeadshot = (bib: number, firstName?: string, lastName?: string, team?: string): string | null => {
               const athlete = athleteByBibStr.get(String(bib));
-              return athlete ? (headshotMap.get(athlete.id) || null) : null;
+              if (athlete) {
+                const dbPhoto = headshotMap.get(athlete.id);
+                if (dbPhoto) return dbPhoto;
+              }
+              const dirCached = headshotDirCacheAuto.get(String(bib));
+              if (dirCached) return dirCached;
+              if (headshotDirAuto && firstName && lastName && team) {
+                return `/api/meets/${meetId}/headshot?school=${encodeURIComponent(team)}&firstName=${encodeURIComponent(firstName)}&lastName=${encodeURIComponent(lastName)}`;
+              }
+              return null;
             };
 
             const eventsData: any[] = [];
@@ -3563,12 +3608,14 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
                 let liveCurrentAthl: any = null;
                 if (liveAthlete && Date.now() - liveAthlete.timestamp < 120000) {
                   const nameParts = (liveAthlete.name || '').split(/,\s*|,/);
+                  const lFirst = nameParts.length > 1 ? nameParts[1].trim() : '';
+                  const lLast = nameParts.length > 1 ? nameParts[0].trim() : liveAthlete.name;
                   liveCurrentAthl = {
-                    firstName: nameParts.length > 1 ? nameParts[1].trim() : '',
-                    lastName: nameParts.length > 1 ? nameParts[0].trim() : liveAthlete.name,
+                    firstName: lFirst,
+                    lastName: lLast,
                     team: liveAthlete.affiliation || '',
                     teamLogoUrl: resolveTeamLogo(liveAthlete.affiliation),
-                    headshotUrl: resolveHeadshot(Number(liveAthlete.bib) || 0),
+                    headshotUrl: resolveHeadshot(Number(liveAthlete.bib) || 0, lFirst, lLast, liveAthlete.affiliation || ''),
                     place: null,
                     mark: liveAthlete.mark || '',
                     englishMark: liveAthlete.markConverted || '',
@@ -3591,7 +3638,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
 
               const enriched = standings.athletes.map(a => ({
                 place: a.bestMark != null ? (a.overallPlace || null) : null, bibNumber: a.bibNumber, firstName: a.firstName, lastName: a.lastName,
-                team: a.team || '', teamLogoUrl: resolveTeamLogo(a.team), headshotUrl: resolveHeadshot(a.bibNumber),
+                team: a.team || '', teamLogoUrl: resolveTeamLogo(a.team), headshotUrl: resolveHeadshot(a.bibNumber, a.firstName, a.lastName, a.team),
                 bestMark: a.bestMarkFormatted || '', isDNS: a.isDNS,
               }));
               
@@ -3640,12 +3687,14 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
                 } else {
                   // Athlete not found in LFF yet (maybe first attempt) — build from live data
                   const nameParts = (liveAthlete.name || '').split(/,\s*|,/);
+                  const nFirst = nameParts.length > 1 ? nameParts[1].trim() : '';
+                  const nLast = nameParts.length > 1 ? nameParts[0].trim() : liveAthlete.name;
                   currentAthl = {
-                    firstName: nameParts.length > 1 ? nameParts[1].trim() : '',
-                    lastName: nameParts.length > 1 ? nameParts[0].trim() : liveAthlete.name,
+                    firstName: nFirst,
+                    lastName: nLast,
                     team: liveAthlete.affiliation || '',
                     teamLogoUrl: resolveTeamLogo(liveAthlete.affiliation),
-                    headshotUrl: resolveHeadshot(Number(liveAthlete.bib) || 0),
+                    headshotUrl: resolveHeadshot(Number(liveAthlete.bib) || 0, nFirst, nLast, liveAthlete.affiliation || ''),
                     place: null,
                     mark: liveAthlete.mark || '',
                     englishMark: liveAthlete.markConverted || '',
