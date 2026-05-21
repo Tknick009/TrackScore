@@ -2079,10 +2079,10 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
   const containerStyle = isCustomDisplay ? { width: `${effectiveResWidth}px`, height: `${effectiveResHeight}px` } : {};
   const containerClass = isCustomDisplay ? '' : 'h-screen w-screen';
 
-  // MULTI-PANEL MODE: Takes priority over ALL other rendering paths.
-  // Renders panels side-by-side at native pixel dimensions on the full screen.
+  // MULTI-PANEL MODE: Renders panels side-by-side at native pixel dimensions.
   // Each panel is an independent FieldPanel with its own port.
-  if (fieldPanels && fieldPanels.length > 1) {
+  // Skip when the Multi-Field Board template is active — MFB has its own column layout.
+  if (fieldPanels && fieldPanels.length > 1 && template !== 'multi-field-board') {
     const resolution = DISPLAY_CAPABILITIES[displayType].resolution;
     const panelWidth = resolution.width;
     const panelHeight = resolution.height;
