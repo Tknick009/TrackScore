@@ -51,6 +51,7 @@ import {
 } from '@/components/ui/accordion';
 import type { Event, SelectLayoutScene, SelectSceneTemplateMapping } from '@shared/schema';
 
+
 function getEventDisplayStatus(event: Event): string {
   if (event.status === "in_progress") return 'live';
   if (event.hytekStatus === 'scored') return 'scored';
@@ -112,7 +113,7 @@ function serverContentModeToDisplayMode(contentMode: string | null): DisplayMode
 }
 
 // Display mode types
-type DisplayMode = 'finishlynx' | 'hytek' | 'teamscores' | 'field' | 'winners' | 'record' | 'meet_schedule' | 'meet_records' | 'sponsors' | 'team_preview' | 'broadcast' | 'multi_field';
+type DisplayMode = 'finishlynx' | 'hytek' | 'teamscores' | 'field' | 'winners' | 'record' | 'meet_schedule' | 'meet_records' | 'sponsors' | 'team_preview' | 'broadcast' | 'multi_field' | 'field_daisy_chain';
 
 export default function DisplayControlPage() {
   const { currentMeetId, currentMeet } = useMeet();
@@ -139,12 +140,15 @@ export default function DisplayControlPage() {
   const [eventSearch, setEventSearch] = useState('');
   const [winnersEventSearch, setWinnersEventSearch] = useState('');
   const [pendingFieldPort, setPendingFieldPort] = useState<Record<string, number>>({});
+  const [fieldPanelConfig, setFieldPanelConfig] = useState<Record<string, Array<{eventNumber?: number; port?: number; showLogo?: boolean}>>>({});
+  const [daisyChainDisplayType, setDaisyChainDisplayType] = useState<Record<string, string>>({});
+  const [daisyChainVerticalCompression, setDaisyChainVerticalCompression] = useState<Record<string, number>>({});
   const [sponsorUrls, setSponsorUrls] = useState<Record<string, string>>({});
   const [sponsorInterval, setSponsorInterval] = useState<Record<string, number>>({});
   const [teamPreviewGender, setTeamPreviewGender] = useState<Record<string, 'M' | 'W'>>({});
   const [selectedRecordBook, setSelectedRecordBook] = useState<Record<string, string>>({});
   const [multiFieldEvents, setMultiFieldEvents] = useState<Record<string, number[]>>({}); // deviceId -> selected event numbers (up to 3)
-  const [multiFieldSearch, setMultiFieldSearch] = useState('');
+  const [multiFieldColumns, setMultiFieldColumns] = useState<Record<string, number>>({}); // deviceId -> column count (1-3)
 
   const baseUrl = typeof window !== 'undefined' 
     ? `${window.location.protocol}//${window.location.host}` 
@@ -2203,6 +2207,176 @@ export default function DisplayControlPage() {
                               Default port for this device. Scene objects with their own port binding (set in Scene Editor) override this.
                             </p>
                           </div>
+
+                          {/* Multi-Panel daisy chain */}
+                          {(() => {
+                            const fieldEvts = (events || [])
+                              .filter((e: any) => e.eventType === 'field' || e.isMultiEvent || /throw|put|jump|vault|javelin|discus|hammer|decathlon|heptathlon|pentathlon/i.test(e.name || ''))
+                              .sort((a: any, b: any) => (a.eventNumber || 0) - (b.eventNumber || 0));
+                            const currentPanels = fieldPanelConfig[selectedDevice.id] || [];
+                            return (
+                          <div className="space-y-2 pt-2 border-t">
+                            <Label>Multi-Panel (Daisy Chain)</Label>
+                            <p className="text-xs text-muted-foreground">
+                              Split this display into 2-3 side-by-side panels, each showing an independent field event.
+                            </p>
+                            <div className="flex gap-2 items-center">
+                              {[1, 2, 3].map(n => (
+                                <Button
+                                  key={n}
+                                  variant={(currentPanels.length || 1) === n ? 'default' : 'outline'}
+                                  size="sm"
+                                  onClick={() => {
+                                    if (n === 1) {
+                                      setFieldPanelConfig(prev => {
+                                        const next = { ...prev };
+                                        delete next[selectedDevice.id];
+                                        return next;
+                                      });
+                                    } else {
+                                      const existing = fieldPanelConfig[selectedDevice.id] || [];
+                                      const panels = Array.from({ length: n }, (_, i) => ({
+                                        eventNumber: existing[i]?.eventNumber ?? fieldEvts[i]?.eventNumber ?? undefined,
+                                        showLogo: existing[i]?.showLogo ?? !fieldEvts[i],
+                                      }));
+                                      setFieldPanelConfig(prev => ({ ...prev, [selectedDevice.id]: panels }));
+                                    }
+                                  }}
+                                >
+                                  {n === 1 ? 'Single' : `${n} Panels`}
+                                </Button>
+                              ))}
+                            </div>
+                            {currentPanels.length > 1 && (
+                              <div className="space-y-2">
+                                {/* Display type selector */}
+                                <div className="flex gap-2">
+                                  {[
+                                    { value: 'P6', label: 'P6', desc: '288×144' },
+                                    { value: 'P10', label: 'P10', desc: '192×96' },
+                                  ].map(opt => (
+                                    <Button
+                                      key={opt.value}
+                                      variant={(daisyChainDisplayType[selectedDevice.id] || 'P6') === opt.value ? 'default' : 'outline'}
+                                      size="sm"
+                                      className="flex-1"
+                                      onClick={() => {
+                                        setDaisyChainDisplayType(prev => ({ ...prev, [selectedDevice.id]: opt.value }));
+                                      }}
+                                    >
+                                      {opt.label} ({opt.desc})
+                                    </Button>
+                                  ))}
+                                </div>
+                                {/* Per-panel event + logo controls */}
+                                {currentPanels.map((panel: any, idx: number) => (
+                                  <div key={idx} className="flex gap-2 items-center">
+                                    <span className="text-xs text-muted-foreground w-16 shrink-0">Panel {idx + 1}:</span>
+                                    <Select
+                                      value={panel.showLogo ? 'logo' : String(panel.eventNumber || '')}
+                                      onValueChange={(val) => {
+                                        setFieldPanelConfig(prev => {
+                                          const panels = [...(prev[selectedDevice.id] || [])];
+                                          if (val === 'logo') {
+                                            panels[idx] = { ...panels[idx], eventNumber: undefined, showLogo: true };
+                                          } else {
+                                            panels[idx] = { ...panels[idx], eventNumber: parseInt(val), showLogo: false };
+                                          }
+                                          return { ...prev, [selectedDevice.id]: panels };
+                                        });
+                                      }}
+                                    >
+                                      <SelectTrigger className="flex-1 h-8 text-xs">
+                                        <SelectValue placeholder="Select event..." />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="logo">
+                                          🏅 Meet Logo
+                                        </SelectItem>
+                                        {fieldEvts.map((evt: any) => (
+                                          <SelectItem key={evt.eventNumber} value={String(evt.eventNumber)}>
+                                            #{evt.eventNumber} {evt.name}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    <Button
+                                      variant={panel.showLogo ? 'default' : 'outline'}
+                                      size="sm"
+                                      className="shrink-0 text-xs h-8"
+                                      onClick={() => {
+                                        setFieldPanelConfig(prev => {
+                                          const panels = [...(prev[selectedDevice.id] || [])];
+                                          panels[idx] = { ...panels[idx], eventNumber: panel.showLogo ? (fieldEvts[idx]?.eventNumber ?? undefined) : undefined, showLogo: !panel.showLogo };
+                                          return { ...prev, [selectedDevice.id]: panels };
+                                        });
+                                      }}
+                                    >
+                                      <Image className="w-3 h-3 mr-1" />
+                                      {panel.showLogo ? 'Logo On' : 'Logo Off'}
+                                    </Button>
+                                  </div>
+                                ))}
+                                {/* Vertical compression slider */}
+                                <div className="space-y-1 pt-2 border-t">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-medium">Row Compression</span>
+                                    <span className="text-xs font-mono tabular-nums">{daisyChainVerticalCompression[selectedDevice.id] ?? 100}%</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[10px] text-muted-foreground">50</span>
+                                    <input
+                                      type="range"
+                                      min="50"
+                                      max="100"
+                                      step="5"
+                                      value={daisyChainVerticalCompression[selectedDevice.id] ?? 100}
+                                      onChange={(e) => setDaisyChainVerticalCompression(prev => ({ ...prev, [selectedDevice.id]: parseInt(e.target.value) }))}
+                                      className="flex-1 accent-primary cursor-pointer h-4"
+                                    />
+                                    <span className="text-[10px] text-muted-foreground">100</span>
+                                  </div>
+                                  <p className="text-[10px] text-muted-foreground">Lower = tighter rows, fits more athletes</p>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  onClick={async () => {
+                                    const panels = fieldPanelConfig[selectedDevice.id];
+                                    const dcDisplayType = daisyChainDisplayType[selectedDevice.id] || 'P6';
+                                    const vcVal = daisyChainVerticalCompression[selectedDevice.id] ?? 100;
+                                    await apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}`, { fieldPanels: panels, daisyChainDisplayType: dcDisplayType, verticalCompression: vcVal });
+                                    await apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}/content-mode`, { contentMode: 'field_daisy_chain' });
+                                    toast({ title: 'Multi-Panel set', description: `${panels!.length} ${dcDisplayType} panels configured` });
+                                  }}
+                                >
+                                  <Send className="w-3 h-3 mr-1" />
+                                  Apply Panels
+                                </Button>
+                              </div>
+                            )}
+                            {/* Clear panels if switching back to single */}
+                            {currentPanels.length <= 1 && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-xs"
+                                onClick={async () => {
+                                  await apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}`, { fieldPanels: null });
+                                  await apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}/content-mode`, { contentMode: 'field' });
+                                  setFieldPanelConfig(prev => {
+                                    const next = { ...prev };
+                                    delete next[selectedDevice.id];
+                                    return next;
+                                  });
+                                  toast({ title: 'Single panel', description: 'Multi-panel mode disabled' });
+                                }}
+                              >
+                                Reset to single panel
+                              </Button>
+                            )}
+                          </div>
+                            );
+                          })()}
                         </div>
                       ) : displayMode[selectedDevice.id] === 'broadcast' ? (
                         <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
@@ -2220,114 +2394,102 @@ export default function DisplayControlPage() {
                         </div>
                       ) : displayMode[selectedDevice.id] === 'multi_field' ? (
                         <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
+                          {/* Column count selector */}
                           <div className="space-y-2">
-                            <Label>Select Field Events (up to 3)</Label>
-                            <div className="text-xs text-muted-foreground">
-                              Choose 1-3 field events. Standings are parsed from LFF files and auto-refresh when files change.
-                            </div>
-                            <div className="relative">
-                              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                              <Input
-                                placeholder="Search field events..."
-                                value={multiFieldSearch}
-                                onChange={(e) => setMultiFieldSearch(e.target.value)}
-                                className="pl-8"
-                                data-testid="input-multi-field-search"
-                              />
-                            </div>
-                            <ScrollArea className="h-48 rounded-md border">
-                              <div className="p-1">
-                                {(events || [])
-                                  .filter((e: any) => {
-                                    const isField = e.eventType === 'field' || /throw|put|jump|vault|javelin|discus|hammer/i.test(e.name || '');
-                                    const matchesSearch = !multiFieldSearch || (e.name || '').toLowerCase().includes(multiFieldSearch.toLowerCase());
-                                    return isField && matchesSearch;
-                                  })
-                                  .sort((a: any, b: any) => (a.eventNumber || 0) - (b.eventNumber || 0))
-                                  .map((e: any) => {
-                                    const selectedEvents = multiFieldEvents[selectedDevice.id] || [];
-                                    const isSelected = selectedEvents.includes(e.eventNumber);
-                                    const canSelect = selectedEvents.length < 3 || isSelected;
-                                    return (
-                                      <button
-                                        key={e.eventNumber}
-                                        onClick={() => {
-                                          setMultiFieldEvents(prev => {
-                                            const current = prev[selectedDevice.id] || [];
-                                            if (isSelected) {
-                                              return { ...prev, [selectedDevice.id]: current.filter(n => n !== e.eventNumber) };
-                                            } else if (current.length < 3) {
-                                              return { ...prev, [selectedDevice.id]: [...current, e.eventNumber] };
-                                            }
-                                            return prev;
-                                          });
-                                        }}
-                                        disabled={!canSelect}
-                                        className={`flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded-md cursor-pointer ${
-                                          isSelected ? 'bg-emerald-500/20 border border-emerald-500/40' : canSelect ? 'hover-elevate' : 'opacity-40'
-                                        }`}
-                                        data-testid={`button-multi-field-${e.eventNumber}`}
-                                      >
-                                        <span className="text-muted-foreground shrink-0 w-10 text-xs">#{e.eventNumber}</span>
-                                        <span className={`truncate ${isSelected ? 'font-semibold text-emerald-600 dark:text-emerald-400' : ''}`}>
-                                          {e.name}
-                                        </span>
-                                        {isSelected && (
-                                          <Badge variant="default" className="ml-auto shrink-0 bg-emerald-600">
-                                            {selectedEvents.indexOf(e.eventNumber) + 1}
-                                          </Badge>
-                                        )}
-                                      </button>
-                                    );
-                                  })}
-                              </div>
-                            </ScrollArea>
-                          </div>
-
-                          {/* Selected events summary */}
-                          {(multiFieldEvents[selectedDevice.id] || []).length > 0 && (
-                            <div className="flex flex-wrap gap-2">
-                              {(multiFieldEvents[selectedDevice.id] || []).map((evtNum, idx) => {
-                                const evt = (events || []).find((e: any) => e.eventNumber === evtNum);
+                            <Label>Number of Columns</Label>
+                            <div className="flex gap-2">
+                              {[1, 2, 3].map(n => {
+                                const currentCols = multiFieldColumns[selectedDevice.id] || 0;
                                 return (
-                                  <Badge key={evtNum} variant="secondary" className="flex items-center gap-1">
-                                    <span className="font-bold">{idx + 1}.</span>
-                                    <span>{evt?.name || `Event ${evtNum}`}</span>
-                                    <button
-                                      onClick={() => {
-                                        setMultiFieldEvents(prev => ({
-                                          ...prev,
-                                          [selectedDevice.id]: (prev[selectedDevice.id] || []).filter(n => n !== evtNum),
-                                        }));
-                                      }}
-                                      className="ml-1 text-muted-foreground hover:text-destructive"
-                                    >
-                                      ×
-                                    </button>
-                                  </Badge>
+                                  <Button
+                                    key={n}
+                                    variant={currentCols === n ? 'default' : 'outline'}
+                                    size="sm"
+                                    className="flex-1"
+                                    onClick={() => {
+                                      setMultiFieldColumns(prev => ({ ...prev, [selectedDevice.id]: n }));
+                                      // Trim events array if reducing columns
+                                      setMultiFieldEvents(prev => {
+                                        const current = prev[selectedDevice.id] || [];
+                                        if (current.length > n) {
+                                          return { ...prev, [selectedDevice.id]: current.slice(0, n) };
+                                        }
+                                        // Pad with 0s (unassigned) if expanding
+                                        const padded = [...current];
+                                        while (padded.length < n) padded.push(0);
+                                        return { ...prev, [selectedDevice.id]: padded };
+                                      });
+                                    }}
+                                  >
+                                    {n} Column{n !== 1 ? 's' : ''}
+                                  </Button>
                                 );
                               })}
                             </div>
-                          )}
+                          </div>
 
-                          <Button
-                            onClick={() => {
-                              const selectedEvents = multiFieldEvents[selectedDevice.id] || [];
-                              if (selectedEvents.length === 0) {
-                                toast({ title: 'Select at least 1 field event', variant: 'destructive' });
-                                return;
-                              }
-                              sendMultiFieldBoardMutation.mutate({
-                                deviceId: selectedDevice.id,
-                                eventNumbers: selectedEvents,
-                              });
-                            }}
-                            disabled={sendMultiFieldBoardMutation.isPending || (multiFieldEvents[selectedDevice.id] || []).length === 0}
-                            className="w-full"
-                          >
-                            <Send className="w-4 h-4 mr-2" />
-                            Send Multi-Field Board ({(multiFieldEvents[selectedDevice.id] || []).length} event{(multiFieldEvents[selectedDevice.id] || []).length !== 1 ? 's' : ''})
-                          </Button>
+                          {/* Per-column event assignment */}
+                          {(multiFieldColumns[selectedDevice.id] || 0) > 0 && (() => {
+                            const numCols = multiFieldColumns[selectedDevice.id] || 1;
+                            const currentAssignments = multiFieldEvents[selectedDevice.id] || [];
+                            const fieldEvents = (events || [])
+                              .filter((e: any) => e.eventType === 'field' || e.isMultiEvent || /throw|put|jump|vault|javelin|discus|hammer|decathlon|heptathlon|pentathlon/i.test(e.name || ''))
+                              .sort((a: any, b: any) => (a.eventNumber || 0) - (b.eventNumber || 0));
+
+                            return (
+                              <div className="space-y-3">
+                                <Label>Assign Events</Label>
+                                <div className="text-xs text-muted-foreground">
+                                  Each column listens for its assigned event. Standings auto-refresh from LFF files.
+                                </div>
+                                {Array.from({ length: numCols }, (_, colIdx) => (
+                                  <div key={colIdx} className="flex items-center gap-2">
+                                    <span className="text-sm font-medium text-muted-foreground w-20 shrink-0">Column {colIdx + 1}:</span>
+                                    <Select
+                                      value={String(currentAssignments[colIdx] || '')}
+                                      onValueChange={(val) => {
+                                        const evtNum = parseInt(val, 10);
+                                        setMultiFieldEvents(prev => {
+                                          const updated = [...(prev[selectedDevice.id] || [])];
+                                          while (updated.length <= colIdx) updated.push(0);
+                                          updated[colIdx] = evtNum;
+                                          return { ...prev, [selectedDevice.id]: updated };
+                                        });
+                                        // Auto-send: build the event list and send immediately
+                                        const updatedList = [...currentAssignments];
+                                        while (updatedList.length <= colIdx) updatedList.push(0);
+                                        updatedList[colIdx] = evtNum;
+                                        const validEvents = updatedList.filter(n => n > 0);
+                                        if (validEvents.length > 0) {
+                                          sendMultiFieldBoardMutation.mutate({
+                                            deviceId: selectedDevice.id,
+                                            eventNumbers: validEvents,
+                                          });
+                                        }
+                                      }}
+                                    >
+                                      <SelectTrigger className="flex-1">
+                                        <SelectValue placeholder="Select event..." />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {fieldEvents
+                                          .filter((e: any) => {
+                                            // Don't show events already assigned to other columns
+                                            const otherAssigned = currentAssignments.filter((_: number, i: number) => i !== colIdx);
+                                            return !otherAssigned.includes(e.eventNumber);
+                                          })
+                                          .map((e: any) => (
+                                            <SelectItem key={e.eventNumber} value={String(e.eventNumber)}>
+                                              #{e.eventNumber} — {e.name}
+                                            </SelectItem>
+                                          ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })()}
                         </div>
                       ) : null}
                     </>

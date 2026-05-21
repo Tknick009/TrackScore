@@ -1,15 +1,16 @@
 import { useState, useEffect } from "react";
 import type { EventWithEntries, Meet } from "@shared/schema";
 import { getLogoEffectStyle } from "@/lib/logoEffects";
+import { SmoothClock } from "@/components/display/SmoothClock";
 
 interface RunningTimeProps {
   event?: EventWithEntries | null;
   meet?: Meet | null;
   liveTime?: string;
+  clockSubscribersRef?: React.RefObject<Set<(time: string, command?: string) => void>>;
 }
 
-export function RunningTime({ event, meet, liveTime }: RunningTimeProps) {
-  const [elapsedTime, setElapsedTime] = useState<string>("0:00.00");
+export function RunningTime({ event, meet, liveTime, clockSubscribersRef }: RunningTimeProps) {
   const [clock, setClock] = useState<string>("");
 
   useEffect(() => {
@@ -25,13 +26,6 @@ export function RunningTime({ event, meet, liveTime }: RunningTimeProps) {
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    if (liveTime) {
-      setElapsedTime(liveTime);
-    }
-  }, [liveTime]);
-
-  const displayTime = liveTime || elapsedTime;
   const eventName = event?.name || event?.eventName || '';
   const status = event?.status === 'completed' ? 'FINAL' : event?.status === 'in_progress' ? 'IN PROGRESS' : liveTime ? 'IN PROGRESS' : 'SCHEDULED';
 
@@ -101,17 +95,29 @@ export function RunningTime({ event, meet, liveTime }: RunningTimeProps) {
         <div className="h-1 bg-gradient-to-r from-cyan-500/0 via-cyan-500/60 to-cyan-500/0" />
 
         <div className="flex-1 flex items-center justify-center">
-          <span 
-            className="text-white font-black tabular-nums leading-none"
-            style={{ 
-              fontSize: '200px', 
-              fontFamily: "'Bebas Neue', sans-serif",
-              letterSpacing: '-0.02em',
-              textShadow: '0 0 60px rgba(0, 150, 255, 0.4)'
-            }}
-          >
-            {displayTime}
-          </span>
+          {clockSubscribersRef ? (
+            <SmoothClock
+              serverTime={liveTime}
+              clockSubscribersRef={clockSubscribersRef}
+              fontSize="200px"
+              color="white"
+              fontFamily="'Bebas Neue', sans-serif"
+              className="font-black tabular-nums leading-none"
+              extraStyle={{ letterSpacing: '-0.02em', textShadow: '0 0 60px rgba(0, 150, 255, 0.4)' }}
+            />
+          ) : (
+            <span 
+              className="text-white font-black tabular-nums leading-none"
+              style={{ 
+                fontSize: '200px', 
+                fontFamily: "'Bebas Neue', sans-serif",
+                letterSpacing: '-0.02em',
+                textShadow: '0 0 60px rgba(0, 150, 255, 0.4)'
+              }}
+            >
+              {liveTime || "0:00.00"}
+            </span>
+          )}
         </div>
 
         <div className="h-1 bg-gradient-to-r from-cyan-500/0 via-cyan-500/60 to-cyan-500/0" />

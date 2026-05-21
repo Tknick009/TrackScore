@@ -177,6 +177,7 @@ export class SQLiteStorage implements IStorage {
     try { this.db.prepare('ALTER TABLE display_devices ADD COLUMN display_height INTEGER').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE display_devices ADD COLUMN display_scale INTEGER DEFAULT 100').run(); } catch(e) {}
     try { this.db.prepare("ALTER TABLE display_devices ADD COLUMN content_mode TEXT DEFAULT 'lynx'").run(); } catch(e) {}
+    try { this.db.prepare('ALTER TABLE display_devices ADD COLUMN multi_field_events TEXT').run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE meet_ingestion_settings ADD COLUMN headshot_directory TEXT').run(); } catch(e) {}
     try { this.db.prepare("ALTER TABLE meets ADD COLUMN logo_effect TEXT DEFAULT 'none'").run(); } catch(e) {}
     try { this.db.prepare('ALTER TABLE meets ADD COLUMN sponsor_dir TEXT').run(); } catch(e) {}
@@ -2043,6 +2044,7 @@ export class SQLiteStorage implements IStorage {
       displayHeight: row.display_height ?? null,
       displayScale: row.display_scale ?? 100,
       contentMode: row.content_mode ?? 'lynx',
+      multiFieldEvents: row.multi_field_events ? JSON.parse(row.multi_field_events) : null,
       currentTemplate: row.current_template,
       lastIp: row.last_ip,
       lastSeenAt: row.last_seen_at ? new Date(row.last_seen_at) : null,
@@ -4588,9 +4590,23 @@ export class SQLiteStorage implements IStorage {
 
   async getLiveEventsByMeet(meetId?: string): Promise<LiveEventData[]> {
     const rows = meetId
-      ? this.db.prepare('SELECT * FROM live_event_data WHERE meet_id = ?').all(meetId)
-      : this.db.prepare('SELECT * FROM live_event_data').all();
-    return rows.map((row: any) => this.mapLiveEventDataRow(row));
+      ? this.db.prepare('SELECT * FROM live_event_data WHERE meet_id = ? ORDER BY last_update_at DESC LIMIT 50').all(meetId)
+      : this.db.prepare('SELECT * FROM live_event_data ORDER BY last_update_at DESC LIMIT 50').all();
+    
+    // Group by eventNumber and return only the most complete record per event
+    const bestByEvent = new Map<number, LiveEventData>();
+    for (const row of rows) {
+      const record = this.mapLiveEventDataRow(row);
+      const existing = bestByEvent.get(record.eventNumber);
+      const recordEntries = Array.isArray(record.entries) ? record.entries.length : 0;
+      const existingEntries = existing && Array.isArray(existing.entries) ? existing.entries.length : 0;
+      if (!existing || recordEntries > existingEntries) {
+        bestByEvent.set(record.eventNumber, record);
+      }
+    }
+    return Array.from(bestByEvent.values())
+      .sort((a, b) => new Date(b.lastUpdateAt || 0).getTime() - new Date(a.lastUpdateAt || 0).getTime())
+      .slice(0, 10);
   }
 
   async upsertLiveEventData(data: InsertLiveEventData): Promise<LiveEventData> {
@@ -5128,6 +5144,11 @@ export class SQLiteStorage implements IStorage {
   async updateDisplayContentMode(id: string, contentMode: string): Promise<DisplayDevice | undefined> {
     this.db.prepare('UPDATE display_devices SET content_mode = ? WHERE id = ?').run(contentMode, id);
     return this.getDisplayDevice(id);
+  }
+
+  async updateDisplayMultiFieldEvents(id: string, eventNumbers: number[] | null): Promise<void> {
+    const value = eventNumbers ? JSON.stringify(eventNumbers) : null;
+    this.db.prepare('UPDATE display_devices SET multi_field_events = ? WHERE id = ?').run(value, id);
   }
 
   async updateDisplayDevice(id: string, updates: Partial<{ pagingSize: number; pagingInterval: number; fieldPort: number | null; isBigBoard: boolean; displayScale: number }>): Promise<DisplayDevice | undefined> {

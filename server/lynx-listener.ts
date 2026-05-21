@@ -1,7 +1,14 @@
 import * as net from 'net';
+import * as fs from 'fs';
 import { EventEmitter } from 'events';
+import { Worker } from 'worker_threads';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
 import type { LynxPacket, LynxPortType, TrackDisplayMode, FieldDisplayMode } from '@shared/schema';
 import { captureManager } from './capture-manager';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 interface PortConfig {
   port: number;
@@ -17,7 +24,7 @@ interface LynxListenerEvents {
   'layout-command': (layoutName: string, sourcePortType?: LynxPortType) => void;  // ResulTV layout switching command
   'result': (eventNumber: number, lane: number, place: number, time: string, athleteName?: string) => void;
   'field-result': (eventNumber: number, athleteName: string, place: number, mark: string, attemptNumber: number, attempts?: string) => void;
-  'field-athlete-up': (eventNumber: number, athleteName: string, attemptNumber: number, mark?: string) => void;
+  'field-athlete-up': (eventNumber: number, athleteName: string, attemptNumber: number, mark?: string, sourcePort?: number, bib?: string, affiliation?: string) => void;
   'start-list': (eventNumber: number, heat: number, entries: LynxStartListEntry[], metadata?: { eventName?: string; distance?: string; round?: number; sourcePortType?: LynxPortType; sourcePort?: number }) => void;
   'connection': (portType: LynxPortType, connected: boolean) => void;
   'error': (error: Error, portType: LynxPortType) => void;
@@ -67,7 +74,26 @@ interface LynxFieldResult {
   attemptMarks?: string[];
 }
 
-// Clean event name by removing common suffixes like "Run" and "Dash" from FinishLynx
+// Parse firstName/lastName from FieldLynx data. Prefers FN/LN fields; falls back to
+// parsing the full name (N field) as "First Last" or "Last, First".
+function parseNames(fn: string | undefined, ln: string | undefined, fullName: string | undefined): { firstName: string | undefined; lastName: string | undefined } {
+  let first = fn || '';
+  let last = ln || '';
+  if ((!first || !last) && fullName) {
+    const trimmed = fullName.trim();
+    if (trimmed.includes(',')) {
+      const parts = trimmed.split(',').map(s => s.trim());
+      last = last || parts[0] || '';
+      first = first || parts[1] || '';
+    } else {
+      const parts = trimmed.split(/\s+/);
+      first = first || parts[0] || '';
+      last = last || parts.slice(1).join(' ') || '';
+    }
+  }
+  return { firstName: first || undefined, lastName: last || undefined };
+}
+
 // Convert a metric field mark (meters as string) to US feet-inches format: "20-9¼"
 // Rounds DOWN to nearest ¼ inch. Returns original string for non-numeric values.
 // If mark is already in feet-inches format (e.g. "20-09.50") it is returned as-is.
@@ -144,7 +170,19 @@ export class LynxListener extends EventEmitter {
   private clients: Map<string, Set<net.Socket>> = new Map();
   private buffers: Map<net.Socket, string> = new Map();
   private configs: PortConfig[] = [];
-  private currentEventNumber: number = 0;
+  private _currentEventNumber: number = 0;
+  private clockWorker: Worker | null = null;
+
+  private get currentEventNumber(): number {
+    return this._currentEventNumber;
+  }
+  private set currentEventNumber(value: number) {
+    this._currentEventNumber = value;
+    // Forward event number to clock worker so it tags ticks correctly
+    if (this.clockWorker) {
+      this.clockWorker.postMessage({ type: 'set-event-number', eventNumber: value });
+    }
+  }
   private currentHeatNumber: number = 1;
   private isRunning: boolean = false;
   private lastClockTime: string = '0:00.00';
@@ -406,6 +444,14 @@ export class LynxListener extends EventEmitter {
   }
 
   private startListener(config: PortConfig) {
+    // Clock ports run in a dedicated worker thread for complete isolation
+    // from the main event loop. This ensures clock ticks are never blocked
+    // by DB queries, HTTP requests, or track/field processing.
+    if (config.portType === 'clock') {
+      this.startClockWorker(config);
+      return;
+    }
+
     const server = net.createServer((socket) => {
       console.log(`[Lynx:${config.name}] Client connected from ${socket.remoteAddress}`);
       
@@ -449,6 +495,117 @@ export class LynxListener extends EventEmitter {
 
     server.listen(config.port, '0.0.0.0', () => {
       console.log(`[Lynx:${config.name}] Listening on port ${config.port}`);
+    });
+
+    this.servers.set(`${config.portType}_${config.port}`, server);
+  }
+
+  private startClockWorker(config: PortConfig) {
+    try {
+      // Resolve worker path — try .ts first (dev with tsx), fall back to .js (production build)
+      const tsPath = path.resolve(__dirname, 'clock-worker.ts');
+      const jsPath = path.resolve(__dirname, 'clock-worker.js');
+      const workerPath = fs.existsSync(tsPath) ? tsPath : jsPath;
+      const isTsFile = workerPath.endsWith('.ts');
+      
+      this.clockWorker = new Worker(workerPath, {
+        workerData: { port: config.port, portName: config.name },
+        // Use tsx loader for TypeScript files in worker threads
+        ...(isTsFile ? { execArgv: ['--import', 'tsx'] } : {}),
+      });
+
+      this.clockWorker.on('message', (msg) => {
+        switch (msg.type) {
+          case 'clock-update':
+            this.emit('clock-update', msg.eventNumber, msg.time, msg.command);
+            break;
+          case 'connection':
+            if (msg.connected) {
+              console.log(`[Lynx:${config.name}] Client connected from ${msg.remoteAddress} (worker thread)`);
+            } else {
+              console.log(`[Lynx:${config.name}] Client disconnected (worker thread)`);
+            }
+            this.emit('connection', config.portType, msg.connected);
+            break;
+          case 'log':
+            console.log(msg.message);
+            break;
+          case 'error':
+            console.error(`[Lynx:${config.name}] Worker error:`, msg.message);
+            this.emit('error', new Error(msg.message), config.portType);
+            break;
+        }
+      });
+
+      this.clockWorker.on('error', (err) => {
+        console.error(`[Lynx:Clock] Worker thread error:`, err.message);
+        console.log(`[Lynx:Clock] Falling back to main-thread clock listener`);
+        this.clockWorker = null;
+        // Fallback: start a regular listener on the main thread
+        this.startMainThreadListener(config);
+      });
+
+      this.clockWorker.on('exit', (code) => {
+        if (code !== 0) {
+          console.error(`[Lynx:Clock] Worker thread exited with code ${code}, falling back to main-thread listener`);
+          this.clockWorker = null;
+          this.startMainThreadListener(config);
+        }
+      });
+
+      console.log(`[Lynx:${config.name}] Clock worker thread started for port ${config.port}`);
+    } catch (err: any) {
+      console.error(`[Lynx:Clock] Failed to start worker thread:`, err.message);
+      console.log(`[Lynx:Clock] Falling back to main-thread clock listener`);
+      // Fallback: start a regular listener on the main thread
+      this.startMainThreadListener(config);
+    }
+  }
+
+  private startMainThreadListener(config: PortConfig) {
+    const server = net.createServer((socket) => {
+      console.log(`[Lynx:${config.name}] Client connected from ${socket.remoteAddress}`);
+      
+      const serverKey = `${config.portType}_${config.port}`;
+      let clients = this.clients.get(serverKey);
+      if (!clients) {
+        clients = new Set();
+        this.clients.set(serverKey, clients);
+      }
+      clients.add(socket);
+      this.buffers.set(socket, '');
+      
+      this.emit('connection', config.portType, true);
+
+      socket.on('data', (data) => {
+        captureManager.record(config.port, config.name, socket.remoteAddress || '', data);
+        this.handleData(socket, data, config);
+      });
+
+      socket.on('close', () => {
+        console.log(`[Lynx:${config.name}] Client disconnected`);
+        const closeKey = `${config.portType}_${config.port}`;
+        const closeClients = this.clients.get(closeKey);
+        closeClients?.delete(socket);
+        this.buffers.delete(socket);
+        if (closeClients?.size === 0) {
+          this.emit('connection', config.portType, false);
+        }
+      });
+
+      socket.on('error', (err) => {
+        console.error(`[Lynx:${config.name}] Socket error:`, err.message);
+        this.emit('error', err, config.portType);
+      });
+    });
+
+    server.on('error', (err) => {
+      console.error(`[Lynx:${config.name}] Server error on port ${config.port}:`, err.message);
+      this.emit('error', err, config.portType);
+    });
+
+    server.listen(config.port, '0.0.0.0', () => {
+      console.log(`[Lynx:${config.name}] Listening on port ${config.port} (main thread fallback)`);
     });
 
     this.servers.set(`${config.portType}_${config.port}`, server);
@@ -960,14 +1117,15 @@ export class LynxListener extends EventEmitter {
     const entries: LynxStartListEntry[] = [];
     for (const data of entriesData) {
       if (data.L || data.N || data.BIB) {
+        const { firstName: slFirst, lastName: slLast } = parseNames(data.FN, data.LN, data.N);
         entries.push({
           place: data.P,
           lane: data.L,
           bib: data.BIB,
           name: data.N,
           affiliation: data.AF,
-          firstName: data.FN,
-          lastName: data.LN,
+          firstName: slFirst,
+          lastName: slLast,
         });
       }
     }
@@ -1047,8 +1205,7 @@ export class LynxListener extends EventEmitter {
           lapsToGo: lapsToGo,
           cumulativeSplit: cumulativeSplit,
           lastSplit: lastSplit,
-          firstName: data.FN,
-          lastName: data.LN,
+          ...parseNames(data.FN, data.LN, athleteName),
         });
         
         // Emit individual result events for database recording
@@ -1231,14 +1388,15 @@ export class LynxListener extends EventEmitter {
     // NO AGGREGATION - pass through immediately
     // FinishLynx controls all paging and sends line numbers that match layout placeholders
     // Each packet is authoritative for its specific line number
+    const { firstName: seFirst, lastName: seLast } = parseNames(data.FN, data.LN, data.N);
     const entry: LynxStartListEntry | null = (data.L || data.N || data.BIB) ? {
       place: data.P,
       lane: data.L,  // This is the line number from FinishLynx
       bib: data.BIB,
       name: data.N,
       affiliation: data.AF,
-      firstName: data.FN,
-      lastName: data.LN,
+      firstName: seFirst,
+      lastName: seLast,
     } : null;
     
     // Emit immediately with single entry - display updates that line slot
@@ -1306,8 +1464,7 @@ export class LynxListener extends EventEmitter {
         lapsToGo: data.L2G,
         cumulativeSplit: data.CS,
         lastSplit: data.LS,
-        firstName: data.FN,
-        lastName: data.LN,
+        ...parseNames(data.FN, data.LN, athleteName),
       };
       
       // Emit result event for individual results
@@ -1402,13 +1559,15 @@ export class LynxListener extends EventEmitter {
         }
       }
       
+      const { firstName: fieldFirst, lastName: fieldLast } = parseNames(data.FN, data.LN, name);
+
       const entry: LynxFieldResult = {
         place: place,
         lane: data.L || '',  // Capture lane from field messages
         name: name,
         affiliation: data.AF,
-        firstName: data.FN,
-        lastName: data.LN,
+        firstName: fieldFirst,
+        lastName: fieldLast,
         bib: data.BIB,
         mark: mark,
         attemptNumber: data.AN,
@@ -1434,7 +1593,7 @@ export class LynxListener extends EventEmitter {
       
       aggregated.lastUpdate = Date.now();
       
-      this.emit('field-athlete-up', eventNum, name || '', attemptNum, mark);
+      this.emit('field-athlete-up', eventNum, name || '', attemptNum, mark, config.port, data.BIB || '', data.AF || '');
       
       if (name && mark) {
         this.emit('field-result', eventNum, name, place ? parseInt(place) : 0, mark, attemptNum, attempts);
@@ -1596,6 +1755,12 @@ export class LynxListener extends EventEmitter {
     });
     await Promise.all(closePromises);
     this.servers.clear();
+
+    // Terminate clock worker thread
+    if (this.clockWorker) {
+      await this.clockWorker.terminate();
+      this.clockWorker = null;
+    }
   }
 
   getStatus(): { portType: LynxPortType; port: number; name: string; connected: boolean; clientCount: number }[] {

@@ -1530,30 +1530,19 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     liveState.isArmed = data.armed || false;
     
     try {
-      // Auto-activate event when data arrives (set to in_progress if scheduled)
-      // === PERFORMANCE: Use cached DB lookup instead of hitting DB on every track-mode-change ===
+      // === PHASE 1: FAST PATH — use only cached data, broadcast immediately ===
+      // No awaiting DB calls here to avoid blocking the event loop (which pauses clock ticks).
       const allMatchingEvents = await getEventsByLynxNumberCached(eventNumber);
 
-      // Get total heats from EVT watcher for the active meet
       const roundNum = data.round ? parseInt(String(data.round)) : 1;
       const activeMeetId = await getActiveMeetId();
 
-      // Filter to active meet's events to avoid stale data from old meets
-      // STRICT meet isolation: never fall back to events from other meets
       const matchingEvents = activeMeetId 
         ? allMatchingEvents.filter(e => e.meetId === activeMeetId) 
         : allMatchingEvents;
       const effectiveEvents = matchingEvents.length > 0 ? matchingEvents : allMatchingEvents;
       if (activeMeetId && matchingEvents.length === 0 && allMatchingEvents.length > 0) {
         console.warn(`[Lynx] Event ${eventNumber} found in other meets but NOT in active meet ${activeMeetId} — falling back to all matches`);
-      }
-
-      for (const event of effectiveEvents) {
-        if (event.status === 'scheduled') {
-          await storage.updateEventStatus(event.id, 'in_progress');
-          console.log(`[Lynx] Auto-activated event ${event.name} (${event.id}) to in_progress`);
-          await broadcastCurrentEvent();
-        }
       }
 
       let evtHeats: number | null = null;
@@ -1566,8 +1555,6 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
       }
       const totalHeats = evtHeats ?? 1;
       
-      // Get round name and advancement formula from database if event exists
-      // Use only events from the active meet to avoid stale advancement formulas from old meets
       let roundName = 'Finals';
       let totalRounds = 1;
       let advanceByPlace: number | null = null;
@@ -1585,8 +1572,6 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
         eventType = event.eventType ?? null;
         eventGender = event.gender ?? null;
         
-        // Also detect multi-event from event name if not set in DB
-        // Supports abbreviations like "Hept", "Pent", "Dec" used in FinishLynx
         if (!isMultiEvent) {
           const nameToCheck = (event.name || '').toLowerCase();
           const lynxName = (data.eventName || '').toLowerCase();
@@ -1597,7 +1582,6 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
           }
         }
         
-        // Determine round name based on event configuration
         if (totalRounds === 1) {
           roundName = 'Finals';
         } else if (totalRounds === 2) {
@@ -1618,7 +1602,6 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
         }
       }
 
-      // Fallback: detect multi-event from FinishLynx event name when no DB event matched
       if (!isMultiEvent && data.eventName) {
         if (/\b(dec(athlon)?|hept(athlon)?|pent(athlon)?)\b/i.test(data.eventName)) {
           isMultiEvent = true;
@@ -1626,8 +1609,6 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
         }
       }
 
-      // Determine display mode for scene template mapping
-      // Multi-events use 'multi_track' instead of 'track_results' to show points
       let displayMode = mode === 'results' ? 'track_results' : 
                         mode === 'running' ? 'running_time' : 
                         mode === 'start_list' ? 'start_list' : mode;
@@ -1635,9 +1616,7 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
         displayMode = 'multi_track';
       }
       
-      // Calculate multi-event points for each entry when showing results
-      // FinishLynx does NOT send points — we calculate them from the athlete's time
-      // using the WA scoring tables based on the sub-event and gender
+      // Calculate multi-event points synchronously (no DB needed)
       if (isMultiEvent && mode === 'results' && data.entries && data.eventName) {
         const parsed = parseMultiEventName(data.eventName, eventGender || undefined);
         if (parsed) {
@@ -1655,78 +1634,99 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
         }
       }
       
-      // Enrich entries with MR/FR/PB/SB record tags for live FinishLynx data
-      // The enrichment function expects finalMark in ms and athleteId for PB/SB lookup
-      if (mode === 'results' && data.entries && data.entries.length > 0 && (eventType || data.eventName)) {
-        try {
-          const resolvedEventType = eventType || 'track';
-          const resolvedGender = eventGender || '';
-          // Resolve athleteId from bib number so PB/SB tags can be computed
-          // FinishLynx entries have bib but not athleteId
-          // === PERFORMANCE: Use cached athlete lookup instead of fetching ALL athletes on every results broadcast ===
-          const enrichMeetId = await getActiveMeetId();
-          if (enrichMeetId) {
-            const meetAthletes = await getAthletesByMeetCached(enrichMeetId);
-            const bibToAthlete = new Map(meetAthletes.map(a => [a.bibNumber, a.id]));
-            for (const entry of data.entries) {
-              if (entry.bib && !entry.athleteId) {
-                const athleteId = bibToAthlete.get(entry.bib) || bibToAthlete.get(String(entry.bib));
-                if (athleteId) {
-                  entry.athleteId = athleteId;
-                }
-              }
-            }
-          }
-          // Temporarily set finalMark (in ms) for the enrichment function
-          for (const entry of data.entries) {
-            if (entry.time) {
-              const seconds = parsePerformance(entry.time);
-              if (seconds !== null) {
-                entry.finalMark = seconds * 1000;
-              }
-            }
-          }
-          await enrichEntriesWithRecordTags(resolvedEventType, resolvedGender, data.entries, enrichMeetId || undefined);
-          const tagged = data.entries.filter((e: any) => e.recordTags?.length > 0);
-          if (tagged.length > 0) {
-            console.log(`[Lynx] Record tags: ${tagged.map((e: any) => `${e.name}: [${e.recordTags.join(',')}]`).join(', ')}`);
-          }
-          // Auto-update athlete PB/SB in the database when they beat their stored bests.
-          // This ensures subsequent rounds (semis, finals) use the updated marks.
-          await autoUpdateAthleteBests(resolvedEventType, data.entries);
-        } catch (err) {
-          console.warn('[Lynx] Failed to enrich with record tags:', err);
-        } finally {
-          // Clean up temporary finalMark (entries use 'time' field for display)
-          for (const entry of data.entries) {
-            delete entry.finalMark;
-          }
-        }
-      }
-      
-      // Suppress advancement data on finals — no Q badges or advancement formula on final rounds
+      // Suppress advancement data on finals
       const isFinalRound = roundName === 'Finals';
       
-      // Broadcast to different channels based on source port
-      // Big board data goes to 'track_mode_change_big', regular goes to 'track_mode_change'
+      // BROADCAST IMMEDIATELY — before any DB writes, so clock ticks are never blocked
       const messageType = isBigBoard ? 'track_mode_change_big' : 'track_mode_change';
       broadcastToDisplays({
         type: messageType,
         data: {
           eventNumber,
           mode,
-          displayMode, // Scene template mapping mode (multi_track for multi-events)
-          totalHeats, // Include total heats for "Heat X of Y" display
-          roundName, // Include round name for "Prelims", "Finals", etc.
-          totalRounds, // Total rounds configured for event
-          advanceByPlace: isFinalRound ? null : advanceByPlace, // Suppress on finals
-          advanceByTime: isFinalRound ? null : advanceByTime, // Suppress on finals
-          isMultiEvent, // For multi-event points display
-          eventType, // For calculating multi-event points
-          gender: eventGender, // For calculating multi-event points
-          ...data, // Pass through all raw data from FinishLynx
+          displayMode,
+          totalHeats,
+          roundName,
+          totalRounds,
+          advanceByPlace: isFinalRound ? null : advanceByPlace,
+          advanceByTime: isFinalRound ? null : advanceByTime,
+          isMultiEvent,
+          eventType,
+          gender: eventGender,
+          ...data,
         }
       } as any);
+
+      // === PHASE 2: DEFERRED — DB writes run after broadcast, yielding between operations ===
+      // Uses setImmediate to let pending I/O (clock ticks, WebSocket messages) process between DB calls.
+      setImmediate(async () => {
+        try {
+          // Auto-activate scheduled events (skip if already in_progress)
+          for (const event of effectiveEvents) {
+            if (event.status === 'scheduled') {
+              await storage.updateEventStatus(event.id, 'in_progress');
+              // Update cache so we don't re-activate next time
+              event.status = 'in_progress';
+              console.log(`[Lynx] Auto-activated event ${event.name} (${event.id}) to in_progress`);
+              broadcastCurrentEvent();
+            }
+          }
+
+          // Enrich entries with record tags (DB reads) and update PB/SB (DB writes)
+          if (mode === 'results' && data.entries && data.entries.length > 0 && (eventType || data.eventName)) {
+            try {
+              const resolvedEventType = eventType || 'track';
+              const resolvedGender = eventGender || '';
+              const enrichMeetId = activeMeetId;
+              if (enrichMeetId) {
+                const meetAthletes = await getAthletesByMeetCached(enrichMeetId);
+                const bibToAthlete = new Map(meetAthletes.map(a => [a.bibNumber, a.id]));
+                for (const entry of data.entries) {
+                  if (entry.bib && !entry.athleteId) {
+                    const athleteId = bibToAthlete.get(entry.bib) || bibToAthlete.get(String(entry.bib));
+                    if (athleteId) {
+                      entry.athleteId = athleteId;
+                    }
+                  }
+                }
+              }
+              for (const entry of data.entries) {
+                if (entry.time) {
+                  const seconds = parsePerformance(entry.time);
+                  if (seconds !== null) {
+                    entry.finalMark = seconds * 1000;
+                  }
+                }
+              }
+              await enrichEntriesWithRecordTags(resolvedEventType, resolvedGender, data.entries, enrichMeetId || undefined);
+              const tagged = data.entries.filter((e: any) => e.recordTags?.length > 0);
+              if (tagged.length > 0) {
+                console.log(`[Lynx] Record tags: ${tagged.map((e: any) => `${e.name}: [${e.recordTags.join(',')}]`).join(', ')}`);
+                // Re-broadcast with enriched data so displays show record tags
+                broadcastToDisplays({
+                  type: messageType,
+                  data: {
+                    eventNumber, mode, displayMode, totalHeats, roundName, totalRounds,
+                    advanceByPlace: isFinalRound ? null : advanceByPlace,
+                    advanceByTime: isFinalRound ? null : advanceByTime,
+                    isMultiEvent, eventType, gender: eventGender,
+                    ...data,
+                  }
+                } as any);
+              }
+              await autoUpdateAthleteBests(resolvedEventType, data.entries);
+            } catch (err) {
+              console.warn('[Lynx] Failed to enrich with record tags:', err);
+            } finally {
+              for (const entry of data.entries) {
+                delete entry.finalMark;
+              }
+            }
+          }
+        } catch (err) {
+          console.error('[Lynx] Error in deferred track-mode-change processing:', err);
+        }
+      });
     } catch (error) {
       console.error('[Lynx] Error handling track mode change:', error);
     }
@@ -1867,24 +1867,56 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
       mark: data.mark,
     });
     
+    // Store the currently-up athlete for Multi-Field Board to use as currentAthlete spotlight
+    if (!(globalThis as any).multiFieldLiveAthletes) {
+      (globalThis as any).multiFieldLiveAthletes = new Map<number, any>();
+    }
     const accumulatedResults = data.results || [];
+    const firstResult = accumulatedResults[0];
+    if (firstResult) {
+      (globalThis as any).multiFieldLiveAthletes.set(eventNumber, {
+        name: firstResult.name,
+        bib: firstResult.bib,
+        affiliation: firstResult.affiliation,
+        mark: firstResult.mark,
+        markConverted: firstResult.markConverted,
+        attemptNumber: firstResult.attemptNumber,
+        bestMark: firstResult.bestMark,
+        timestamp: Date.now(),
+      });
+    }
     
     // Get field port for routing: prefer sourcePort from TCP listener, fall back to currentFieldPort from HTTP
     const fieldPort = (data.sourcePort && data.sourcePort >= FIELD_PORT_MIN && data.sourcePort <= FIELD_PORT_MAX) ? data.sourcePort : currentFieldPort;
     
     // === BROADCAST IMMEDIATELY — don't wait for DB writes ===
     // This eliminates the ~3s delay caused by sequential await calls before broadcast.
+    // Detect multi-event from the event name (e.g., "Dec Men Long Jump") so the display
+    // gets points immediately, even before the DB lookup completes.
+    const nameBasedMulti = data.eventName ? parseMultiEventName(data.eventName) : null;
+    const isMultiFromName = !!nameBasedMulti;
+    
+    // If multi-event detected from name, calculate points for each entry right away
+    if (isMultiFromName && nameBasedMulti) {
+      for (const entry of accumulatedResults) {
+        if (entry.mark && !entry.eventPoints) {
+          const pts = calculateEventPoints(nameBasedMulti.scoringKey, entry.mark, nameBasedMulti.gender);
+          if (pts > 0) entry.eventPoints = pts;
+        }
+      }
+    }
+    
     const fieldBroadcastData = {
       eventNumber,
       mode,
-      displayMode: 'field_results', // Will be updated below if multi-event
+      displayMode: 'field_results',
       eventName: data.eventName,
       flight: data.flight,
       wind: data.wind,
       results: accumulatedResults,
-      isMultiEvent: false,
-      eventType: null as string | null,
-      gender: null as string | null,
+      isMultiEvent: isMultiFromName,
+      eventType: nameBasedMulti?.scoringKey || null as string | null,
+      gender: nameBasedMulti?.gender || null as string | null,
       fieldPort,
     };
     
@@ -1906,6 +1938,35 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     }
     console.log(`[Lynx] Field data port ${fieldPort} → sent to ${fieldRecipients} device(s) (immediate)`);
     
+    // === Trigger multi-field board refresh for devices monitoring this event ===
+    // This bridges live TCP data to the Multi-Field Board which normally only updates from LFF files.
+    // Use a short debounce to batch rapid updates (multiple athletes/marks in quick succession).
+    const activeMeetIdForMultiField = await getActiveMeetId();
+    if (activeMeetIdForMultiField) {
+      for (const [, dev] of connectedDisplayDevices) {
+        if (dev.contentMode !== 'multi_field' || dev.meetId !== activeMeetIdForMultiField) continue;
+        const mfEvents = (dev as any).multiFieldEvents as number[] | undefined;
+        if (!mfEvents) continue;
+        // Match exact event number OR parent event for sub-events (e.g., event 42 matches sub-event 42002)
+        const matches = mfEvents.includes(eventNumber) || 
+          mfEvents.some((e: number) => e > 1000 && Math.floor(e / 1000) === eventNumber);
+        if (!matches) continue;
+        // Emit synthetic lff_updated to trigger the auto-refresh handler in displays.ts
+        // Short debounce (500ms) to batch rapid successive messages but still feel real-time
+        const debounceKey = `mf_refresh_${dev.deviceId}`;
+        if ((globalThis as any)[debounceKey]) clearTimeout((globalThis as any)[debounceKey]);
+        const capturedMeetId = activeMeetIdForMultiField;
+        const capturedEventNumber = eventNumber;
+        (globalThis as any)[debounceKey] = setTimeout(async () => {
+          delete (globalThis as any)[debounceKey];
+          try {
+            const { ingestionManager: im } = await import('../ingestion-manager');
+            im.emit('lff_updated', { meetId: capturedMeetId, eventNumber: capturedEventNumber });
+          } catch (e) { console.error('[Multi-Field] Failed to emit lff_updated:', e); }
+        }, 500);
+      }
+    }
+    
     // === DB writes happen in the background — display already updated ===
     try {
       const allFieldMatchEvents = await storage.getEventsByLynxEventNumber(eventNumber);
@@ -1926,10 +1987,13 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
           await broadcastCurrentEvent();
         }
         // If this is a multi-event, send a corrected broadcast with multi-event info + points
-        if (event.isMultiEvent || event.eventType) {
+        // Detect multi-event from DB flag OR from the event name (e.g., "Dec Men Long Jump")
+        const isMultiFromDb = event.isMultiEvent ?? false;
+        const isMultiDetected = isMultiFromDb || isMultiFromName;
+        if (isMultiDetected || event.eventType) {
           // Calculate event points for each field entry's mark
           const enrichedResults = [...accumulatedResults];
-          if (event.isMultiEvent && data.eventName) {
+          if (isMultiDetected && data.eventName) {
             const parsed = parseMultiEventName(data.eventName, event.gender || undefined);
             if (parsed) {
               for (const entry of enrichedResults) {
@@ -1949,10 +2013,10 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
           const correctedData = {
             ...fieldBroadcastData,
             results: enrichedResults,
-            isMultiEvent: event.isMultiEvent ?? false,
-            eventType: event.eventType ?? null,
-            gender: event.gender ?? null,
-            displayMode: event.isMultiEvent ? 'multi_field' : 'field_results',
+            isMultiEvent: isMultiDetected,
+            eventType: event.eventType ?? nameBasedMulti?.scoringKey ?? null,
+            gender: event.gender ?? nameBasedMulti?.gender ?? null,
+            displayMode: 'field_results',
           };
           const correctedMsg = JSON.stringify({ type: `field_mode_change_${fieldPort}`, data: correctedData });
           for (const [, dev] of connectedDisplayDevices) {
@@ -2032,6 +2096,32 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
       console.error('[Lynx] Error storing field result:', error);
     }
     
+    // Trigger multi-field board refresh (same debounce as field-mode-change)
+    try {
+      const resultMeetId = await getActiveMeetId();
+      if (resultMeetId) {
+        for (const [, dev] of connectedDisplayDevices) {
+          if (dev.contentMode !== 'multi_field' || dev.meetId !== resultMeetId) continue;
+          const mfEvents = (dev as any).multiFieldEvents as number[] | undefined;
+          if (!mfEvents) continue;
+          const matches = mfEvents.includes(eventNumber) || 
+            mfEvents.some((e: number) => e > 1000 && Math.floor(e / 1000) === eventNumber);
+          if (!matches) continue;
+          const debounceKey = `mf_refresh_${dev.deviceId}`;
+          if ((globalThis as any)[debounceKey]) clearTimeout((globalThis as any)[debounceKey]);
+          const capturedMeetId = resultMeetId;
+          const capturedEventNumber = eventNumber;
+          (globalThis as any)[debounceKey] = setTimeout(async () => {
+            delete (globalThis as any)[debounceKey];
+            try {
+              const { ingestionManager: im } = await import('../ingestion-manager');
+              im.emit('lff_updated', { meetId: capturedMeetId, eventNumber: capturedEventNumber });
+            } catch (e) { console.error('[Multi-Field] Failed to emit lff_updated:', e); }
+          }, 500);
+        }
+      }
+    } catch (e) { /* ignore */ }
+    
     // Broadcast field result
     broadcastToDisplays({
       type: 'field_result',
@@ -2046,10 +2136,10 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
     } as WSMessage);
   });
 
-  lynxListener.on('field-athlete-up', async (eventNumber, athleteName, attemptNumber, mark) => {
-    console.log(`[Lynx] Field athlete up: Event ${eventNumber}, ${athleteName}, Attempt ${attemptNumber}`);
+  lynxListener.on('field-athlete-up', async (eventNumber, athleteName, attemptNumber, mark, sourcePort, bib, affiliation) => {
+    console.log(`[Lynx] Field athlete up: Event ${eventNumber}, ${athleteName}, Attempt ${attemptNumber}, port ${sourcePort}`);
     
-    // Broadcast athlete up
+    // Broadcast athlete up with port info for per-panel curtain targeting
     broadcastToDisplays({
       type: 'field_athlete_up',
       data: {
@@ -2057,6 +2147,9 @@ export function registerIntegrationsRoutes(app: Express, ctx: RouteContext) {
         athleteName,
         attemptNumber,
         mark,
+        fieldPort: sourcePort,
+        bib,
+        affiliation,
       }
     } as WSMessage);
   });

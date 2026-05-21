@@ -12,6 +12,7 @@ import {
 } from "@shared/schema";
 import { mergeFlightsForEvent, parseLFFFile, findLFFFilesForEvent } from "../parsers/lff-parser";
 import { parseLIFFile, type NormalizedResult, type LIFEventHeader } from "../parsers/lif-parser";
+import { calculateEventPoints, parseMultiEventName } from "../combined-events-scoring";
 import * as fs from 'fs';
 
 /** Convert meters to English feet-inches with quarter-inch fractions (e.g. "23-4 1/4") */
@@ -62,7 +63,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
   } = ctx;
 
   // Track previous athlete per device+event for the Multi-Field Board 1-column split layout
-  const multiFieldPreviousAthletes = new Map<string, { bibNumber: number; athleteData: any }>();
+  const multiFieldPreviousAthletes = new Map<string, { bibNumber: number; athleteData: any; previousAthleteData: any }>();
 
   // ===== DISPLAY REGISTRATION =====
   app.post("/api/displays/register", async (req, res) => {
@@ -630,7 +631,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
   // Update display device config (fieldPort, isBigBoard, pagingSize, pagingInterval, displayType)
   app.patch("/api/display-devices/:id", async (req, res) => {
     try {
-      const { fieldPort, isBigBoard, pagingSize, pagingInterval, displayType, displayWidth, displayHeight, displayScale } = req.body;
+      const { fieldPort, isBigBoard, pagingSize, pagingInterval, displayType, displayWidth, displayHeight, displayScale, verticalCompression, fieldPanels, daisyChainDisplayType } = req.body;
       const id = req.params.id;
 
       const device = await storage.getDisplayDevice(id);
@@ -644,6 +645,12 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           return res.status(400).json({ error: `Invalid display type. Must be one of: ${validDisplayTypes.join(', ')}` });
         }
         await storage.updateDisplayDeviceType(id, displayType, undefined, displayWidth, displayHeight);
+      } else if (displayWidth !== undefined || displayHeight !== undefined) {
+        // Update display dimensions without changing display type (e.g., multi-panel combined resolution)
+        const currentDevice = await storage.getDisplayDevice(id);
+        if (currentDevice) {
+          await storage.updateDisplayDeviceType(id, currentDevice.displayType || 'P6', undefined, displayWidth, displayHeight);
+        }
       }
 
       const updates: Partial<{ pagingSize: number; pagingInterval: number; fieldPort: number | null; isBigBoard: boolean; displayScale: number }> = {};
@@ -658,6 +665,16 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       }
 
       const finalDevice = await storage.getDisplayDevice(id);
+
+      // Store fieldPanels, daisyChainDisplayType, verticalCompression in memory on connected device (not in DB — runtime config)
+      if (fieldPanels !== undefined || daisyChainDisplayType !== undefined || verticalCompression !== undefined) {
+        const connDev = connectedDisplayDevices.get(id);
+        if (connDev) {
+          if (fieldPanels !== undefined) (connDev as any).fieldPanels = Array.isArray(fieldPanels) ? fieldPanels : null;
+          if (daisyChainDisplayType !== undefined) (connDev as any).daisyChainDisplayType = daisyChainDisplayType;
+          if (verticalCompression !== undefined) (connDev as any).verticalCompression = Math.max(50, Math.min(100, parseInt(verticalCompression) || 100));
+        }
+      }
 
       // Update in-memory connected device record so server-side field broadcasts
       // are immediately filtered to the correct port — no client-side state race
@@ -689,6 +706,11 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           pagingInterval: finalDevice?.pagingInterval,
           displayMode: finalDevice?.displayMode,
           displayScale: finalDevice?.displayScale,
+          displayWidth: finalDevice?.displayWidth,
+          displayHeight: finalDevice?.displayHeight,
+          fieldPanels: fieldPanels !== undefined ? (Array.isArray(fieldPanels) ? fieldPanels : null) : undefined,
+          daisyChainDisplayType: daisyChainDisplayType || undefined,
+          verticalCompression: verticalCompression !== undefined ? Math.max(50, Math.min(100, parseInt(verticalCompression) || 100)) : undefined,
         }
       } as WSMessage);
 
@@ -2586,7 +2608,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       const { contentMode } = req.body;
       const deviceId = req.params.id;
       
-      const validModes = ['lynx', 'hytek', 'team_scores', 'field', 'winners', 'record', 'meet_schedule', 'meet_records', 'sponsors', 'sponsor_reel', 'team_preview'];
+      const validModes = ['lynx', 'hytek', 'team_scores', 'field', 'multi_field', 'field_daisy_chain', 'winners', 'record', 'meet_schedule', 'meet_records', 'sponsors', 'sponsor_reel', 'team_preview'];
       if (!contentMode || !validModes.includes(contentMode)) {
         return res.status(400).json({ error: `contentMode must be one of: ${validModes.join(', ')}` });
       }
@@ -3097,35 +3119,132 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         return null;
       };
 
-      // Helper: resolve headshot from bib number
-      const resolveHeadshot = (bibNumber: number): string | null => {
+      // Pre-build directory-based headshot cache for athletes not in DB photos
+      const headshotDirCache = new Map<string, string>();
+      const headshotDir = (ingestionSettings as any)?.headshotDirectory;
+      if (headshotDir && fs.existsSync(headshotDir)) {
+        try {
+          const { headshotBaseNames } = await import('../name-utils');
+          const dirFiles = fs.readdirSync(headshotDir);
+          const imgExts = new Set(['.png', '.jpg', '.jpeg', '.webp']);
+          const dirFileSet = new Map<string, string>(); // lowercase basename → actual filename
+          for (const f of dirFiles) {
+            const ext = pathModule.extname(f).toLowerCase();
+            if (imgExts.has(ext)) {
+              dirFileSet.set(f.toLowerCase(), f);
+            }
+          }
+          for (const a of allAthletes) {
+            if (headshotMap.has(a.id)) continue;
+            const bib = (a as any).bibNumber || (a as any).athleteNumber?.toString();
+            if (!bib) continue;
+            const team = (a as any).teamName || (a as any).school || '';
+            const firstName = (a as any).firstName || '';
+            const lastName = (a as any).lastName || '';
+            if (!firstName && !lastName) continue;
+            const bases = headshotBaseNames(team, firstName, lastName);
+            let found = false;
+            for (const base of bases) {
+              if (found) break;
+              for (const ext of ['.png', '.jpg', '.jpeg', '.webp']) {
+                const candidate = `${base}${ext}`.toLowerCase();
+                if (dirFileSet.has(candidate)) {
+                  // Use the existing headshot API endpoint
+                  headshotDirCache.set(String(bib), `/api/meets/${meetId}/headshot?school=${encodeURIComponent(team)}&firstName=${encodeURIComponent(firstName)}&lastName=${encodeURIComponent(lastName)}`);
+                  found = true;
+                  break;
+                }
+              }
+            }
+          }
+          if (headshotDirCache.size > 0) {
+            console.log(`[Multi-Field] Found ${headshotDirCache.size} directory-based headshots`);
+          }
+        } catch (e) { console.warn('[Multi-Field] Directory headshot scan failed:', e); }
+      }
+
+      // Helper: resolve headshot from bib number (DB photos first, then directory fallback)
+      const resolveHeadshot = (bibNumber: number, firstName?: string, lastName?: string, team?: string): string | null => {
         const athlete = athleteByBibStr.get(String(bibNumber));
-        return athlete ? (headshotMap.get(athlete.id) || null) : null;
+        if (athlete) {
+          const dbPhoto = headshotMap.get(athlete.id);
+          if (dbPhoto) return dbPhoto;
+        }
+        const dirCached = headshotDirCache.get(String(bibNumber));
+        if (dirCached) return dirCached;
+        // Last resort: if we have name/team from LFF but no DB match, try the headshot API
+        if (headshotDir && firstName && lastName && team) {
+          return `/api/meets/${meetId}/headshot?school=${encodeURIComponent(team)}&firstName=${encodeURIComponent(firstName)}&lastName=${encodeURIComponent(lastName)}`;
+        }
+        return null;
       };
 
+      // Access live "athlete up" data from the TCP field handler
+      const liveAthletes = (globalThis as any).multiFieldLiveAthletes as Map<number, any> | undefined;
+      
       for (const evtNum of eventNumbers) {
-        const standings = await mergeFlightsForEvent(lynxDir, evtNum);
+        // For sub-events (e.g., 42002 = event 42 round 2), extract parent event and round
+        const parentEvtNum = evtNum > 1000 ? Math.floor(evtNum / 1000) : evtNum;
+        const roundNum = evtNum > 1000 ? (evtNum % 1000) : undefined;
+        let standings = await mergeFlightsForEvent(lynxDir, evtNum);
+        if ((!standings || standings.athletes.length === 0) && evtNum > 1000) {
+          // Try parent event + specific round (e.g., event 42, round 2 → 042-2-*.lff)
+          standings = await mergeFlightsForEvent(lynxDir, parentEvtNum, roundNum);
+        }
+        if ((!standings || standings.athletes.length === 0) && evtNum > 1000) {
+          // Fallback: try parent event without round filter
+          standings = await mergeFlightsForEvent(lynxDir, parentEvtNum);
+        }
         const dbEvent = allEvents.find((e: any) => e.eventNumber === evtNum);
 
         if (!standings || standings.athletes.length === 0) {
+          // Even without LFF standings, check if we have a live athlete up
+          const liveAthlete = liveAthletes?.get(evtNum) || liveAthletes?.get(parentEvtNum);
+          let liveCurrentAthl: any = null;
+          if (liveAthlete && Date.now() - liveAthlete.timestamp < 120000) {
+            const nameParts = (liveAthlete.name || '').split(/,\s*|,/);
+            liveCurrentAthl = {
+              firstName: nameParts.length > 1 ? nameParts[1].trim() : '',
+              lastName: nameParts.length > 1 ? nameParts[0].trim() : liveAthlete.name,
+              team: liveAthlete.affiliation || '',
+              teamLogoUrl: resolveTeamLogo(liveAthlete.affiliation),
+              headshotUrl: resolveHeadshot(Number(liveAthlete.bib) || 0, nameParts.length > 1 ? nameParts[1].trim() : '', nameParts.length > 1 ? nameParts[0].trim() : '', liveAthlete.affiliation || ''),
+              place: null,
+              mark: liveAthlete.mark || '',
+              englishMark: liveAthlete.markConverted || '',
+              attemptNum: Number(liveAthlete.attemptNumber) || 1,
+              attemptTotal: 6,
+            };
+          }
           eventsData.push({
             eventNumber: evtNum,
             eventName: dbEvent?.name || `Event ${evtNum}`,
             eventType: dbEvent?.eventType || '',
             isVertical: false,
-            currentAthlete: null,
+            currentAthlete: liveCurrentAthl,
             standings: [],
           });
           continue;
         }
 
+        // Detect multi-event from DB flag OR event name
+        const eventNameForDetect = standings.eventName || dbEvent?.name || '';
+        const isMulti = (dbEvent as any)?.isMultiEvent === true || /\b(decathlon|heptathlon|pentathlon|dec |hep |pent )\b/i.test(eventNameForDetect) || (evtNum > 1000);
+        const parsedMulti = isMulti ? parseMultiEventName(eventNameForDetect, (dbEvent as any)?.gender || undefined) : null;
+        /** Calculate proper multi-event points for a mark string */
+        const calcPoints = (mark: string | undefined | null): number | null => {
+          if (!parsedMulti || !mark) return null;
+          const pts = calculateEventPoints(parsedMulti.scoringKey, mark, parsedMulti.gender);
+          return pts > 0 ? pts : null;
+        };
+
         // Build enriched standings
         const enrichedStandings = [];
         for (const a of standings.athletes) {
           const teamLogo = resolveTeamLogo(a.team);
-          const headshot = resolveHeadshot(a.bibNumber);
+          const headshot = resolveHeadshot(a.bibNumber, a.firstName, a.lastName, a.team);
           enrichedStandings.push({
-            place: a.overallPlace || null,
+            place: a.bestMark != null ? (a.overallPlace || null) : null,
             bibNumber: a.bibNumber,
             firstName: a.firstName,
             lastName: a.lastName,
@@ -3137,85 +3256,134 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           });
         }
 
-        // The first non-DNS athlete with attempts is the "current" spotlight (approximate)
-        // In real-time mode, this would come from the field event session
-        const topAthleteIdx = standings.athletes.findIndex(a => !a.isDNS);
-        const topAthleteRaw = topAthleteIdx >= 0 ? standings.athletes[topAthleteIdx] : null;
-        const topAthlete = topAthleteIdx >= 0 ? enrichedStandings[topAthleteIdx] : null;
-
-        // Build detailed current athlete info
+        // Use live "athlete up" data for currentAthlete if available and recent (< 2 min)
+        const liveAthlete = liveAthletes?.get(evtNum) || liveAthletes?.get(parentEvtNum);
         let currentAthleteData: any = null;
-        if (topAthlete && topAthleteRaw) {
-          // Compute English mark (feet-inches with quarter-inch fractions)
-          let englishMark = '';
-          if (topAthleteRaw.bestMark != null) {
-            englishMark = metersToEnglishFraction(topAthleteRaw.bestMark);
-          }
-
-          // Figure out attempt info
-          const validAttempts = topAthleteRaw.attempts.filter(att => att.mark !== null || att.isFoul || att.isPassed || att.isCleared || att.isMissed);
-          const attemptCount = validAttempts.length;
-          const totalPossible = standings.isVerticalEvent ? (standings.heights?.length || 0) : 6;
-
-          // Build X/O string for verticals — only the CURRENT height's attempts
-          let attemptsDisplay: string[] = [];
-          let currentHeight = '';
-          if (standings.isVerticalEvent && topAthleteRaw.attempts.length > 0) {
-            // The last attempt entry is the current height
-            const lastAtt = topAthleteRaw.attempts[topAthleteRaw.attempts.length - 1];
-            // Build the X/O string for just this height
-            if (lastAtt.isCleared) {
-              const misses = lastAtt.missCount || 0;
-              attemptsDisplay.push('X'.repeat(misses) + 'O');
-            } else if (lastAtt.isMissed && (lastAtt.missCount || 0) >= 3) {
-              attemptsDisplay.push('XXX');
-            } else if (lastAtt.isMissed) {
-              attemptsDisplay.push('X'.repeat(lastAtt.missCount || 1));
-            } else if (lastAtt.isPassed) {
-              attemptsDisplay.push('P');
+        
+        if (liveAthlete && Date.now() - liveAthlete.timestamp < 120000) {
+          // Find this athlete in the standings to get enriched data (logo, headshot, place)
+          const bibStr = String(liveAthlete.bib || '');
+          const matchIdx = standings.athletes.findIndex(a => String(a.bibNumber) === bibStr);
+          const matchRaw = matchIdx >= 0 ? standings.athletes[matchIdx] : null;
+          const matchEnr = matchIdx >= 0 ? enrichedStandings[matchIdx] : null;
+          
+          if (matchEnr && matchRaw) {
+            // Use the LIVE mark from TCP, not the LFF best mark
+            const liveMark = liveAthlete.mark || matchEnr.bestMark;
+            const liveEnglishMark = liveAthlete.markConverted || '';
+            let englishMark = liveEnglishMark;
+            if (!englishMark && !isMulti && matchRaw.bestMark != null) {
+              englishMark = metersToEnglishFraction(matchRaw.bestMark);
             }
-            // Show the current height value
-            if (standings.heights && standings.heights.length > 0) {
-              const heightIdx = Math.min(topAthleteRaw.attempts.length - 1, standings.heights.length - 1);
-              currentHeight = standings.heights[heightIdx].toFixed(2);
+            const points = calcPoints(liveMark) || calcPoints(matchEnr.bestMark);
+            const validAtt = matchRaw.attempts.filter(att => att.mark !== null || att.isFoul || att.isPassed || att.isCleared || att.isMissed);
+            let attemptsDisplay: string[] = [];
+            let curHeight = '';
+            if (standings.isVerticalEvent && matchRaw.attempts.length > 0) {
+              const lastAtt = matchRaw.attempts[matchRaw.attempts.length - 1];
+              if (lastAtt.isCleared) { attemptsDisplay.push('X'.repeat(lastAtt.missCount || 0) + 'O'); }
+              else if (lastAtt.isMissed && (lastAtt.missCount || 0) >= 3) { attemptsDisplay.push('XXX'); }
+              else if (lastAtt.isMissed) { attemptsDisplay.push('X'.repeat(lastAtt.missCount || 1)); }
+              else if (lastAtt.isPassed) { attemptsDisplay.push('P'); }
+              if (standings.heights && standings.heights.length > 0) {
+                const hIdx = Math.min(matchRaw.attempts.length - 1, standings.heights.length - 1);
+                curHeight = standings.heights[hIdx].toFixed(2);
+              }
             }
+            currentAthleteData = {
+              firstName: matchEnr.firstName, lastName: matchEnr.lastName, team: matchEnr.team,
+              teamLogoUrl: matchEnr.teamLogoUrl, headshotUrl: matchEnr.headshotUrl, place: matchEnr.place,
+              mark: liveMark, englishMark: isMulti ? undefined : englishMark, points,
+              attemptNum: Number(liveAthlete.attemptNumber) || validAtt.length,
+              attemptTotal: standings.isVerticalEvent ? (standings.heights?.length || 0) : 6,
+              attemptsDisplay, currentHeight: curHeight,
+            };
+          } else {
+            // Athlete not found in LFF yet — build from live data
+            const nameParts = (liveAthlete.name || '').split(/,\s*|,/);
+            currentAthleteData = {
+              firstName: nameParts.length > 1 ? nameParts[1].trim() : '',
+              lastName: nameParts.length > 1 ? nameParts[0].trim() : liveAthlete.name,
+              team: liveAthlete.affiliation || '',
+              teamLogoUrl: resolveTeamLogo(liveAthlete.affiliation),
+              headshotUrl: resolveHeadshot(Number(liveAthlete.bib) || 0, nameParts.length > 1 ? nameParts[1].trim() : '', nameParts.length > 1 ? nameParts[0].trim() : '', liveAthlete.affiliation || ''),
+              place: null,
+              mark: liveAthlete.mark || '',
+              englishMark: liveAthlete.markConverted || '',
+              attemptNum: Number(liveAthlete.attemptNumber) || 1,
+              attemptTotal: standings.isVerticalEvent ? (standings.heights?.length || 0) : 6,
+            };
           }
-
-          // For multi-events, show points instead of English mark
-          const isMulti = (dbEvent as any)?.isMultiEvent === true;
-          const points = isMulti && topAthleteRaw.bestMark != null
-            ? Math.round(topAthleteRaw.bestMark)
-            : null;
-
-          currentAthleteData = {
-            firstName: topAthlete.firstName,
-            lastName: topAthlete.lastName,
-            team: topAthlete.team,
-            teamLogoUrl: topAthlete.teamLogoUrl,
-            headshotUrl: topAthlete.headshotUrl,
-            place: topAthlete.place,
-            mark: topAthlete.bestMark,
-            englishMark: isMulti ? undefined : englishMark,
-            points,
-            attemptNum: attemptCount,
-            attemptTotal: totalPossible,
-            attemptsDisplay,
-            currentHeight,
-          };
+        } else {
+          // No live data — fall back to LFF leader
+          const topAthleteIdx = standings.athletes.findIndex(a => !a.isDNS);
+          const topAthleteRaw = topAthleteIdx >= 0 ? standings.athletes[topAthleteIdx] : null;
+          const topAthlete = topAthleteIdx >= 0 ? enrichedStandings[topAthleteIdx] : null;
+          if (topAthlete && topAthleteRaw) {
+            const isMulti = (dbEvent as any)?.isMultiEvent === true;
+            let englishMark = '';
+            if (!isMulti && topAthleteRaw.bestMark != null) {
+              englishMark = metersToEnglishFraction(topAthleteRaw.bestMark);
+            }
+            const points = calcPoints(topAthlete.bestMark);
+            const validAttempts = topAthleteRaw.attempts.filter(att => att.mark !== null || att.isFoul || att.isPassed || att.isCleared || att.isMissed);
+            const attemptCount = validAttempts.length;
+            const totalPossible = standings.isVerticalEvent ? (standings.heights?.length || 0) : 6;
+            let attemptsDisplay: string[] = [];
+            let currentHeight = '';
+            if (standings.isVerticalEvent && topAthleteRaw.attempts.length > 0) {
+              const lastAtt = topAthleteRaw.attempts[topAthleteRaw.attempts.length - 1];
+              if (lastAtt.isCleared) { attemptsDisplay.push('X'.repeat(lastAtt.missCount || 0) + 'O'); }
+              else if (lastAtt.isMissed && (lastAtt.missCount || 0) >= 3) { attemptsDisplay.push('XXX'); }
+              else if (lastAtt.isMissed) { attemptsDisplay.push('X'.repeat(lastAtt.missCount || 1)); }
+              else if (lastAtt.isPassed) { attemptsDisplay.push('P'); }
+              if (standings.heights && standings.heights.length > 0) {
+                const hIdx = Math.min(topAthleteRaw.attempts.length - 1, standings.heights.length - 1);
+                currentHeight = standings.heights[hIdx].toFixed(2);
+              }
+            }
+            currentAthleteData = {
+              firstName: topAthlete.firstName, lastName: topAthlete.lastName, team: topAthlete.team,
+              teamLogoUrl: topAthlete.teamLogoUrl, headshotUrl: topAthlete.headshotUrl, place: topAthlete.place,
+              mark: topAthlete.bestMark, englishMark: isMulti ? undefined : englishMark, points,
+              attemptNum: attemptCount, attemptTotal: totalPossible,
+              attemptsDisplay, currentHeight,
+            };
+          }
         }
 
-        // Track previousAthlete: when currentAthlete changes, shift old one to previous
+        // Track previousAthlete: when currentAthlete changes, shift old one to previous.
+        // Previous persists until a DIFFERENT athlete becomes current.
         let previousAthleteData: any = null;
         const devicePrevKey = `${deviceId}:${evtNum}`;
+        const liveBib = liveAthlete?.bib ? Number(liveAthlete.bib) : null;
         if (currentAthleteData) {
           const prevState = multiFieldPreviousAthletes.get(devicePrevKey);
-          if (prevState && prevState.bibNumber !== topAthleteRaw?.bibNumber) {
+          const currentBib = liveBib || standings.athletes.find(a => !a.isDNS)?.bibNumber || 0;
+          if (prevState && prevState.bibNumber !== currentBib) {
+            // New athlete is up — old current becomes previous
             previousAthleteData = prevState.athleteData;
+            multiFieldPreviousAthletes.set(devicePrevKey, {
+              bibNumber: currentBib,
+              athleteData: currentAthleteData,
+              previousAthleteData: prevState.athleteData,
+            });
+          } else if (prevState) {
+            // Same athlete still up — keep existing previous
+            previousAthleteData = prevState.previousAthleteData || null;
+            multiFieldPreviousAthletes.set(devicePrevKey, {
+              bibNumber: currentBib,
+              athleteData: currentAthleteData,
+              previousAthleteData: prevState.previousAthleteData,
+            });
+          } else {
+            // First time seeing this event — no previous yet
+            multiFieldPreviousAthletes.set(devicePrevKey, {
+              bibNumber: currentBib,
+              athleteData: currentAthleteData,
+              previousAthleteData: null,
+            });
           }
-          multiFieldPreviousAthletes.set(devicePrevKey, {
-            bibNumber: topAthleteRaw?.bibNumber || 0,
-            athleteData: currentAthleteData,
-          });
         }
 
         eventsData.push({
@@ -3223,7 +3391,7 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           eventName: standings.eventName || dbEvent?.name || `Event ${evtNum}`,
           eventType: dbEvent?.eventType || (standings.isVerticalEvent ? 'vertical' : 'horizontal'),
           isVertical: standings.isVerticalEvent,
-          isMultiEvent: (dbEvent as any)?.isMultiEvent === true,
+          isMultiEvent: isMulti,
           currentAthlete: currentAthleteData,
           previousAthlete: previousAthleteData,
           standings: enrichedStandings,
@@ -3246,6 +3414,9 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
         (connectedDevice as any).multiFieldEvents = eventNumbers;
         storage.updateDisplayContentMode(deviceId, 'multi_field').catch(err =>
           console.error('[Multi-Field] Failed to persist contentMode:', err)
+        );
+        storage.updateDisplayMultiFieldEvents(deviceId, eventNumbers).catch(err =>
+          console.error('[Multi-Field] Failed to persist event assignments:', err)
         );
 
         connectedDevice.ws.send(JSON.stringify({
@@ -3297,7 +3468,15 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
       const allEvents = await storage.getEventsByMeetId(meetId);
 
       for (const evtNum of eventNumbers) {
-        const standings = await mergeFlightsForEvent(lynxDir, evtNum);
+        const parentEvt = evtNum > 1000 ? Math.floor(evtNum / 1000) : evtNum;
+        const roundN = evtNum > 1000 ? (evtNum % 1000) : undefined;
+        let standings = await mergeFlightsForEvent(lynxDir, evtNum);
+        if ((!standings || standings.athletes.length === 0) && evtNum > 1000) {
+          standings = await mergeFlightsForEvent(lynxDir, parentEvt, roundN);
+        }
+        if ((!standings || standings.athletes.length === 0) && evtNum > 1000) {
+          standings = await mergeFlightsForEvent(lynxDir, parentEvt);
+        }
         const dbEvent = allEvents.find((e: any) => e.eventNumber === evtNum);
         result.push({
           eventNumber: evtNum,
@@ -3324,7 +3503,11 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
           if (device.contentMode !== 'multi_field') continue;
           if (device.meetId !== meetId) continue;
           const multiFieldEvents = (device as any).multiFieldEvents as number[] | undefined;
-          if (!multiFieldEvents || !multiFieldEvents.includes(eventNumber)) continue;
+          if (!multiFieldEvents) continue;
+          // Match exact event number OR parent event for sub-events (e.g., event 42 matches sub-event 42002)
+          const eventMatches = multiFieldEvents.includes(eventNumber) || 
+            multiFieldEvents.some(e => e > 1000 && Math.floor(e / 1000) === eventNumber);
+          if (!eventMatches) continue;
 
           // Re-push by making an internal API call to the multi-field-board endpoint
           console.log(`[Multi-Field Auto] LFF updated for event ${eventNumber}, refreshing display ${device.deviceName}`);
@@ -3373,74 +3556,240 @@ export function registerDisplaysRoutes(app: Express, ctx: RouteContext) {
               if (resolvedP.startsWith(resolvedD) && fs.existsSync(ncaaPath)) return `/logos/NCAA/${encodeURIComponent(safeName)}.png`;
               return null;
             };
-            const resolveHeadshot = (bib: number): string | null => {
+            // Build directory-based headshot cache (same as initial endpoint)
+            const headshotDirCacheAuto = new Map<string, string>();
+            const headshotDirAuto = (ingestionSettings as any)?.headshotDirectory;
+            if (headshotDirAuto && fs.existsSync(headshotDirAuto)) {
+              try {
+                const { headshotBaseNames } = await import('../name-utils');
+                const dirFiles = fs.readdirSync(headshotDirAuto);
+                const imgExts = new Set(['.png', '.jpg', '.jpeg', '.webp']);
+                const dirFileSet = new Map<string, string>();
+                for (const f of dirFiles) {
+                  const ext = pathModule.extname(f).toLowerCase();
+                  if (imgExts.has(ext)) dirFileSet.set(f.toLowerCase(), f);
+                }
+                for (const a of allAthletes) {
+                  if (headshotMap.has(a.id)) continue;
+                  const bib = (a as any).bibNumber || (a as any).athleteNumber?.toString();
+                  if (!bib) continue;
+                  const team = (a as any).teamName || (a as any).school || '';
+                  const firstName = (a as any).firstName || '';
+                  const lastName = (a as any).lastName || '';
+                  if (!firstName && !lastName) continue;
+                  const bases = headshotBaseNames(team, firstName, lastName);
+                  let found = false;
+                  for (const base of bases) {
+                    if (found) break;
+                    for (const ext of ['.png', '.jpg', '.jpeg', '.webp']) {
+                      if (dirFileSet.has(`${base}${ext}`.toLowerCase())) {
+                        headshotDirCacheAuto.set(String(bib), `/api/meets/${meetId}/headshot?school=${encodeURIComponent(team)}&firstName=${encodeURIComponent(firstName)}&lastName=${encodeURIComponent(lastName)}`);
+                        found = true;
+                        break;
+                      }
+                    }
+                  }
+                }
+              } catch (e) { /* directory scan failed */ }
+            }
+            const resolveHeadshot = (bib: number, firstName?: string, lastName?: string, team?: string): string | null => {
               const athlete = athleteByBibStr.get(String(bib));
-              return athlete ? (headshotMap.get(athlete.id) || null) : null;
+              if (athlete) {
+                const dbPhoto = headshotMap.get(athlete.id);
+                if (dbPhoto) return dbPhoto;
+              }
+              const dirCached = headshotDirCacheAuto.get(String(bib));
+              if (dirCached) return dirCached;
+              if (headshotDirAuto && firstName && lastName && team) {
+                return `/api/meets/${meetId}/headshot?school=${encodeURIComponent(team)}&firstName=${encodeURIComponent(firstName)}&lastName=${encodeURIComponent(lastName)}`;
+              }
+              return null;
             };
 
             const eventsData: any[] = [];
+            // Access live "athlete up" data from the TCP field handler
+            const liveAthletes = (globalThis as any).multiFieldLiveAthletes as Map<number, any> | undefined;
+            
             for (const evtNum of multiFieldEvents) {
-              const standings = await mergeFlightsForEvent(lynxDir, evtNum);
+              // For sub-events (e.g., 42002 = event 42 round 2), extract parent event and round
+              const parentEvtNum = evtNum > 1000 ? Math.floor(evtNum / 1000) : evtNum;
+              const roundNum = evtNum > 1000 ? (evtNum % 1000) : undefined;
+              let standings = await mergeFlightsForEvent(lynxDir, evtNum);
+              if ((!standings || standings.athletes.length === 0) && evtNum > 1000) {
+                // Try parent event + specific round (e.g., event 42, round 2 → 042-2-*.lff)
+                standings = await mergeFlightsForEvent(lynxDir, parentEvtNum, roundNum);
+              }
+              if ((!standings || standings.athletes.length === 0) && evtNum > 1000) {
+                // Fallback: try parent event without round filter
+                standings = await mergeFlightsForEvent(lynxDir, parentEvtNum);
+              }
               const dbEvent = allEvents.find((e: any) => e.eventNumber === evtNum);
               if (!standings || standings.athletes.length === 0) {
-                eventsData.push({ eventNumber: evtNum, eventName: dbEvent?.name || `Event ${evtNum}`, eventType: '', isVertical: false, currentAthlete: null, standings: [] });
+                // Even without LFF standings, check if we have a live athlete up
+                const liveAthlete = liveAthletes?.get(evtNum) || liveAthletes?.get(parentEvtNum);
+                let liveCurrentAthl: any = null;
+                if (liveAthlete && Date.now() - liveAthlete.timestamp < 120000) {
+                  const nameParts = (liveAthlete.name || '').split(/,\s*|,/);
+                  const lFirst = nameParts.length > 1 ? nameParts[1].trim() : '';
+                  const lLast = nameParts.length > 1 ? nameParts[0].trim() : liveAthlete.name;
+                  liveCurrentAthl = {
+                    firstName: lFirst,
+                    lastName: lLast,
+                    team: liveAthlete.affiliation || '',
+                    teamLogoUrl: resolveTeamLogo(liveAthlete.affiliation),
+                    headshotUrl: resolveHeadshot(Number(liveAthlete.bib) || 0, lFirst, lLast, liveAthlete.affiliation || ''),
+                    place: null,
+                    mark: liveAthlete.mark || '',
+                    englishMark: liveAthlete.markConverted || '',
+                    attemptNum: Number(liveAthlete.attemptNumber) || 1,
+                    attemptTotal: 6,
+                  };
+                }
+                eventsData.push({ eventNumber: evtNum, eventName: dbEvent?.name || `Event ${evtNum}`, eventType: '', isVertical: false, currentAthlete: liveCurrentAthl, standings: [] });
                 continue;
               }
+              // Detect multi-event from DB flag OR event name
+              const autoEventName = standings.eventName || dbEvent?.name || '';
+              const isMulti = (dbEvent as any)?.isMultiEvent === true || /\b(decathlon|heptathlon|pentathlon|dec |hep |pent )\b/i.test(autoEventName) || (evtNum > 1000);
+              const autoParsedMulti = isMulti ? parseMultiEventName(autoEventName, (dbEvent as any)?.gender || undefined) : null;
+              const autoCalcPoints = (mark: string | undefined | null): number | null => {
+                if (!autoParsedMulti || !mark) return null;
+                const pts = calculateEventPoints(autoParsedMulti.scoringKey, mark, autoParsedMulti.gender);
+                return pts > 0 ? pts : null;
+              };
+
               const enriched = standings.athletes.map(a => ({
-                place: a.overallPlace || null, bibNumber: a.bibNumber, firstName: a.firstName, lastName: a.lastName,
-                team: a.team || '', teamLogoUrl: resolveTeamLogo(a.team), headshotUrl: resolveHeadshot(a.bibNumber),
+                place: a.bestMark != null ? (a.overallPlace || null) : null, bibNumber: a.bibNumber, firstName: a.firstName, lastName: a.lastName,
+                team: a.team || '', teamLogoUrl: resolveTeamLogo(a.team), headshotUrl: resolveHeadshot(a.bibNumber, a.firstName, a.lastName, a.team),
                 bestMark: a.bestMarkFormatted || '', isDNS: a.isDNS,
               }));
-              const topIdx = standings.athletes.findIndex(a => !a.isDNS);
-              const topRaw = topIdx >= 0 ? standings.athletes[topIdx] : null;
-              const topEnr = topIdx >= 0 ? enriched[topIdx] : null;
+              
+              // Use live "athlete up" data for currentAthlete if available and recent (< 2 min)
+              const liveAthlete = liveAthletes?.get(evtNum) || liveAthletes?.get(parentEvtNum);
               let currentAthl: any = null;
-              if (topEnr && topRaw) {
-                const isMulti = (dbEvent as any)?.isMultiEvent === true;
-                let englishMark = '';
-                if (!isMulti && topRaw.bestMark != null) {
-                  englishMark = metersToEnglishFraction(topRaw.bestMark);
-                }
-                const points = isMulti && topRaw.bestMark != null ? Math.round(topRaw.bestMark) : null;
-                const validAtt = topRaw.attempts.filter(att => att.mark !== null || att.isFoul || att.isPassed || att.isCleared || att.isMissed);
-                let attemptsDisplay: string[] = [];
-                let curHeight = '';
-                if (standings.isVerticalEvent && topRaw.attempts.length > 0) {
-                  const lastAtt = topRaw.attempts[topRaw.attempts.length - 1];
-                  if (lastAtt.isCleared) { attemptsDisplay.push('X'.repeat(lastAtt.missCount || 0) + 'O'); }
-                  else if (lastAtt.isMissed && (lastAtt.missCount || 0) >= 3) { attemptsDisplay.push('XXX'); }
-                  else if (lastAtt.isMissed) { attemptsDisplay.push('X'.repeat(lastAtt.missCount || 1)); }
-                  else if (lastAtt.isPassed) { attemptsDisplay.push('P'); }
-                  if (standings.heights && standings.heights.length > 0) {
-                    const hIdx = Math.min(topRaw.attempts.length - 1, standings.heights.length - 1);
-                    curHeight = standings.heights[hIdx].toFixed(2);
+              
+              if (liveAthlete && Date.now() - liveAthlete.timestamp < 120000) {
+                // Find this athlete in the standings to get enriched data (logo, headshot, place)
+                const bibStr = String(liveAthlete.bib || '');
+                const matchIdx = standings.athletes.findIndex(a => String(a.bibNumber) === bibStr);
+                const matchRaw = matchIdx >= 0 ? standings.athletes[matchIdx] : null;
+                const matchEnr = matchIdx >= 0 ? enriched[matchIdx] : null;
+                
+                if (matchEnr && matchRaw) {
+                  // Use the LIVE mark from TCP, not the LFF best mark
+                  const liveMark = liveAthlete.mark || matchEnr.bestMark;
+                  const liveEnglishMark = liveAthlete.markConverted || '';
+                  let englishMark = liveEnglishMark;
+                  if (!englishMark && !isMulti && matchRaw.bestMark != null) {
+                    englishMark = metersToEnglishFraction(matchRaw.bestMark);
                   }
+                  const points = autoCalcPoints(liveMark) || autoCalcPoints(matchEnr.bestMark);
+                  const validAtt = matchRaw.attempts.filter(att => att.mark !== null || att.isFoul || att.isPassed || att.isCleared || att.isMissed);
+                  let attemptsDisplay: string[] = [];
+                  let curHeight = '';
+                  if (standings.isVerticalEvent && matchRaw.attempts.length > 0) {
+                    const lastAtt = matchRaw.attempts[matchRaw.attempts.length - 1];
+                    if (lastAtt.isCleared) { attemptsDisplay.push('X'.repeat(lastAtt.missCount || 0) + 'O'); }
+                    else if (lastAtt.isMissed && (lastAtt.missCount || 0) >= 3) { attemptsDisplay.push('XXX'); }
+                    else if (lastAtt.isMissed) { attemptsDisplay.push('X'.repeat(lastAtt.missCount || 1)); }
+                    else if (lastAtt.isPassed) { attemptsDisplay.push('P'); }
+                    if (standings.heights && standings.heights.length > 0) {
+                      const hIdx = Math.min(matchRaw.attempts.length - 1, standings.heights.length - 1);
+                      curHeight = standings.heights[hIdx].toFixed(2);
+                    }
+                  }
+                  currentAthl = {
+                    firstName: matchEnr.firstName, lastName: matchEnr.lastName, team: matchEnr.team,
+                    teamLogoUrl: matchEnr.teamLogoUrl, headshotUrl: matchEnr.headshotUrl, place: matchEnr.place,
+                    mark: liveMark, englishMark: isMulti ? undefined : englishMark, points,
+                    attemptNum: Number(liveAthlete.attemptNumber) || validAtt.length,
+                    attemptTotal: standings.isVerticalEvent ? (standings.heights?.length || 0) : 6,
+                    attemptsDisplay, currentHeight: curHeight,
+                  };
+                } else {
+                  // Athlete not found in LFF yet (maybe first attempt) — build from live data
+                  const nameParts = (liveAthlete.name || '').split(/,\s*|,/);
+                  const nFirst = nameParts.length > 1 ? nameParts[1].trim() : '';
+                  const nLast = nameParts.length > 1 ? nameParts[0].trim() : liveAthlete.name;
+                  currentAthl = {
+                    firstName: nFirst,
+                    lastName: nLast,
+                    team: liveAthlete.affiliation || '',
+                    teamLogoUrl: resolveTeamLogo(liveAthlete.affiliation),
+                    headshotUrl: resolveHeadshot(Number(liveAthlete.bib) || 0, nFirst, nLast, liveAthlete.affiliation || ''),
+                    place: null,
+                    mark: liveAthlete.mark || '',
+                    englishMark: liveAthlete.markConverted || '',
+                    attemptNum: Number(liveAthlete.attemptNumber) || 1,
+                    attemptTotal: standings.isVerticalEvent ? (standings.heights?.length || 0) : 6,
+                  };
                 }
-                currentAthl = {
-                  firstName: topEnr.firstName, lastName: topEnr.lastName, team: topEnr.team,
-                  teamLogoUrl: topEnr.teamLogoUrl, headshotUrl: topEnr.headshotUrl, place: topEnr.place,
-                  mark: topEnr.bestMark, englishMark: isMulti ? undefined : englishMark, points,
-                  attemptNum: validAtt.length,
-                  attemptsDisplay, currentHeight: curHeight,
-                };
+              } else {
+                // No live data — fall back to LFF leader
+                const topIdx = standings.athletes.findIndex(a => !a.isDNS);
+                const topRaw = topIdx >= 0 ? standings.athletes[topIdx] : null;
+                const topEnr = topIdx >= 0 ? enriched[topIdx] : null;
+                if (topEnr && topRaw) {
+                    let englishMark = '';
+                  if (!isMulti && topRaw.bestMark != null) {
+                    englishMark = metersToEnglishFraction(topRaw.bestMark);
+                  }
+                  const points = autoCalcPoints(topEnr.bestMark);
+                  const validAtt = topRaw.attempts.filter(att => att.mark !== null || att.isFoul || att.isPassed || att.isCleared || att.isMissed);
+                  let attemptsDisplay: string[] = [];
+                  let curHeight = '';
+                  if (standings.isVerticalEvent && topRaw.attempts.length > 0) {
+                    const lastAtt = topRaw.attempts[topRaw.attempts.length - 1];
+                    if (lastAtt.isCleared) { attemptsDisplay.push('X'.repeat(lastAtt.missCount || 0) + 'O'); }
+                    else if (lastAtt.isMissed && (lastAtt.missCount || 0) >= 3) { attemptsDisplay.push('XXX'); }
+                    else if (lastAtt.isMissed) { attemptsDisplay.push('X'.repeat(lastAtt.missCount || 1)); }
+                    else if (lastAtt.isPassed) { attemptsDisplay.push('P'); }
+                    if (standings.heights && standings.heights.length > 0) {
+                      const hIdx = Math.min(topRaw.attempts.length - 1, standings.heights.length - 1);
+                      curHeight = standings.heights[hIdx].toFixed(2);
+                    }
+                  }
+                  currentAthl = {
+                    firstName: topEnr.firstName, lastName: topEnr.lastName, team: topEnr.team,
+                    teamLogoUrl: topEnr.teamLogoUrl, headshotUrl: topEnr.headshotUrl, place: topEnr.place,
+                    mark: topEnr.bestMark, englishMark: isMulti ? undefined : englishMark, points,
+                    attemptNum: validAtt.length,
+                    attemptsDisplay, currentHeight: curHeight,
+                  };
+                }
               }
               // Track previousAthlete in auto-refresh path
               let previousAthl: any = null;
               const prevKey = `${deviceId}:${evtNum}`;
+              const currentBib = liveAthlete?.bib ? Number(liveAthlete.bib) : (standings.athletes.find(a => !a.isDNS)?.bibNumber || 0);
               if (currentAthl) {
                 const prevState = multiFieldPreviousAthletes.get(prevKey);
-                if (prevState && prevState.bibNumber !== topRaw?.bibNumber) {
+                if (prevState && prevState.bibNumber !== currentBib) {
                   previousAthl = prevState.athleteData;
+                  multiFieldPreviousAthletes.set(prevKey, {
+                    bibNumber: currentBib,
+                    athleteData: currentAthl,
+                    previousAthleteData: prevState.athleteData,
+                  });
+                } else if (prevState) {
+                  previousAthl = prevState.previousAthleteData || null;
+                  multiFieldPreviousAthletes.set(prevKey, {
+                    bibNumber: currentBib,
+                    athleteData: currentAthl,
+                    previousAthleteData: prevState.previousAthleteData,
+                  });
+                } else {
+                  multiFieldPreviousAthletes.set(prevKey, {
+                    bibNumber: currentBib,
+                    athleteData: currentAthl,
+                    previousAthleteData: null,
+                  });
                 }
-                multiFieldPreviousAthletes.set(prevKey, {
-                  bibNumber: topRaw?.bibNumber || 0,
-                  athleteData: currentAthl,
-                });
               }
               eventsData.push({
                 eventNumber: evtNum, eventName: standings.eventName || dbEvent?.name || `Event ${evtNum}`,
                 eventType: dbEvent?.eventType || '', isVertical: standings.isVerticalEvent,
-                isMultiEvent: (dbEvent as any)?.isMultiEvent === true,
+                isMultiEvent: isMulti,
                 currentAthlete: currentAthl, previousAthlete: previousAthl, standings: enriched,
               });
             }

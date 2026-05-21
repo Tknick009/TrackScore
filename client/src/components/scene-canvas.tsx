@@ -21,219 +21,51 @@ import {
 import { formatHeatDisplay } from "@/lib/fieldBindings";
 import { shouldShowWind } from "@/components/display/utils/formatting";
 import { calculateMultiEventPoints, normalizeEventType, hasScoring, type Gender } from "@shared/combined-scoring";
+import { getLogoEffectStyle } from "@/lib/logoEffects";
 import { Trophy, Clock, Users, User, Image, Type, Award, Loader2 } from "lucide-react";
+import { SmoothClock as StaticRunningClock, parseClockTimeToSeconds, formatSecondsToClockDisplay } from "@/components/display/SmoothClock";
 
-// Parse a clock time string like "12.3", "1:05.7", "1:05" into total seconds (float).
-// Returns NaN if the string can't be parsed.
-function parseClockTimeToSeconds(timeStr: string): number {
-  if (!timeStr) return NaN;
-  const cleaned = timeStr.trim();
-  if (!cleaned) return NaN;
-  
-  // Format: "M:SS.t", "M:SS", "SS.t", "SS", "H:MM:SS.t"
-  const parts = cleaned.split(':');
-  if (parts.length === 1) {
-    // Just seconds (possibly with decimal)
-    return parseFloat(parts[0]);
-  } else if (parts.length === 2) {
-    // M:SS or M:SS.t
-    return parseFloat(parts[0]) * 60 + parseFloat(parts[1]);
-  } else if (parts.length === 3) {
-    // H:MM:SS or H:MM:SS.t
-    return parseFloat(parts[0]) * 3600 + parseFloat(parts[1]) * 60 + parseFloat(parts[2]);
-  }
-  return NaN;
-}
-
-// Format total seconds back to a display string.
-// Under 1 minute: "SS.t" (e.g. "12.3")
-// 1 minute+: "M:SS.t" (e.g. "1:05.7")
-// 1 hour+: "H:MM:SS.t"
-function formatSecondsToClockDisplay(totalSeconds: number): string {
-  if (isNaN(totalSeconds) || totalSeconds < 0) return '0.0';
-  
-  const hours = Math.floor(totalSeconds / 3600);
-  const mins = Math.floor((totalSeconds % 3600) / 60);
-  const secs = totalSeconds % 60;
-  
-  // Get whole seconds and single tenth
-  const wholeSeconds = Math.floor(secs);
-  const tenths = Math.floor((secs - wholeSeconds) * 10);
-  
-  if (hours > 0) {
-    return `${hours}:${String(mins).padStart(2, '0')}:${String(wholeSeconds).padStart(2, '0')}.${tenths}`;
-  } else if (mins > 0) {
-    return `${mins}:${String(wholeSeconds).padStart(2, '0')}.${tenths}`;
-  } else {
-    return `${wholeSeconds}.${tenths}`;
-  }
-}
-
-// Smooth clock display with requestAnimationFrame interpolation.
-// Receives server ticks (~10/second via FinishLynx) and interpolates at 60fps between them
-// so the tenths digit rolls smoothly. Uses direct DOM mutations (no React re-renders).
-//
-// How it works:
-// 1. Each server tick records (serverSeconds, timestamp).
-// 2. A rAF loop runs continuously while "running". On each frame it computes:
-//    interpolatedTime = lastServerSeconds + (now - lastTickTimestamp) / 1000
-// 3. When the next server tick arrives, it snaps to the new authoritative value.
-// 4. Only the tenths digit interpolates — minutes:seconds come from the server.
-const StaticRunningClock = memo(function StaticRunningClock({ 
-  serverTime, 
-  clockSubscribersRef,
-  fontSize,
-  color
-}: { 
-  serverTime: string | null | undefined;
-  clockSubscribersRef?: React.RefObject<Set<(time: string, command?: string) => void>>;
-  fontSize?: string;
-  color?: string;
-}) {
-  const spanRef = useRef<HTMLSpanElement>(null);
-  
-  // Interpolation state — kept in refs to avoid re-renders
-  const lastServerSecondsRef = useRef<number>(0);
-  const lastTickTsRef = useRef<number>(0);
-  const isRunningRef = useRef<boolean>(false);
-  const rafIdRef = useRef<number>(0);
-  const lastDisplayedRef = useRef<string>('');
-  
-  // The rAF interpolation loop — runs at 60fps, computes interpolated time,
-  // updates DOM directly. Stops when isRunningRef becomes false.
-  const loopRef = useRef<() => void>();
-  loopRef.current = () => {
-    if (!isRunningRef.current) return;
-    
-    const now = performance.now();
-    const elapsed = (now - lastTickTsRef.current) / 1000;
-    const interpolated = lastServerSecondsRef.current + elapsed;
-    const display = formatSecondsToClockDisplay(interpolated);
-    
-    // Only touch the DOM when the displayed string actually changes
-    if (display !== lastDisplayedRef.current) {
-      lastDisplayedRef.current = display;
-      if (spanRef.current) {
-        spanRef.current.textContent = display;
-      }
-    }
-    
-    rafIdRef.current = requestAnimationFrame(loopRef.current!);
-  };
-  
-  // Subscribe to clock ticks from the server (via WebSocket → ref → subscriber)
-  useEffect(() => {
-    const subscribers = clockSubscribersRef?.current;
-    if (!subscribers) return;
-    
-    const handleClockUpdate = (time: string, command?: string) => {
-      const seconds = parseClockTimeToSeconds(time);
-      
-      // Clock stopped (e.g., manually stopped on leader) — freeze at final time
-      if (command === 'stop' && !isNaN(seconds) && seconds > 0) {
-        isRunningRef.current = false;
-        cancelAnimationFrame(rafIdRef.current);
-        lastServerSecondsRef.current = seconds;
-        const display = formatSecondsToClockDisplay(seconds);
-        lastDisplayedRef.current = display;
-        if (spanRef.current) {
-          spanRef.current.textContent = display;
-        }
-        return;
-      }
-      
-      if (!isNaN(seconds) && seconds > 0) {
-        // Valid running time — update server reference and continue interpolating.
-        // To prevent jitter (clock jumping backwards when a server tick arrives
-        // behind the local interpolation), never set the reference below where
-        // the interpolation currently is.
-        const now = performance.now();
-        if (isRunningRef.current && lastTickTsRef.current > 0) {
-          const currentInterpolated = lastServerSecondsRef.current +
-            (now - lastTickTsRef.current) / 1000;
-          lastServerSecondsRef.current = Math.max(seconds, currentInterpolated);
-        } else {
-          lastServerSecondsRef.current = seconds;
-        }
-        lastTickTsRef.current = now;
-        
-        if (!isRunningRef.current) {
-          // Start the interpolation loop
-          isRunningRef.current = true;
-          rafIdRef.current = requestAnimationFrame(loopRef.current!);
-        }
-      } else if (time === '' || time === '0' || time === '0.0' || time === '0:00' || time === '0:00.0') {
-        // Clock reset (armed, idle) — show 0.0 and stop interpolating
-        isRunningRef.current = false;
-        cancelAnimationFrame(rafIdRef.current);
-        lastServerSecondsRef.current = 0;
-        lastDisplayedRef.current = '0.0';
-        if (spanRef.current) {
-          spanRef.current.textContent = '0.0';
-        }
-      } else if (time) {
-        // Non-numeric command or non-running state — display as-is
-        isRunningRef.current = false;
-        cancelAnimationFrame(rafIdRef.current);
-        lastDisplayedRef.current = time;
-        if (spanRef.current) {
-          spanRef.current.textContent = time;
-        }
-      }
-    };
-    
-    subscribers.add(handleClockUpdate);
-    return () => {
-      subscribers.delete(handleClockUpdate);
-      isRunningRef.current = false;
-      cancelAnimationFrame(rafIdRef.current);
-    };
-  }, [clockSubscribersRef]);
-  
-  // Cleanup rAF on unmount
-  useEffect(() => {
-    return () => {
-      isRunningRef.current = false;
-      cancelAnimationFrame(rafIdRef.current);
-    };
-  }, []);
-  
-  return (
-    <div 
-      className="font-stadium-numbers font-[900]"
-      style={{ 
-        fontSize: fontSize || '48px',
-        color: color || 'hsl(var(--display-fg))'
-      }}
-    >
-      <span ref={spanRef}>{serverTime || "0.0"}</span>
-    </div>
-  );
-});
+// StaticRunningClock, parseClockTimeToSeconds, formatSecondsToClockDisplay
+// are now imported from @/components/display/SmoothClock above.
 
 // Robust logo component with proper error handling
 // Falls back to 0.png when logo fails to load
-const LogoImage = memo(function LogoImage({ logoUrl, objectFit, fallbackUrl }: { logoUrl: string; objectFit: string; fallbackUrl?: string }) {
+const LogoImage = memo(function LogoImage({ logoUrl, objectFit, fallbackUrl, isHeadshot }: { logoUrl: string; objectFit: string; fallbackUrl?: string; isHeadshot?: boolean }) {
   const [currentUrl, setCurrentUrl] = useState(logoUrl);
-  const fallbackStage = useRef(0); // 0 = original, 1 = fallbackUrl, 2 = 0.png
+  const [showSilhouette, setShowSilhouette] = useState(false);
+  const fallbackStage = useRef(0); // 0 = original, 1 = fallbackUrl, 2 = 0.png/silhouette
   
   // Reset when logoUrl prop changes
   useEffect(() => {
     setCurrentUrl(logoUrl);
+    setShowSilhouette(false);
     fallbackStage.current = 0;
   }, [logoUrl, fallbackUrl]);
   
   const handleError = () => {
     if (fallbackStage.current === 0 && fallbackUrl) {
-      // First fallback: try the provided fallback URL (e.g. school logo)
       fallbackStage.current = 1;
       setCurrentUrl(fallbackUrl);
-    } else if (fallbackStage.current <= 1 && currentUrl !== '/logos/NCAA/0.png') {
-      // Final fallback: generic placeholder
+    } else if (fallbackStage.current <= 1) {
       fallbackStage.current = 2;
-      setCurrentUrl('/logos/NCAA/0.png');
+      if (isHeadshot) {
+        setShowSilhouette(true);
+      } else if (currentUrl !== '/logos/NCAA/0.png') {
+        setCurrentUrl('/logos/NCAA/0.png');
+      }
     }
   };
+  
+  if (showSilhouette) {
+    return (
+      <div className="flex items-center justify-center h-full" style={{ background: 'linear-gradient(135deg, #1a2332 0%, #0f1720 100%)' }}>
+        <svg viewBox="0 0 80 80" style={{ width: '55%', height: '55%', opacity: 0.3 }}>
+          <circle cx="40" cy="28" r="14" fill="#fff" />
+          <ellipse cx="40" cy="68" rx="22" ry="16" fill="#fff" />
+        </svg>
+      </div>
+    );
+  }
   
   return (
     <div className="flex items-center justify-center h-full p-2">
@@ -273,6 +105,13 @@ export interface SceneCanvasProps {
   displayHeight?: number;
   // Device-level field port — used as fallback for field-transition objects that don't have a port set
   deviceFieldPort?: number;
+  // Meet logo fallback: shown when scene has port-bound objects but no active data
+  meetLogoUrl?: string | null;
+  meetLogoEffect?: string | null;
+  meetPrimaryColor?: string;
+  meetSecondaryColor?: string;
+  // Vertical compression for entry rows (50–100, default 100 = no compression)
+  verticalCompression?: number;
 }
 
 function useEventWithEntries(eventId: string | null | undefined) {
@@ -307,7 +146,7 @@ function useLiveEventData(eventNumber: string | number | null | undefined) {
   });
 }
 
-function useLatestLiveEventData() {
+function useLatestLiveEventData(enabled = true) {
   return useQuery({
     queryKey: ["/api/live-events/latest"],
     queryFn: async () => {
@@ -316,8 +155,9 @@ function useLatestLiveEventData() {
       const data = await res.json();
       return Array.isArray(data) && data.length > 0 ? data[0] : null;
     },
+    enabled,
     staleTime: 5000,
-    refetchInterval: 10000, // WebSocket handles real-time; this is fallback only
+    refetchInterval: enabled ? 10000 : false,
   });
 }
 
@@ -524,11 +364,26 @@ export function SceneObjectRenderer({
     });
     
     if (!entry) {
-      // Empty row (no athlete data) — dim to 50%
-      contentFadeOpacity = 0.5;
+      // Empty row (no athlete data) — hide entirely in field mode, dim otherwise
+      if (isFieldMode) {
+        shouldHide = true;
+        contentFadeOpacity = 0;
+      } else {
+        contentFadeOpacity = 0.5;
+      }
     } else if (isFieldMode) {
-      // Field events always show at full opacity
-      contentFadeOpacity = 1;
+      // Field mode: hide athletes who haven't competed yet (no mark/time/place).
+      // The called-up athlete (raw index 0 in the scene) always shows — they're on
+      // the runway/circle and may not have a mark yet for this attempt.
+      const hasMark = entry.mark && String(entry.mark).trim() !== '';
+      const hasTime = entry.time && String(entry.time).trim() !== '';
+      const hasPlace = entry.place && String(entry.place).trim() !== '' && /^\d+$/.test(String(entry.place).trim());
+      const hasPerformance = hasMark || hasTime || hasPlace;
+      if (!hasPerformance && rawAthleteIndex !== 0) {
+        contentFadeOpacity = 0.5;
+      } else {
+        contentFadeOpacity = 1;
+      }
     } else if (noEntriesHaveData) {
       // No entries have results yet — show all at full opacity like a start list
       contentFadeOpacity = 1;
@@ -731,9 +586,12 @@ export function SceneObjectRenderer({
         const logoFieldKey = dataBinding.fieldKey as string | undefined;
         
         if (componentConfig.logoType === "meet") {
+          // In multi-panel mode, hide meet logo objects to save space —
+          // the FieldPanel idle overlay already shows the meet logo when idle.
+          if (deviceFieldPort) return <div className="h-full" />;
           logoUrl = meet?.logoUrl;
         } else if (logoFieldKey === "meet-logo") {
-          // Meet logo binding — use meet data from React Query cache
+          if (deviceFieldPort) return <div className="h-full" />;
           logoUrl = meet?.logoUrl || null;
         } else if (logoFieldKey === "athlete-photo" && liveData) {
           // Athlete headshot from directory: School_FirstName_LastName.png
@@ -805,12 +663,28 @@ export function SceneObjectRenderer({
           logoUrl = componentConfig.logoUrl || componentConfig.imageUrl;
         }
         
+        const isAthleteHeadshot = logoFieldKey === 'athlete-photo';
         if (!logoUrl) {
+          if (isAthleteHeadshot) {
+            // Show silhouette placeholder for missing headshots
+            return (
+              <div style={{ width: '100%', height: '100%', opacity: contentFadeOpacity, transition: 'opacity 0.3s ease-in-out' }}>
+                <div className="flex items-center justify-center h-full" style={{ background: 'linear-gradient(135deg, #1a2332 0%, #0f1720 100%)' }}>
+                  <svg viewBox="0 0 80 80" style={{ width: '55%', height: '55%', opacity: 0.3 }}>
+                    <circle cx="40" cy="28" r="14" fill="#fff" />
+                    <ellipse cx="40" cy="68" rx="22" ry="16" fill="#fff" />
+                  </svg>
+                </div>
+              </div>
+            );
+          }
           return <div className="h-full" />;
         }
-        const logoIsAthleteBound = logoFieldKey === 'school-logo' || logoFieldKey === 'athlete-photo';
+        const logoIsAthleteBound = logoFieldKey === 'school-logo' || isAthleteHeadshot;
+
         return (
           <div style={{ 
+            position: 'relative',
             width: '100%', height: '100%',
             opacity: logoIsAthleteBound ? contentFadeOpacity : 1,
             transition: 'opacity 0.3s ease-in-out',
@@ -819,7 +693,9 @@ export function SceneObjectRenderer({
               logoUrl={logoUrl} 
               objectFit={componentConfig.objectFit || componentConfig.imageFit || "contain"}
               fallbackUrl={logoFallbackUrl}
+              isHeadshot={isAthleteHeadshot}
             />
+
           </div>
         );
         
@@ -1140,7 +1016,7 @@ export function SceneObjectRenderer({
             'round': liveData.roundName || liveData.round,
             'round-name': liveData.roundName || '',
             'wind': windDisplay,
-            'status': liveData.status,
+            'status': liveData.status || '',
             'lane': firstEntry?.lane,
             'place': (() => {
               const rawPlace = firstEntry?.place;
@@ -1156,9 +1032,17 @@ export function SceneObjectRenderer({
             'name-qualifier-badge': qualifierStatus,
             'last-name-qualifier-badge': qualifierStatus,
             'school': schoolDisplay,
-            'time': firstEntry?.time || firstEntry?.mark,
-            'mark-converted': isMultiEvent && eventPoints > 0 ? `${eventPoints}` : (firstEntry?.markConverted || ''),
-            'last-split': isMultiEvent && eventPoints > 0 ? `${eventPoints}` : firstEntry?.lastSplit,
+            'time': (() => {
+              const raw = firstEntry?.time || firstEntry?.mark;
+              if (!raw) return raw;
+              // Append "m" to metric field marks (numeric values like "6.58", "45.23")
+              if (isFieldMode && !firstEntry?.time && firstEntry?.mark && /^\d+(\.\d+)?$/.test(String(raw).trim())) {
+                return `${raw}m`;
+              }
+              return raw;
+            })(),
+            'mark-converted': isMultiEvent && eventPoints > 0 ? `${eventPoints} pts` : (firstEntry?.markConverted || ''),
+            'last-split': isMultiEvent && eventPoints > 0 ? `${eventPoints} pts` : firstEntry?.lastSplit,
             'cumulative-split': firstEntry?.cumulativeSplit,
             'reaction-time': firstEntry?.reactionTime,
             'bib': firstEntry?.bib,
@@ -1274,6 +1158,8 @@ export function SceneObjectRenderer({
           recordTagBadges = recordTagBadges.slice(0, 1);
         }
         
+
+        
         return (
           <div 
             className="flex items-center h-full p-2 overflow-hidden"
@@ -1343,6 +1229,7 @@ export function SceneObjectRenderer({
                 {badge}
               </span>
             ))}
+
           </div>
         );
         
@@ -1715,9 +1602,9 @@ export function SceneObjectRenderer({
         
       case "field-transition": {
         const ftColor = bgColor !== 'transparent' && bgColor ? bgColor : '#001e57';
-        // Use the object-level fieldPort (from dataBinding) when set, otherwise fall back to device-level port.
-        // This ensures curtains in multi-field scenes only trigger for their bound port.
-        const transitionPort = dataBinding.fieldPort || deviceFieldPort;
+        // In multi-panel mode, deviceFieldPort takes priority (each panel has its own port).
+        // In single-panel mode, fall back to object-level fieldPort binding.
+        const transitionPort = deviceFieldPort || dataBinding.fieldPort;
         return (
           <FieldTransitionRenderer
             curtainColor={ftColor}
@@ -1793,6 +1680,11 @@ export function SceneCanvas({
   displayWidth,
   displayHeight,
   deviceFieldPort,
+  meetLogoUrl,
+  meetLogoEffect,
+  meetPrimaryColor,
+  meetSecondaryColor,
+  verticalCompression = 100,
 }: SceneCanvasProps) {
   const [dimensions, setDimensions] = useState({ width: 1920, height: 1080 });
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
@@ -1806,11 +1698,18 @@ export function SceneCanvas({
   const scene = propScene || fetchedScene;
   const objects = propObjects || fetchedObjects;
   
-  const { data: fetchedLiveEventData } = useLiveEventData(eventNumber);
-  const { data: latestLiveEventData } = useLatestLiveEventData();
+  // In multi-panel mode (deviceFieldPort set), ONLY use prop data — never poll REST.
+  // REST endpoints return whichever port got data last, causing cross-panel data bleed.
+  const isMultiPanelMode = !!deviceFieldPort;
+  const { data: fetchedLiveEventData } = useLiveEventData(isMultiPanelMode ? undefined : eventNumber);
+  const needsLatestPoll = !isMultiPanelMode && !propLiveEventData && !eventNumber;
+  const { data: latestLiveEventData } = useLatestLiveEventData(needsLatestPoll);
   
-  // Priority: WebSocket prop > REST by eventNumber > REST latest
-  const rawLiveData = propLiveEventData || fetchedLiveEventData || latestLiveEventData;
+  // In multi-panel mode, strictly use propLiveEventData only (port-isolated).
+  // In single-panel mode, fallback chain: prop > REST by eventNumber > REST latest.
+  const rawLiveData = isMultiPanelMode
+    ? propLiveEventData
+    : (propLiveEventData || fetchedLiveEventData || latestLiveEventData);
   
   // Use entries in arrival order for start_list (FinishLynx controls display order)
   // Only sort results mode by place
@@ -1963,7 +1862,18 @@ export function SceneCanvas({
   }
   
   const backgroundColor = scene.backgroundColor || "hsl(var(--display-bg))";
-  
+
+  // Detect if scene has port-bound objects but none have active data → show meet logo
+  const portBoundObjects = sortedObjects.filter(obj => obj.dataBinding?.fieldPort);
+  const hasPortBindings = portBoundObjects.length > 0;
+  const anyPortHasData = hasPortBindings && portBoundObjects.some(obj => {
+    const port = obj.dataBinding?.fieldPort;
+    return port && liveEventDataByPort?.[port];
+  });
+  // Also check device-level liveData as fallback
+  const isPortIdle = hasPortBindings && !anyPortHasData && !liveData;
+  const showMeetLogo = isPortIdle && !!meetLogoUrl;
+
   // Check if we have fixed display dimensions (P10/P6/Custom)
   const isFixedSize = displayWidth !== undefined && displayHeight !== undefined;
   
@@ -2015,11 +1925,15 @@ export function SceneCanvas({
             }}
           >
             {sortedObjects.map((obj) => {
-              // If object is bound to a specific field port, ONLY show data from that port.
-              // Never fall back to global liveData — that would show the wrong event.
-              const objectLiveData = obj.dataBinding?.fieldPort
-                ? (liveEventDataByPort?.[obj.dataBinding.fieldPort] || null)
-                : liveData;
+              // In multi-panel mode (deviceFieldPort set), FieldPanel already provides
+              // port-filtered data as propLiveEventData → liveData. Use it directly
+              // so objects don't fail looking up their hardcoded fieldPort in singlePortData.
+              // In single-panel mode, respect per-object fieldPort bindings.
+              const objectLiveData = deviceFieldPort
+                ? liveData
+                : (obj.dataBinding?.fieldPort
+                  ? (liveEventDataByPort?.[obj.dataBinding.fieldPort] || null)
+                  : liveData);
               return (
                 <SceneObjectRenderer 
                   key={obj.id} 
@@ -2047,6 +1961,37 @@ export function SceneCanvas({
                 </div>
               </div>
             )}
+
+            {/* Meet logo overlay when port-bound scene has no active data */}
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: showMeetLogo
+                  ? `linear-gradient(135deg, ${meetPrimaryColor || '#0066CC'} 0%, ${meetSecondaryColor || '#003366'} 100%)`
+                  : 'transparent',
+                opacity: showMeetLogo ? 1 : 0,
+                transition: 'opacity 0.6s ease-in-out',
+                pointerEvents: showMeetLogo ? 'auto' : 'none',
+                zIndex: 100,
+              }}
+            >
+              {meetLogoUrl && (
+                <img
+                  src={meetLogoUrl}
+                  alt="Meet Logo"
+                  style={{
+                    maxWidth: '85%',
+                    maxHeight: '85%',
+                    objectFit: 'contain',
+                    ...getLogoEffectStyle(meetLogoEffect),
+                  }}
+                />
+              )}
+            </div>
           </div>
         </div>
       );
@@ -2058,7 +2003,7 @@ export function SceneCanvas({
     
     return (
       <div 
-        className="fixed overflow-hidden display-layout"
+        className={`${deviceFieldPort ? 'absolute' : 'fixed'} overflow-hidden display-layout`}
         style={{ 
           top: 0,
           left: 0,
@@ -2069,30 +2014,57 @@ export function SceneCanvas({
         data-testid="scene-canvas"
         key={`scene-${sceneId}`}
       >
-        {sortedObjects.map((obj) => {
-          // If object is bound to a specific field port, ONLY show data from that port.
-          // Never fall back to global liveData — that would show the wrong event.
-          const objectLiveData = obj.dataBinding?.fieldPort
-            ? (liveEventDataByPort?.[obj.dataBinding.fieldPort] || null)
-            : liveData;
-          return (
-            <SceneObjectRenderer 
-              key={obj.id} 
-              object={obj} 
-              meetId={meetId}
-              canvasWidth={canvasWidth}
-              canvasHeight={canvasHeight}
-              eventNumber={eventNumber}
-              pageIndex={currentPageIndex}
-              pageSize={pagingSize}
-              sharedLatestLiveData={objectLiveData}
-              liveClockTimeRef={liveClockTimeRef}
-              clockSubscribersRef={clockSubscribersRef}
-              deviceFieldPort={deviceFieldPort}
-              liveEventDataByPort={liveEventDataByPort}
-            />
-          );
-        })}
+        {(() => {
+          // Vertical compression: compute y-offset adjustments for entry-row objects.
+          // Objects with athleteIndex >= 2 get compressed toward the anchor row.
+          const vcFactor = (verticalCompression ?? 100) / 100;
+          let anchorY: number | null = null;
+          if (vcFactor < 1) {
+            // Find anchor: the minimum y of objects with athleteIndex === 2
+            for (const o of sortedObjects) {
+              const idx = o.dataBinding?.athleteIndex;
+              if (idx === 2 && typeof o.y === 'number') {
+                if (anchorY === null || o.y < anchorY) anchorY = o.y;
+              }
+            }
+          }
+          return sortedObjects.map((obj) => {
+            // Apply vertical compression to entry-row objects (athleteIndex >= 2)
+            let compressedObj = obj;
+            if (vcFactor < 1 && anchorY !== null) {
+              const idx = obj.dataBinding?.athleteIndex;
+              if (typeof idx === 'number' && idx >= 2 && typeof obj.y === 'number') {
+                const offset = obj.y - anchorY;
+                const newY = anchorY + offset * vcFactor;
+                compressedObj = { ...obj, y: Math.round(newY) };
+              }
+            }
+            // In multi-panel mode (deviceFieldPort set), FieldPanel already provides
+            // port-filtered data as propLiveEventData → liveData. Use it directly.
+            const objectLiveData = deviceFieldPort
+              ? liveData
+              : (compressedObj.dataBinding?.fieldPort
+                ? (liveEventDataByPort?.[compressedObj.dataBinding.fieldPort] || null)
+                : liveData);
+            return (
+              <SceneObjectRenderer 
+                key={compressedObj.id} 
+                object={compressedObj} 
+                meetId={meetId}
+                canvasWidth={canvasWidth}
+                canvasHeight={canvasHeight}
+                eventNumber={eventNumber}
+                pageIndex={currentPageIndex}
+                pageSize={pagingSize}
+                sharedLatestLiveData={objectLiveData}
+                liveClockTimeRef={liveClockTimeRef}
+                clockSubscribersRef={clockSubscribersRef}
+                deviceFieldPort={deviceFieldPort}
+                liveEventDataByPort={liveEventDataByPort}
+              />
+            );
+          });
+        })()}
         
         {sortedObjects.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center">
@@ -2102,6 +2074,37 @@ export function SceneCanvas({
             </div>
           </div>
         )}
+
+        {/* Meet logo overlay when port-bound scene has no active data */}
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: showMeetLogo
+              ? `linear-gradient(135deg, ${meetPrimaryColor || '#0066CC'} 0%, ${meetSecondaryColor || '#003366'} 100%)`
+              : 'transparent',
+            opacity: showMeetLogo ? 1 : 0,
+            transition: 'opacity 0.6s ease-in-out',
+            pointerEvents: showMeetLogo ? 'auto' : 'none',
+            zIndex: 100,
+          }}
+        >
+          {meetLogoUrl && (
+            <img
+              src={meetLogoUrl}
+              alt="Meet Logo"
+              style={{
+                maxWidth: '85%',
+                maxHeight: '85%',
+                objectFit: 'contain',
+                ...getLogoEffectStyle(meetLogoEffect),
+              }}
+            />
+          )}
+        </div>
       </div>
     );
   }
@@ -2139,11 +2142,13 @@ export function SceneCanvas({
         }}
       >
         {sortedObjects.map((obj) => {
-          // If object is bound to a specific field port, ONLY show data from that port.
-          // Never fall back to global liveData — that would show the wrong event.
-          const objectLiveData = obj.dataBinding?.fieldPort
-            ? (liveEventDataByPort?.[obj.dataBinding.fieldPort] || null)
-            : liveData;
+          // In multi-panel mode (deviceFieldPort set), FieldPanel already provides
+          // port-filtered data as propLiveEventData → liveData. Use it directly.
+          const objectLiveData = deviceFieldPort
+            ? liveData
+            : (obj.dataBinding?.fieldPort
+              ? (liveEventDataByPort?.[obj.dataBinding.fieldPort] || null)
+              : liveData);
           return (
             <SceneObjectRenderer 
               key={obj.id} 
@@ -2173,6 +2178,37 @@ export function SceneCanvas({
             </div>
           </div>
         )}
+
+        {/* Meet logo overlay when port-bound scene has no active data */}
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: showMeetLogo
+              ? `linear-gradient(135deg, ${meetPrimaryColor || '#0066CC'} 0%, ${meetSecondaryColor || '#003366'} 100%)`
+              : 'transparent',
+            opacity: showMeetLogo ? 1 : 0,
+            transition: 'opacity 0.6s ease-in-out',
+            pointerEvents: showMeetLogo ? 'auto' : 'none',
+            zIndex: 100,
+          }}
+        >
+          {meetLogoUrl && (
+            <img
+              src={meetLogoUrl}
+              alt="Meet Logo"
+              style={{
+                maxWidth: '80%',
+                maxHeight: '80%',
+                objectFit: 'contain',
+                ...getLogoEffectStyle(meetLogoEffect),
+              }}
+            />
+          )}
+        </div>
       </div>
     </div>
   );
