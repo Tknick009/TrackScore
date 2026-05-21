@@ -113,7 +113,7 @@ function serverContentModeToDisplayMode(contentMode: string | null): DisplayMode
 }
 
 // Display mode types
-type DisplayMode = 'finishlynx' | 'hytek' | 'teamscores' | 'field' | 'winners' | 'record' | 'meet_schedule' | 'meet_records' | 'sponsors' | 'team_preview' | 'broadcast' | 'multi_field';
+type DisplayMode = 'finishlynx' | 'hytek' | 'teamscores' | 'field' | 'winners' | 'record' | 'meet_schedule' | 'meet_records' | 'sponsors' | 'team_preview' | 'broadcast' | 'multi_field' | 'field_daisy_chain';
 
 export default function DisplayControlPage() {
   const { currentMeetId, currentMeet } = useMeet();
@@ -1084,6 +1084,33 @@ export default function DisplayControlPage() {
                             1-3 field events side-by-side with LFF standings
                           </p>
                           {displayMode[selectedDevice.id] === 'multi_field' && !autoModeStatus?.autoMode && (
+                            <Badge variant="default" className="mt-2">Active</Badge>
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDisplayMode(prev => ({ ...prev, [selectedDevice.id]: 'field_daisy_chain' }));
+                            toggleAutoModeMutation.mutate({ deviceId: selectedDevice.id, enabled: false });
+                            apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}/mode`, { displayMode: 'field' });
+                            apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}/content-mode`, { contentMode: 'field_daisy_chain' });
+                          }}
+                          className={`p-4 rounded-lg border-2 transition-all text-left ${
+                            displayMode[selectedDevice.id] === 'field_daisy_chain' && !autoModeStatus?.autoMode
+                              ? 'border-primary bg-primary/10'
+                              : 'border-border hover-elevate'
+                          }`}
+                          data-testid="tile-field-daisy-chain"
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <Zap className="w-5 h-5 text-cyan-400" />
+                            <span className="font-medium">Field Daisy Chain</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            P6 multi-panel — each panel shows one field port
+                          </p>
+                          {displayMode[selectedDevice.id] === 'field_daisy_chain' && !autoModeStatus?.autoMode && (
                             <Badge variant="default" className="mt-2">Active</Badge>
                           )}
                         </button>

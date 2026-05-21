@@ -240,6 +240,7 @@ import {
 } from "@/lib/displayCapabilities";
 import { SceneCanvas } from "@/components/scene-canvas";
 import { FieldTransitionRenderer } from "@/components/display/FieldTransitionRenderer";
+import { DaisyChainPanel } from "@/components/display/DaisyChainPanel";
 
 interface LiveEventData {
   eventNumber: number;
@@ -365,6 +366,8 @@ export default function DisplayDevice() {
   const fieldPortRef = useRef<number>(4560);
   // Multi-panel mode: each panel is an independent field display with its own port
   const [fieldPanels, setFieldPanels] = useState<Array<{port: number}> | null>(null);
+  // Current content mode for rendering decisions
+  const [contentMode, setContentMode] = useState<string>('lynx');
   
   const autoModeRef = useRef<boolean>(true);
   
@@ -591,6 +594,7 @@ export default function DisplayDevice() {
               // Restore persisted content mode on reconnection
               // This prevents defaulting to track mode when device reconnects or server restarts
               if (deviceData.contentMode && deviceData.contentMode !== 'lynx') {
+                setContentMode(deviceData.contentMode);
                 console.log(`[Display] Restoring persisted contentMode: ${deviceData.contentMode}`);
                 // Disable auto mode for non-lynx content modes (winners, record, hytek, team_scores, field)
                 autoModeRef.current = false;
@@ -605,6 +609,10 @@ export default function DisplayDevice() {
                   isFieldModeRef.current = false;
                   currentLayoutModeRef.current = null;
                   console.log(`[Display] Restored multi_field mode — awaiting display_command from server`);
+                } else if (deviceData.contentMode === 'field_daisy_chain') {
+                  setIsFieldMode(true);
+                  isFieldModeRef.current = true;
+                  console.log(`[Display] Restored field_daisy_chain mode from persisted contentMode`);
                 }
               }
             }
@@ -734,6 +742,7 @@ export default function DisplayDevice() {
           // (lynx = live FinishLynx data, hytek = compiled results, team_scores, field)
           if (message.type === 'content_mode_change') {
             const newContentMode = message.contentMode;
+            setContentMode(newContentMode);
             console.log(`[Display] Content mode changed to: ${newContentMode}`);
             
             if (newContentMode === 'field') {
@@ -768,6 +777,14 @@ export default function DisplayDevice() {
               autoModeRef.current = false;
               currentLayoutModeRef.current = null;
               console.log(`[Display] Switched to multi_field content mode (auto-mode disabled)`);
+            } else if (newContentMode === 'field_daisy_chain') {
+              // Switch to Field Event Daisy Chain — uses live FieldLynx data per port.
+              // Enable isFieldMode so live data is accepted and stored.
+              setIsFieldMode(true);
+              isFieldModeRef.current = true;
+              autoModeRef.current = false;
+              currentLayoutModeRef.current = null;
+              console.log(`[Display] Switched to field_daisy_chain content mode`);
             } else if (newContentMode === 'meet_schedule' || newContentMode === 'meet_records' || newContentMode === 'sponsors' || newContentMode === 'sponsor_reel' || newContentMode === 'team_preview') {
               // Switch to pre-meet display modes — disable auto mode so FinishLynx doesn't override
               setIsFieldMode(false);
@@ -1658,6 +1675,7 @@ export default function DisplayDevice() {
       customHeight={state.displayType === 'Custom' ? customHeight : undefined}
       fieldPort={fieldPort}
       fieldPanels={fieldPanels}
+      contentMode={contentMode}
       displayScale={displayScale}
       currentLayoutMode={currentLayoutModeRef.current}
       onReturnToLogo={returnToMeetLogo}
@@ -1879,8 +1897,8 @@ function FieldPanel({ port, width, height, meetId, liveEventDataByPort, calledUp
         </div>
       )}
 
-      {/* Fallback: direct SingleAthleteField when no scene mapping */}
-      {hasData && eventFromPortData && !fieldSceneId && (
+      {/* Fallback: direct SingleAthleteField when no scene mapping OR scene still loading */}
+      {hasData && eventFromPortData && (!fieldSceneId || !fieldSceneData) && (
         <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
           <SingleAthleteField event={eventFromPortData as any} meet={meet} focusIndex={0} />
         </div>
@@ -1973,6 +1991,7 @@ interface DisplayRendererProps {
   customHeight?: number;
   fieldPort?: number;
   fieldPanels?: Array<{port: number}> | null;
+  contentMode?: string;
   displayScale?: number;
   currentLayoutMode?: string | null;
   onReturnToLogo?: () => void;
@@ -1982,7 +2001,7 @@ interface EventWithEntries extends Event {
   entries: any[];
 }
 
-function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTimeRef, clockSubscribersRef, liveEventData, liveEventDataByPort, calledUpByPort, pagingSize, pagingInterval, maxPages, customWidth, customHeight, fieldPort, fieldPanels, displayScale = 100, currentLayoutMode, onReturnToLogo }: DisplayRendererProps) {
+function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneData, eventId, deviceId, isConnected, liveClockTimeRef, clockSubscribersRef, liveEventData, liveEventDataByPort, calledUpByPort, pagingSize, pagingInterval, maxPages, customWidth, customHeight, fieldPort, fieldPanels, contentMode, displayScale = 100, currentLayoutMode, onReturnToLogo }: DisplayRendererProps) {
   const { data: meet } = useQuery<Meet>({
     queryKey: ['/api/meets', meetId],
     enabled: !!meetId,
@@ -2078,6 +2097,49 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
   const effectiveResHeight = isCustomDisplay && customHeight ? customHeight : DISPLAY_CAPABILITIES[displayType].resolution.height;
   const containerStyle = isCustomDisplay ? { width: `${effectiveResWidth}px`, height: `${effectiveResHeight}px` } : {};
   const containerClass = isCustomDisplay ? '' : 'h-screen w-screen';
+
+  // DAISY CHAIN MODE: Purpose-built for P6 multi-panel field event displays.
+  // Each panel is an independent DaisyChainPanel reading only from its assigned port.
+  // No SceneCanvas, no scene mappings — guaranteed port isolation.
+  if (contentMode === 'field_daisy_chain' && fieldPanels && fieldPanels.length > 0) {
+    const resolution = DISPLAY_CAPABILITIES[displayType].resolution;
+    const panelWidth = resolution.width;
+    const panelHeight = resolution.height;
+    const panelCount = fieldPanels.length;
+    const totalWidth = panelWidth * panelCount;
+    return (
+      <div className="bg-black min-h-screen">
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: `${totalWidth}px`,
+          height: `${panelHeight}px`,
+          display: 'flex',
+          backgroundColor: '#000',
+        }}>
+          {fieldPanels.map((panel, idx) => (
+            <div
+              key={`daisy-${idx}-${panel.port}`}
+              style={{
+                width: `${panelWidth}px`,
+                height: `${panelHeight}px`,
+                flexShrink: 0,
+              }}
+            >
+              <DaisyChainPanel
+                port={panel.port}
+                width={panelWidth}
+                height={panelHeight}
+                meetId={meetId}
+                liveEventDataByPort={liveEventDataByPort}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   // MULTI-PANEL MODE: Renders panels side-by-side at native pixel dimensions.
   // Each panel is an independent FieldPanel with its own port.
