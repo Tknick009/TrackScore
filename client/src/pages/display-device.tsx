@@ -1921,21 +1921,6 @@ function FieldPanel({ port, eventNumber, width, height, meetId, liveEventDataByP
   const secondaryColor = meet?.secondaryColor || '#003366';
   const hasLogo = !!meet?.logoUrl;
 
-  // Diagnostic logging for daisy chain debugging
-  useEffect(() => {
-    const label = eventNumber ? `evt${eventNumber}` : `port${port}`;
-    const allPortKeys = Object.keys(liveEventDataByPort);
-    const allPortEvents = Object.entries(liveEventDataByPort).map(([p, d]) => `${p}:evt${d?.eventNumber}`);
-    console.log(`[FieldPanel:${label}] Render:`, {
-      hasData, resolvedPort, forceShowLogo, fieldSceneId,
-      hasSceneData: !!fieldSceneData, hasLogo, eventNumber,
-      panelPort: port, allPortKeys, allPortEvents,
-      portDataEventNum: portData?.eventNumber,
-      portDataMode: portData?.mode,
-      portDataEntries: portData?.entries?.length || portData?.results?.length || 0,
-    });
-  }, [hasData, resolvedPort, forceShowLogo, fieldSceneId, fieldSceneData, hasLogo, eventNumber, port, liveEventDataByPort, portData]);
-
   // Build EventWithEntries from port data (fallback when no scene is mapped)
   const eventFromPortData = portData ? {
     id: 0,
@@ -2052,11 +2037,6 @@ function FieldPanel({ port, eventNumber, width, height, meetId, liveEventDataByP
             </div>
           </div>
         )}
-      </div>
-
-      {/* DEBUG: visible state overlay — REMOVE BEFORE PRODUCTION */}
-      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10, background: 'rgba(0,0,0,0.7)', color: '#0f0', fontSize: '9px', fontFamily: 'monospace', padding: '2px', pointerEvents: 'none' }}>
-        evt={eventNumber || 'none'} port={resolvedPort || 'none'} data={hasData ? 'YES' : 'NO'} scene={fieldSceneId || 'none'} sceneData={fieldSceneData ? 'YES' : 'NO'} logo={forceShowLogo ? 'FORCE' : hasLogo ? 'YES' : 'NO'}
       </div>
 
       {/* Curtain transition overlay — fires independently per panel when an athlete is called up */}
@@ -2221,7 +2201,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
     // For daisy chain, default to P6 if no explicit type set (device may be registered as BigBoard globally)
     const effectiveDaisyType = (daisyChainDisplayType || (displayType === 'BigBoard' || displayType === 'Broadcast' || displayType === 'Custom' ? 'P6' : displayType)) as DisplayType;
     const resolution = DISPLAY_CAPABILITIES[effectiveDaisyType]?.resolution || DISPLAY_CAPABILITIES['P6'].resolution;
-    console.log(`[DaisyChain] Rendering ${fieldPanels.length} panels, type=${effectiveDaisyType}, resolution=${resolution.width}x${resolution.height}, fieldSceneId=${fieldSceneId}, hasSceneData=${!!fieldSceneData}, panels=${JSON.stringify(fieldPanels)}, dataPortsWithData=${Object.entries(liveEventDataByPort).map(([p,d]) => `${p}:evt${d?.eventNumber}`).join(',') || 'none'}`);
+    
     const panelWidth = resolution.width;
     const panelHeight = resolution.height;
     const panelCount = fieldPanels.length;

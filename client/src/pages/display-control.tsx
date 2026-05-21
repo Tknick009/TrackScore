@@ -1092,45 +1092,6 @@ export default function DisplayControlPage() {
                         <button
                           type="button"
                           onClick={() => {
-                            setDisplayMode(prev => ({ ...prev, [selectedDevice.id]: 'field_daisy_chain' }));
-                            toggleAutoModeMutation.mutate({ deviceId: selectedDevice.id, enabled: false });
-                            apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}/mode`, { displayMode: 'field' });
-                            apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}/content-mode`, { contentMode: 'field_daisy_chain' });
-                            // Auto-configure 3 panels and display type if not already set
-                            if (!fieldPanelConfig[selectedDevice.id] || fieldPanelConfig[selectedDevice.id].length === 0) {
-                              const fieldEvts = (events || []).filter((e: any) => e.eventType === 'field' || e.isMultiEvent || /throw|put|jump|vault|javelin|discus|hammer|decathlon|heptathlon|pentathlon/i.test(e.name || ''));
-                              const defaultPanels = Array.from({ length: 3 }, (_, i) => ({
-                                eventNumber: fieldEvts[i]?.eventNumber || undefined,
-                                showLogo: !fieldEvts[i],
-                              }));
-                              const defaultType = selectedDevice.displayType === 'P10' ? 'P10' : 'P6';
-                              setFieldPanelConfig(prev => ({ ...prev, [selectedDevice.id]: defaultPanels }));
-                              setDaisyChainDisplayType(prev => ({ ...prev, [selectedDevice.id]: defaultType }));
-                              apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}`, { fieldPanels: defaultPanels, daisyChainDisplayType: defaultType });
-                            }
-                          }}
-                          className={`p-4 rounded-lg border-2 transition-all text-left ${
-                            displayMode[selectedDevice.id] === 'field_daisy_chain' && !autoModeStatus?.autoMode
-                              ? 'border-primary bg-primary/10'
-                              : 'border-border hover-elevate'
-                          }`}
-                          data-testid="tile-field-daisy-chain"
-                        >
-                          <div className="flex items-center gap-2 mb-2">
-                            <Zap className="w-5 h-5 text-cyan-400" />
-                            <span className="font-medium">Field Daisy Chain</span>
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            P6 multi-panel — each panel shows one field port
-                          </p>
-                          {displayMode[selectedDevice.id] === 'field_daisy_chain' && !autoModeStatus?.autoMode && (
-                            <Badge variant="default" className="mt-2">Active</Badge>
-                          )}
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => {
                             setDisplayMode(prev => ({ ...prev, [selectedDevice.id]: 'winners' }));
                             toggleAutoModeMutation.mutate({ deviceId: selectedDevice.id, enabled: false });
                             apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}/content-mode`, { contentMode: 'winners' });
@@ -2247,16 +2208,22 @@ export default function DisplayControlPage() {
                           </div>
 
                           {/* Multi-Panel daisy chain */}
+                          {(() => {
+                            const fieldEvts = (events || [])
+                              .filter((e: any) => e.eventType === 'field' || e.isMultiEvent || /throw|put|jump|vault|javelin|discus|hammer|decathlon|heptathlon|pentathlon/i.test(e.name || ''))
+                              .sort((a: any, b: any) => (a.eventNumber || 0) - (b.eventNumber || 0));
+                            const currentPanels = fieldPanelConfig[selectedDevice.id] || [];
+                            return (
                           <div className="space-y-2 pt-2 border-t">
                             <Label>Multi-Panel (Daisy Chain)</Label>
                             <p className="text-xs text-muted-foreground">
-                              Split this display into 2-3 side-by-side columns, each showing an independent field event from its own port.
+                              Split this display into 2-3 side-by-side panels, each showing an independent field event.
                             </p>
                             <div className="flex gap-2 items-center">
                               {[1, 2, 3].map(n => (
                                 <Button
                                   key={n}
-                                  variant={(fieldPanelConfig[selectedDevice.id]?.length || 1) === n ? 'default' : 'outline'}
+                                  variant={(currentPanels.length || 1) === n ? 'default' : 'outline'}
                                   size="sm"
                                   onClick={() => {
                                     if (n === 1) {
@@ -2268,7 +2235,8 @@ export default function DisplayControlPage() {
                                     } else {
                                       const existing = fieldPanelConfig[selectedDevice.id] || [];
                                       const panels = Array.from({ length: n }, (_, i) => ({
-                                        port: existing[i]?.port ?? 4560 + i,
+                                        eventNumber: existing[i]?.eventNumber ?? fieldEvts[i]?.eventNumber ?? undefined,
+                                        showLogo: existing[i]?.showLogo ?? !fieldEvts[i],
                                       }));
                                       setFieldPanelConfig(prev => ({ ...prev, [selectedDevice.id]: panels }));
                                     }
@@ -2278,40 +2246,84 @@ export default function DisplayControlPage() {
                                 </Button>
                               ))}
                             </div>
-                            {(fieldPanelConfig[selectedDevice.id]?.length || 0) > 1 && (
+                            {currentPanels.length > 1 && (
                               <div className="space-y-2">
-                                {fieldPanelConfig[selectedDevice.id]!.map((panel, idx) => (
+                                {/* Display type selector */}
+                                <div className="flex gap-2">
+                                  {[
+                                    { value: 'P6', label: 'P6', desc: '288×144' },
+                                    { value: 'P10', label: 'P10', desc: '192×96' },
+                                  ].map(opt => (
+                                    <Button
+                                      key={opt.value}
+                                      variant={(daisyChainDisplayType[selectedDevice.id] || 'P6') === opt.value ? 'default' : 'outline'}
+                                      size="sm"
+                                      className="flex-1"
+                                      onClick={() => {
+                                        setDaisyChainDisplayType(prev => ({ ...prev, [selectedDevice.id]: opt.value }));
+                                      }}
+                                    >
+                                      {opt.label} ({opt.desc})
+                                    </Button>
+                                  ))}
+                                </div>
+                                {/* Per-panel event + logo controls */}
+                                {currentPanels.map((panel: any, idx: number) => (
                                   <div key={idx} className="flex gap-2 items-center">
-                                    <span className="text-xs text-muted-foreground w-16">Panel {idx + 1}:</span>
+                                    <span className="text-xs text-muted-foreground w-16 shrink-0">Panel {idx + 1}:</span>
                                     <Select
-                                      value={String(panel.port)}
+                                      value={panel.showLogo ? 'logo' : String(panel.eventNumber || '')}
                                       onValueChange={(val) => {
                                         setFieldPanelConfig(prev => {
                                           const panels = [...(prev[selectedDevice.id] || [])];
-                                          panels[idx] = { port: parseInt(val) };
+                                          if (val === 'logo') {
+                                            panels[idx] = { ...panels[idx], eventNumber: undefined, showLogo: true };
+                                          } else {
+                                            panels[idx] = { ...panels[idx], eventNumber: parseInt(val), showLogo: false };
+                                          }
                                           return { ...prev, [selectedDevice.id]: panels };
                                         });
                                       }}
                                     >
                                       <SelectTrigger className="flex-1 h-8 text-xs">
-                                        <SelectValue />
+                                        <SelectValue placeholder="Select event..." />
                                       </SelectTrigger>
                                       <SelectContent>
-                                        {Array.from({ length: 10 }, (_, i) => 4560 + i).map(port => (
-                                          <SelectItem key={port} value={String(port)}>
-                                            Port {port}
+                                        <SelectItem value="logo">
+                                          🏅 Meet Logo
+                                        </SelectItem>
+                                        {fieldEvts.map((evt: any) => (
+                                          <SelectItem key={evt.eventNumber} value={String(evt.eventNumber)}>
+                                            #{evt.eventNumber} {evt.name}
                                           </SelectItem>
                                         ))}
                                       </SelectContent>
                                     </Select>
+                                    <Button
+                                      variant={panel.showLogo ? 'default' : 'outline'}
+                                      size="sm"
+                                      className="shrink-0 text-xs h-8"
+                                      onClick={() => {
+                                        setFieldPanelConfig(prev => {
+                                          const panels = [...(prev[selectedDevice.id] || [])];
+                                          panels[idx] = { ...panels[idx], eventNumber: panel.showLogo ? (fieldEvts[idx]?.eventNumber ?? undefined) : undefined, showLogo: !panel.showLogo };
+                                          return { ...prev, [selectedDevice.id]: panels };
+                                        });
+                                      }}
+                                    >
+                                      <Image className="w-3 h-3 mr-1" />
+                                      {panel.showLogo ? 'Logo On' : 'Logo Off'}
+                                    </Button>
                                   </div>
                                 ))}
                                 <Button
                                   size="sm"
                                   onClick={async () => {
                                     const panels = fieldPanelConfig[selectedDevice.id];
-                                    await apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}`, { fieldPanels: panels });
-                                    toast({ title: 'Multi-Panel set', description: `${panels!.length} panels configured` });
+                                    const dcDisplayType = daisyChainDisplayType[selectedDevice.id] || 'P6';
+                                    await apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}`, { fieldPanels: panels, daisyChainDisplayType: dcDisplayType });
+                                    await apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}/content-mode`, { contentMode: 'field_daisy_chain' });
+                                    toast({ title: 'Multi-Panel set', description: `${panels!.length} ${dcDisplayType} panels configured` });
                                   }}
                                 >
                                   <Send className="w-3 h-3 mr-1" />
@@ -2319,17 +2331,15 @@ export default function DisplayControlPage() {
                                 </Button>
                               </div>
                             )}
-                            {(fieldPanelConfig[selectedDevice.id]?.length || 0) <= 1 && fieldPanelConfig[selectedDevice.id] === undefined && (
-                              <></>
-                            )}
                             {/* Clear panels if switching back to single */}
-                            {(fieldPanelConfig[selectedDevice.id]?.length || 0) <= 1 && (
+                            {currentPanels.length <= 1 && (
                               <Button
                                 size="sm"
                                 variant="ghost"
                                 className="text-xs"
                                 onClick={async () => {
                                   await apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}`, { fieldPanels: null });
+                                  await apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}/content-mode`, { contentMode: 'field' });
                                   setFieldPanelConfig(prev => {
                                     const next = { ...prev };
                                     delete next[selectedDevice.id];
@@ -2342,6 +2352,8 @@ export default function DisplayControlPage() {
                               </Button>
                             )}
                           </div>
+                            );
+                          })()}
                         </div>
                       ) : displayMode[selectedDevice.id] === 'broadcast' ? (
                         <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
@@ -2357,117 +2369,6 @@ export default function DisplayControlPage() {
                             </div>
                           </div>
                         </div>
-                      ) : displayMode[selectedDevice.id] === 'field_daisy_chain' ? (
-                        (() => {
-                          const fieldEvts = (events || [])
-                            .filter((e: any) => e.eventType === 'field' || e.isMultiEvent || /throw|put|jump|vault|javelin|discus|hammer|decathlon|heptathlon|pentathlon/i.test(e.name || ''))
-                            .sort((a: any, b: any) => (a.eventNumber || 0) - (b.eventNumber || 0));
-                          const currentPanels = fieldPanelConfig[selectedDevice.id] || [];
-                          return (
-                        <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
-                          <div className="space-y-2">
-                            <Label>Number of Panels</Label>
-                            <p className="text-xs text-muted-foreground">
-                              Each panel is an independent field display. Select the field event for each panel.
-                            </p>
-                            <div className="flex gap-2">
-                              {[1, 2, 3].map(n => (
-                                <Button
-                                  key={n}
-                                  variant={(currentPanels.length || 1) === n ? 'default' : 'outline'}
-                                  size="sm"
-                                  className="flex-1"
-                                  onClick={() => {
-                                    const existing = fieldPanelConfig[selectedDevice.id] || [];
-                                    const panels = Array.from({ length: n }, (_, i) => ({
-                                      eventNumber: existing[i]?.eventNumber ?? fieldEvts[i]?.eventNumber ?? undefined,
-                                      showLogo: existing[i]?.showLogo ?? !fieldEvts[i],
-                                    }));
-                                    setFieldPanelConfig(prev => ({ ...prev, [selectedDevice.id]: panels }));
-                                  }}
-                                >
-                                  {n === 1 ? 'Single' : `${n} Panels`}
-                                </Button>
-                              ))}
-                            </div>
-                          </div>
-
-                          {/* Display type selector for daisy chain panels */}
-                          <div className="space-y-2">
-                            <Label>Panel Display Type</Label>
-                            <div className="flex gap-2">
-                              {[
-                                { value: 'P6', label: 'P6', desc: '288 × 144' },
-                                { value: 'P10', label: 'P10', desc: '192 × 96' },
-                              ].map(opt => (
-                                <Button
-                                  key={opt.value}
-                                  variant={(daisyChainDisplayType[selectedDevice.id] || 'P6') === opt.value ? 'default' : 'outline'}
-                                  size="sm"
-                                  className="flex-1"
-                                  onClick={() => {
-                                    setDaisyChainDisplayType(prev => ({ ...prev, [selectedDevice.id]: opt.value }));
-                                  }}
-                                >
-                                  {opt.label} ({opt.desc})
-                                </Button>
-                              ))}
-                            </div>
-                          </div>
-
-                          {currentPanels.length >= 1 && (
-                            <div className="space-y-3">
-                              <Label>Panel Configuration</Label>
-                              {currentPanels.map((panel: any, idx: number) => (
-                                <div key={idx} className="flex gap-2 items-center">
-                                  <span className="text-xs text-muted-foreground w-16 shrink-0">Panel {idx + 1}:</span>
-                                  <Select
-                                    value={panel.showLogo ? 'logo' : String(panel.eventNumber || '')}
-                                    onValueChange={(val) => {
-                                      setFieldPanelConfig(prev => {
-                                        const panels = [...(prev[selectedDevice.id] || [])];
-                                        if (val === 'logo') {
-                                          panels[idx] = { ...panels[idx], eventNumber: undefined, showLogo: true };
-                                        } else {
-                                          panels[idx] = { ...panels[idx], eventNumber: parseInt(val), showLogo: false };
-                                        }
-                                        return { ...prev, [selectedDevice.id]: panels };
-                                      });
-                                    }}
-                                  >
-                                    <SelectTrigger className="flex-1 h-8 text-xs">
-                                      <SelectValue placeholder="Select event..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="logo">
-                                        🏅 Meet Logo
-                                      </SelectItem>
-                                      {fieldEvts.map((evt: any) => (
-                                        <SelectItem key={evt.eventNumber} value={String(evt.eventNumber)}>
-                                          #{evt.eventNumber} {evt.name}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                              ))}
-                              <Button
-                                size="sm"
-                                onClick={async () => {
-                                  const panels = fieldPanelConfig[selectedDevice.id] || [];
-                                  const dcDisplayType = daisyChainDisplayType[selectedDevice.id] || 'P6';
-                                  await apiRequest('PATCH', `/api/display-devices/${selectedDevice.id}`, { fieldPanels: panels, daisyChainDisplayType: dcDisplayType });
-                                  toast({ title: 'Panels configured', description: `${panels.length} ${dcDisplayType} panel(s) applied` });
-                                }}
-                              >
-                                <Send className="w-3 h-3 mr-1" />
-                                Apply Panels
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                          );
-                        })()
                       ) : displayMode[selectedDevice.id] === 'multi_field' ? (
                         <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
                           {/* Column count selector */}
