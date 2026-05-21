@@ -364,7 +364,7 @@ export default function DisplayDevice() {
   const [fieldPort, setFieldPort] = useState<number>(4560);
   const fieldPortRef = useRef<number>(4560);
   // Multi-panel mode: each panel is an independent field display with its own port
-  const [fieldPanels, setFieldPanels] = useState<Array<{port: number; showLogo?: boolean}> | null>(null);
+  const [fieldPanels, setFieldPanels] = useState<Array<{port?: number; eventNumber?: number; showLogo?: boolean}> | null>(null);
   // Override display type for daisy chain panels (P6 or P10)
   const [daisyChainDisplayType, setDaisyChainDisplayType] = useState<string | null>(null);
   // Current content mode for rendering decisions
@@ -1860,8 +1860,9 @@ function ConfettiOverlay({ children, teamLogoUrl }: { children: React.ReactNode;
 /** FieldPanel — one column in multi-panel mode.
  *  When a scene mapping is available (e.g., P6-Field), renders through SceneCanvas
  *  so each panel uses the configured layout. Falls back to SingleAthleteField if no scene. */
-function FieldPanel({ port, width, height, meetId, liveEventDataByPort, calledUpByPort, displayType, liveClockTimeRef, clockSubscribersRef, displayScale, fieldSceneId, fieldSceneData, forceShowLogo }: {
-  port: number;
+function FieldPanel({ port, eventNumber, width, height, meetId, liveEventDataByPort, calledUpByPort, displayType, liveClockTimeRef, clockSubscribersRef, displayScale, fieldSceneId, fieldSceneData, forceShowLogo }: {
+  port?: number;
+  eventNumber?: number;
   width: number;
   height: number;
   meetId: string | null;
@@ -1880,16 +1881,30 @@ function FieldPanel({ port, width, height, meetId, liveEventDataByPort, calledUp
     enabled: !!meetId,
   });
 
-  const portData = liveEventDataByPort[port] || null;
+  // Find data for this panel: match by eventNumber (scanning all ports) or by direct port
+  const { portData, resolvedPort } = useMemo(() => {
+    if (eventNumber) {
+      for (const [p, data] of Object.entries(liveEventDataByPort)) {
+        if (data && data.eventNumber === eventNumber) {
+          return { portData: data, resolvedPort: parseInt(p) };
+        }
+      }
+      return { portData: null, resolvedPort: port || 0 };
+    }
+    if (port) {
+      return { portData: liveEventDataByPort[port] || null, resolvedPort: port };
+    }
+    return { portData: null, resolvedPort: 0 };
+  }, [eventNumber, port, liveEventDataByPort]);
+
   // When forceShowLogo is true, treat panel as if it has no data (shows meet logo)
   const hasData = forceShowLogo ? false : !!portData;
 
-  // Filter liveEventDataByPort to only include THIS panel's port.
-  // Prevents scene objects from accidentally reading another panel's data.
+  // Filter liveEventDataByPort to only include THIS panel's resolved port.
   const singlePortData = useMemo(() => {
-    if (!portData) return {};
-    return { [port]: portData };
-  }, [port, portData]);
+    if (!portData || !resolvedPort) return {};
+    return { [resolvedPort]: portData };
+  }, [resolvedPort, portData]);
 
   const primaryColor = meet?.primaryColor || '#0066CC';
   const secondaryColor = meet?.secondaryColor || '#003366';
@@ -1897,19 +1912,12 @@ function FieldPanel({ port, width, height, meetId, liveEventDataByPort, calledUp
 
   // Diagnostic logging for daisy chain debugging
   useEffect(() => {
-    console.log(`[FieldPanel:${port}] Render state:`, {
-      hasData,
-      hasPortData: !!portData,
-      forceShowLogo,
-      fieldSceneId,
-      hasFieldSceneData: !!fieldSceneData,
-      hasLogo,
-      meetLoaded: !!meet,
-      displayType,
-      width,
-      height,
+    const label = eventNumber ? `evt${eventNumber}` : `port${port}`;
+    console.log(`[FieldPanel:${label}] Render:`, {
+      hasData, resolvedPort, forceShowLogo, fieldSceneId,
+      hasSceneData: !!fieldSceneData, hasLogo, eventNumber,
     });
-  }, [hasData, portData, forceShowLogo, fieldSceneId, fieldSceneData, hasLogo, meet, displayType, width, height, port]);
+  }, [hasData, resolvedPort, forceShowLogo, fieldSceneId, fieldSceneData, hasLogo, eventNumber, port]);
 
   // Build EventWithEntries from port data (fallback when no scene is mapped)
   const eventFromPortData = portData ? {
@@ -1963,7 +1971,7 @@ function FieldPanel({ port, width, height, meetId, liveEventDataByPort, calledUp
             clockSubscribersRef={clockSubscribersRef}
             displayWidth={width}
             displayHeight={height}
-            deviceFieldPort={port}
+            deviceFieldPort={resolvedPort || undefined}
             meetLogoUrl={meet?.logoUrl || null}
             meetLogoEffect={(meet as any)?.logoEffect || null}
             meetPrimaryColor={meet?.primaryColor || undefined}
@@ -2035,8 +2043,8 @@ function FieldPanel({ port, width, height, meetId, liveEventDataByPort, calledUp
           curtainColor={primaryColor}
           meetId={meetId || undefined}
           liveEventDataByPort={liveEventDataByPort}
-          calledUpAthleteData={calledUpByPort?.[port]}
-          deviceFieldPort={port}
+          calledUpAthleteData={resolvedPort ? calledUpByPort?.[resolvedPort] : undefined}
+          deviceFieldPort={resolvedPort || undefined}
           canvasWidth={width}
           canvasHeight={height}
         />
@@ -2065,7 +2073,7 @@ interface DisplayRendererProps {
   customWidth?: number;
   customHeight?: number;
   fieldPort?: number;
-  fieldPanels?: Array<{port: number; showLogo?: boolean}> | null;
+  fieldPanels?: Array<{port?: number; eventNumber?: number; showLogo?: boolean}> | null;
   contentMode?: string;
   daisyChainDisplayType?: string | null;
   displayScale?: number;
@@ -2209,17 +2217,17 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
         }}>
           {fieldPanels.map((panel, idx) => (
             <div
-              key={`daisy-${idx}-${panel.port}`}
+              key={`daisy-${idx}-${panel.eventNumber || panel.port || 'logo'}`}
               style={{
                 width: `${panelWidth}px`,
                 height: `${panelHeight}px`,
                 flexShrink: 0,
-                border: '1px solid rgba(255,0,0,0.5)',
                 boxSizing: 'border-box',
               }}
             >
               <FieldPanel
                 port={panel.port}
+                eventNumber={panel.eventNumber}
                 width={panelWidth}
                 height={panelHeight}
                 meetId={meetId}
@@ -2262,7 +2270,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
         }}>
           {fieldPanels.map((panel, idx) => (
             <div
-              key={`panel-${idx}-${panel.port}`}
+              key={`panel-${idx}-${panel.eventNumber || panel.port || idx}`}
               style={{
                 width: `${panelWidth}px`,
                 height: `${panelHeight}px`,
@@ -2271,6 +2279,7 @@ function DisplayRenderer({ displayType, meetId, template, sceneId, currentSceneD
             >
               <FieldPanel
                 port={panel.port}
+                eventNumber={panel.eventNumber}
                 width={panelWidth}
                 height={panelHeight}
                 meetId={meetId}
