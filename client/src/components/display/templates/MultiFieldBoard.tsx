@@ -299,7 +299,7 @@ export function MultiFieldBoard({
   };
 
   /** Render one athlete spotlight */
-  function Spotlight({ athlete, evt }: { athlete: MultiFieldAthlete | null | undefined; evt: MultiFieldEvent }) {
+  function Spotlight({ athlete, evt, label }: { athlete: MultiFieldAthlete | null | undefined; evt: MultiFieldEvent; label?: string }) {
     if (!athlete) {
       return (
         <div style={{
@@ -333,7 +333,7 @@ export function MultiFieldBoard({
 
         {/* Info */}
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "0.2cqh" }}>
-          {/* Name */}
+          {/* Name + UP/PREVIOUS badge */}
           <div style={{
             fontSize: s.spotName,
             fontWeight: 800,
@@ -344,8 +344,25 @@ export function MultiFieldBoard({
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.6cqw",
           }}>
-            {athlete.firstName?.charAt(0) ? `${athlete.firstName.charAt(0)}. ` : ""}{athlete.lastName}
+            <span>{athlete.firstName?.charAt(0) ? `${athlete.firstName.charAt(0)}. ` : ""}{athlete.lastName}</span>
+            {label && (
+              <span style={{
+                backgroundColor: label === 'UP' ? '#16a34a' : '#d97706',
+                color: '#ffffff',
+                fontSize: "0.55em",
+                fontWeight: 700,
+                letterSpacing: '0.05em',
+                padding: '0.1em 0.5em',
+                borderRadius: '0.2em',
+                flexShrink: 0,
+              }}>
+                {label}
+              </span>
+            )}
           </div>
           {/* Team */}
           <div style={{
@@ -491,11 +508,11 @@ export function MultiFieldBoard({
         {cols === 1 && evt.previousAthlete ? (
           <div style={{ display: "flex", flexShrink: 0, height: s.spotHeight }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <Spotlight athlete={evt.currentAthlete} evt={evt} />
+              <Spotlight athlete={evt.currentAthlete} evt={evt} label="UP" />
             </div>
             <div style={{ width: "2px", flexShrink: 0, background: "rgba(255,255,255,0.06)" }} />
             <div style={{ flex: 1, minWidth: 0, opacity: 0.65 }}>
-              <Spotlight athlete={evt.previousAthlete} evt={evt} />
+              <Spotlight athlete={evt.previousAthlete} evt={evt} label="PREVIOUS" />
             </div>
           </div>
         ) : (

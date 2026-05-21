@@ -681,22 +681,7 @@ export function SceneObjectRenderer({
           return <div className="h-full" />;
         }
         const logoIsAthleteBound = logoFieldKey === 'school-logo' || isAthleteHeadshot;
-        // Field event UP/PREVIOUS badge overlay on school logos
-        let logoFieldStatusBadge: string | null = null;
-        if (isFieldMode && logoFieldKey === 'school-logo' && liveData) {
-          const lsEntries = Array.isArray(liveData.entries) ? liveData.entries : [];
-          const lsIdx = (dataBinding.athleteIndex || 0) + pageOffset;
-          const lsEntry = lsEntries[lsIdx];
-          if (lsEntry) {
-            const hasMark = lsEntry.mark && String(lsEntry.mark).trim() !== '';
-            const entryBib = lsEntry.bib || lsEntry.name;
-            if (!hasMark && lsIdx === 0) {
-              logoFieldStatusBadge = 'UP';
-            } else if (liveData.previousAthleteBib && entryBib === liveData.previousAthleteBib) {
-              logoFieldStatusBadge = 'PREVIOUS';
-            }
-          }
-        }
+
         return (
           <div style={{ 
             position: 'relative',
@@ -710,28 +695,7 @@ export function SceneObjectRenderer({
               fallbackUrl={logoFallbackUrl}
               isHeadshot={isAthleteHeadshot}
             />
-            {logoFieldStatusBadge && (
-              <span
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  backgroundColor: logoFieldStatusBadge === 'UP' ? '#16a34a' : '#d97706',
-                  color: '#ffffff',
-                  fontSize: `${Math.max(8, (height || 40) * 0.18)}px`,
-                  fontWeight: 700,
-                  letterSpacing: '0.05em',
-                  padding: '1px 6px',
-                  borderRadius: '3px',
-                  whiteSpace: 'nowrap',
-                  zIndex: 10,
-                  fontFamily: "'Barlow Semi Condensed', sans-serif",
-                }}
-              >
-                {logoFieldStatusBadge}
-              </span>
-            )}
+
           </div>
         );
         
@@ -1052,18 +1016,7 @@ export function SceneObjectRenderer({
             'round': liveData.roundName || liveData.round,
             'round-name': liveData.roundName || '',
             'wind': windDisplay,
-            'status': (() => {
-              if (liveData.status) return liveData.status;
-              // Field events: derive per-athlete status from entry data.
-              // UP = markless athlete at index 0. PREVIOUS = tracked by bib across updates.
-              if (isFieldMode && firstEntry) {
-                const hasMark = firstEntry.mark && String(firstEntry.mark).trim() !== '';
-                if (!hasMark && textAthleteIndex === 0) return 'UP';
-                const entryBib = firstEntry.bib || firstEntry.name;
-                if (liveData.previousAthleteBib && entryBib === liveData.previousAthleteBib) return 'PREVIOUS';
-              }
-              return liveData.status;
-            })(),
+            'status': liveData.status || '',
             'lane': firstEntry?.lane,
             'place': (() => {
               const rawPlace = firstEntry?.place;
@@ -1205,23 +1158,7 @@ export function SceneObjectRenderer({
           recordTagBadges = recordTagBadges.slice(0, 1);
         }
         
-        // Field event UP/PREVIOUS badge — shown on school and name fields
-        const isSchoolField = fieldKey === 'school';
-        let fieldStatusBadge: string | null = null;
-        if (isFieldMode && (isSchoolField || isNameField) && liveData) {
-          const fsEntries = Array.isArray(liveData.entries) ? liveData.entries : [];
-          const fsIdx = (dataBinding.athleteIndex || 0) + pageOffset;
-          const fsEntry = fsEntries[fsIdx];
-          if (fsEntry) {
-            const hasMark = fsEntry.mark && String(fsEntry.mark).trim() !== '';
-            const entryBib = fsEntry.bib || fsEntry.name;
-            if (!hasMark && fsIdx === 0) {
-              fieldStatusBadge = 'UP';
-            } else if (liveData.previousAthleteBib && entryBib === liveData.previousAthleteBib) {
-              fieldStatusBadge = 'PREVIOUS';
-            }
-          }
-        }
+
         
         return (
           <div 
@@ -1292,23 +1229,7 @@ export function SceneObjectRenderer({
                 {badge}
               </span>
             ))}
-            {fieldStatusBadge && (
-              <span
-                className="ml-4 px-3 py-1 rounded-md font-bold uppercase"
-                style={{
-                  backgroundColor: fieldStatusBadge === 'UP' ? '#16a34a' : '#d97706',
-                  color: '#ffffff',
-                  fontSize: `calc(${resolvedFontSize} * 0.55)`,
-                  letterSpacing: '0.05em',
-                  padding: '2px 8px',
-                  verticalAlign: 'middle',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                }}
-              >
-                {fieldStatusBadge}
-              </span>
-            )}
+
           </div>
         );
         
